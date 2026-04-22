@@ -171,14 +171,17 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Fetch sale returns (credit notes) for this customer
       const { data: saleReturns, error: srError } = await supabase
         .from('sale_returns')
-        .select('net_amount')
+        .select('net_amount, credit_status')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null);
 
       if (srError) throw srError;
 
-      const saleReturnTotal = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
+      // Only actioned returns reduce balance; pending returns are not yet settled
+      const saleReturnTotal = saleReturns
+        ?.filter((sr: any) => sr.credit_status && sr.credit_status !== 'pending')
+        .reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
 
       // Fetch refund payments made to customer (from CN refund)
       const { data: refundVouchers } = await supabase
