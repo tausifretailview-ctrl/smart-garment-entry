@@ -357,7 +357,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.log("Session near expiry after tab resume, refreshing...");
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             if (!refreshError && refreshData.session) {
-              toast.success("Session restored");
+              console.log("Session proactively refreshed — still valid, no user action needed.");
               if (refreshData.session.user?.id !== sessionRef.current?.user?.id) {
                 setSession(refreshData.session);
                 setUser(refreshData.session.user);
