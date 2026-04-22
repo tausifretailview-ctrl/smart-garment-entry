@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Banknote, CreditCard, Smartphone, Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MixPaymentDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ interface MixPaymentDialogProps {
     totalPaid: number;
     refundAmount: number;
     issueCreditNote?: boolean;
+    refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => void;
 }
 
@@ -42,6 +44,7 @@ export function MixPaymentDialog({
   const [bankAmount, setBankAmount] = useState(0);
   const [financeAmount, setFinanceAmount] = useState(0);
   const [refundAmount, setRefundAmount] = useState(0);
+  const [refundMode, setRefundMode] = useState<'cash' | 'upi' | 'bank_transfer'>('cash');
 
   const isRefundMode = billAmount < 0;
   const refundRequired = Math.abs(billAmount);
@@ -58,6 +61,7 @@ export function MixPaymentDialog({
       setBankAmount(0);
       setFinanceAmount(0);
       setRefundAmount(0);
+      setRefundMode('cash');
     } else if (isRefundMode) {
       // Pre-fill refund amount in refund mode
       setRefundAmount(refundRequired);
@@ -79,6 +83,7 @@ export function MixPaymentDialog({
         totalPaid: 0,
         refundAmount,
         issueCreditNote,
+        refundMode,
       });
     } else {
       if (totalPaid <= 0) {
