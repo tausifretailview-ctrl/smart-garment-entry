@@ -927,7 +927,7 @@ export default function POSSales() {
       if (!currentOrganization?.id) return [];
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, created_at, payment_status')
+        .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, held_cart_data, created_at, payment_status')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
         .eq('payment_status', 'hold')
