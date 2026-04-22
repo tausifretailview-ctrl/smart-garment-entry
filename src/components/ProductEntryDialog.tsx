@@ -1546,6 +1546,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       ≠ Purchase
                     </span>
                   )}
+                  {isGarmentGstAutoBumped(formData.default_sale_price, garmentGstSettings) && (
+                    <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                      Auto 18% (&gt;₹{getGarmentGstThreshold(garmentGstSettings)})
+                    </span>
+                  )}
                   <Select
                     value={formData.sale_gst_percent.toString()}
                     onValueChange={(value) =>
