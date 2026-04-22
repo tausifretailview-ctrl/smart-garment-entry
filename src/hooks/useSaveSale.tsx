@@ -182,10 +182,10 @@ export const useSaveSale = () => {
       if (saleType === 'pos') {
         // Check for custom POS format first
         if (saleSettings?.pos_numbering_format) {
-          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start);
+          saleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start, 'pos');
         } else if (saleSettings?.pos_series_start) {
           // No custom format but has series start — use it as literal format
-          saleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start);
+          saleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start, 'pos');
         } else {
           // Use default POS format: POS/YY-YY/N
           const { data: defaultNumber, error: numberError } = await supabase
