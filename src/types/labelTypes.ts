@@ -46,6 +46,7 @@ export interface LabelDesignConfig {
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
+  supplierInvoiceNo: LabelFieldConfig;
   fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
@@ -73,6 +74,7 @@ export interface LabelItem {
   qty?: number;
   uom?: string;
   supplier_code?: string;
+  supplier_invoice_no?: string;
 }
 
 export interface LabelTemplate {
