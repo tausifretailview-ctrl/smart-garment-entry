@@ -775,6 +775,46 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
       }
 
+      // Build applied-CN map: sale_return_id -> { saleId, saleNumber, applied }[]
+      // by reading credit_note_adjustment vouchers that target each linked sale.
+      // We sum CN-adjustment voucher amounts per linked_sale_id, and attribute
+      // them to the SR that links to that sale. If multiple SRs link to the
+      // same sale, applied amount is allocated in chronological order up to
+      // each SR's net_amount.
+      const cnVoucherBySaleId: Record<string, number> = {};
+      (vouchersData || []).forEach((v: any) => {
+        if (v.voucher_type !== 'receipt') return;
+        const desc = (v.description || '').toLowerCase();
+        const isCn = v.payment_method === 'credit_note_adjustment'
+          || desc.includes('credit note adjusted')
+          || desc.includes('cn adjusted');
+        if (!isCn || !v.reference_id) return;
+        cnVoucherBySaleId[v.reference_id] =
+          (cnVoucherBySaleId[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+      });
+
+      // Allocate applied amount per SR (chronological by return_date)
+      const srAppliedMap: Record<string, { saleId: string; saleNumber: string | null; applied: number }> = {};
+      const remainingBySale: Record<string, number> = { ...cnVoucherBySaleId };
+      const sortedSRs = [...(saleReturnsData || [])]
+        .filter((sr: any) => sr.linked_sale_id)
+        .sort((a: any, b: any) =>
+          new Date(a.return_date).getTime() - new Date(b.return_date).getTime()
+          || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+        );
+      sortedSRs.forEach((sr: any) => {
+        const saleId = sr.linked_sale_id;
+        const remaining = remainingBySale[saleId] || 0;
+        if (remaining <= 0) return;
+        const applied = Math.min(remaining, Number(sr.net_amount) || 0);
+        srAppliedMap[sr.id] = {
+          saleId,
+          saleNumber: linkedSaleMap[saleId] || null,
+          applied,
+        };
+        remainingBySale[saleId] = remaining - applied;
+      });
+
       // Fetch advance refunds for this customer
       const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
       let filteredAdvanceRefunds: any[] = [];
@@ -1121,30 +1161,53 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         } else if (item.type === 'cn_adjustment') {
           const sr = item.data as any;
           const amount = sr.net_amount || 0;
-          runningBalance -= amount;
-          
-          let description = `Sale Return - ${sr.return_number}`;
-          if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
-            description += ` (Adjusted via CN against ${sr.linkedSaleNumber})`;
-          } else if (sr.credit_status === 'refunded') {
-            description += ` (Cash Refunded)`;
-          } else if (sr.credit_status === 'adjusted_outstanding') {
-            description += ` (Adjusted to Outstanding)`;
-          } else if (sr.credit_status === 'pending') {
-            description += ` (Pending — not yet applied)`;
+          const appliedInfo = srAppliedMap[sr.id];
+          const appliedAmount = appliedInfo?.applied || 0;
+          const unusedAmount = Math.max(0, amount - appliedAmount);
+
+          // Row 1: applied portion (if any) — credited against a specific invoice
+          if (appliedAmount > 0) {
+            runningBalance -= appliedAmount;
+            allTransactions.push({
+              id: `cn-${sr.id}-applied`,
+              date: sr.return_date,
+              timestamp: item.timestamp || null,
+              type: 'return' as const,
+              reference: sr.return_number,
+              description: `Sale Return ${sr.return_number} — applied to ${appliedInfo?.saleNumber || 'invoice'}`,
+              debit: 0,
+              credit: appliedAmount,
+              balance: runningBalance,
+            });
           }
-          
-          allTransactions.push({
-            id: `cn-${sr.id}`,
-            date: sr.return_date,
-            timestamp: item.timestamp || null,
-            type: 'return' as const,
-            reference: sr.return_number,
-            description,
-            debit: 0,
-            credit: amount,
-            balance: runningBalance,
-          });
+
+          // Row 2: unused / pending portion (if any)
+          if (unusedAmount > 0) {
+            runningBalance -= unusedAmount;
+            let unusedDesc = `Sale Return ${sr.return_number}`;
+            if (appliedAmount > 0) {
+              unusedDesc += ` (Pending CN — ₹${unusedAmount.toLocaleString('en-IN')} available)`;
+            } else if (sr.credit_status === 'refunded') {
+              unusedDesc += ` (Cash Refunded)`;
+            } else if (sr.credit_status === 'adjusted_outstanding') {
+              unusedDesc += ` (Adjusted to Outstanding)`;
+            } else if (sr.credit_status === 'pending') {
+              unusedDesc += ` (Pending — not yet applied)`;
+            } else if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
+              unusedDesc += ` (Adjusted via CN against ${sr.linkedSaleNumber})`;
+            }
+            allTransactions.push({
+              id: `cn-${sr.id}-unused`,
+              date: sr.return_date,
+              timestamp: item.timestamp || null,
+              type: 'return' as const,
+              reference: sr.return_number,
+              description: unusedDesc,
+              debit: 0,
+              credit: unusedAmount,
+              balance: runningBalance,
+            });
+          }
         } else if (item.type === 'refund') {
           const refund = item.data as any;
           const amount = refund.refund_amount || 0;
