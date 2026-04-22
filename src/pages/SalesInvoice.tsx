@@ -2664,13 +2664,13 @@ Thank you for choosing us!`;
     const baseAmount = item.salePrice * getMtrMultiplier(item) - item.discountAmount;
     // Apply flat discount proportionally
     const proportionalFlatDiscount = grossAmount > 0 ? (baseAmount / grossAmount) * flatDiscountAmount : 0;
-    const adjustedBase = baseAmount - proportionalFlatDiscount;
+    const adjustedBase = Math.round((baseAmount - proportionalFlatDiscount) * 100) / 100;
     if (taxType === "inclusive") {
       // Extract GST from inclusive price
-      return sum + (adjustedBase - (adjustedBase / (1 + item.gstPercent / 100)));
+      return sum + Math.round((adjustedBase - (adjustedBase / (1 + item.gstPercent / 100))) * 100) / 100;
     } else {
       // Calculate GST on exclusive price
-      return sum + (adjustedBase * item.gstPercent) / 100;
+      return sum + Math.round((adjustedBase * item.gstPercent) / 100 * 100) / 100;
     }
   }, 0);
   
