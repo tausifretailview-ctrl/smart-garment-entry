@@ -610,6 +610,51 @@ export const FloatingSaleReturn = ({
         } catch (vErr) { console.error("Refund voucher failed:", vErr); }
       }
 
+      // For credit_note: create a real credit_notes record and mark sale_return as adjusted
+      // (otherwise it stays 'pending' forever and inflates the customer ledger)
+      if (refundType === "credit_note" && customerId) {
+        try {
+          const { data: cnNumber } = await supabase
+            .rpc('generate_credit_note_number', { p_organization_id: organizationId });
+
+          const { data: creditNote } = await supabase
+            .from('credit_notes')
+            .insert({
+              organization_id: organizationId,
+              credit_note_number: cnNumber,
+              sale_id: billSaleId || null,
+              customer_id: customerId,
+              customer_name: customerName || 'Walk-in Customer',
+              credit_amount: grossAmount,
+              used_amount: 0,
+              status: 'active',
+              notes: `Credit note from sale return ${returnNumber}`,
+            } as any)
+            .select('id')
+            .single();
+
+          if (creditNote) {
+            await supabase
+              .from('sale_returns')
+              .update({
+                credit_status: 'adjusted',
+                credit_note_id: creditNote.id,
+              } as any)
+              .eq('id', returnData.id);
+          }
+        } catch (cnErr) {
+          console.error('Credit note creation failed:', cnErr);
+        }
+      } else if (refundType === "credit_note" && !customerId) {
+        // No customer — credit note cannot be tracked, mark as adjusted_outstanding
+        try {
+          await supabase
+            .from('sale_returns')
+            .update({ credit_status: 'adjusted_outstanding' } as any)
+            .eq('id', returnData.id);
+        } catch (e) { console.error('CN status update failed:', e); }
+      }
+
       // Apply pending credit note if one was selected alongside this return
       if (appliedCreditNoteId && customerId) {
         try {
