@@ -2615,6 +2615,38 @@ export default function POSSales() {
           setShowCreditNoteDialog(true);
         }
       }
+
+      // Auto-issue credit note when bill ends up with negative net_amount
+      // (excess S/R Adj on cart, no Mix Pay → Issue C/Note used).
+      // Only for identified customers, only if no CN already linked, only on new sale.
+      try {
+        const billNet = Number((result as any).net_amount ?? 0);
+        const alreadyLinkedCn = (result as any).credit_note_id;
+        if (
+          !isCreditNote &&
+          !wasEditing &&
+          billNet < 0 &&
+          customerId &&
+          !alreadyLinkedCn &&
+          currentOrganization?.id
+        ) {
+          const autoCnAmount = Math.abs(billNet);
+          const autoCn = await createCreditNote({
+            saleId: result.id,
+            customerId: customerId,
+            customerName: customerName || 'Walk in Customer',
+            customerPhone: customerPhone || null,
+            creditAmount: autoCnAmount,
+            notes: `Auto-issued from S/R adjustment on invoice ${result.sale_number}`,
+          });
+          if (autoCn) {
+            // Refresh local available credit so UI updates if same customer stays selected
+            setAvailableCreditBalance((prev) => prev + autoCnAmount);
+          }
+        }
+      } catch (autoCnErr) {
+        console.error('Auto credit note creation failed:', autoCnErr);
+      }
       
       // Silent operation - no toast for POS save
       
