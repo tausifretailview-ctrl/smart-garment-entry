@@ -12,13 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface Discrepancy {
   variant_id: string;
-  barcode: string;
   product_name: string;
   size: string;
-  current_stock_qty: number;
-  calculated_stock_qty: number;
+  color: string;
+  current_stock: number;
+  expected_stock: number;
   discrepancy: number;
-  opening_qty: number;
+  last_purchase: string | null;
+  last_sale: string | null;
 }
 
 interface FixResult {
@@ -333,24 +334,22 @@ export const StockReconciliation = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Barcode</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Size</TableHead>
-                  <TableHead className="text-right">Opening</TableHead>
+                  <TableHead>Color</TableHead>
                   <TableHead className="text-right">Current</TableHead>
-                  <TableHead className="text-right">Calculated</TableHead>
+                  <TableHead className="text-right">Expected</TableHead>
                   <TableHead className="text-right">Discrepancy</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {discrepancies.map((item) => (
                   <TableRow key={item.variant_id}>
-                    <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
                     <TableCell>{item.product_name}</TableCell>
                     <TableCell>{item.size}</TableCell>
-                    <TableCell className="text-right">{item.opening_qty}</TableCell>
-                    <TableCell className="text-right">{item.current_stock_qty}</TableCell>
-                    <TableCell className="text-right">{item.calculated_stock_qty}</TableCell>
+                    <TableCell>{item.color}</TableCell>
+                    <TableCell className="text-right">{item.current_stock}</TableCell>
+                    <TableCell className="text-right">{item.expected_stock}</TableCell>
                     <TableCell className="text-right">
                       <Badge variant={item.discrepancy > 0 ? "destructive" : "secondary"}>
                         {item.discrepancy > 0 ? "+" : ""}{item.discrepancy}

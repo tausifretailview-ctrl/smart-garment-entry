@@ -7013,13 +7013,14 @@ export type Database = {
         Returns: undefined
       }
       detect_stock_discrepancies: {
-        Args: { p_organization_id: string }
+        Args: { p_organization_id?: string }
         Returns: {
-          barcode: string
-          calculated_stock_qty: number
-          current_stock_qty: number
+          color: string
+          current_stock: number
           discrepancy: number
-          opening_qty: number
+          expected_stock: number
+          last_purchase: string
+          last_sale: string
           product_name: string
           size: string
           variant_id: string
