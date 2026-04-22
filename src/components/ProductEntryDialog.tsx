@@ -645,6 +645,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
         setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
+        setGarmentGstSettings({
+          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+        });
       }
     }
   };
