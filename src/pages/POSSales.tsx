@@ -1803,6 +1803,8 @@ export default function POSSales() {
       updatedItems[index].mrp = newMrp;
       // CRITICAL: Sync unitCost with MRP to ensure correct unit_price is saved to database
       updatedItems[index].unitCost = newMrp;
+      // Garment / Footwear GST auto-bump rule on price change
+      updatedItems[index].gstPer = applyGarmentGstRule(newMrp, updatedItems[index].gstPer, garmentGstSettings);
       updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
       return updatedItems;
     });
@@ -1811,7 +1813,8 @@ export default function POSSales() {
   const updateGstPer = (index: number, newGstPer: number) => {
     setItems(prev => {
       const updatedItems = [...prev];
-      updatedItems[index].gstPer = newGstPer;
+      // Re-apply auto-bump: if user picks <18% but price > threshold, bump back to 18
+      updatedItems[index].gstPer = applyGarmentGstRule(updatedItems[index].mrp, newGstPer, garmentGstSettings);
       updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
       return updatedItems;
     });
