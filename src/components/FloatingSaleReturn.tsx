@@ -87,6 +87,17 @@ export const FloatingSaleReturn = ({
   const [refundType, setRefundType] = useState<RefundType>("credit_note");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
 
+  // Pending credit notes for current customer (unapplied sale returns with credit_status = 'pending')
+  const [pendingCreditNotes, setPendingCreditNotes] = useState<Array<{
+    id: string;
+    returnNumber: string;
+    returnDate: string;
+    creditAmount: number;
+    creditNoteId: string | null;
+  }>>([]);
+  const [appliedCreditNoteId, setAppliedCreditNoteId] = useState<string | null>(null);
+  const [appliedCreditAmount, setAppliedCreditAmount] = useState(0);
+
   // Fetch sale return price setting
   useEffect(() => {
     if (organizationId) {
@@ -107,6 +118,27 @@ export const FloatingSaleReturn = ({
     if (open && organizationId) {
       loadSoldProducts();
       setTimeout(() => barcodeInputRef.current?.focus(), 200);
+      if (customerId) {
+        supabase
+          .from("sale_returns")
+          .select("id, return_number, return_date, net_amount, credit_note_id")
+          .eq("customer_id", customerId)
+          .eq("organization_id", organizationId)
+          .eq("credit_status", "pending")
+          .is("deleted_at", null)
+          .order("return_date", { ascending: false })
+          .then(({ data }) => {
+            setPendingCreditNotes(
+              (data || []).map((r: any) => ({
+                id: r.id,
+                returnNumber: r.return_number,
+                returnDate: r.return_date,
+                creditAmount: Number(r.net_amount) || 0,
+                creditNoteId: r.credit_note_id || null,
+              }))
+            );
+          });
+      }
     }
     if (!open) {
       setReturnItems([]);
@@ -116,8 +148,11 @@ export const FloatingSaleReturn = ({
       setBillSaleId(null);
       setBillItems([]);
       setRefundType("credit_note");
+      setPendingCreditNotes([]);
+      setAppliedCreditNoteId(null);
+      setAppliedCreditAmount(0);
     }
-  }, [open, organizationId]);
+  }, [open, organizationId, customerId]);
 
   const loadSoldProducts = async () => {
     setLoading(true);
@@ -434,8 +469,52 @@ export const FloatingSaleReturn = ({
   };
 
   const handleSaveReturnInner = async () => {
-    if (returnItems.length === 0) {
-      toast({ title: "Error", description: "Add at least one item to return", variant: "destructive" });
+    if (returnItems.length === 0 && !appliedCreditNoteId) {
+      toast({ title: "Error", description: "Add items to return or select a pending credit note", variant: "destructive" });
+      return;
+    }
+
+    // If only applying a credit note (no return items), skip the full return flow
+    if (returnItems.length === 0 && appliedCreditNoteId) {
+      const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
+      if (!cn) return;
+      setSaving(true);
+      try {
+        await supabase.from("sale_returns").update({
+          credit_status: "adjusted",
+        }).eq("id", cn.id);
+
+        const { data: lastVoucher } = await supabase
+          .from("voucher_entries")
+          .select("voucher_number")
+          .eq("organization_id", organizationId)
+          .eq("voucher_type", "receipt")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+        await supabase.from("voucher_entries").insert({
+          organization_id: organizationId,
+          voucher_number: `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
+          voucher_type: "receipt",
+          voucher_date: new Date().toISOString().split("T")[0],
+          reference_type: "customer",
+          reference_id: customerId,
+          description: `Credit note ${cn.returnNumber} applied via POS`,
+          total_amount: cn.creditAmount,
+          payment_method: "credit_note_adjustment",
+        });
+
+        toast({
+          title: "Credit Note Applied",
+          description: `${cn.returnNumber} — ₹${Math.round(cn.creditAmount).toLocaleString("en-IN")} applied to current bill`,
+        });
+        onReturnSaved(cn.creditAmount, cn.returnNumber, "credit_note");
+        onOpenChange(false);
+      } catch (err: any) {
+        toast({ title: "Error", description: err.message || "Failed to apply credit note", variant: "destructive" });
+      } finally {
+        setSaving(false);
+      }
       return;
     }
 
@@ -531,9 +610,51 @@ export const FloatingSaleReturn = ({
         } catch (vErr) { console.error("Refund voucher failed:", vErr); }
       }
 
+      // Apply pending credit note if one was selected alongside this return
+      if (appliedCreditNoteId && customerId) {
+        try {
+          const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
+          if (cn) {
+            await supabase
+              .from("sale_returns")
+              .update({
+                credit_status: "adjusted",
+                linked_sale_id: null,
+              })
+              .eq("id", cn.id);
+
+            const { data: lastVoucher } = await supabase
+              .from("voucher_entries")
+              .select("voucher_number")
+              .eq("organization_id", organizationId)
+              .eq("voucher_type", "receipt")
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+
+            await supabase.from("voucher_entries").insert({
+              organization_id: organizationId,
+              voucher_number: newVoucherNumber,
+              voucher_type: "receipt",
+              voucher_date: new Date().toISOString().split("T")[0],
+              reference_type: "customer",
+              reference_id: customerId,
+              description: `Credit note ${cn.returnNumber} applied via POS`,
+              total_amount: cn.creditAmount,
+              payment_method: "credit_note_adjustment",
+            });
+          }
+        } catch (cnErr) {
+          console.error("Credit note apply failed:", cnErr);
+        }
+      }
+
       const refundLabel = refundType === "cash_refund" ? "Cash Refund" : refundType === "exchange" ? "Exchange" : "Credit Note";
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
-      onReturnSaved(grossAmount, returnNumber, refundType);
+      const effectiveReturnAmount = returnItems.length === 0 ? appliedCreditAmount : grossAmount;
+      const effectiveRefundType: RefundType = returnItems.length === 0 ? "credit_note" : refundType;
+      onReturnSaved(effectiveReturnAmount, returnNumber, effectiveRefundType);
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error saving return:", error);
@@ -641,6 +762,73 @@ export const FloatingSaleReturn = ({
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* Pending Credit Notes for current customer */}
+        {pendingCreditNotes.length > 0 && (
+          <div className="border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+            <p className="text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" />
+              Pending Credit Notes — Click to apply to current bill
+            </p>
+            {pendingCreditNotes.map((pcn) => {
+              const isApplied = appliedCreditNoteId === pcn.id;
+              return (
+                <div
+                  key={pcn.id}
+                  className={cn(
+                    "flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-all",
+                    isApplied
+                      ? "border-green-500 bg-green-50 dark:bg-green-900/30"
+                      : "border-amber-300 bg-white dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-mono text-xs bg-amber-100 dark:bg-amber-800/50 px-1.5 py-0.5 rounded mr-2">
+                      {pcn.returnNumber}
+                    </span>
+                    <span className="text-muted-foreground text-xs">
+                      {pcn.returnDate}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-bold text-amber-800 dark:text-amber-200">
+                      ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
+                    </span>
+                    {isApplied ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAppliedCreditNoteId(null);
+                          setAppliedCreditAmount(0);
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 border border-red-300 font-medium"
+                      >
+                        ✕ Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAppliedCreditNoteId(pcn.id);
+                          setAppliedCreditAmount(pcn.creditAmount);
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
+                      >
+                        Apply ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {appliedCreditNoteId && (
+              <p className="text-xs text-green-700 dark:text-green-400 font-medium px-1">
+                ✓ ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")} credit note will be applied
+                when you press the save button below.
+              </p>
+            )}
           </div>
         )}
 
@@ -818,18 +1006,41 @@ export const FloatingSaleReturn = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between pt-2 border-t">
-          <div className="text-lg font-bold">
-            Return Total: <span className="text-destructive">₹{Math.round(totalAmount).toLocaleString('en-IN')}</span>
+          <div className="text-base font-bold space-y-0.5">
+            {appliedCreditNoteId && returnItems.length > 0 && (
+              <div className="text-sm font-normal text-muted-foreground">
+                Return: ₹{Math.round(totalAmount).toLocaleString("en-IN")}
+                {" − "}
+                CN: ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
+              </div>
+            )}
+            {appliedCreditNoteId && returnItems.length === 0 ? (
+              <div>
+                Apply Credit Note:{" "}
+                <span className="text-green-600">
+                  ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            ) : (
+              <div>
+                Return Total:{" "}
+                <span className="text-destructive">
+                  ₹{Math.round(totalAmount).toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSaveReturn} disabled={saving || returnItems.length === 0}>
+            <Button onClick={handleSaveReturn} disabled={saving || (returnItems.length === 0 && !appliedCreditNoteId)}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {refundType === "cash_refund" ? "Save & Cash Refund" :
-               refundType === "exchange" ? "Save & Exchange (S/R Adj)" :
-               "Save Return (Credit Note)"}
+              {returnItems.length === 0 && appliedCreditNoteId
+                ? `Apply Credit Note — ₹${Math.round(appliedCreditAmount).toLocaleString("en-IN")}`
+                : refundType === "cash_refund" ? "Save & Cash Refund"
+                : refundType === "exchange" ? "Save & Exchange (S/R Adj)"
+                : "Save Return (Credit Note)"}
             </Button>
           </div>
         </div>
