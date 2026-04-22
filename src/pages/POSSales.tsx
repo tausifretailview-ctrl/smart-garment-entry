@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { logError } from "@/lib/errorLogger";
-import { cn } from "@/lib/utils";
+import { cn, displayBarcode } from "@/lib/utils";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
@@ -4067,9 +4067,9 @@ export default function POSSales() {
                                     Size: {item.variant.size}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  {item.variant.barcode && (
-                                    <span className="font-mono">{item.variant.barcode}</span>
+                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  {displayBarcode(item.variant.barcode) && (
+                                    <span className="font-mono">{displayBarcode(item.variant.barcode)}</span>
                                   )}
                                   <span className="font-bold text-primary">₹{item.variant.sale_price}</span>
                                   <span className={item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
@@ -4586,7 +4586,7 @@ export default function POSSales() {
                       {items.map((item, index) => (
                         <div key={index} className={`grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
                           <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
-                          <div className="flex items-center text-sm font-mono text-foreground/80">{item.barcode}</div>
+                          <div className="flex items-center text-sm font-mono text-foreground/80">{displayBarcode(item.barcode)}</div>
                           <div className="flex items-center font-medium text-sm truncate gap-1">
                             {item.productName}
                             {item.isDcProduct && (

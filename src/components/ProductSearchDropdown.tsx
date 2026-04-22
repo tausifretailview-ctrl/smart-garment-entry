@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, displayBarcode } from "@/lib/utils";
 
 interface ProductResult {
   id: string;
