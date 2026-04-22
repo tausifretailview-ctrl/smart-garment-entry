@@ -786,7 +786,7 @@ export const FloatingSaleReturn = ({
             <DialogTitle className="flex items-center gap-2">
               <RotateCcwIcon className="h-5 w-5" />
               Sale Return
-              {customerName && <span className="text-sm font-normal text-muted-foreground">— {customerName}</span>}
+              {effectiveCustomerName && <span className="text-sm font-normal text-muted-foreground">— {effectiveCustomerName}</span>}
             </DialogTitle>
             <a
               href="/sale-returns"
@@ -799,6 +799,77 @@ export const FloatingSaleReturn = ({
             </a>
           </div>
         </DialogHeader>
+
+        {/* Inline Customer Picker — only when no customer was passed from POS */}
+        {!customerId && (
+          <div className="rounded-md border bg-muted/30 p-2">
+            <Label className="text-xs mb-1 flex items-center gap-1">
+              Customer
+              <span className="text-destructive">*</span>
+              <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                (required for Credit Note)
+              </span>
+            </Label>
+            <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-between font-normal"
+                >
+                  <span className={cn(!pickedCustomerName && "text-muted-foreground")}>
+                    {pickedCustomerName || "Search customer by name or phone..."}
+                  </span>
+                  <Search className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[460px] p-0" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Type name or phone..."
+                    value={customerSearchTerm}
+                    onValueChange={setCustomerSearchTerm}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No customers found</CommandEmpty>
+                    <CommandGroup>
+                      {pickedCustomerId && (
+                        <CommandItem
+                          onSelect={() => {
+                            setPickedCustomerId(null);
+                            setPickedCustomerName(null);
+                            setCustomerSearchOpen(false);
+                          }}
+                          className="text-destructive"
+                        >
+                          ✕ Clear customer (Walk-in)
+                        </CommandItem>
+                      )}
+                      {customerOptions.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          onSelect={() => {
+                            setPickedCustomerId(c.id);
+                            setPickedCustomerName(c.customer_name);
+                            setCustomerSearchOpen(false);
+                            setCustomerSearchTerm("");
+                          }}
+                          className="flex justify-between"
+                        >
+                          <span className="truncate">{c.customer_name}</span>
+                          {c.phone && (
+                            <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         {/* Bill Number Lookup */}
         <div className="flex gap-2 items-end">
