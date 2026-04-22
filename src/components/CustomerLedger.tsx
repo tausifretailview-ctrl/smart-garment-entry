@@ -817,9 +817,72 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
-      
-      // Start with opening balance
-      const openingBalance = selectedCustomer.opening_balance || 0;
+
+      // When a date filter is active, compute the balance brought forward
+      // from all transactions BEFORE startDate so the running balance starts correctly.
+      let effectiveOpeningBalance = selectedCustomer.opening_balance || 0;
+
+      if (startDate) {
+        const startDateStr = format(startDate, 'yyyy-MM-dd');
+
+        // Sales prior to startDate
+        const { data: priorSales } = await supabase
+          .from('sales')
+          .select('id, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled')
+          .eq('customer_id', selectedCustomer.id)
+          .is('deleted_at', null)
+          .neq('payment_status', 'hold')
+          .eq('is_cancelled', false)
+          .lt('sale_date', startDateStr);
+
+        const priorSaleIds = (priorSales || []).map((s: any) => s.id);
+
+        if (priorSaleIds.length > 0) {
+          const { data: priorVouchers } = await supabase
+            .from('voucher_entries')
+            .select('reference_id, total_amount, payment_method, description')
+            .in('reference_id', priorSaleIds)
+            .eq('voucher_type', 'receipt')
+            .is('deleted_at', null);
+
+          const priorCashVouchers: Record<string, number> = {};
+          (priorVouchers || []).forEach((v: any) => {
+            if (v.reference_id)
+              priorCashVouchers[v.reference_id] =
+                (priorCashVouchers[v.reference_id] || 0) + (v.total_amount || 0);
+          });
+
+          (priorSales || []).forEach((sale: any) => {
+            effectiveOpeningBalance += (sale.net_amount || 0) + (sale.sale_return_adjust || 0);
+            const cashVoucher = priorCashVouchers[sale.id] || 0;
+            const paidAtSale = Math.max(0, (sale.paid_amount || 0) - cashVoucher);
+            effectiveOpeningBalance -= paidAtSale + cashVoucher;
+          });
+        }
+
+        // Prior advances reduce balance (credit)
+        const { data: priorAdv } = await supabase
+          .from('customer_advances')
+          .select('amount')
+          .eq('customer_id', selectedCustomer.id)
+          .eq('organization_id', organizationId)
+          .lt('advance_date', startDateStr);
+        (priorAdv || []).forEach((a: any) => { effectiveOpeningBalance -= a.amount || 0; });
+
+        // Prior actioned sale returns reduce balance
+        const { data: priorReturns } = await supabase
+          .from('sale_returns')
+          .select('net_amount, credit_status')
+          .eq('customer_id', selectedCustomer.id)
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .neq('credit_status', 'pending')
+          .lt('return_date', startDateStr);
+        (priorReturns || []).forEach((sr: any) => { effectiveOpeningBalance -= sr.net_amount || 0; });
+      }
+
+      // Start with opening balance (computed B/F when date-filtered)
+      const openingBalance = effectiveOpeningBalance;
       let runningBalance = openingBalance;
 
       // Add opening balance as first entry if it exists
@@ -830,7 +893,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           timestamp: null,
           type: 'invoice',
           reference: 'Opening',
-          description: 'Opening Balance (Carried Forward)',
+          description: startDate ? 'Balance B/F (as of filter start date)' : 'Opening Balance (Carried Forward)',
           debit: openingBalance > 0 ? openingBalance : 0,
           credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
           balance: runningBalance,
