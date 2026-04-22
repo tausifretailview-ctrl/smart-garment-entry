@@ -59,6 +59,10 @@ interface ModernThermalReceipt80mmProps {
   isDcInvoice?: boolean;
 }
 
+interface ModernThermalReceipt80mmPropsExt extends ModernThermalReceipt80mmProps {
+  settingsOverride?: any;
+}
+
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const fmtDec = (n: number): string => n.toFixed(2);
 
@@ -74,12 +78,14 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
     } = props;
+    const settingsOverride = (props as ModernThermalReceipt80mmPropsExt).settingsOverride;
 
     const { currentOrganization } = useOrganization();
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
     useEffect(() => {
+      if (settingsOverride) { setSettings(settingsOverride); return; }
       if (!currentOrganization?.id) return;
       (async () => {
         const { data } = await (supabase as any)
@@ -89,7 +95,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           .maybeSingle();
         if (data) setSettings(data);
       })();
-    }, [currentOrganization?.id]);
+    }, [currentOrganization?.id, settingsOverride]);
 
     useEffect(() => {
       const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
