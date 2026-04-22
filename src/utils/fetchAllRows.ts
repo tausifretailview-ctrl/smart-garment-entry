@@ -36,7 +36,6 @@ export async function fetchAllCustomers(organizationId: string) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total customers`);
   return allRows;
 }
 
@@ -77,7 +76,6 @@ export async function fetchAllSalesSummary(organizationId: string) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total sales`);
   return allRows;
 }
 
@@ -116,7 +114,6 @@ export async function fetchAllSalesDetails(organizationId: string) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total sales with details`);
   return allRows;
 }
 
@@ -154,7 +151,6 @@ export async function fetchAllSuppliers(organizationId: string) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total suppliers`);
   return allRows;
 }
 
@@ -198,7 +194,6 @@ export async function fetchAllProducts(organizationId: string) {
     product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
   }));
 
-  console.log(`Fetched ${productsWithValidVariants.length} total products`);
   return productsWithValidVariants;
 }
 
@@ -236,7 +231,6 @@ export async function fetchAllVouchers(organizationId: string) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total vouchers`);
   return allRows;
 }
 
@@ -274,7 +268,6 @@ export async function fetchAllVariants(organizationId: string) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total variants`);
   return allRows;
 }
 
@@ -316,7 +309,6 @@ export async function fetchAllSaleItems(saleIds: string[]) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total sale items`);
   return allRows;
 }
 
@@ -357,7 +349,6 @@ export async function fetchAllPurchaseItems(variantIds: string[]) {
     }
   }
 
-  console.log(`Fetched ${allRows.length} total purchase items`);
   return allRows;
 }
 
@@ -388,7 +379,6 @@ export async function fetchVariantsByIds(
     if (data) allRows.push(...data);
   }
 
-  console.log(`Fetched ${allRows.length} variants by IDs`);
   return allRows;
 }
 
@@ -418,7 +408,6 @@ export async function fetchProductsByIds(
     if (data) allRows.push(...data);
   }
 
-  console.log(`Fetched ${allRows.length} products by IDs`);
   return allRows;
 }
 
@@ -448,7 +437,6 @@ export async function fetchSaleReturnItemsByIds(
     if (data) allRows.push(...data);
   }
 
-  console.log(`Fetched ${allRows.length} sale return items`);
   return allRows;
 }
 
@@ -478,7 +466,6 @@ export async function fetchPurchaseReturnItemsByIds(
     if (data) allRows.push(...data);
   }
 
-  console.log(`Fetched ${allRows.length} purchase return items`);
   return allRows;
 }
 
@@ -508,7 +495,6 @@ export async function fetchPurchaseItemsByBillIds(
     if (data) allRows.push(...data);
   }
 
-  console.log(`Fetched ${allRows.length} purchase items by bill IDs`);
   return allRows;
 }
 
@@ -570,7 +556,6 @@ export async function fetchAllSalesWithFilters(
     }
   }
 
-  console.log(`Fetched ${allRows.length} total sales with filters`);
   return allRows;
 }
 
@@ -627,7 +612,6 @@ export async function fetchAllPurchaseBillsWithFilters(
     }
   }
 
-  console.log(`Fetched ${allRows.length} total purchase bills with filters`);
   return allRows;
 }
 
@@ -684,6 +668,5 @@ export async function fetchAllVouchersWithFilters(
     }
   }
 
-  console.log(`Fetched ${allRows.length} total vouchers with filters`);
   return allRows;
 }
