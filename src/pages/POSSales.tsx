@@ -4664,11 +4664,11 @@ export default function POSSales() {
       </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36 mt-2">
+        <div className="flex-1 overflow-hidden flex flex-col px-1 md:px-2 pb-36 mt-2">
           <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
-            <div className="bg-slate-900 text-white overflow-x-auto">
-              <div className="min-w-[1280px] grid gap-2 px-4 py-3 text-[13px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px' }}>
+            <div className="bg-slate-900 text-white">
+              <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px' }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
@@ -4733,13 +4733,12 @@ export default function POSSales() {
                   </span>
                 </Button>
               )}
-              <div className="overflow-x-auto">
-                {(() => {
+              {(() => {
                   const MIN_DISPLAY_ROWS = 5;
                   const blankRowsNeeded = Math.max(0, MIN_DISPLAY_ROWS - items.length);
-                  const ROW_COLS = '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px';
+                  const ROW_COLS = '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px';
                   const blankRow = (idx: number) => (
-                    <div key={`blank-${idx}`} className={`min-w-[1280px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
+                    <div key={`blank-${idx}`} className={`grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
@@ -4757,7 +4756,7 @@ export default function POSSales() {
                   return (
                     <>
                       {items.map((item, index) => (
-                        <div key={index} className={`min-w-[1280px] grid gap-2 px-4 py-2.5 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
+                        <div key={index} className={`grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
                           <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
                           <div className="flex items-center text-sm font-mono text-foreground/80">{item.barcode}</div>
                           <div className="flex items-center font-medium text-sm truncate gap-1">
@@ -4775,7 +4774,7 @@ export default function POSSales() {
                               onChange={(e) => updateQuantity(index, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                               placeholder="1"
                               step={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
                               min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             />
                             {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
@@ -4788,7 +4787,7 @@ export default function POSSales() {
                               value={item.mrp || ""}
                               onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
                               min="0"
                               step="0.01"
                             />
@@ -4797,7 +4796,7 @@ export default function POSSales() {
                             <select
                               value={item.gstPer}
                               onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
-                              className="h-8 w-full rounded-md border border-border/60 bg-muted/30 px-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
+                              className="h-7 w-full rounded-md text-xs border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring"
                             >
                               <option value="0">0%</option>
                               <option value="5">5%</option>
@@ -4812,7 +4811,7 @@ export default function POSSales() {
                               value={item.discountPercent || ""}
                               onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-center bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
                               min="0"
                               max="100"
                               step="0.01"
@@ -4824,7 +4823,7 @@ export default function POSSales() {
                               value={item.discountAmount || ""}
                               onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
-                              className="h-8 text-sm w-full text-right bg-muted/30 border-border/60"
+                              className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
                               min="0"
                               step="0.01"
                             />
@@ -4848,7 +4847,7 @@ export default function POSSales() {
                   );
                 })()}
                 {/* Notes Section - Always visible after items */}
-                <div className="min-w-[1280px] p-4 border-t bg-muted/30">
+                <div className="p-3 border-t bg-muted/30">
                   <div className="flex items-center gap-3">
                     <Label className="text-sm font-medium whitespace-nowrap">
                       <FileText className="h-4 w-4 inline mr-1" />
@@ -4873,7 +4872,7 @@ export default function POSSales() {
                   if (!hasDiscountInfo && !showPointsSection) return null;
                   
                   return (
-                    <div className="min-w-[1280px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
+                    <div className="p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
                       {/* Discount Indicator */}
                       {hasBrandDiscounts && brandDiscounts.length > 0 ? (
                         <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
@@ -4938,7 +4937,6 @@ export default function POSSales() {
                     </div>
                   );
                 })()}
-              </div>
             </div>
           </Card>
           </div>
