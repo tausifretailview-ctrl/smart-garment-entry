@@ -22,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen } from "lucide-react";
+import { applyGarmentGstRule, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   AlertDialog,
   AlertDialogAction,
