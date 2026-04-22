@@ -29,8 +29,7 @@ import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 
-import { useToast } from "@/hooks/use-toast";
-import { toast as sonnerToast } from "sonner";
+import { toast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -121,7 +120,6 @@ interface CartItem {
 }
 
 export default function POSSales() {
-  const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
@@ -440,10 +438,7 @@ export default function POSSales() {
           console.error('Error loading held cart data:', parseError);
         }
         
-        toast({
-          title: "Held Bill Loaded",
-          description: `Bill ${sale.sale_number} loaded. Complete the sale with a payment method.`,
-        });
+        toast.success("Held Bill Loaded", { description: `Bill ${sale.sale_number} loaded. Complete the sale with a payment method.` });
       } else {
         // Fetch sale items for regular sales
         const { data: saleItems, error: itemsError } = await supabase
@@ -484,7 +479,7 @@ export default function POSSales() {
           quantity: item.quantity,
         })));
 
-        sonnerToast.success(`Invoice ${sale.sale_number} loaded for editing`);
+        toast.success(`Invoice ${sale.sale_number} loaded for editing`);
       }
 
       // Fetch financer/EMI details if available
@@ -507,11 +502,7 @@ export default function POSSales() {
       }
     } catch (error: any) {
       console.error('Error loading sale:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load invoice for editing",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Failed to load invoice for editing" });
     }
   };
 
@@ -669,10 +660,7 @@ export default function POSSales() {
       setSelectedSalesman("");
       setSaleNotes("");
       setFinancerDetails(null);
-      toast({
-        title: "New Invoice",
-        description: "Cart cleared. Ready for new sale.",
-      });
+      toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
       setTimeout(() => {
         barcodeInputRef.current?.focus();
       }, 100);
@@ -681,10 +669,7 @@ export default function POSSales() {
     setOnClearCart(() => () => {
       setItems([]);
       setSaleNotes("");
-      toast({
-        title: "Cart Cleared",
-        description: "All items removed from cart",
-      });
+      toast.success("Cart Cleared", { description: "All items removed from cart" });
     });
 
     // Register floating report handlers
@@ -739,10 +724,7 @@ export default function POSSales() {
 
       if (error) throw error;
 
-      toast({
-        title: "Changes Saved",
-        description: "Customer, salesman & notes updated successfully.",
-      });
+      toast.success("Changes Saved", { description: "Customer, salesman & notes updated successfully." });
 
       queryClient.invalidateQueries({ queryKey: ['todaysSales'] });
     } catch (error: any) {
@@ -754,11 +736,7 @@ export default function POSSales() {
         },
         error
       );
-      toast({
-        title: "Save Failed",
-        description: error.message || "Failed to save changes",
-        variant: "destructive",
-      });
+      toast.error("Save Failed", { description: error.message || "Failed to save changes" });
     } finally {
       setIsSavingChanges(false);
     }
@@ -1367,11 +1345,7 @@ export default function POSSales() {
     // Skip validation for service shortcodes (1-9) so service products can be sold
     if (mobileERP.enabled && mobileERP.imei_scan_enforcement && !/^[1-9]$/.test(searchTerm)) {
       if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
-        toast({
-          title: "Invalid IMEI",
-          description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)`,
-          variant: "destructive",
-        });
+        toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
         setSearchInput("");
         return;
       }
@@ -1503,11 +1477,7 @@ export default function POSSales() {
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
       playErrorBeep();
-      toast({
-        title: "Product not found",
-        description: `No product matches: ${searchTerm}`,
-        variant: "destructive",
-      });
+      toast.error("Product not found", { description: `No product matches: ${searchTerm}` });
     }
   }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP]);
 
@@ -1563,11 +1533,7 @@ export default function POSSales() {
 
     // If no matching product found, we cannot save to sale_items (product_id/variant_id are required UUID columns)
     if (!productId || !variantId) {
-      toast({
-        title: "Product not found",
-        description: `Cannot add item: barcode "${code}" not found in products. Please create the product first.`,
-        variant: "destructive",
-      });
+      toast.error("Product not found", { description: `Cannot add item: barcode "${code}" not found in products. Please create the product first.` });
       setShowQuickServiceDialog(false);
       setQuickServiceCode("");
       return;
@@ -1746,10 +1712,7 @@ export default function POSSales() {
       
       // Show toast if brand discount was applied
       if (brandDiscount > 0) {
-        toast({
-          title: `Brand discount applied: ${brandDiscount}%`,
-          description: `${product.brand} discount for this customer`,
-        });
+        toast.success(`Brand discount applied: ${brandDiscount}%`, { description: `${product.brand} discount for this customer` });
       }
     }
     
@@ -1990,21 +1953,13 @@ export default function POSSales() {
   }, [setOnEstimatePrint, handleEstimatePrint]);
   const handleApplyCredit = (amount: number) => {
     if (!customerId) {
-      toast({
-        title: "Customer Required",
-        description: "Please select a customer to apply credit",
-        variant: "destructive",
-      });
+      toast.error("Customer Required", { description: "Please select a customer to apply credit" });
       return;
     }
     
     const maxApplicable = Math.min(amount, availableCreditBalance, amountBeforeCredit);
     if (maxApplicable <= 0) {
-      toast({
-        title: "Cannot Apply Credit",
-        description: "No credit available or bill amount is too low",
-        variant: "destructive",
-      });
+      toast.error("Cannot Apply Credit", { description: "No credit available or bill amount is too low" });
       return;
     }
     setCreditApplied(maxApplicable);
@@ -2013,42 +1968,26 @@ export default function POSSales() {
   // Handle save sale
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     if (items.length === 0) {
-      toast({
-        title: "No Items",
-        description: "Please add items to the cart before saving",
-        variant: "destructive",
-      });
+      toast.error("No Items", { description: "Please add items to the cart before saving" });
       return;
     }
 
     // Validate no items have 0 or negative quantity
     const zeroQtyItems = items.filter(item => !item.quantity || item.quantity <= 0);
     if (zeroQtyItems.length > 0) {
-      toast({
-        title: "Invalid Quantity",
-        description: `${zeroQtyItems.length} item(s) have zero or invalid quantity. Please fix before saving.`,
-        variant: "destructive",
-      });
+      toast.error("Invalid Quantity", { description: `${zeroQtyItems.length} item(s) have zero or invalid quantity. Please fix before saving.` });
       return;
     }
 
     // Check if payment method is pay_later and customer mobile is missing
     if ((forcePaymentMethod || paymentMethod) === 'pay_later' && !customerPhone?.trim()) {
-      toast({
-        title: "Customer Details Required",
-        description: "Please enter customer details first for balance invoice. Mobile number is mandatory for credit sales.",
-        variant: "destructive",
-      });
+      toast.error("Customer Details Required", { description: "Please enter customer details first for balance invoice. Mobile number is mandatory for credit sales." });
       return;
     }
 
     // Credit Note (negative net amount) requires a customer (name or phone)
     if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
-      toast({
-        title: "Customer Required for Credit Note",
-        description: "Net amount is negative (credit note). Please add customer name or mobile number before saving.",
-        variant: "destructive",
-      });
+      toast.error("Customer Required for Credit Note", { description: "Net amount is negative (credit note). Please add customer name or mobile number before saving." });
       return;
     }
 
@@ -2244,10 +2183,7 @@ export default function POSSales() {
 
   const handlePaymentMethodChange = (method: 'cash' | 'card' | 'upi') => {
     setPaymentMethod(method);
-    toast({
-      title: "Payment Method Selected",
-      description: `${method.toUpperCase()} payment selected`,
-    });
+    toast.success("Payment Method Selected", { description: `${method.toUpperCase()} payment selected` });
   };
 
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
@@ -2260,11 +2196,7 @@ export default function POSSales() {
 
     if (items.length === 0) {
       paymentLockRef.current = false;
-      toast({
-        title: "No Items",
-        description: "Please add items to the cart before processing payment",
-        variant: "destructive",
-      });
+      toast.error("No Items", { description: "Please add items to the cart before processing payment" });
       return;
     }
 
@@ -2292,22 +2224,14 @@ export default function POSSales() {
     // so the credit can be redeemed by them later
     if (finalAmount < 0 && !customerId && !customerPhone?.trim() && (!customerName?.trim() || customerName.trim().toLowerCase() === 'walk-in customer')) {
       paymentLockRef.current = false;
-      toast({
-        title: "Customer Required for Credit Note",
-        description: "Net amount is negative (credit note). Please add customer name or mobile number so the balance can be redeemed later.",
-        variant: "destructive",
-      });
+      toast.error("Customer Required for Credit Note", { description: "Net amount is negative (credit note). Please add customer name or mobile number so the balance can be redeemed later." });
       return;
     }
 
     // Pay-later also needs customer phone
     if (method === 'pay_later' && !customerPhone?.trim()) {
       paymentLockRef.current = false;
-      toast({
-        title: "Customer Details Required",
-        description: "Please enter customer mobile number for balance/credit invoices.",
-        variant: "destructive",
-      });
+      toast.error("Customer Details Required", { description: "Please enter customer mobile number for balance/credit invoices." });
       return;
     }
 
@@ -2469,11 +2393,7 @@ export default function POSSales() {
 
   const handleMixPayment = () => {
     if (items.length === 0) {
-      toast({
-        title: "No Items",
-        description: "Please add items to the cart before processing payment",
-        variant: "destructive",
-      });
+      toast.error("No Items", { description: "Please add items to the cart before processing payment" });
       return;
     }
     // Auto-set refund if final amount is negative
@@ -2497,11 +2417,7 @@ export default function POSSales() {
     // Check if there's a balance and customer mobile is missing
     const balanceAmount = finalAmount - paymentData.totalPaid;
     if (balanceAmount > 0 && !customerPhone?.trim()) {
-      toast({
-        title: "Customer Details Required",
-        description: "Please enter customer details first for balance invoice. Mobile number is mandatory for partial payments.",
-        variant: "destructive",
-      });
+      toast.error("Customer Details Required", { description: "Please enter customer details first for balance invoice. Mobile number is mandatory for partial payments." });
       return;
     }
 
@@ -2763,10 +2679,7 @@ export default function POSSales() {
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
     pageStyle: getPageStyle(),
     onAfterPrint: async () => {
-      toast({
-        title: "Success",
-        description: "Invoice printed successfully",
-      });
+      toast.success("Success", { description: "Invoice printed successfully" });
 
       // Clear saved invoice data so screen is ready for new invoice
       setSavedInvoiceData(null);
@@ -2872,11 +2785,7 @@ export default function POSSales() {
     const creditAmt = savedInvoiceData?.creditAmount || 0;
     
     if (!phone) {
-      toast({
-        title: "No Phone Number",
-        description: "Customer phone number is required to send WhatsApp message",
-        variant: "destructive",
-      });
+      toast.error("No Phone Number", { description: "Customer phone number is required to send WhatsApp message" });
       return;
     }
 
@@ -2941,11 +2850,7 @@ export default function POSSales() {
 
   const handlePrintInvoice = async () => {
     if (!currentSaleId) {
-      toast({
-        title: "Error",
-        description: "Please save the sale first",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: "Please save the sale first" });
       return;
     }
 
@@ -2957,11 +2862,7 @@ export default function POSSales() {
       });
     } catch (error: any) {
       console.error('Error printing invoice:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to print invoice",
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error.message || "Failed to print invoice" });
     }
   };
 
@@ -3041,16 +2942,12 @@ export default function POSSales() {
       salesman: sale.salesman || null,
     });
 
-    sonnerToast.success(`Invoice #${sale.sale_number} loaded successfully`);
+    toast.success(`Invoice #${sale.sale_number} loaded successfully`);
   };
 
   const handleDeleteInvoice = async () => {
     if (!currentSaleId) {
-      toast({
-        title: "No Invoice Selected",
-        description: "Please load an invoice to delete.",
-        variant: "destructive",
-      });
+      toast.error("No Invoice Selected", { description: "Please load an invoice to delete." });
       return;
     }
 
@@ -3061,30 +2958,19 @@ export default function POSSales() {
     try {
       const success = await softDelete('sales', currentSaleId);
       if (success) {
-        toast({
-          title: "Success",
-          description: "Invoice moved to recycle bin",
-        });
+        toast.success("Success", { description: "Invoice moved to recycle bin" });
         setSavedInvoiceData(null);
         queryClient.invalidateQueries({ queryKey: ["today-sales"] });
         handleNewInvoice();
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Error", { description: error.message });
     }
   };
 
   const handleInvoiceSearch = async () => {
     if (!invoiceSearchInput.trim()) {
-      toast({
-        title: "Enter Invoice Number",
-        description: "Please enter an invoice number to search.",
-        variant: "destructive",
-      });
+      toast.error("Enter Invoice Number", { description: "Please enter an invoice number to search." });
       return;
     }
 
@@ -3099,11 +2985,7 @@ export default function POSSales() {
       if (error) throw error;
 
       if (!sale) {
-        toast({
-          title: "Invoice Not Found",
-          description: `No invoice found with number: ${invoiceSearchInput}`,
-          variant: "destructive",
-        });
+        toast.error("Invoice Not Found", { description: `No invoice found with number: ${invoiceSearchInput}` });
         return;
       }
 
@@ -3111,33 +2993,22 @@ export default function POSSales() {
       loadInvoice(sale);
       setInvoiceSearchInput("");
       
-      sonnerToast.success(`Invoice ${sale.sale_number} loaded successfully`);
+      toast.success(`Invoice ${sale.sale_number} loaded successfully`);
     } catch (error: any) {
-      toast({
-        title: "Search Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error("Search Error", { description: error.message });
     }
   };
 
   const handlePreviousInvoice = async () => {
     if (!todaysSales || todaysSales.length === 0) {
-      toast({
-        title: "No Invoices",
-        description: "No invoices found for today",
-        variant: "destructive",
-      });
+      toast.error("No Invoices", { description: "No invoices found for today" });
       return;
     }
 
     // Sales are ordered DESC (newest at index 0), so Previous goes to higher index (older invoice)
     const newIndex = currentInvoiceIndex < todaysSales.length - 1 ? currentInvoiceIndex + 1 : currentInvoiceIndex;
     if (newIndex === currentInvoiceIndex && currentInvoiceIndex === todaysSales.length - 1) {
-      toast({
-        title: "First Invoice",
-        description: "This is the oldest invoice for today",
-      });
+      toast.success("First Invoice", { description: "This is the oldest invoice for today" });
       return;
     }
     setCurrentInvoiceIndex(newIndex);
@@ -3146,21 +3017,14 @@ export default function POSSales() {
 
   const handleNextInvoice = async () => {
     if (!todaysSales || todaysSales.length === 0) {
-      toast({
-        title: "No Invoices",
-        description: "No invoices found for today",
-        variant: "destructive",
-      });
+      toast.error("No Invoices", { description: "No invoices found for today" });
       return;
     }
 
     // Sales are ordered DESC (newest at index 0), so Next goes to lower index (newer invoice)
     const newIndex = currentInvoiceIndex > 0 ? currentInvoiceIndex - 1 : currentInvoiceIndex;
     if (newIndex === currentInvoiceIndex && currentInvoiceIndex === 0) {
-      toast({
-        title: "Last Invoice",
-        description: "This is the latest invoice for today",
-      });
+      toast.success("Last Invoice", { description: "This is the latest invoice for today" });
       return;
     }
     setCurrentInvoiceIndex(newIndex);
@@ -3169,11 +3033,7 @@ export default function POSSales() {
 
   const handleLastInvoice = async () => {
     if (!todaysSales || todaysSales.length === 0) {
-      toast({
-        title: "No Invoices",
-        description: "No invoices found for today",
-        variant: "destructive",
-      });
+      toast.error("No Invoices", { description: "No invoices found for today" });
       return;
     }
 
@@ -3183,10 +3043,7 @@ export default function POSSales() {
 
   const handleClearAll = () => {
     if (items.length === 0) {
-      toast({
-        title: "Cart is already empty",
-        variant: "default",
-      });
+      toast.success("Cart is already empty");
       return;
     }
     
@@ -3206,10 +3063,7 @@ export default function POSSales() {
     setOriginalItemsForEdit([]);
     setSaleNotes("");
     
-    toast({
-      title: "Cart Cleared",
-      description: "All items removed from cart",
-    });
+    toast.success("Cart Cleared", { description: "All items removed from cart" });
   };
 
   const handleNewInvoice = () => {
@@ -3232,10 +3086,7 @@ export default function POSSales() {
     setIsHeldSale(false);
     setSaleNotes("");
     
-    toast({
-      title: "New Invoice",
-      description: "Cart cleared. Ready for new sale.",
-    });
+    toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
     
     // Focus on barcode input for next scan
     setTimeout(() => {
@@ -3295,19 +3146,15 @@ export default function POSSales() {
         .update({ deleted_at: new Date().toISOString() } as any)
         .eq('id', billId);
       await refetchHeldBills();
-      toast({ title: 'Held bill deleted' });
+      toast.success('Held bill deleted');
     } catch (err: any) {
-      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+      toast.error('Error', { description: err.message });
     }
   };
 
   const handleHoldBill = async () => {
     if (items.length === 0) {
-      toast({
-        title: "No Items",
-        description: "Please add items to the cart before holding",
-        variant: "destructive",
-      });
+      toast.error("No Items", { description: "Please add items to the cart before holding" });
       return;
     }
 
@@ -3478,7 +3325,7 @@ export default function POSSales() {
     },
     onSuccess: (newCustomer) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast({ title: "Customer added successfully" });
+      toast.success("Customer added successfully");
       setCustomerId(newCustomer.id);
       setCustomerName(newCustomer.customer_name);
       setCustomerPhone(newCustomer.phone || "");
@@ -3497,7 +3344,7 @@ export default function POSSales() {
       }, 100);
     },
     onError: (error: any) => {
-      toast({ title: "Error adding customer", description: error.message, variant: "destructive" });
+      toast.error("Error adding customer", { description: error.message });
     },
   });
 
@@ -3613,23 +3460,14 @@ export default function POSSales() {
           onReturnSaved={(amount, returnNumber, refundType) => {
             if (refundType === "exchange" || refundType === "credit_note") {
               setSaleReturnAdjust(amount);
-              toast({
-                title: refundType === "exchange" ? "Exchange Applied" : "Credit Note Created",
-                description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
-              });
+              toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", { description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}` });
             } else {
               if (items.length > 0) {
                 setSaleReturnAdjust(amount);
-                toast({
-                  title: "Cash Refund Adjusted",
-                  description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
-                });
+                toast.success("Cash Refund Adjusted", { description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.` });
                 return;
               }
-              toast({
-                title: "Cash Refund Processed",
-                description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
-              });
+              toast.success("Cash Refund Processed", { description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer` });
             }
           }}
         />
@@ -3750,23 +3588,14 @@ export default function POSSales() {
           onReturnSaved={(amount, returnNumber, refundType) => {
             if (refundType === "exchange" || refundType === "credit_note") {
               setSaleReturnAdjust(amount);
-              toast({
-                title: refundType === "exchange" ? "Exchange Applied" : "Credit Note Created",
-                description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
-              });
+              toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", { description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}` });
             } else {
               if (items.length > 0) {
                 setSaleReturnAdjust(amount);
-                toast({
-                  title: "Cash Refund Adjusted",
-                  description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
-                });
+                toast.success("Cash Refund Adjusted", { description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.` });
                 return;
               }
-              toast({
-                title: "Cash Refund Processed",
-                description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
-              });
+              toast.success("Cash Refund Processed", { description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer` });
             }
           }}
         />
@@ -5696,23 +5525,14 @@ export default function POSSales() {
           onReturnSaved={(amount, returnNumber, refundType) => {
             if (refundType === "exchange" || refundType === "credit_note") {
               setSaleReturnAdjust(amount);
-              toast({
-                title: refundType === "exchange" ? "Exchange Applied" : "Credit Note Created",
-                description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}`,
-              });
+              toast.success(refundType === "exchange" ? "Exchange Applied" : "Credit Note Created", { description: `${returnNumber} — ₹${Math.round(amount)} ${refundType === "exchange" ? "deducted from new bill" : "credit note issued"}` });
             } else {
               if (items.length > 0) {
                 setSaleReturnAdjust(amount);
-                toast({
-                  title: "Cash Refund Adjusted",
-                  description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.`,
-                });
+                toast.success("Cash Refund Adjusted", { description: `${returnNumber} — ₹${Math.round(amount)} adjusted in current bill. Save to finalize.` });
                 return;
               }
-              toast({
-                title: "Cash Refund Processed",
-                description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer`,
-              });
+              toast.success("Cash Refund Processed", { description: `${returnNumber} — ₹${Math.round(amount)} cash refunded to customer` });
             }
           }}
         />
@@ -5781,7 +5601,7 @@ export default function POSSales() {
             </Button>
             <Button size="sm" onClick={() => {
               setShowFinancerDialog(false);
-              toast({ title: "Saved", description: "Financer / EMI details saved" });
+              toast.success("Saved", { description: "Financer / EMI details saved" });
             }}>
               Save
             </Button>
