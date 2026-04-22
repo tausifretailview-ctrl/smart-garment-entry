@@ -46,7 +46,7 @@ export interface LabelDesignConfig {
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
-  supplierInvoiceNo: LabelFieldConfig;
+  supplierInvoiceNo?: LabelFieldConfig;
   fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
