@@ -1153,9 +1153,23 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // Advance applied to invoice — display-only, no balance impact
           // (advance already credited when received, this is just re-allocation)
           const voucher = item.data as any;
-          const invoiceRef = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
-          const description = `Advance Applied to Invoice${invoiceRef ? ' — ' + invoiceRef : ''}`;
-          
+          const amount = Number(voucher.total_amount) || 0;
+
+          // Resolve linked invoice number from reference_id when possible,
+          // otherwise fall back to parsing the voucher description.
+          let linkedSaleNumber = '';
+          if (voucher.reference_id) {
+            const linkedSale = (salesData || []).find((s: any) => s.id === voucher.reference_id);
+            if (linkedSale) linkedSaleNumber = linkedSale.sale_number;
+          }
+          if (!linkedSaleNumber) {
+            linkedSaleNumber = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
+          }
+
+          const description = linkedSaleNumber
+            ? `Advance Applied (₹${amount.toLocaleString('en-IN')}) to ${linkedSaleNumber}`
+            : `Advance Applied — ₹${amount.toLocaleString('en-IN')}`;
+
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
@@ -1163,9 +1177,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'advance_application',
             reference: voucher.voucher_number || 'ADV-APP',
             description,
-            debit: 0,
-            credit: 0,
+            debit: 0,       // intentionally 0 — balance already reflects this via
+            credit: 0,      // the advance credit + invoice debit rows
             balance: runningBalance,
+            appliedAmount: amount,
           });
         } else if (item.type === 'adjustment') {
           const adj = item.data as any;
