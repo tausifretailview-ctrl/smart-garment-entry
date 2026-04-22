@@ -189,7 +189,7 @@ export function AdjustCustomerCreditNoteDialog({
           description: `Refund marked as paid. Payment voucher created.`,
         });
       } else if (adjustmentType === "outstanding") {
-        // Adjust in Outstanding Balance - update status
+        // Adjust in Outstanding Balance - mark return + apply credit against linked invoice
         const { error: returnError } = await supabase
           .from("sale_returns")
           .update({
@@ -199,14 +199,66 @@ export function AdjustCustomerCreditNoteDialog({
 
         if (returnError) throw returnError;
 
-        // Insert negative adjustment to reduce customer outstanding
-        await supabase.from('customer_balance_adjustments').insert({
-          organization_id: currentOrganization?.id,
-          customer_id: customerId,
-          outstanding_difference: -creditAmount,  // negative = reduces outstanding
-          adjustment_date: format(new Date(), 'yyyy-MM-dd'),
-          reason: `Credit Note ${returnNumber} adjusted to outstanding`,
-        });
+        // Find linked invoice on the sale_return so we can apply the credit to it
+        const { data: srRow } = await supabase
+          .from("sale_returns")
+          .select("linked_sale_id")
+          .eq("id", saleReturnId)
+          .single();
+        const linkedSaleId = (srRow as any)?.linked_sale_id || null;
+
+        if (linkedSaleId && creditAmount > 0) {
+          const { data: linkedSale } = await supabase
+            .from("sales")
+            .select("paid_amount, net_amount, sale_return_adjust")
+            .eq("id", linkedSaleId)
+            .single();
+
+          if (linkedSale) {
+            const adjustAmount = Math.min(
+              creditAmount,
+              Math.max(0, (linkedSale.net_amount || 0) - (linkedSale.paid_amount || 0))
+            );
+            const newPaidAmount = (linkedSale.paid_amount || 0) + adjustAmount;
+            const newStatus =
+              newPaidAmount >= (linkedSale.net_amount || 0) ? "completed" : "partial";
+            const existingAdjust = (linkedSale as any).sale_return_adjust || 0;
+
+            await supabase
+              .from("sales")
+              .update({
+                paid_amount: newPaidAmount,
+                payment_status: newStatus,
+                sale_return_adjust: existingAdjust + adjustAmount,
+              })
+              .eq("id", linkedSaleId);
+
+            // Receipt voucher so ledger shows CN-applied payment against the invoice
+            const today = format(new Date(), "yyyy-MM-dd");
+            const { data: lastRcp } = await supabase
+              .from("voucher_entries")
+              .select("voucher_number")
+              .eq("organization_id", currentOrganization?.id)
+              .eq("voucher_type", "receipt")
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const lastNum =
+              lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+
+            await supabase.from("voucher_entries").insert({
+              organization_id: currentOrganization?.id,
+              voucher_number: newVoucherNumber,
+              voucher_type: "receipt",
+              voucher_date: today,
+              reference_type: "sale",
+              reference_id: linkedSaleId,
+              total_amount: adjustAmount,
+              payment_method: "credit_note_adjustment",
+              description: `Credit note adjusted against invoice (Return ${returnNumber})`,
+            });
+          }
+        }
 
         // Update voucher description if creditNoteId exists
         if (creditNoteId && creditNoteId !== '') {
