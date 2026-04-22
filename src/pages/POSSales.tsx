@@ -3639,12 +3639,12 @@ export default function POSSales() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="phone">Mobile *</Label>
+                <Label htmlFor="phone">Mobile</Label>
                 <Input
                   id="phone"
                   value={newCustomerForm.phone}
                   onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Mobile number"
+                  placeholder="Mobile number (optional)"
                 />
               </div>
               <div className="grid gap-2">
@@ -3663,7 +3663,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.customer_name || !newCustomerForm.phone}
+                disabled={!newCustomerForm.customer_name.trim()}
               >
                 Add Customer
               </Button>
