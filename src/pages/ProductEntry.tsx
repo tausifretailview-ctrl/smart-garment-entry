@@ -99,6 +99,7 @@ const ProductEntry = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
+  const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const variantsSectionRef = useRef<HTMLDivElement>(null);
   const autoGenerateBtnRef = useRef<HTMLButtonElement>(null);
