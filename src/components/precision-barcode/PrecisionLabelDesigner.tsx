@@ -39,6 +39,7 @@ const FIELD_LABELS: Record<FieldKey, string> = {
   billNumber: "Bill Number",
   supplierCode: "Supplier Code",
   purchaseCode: "Purchase Code",
+  supplierInvoiceNo: "Supplier Invoice No",
 };
 
 const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
