@@ -5084,6 +5084,11 @@ export default function POSSales() {
                     step="0.01"
                     disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
                   />
+                  {creditApplied > 0 && (
+                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
+                      ✓ Applied
+                    </div>
+                  )}
                 </div>
               )}
             </div>
