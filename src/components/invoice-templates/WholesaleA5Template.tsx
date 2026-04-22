@@ -127,6 +127,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   totalTax,
   roundOff,
   grandTotal,
+  saleReturnAdjust,
   showTotalQuantity = true,
   showBarcode = true,
   amountWithDecimal = true,
@@ -152,7 +153,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   const emptyRows = Math.max(0, MIN_ROWS - items.length);
 
   const advReceiptAmt = (amountPaid ?? 0);
-  const balance = balanceDue ?? (grandTotal - advReceiptAmt);
+  const balance = balanceDue ?? Math.max(0, grandTotal - advReceiptAmt - (saleReturnAdjust ?? 0));
 
   const stampSizeMap = { small: 50, medium: 70, large: 90 };
   const sSize = stampSizeMap[stampSize] || 70;
