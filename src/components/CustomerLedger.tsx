@@ -1161,30 +1161,53 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         } else if (item.type === 'cn_adjustment') {
           const sr = item.data as any;
           const amount = sr.net_amount || 0;
-          runningBalance -= amount;
-          
-          let description = `Sale Return - ${sr.return_number}`;
-          if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
-            description += ` (Adjusted via CN against ${sr.linkedSaleNumber})`;
-          } else if (sr.credit_status === 'refunded') {
-            description += ` (Cash Refunded)`;
-          } else if (sr.credit_status === 'adjusted_outstanding') {
-            description += ` (Adjusted to Outstanding)`;
-          } else if (sr.credit_status === 'pending') {
-            description += ` (Pending — not yet applied)`;
+          const appliedInfo = srAppliedMap[sr.id];
+          const appliedAmount = appliedInfo?.applied || 0;
+          const unusedAmount = Math.max(0, amount - appliedAmount);
+
+          // Row 1: applied portion (if any) — credited against a specific invoice
+          if (appliedAmount > 0) {
+            runningBalance -= appliedAmount;
+            allTransactions.push({
+              id: `cn-${sr.id}-applied`,
+              date: sr.return_date,
+              timestamp: item.timestamp || null,
+              type: 'return' as const,
+              reference: sr.return_number,
+              description: `Sale Return ${sr.return_number} — applied to ${appliedInfo?.saleNumber || 'invoice'}`,
+              debit: 0,
+              credit: appliedAmount,
+              balance: runningBalance,
+            });
           }
-          
-          allTransactions.push({
-            id: `cn-${sr.id}`,
-            date: sr.return_date,
-            timestamp: item.timestamp || null,
-            type: 'return' as const,
-            reference: sr.return_number,
-            description,
-            debit: 0,
-            credit: amount,
-            balance: runningBalance,
-          });
+
+          // Row 2: unused / pending portion (if any)
+          if (unusedAmount > 0) {
+            runningBalance -= unusedAmount;
+            let unusedDesc = `Sale Return ${sr.return_number}`;
+            if (appliedAmount > 0) {
+              unusedDesc += ` (Pending CN — ₹${unusedAmount.toLocaleString('en-IN')} available)`;
+            } else if (sr.credit_status === 'refunded') {
+              unusedDesc += ` (Cash Refunded)`;
+            } else if (sr.credit_status === 'adjusted_outstanding') {
+              unusedDesc += ` (Adjusted to Outstanding)`;
+            } else if (sr.credit_status === 'pending') {
+              unusedDesc += ` (Pending — not yet applied)`;
+            } else if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
+              unusedDesc += ` (Adjusted via CN against ${sr.linkedSaleNumber})`;
+            }
+            allTransactions.push({
+              id: `cn-${sr.id}-unused`,
+              date: sr.return_date,
+              timestamp: item.timestamp || null,
+              type: 'return' as const,
+              reference: sr.return_number,
+              description: unusedDesc,
+              debit: 0,
+              credit: unusedAmount,
+              balance: runningBalance,
+            });
+          }
         } else if (item.type === 'refund') {
           const refund = item.data as any;
           const amount = refund.refund_amount || 0;
