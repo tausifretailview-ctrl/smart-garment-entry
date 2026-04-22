@@ -4258,11 +4258,33 @@ export default function POSSales() {
                   <div className="flex items-center gap-2">
                     {/* Credit Note Balance */}
                     {customerId && availableCreditBalance > 0 && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/30">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (creditApplied > 0) {
+                            setCreditApplied(0);
+                          } else {
+                            const maxApplicable = Math.min(availableCreditBalance, amountBeforeCredit);
+                            if (maxApplicable > 0) handleApplyCredit(maxApplicable);
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border transition-all",
+                          creditApplied > 0
+                            ? "bg-purple-600 text-white border-purple-600"
+                            : "bg-purple-500/10 text-purple-600 border-purple-500/30 hover:bg-purple-500/20"
+                        )}
+                        title={creditApplied > 0
+                          ? `Click to remove ₹${creditApplied.toLocaleString('en-IN')} credit`
+                          : `Click to apply ₹${availableCreditBalance.toLocaleString('en-IN')} credit note`}
+                      >
                         <Wallet className="h-3 w-3" />
-                        <span>₹{availableCreditBalance.toLocaleString('en-IN')}</span>
-                        <span className="text-[10px]">C/Note</span>
-                      </div>
+                        <span>
+                          {creditApplied > 0
+                            ? `−₹${creditApplied.toLocaleString('en-IN')} CN ✓`
+                            : `₹${availableCreditBalance.toLocaleString('en-IN')} C/Note`}
+                        </span>
+                      </button>
                     )}
                     {/* Outstanding Balance */}
                     {customerId && (
