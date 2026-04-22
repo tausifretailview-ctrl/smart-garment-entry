@@ -276,6 +276,36 @@ export const useCustomerBalances = () => {
     refetchOnWindowFocus: true,
   });
 
+  // Fetch available credit note balances for all customers
+  const { data: creditNoteBalances = {} } = useQuery({
+    queryKey: ["customer-credit-notes-search", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {};
+
+      const { data, error } = await supabase
+        .from("credit_notes")
+        .select("customer_id, credit_amount, used_amount, status")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .in("status", ["active", "partially_used"]);
+
+      if (error) throw error;
+
+      const map: Record<string, number> = {};
+      data?.forEach((cn: any) => {
+        if (!cn.customer_id) return;
+        const available = Math.max(0, (Number(cn.credit_amount) || 0) - (Number(cn.used_amount) || 0));
+        if (available > 0) {
+          map[cn.customer_id] = (map[cn.customer_id] || 0) + available;
+        }
+      });
+      return map;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
   const getCustomerBalance = useCallback((customer: Customer) => {
     const openingBalance = customer.opening_balance || 0;
     const salesData = customerBalances[customer.id] || { totalSales: 0, totalPaid: 0 };
@@ -286,9 +316,14 @@ export const useCustomerBalances = () => {
     return advanceBalances[customerId] || 0;
   }, [advanceBalances]);
 
+  const getCustomerCreditNote = useCallback((customerId: string) => {
+    return creditNoteBalances[customerId] || 0;
+  }, [creditNoteBalances]);
+
   return {
     customerBalances,
     getCustomerBalance,
     getCustomerAdvance,
+    getCustomerCreditNote,
   };
 };
