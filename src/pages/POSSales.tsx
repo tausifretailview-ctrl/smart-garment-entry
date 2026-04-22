@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { logError } from "@/lib/errorLogger";
+import { cn } from "@/lib/utils";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
@@ -4258,11 +4259,33 @@ export default function POSSales() {
                   <div className="flex items-center gap-2">
                     {/* Credit Note Balance */}
                     {customerId && availableCreditBalance > 0 && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/30">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (creditApplied > 0) {
+                            setCreditApplied(0);
+                          } else {
+                            const maxApplicable = Math.min(availableCreditBalance, amountBeforeCredit);
+                            if (maxApplicable > 0) handleApplyCredit(maxApplicable);
+                          }
+                        }}
+                        className={cn(
+                          "flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border transition-all",
+                          creditApplied > 0
+                            ? "bg-purple-600 text-white border-purple-600"
+                            : "bg-purple-500/10 text-purple-600 border-purple-500/30 hover:bg-purple-500/20"
+                        )}
+                        title={creditApplied > 0
+                          ? `Click to remove ₹${creditApplied.toLocaleString('en-IN')} credit`
+                          : `Click to apply ₹${availableCreditBalance.toLocaleString('en-IN')} credit note`}
+                      >
                         <Wallet className="h-3 w-3" />
-                        <span>₹{availableCreditBalance.toLocaleString('en-IN')}</span>
-                        <span className="text-[10px]">C/Note</span>
-                      </div>
+                        <span>
+                          {creditApplied > 0
+                            ? `−₹${creditApplied.toLocaleString('en-IN')} CN ✓`
+                            : `₹${availableCreditBalance.toLocaleString('en-IN')} C/Note`}
+                        </span>
+                      </button>
                     )}
                     {/* Outstanding Balance */}
                     {customerId && (
@@ -4628,8 +4651,31 @@ export default function POSSales() {
                 <div className="text-right">Net Amount</div>
               </div>
             </div>
-            
-            <div 
+
+            {customerId && availableCreditBalance > 0 && creditApplied === 0 && items.length > 0 && (
+              <div className="mx-2 mb-1 flex items-center justify-between px-3 py-1.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 rounded-lg text-sm">
+                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                  <Wallet className="h-4 w-4 shrink-0" />
+                  <span>
+                    <strong>₹{availableCreditBalance.toLocaleString('en-IN')}</strong> credit note available for {customerName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const maxApplicable = Math.min(availableCreditBalance, amountBeforeCredit);
+                    if (maxApplicable > 0) handleApplyCredit(maxApplicable);
+                  }}
+                  className="ml-3 shrink-0 px-3 py-1 bg-purple-600 text-white text-xs font-semibold rounded hover:bg-purple-700 transition-colors"
+                >
+                  Apply ₹{Math.min(availableCreditBalance, amountBeforeCredit) > 0
+                    ? Math.min(availableCreditBalance, Math.round(amountBeforeCredit)).toLocaleString('en-IN')
+                    : availableCreditBalance.toLocaleString('en-IN')} Now
+                </button>
+              </div>
+            )}
+
+            <div
               ref={itemsContainerRef} 
               className="flex-1 overflow-y-auto relative"
               onScroll={(e) => {
@@ -5038,6 +5084,11 @@ export default function POSSales() {
                     step="0.01"
                     disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
                   />
+                  {creditApplied > 0 && (
+                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
+                      ✓ Applied
+                    </div>
+                  )}
                 </div>
               )}
             </div>
