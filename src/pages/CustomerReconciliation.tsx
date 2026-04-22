@@ -88,7 +88,7 @@ export default function CustomerReconciliation() {
       // Fetch vouchers
       const { data: allVouchers } = await supabase
         .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount, payment_method, description")
+        .select("reference_id, reference_type, total_amount, voucher_type, payment_method, description")
         .eq("organization_id", orgId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
@@ -139,6 +139,46 @@ export default function CustomerReconciliation() {
       const saleIdSet = new Set(saleIds);
       const result = new Map<string, LedgerBalance>();
 
+      // Map sale_id -> customer_id for fast lookup
+      const saleToCustomerMap = new Map<string, string>();
+      sales?.forEach((s) => {
+        if (s.customer_id) saleToCustomerMap.set(s.id, s.customer_id);
+      });
+
+      // Classify all voucher receipts ONCE into cash/adv/CN buckets per invoice
+      const invoiceCashVouchers = new Map<string, number>();
+      const invoiceAdvPortions = new Map<string, number>();
+      const invoiceCnPortions = new Map<string, number>();
+      const openingBalancePaymentsMap = new Map<string, number>();
+
+      allVouchers?.forEach((v: any) => {
+        if (!v.reference_id) return;
+        const desc = (v.description || "").toLowerCase();
+        const isAdv =
+          v.payment_method === "advance_adjustment" ||
+          desc.includes("adjusted from advance balance") ||
+          desc.includes("advance adjusted");
+        const isCn =
+          v.payment_method === "credit_note_adjustment" ||
+          desc.includes("credit note adjusted") ||
+          desc.includes("cn adjusted");
+        if (saleToCustomerMap.has(v.reference_id)) {
+          const amt = Number(v.total_amount || 0);
+          if (isAdv) {
+            invoiceAdvPortions.set(v.reference_id, (invoiceAdvPortions.get(v.reference_id) || 0) + amt);
+          } else if (isCn) {
+            invoiceCnPortions.set(v.reference_id, (invoiceCnPortions.get(v.reference_id) || 0) + amt);
+          } else {
+            invoiceCashVouchers.set(v.reference_id, (invoiceCashVouchers.get(v.reference_id) || 0) + amt);
+          }
+        } else if (v.reference_type === "customer" && !isAdv && !isCn) {
+          openingBalancePaymentsMap.set(
+            v.reference_id,
+            (openingBalancePaymentsMap.get(v.reference_id) || 0) + Number(v.total_amount || 0)
+          );
+        }
+      });
+
       customers.forEach((cust) => {
         const custId = cust.id;
         const openingBalance = cust.opening_balance || 0;
@@ -147,32 +187,24 @@ export default function CustomerReconciliation() {
         const custSales = sales?.filter((s) => s.customer_id === custId) || [];
         const totalSales = custSales.reduce((sum, s) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0), 0);
 
-        // Build invoice voucher payments for this customer
-        const invoiceVoucherPayments: Record<string, number> = {};
-        let openingBalancePayments = 0;
-
-        allVouchers?.forEach((v) => {
-          if (!v.reference_id) return;
-          // Skip advance/CN adjustments
-          if (v.payment_method === "advance_adjustment" || v.payment_method === "credit_note_adjustment") return;
-          const desc = (v.description || "").toLowerCase();
-          if (desc.includes("adjusted from advance balance") || desc.includes("advance adjusted")) return;
-          if (desc.includes("credit note adjusted") || desc.includes("cn adjusted")) return;
-
-          if (saleIdSet.has(v.reference_id) && custSales.some((s) => s.id === v.reference_id)) {
-            invoiceVoucherPayments[v.reference_id] = (invoiceVoucherPayments[v.reference_id] || 0) + Number(v.total_amount || 0);
-          } else if (v.reference_type === "customer" && v.reference_id === custId) {
-            openingBalancePayments += Number(v.total_amount || 0);
-          }
-        });
-
+        // Per-customer totalPaid using cash/adv/CN split (mirrors CustomerLedger)
         let totalPaidOnSales = 0;
-        custSales.forEach((sale) => {
+        let totalAdvApplied = 0;
+        let totalCnApplied = 0;
+        custSales.forEach((sale: any) => {
           const salePaid = sale.paid_amount || 0;
-          const voucherAmt = invoiceVoucherPayments[sale.id] || 0;
-          totalPaidOnSales += voucherAmt > 0 ? voucherAmt : salePaid;
+          const cashVoucher = invoiceCashVouchers.get(sale.id) || 0;
+          const advVoucher = invoiceAdvPortions.get(sale.id) || 0;
+          const cnVoucher = invoiceCnPortions.get(sale.id) || 0;
+          totalPaidOnSales += Math.max(salePaid - advVoucher - cnVoucher, cashVoucher);
+          totalAdvApplied += advVoucher;
+          totalCnApplied += cnVoucher;
         });
-        const totalPaid = totalPaidOnSales + openingBalancePayments;
+        const totalPaid =
+          totalPaidOnSales +
+          totalAdvApplied +
+          totalCnApplied +
+          (openingBalancePaymentsMap.get(custId) || 0);
 
         const adjustmentTotal = adjustments?.filter((a) => a.customer_id === custId).reduce((s, a) => s + (a.outstanding_difference || 0), 0) || 0;
 
