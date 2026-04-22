@@ -87,6 +87,17 @@ export const FloatingSaleReturn = ({
   const [refundType, setRefundType] = useState<RefundType>("credit_note");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
 
+  // Inline customer picker (used when no customer was passed from POS)
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const [customerOptions, setCustomerOptions] = useState<Array<{ id: string; customer_name: string; phone: string | null }>>([]);
+  const [pickedCustomerId, setPickedCustomerId] = useState<string | null>(null);
+  const [pickedCustomerName, setPickedCustomerName] = useState<string | null>(null);
+
+  // Effective customer (prop wins, otherwise inline-picked)
+  const effectiveCustomerId = customerId || pickedCustomerId || undefined;
+  const effectiveCustomerName = customerName || pickedCustomerName || undefined;
+
   // Pending credit notes for current customer (unapplied sale returns with credit_status = 'pending')
   const [pendingCreditNotes, setPendingCreditNotes] = useState<Array<{
     id: string;
@@ -112,6 +123,27 @@ export const FloatingSaleReturn = ({
         });
     }
   }, [organizationId]);
+
+  // Inline customer search — only relevant when no customer was passed from POS
+  useEffect(() => {
+    if (!open || customerId || !organizationId) return;
+    const term = customerSearchTerm.trim();
+    const handle = setTimeout(async () => {
+      let query = supabase
+        .from("customers")
+        .select("id, customer_name, phone")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("customer_name")
+        .limit(30);
+      if (term) {
+        query = query.or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%`);
+      }
+      const { data } = await query;
+      setCustomerOptions((data as any) || []);
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [open, organizationId, customerId, customerSearchTerm]);
 
   // Load sold products when dialog opens
   useEffect(() => {
@@ -151,6 +183,10 @@ export const FloatingSaleReturn = ({
       setPendingCreditNotes([]);
       setAppliedCreditNoteId(null);
       setAppliedCreditAmount(0);
+      setPickedCustomerId(null);
+      setPickedCustomerName(null);
+      setCustomerSearchTerm("");
+      setCustomerSearchOpen(false);
     }
   }, [open, organizationId, customerId]);
 
@@ -474,6 +510,16 @@ export const FloatingSaleReturn = ({
       return;
     }
 
+    // Credit Note refund REQUIRES a customer (otherwise the credit cannot be tracked/applied later)
+    if (refundType === "credit_note" && returnItems.length > 0 && !effectiveCustomerId) {
+      toast({
+        title: "Customer Required",
+        description: "Please select a customer to generate a Credit Note. Use the customer search above.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // If only applying a credit note (no return items), skip the full return flow
     if (returnItems.length === 0 && appliedCreditNoteId) {
       const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
@@ -498,7 +544,7 @@ export const FloatingSaleReturn = ({
           voucher_type: "receipt",
           voucher_date: new Date().toISOString().split("T")[0],
           reference_type: "customer",
-          reference_id: customerId,
+          reference_id: effectiveCustomerId,
           description: `Credit note ${cn.returnNumber} applied via POS`,
           total_amount: cn.creditAmount,
           payment_method: "credit_note_adjustment",
@@ -543,8 +589,8 @@ export const FloatingSaleReturn = ({
         .insert({
           return_number: returnNumber,
           organization_id: organizationId,
-          customer_id: customerId || null,
-          customer_name: customerName || "Walk-in Customer",
+          customer_id: effectiveCustomerId || null,
+          customer_name: effectiveCustomerName || "Walk-in Customer",
           return_date: new Date().toISOString().split("T")[0],
           gross_amount: grossAmount,
           gst_amount: gstAmount,
@@ -586,7 +632,7 @@ export const FloatingSaleReturn = ({
       // (restore_stock_on_sale_return) — no manual increment needed
 
       // For cash_refund: create payment voucher so ledger balance updates
-      if (refundType === "cash_refund" && customerId) {
+      if (refundType === "cash_refund" && effectiveCustomerId) {
         try {
           const { data: lastV } = await supabase
             .from("voucher_entries")
@@ -602,7 +648,7 @@ export const FloatingSaleReturn = ({
             voucher_type: "payment",
             voucher_date: new Date().toISOString().split("T")[0],
             reference_type: "customer",
-            reference_id: customerId,
+            reference_id: effectiveCustomerId,
             description: `Refund paid for sale return: ${returnNumber}`,
             total_amount: grossAmount,
             payment_method: "cash",
@@ -612,7 +658,7 @@ export const FloatingSaleReturn = ({
 
       // For credit_note: create a real credit_notes record and mark sale_return as adjusted
       // (otherwise it stays 'pending' forever and inflates the customer ledger)
-      if (refundType === "credit_note" && customerId) {
+      if (refundType === "credit_note" && effectiveCustomerId) {
         try {
           const { data: cnNumber } = await supabase
             .rpc('generate_credit_note_number', { p_organization_id: organizationId });
@@ -623,8 +669,8 @@ export const FloatingSaleReturn = ({
               organization_id: organizationId,
               credit_note_number: cnNumber,
               sale_id: billSaleId || null,
-              customer_id: customerId,
-              customer_name: customerName || 'Walk-in Customer',
+              customer_id: effectiveCustomerId,
+              customer_name: effectiveCustomerName || 'Walk-in Customer',
               credit_amount: grossAmount,
               used_amount: 0,
               status: 'active',
@@ -645,7 +691,7 @@ export const FloatingSaleReturn = ({
         } catch (cnErr) {
           console.error('Credit note creation failed:', cnErr);
         }
-      } else if (refundType === "credit_note" && !customerId) {
+      } else if (refundType === "credit_note" && !effectiveCustomerId) {
         // No customer — credit note cannot be tracked, mark as adjusted_outstanding
         try {
           await supabase
@@ -740,7 +786,7 @@ export const FloatingSaleReturn = ({
             <DialogTitle className="flex items-center gap-2">
               <RotateCcwIcon className="h-5 w-5" />
               Sale Return
-              {customerName && <span className="text-sm font-normal text-muted-foreground">— {customerName}</span>}
+              {effectiveCustomerName && <span className="text-sm font-normal text-muted-foreground">— {effectiveCustomerName}</span>}
             </DialogTitle>
             <a
               href="/sale-returns"
@@ -753,6 +799,77 @@ export const FloatingSaleReturn = ({
             </a>
           </div>
         </DialogHeader>
+
+        {/* Inline Customer Picker — only when no customer was passed from POS */}
+        {!customerId && (
+          <div className="rounded-md border bg-muted/30 p-2">
+            <Label className="text-xs mb-1 flex items-center gap-1">
+              Customer
+              <span className="text-destructive">*</span>
+              <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                (required for Credit Note)
+              </span>
+            </Label>
+            <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-between font-normal"
+                >
+                  <span className={cn(!pickedCustomerName && "text-muted-foreground")}>
+                    {pickedCustomerName || "Search customer by name or phone..."}
+                  </span>
+                  <Search className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[460px] p-0" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Type name or phone..."
+                    value={customerSearchTerm}
+                    onValueChange={setCustomerSearchTerm}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No customers found</CommandEmpty>
+                    <CommandGroup>
+                      {pickedCustomerId && (
+                        <CommandItem
+                          onSelect={() => {
+                            setPickedCustomerId(null);
+                            setPickedCustomerName(null);
+                            setCustomerSearchOpen(false);
+                          }}
+                          className="text-destructive"
+                        >
+                          ✕ Clear customer (Walk-in)
+                        </CommandItem>
+                      )}
+                      {customerOptions.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          onSelect={() => {
+                            setPickedCustomerId(c.id);
+                            setPickedCustomerName(c.customer_name);
+                            setCustomerSearchOpen(false);
+                            setCustomerSearchTerm("");
+                          }}
+                          className="flex justify-between"
+                        >
+                          <span className="truncate">{c.customer_name}</span>
+                          {c.phone && (
+                            <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
 
         {/* Bill Number Lookup */}
         <div className="flex gap-2 items-end">
