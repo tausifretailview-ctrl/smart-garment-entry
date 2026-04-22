@@ -1601,6 +1601,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         const mk = parseFloat(markupPercent);
                         if (!isNaN(mk)) {
                           updates.default_sale_price = Math.round(purPrice * (1 + mk / 100));
+                          updates.sale_gst_percent = applyGarmentGstRule(updates.default_sale_price, formData.sale_gst_percent, garmentGstSettings);
                         }
                       }
                       setFormData({ ...formData, ...updates });
