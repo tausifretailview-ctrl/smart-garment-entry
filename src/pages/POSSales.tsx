@@ -4733,13 +4733,12 @@ export default function POSSales() {
                   </span>
                 </Button>
               )}
-              <div className="overflow-x-auto">
-                {(() => {
+              {(() => {
                   const MIN_DISPLAY_ROWS = 5;
                   const blankRowsNeeded = Math.max(0, MIN_DISPLAY_ROWS - items.length);
-                  const ROW_COLS = '50px 130px 1fr 70px 70px 65px 95px 65px 80px 75px 95px 120px';
+                  const ROW_COLS = '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px';
                   const blankRow = (idx: number) => (
-                    <div key={`blank-${idx}`} className={`min-w-[1280px] grid gap-2 px-4 py-3 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
+                    <div key={`blank-${idx}`} className={`grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
