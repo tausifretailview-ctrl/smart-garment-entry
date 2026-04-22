@@ -23,13 +23,16 @@ import { getStoredOrgSlug } from "@/lib/orgSlug";
 function lazyWithRetry(importFn: () => Promise<any>) {
   return lazy(() =>
     importFn().catch((error) => {
-      const hasReloaded = sessionStorage.getItem("chunk_reload");
-      if (!hasReloaded) {
-        sessionStorage.setItem("chunk_reload", "true");
+      const reloadCount = parseInt(
+        sessionStorage.getItem("chunk_reload_count") || "0"
+      );
+      if (reloadCount < 1) {
+        // First failure — try one reload
+        sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
         window.location.reload();
-        return new Promise(() => {});
+        return new Promise(() => {}); // suspend while reload happens
       }
-      sessionStorage.removeItem("chunk_reload");
+      // Already reloaded once — don't loop, let error boundary catch it
       throw error;
     })
   );
@@ -222,9 +225,14 @@ function NonOrgRedirect({ path }: { path: string }) {
 })();
 
 const App = () => {
-  // Clear chunk reload flag on successful mount
+  // Clear chunk reload counter only after the app has loaded successfully for 5s.
+  // This prevents infinite reload loops when a chunk is persistently broken:
+  // if the app crashes before 5s the guard remains and stops a second reload.
   useEffect(() => {
-    sessionStorage.removeItem("chunk_reload");
+    const clearTimer = setTimeout(() => {
+      sessionStorage.removeItem("chunk_reload_count");
+    }, 5000);
+    return () => clearTimeout(clearTimer);
   }, []);
 
   // Global unhandled rejection handler
