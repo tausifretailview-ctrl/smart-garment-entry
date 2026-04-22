@@ -2323,7 +2323,12 @@ const ProductEntry = () => {
                   value={formData.default_sale_price ?? ""}
                   onChange={(val) => {
                     const salePrice = val || 0;
-                    setFormData({ ...formData, default_sale_price: salePrice });
+                    const newGst = applyGarmentGstRule(salePrice, formData.sale_gst_percent, garmentGstSettings);
+                    setFormData({
+                      ...formData,
+                      default_sale_price: salePrice,
+                      sale_gst_percent: newGst,
+                    });
                     if ((formData.default_pur_price ?? 0) > 0 && salePrice > 0) {
                       const calc = ((salePrice - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 100;
                       setMarkupPercent(Math.round(calc * 100) / 100 + "");
