@@ -20,6 +20,7 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
+import { applyGarmentGstRule, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   Dialog,
   DialogContent,
