@@ -509,6 +509,12 @@ export default function POSSales() {
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
 
+  // Garment / Footwear GST auto-bump rule (from purchase_settings)
+  const garmentGstSettings = {
+    garment_gst_rule_enabled: ((settingsData as any)?.purchase_settings?.garment_gst_rule_enabled === true),
+    garment_gst_threshold: (settingsData as any)?.purchase_settings?.garment_gst_threshold,
+  };
+
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
   const posBillFormat: 'a4' | 'a5' | 'a5-horizontal' | 'thermal' =
