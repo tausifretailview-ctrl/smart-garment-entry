@@ -959,9 +959,9 @@ export const useSaveSale = () => {
       let newSaleNumber: string;
 
       if (saleSettings?.pos_numbering_format) {
-        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start);
+        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start, 'pos');
       } else if (saleSettings?.pos_series_start) {
-        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start);
+        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start, 'pos');
       } else {
         const { data: defaultNumber, error: numberError } = await supabase
           .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
