@@ -146,7 +146,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <div className="flex flex-col">
-              <div className="flex items-center gap-1.5 font-medium">
+              <div className="flex items-center gap-1.5 font-medium text-[17px]">
                 <span className={invoice.is_cancelled ? "line-through decoration-red-500/70" : ""}>{invoice.sale_number}</span>
                 {invoice.is_cancelled && (
                   <Badge className="no-line-through text-xs px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
@@ -157,7 +157,7 @@ export function SalesInvoiceERPTable({
                   </span>
                 )}
               </div>
-              <span className="text-sm text-foreground/70">
+              <span className="text-[14px] text-foreground/70">
                 {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
               </span>
             </div>
