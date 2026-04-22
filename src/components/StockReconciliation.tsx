@@ -12,13 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface Discrepancy {
   variant_id: string;
-  barcode: string;
   product_name: string;
   size: string;
-  current_stock_qty: number;
-  calculated_stock_qty: number;
+  color: string;
+  current_stock: number;
+  expected_stock: number;
   discrepancy: number;
-  opening_qty: number;
+  last_purchase: string | null;
+  last_sale: string | null;
 }
 
 interface FixResult {
