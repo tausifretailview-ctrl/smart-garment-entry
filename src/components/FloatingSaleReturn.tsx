@@ -87,6 +87,17 @@ export const FloatingSaleReturn = ({
   const [refundType, setRefundType] = useState<RefundType>("credit_note");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
 
+  // Inline customer picker (used when no customer was passed from POS)
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const [customerOptions, setCustomerOptions] = useState<Array<{ id: string; customer_name: string; phone: string | null }>>([]);
+  const [pickedCustomerId, setPickedCustomerId] = useState<string | null>(null);
+  const [pickedCustomerName, setPickedCustomerName] = useState<string | null>(null);
+
+  // Effective customer (prop wins, otherwise inline-picked)
+  const effectiveCustomerId = customerId || pickedCustomerId || undefined;
+  const effectiveCustomerName = customerName || pickedCustomerName || undefined;
+
   // Pending credit notes for current customer (unapplied sale returns with credit_status = 'pending')
   const [pendingCreditNotes, setPendingCreditNotes] = useState<Array<{
     id: string;
