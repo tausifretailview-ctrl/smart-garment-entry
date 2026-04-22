@@ -7041,6 +7041,26 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      generate_custom_pos_number: {
+        Args: {
+          p_format: string
+          p_min_sequence?: number
+          p_month: string
+          p_organization_id: string
+          p_year: string
+        }
+        Returns: string
+      }
+      generate_custom_sale_number: {
+        Args: {
+          p_format: string
+          p_min_sequence?: number
+          p_month: string
+          p_organization_id: string
+          p_year: string
+        }
+        Returns: string
+      }
       generate_delivery_challan_number: {
         Args: { p_organization_id: string }
         Returns: string
