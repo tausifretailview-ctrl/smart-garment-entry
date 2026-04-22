@@ -968,10 +968,15 @@ export default function POSSales() {
     queryKey: ['commission-rules', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data } = await (supabase.from('commission_rules' as any) as any)
-        .select('*')
+      const { data, error } = await (supabase.from('commission_rules' as any) as any)
+        .select('id, employee_id, employee_name, rule_type, rule_value, commission_percent')
         .eq('organization_id', currentOrganization.id)
         .eq('is_active', true);
+      if (error) {
+        // If this logs "relation does not exist", the migration hasn't run
+        console.error('[commission_rules] Query failed — migration may not have run:', error.message);
+        return [];
+      }
       return data || [];
     },
     enabled: !!currentOrganization?.id,
