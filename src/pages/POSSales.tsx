@@ -4651,8 +4651,31 @@ export default function POSSales() {
                 <div className="text-right">Net Amount</div>
               </div>
             </div>
-            
-            <div 
+
+            {customerId && availableCreditBalance > 0 && creditApplied === 0 && items.length > 0 && (
+              <div className="mx-2 mb-1 flex items-center justify-between px-3 py-1.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 rounded-lg text-sm">
+                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                  <Wallet className="h-4 w-4 shrink-0" />
+                  <span>
+                    <strong>₹{availableCreditBalance.toLocaleString('en-IN')}</strong> credit note available for {customerName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const maxApplicable = Math.min(availableCreditBalance, amountBeforeCredit);
+                    if (maxApplicable > 0) handleApplyCredit(maxApplicable);
+                  }}
+                  className="ml-3 shrink-0 px-3 py-1 bg-purple-600 text-white text-xs font-semibold rounded hover:bg-purple-700 transition-colors"
+                >
+                  Apply ₹{Math.min(availableCreditBalance, amountBeforeCredit) > 0
+                    ? Math.min(availableCreditBalance, Math.round(amountBeforeCredit)).toLocaleString('en-IN')
+                    : availableCreditBalance.toLocaleString('en-IN')} Now
+                </button>
+              </div>
+            )}
+
+            <div
               ref={itemsContainerRef} 
               className="flex-1 overflow-y-auto relative"
               onScroll={(e) => {
