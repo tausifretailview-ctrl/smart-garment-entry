@@ -118,6 +118,27 @@ export const FloatingSaleReturn = ({
     if (open && organizationId) {
       loadSoldProducts();
       setTimeout(() => barcodeInputRef.current?.focus(), 200);
+      if (customerId) {
+        supabase
+          .from("sale_returns")
+          .select("id, return_number, return_date, net_amount, credit_note_id")
+          .eq("customer_id", customerId)
+          .eq("organization_id", organizationId)
+          .eq("credit_status", "pending")
+          .is("deleted_at", null)
+          .order("return_date", { ascending: false })
+          .then(({ data }) => {
+            setPendingCreditNotes(
+              (data || []).map((r: any) => ({
+                id: r.id,
+                returnNumber: r.return_number,
+                returnDate: r.return_date,
+                creditAmount: Number(r.net_amount) || 0,
+                creditNoteId: r.credit_note_id || null,
+              }))
+            );
+          });
+      }
     }
     if (!open) {
       setReturnItems([]);
@@ -127,8 +148,11 @@ export const FloatingSaleReturn = ({
       setBillSaleId(null);
       setBillItems([]);
       setRefundType("credit_note");
+      setPendingCreditNotes([]);
+      setAppliedCreditNoteId(null);
+      setAppliedCreditAmount(0);
     }
-  }, [open, organizationId]);
+  }, [open, organizationId, customerId]);
 
   const loadSoldProducts = async () => {
     setLoading(true);
