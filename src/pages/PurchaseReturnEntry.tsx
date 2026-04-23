@@ -116,6 +116,13 @@ const PurchaseReturnEntry = () => {
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const defaultTaxRate = (settings?.purchase_settings as any)?.default_tax_rate;
 
+  // Auto-focus search input on mount when setting is enabled
+  useEffect(() => {
+    if (!autoFocusSearch) return;
+    const t = setTimeout(() => searchInputRef.current?.focus(), 150);
+    return () => clearTimeout(t);
+  }, [autoFocusSearch]);
+
   const [returnData, setReturnData] = useState({
     supplier_id: "",
     supplier_name: "",
