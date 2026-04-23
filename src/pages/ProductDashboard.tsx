@@ -1402,7 +1402,7 @@ const ProductDashboard = () => {
                     <SelectContent className="bg-popover z-50">
                       <SelectItem value="all">All Stock Levels</SelectItem>
                       <SelectItem value="in_stock">In Stock</SelectItem>
-                      <SelectItem value="low_stock">Low Stock (≤10)</SelectItem>
+                      <SelectItem value="low_stock">Low Stock (≤{lowStockThreshold})</SelectItem>
                       <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                     </SelectContent>
                   </Select>
