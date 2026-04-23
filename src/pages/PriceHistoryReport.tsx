@@ -826,7 +826,7 @@ const PriceHistoryReport = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchAllData} disabled={loading}>
+          <Button variant="outline" onClick={() => fetchAllData()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
