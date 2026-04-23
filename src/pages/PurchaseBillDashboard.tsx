@@ -374,7 +374,7 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, purchase_items(count)", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .is("purchase_items.deleted_at", null);
