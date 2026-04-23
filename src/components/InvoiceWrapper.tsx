@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { useSettings } from '@/hooks/useSettings';
 import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
 import { ClassicTemplate } from './invoice-templates/ClassicTemplate';
 import { ModernTemplate } from './invoice-templates/ModernTemplate';
@@ -133,9 +134,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
+    const { data: orgSettings } = useSettings();
     useEffect(() => {
-      fetchSettings();
-    }, [currentOrganization?.id]);
+      if (orgSettings) setSettings(orgSettings);
+    }, [orgSettings]);
 
     useEffect(() => {
       if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
@@ -143,24 +145,6 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       }
     }, [settings, props.grandTotal]);
 
-    const fetchSettings = async () => {
-      if (!currentOrganization?.id) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('settings')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) {
-          setSettings(data);
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-      }
-    };
 
     const generateUpiQrCode = async () => {
       try {

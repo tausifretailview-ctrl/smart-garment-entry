@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useSettings } from '@/hooks/useSettings';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useStockValidation } from '@/hooks/useStockValidation';
@@ -109,14 +110,11 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     enabled: !!currentOrganization?.id && open,
   });
 
+  const { data: orgSettings } = useSettings();
   useEffect(() => {
-    if (!currentOrganization?.id || !open) return;
-    supabase.from('settings')
-      .select('pos_bill_format, sale_settings, bill_barcode_settings, business_name, address, mobile_number, gst_number')
-      .eq('organization_id', currentOrganization.id)
-      .maybeSingle()
-      .then(({ data }) => { if (data) setSettings(data); });
-  }, [currentOrganization?.id, open]);
+    if (!open) return;
+    if (orgSettings) setSettings(orgSettings);
+  }, [orgSettings, open]);
 
   useEffect(() => {
     if (!open || !currentOrganization?.id) return;
