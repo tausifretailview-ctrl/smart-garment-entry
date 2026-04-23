@@ -197,6 +197,7 @@ const PurchaseBillDashboard = () => {
         label: "Edit Bill",
         icon: Edit,
         onClick: () => navigate(`/purchase-entry/${bill.id}`),
+        disabled: bill.is_cancelled,
       },
       { label: "", separator: true, onClick: () => {} },
       {
@@ -211,7 +212,7 @@ const PurchaseBillDashboard = () => {
           setPaymentNotes("");
           setShowPaymentDialog(true);
         },
-        disabled: bill.payment_status === 'completed',
+        disabled: bill.payment_status === 'completed' || bill.is_cancelled,
       },
       {
         label: "Print Barcodes",
