@@ -496,6 +496,20 @@ const ProductDashboard = () => {
         setTotalCount(0);
       }
 
+      // Fetch user_cancelled_at flags for the visible page's products
+      if (rows.length > 0) {
+        const ids = rows.map(r => r.product_id);
+        const { data: cancelledData } = await supabase
+          .from("products")
+          .select("id, user_cancelled_at")
+          .in("id", ids)
+          .not("user_cancelled_at", "is", null);
+        const cancelledMap = new Map<string, string>(
+          (cancelledData || []).map((p: any) => [p.id, p.user_cancelled_at])
+        );
+        rows.forEach(r => { r.user_cancelled_at = cancelledMap.get(r.product_id) || null; });
+      }
+
       setProductRows(rows);
       setFetchError(null);
       
