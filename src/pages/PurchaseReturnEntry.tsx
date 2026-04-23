@@ -38,6 +38,7 @@ interface ProductVariant {
   gst_per: number;
   hsn_code: string;
   stock_qty: number;
+  mrp?: number;
 }
 
 interface LineItem {
@@ -56,6 +57,7 @@ interface LineItem {
   brand?: string;
   discount_percent: number;
   discount_amount: number;
+  mrp?: number;
 }
 
 const PurchaseReturnEntry = () => {
@@ -93,6 +95,33 @@ const PurchaseReturnEntry = () => {
   const [loadingBill, setLoadingBill] = useState(false);
   const [billLoaded, setBillLoaded] = useState(false);
   const [originalBillId, setOriginalBillId] = useState('');
+
+  // Org-wide purchase settings (mirrors PurchaseEntry pattern)
+  const { data: settings } = useQuery({
+    queryKey: ["settings", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("purchase_settings, product_settings")
+        .eq("organization_id", currentOrganization?.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
+  });
+  const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+  const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
+  const defaultTaxRate = (settings?.purchase_settings as any)?.default_tax_rate;
+
+  // Auto-focus search input on mount when setting is enabled
+  useEffect(() => {
+    if (!autoFocusSearch) return;
+    const t = setTimeout(() => searchInputRef.current?.focus(), 150);
+    return () => clearTimeout(t);
+  }, [autoFocusSearch]);
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -319,6 +348,7 @@ const PurchaseReturnEntry = () => {
           size,
           color,
           pur_price,
+          mrp,
           barcode,
           stock_qty,
           active,
@@ -357,6 +387,7 @@ const PurchaseReturnEntry = () => {
             gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
             hsn_code: v.products?.hsn_code || "",
             stock_qty: v.stock_qty || 0,
+            mrp: v.mrp ?? 0,
           } as ProductVariant;
         }
       }
@@ -566,6 +597,7 @@ const PurchaseReturnEntry = () => {
           size,
           color,
           pur_price,
+          mrp,
           barcode,
           stock_qty,
           active,
@@ -610,6 +642,7 @@ const PurchaseReturnEntry = () => {
           gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           stock_qty: v.stock_qty || 0,
+          mrp: v.mrp ?? 0,
         }));
 
       // Apply smart sorting
@@ -750,13 +783,14 @@ const PurchaseReturnEntry = () => {
         color: variant.color,
         qty: 1,
         pur_price: unitPrice,
-        gst_per: variant.gst_per,
+        gst_per: variant.gst_per || (typeof defaultTaxRate === 'number' ? defaultTaxRate : Number(defaultTaxRate) || 0),
         hsn_code: variant.hsn_code,
         barcode: variant.barcode,
         line_total: lineTotal,
         brand: variant.brand,
         discount_percent: 0,
         discount_amount: 0,
+        mrp: variant.mrp ?? 0,
       };
       setLineItems(prev => [...prev, newItem]);
     }
@@ -1319,6 +1353,7 @@ const PurchaseReturnEntry = () => {
                     <TableHead>Size</TableHead>
                     <TableHead>Barcode</TableHead>
                     <TableHead className="w-24">Qty</TableHead>
+                    {showMrp && <TableHead className="w-24">MRP</TableHead>}
                     <TableHead className="w-32">Price</TableHead>
                     <TableHead className="w-20">Disc%</TableHead>
                     <TableHead className="w-24">Disc ₹</TableHead>
@@ -1348,6 +1383,21 @@ const PurchaseReturnEntry = () => {
                           className="w-20"
                         />
                       </TableCell>
+                      {showMrp && (
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.mrp ?? 0}
+                            onChange={(e) =>
+                              updateLineItem(item.temp_id, "mrp", parseFloat(e.target.value) || 0)
+                            }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-24"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Input
                           type="number"
