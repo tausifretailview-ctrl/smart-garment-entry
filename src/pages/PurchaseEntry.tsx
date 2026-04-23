@@ -2969,6 +2969,17 @@ const PurchaseEntry = () => {
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems(insertedNewItems);
 
+        // Clear "user cancelled" tag for products that are now in this saved bill
+        if (editUniqueProductIds.length > 0) {
+          for (let pi = 0; pi < editUniqueProductIds.length; pi += 200) {
+            const chunk = editUniqueProductIds.slice(pi, pi + 200);
+            await supabase
+              .from("products")
+              .update({ user_cancelled_at: null })
+              .in("id", chunk);
+          }
+        }
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
         if (priceChanges.length > 0) {
