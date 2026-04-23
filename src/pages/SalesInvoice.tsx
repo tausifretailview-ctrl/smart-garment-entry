@@ -400,6 +400,27 @@ export default function SalesInvoice() {
     return () => window.removeEventListener('keydown', handler);
   }, [lineItems, isSaving]);
 
+  // F1 = Cash, F2 = UPI, F3 = Mix payment shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      if (isTyping) return;
+      if (e.key === 'F1') {
+        e.preventDefault();
+        handlePaymentShortcut('cash');
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        handlePaymentShortcut('upi');
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        handlePaymentShortcut('mix');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
+
   // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
   useEffect(() => {
     if (selectedCustomer && !hasBrandDiscounts) {
