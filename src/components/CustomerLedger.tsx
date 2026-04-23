@@ -1376,7 +1376,23 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      return allTransactions;
+      // FIX 1 — Suppress "ghost" adjustment rows that have no debit, no credit
+      // and leave the running balance unchanged. They clutter the ledger
+      // without conveying any information.
+      const cleanedTransactions = allTransactions.filter((t, i, arr) => {
+        if (
+          t.type === 'adjustment' &&
+          (t.debit || 0) === 0 &&
+          (t.credit || 0) === 0 &&
+          i > 0 &&
+          t.balance === arr[i - 1].balance
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      return cleanedTransactions;
     },
     enabled: !!selectedCustomer?.id,
   });
