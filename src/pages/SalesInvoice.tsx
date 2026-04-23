@@ -3605,9 +3605,12 @@ Thank you for choosing us!`;
           </div>
       </section>
 
-      {/* Line Items Table */}
-      <section className="flex-1 overflow-auto px-6 pb-2 min-h-0">
-        <div ref={tableContainerRef} className="overflow-y-auto isolate">
+      {/* Line Items Table — caps at ~5 rows then scrolls so footer stays visible */}
+      <section className="flex-1 px-6 pb-2 min-h-0 overflow-hidden">
+        <div
+          ref={tableContainerRef}
+          className="overflow-y-auto isolate max-h-[min(calc(5*42px+56px),100%)] rounded-lg border border-slate-200 shadow-sm bg-white"
+        >
           <table className="w-full border-separate border-spacing-0 erp-desktop-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
