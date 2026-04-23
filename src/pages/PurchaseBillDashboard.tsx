@@ -277,7 +277,7 @@ const PurchaseBillDashboard = () => {
           setCancelReason('');
           setBillToCancel(bill);
         },
-        disabled: !canDelete || bill.is_cancelled,
+        disabled: !canCancel || bill.is_cancelled,
         destructive: true,
       },
     ];
@@ -559,6 +559,7 @@ const PurchaseBillDashboard = () => {
   const { softDelete, bulkSoftDelete, checkPurchaseStockDependencies } = useSoftDelete();
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
+  const canCancel = hasSpecialPermission('cancel_invoice');
 
   const handleDeleteClick = async (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -620,10 +621,10 @@ const PurchaseBillDashboard = () => {
 
   const handleCancelBill = async () => {
     if (!billToCancel) return;
-    if (!canDelete) {
+    if (!canCancel) {
       toast({
         title: "Permission Denied",
-        description: "You don't have permission to cancel purchase bills. Ask admin to enable 'Delete Records' in User Rights.",
+        description: "You don't have permission to cancel purchase bills. Ask admin to enable 'Cancel Invoice' in User Rights.",
         variant: "destructive",
       });
       return;

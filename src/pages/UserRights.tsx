@@ -142,6 +142,7 @@ const menuStructure = [
 const specialRights = [
   { id: "modify_records", name: "Modify Records", description: "Allow editing existing records" },
   { id: "delete_records", name: "Delete Records", description: "Allow deleting records" },
+  { id: "cancel_invoice", name: "Cancel Invoice", description: "Allow cancelling sales/purchase invoices (reverses stock)" },
   { id: "edit_paid_invoices", name: "Edit Paid Invoices", description: "Allow editing and deleting fully paid invoices" },
   { id: "whatsapp_send", name: "WhatsApp Messaging", description: "Send messages via WhatsApp" },
   { id: "detail_accounting", name: "Detail Accounting", description: "Access detailed accounting features" },
@@ -274,6 +275,7 @@ const defaultManagerMainMenu: Record<string, boolean> = {
 const defaultManagerSpecialRights: Record<string, boolean> = {
   modify_records: true,
   delete_records: false,
+  cancel_invoice: false,
   whatsapp_send: true,
   detail_accounting: true,
   export_data: true,
