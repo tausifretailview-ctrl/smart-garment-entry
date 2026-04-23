@@ -631,8 +631,6 @@ const ProductDashboard = () => {
 
   const { softDelete, bulkSoftDelete } = useSoftDelete();
   const { getProductRelationDetails } = useProductProtection();
-  const { hasSpecialPermission } = useUserPermissions();
-  const canDelete = hasSpecialPermission('delete_records');
 
   const handleBulkDelete = async () => {
     if (!canDelete) {
