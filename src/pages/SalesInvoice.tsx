@@ -3652,7 +3652,12 @@ Thank you for choosing us!`;
                 // Reverse filled items so newest appears first
                 const displayItems = filledItems.slice().reverse();
 
-                return displayItems.map((item, displayIndex) => {
+                const baseCols = 8;
+                const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
+                const totalCols = baseCols + optCols;
+                const padCount = Math.max(0, 5 - displayItems.length);
+
+                const itemRows = displayItems.map((item, displayIndex) => {
                   const originalIndex = lineItems.findIndex(li => li.id === item.id);
                   const srNo = originalIndex + 1;
 
@@ -3779,6 +3784,20 @@ Thank you for choosing us!`;
                     </tr>
                   );
                 });
+
+                const padRows = Array.from({ length: padCount }, (_, i) => {
+                  const srNo = displayItems.length + i + 1;
+                  return (
+                    <tr key={`pad-${i}`} className="h-[42px] border-b border-border/40 bg-white">
+                      <td className="text-center text-[12px] text-muted-foreground/40 px-3">{srNo}</td>
+                      {Array.from({ length: totalCols - 1 }, (_, j) => (
+                        <td key={j} className="px-3"></td>
+                      ))}
+                    </tr>
+                  );
+                });
+
+                return [...itemRows, ...padRows];
               })()}
               {/* Total Row */}
               {lineItems.some(item => item.productId) && (
