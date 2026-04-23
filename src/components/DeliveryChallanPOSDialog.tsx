@@ -487,6 +487,8 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
       setCustomerName('');
       setCustomerPhone('');
       setCustomerId(null);
+      setFlatDiscountValue(0);
+      setSrAdjust(0);
       setSavedInvoiceData(null);
 
       // Generate next DC number
