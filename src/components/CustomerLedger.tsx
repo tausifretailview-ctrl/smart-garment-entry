@@ -1211,8 +1211,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           }
 
           const description = linkedSaleNumber
-            ? `Advance Applied (₹${amount.toLocaleString('en-IN')}) to ${linkedSaleNumber}`
-            : `Advance Applied — ₹${amount.toLocaleString('en-IN')}`;
+            ? `Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber} (info only)`
+            : `Advance Applied — ₹${amount.toLocaleString('en-IN')} (info only)`;
 
           allTransactions.push({
             id: voucher.id,
@@ -1221,8 +1221,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'advance_application',
             reference: voucher.voucher_number || 'ADV-APP',
             description,
-            debit: 0,       // intentionally 0 — balance already reflects this via
-            credit: 0,      // the advance credit + invoice debit rows
+            // Balance math unchanged (already reflected via advance + invoice rows).
+            // Real ledger impact remains 0; we expose the amount via display-only fields.
+            debit: 0,
+            credit: 0,
+            displayDebit: amount,   // visible reduction of the customer's credit
+            displayCredit: 0,
+            informational: true,    // muted/italic styling, excluded from totals
             balance: runningBalance,
             appliedAmount: amount,
           });
