@@ -7504,6 +7504,10 @@ export type Database = {
         Args: { p_user_id: string; p_voucher_id: string }
         Returns: undefined
       }
+      update_purchase_return_items: {
+        Args: { p_items: Json; p_return_id: string }
+        Returns: Json
+      }
       user_belongs_to_org: {
         Args: { org_id: string; user_id: string }
         Returns: boolean

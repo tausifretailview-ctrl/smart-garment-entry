@@ -2263,7 +2263,7 @@ const PurchaseBillDashboard = () => {
               </div>
               
               <p className="mt-4 text-sm">
-                <strong>Recommendation:</strong> Delete the sales listed above first if they were trial entries, or restore from recycle bin if this purchase was accidentally deleted.
+                <strong>Delete is blocked because it would create negative stock.</strong> Delete or cancel the sales listed above first, or use Purchase Return to reverse the stock properly.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2271,15 +2271,18 @@ const PurchaseBillDashboard = () => {
             <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={stockDependencies.some(d => d.would_go_negative)}
+              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deletingBill ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
                 </>
+              ) : stockDependencies.some(d => d.would_go_negative) ? (
+                "Delete blocked — resolve sales first"
               ) : (
-                "Delete Anyway (Negative Stock)"
+                "Delete"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

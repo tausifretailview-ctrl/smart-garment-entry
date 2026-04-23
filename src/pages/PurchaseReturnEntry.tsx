@@ -894,17 +894,8 @@ const PurchaseReturnEntry = () => {
 
         if (updateError) throw updateError;
 
-        // Delete existing items
-        const { error: deleteError } = await supabase
-          .from("purchase_return_items" as any)
-          .delete()
-          .eq("return_id", editId);
-
-        if (deleteError) throw deleteError;
-
-        // Insert updated items
-        const itemsToInsert = lineItems.map((item) => ({
-          return_id: editId,
+        // Atomic update via RPC: pre-checks stock, then deletes + reinserts in one transaction
+        const itemsPayload = lineItems.map((item) => ({
           product_id: item.product_id,
           sku_id: item.sku_id,
           size: item.size,
@@ -917,11 +908,15 @@ const PurchaseReturnEntry = () => {
           line_total: item.line_total,
         }));
 
-        const { error: itemsError } = await supabase
-          .from("purchase_return_items" as any)
-          .insert(itemsToInsert);
+        const { data: updResult, error: updErr } = await supabase.rpc(
+          'update_purchase_return_items' as any,
+          { p_return_id: editId, p_items: itemsPayload as any }
+        );
 
-        if (itemsError) throw itemsError;
+        if (updErr) throw updErr;
+        if (updResult && !(updResult as any).success) {
+          throw new Error((updResult as any).error || 'Update failed');
+        }
 
         toast({
           title: "Success",
