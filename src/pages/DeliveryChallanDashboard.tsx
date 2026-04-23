@@ -52,6 +52,9 @@ export default function DeliveryChallanDashboard() {
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
 
+  // Centralized cached settings (5 min) — used during DC → Invoice conversion
+  const { data: orgSettings } = useSettings();
+
   const { data: challansData, isLoading, refetch } = useQuery({
     queryKey: ['delivery-challans', currentOrganization?.id, dateFrom, dateTo, statusFilter],
     queryFn: async () => {
@@ -116,14 +119,8 @@ export default function DeliveryChallanDashboard() {
       });
       if (saleNumError) throw saleNumError;
 
-      // Fetch settings for GST
-      const { data: settingsData } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      const saleSettings = settingsData?.sale_settings as any;
+      // GST setting from cached org settings
+      const saleSettings = (orgSettings as any)?.sale_settings;
       const defaultGst = saleSettings?.default_gst_percent || 0;
 
       // Calculate GST amounts
