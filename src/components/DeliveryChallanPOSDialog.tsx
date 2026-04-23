@@ -455,7 +455,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           total:       item.netAmount,
         })),
         subTotal:      gross,
-        discount:      0,
+        discount:      flatDisc,
         grandTotal:    net,
         tenderAmount:  net,
         cashPaid:      cashAmt,
