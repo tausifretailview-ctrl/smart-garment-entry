@@ -3117,6 +3117,18 @@ const PurchaseEntry = () => {
           await supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk);
         }
 
+        // Clear "user cancelled" tag for products that are now actually billed
+        const billedProductIds = [...new Set(lineItems.map(i => i.product_id).filter(Boolean))];
+        if (billedProductIds.length > 0) {
+          for (let pi = 0; pi < billedProductIds.length; pi += VARIANT_CHUNK) {
+            const chunk = billedProductIds.slice(pi, pi + VARIANT_CHUNK);
+            await supabase
+              .from("products")
+              .update({ user_cancelled_at: null })
+              .in("id", chunk);
+          }
+        }
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
         const hasPriceChanges = priceChanges.length > 0;
