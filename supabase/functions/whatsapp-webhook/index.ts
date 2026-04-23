@@ -803,6 +803,64 @@ Deno.serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      // ─── Provider acknowledgment payload (wappconnect / third-party) ──────
+      // Format: { messaging_channel: "whatsapp", message: { queue_id, message_status }, response: { messages: [{ id: "wamid.HBgM..." }] } }
+      // We stored queue_id as the initial `wamid`. When the provider returns the real Meta wamid,
+      // upgrade our row so subsequent sent/delivered/read updates (which use the real wamid) match.
+      if (body.messaging_channel === 'whatsapp' && body.message?.queue_id && body.response?.messages?.[0]?.id) {
+        const queueId = body.message.queue_id;
+        const realWamid = body.response.messages[0].id;
+        const providerStatus = body.message.message_status || 'sent';
+
+        try {
+          const { data: existing } = await supabase
+            .from('whatsapp_logs')
+            .select('id, status')
+            .eq('wamid', queueId)
+            .maybeSingle();
+
+          if (existing) {
+            const updatePayload: Record<string, any> = {
+              wamid: realWamid,
+            };
+            // Only upgrade status forward (sent < delivered < read)
+            const rank: Record<string, number> = { failed: -1, queued: 0, sent: 1, delivered: 2, read: 3 };
+            const currentRank = rank[existing.status] ?? 0;
+            const incomingRank = rank[providerStatus] ?? 1;
+            if (incomingRank > currentRank) {
+              updatePayload.status = providerStatus === 'queued' ? 'sent' : providerStatus;
+              if (!('sent_at' in updatePayload)) updatePayload.sent_at = new Date().toISOString();
+            }
+
+            const { error: upgradeError } = await supabase
+              .from('whatsapp_logs')
+              .update(updatePayload)
+              .eq('id', existing.id);
+
+            if (upgradeError) {
+              console.error('Error upgrading queue_id to wamid:', upgradeError);
+            } else {
+              console.log(`Upgraded queue_id ${queueId} -> wamid ${realWamid}`);
+            }
+
+            // Mirror upgrade to whatsapp_messages
+            await supabase
+              .from('whatsapp_messages')
+              .update({ wamid: realWamid })
+              .eq('wamid', queueId);
+          } else {
+            console.log(`No log found for queue_id ${queueId} - cannot upgrade wamid`);
+          }
+        } catch (e) {
+          console.error('Provider ack handling error:', e);
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // Process webhook entries
       if (body.entry) {
         for (const entry of body.entry) {
