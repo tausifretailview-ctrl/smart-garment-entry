@@ -4090,11 +4090,17 @@ export default function POSSales() {
                     <div className="p-4 text-sm text-muted-foreground">No products found.</div>
                    ) : (
                     <>
-                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/40">
-                        {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/40 flex items-center justify-between">
+                        <span>
+                          {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                          {filteredProducts.length > 20 && ` — showing top 20`}
+                        </span>
+                        <span className="text-[10px] opacity-70">
+                          Tip: Use multiple words to narrow down (e.g. "top black 1350")
+                        </span>
                       </div>
                       <CommandGroup heading="Products">
-                        {filteredProducts.slice(0, 10).map((item: any, index: number) => {
+                        {filteredProducts.slice(0, 20).map((item: any, index: number) => {
                           const product = item.product;
                           return (
                             <CommandItem
@@ -4108,6 +4114,21 @@ export default function POSSales() {
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
                                 <span className="font-semibold text-sm">{product.product_name}</span>
+                                {item.matchedOn && item.matchedOn.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mb-0.5">
+                                    <span className="text-[9px] uppercase tracking-wide text-muted-foreground mr-1 flex items-center">
+                                      Matched:
+                                    </span>
+                                    {item.matchedOn.map((m: string) => (
+                                      <span
+                                        key={m}
+                                        className="text-[10px] bg-primary/10 text-primary border border-primary/30 px-1.5 py-0 rounded font-medium"
+                                      >
+                                        {m}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                                 <div className="flex flex-wrap gap-1">
                                   {product.brand && (
                                     <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded">
