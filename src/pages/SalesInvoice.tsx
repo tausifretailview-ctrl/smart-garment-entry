@@ -2597,7 +2597,7 @@ Thank you for choosing us!`;
 
         // Reset form immediately for new invoice readiness
         setLineItems(
-          Array(5).fill(null).map((_, i) => ({
+          Array(7).fill(null).map((_, i) => ({
             id: `row-${i}`,
             productId: '',
             variantId: '',
