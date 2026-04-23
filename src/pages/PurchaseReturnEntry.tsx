@@ -96,6 +96,26 @@ const PurchaseReturnEntry = () => {
   const [billLoaded, setBillLoaded] = useState(false);
   const [originalBillId, setOriginalBillId] = useState('');
 
+  // Org-wide purchase settings (mirrors PurchaseEntry pattern)
+  const { data: settings } = useQuery({
+    queryKey: ["settings", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("purchase_settings, product_settings")
+        .eq("organization_id", currentOrganization?.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
+  });
+  const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+  const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
+  const defaultTaxRate = (settings?.purchase_settings as any)?.default_tax_rate;
+
   const [returnData, setReturnData] = useState({
     supplier_id: "",
     supplier_name: "",
