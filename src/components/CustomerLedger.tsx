@@ -1071,20 +1071,56 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           if (sale.cash_amount && sale.cash_amount > 0) paymentBreakdown.cash = sale.cash_amount;
           if (sale.card_amount && sale.card_amount > 0) paymentBreakdown.card = sale.card_amount;
           if (sale.upi_amount && sale.upi_amount > 0) paymentBreakdown.upi = sale.upi_amount;
-          
+
+          // ── Display strategy ────────────────────────────────────────────
+          // BALANCE MATH unchanged: only `net_amount` debits the running balance.
+          // DISPLAY: when sale_return_adjust > 0, show GROSS in the Debit column
+          // so the customer sees the full bill value, then add an inline
+          // informational sub-row that visibly credits the S/R offset. The
+          // sub-row has balanceEffect = 0 (debit=0, credit=0 for math/totals)
+          // so the running balance is unchanged.
+          const grossAmount = (sale.net_amount || 0) + saleReturnAdjust;
+          const showGross = saleReturnAdjust > 0 && !isCancelled;
+          const invoiceDescription = showGross
+            ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(sale.net_amount || 0).toLocaleString('en-IN')})`
+            : `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
+
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
             timestamp: item.timestamp || null,
             type: 'invoice',
             reference: sale.sale_number,
-            description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}${saleReturnAdjust > 0 ? ` (S/R Adj ₹${saleReturnAdjust.toLocaleString('en-IN')} applied)` : ''}`,
+            description: invoiceDescription,
+            // `debit` drives both the running balance addition (already done
+            // above) AND the totals row. Keep it = net_amount so totals match
+            // the balance math. `displayDebit` overrides the rendered value.
             debit: isCancelled ? 0 : invoiceDebit,
             credit: 0,
+            displayDebit: isCancelled ? 0 : (showGross ? grossAmount : invoiceDebit),
             balance: runningBalance,
             paymentStatus: sale.payment_status,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
+
+          // Inline informational row showing the S/R offset that brought
+          // gross down to net. No balance impact (already inside net_amount).
+          if (showGross) {
+            allTransactions.push({
+              id: `${sale.id}-sr-note`,
+              date: sale.sale_date,
+              timestamp: item.timestamp || null,
+              type: 'invoice',
+              reference: sale.sale_number,
+              description: `↳ Less: S/R Adjustment applied to ${sale.sale_number}`,
+              debit: 0,
+              credit: 0,
+              displayDebit: 0,
+              displayCredit: saleReturnAdjust,
+              balance: runningBalance,
+              informational: true,
+            });
+          }
 
           // Skip payment processing for cancelled invoices
           if (isCancelled) return;
