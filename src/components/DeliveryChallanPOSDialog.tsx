@@ -14,7 +14,7 @@ import { useStockValidation } from '@/hooks/useStockValidation';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceWrapper } from '@/components/InvoiceWrapper';
 import { toast } from 'sonner';
-import { Truck, X, Trash2, Plus, Minus, Printer, Search } from 'lucide-react';
+import { Truck, X, Trash2, Plus, Minus, Printer, Search, Percent, IndianRupee } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
