@@ -2343,8 +2343,51 @@ const PurchaseEntry = () => {
     setRollEntryProduct(null);
   };
 
-  const removeLineItem = (temp_id: string) => {
+  const removeLineItem = async (temp_id: string) => {
+    // Capture removed item BEFORE state update so we can tag the product
+    const removed = lineItems.find((item) => item.temp_id === temp_id);
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
+
+    // Tag the underlying product as "user cancelled" so it's easy to spot
+    // on the Product Dashboard (added but never billed). Only when the
+    // product currently has 0 stock and no purchase history.
+    if (removed?.product_id && currentOrganization?.id) {
+      try {
+        const { data: pi } = await supabase
+          .from("purchase_items")
+          .select("id", { head: true, count: "exact" })
+          .eq("product_id", removed.product_id)
+          .is("deleted_at", null)
+          .limit(1);
+        // If product has any prior purchase, don't tag
+        const { count: purchaseCount } = await supabase
+          .from("purchase_items")
+          .select("id", { head: true, count: "exact" })
+          .eq("product_id", removed.product_id)
+          .is("deleted_at", null);
+        if ((purchaseCount ?? 0) === 0) {
+          // Check total stock across variants
+          const { data: vrows } = await supabase
+            .from("product_variants")
+            .select("stock_qty")
+            .eq("product_id", removed.product_id)
+            .is("deleted_at", null);
+          const totalStock = (vrows || []).reduce(
+            (s: number, v: any) => s + (Number(v.stock_qty) || 0),
+            0
+          );
+          if (totalStock === 0) {
+            await supabase
+              .from("products")
+              .update({ user_cancelled_at: new Date().toISOString() })
+              .eq("id", removed.product_id)
+              .eq("organization_id", currentOrganization.id);
+          }
+        }
+      } catch (err) {
+        console.warn("[PurchaseEntry] tag user_cancelled failed:", err);
+      }
+    }
   };
 
   const handleCopyLastRow = () => {
