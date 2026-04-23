@@ -69,6 +69,14 @@ interface Transaction {
     method?: string;
   };
   appliedAmount?: number;
+  /** Optional display-only amounts used to show GROSS invoice or informational
+   *  offset rows without changing the balance math. When undefined, falls back
+   *  to debit/credit. */
+  displayDebit?: number;
+  displayCredit?: number;
+  /** Informational/secondary row — rendered with muted styling and EXCLUDED
+   *  from the totals row to avoid double-counting. */
+  informational?: boolean;
 }
 
 export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
