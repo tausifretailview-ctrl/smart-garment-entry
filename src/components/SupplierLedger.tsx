@@ -353,6 +353,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           type: 'purchase_return' as const,
           data: pr,
         })),
+        ...(pendingReturns || []).map((pr: any) => ({
+          date: pr.return_date,
+          type: 'purchase_return_pending' as const,
+          data: pr,
+        })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       combined.forEach((item) => {
