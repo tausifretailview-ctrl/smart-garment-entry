@@ -1700,6 +1700,67 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     }, { totalDebit: 0, totalCredit: 0 });
   }, [transactions]);
 
+  // Reconciliation summary for the footer box. Numbers are derived directly
+  // from the transaction list so they always tally with what the user sees.
+  const reconciliation = useMemo(() => {
+    const empty = {
+      opening: 0,
+      grossInvoiced: 0,
+      saleReturns: 0,
+      netInvoiced: 0,
+      payments: 0,
+      advanceApplied: 0,
+      advanceCredit: 0,
+      adjustments: 0,
+      finalBalance: 0,
+    };
+    if (!transactions || transactions.length === 0) return empty;
+
+    let opening = 0;
+    let grossInvoiced = 0;
+    let saleReturns = 0;
+    let netInvoiced = 0;
+    let payments = 0;
+    let advanceApplied = 0;
+    let advanceCredit = 0;
+    let adjustments = 0;
+
+    for (const t of transactions) {
+      if (t.id === 'opening-balance') {
+        opening = (t.debit || 0) - (t.credit || 0);
+        continue;
+      }
+      if (t.informational) continue;
+      if (t.type === 'invoice') {
+        grossInvoiced += t.displayDebit ?? t.debit ?? 0;
+        netInvoiced += t.debit || 0;
+      } else if (t.type === 'return') {
+        saleReturns += t.credit || 0;
+      } else if (t.type === 'payment') {
+        payments += t.credit || 0;
+      } else if (t.type === 'advance_application') {
+        advanceApplied += t.appliedAmount || 0;
+      } else if (t.type === 'advance') {
+        advanceCredit += t.credit || 0;
+      } else if (t.type === 'adjustment') {
+        adjustments += (t.debit || 0) - (t.credit || 0);
+      }
+    }
+
+    const finalBalance = transactions[transactions.length - 1]?.balance ?? 0;
+    return {
+      opening,
+      grossInvoiced,
+      saleReturns,
+      netInvoiced,
+      payments,
+      advanceApplied,
+      advanceCredit,
+      adjustments,
+      finalBalance,
+    };
+  }, [transactions]);
+
   // Send ledger summary via WhatsApp
   const handleSendLedgerWhatsApp = useCallback(() => {
     if (!selectedCustomer) return;
