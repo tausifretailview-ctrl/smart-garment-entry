@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Printer, Download, FileX } from "lucide-react";
 import { format } from "date-fns";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useLayoutEffect } from "react";
 import { useReactToPrint } from "react-to-print";
 import { ProfessionalTemplate } from "@/components/invoice-templates/ProfessionalTemplate";
 import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
@@ -40,6 +40,11 @@ export default function PublicInvoiceView() {
   const [searchParams] = useSearchParams();
   const formatParam = searchParams.get('format');
   const printRef = useRef<HTMLDivElement>(null);
+  // Mobile auto-fit: scale the A4 invoice down to fit the phone screen width.
+  const scaleWrapRef = useRef<HTMLDivElement>(null);
+  const scaleInnerRef = useRef<HTMLDivElement>(null);
+  const [fitScale, setFitScale] = useState(1);
+  const [scaledHeight, setScaledHeight] = useState<number | undefined>(undefined);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-invoice', saleId],
@@ -56,6 +61,12 @@ export default function PublicInvoiceView() {
       return response.json();
     },
     enabled: !!saleId,
+    // Always re-fetch on mount so first WhatsApp open never paints
+    // a partial/cached payload missing financer/GST data.
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    retry: 2,
   });
 
   const sale = data?.sale;
@@ -74,6 +85,40 @@ export default function PublicInvoiceView() {
     contentRef: printRef,
     documentTitle: sale?.sale_number || "Invoice",
   });
+
+  // Recalculate scale on mount, resize, and whenever the invoice content changes.
+  useLayoutEffect(() => {
+    if (formatParam === 'thermal') {
+      setFitScale(1);
+      setScaledHeight(undefined);
+      return;
+    }
+    const recalc = () => {
+      const wrap = scaleWrapRef.current;
+      const inner = scaleInnerRef.current;
+      if (!wrap || !inner) return;
+      const containerWidth = wrap.clientWidth;
+      const contentWidth = inner.scrollWidth || inner.offsetWidth || containerWidth;
+      if (!contentWidth) return;
+      // Only downscale; never upscale on tablets/desktop.
+      const next = Math.min(1, containerWidth / contentWidth);
+      setFitScale(next);
+      const contentHeight = inner.scrollHeight || inner.offsetHeight;
+      setScaledHeight(contentHeight ? contentHeight * next : undefined);
+    };
+    recalc();
+    const ro = new ResizeObserver(() => recalc());
+    if (scaleWrapRef.current) ro.observe(scaleWrapRef.current);
+    if (scaleInnerRef.current) ro.observe(scaleInnerRef.current);
+    window.addEventListener('resize', recalc);
+    // Re-run after templates render images/fonts.
+    const t = setTimeout(recalc, 400);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', recalc);
+      clearTimeout(t);
+    };
+  }, [data, formatParam]);
 
   if (isLoading) {
     return (
@@ -256,7 +301,7 @@ export default function PublicInvoiceView() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-2 sm:p-4 md:p-8">
       <div className={formatParam === 'thermal' ? 'max-w-[80mm] mx-auto' : 'max-w-4xl mx-auto'}>
         <div className="flex justify-center gap-4 mb-6 print:hidden">
           <Button onClick={() => handlePrint()} className="gap-2">
@@ -279,11 +324,46 @@ export default function PublicInvoiceView() {
               background: white !important;
               overflow: visible !important;
             }
+            .public-invoice-scale-inner {
+              transform: none !important;
+              width: auto !important;
+            }
+            .public-invoice-scale-wrap {
+              height: auto !important;
+            }
           }
         `}</style>
-        <div ref={formatParam === 'thermal' ? undefined : printRef} className="public-invoice-print-wrap bg-white rounded-lg shadow-lg" style={{ overflow: 'visible' }}>
-          {renderTemplate()}
-        </div>
+        {formatParam === 'thermal' ? (
+          <div className="public-invoice-print-wrap bg-white rounded-lg shadow-lg" style={{ overflow: 'visible' }}>
+            {renderTemplate()}
+          </div>
+        ) : (
+          <div
+            ref={scaleWrapRef}
+            className="public-invoice-scale-wrap public-invoice-print-wrap bg-white rounded-lg shadow-lg"
+            style={{
+              overflow: 'hidden',
+              height: scaledHeight ? `${scaledHeight}px` : undefined,
+            }}
+          >
+            <div
+              ref={(el) => {
+                scaleInnerRef.current = el;
+                if (printRef && 'current' in printRef) {
+                  (printRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+                }
+              }}
+              className="public-invoice-scale-inner"
+              style={{
+                transform: `scale(${fitScale})`,
+                transformOrigin: 'top left',
+                width: fitScale < 1 ? `${100 / fitScale}%` : '100%',
+              }}
+            >
+              {renderTemplate()}
+            </div>
+          </div>
+        )}
 
         <div className="text-center mt-6 text-sm text-muted-foreground print:hidden">
           <p>Invoice #{sale.sale_number} • Generated on {format(new Date(), 'dd MMM yyyy, hh:mm a')}</p>

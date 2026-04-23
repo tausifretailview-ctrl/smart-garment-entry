@@ -57,36 +57,39 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Fetch financer details for this sale
-    const { data: financerDetails } = await supabase
-      .from('sale_financer_details')
-      .select('financer_name, loan_number, emi_amount, tenure, down_payment, down_payment_mode, finance_discount, bank_transfer_amount')
-      .eq('sale_id', saleId)
-      .maybeSingle()
+    // Parallel-fetch all dependent data to minimize cold-start latency.
+    // This avoids the "first load missing EMI/GST/financer" issue where
+    // sequential awaits caused the page to occasionally paint before the
+    // financer/customer/settings calls completed.
+    const [financerRes, custRes, settingsRes, orgRes] = await Promise.all([
+      supabase
+        .from('sale_financer_details')
+        .select('financer_name, loan_number, emi_amount, tenure, down_payment, down_payment_mode, finance_discount, bank_transfer_amount')
+        .eq('sale_id', saleId)
+        .maybeSingle(),
+      sale.customer_id
+        ? supabase
+            .from('customers')
+            .select('gst_number, transport_details')
+            .eq('id', sale.customer_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from('settings')
+        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
+        .eq('organization_id', sale.organization_id)
+        .maybeSingle(),
+      supabase
+        .from('organizations')
+        .select('slug, name')
+        .eq('id', sale.organization_id)
+        .single(),
+    ])
 
-    // Fetch customer GSTIN and transport details if customer_id exists
-    let customerExtra: { gst_number?: string; transport_details?: string } | null = null
-    if (sale.customer_id) {
-      const { data: cust } = await supabase
-        .from('customers')
-        .select('gst_number, transport_details')
-        .eq('id', sale.customer_id)
-        .maybeSingle()
-      customerExtra = cust
-    }
-
-    // Fetch settings
-    const { data: settings } = await supabase
-      .from('settings')
-      .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-      .eq('organization_id', sale.organization_id)
-      .maybeSingle()
-
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('slug, name')
-      .eq('id', sale.organization_id)
-      .single()
+    const financerDetails = financerRes.data
+    const customerExtra = custRes.data as { gst_number?: string; transport_details?: string } | null
+    const settings = settingsRes.data
+    const org = orgRes.data
 
     const saleSettings = settings?.sale_settings as any || {};
     const sanitizedSettings = settings ? {
