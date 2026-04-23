@@ -1651,14 +1651,17 @@ const PurchaseBillDashboard = () => {
               : "bg-rose-50 text-rose-700 border-rose-200";
             const statusLabel = isPaid ? "Paid" : isPartial ? "Partial" : "Unpaid";
             return (
-              <div key={bill.id} onClick={() => navigate(`/purchase-entry/${bill.id}`)}
-                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation">
+              <div key={bill.id} onClick={() => !bill.is_cancelled && navigate(`/purchase-entry/${bill.id}`)}
+                className={cn("bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation", bill.is_cancelled && "opacity-60")}>
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-primary">{bill.software_bill_no}</span>
+                      <span className={cn("font-mono text-xs font-bold text-primary", bill.is_cancelled && "line-through")}>{bill.software_bill_no}</span>
                       {bill.is_dc_purchase && (
                         <span className="text-xs font-bold px-1 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+                      )}
+                      {bill.is_cancelled && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive border border-destructive/30 uppercase tracking-wide">Cancelled</span>
                       )}
                       <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", statusCls)}>
                         {statusLabel}
