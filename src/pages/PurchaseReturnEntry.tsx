@@ -776,13 +776,14 @@ const PurchaseReturnEntry = () => {
         color: variant.color,
         qty: 1,
         pur_price: unitPrice,
-        gst_per: variant.gst_per,
+        gst_per: variant.gst_per || (typeof defaultTaxRate === 'number' ? defaultTaxRate : Number(defaultTaxRate) || 0),
         hsn_code: variant.hsn_code,
         barcode: variant.barcode,
         line_total: lineTotal,
         brand: variant.brand,
         discount_percent: 0,
         discount_amount: 0,
+        mrp: variant.mrp ?? 0,
       };
       setLineItems(prev => [...prev, newItem]);
     }
