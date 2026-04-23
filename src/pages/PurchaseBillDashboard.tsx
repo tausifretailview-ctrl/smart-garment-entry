@@ -661,6 +661,59 @@ const PurchaseBillDashboard = () => {
   const [bulkDependencies, setBulkDependencies] = useState<{billId: string; billNo: string; deps: StockDependency[]}[]>([]);
   const [showBulkDependencyWarning, setShowBulkDependencyWarning] = useState(false);
 
+  // Bulk cancel state
+  const [showBulkCancelDialog, setShowBulkCancelDialog] = useState(false);
+  const [bulkCancelReason, setBulkCancelReason] = useState('');
+  const [isBulkCancelling, setIsBulkCancelling] = useState(false);
+
+  const handleBulkCancel = async () => {
+    if (!canCancel) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to cancel purchase bills. Ask admin to enable 'Cancel Invoice' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsBulkCancelling(true);
+    let success = 0;
+    let failed = 0;
+    try {
+      const ids = Array.from(selectedBills);
+      for (const id of ids) {
+        const bill = bills.find(b => b.id === id);
+        if (bill?.is_cancelled) continue;
+        const { data, error } = await supabase.rpc('cancel_purchase_bill', {
+          p_bill_id: id,
+          p_reason: bulkCancelReason.trim() || null,
+        });
+        const result = data as { success: boolean; error?: string };
+        if (error || !result?.success) {
+          failed++;
+        } else {
+          success++;
+        }
+      }
+      toast({
+        title: "Bulk Cancel Complete",
+        description: `${success} bill(s) cancelled${failed > 0 ? `, ${failed} failed` : ''}. Stock reversed.`,
+        variant: failed > 0 ? "destructive" : "default",
+      });
+      setSelectedBills(new Set());
+      setShowBulkCancelDialog(false);
+      setBulkCancelReason('');
+      await fetchBills();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel bills",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkCancelling(false);
+    }
+  };
+
   const handleBulkDeleteClick = async () => {
     if (!canDelete) {
       toast({
@@ -1911,6 +1964,12 @@ const PurchaseBillDashboard = () => {
                       Delete Selected ({selectedBills.size})
                     </Button>
                   )}
+                  {canCancel && (
+                    <Button variant="outline" size="sm" onClick={() => setShowBulkCancelDialog(true)} disabled={isBulkCancelling}>
+                      {isBulkCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
+                      Cancel Selected ({selectedBills.size})
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -2095,6 +2154,40 @@ const PurchaseBillDashboard = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isCancelling ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Cancelling...</> : 'Cancel Bill & Reverse Stock'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Cancel Bills Dialog */}
+      <AlertDialog open={showBulkCancelDialog} onOpenChange={(open) => { if (!open && !isBulkCancelling) { setShowBulkCancelDialog(false); setBulkCancelReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Selected Bills</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reverse stock quantities for{" "}
+              <span className="font-semibold">{selectedBills.size}</span>{" "}
+              selected purchase bill(s) and mark them as cancelled. Bills will remain visible with a CANCELLED tag. Already-cancelled bills will be skipped.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="bulk-cancel-reason">Reason (optional)</Label>
+            <Input
+              id="bulk-cancel-reason"
+              value={bulkCancelReason}
+              onChange={(e) => setBulkCancelReason(e.target.value)}
+              placeholder="e.g. Wrong entries, Duplicates, Returned..."
+              disabled={isBulkCancelling}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkCancelling}>Keep Bills</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleBulkCancel(); }}
+              disabled={isBulkCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBulkCancelling ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Cancelling...</> : `Cancel ${selectedBills.size} Bill(s) & Reverse Stock`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
