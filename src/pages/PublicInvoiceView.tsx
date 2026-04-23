@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Printer, Download, FileX } from "lucide-react";
 import { format } from "date-fns";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useLayoutEffect } from "react";
 import { useReactToPrint } from "react-to-print";
 import { ProfessionalTemplate } from "@/components/invoice-templates/ProfessionalTemplate";
 import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
@@ -56,6 +56,12 @@ export default function PublicInvoiceView() {
       return response.json();
     },
     enabled: !!saleId,
+    // Always re-fetch on mount so first WhatsApp open never paints
+    // a partial/cached payload missing financer/GST data.
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    retry: 2,
   });
 
   const sale = data?.sale;
