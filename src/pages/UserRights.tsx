@@ -275,7 +275,7 @@ const defaultManagerMainMenu: Record<string, boolean> = {
 const defaultManagerSpecialRights: Record<string, boolean> = {
   modify_records: true,
   delete_records: false,
-  cancel_invoice: false,
+  cancel_invoice: true,
   whatsapp_send: true,
   detail_accounting: true,
   export_data: true,
@@ -381,7 +381,7 @@ const UserRights = () => {
           master: true,
           sales: true,
         });
-        setSpecialPermissions({});
+        setSpecialPermissions({ cancel_invoice: true, delete_records: false });
       }
       setColumnVisibility({});
     }
