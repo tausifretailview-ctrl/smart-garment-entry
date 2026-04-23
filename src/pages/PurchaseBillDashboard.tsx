@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
@@ -112,6 +112,9 @@ interface PurchaseBill {
   is_dc_purchase?: boolean;
   bill_image_url?: string | null;
   is_locked?: boolean;
+  is_cancelled?: boolean;
+  cancelled_at?: string | null;
+  cancelled_reason?: string | null;
   items?: PurchaseItem[];
   purchase_items?: { count: number }[];
 }
@@ -131,6 +134,10 @@ const PurchaseBillDashboard = () => {
   const [printingBill, setPrintingBill] = useState<string | null>(null);
   const [deletingBill, setDeletingBill] = useState<string | null>(null);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
+  // Cancel bill state
+  const [billToCancel, setBillToCancel] = useState<PurchaseBill | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Selection and pagination states
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
@@ -190,6 +197,7 @@ const PurchaseBillDashboard = () => {
         label: "Edit Bill",
         icon: Edit,
         onClick: () => navigate(`/purchase-entry/${bill.id}`),
+        disabled: bill.is_cancelled,
       },
       { label: "", separator: true, onClick: () => {} },
       {
@@ -204,7 +212,7 @@ const PurchaseBillDashboard = () => {
           setPaymentNotes("");
           setShowPaymentDialog(true);
         },
-        disabled: bill.payment_status === 'completed',
+        disabled: bill.payment_status === 'completed' || bill.is_cancelled,
       },
       {
         label: "Print Barcodes",
@@ -260,6 +268,17 @@ const PurchaseBillDashboard = () => {
             toast({ title: "Error loading items for barcode print", variant: "destructive" });
           }
         },
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Cancel Bill",
+        icon: Ban,
+        onClick: () => {
+          setCancelReason('');
+          setBillToCancel(bill);
+        },
+        disabled: !canDelete || bill.is_cancelled,
+        destructive: true,
       },
     ];
   };
@@ -597,6 +616,45 @@ const PurchaseBillDashboard = () => {
     setBillToDelete(null);
     setShowDependencyWarning(false);
     setStockDependencies([]);
+  };
+
+  const handleCancelBill = async () => {
+    if (!billToCancel) return;
+    if (!canDelete) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to cancel purchase bills. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsCancelling(true);
+    try {
+      const { data, error } = await supabase.rpc('cancel_purchase_bill', {
+        p_bill_id: billToCancel.id,
+        p_reason: cancelReason.trim() || null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; error?: string; message?: string; bill_no?: string };
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to cancel purchase bill');
+      }
+      toast({
+        title: "Bill Cancelled",
+        description: result.message || `Purchase bill ${billToCancel.software_bill_no || billToCancel.supplier_invoice_no} cancelled. Stock reversed.`,
+      });
+      setBillToCancel(null);
+      setCancelReason('');
+      await fetchBills();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel purchase bill",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const [bulkDependencies, setBulkDependencies] = useState<{billId: string; billNo: string; deps: StockDependency[]}[]>([]);
@@ -1167,12 +1225,20 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
+          <div className={cn("flex items-center gap-1.5", bill.is_cancelled && "opacity-60")}>
+            <span className={cn("font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md", bill.is_cancelled && "line-through")}>
               {bill.software_bill_no || "N/A"}
             </span>
             {bill.is_dc_purchase && (
               <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+            )}
+            {bill.is_cancelled && (
+              <span
+                title={bill.cancelled_reason || 'Cancelled — stock reversed'}
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive border border-destructive/30 uppercase tracking-wide"
+              >
+                Cancelled
+              </span>
             )}
             <button
               onClick={(e) => handleToggleLock(bill, e)}
@@ -1585,14 +1651,17 @@ const PurchaseBillDashboard = () => {
               : "bg-rose-50 text-rose-700 border-rose-200";
             const statusLabel = isPaid ? "Paid" : isPartial ? "Partial" : "Unpaid";
             return (
-              <div key={bill.id} onClick={() => navigate(`/purchase-entry/${bill.id}`)}
-                className="bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation">
+              <div key={bill.id} onClick={() => !bill.is_cancelled && navigate(`/purchase-entry/${bill.id}`)}
+                className={cn("bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation", bill.is_cancelled && "opacity-60")}>
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-primary">{bill.software_bill_no}</span>
+                      <span className={cn("font-mono text-xs font-bold text-primary", bill.is_cancelled && "line-through")}>{bill.software_bill_no}</span>
                       {bill.is_dc_purchase && (
                         <span className="text-xs font-bold px-1 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+                      )}
+                      {bill.is_cancelled && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive border border-destructive/30 uppercase tracking-wide">Cancelled</span>
                       )}
                       <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", statusCls)}>
                         {statusLabel}
@@ -1993,6 +2062,42 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
       </div>
+
+      {/* Cancel Bill Dialog - reverses stock & marks bill cancelled */}
+      <AlertDialog open={!!billToCancel} onOpenChange={(open) => { if (!open && !isCancelling) { setBillToCancel(null); setCancelReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Purchase Bill</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reverse stock quantities for{" "}
+              <span className="font-semibold">
+                {billToCancel?.software_bill_no || billToCancel?.supplier_invoice_no}
+              </span>
+              {" "}and mark the bill as cancelled. The bill will remain visible in the dashboard with a CANCELLED tag.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="cancel-reason">Reason (optional)</Label>
+            <Input
+              id="cancel-reason"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Wrong supplier, Duplicate entry, Goods returned..."
+              disabled={isCancelling}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Keep Bill</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleCancelBill(); }}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Cancelling...</> : 'Cancel Bill & Reverse Stock'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog - Only shown when no dependencies */}
       <AlertDialog open={!!billToDelete && !showDependencyWarning && !isCheckingDependencies} onOpenChange={handleCancelDelete}>
