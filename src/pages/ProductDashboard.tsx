@@ -42,6 +42,7 @@ import { ProductImageGallery, ProductImage } from "@/components/ProductImageGall
 import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
+import { useSettings } from "@/hooks/useSettings";
 
 interface ProductVariant {
   variant_id: string;
@@ -86,6 +87,8 @@ const ProductDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
+  const { data: orgSettings } = useSettings();
+  const lowStockThreshold = Number((orgSettings as any)?.product_settings?.low_stock_threshold) || 10;
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -1399,7 +1402,7 @@ const ProductDashboard = () => {
                     <SelectContent className="bg-popover z-50">
                       <SelectItem value="all">All Stock Levels</SelectItem>
                       <SelectItem value="in_stock">In Stock</SelectItem>
-                      <SelectItem value="low_stock">Low Stock (≤10)</SelectItem>
+                      <SelectItem value="low_stock">Low Stock (≤{lowStockThreshold})</SelectItem>
                       <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                     </SelectContent>
                   </Select>
