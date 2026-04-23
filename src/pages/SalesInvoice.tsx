@@ -3913,10 +3913,10 @@ Thank you for choosing us!`;
               onClick={() => handlePaymentShortcut('cash')}
               disabled={isSaving || !lineItems.some(i => i.productId)}
               className={cn(
-                "h-8 px-3 text-xs gap-1 font-semibold border",
+                "h-8 px-3 text-xs gap-1 font-bold border text-white",
                 paymentOverride?.method === 'cash'
                   ? "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-500"
-                  : "text-emerald-200 border-emerald-700/60 hover:bg-emerald-800/40 hover:text-emerald-100"
+                  : "border-emerald-400/70 hover:bg-emerald-700/50 hover:text-white"
               )}
               title="Cash payment (F1)"
             >
@@ -3929,10 +3929,10 @@ Thank you for choosing us!`;
               onClick={() => handlePaymentShortcut('upi')}
               disabled={isSaving || !lineItems.some(i => i.productId)}
               className={cn(
-                "h-8 px-3 text-xs gap-1 font-semibold border",
+                "h-8 px-3 text-xs gap-1 font-bold border text-white",
                 paymentOverride?.method === 'upi'
                   ? "bg-violet-500 text-white border-violet-400 hover:bg-violet-500"
-                  : "text-violet-200 border-violet-700/60 hover:bg-violet-800/40 hover:text-violet-100"
+                  : "border-violet-400/70 hover:bg-violet-700/50 hover:text-white"
               )}
               title="UPI payment (F2)"
             >
@@ -3945,10 +3945,10 @@ Thank you for choosing us!`;
               onClick={() => handlePaymentShortcut('mix')}
               disabled={isSaving || !lineItems.some(i => i.productId)}
               className={cn(
-                "h-8 px-3 text-xs gap-1 font-semibold border",
+                "h-8 px-3 text-xs gap-1 font-bold border text-white",
                 paymentOverride?.method === 'multiple'
                   ? "bg-amber-500 text-white border-amber-400 hover:bg-amber-500"
-                  : "text-amber-200 border-amber-700/60 hover:bg-amber-800/40 hover:text-amber-100"
+                  : "border-amber-400/70 hover:bg-amber-700/50 hover:text-white"
               )}
               title="Mix payment (F3)"
             >
