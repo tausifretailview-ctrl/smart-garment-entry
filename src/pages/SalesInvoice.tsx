@@ -2633,6 +2633,7 @@ Thank you for choosing us!`;
         setRoundOff(0);
         setEditingInvoiceId(null);
         setOriginalItemsForEdit([]);
+        setPaymentOverride(null);
 
         // Now show print dialog with saved data
         setSavedInvoiceData(invoiceDataForPrint);
