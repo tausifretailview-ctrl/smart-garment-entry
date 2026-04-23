@@ -145,7 +145,19 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           const voucherPaid = perBillVoucherMap.get(b.id) || 0;
           return sum + (voucherPaid > 0 ? voucherPaid : (b.paid_amount || 0));
         }, 0);
-        const supplierLevelPayments = voucherPayments?.filter((v: any) => v.reference_id === supplier.id).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0) || 0;
+        // Legacy vouchers reference supplier_id directly. To avoid double-counting,
+        // exclude any whose description names a bill we've already settled via paid_amount above.
+        const billRefs = supplierBills
+          .map((b: any) => b.software_bill_no || b.supplier_invoice_no)
+          .filter(Boolean) as string[];
+        const supplierLevelPayments = (voucherPayments || [])
+          .filter((v: any) => {
+            if (v.reference_id !== supplier.id) return false;
+            const desc = (v.description || '') as string;
+            // Skip vouchers that describe an existing bill — those are already in paid_amount
+            return !billRefs.some((r) => desc.includes(r));
+          })
+          .reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0);
         const totalPaid = totalPaidFromBills + supplierLevelPayments;
         const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
         const unreflectedReturns = unreflectedReturnsBySupplier.get(supplier.id) || 0;
