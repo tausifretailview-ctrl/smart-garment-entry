@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -234,21 +235,8 @@ export default function QuotationEntry() {
     };
   }, [editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId, lineItems, quotationDate, validUntil, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft]);
 
-  // Fetch settings for print
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch settings for print (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -880,14 +868,8 @@ export default function QuotationEntry() {
             .maybeSingle();
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_quotation) {
-            const { data: companySettings } = await supabase
-              .from('settings')
-              .select('business_name, mobile_number')
-              .eq('organization_id', currentOrganization.id)
-              .maybeSingle();
-
-            const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
-            const contactNumber = companySettings?.mobile_number || 'N/A';
+            const companyName = (settings as any)?.business_name || currentOrganization.name || 'Our Company';
+            const contactNumber = (settings as any)?.mobile_number || 'N/A';
 
             const formattedDate = new Date(quotationDate).toLocaleDateString('en-IN', {
               day: '2-digit',
