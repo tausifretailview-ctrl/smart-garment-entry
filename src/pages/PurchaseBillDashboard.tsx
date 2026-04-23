@@ -2052,6 +2052,42 @@ const PurchaseBillDashboard = () => {
         )}
       </div>
 
+      {/* Cancel Bill Dialog - reverses stock & marks bill cancelled */}
+      <AlertDialog open={!!billToCancel} onOpenChange={(open) => { if (!open && !isCancelling) { setBillToCancel(null); setCancelReason(''); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Purchase Bill</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will reverse stock quantities for{" "}
+              <span className="font-semibold">
+                {billToCancel?.software_bill_no || billToCancel?.supplier_invoice_no}
+              </span>
+              {" "}and mark the bill as cancelled. The bill will remain visible in the dashboard with a CANCELLED tag.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="cancel-reason">Reason (optional)</Label>
+            <Input
+              id="cancel-reason"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="e.g. Wrong supplier, Duplicate entry, Goods returned..."
+              disabled={isCancelling}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Keep Bill</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleCancelBill(); }}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Cancelling...</> : 'Cancel Bill & Reverse Stock'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete Confirmation Dialog - Only shown when no dependencies */}
       <AlertDialog open={!!billToDelete && !showDependencyWarning && !isCheckingDependencies} onOpenChange={handleCancelDelete}>
         <AlertDialogContent>
