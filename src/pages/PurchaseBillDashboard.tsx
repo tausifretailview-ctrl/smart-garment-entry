@@ -618,6 +618,45 @@ const PurchaseBillDashboard = () => {
     setStockDependencies([]);
   };
 
+  const handleCancelBill = async () => {
+    if (!billToCancel) return;
+    if (!canDelete) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to cancel purchase bills. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsCancelling(true);
+    try {
+      const { data, error } = await supabase.rpc('cancel_purchase_bill', {
+        p_bill_id: billToCancel.id,
+        p_reason: cancelReason.trim() || null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; error?: string; message?: string; bill_no?: string };
+      if (!result?.success) {
+        throw new Error(result?.error || 'Failed to cancel purchase bill');
+      }
+      toast({
+        title: "Bill Cancelled",
+        description: result.message || `Purchase bill ${billToCancel.software_bill_no || billToCancel.supplier_invoice_no} cancelled. Stock reversed.`,
+      });
+      setBillToCancel(null);
+      setCancelReason('');
+      await fetchBills();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel purchase bill",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const [bulkDependencies, setBulkDependencies] = useState<{billId: string; billNo: string; deps: StockDependency[]}[]>([]);
   const [showBulkDependencyWarning, setShowBulkDependencyWarning] = useState(false);
 
