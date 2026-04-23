@@ -4046,7 +4046,7 @@ export default function POSSales() {
                   <div className="relative flex-1">
                     <Input
                       ref={barcodeInputRef}
-                      placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan Barcode/Enter Product Name"}
+                      placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan barcode or search: name / brand / category / style / color / size / price (use spaces to combine)"}
                       value={searchInput}
                       onChange={handleBarcodeInputChange}
                       onKeyDown={handleSearch}
