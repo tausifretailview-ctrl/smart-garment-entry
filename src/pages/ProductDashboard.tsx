@@ -84,6 +84,8 @@ const ProductDashboard = () => {
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { hasSpecialPermission } = useUserPermissions();
+  const canDelete = hasSpecialPermission('delete_records');
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
