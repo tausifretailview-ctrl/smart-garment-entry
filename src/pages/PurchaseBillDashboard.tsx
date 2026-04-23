@@ -112,6 +112,9 @@ interface PurchaseBill {
   is_dc_purchase?: boolean;
   bill_image_url?: string | null;
   is_locked?: boolean;
+  is_cancelled?: boolean;
+  cancelled_at?: string | null;
+  cancelled_reason?: string | null;
   items?: PurchaseItem[];
   purchase_items?: { count: number }[];
 }
