@@ -72,6 +72,7 @@ interface ProductRow {
   variants: ProductVariant[];
   total_stock: number;
   variant_count: number;
+  user_cancelled_at?: string | null;
 }
 
 interface DashboardStats {
