@@ -629,8 +629,19 @@ const ProductDashboard = () => {
 
   const { softDelete, bulkSoftDelete } = useSoftDelete();
   const { getProductRelationDetails } = useProductProtection();
+  const { hasSpecialPermission } = useUserPermissions();
+  const canDelete = hasSpecialPermission('delete_records');
 
   const handleBulkDelete = async () => {
+    if (!canDelete) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to delete products. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      setShowBulkDeleteDialog(false);
+      return;
+    }
     setIsDeleting(true);
     try {
       const productsToDelete = Array.from(selectedProducts);
