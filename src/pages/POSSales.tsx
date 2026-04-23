@@ -1239,8 +1239,10 @@ export default function POSSales() {
       };
 
       let allData: any[] = [];
+      let tokens: string[] = [];
 
       if (isNumeric) {
+        tokens = [term];
         // Barcode search - variant-level only, works fine in .or()
         let query = baseFilters(supabase.from('product_variants').select(variantSelect));
         query = query.or(`barcode.eq.${escapedTerm},barcode.ilike.%${escapedTerm}%`);
@@ -1249,59 +1251,94 @@ export default function POSSales() {
         if (error) throw error;
         allData = data || [];
       } else {
-        // Split: variant-level fields in one query, product-level fields via product table
-        // Query 1: variant-level matches (barcode, size, color)
-        const variantQuery = baseFilters(supabase.from('product_variants').select(variantSelect))
-          .or(`barcode.ilike.%${escapedTerm}%,size.ilike.%${escapedTerm}%,color.ilike.%${escapedTerm}%`)
-          .order('stock_qty', { ascending: false })
-          .limit(20);
+        // Multi-token AND search — every space-separated word must match
+        // somewhere across product name, brand, category, style, color,
+        // barcode, size, or price.
+        tokens = term.toLowerCase().split(/\s+/).filter(t => t.length > 0);
 
-        // Query 2: product-level matches (name, brand, category, style) — filter on products table, then fetch variants
-        const productQuery = supabase
-          .from('products')
-          .select('id')
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .or(`product_name.ilike.%${escapedTerm}%,brand.ilike.%${escapedTerm}%,category.ilike.%${escapedTerm}%,style.ilike.%${escapedTerm}%`);
+        if (tokens.length === 0) {
+          allData = [];
+        } else {
+          const fetchVariantsForToken = async (token: string): Promise<Set<string>> => {
+            const escToken = token.replace(/[%_,]/g, '');
+            const isNumericToken = /^\d+$/.test(escToken);
 
-        if (selectedProductType !== 'all') {
-          productQuery.eq('product_type', selectedProductType);
-        }
+            // Variant-level matches (barcode, size, color, and price for numeric tokens)
+            const variantOrParts = [
+              `barcode.ilike.%${escToken}%`,
+              `size.ilike.%${escToken}%`,
+              `color.ilike.%${escToken}%`,
+            ];
+            if (isNumericToken) {
+              variantOrParts.push(`sale_price.eq.${escToken}`);
+              variantOrParts.push(`mrp.eq.${escToken}`);
+            }
 
-        const [variantResult, productResult] = await Promise.all([
-          variantQuery,
-          productQuery.limit(30),
-        ]);
+            const variantQ = baseFilters(
+              supabase.from('product_variants').select('id, product_id')
+            ).or(variantOrParts.join(','));
 
-        if (requestSeq !== productSearchSeqRef.current) return;
-        if (variantResult.error) throw variantResult.error;
+            // Product-level matches (name, brand, category, style, hsn_code, color)
+            const productQ = supabase
+              .from('products')
+              .select('id')
+              .eq('organization_id', currentOrganization.id)
+              .eq('status', 'active')
+              .is('deleted_at', null)
+              .or(`product_name.ilike.%${escToken}%,brand.ilike.%${escToken}%,category.ilike.%${escToken}%,style.ilike.%${escToken}%,hsn_code.ilike.%${escToken}%,color.ilike.%${escToken}%`);
 
-        const variantData = variantResult.data || [];
-        const seenVariantIds = new Set(variantData.map((v: any) => v.id));
-        allData = [...variantData];
+            if (selectedProductType !== 'all') {
+              productQ.eq('product_type', selectedProductType);
+            }
 
-        // Fetch variants for product-level matches (excluding already found)
-        if (!productResult.error && productResult.data && productResult.data.length > 0) {
-          const productIds = productResult.data.map((p: any) => p.id);
-          const { data: productVariants } = await supabase
-            .from('product_variants')
-            .select(variantSelect)
-            .in('product_id', productIds)
-            .eq('active', true)
-            .is('deleted_at', null)
-            .order('stock_qty', { ascending: false })
-            .limit(30);
+            const [vRes, pRes] = await Promise.all([variantQ, productQ.limit(500)]);
+
+            const matchedVariantIds = new Set<string>();
+
+            if (!vRes.error && vRes.data) {
+              vRes.data.forEach((v: any) => matchedVariantIds.add(v.id));
+            }
+
+            if (!pRes.error && pRes.data && pRes.data.length > 0) {
+              const prodIds = pRes.data.map((p: any) => p.id);
+              const { data: pVariants } = await supabase
+                .from('product_variants')
+                .select('id')
+                .in('product_id', prodIds)
+                .eq('active', true)
+                .is('deleted_at', null)
+                .limit(1000);
+              if (pVariants) {
+                pVariants.forEach((v: any) => matchedVariantIds.add(v.id));
+              }
+            }
+
+            return matchedVariantIds;
+          };
+
+          const tokenSets = await Promise.all(tokens.map(fetchVariantsForToken));
 
           if (requestSeq !== productSearchSeqRef.current) return;
-          if (productVariants) {
-            for (const pv of productVariants) {
-              if (!seenVariantIds.has(pv.id)) {
-                allData.push(pv);
-                seenVariantIds.add(pv.id);
-              }
-              if (allData.length >= 20) break;
-            }
+
+          // Intersect all sets (AND logic)
+          let intersection = tokenSets[0];
+          for (let i = 1; i < tokenSets.length; i++) {
+            intersection = new Set([...intersection].filter(id => tokenSets[i].has(id)));
+          }
+
+          if (intersection.size === 0) {
+            allData = [];
+          } else {
+            const finalIds = Array.from(intersection).slice(0, 50);
+            const { data: finalVariants, error } = await baseFilters(
+              supabase.from('product_variants').select(variantSelect)
+            )
+              .in('id', finalIds)
+              .order('stock_qty', { ascending: false });
+
+            if (requestSeq !== productSearchSeqRef.current) return;
+            if (error) throw error;
+            allData = finalVariants || [];
           }
         }
       }
@@ -1311,11 +1348,40 @@ export default function POSSales() {
           const product = item.products;
           return product?.product_type === 'service' || product?.product_type === 'combo' || (item.stock_qty || 0) > 0;
         })
-        .map((item: any) => ({
-          product: item.products,
-          variant: item,
-          searchText: `${item.products?.product_name || ''} ${item.size || ''} ${item.color || ''} ${item.barcode || ''} ${item.products?.brand || ''} ${item.products?.category || ''}`.toLowerCase(),
-        }));
+        .map((item: any) => {
+          const p = item.products || {};
+          const matches: string[] = [];
+
+          const check = (label: string, value: any) => {
+            if (value == null) return;
+            const v = String(value).toLowerCase();
+            tokens.forEach(tok => {
+              if (v.includes(tok) && !matches.includes(label)) matches.push(label);
+            });
+          };
+
+          check('Name', p.product_name);
+          check('Brand', p.brand);
+          check('Category', p.category);
+          check('Style', p.style);
+          check('HSN', p.hsn_code);
+          check('Color', item.color || p.color);
+          check('Size', item.size);
+          check('Barcode', item.barcode);
+          tokens.forEach(tok => {
+            if (/^\d+$/.test(tok)) {
+              if (Number(item.sale_price) === Number(tok) && !matches.includes('Price')) matches.push('Price');
+              if (Number(item.mrp) === Number(tok) && !matches.includes('MRP')) matches.push('MRP');
+            }
+          });
+
+          return {
+            product: p,
+            variant: item,
+            matchedOn: matches,
+            searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
+          };
+        });
 
       setProductSearchResults(formatted);
       setIsProductSearchLoading(false);
@@ -3980,7 +4046,7 @@ export default function POSSales() {
                   <div className="relative flex-1">
                     <Input
                       ref={barcodeInputRef}
-                      placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan Barcode/Enter Product Name"}
+                      placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan barcode or search: name / brand / category / style / color / size / price (use spaces to combine)"}
                       value={searchInput}
                       onChange={handleBarcodeInputChange}
                       onKeyDown={handleSearch}
@@ -4024,11 +4090,17 @@ export default function POSSales() {
                     <div className="p-4 text-sm text-muted-foreground">No products found.</div>
                    ) : (
                     <>
-                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/40">
-                        {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b bg-muted/40 flex items-center justify-between">
+                        <span>
+                          {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
+                          {filteredProducts.length > 20 && ` — showing top 20`}
+                        </span>
+                        <span className="text-[10px] opacity-70">
+                          Tip: Use multiple words to narrow down (e.g. "top black 1350")
+                        </span>
                       </div>
                       <CommandGroup heading="Products">
-                        {filteredProducts.slice(0, 10).map((item: any, index: number) => {
+                        {filteredProducts.slice(0, 20).map((item: any, index: number) => {
                           const product = item.product;
                           return (
                             <CommandItem
@@ -4042,6 +4114,21 @@ export default function POSSales() {
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
                                 <span className="font-semibold text-sm">{product.product_name}</span>
+                                {item.matchedOn && item.matchedOn.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mb-0.5">
+                                    <span className="text-[9px] uppercase tracking-wide text-muted-foreground mr-1 flex items-center">
+                                      Matched:
+                                    </span>
+                                    {item.matchedOn.map((m: string) => (
+                                      <span
+                                        key={m}
+                                        className="text-[10px] bg-primary/10 text-primary border border-primary/30 px-1.5 py-0 rounded font-medium"
+                                      >
+                                        {m}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                                 <div className="flex flex-wrap gap-1">
                                   {product.brand && (
                                     <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded">
@@ -4072,6 +4159,11 @@ export default function POSSales() {
                                     <span className="font-mono">{displayBarcode(item.variant.barcode)}</span>
                                   )}
                                   <span className="font-bold text-primary">₹{item.variant.sale_price}</span>
+                                  {item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
+                                    <span className="text-[10px] line-through text-muted-foreground">
+                                      MRP ₹{item.variant.mrp}
+                                    </span>
+                                  )}
                                   <span className={item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
                                     Stock: {item.variant.stock_qty}
                                   </span>
