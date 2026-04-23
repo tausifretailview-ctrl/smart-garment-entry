@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
 
 interface ThermalItem {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { useSettings } from '@/hooks/useSettings';
 import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
 import { ClassicTemplate } from './invoice-templates/ClassicTemplate';
 import { ModernTemplate } from './invoice-templates/ModernTemplate';

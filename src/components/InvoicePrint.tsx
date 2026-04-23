@@ -86,6 +86,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
   const { currentOrganization } = useOrganization();
   const [settings, setSettings] = useState<any>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const { data: orgSettings } = useSettings();
 
   useEffect(() => {
     if (orgSettings) setSettings(orgSettings);
