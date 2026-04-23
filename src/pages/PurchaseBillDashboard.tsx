@@ -603,6 +603,14 @@ const PurchaseBillDashboard = () => {
   const [showBulkDependencyWarning, setShowBulkDependencyWarning] = useState(false);
 
   const handleBulkDeleteClick = async () => {
+    if (!canDelete) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to delete purchase bills. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
     const billsToCheck = Array.from(selectedBills);
     setIsDeleting(true);
     
@@ -629,6 +637,7 @@ const PurchaseBillDashboard = () => {
   };
 
   const handleBulkDelete = async () => {
+    if (!canDelete) return;
     setIsDeleting(true);
     try {
       const billsToDelete = Array.from(selectedBills);
