@@ -3916,8 +3916,8 @@ Thank you for choosing us!`;
         </div>
 
         {/* Bottom Bar: Formula strip + action buttons */}
-        <div className="bg-teal-900 flex items-center px-4 py-1.5 gap-3">
-          <div className="flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+        <div className="bg-teal-900 flex flex-wrap items-center px-4 py-1.5 gap-x-3 gap-y-1.5">
+          <div className="hidden xl:flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
             <span>Subtotal <span className="text-white font-bold">₹{grossAmount.toFixed(0)}</span></span>
             <span className="text-teal-500">—</span>
             <span>Disc <span className="text-red-300 font-bold">₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}</span></span>
