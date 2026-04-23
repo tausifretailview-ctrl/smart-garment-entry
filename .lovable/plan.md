@@ -1,54 +1,115 @@
 
 
-## Investigation: Duplicate March Purchase Bills
+## Fix three accounting bugs in supplier/purchase ledger system
 
-### What's Actually Happening
+### Fix 1 — Dedupe credit_note voucher creation in `AdjustCreditNoteDialog.tsx`
 
-I queried the database to find duplicates. **There is no auto-import process creating purchase bills.** The duplication is human re-entry, but the system isn't preventing it. Two distinct patterns:
+Currently when adjusting an old purchase return whose `credit_note_id` is null, both the **"Adjust Against Bill"** and **"Adjust in Outstanding"** branches blindly INSERT a new `credit_note` voucher every time the dialog is applied. Repeated clicks (or re-opening the dialog after a save) creates duplicate `SCN-XXXXX` vouchers, each one subtracting the credit amount again from the supplier balance.
 
-**Pattern A — VELVET EXCLUSIVE (the real bug visible in your screenshot)**
-- 3 bills `PUR/26-27/26`, `/27`, `/28`, supplier `OPENING STOCK`, all dated `01-Mar-2026`
-- All 3 created on `11-Apr-2026` between `09:52` and `10:19` (27-minute window)
-- Same barcodes (`150007516`–`150007522`), same quantities, same `sku_id`
-- Stock for barcode `150007516` = **15** (5 added 3 times) instead of expected **5**
-- Cause: user opened the Purchase Entry screen and clicked Save 3 times (or re-imported the same Excel) — every save inserts new rows and the `purchase_items_after_insert` trigger adds stock again. Nothing stops it.
+**Change** (`src/components/AdjustCreditNoteDialog.tsx`): before inserting a new `credit_note` voucher in the `bill` and `outstanding` branches, run a guard query:
 
-**Pattern B — BOMBAY COLDCHAIN (legitimate, do NOT block)**
-- Same SKUs (COW MILK, CURD, etc.) appear in 8–16 different bills across March
-- Different days, different `supplier_invoice_no`, different bill_dates → daily restock business. Correct.
+```ts
+const { data: existing } = await supabase
+  .from('voucher_entries')
+  .select('id')
+  .eq('organization_id', currentOrganization.id)
+  .eq('voucher_type', 'credit_note')
+  .eq('reference_type', 'supplier')
+  .eq('reference_id', supplierId)
+  .eq('total_amount', creditAmount)
+  .is('deleted_at', null)
+  .or(`description.ilike.%${creditNoteNumber}%,description.ilike.%${selectedBill?.supplier_invoice_no ?? ''}%`)
+  .limit(1)
+  .maybeSingle();
 
-### Root Cause
-Purchase Entry has **no duplicate-bill guard**. A user can save the same supplier + supplier_invoice_no + date twice (or any number of times) and the trigger will inflate stock every time.
+if (existing) {
+  // update description + link existing voucher to PR, do NOT insert
+  await supabase.from('voucher_entries').update({ description: ... }).eq('id', existing.id);
+  await supabase.from('purchase_returns').update({ credit_note_id: existing.id }).eq('id', purchaseReturnId);
+} else {
+  // existing INSERT path
+}
+```
 
-### The Fix
+Also re-check `purchase_returns.credit_note_id` at the start of `handleApply` (re-fetch by `purchaseReturnId`) so a second click after a successful save sees the now-linked voucher and skips the insert entirely.
 
-**1. Pre-save duplicate detection (Purchase Entry)**
-Before inserting a new `purchase_bills` row, query existing non-deleted, non-cancelled bills with the same `(organization_id, supplier_id OR supplier_name, supplier_invoice_no, bill_date)`. If found, show a blocking dialog:
+### Fix 2 — Stop double-counting pending purchase returns in `SupplierLedger.tsx`
 
-> "A bill from this supplier with invoice no. **{X}** dated **{date}** already exists (Bill: {software_bill_no}, Total: ₹{amount}). Saving again will double-count stock. Choose: **Open Existing**, **Save Anyway** (requires Cancel Invoice permission), or **Cancel**."
+Today `unreflectedReturnsBySupplier` (line 120-126) subtracts every purchase return that has no linked `credit_note_id`. This fires even for **pending** returns (no adjustment decided yet), which means the supplier balance drops the moment a return is entered, before any credit note / refund / outstanding adjustment exists. That double-counts against the actual pending-bill balance and corrupts the summary card.
 
-This catches the VELVET case (supplier_invoice_no 56/57/58 with same date) and any double-click / accidental re-save.
+**Changes** (`src/components/SupplierLedger.tsx`):
 
-**2. Identical-content detection (cart hash)**
-After items are added, compute a hash of `(supplier, date, sorted [barcode|qty|price] list)`. Compare against bills saved in the last 24 hours. If identical, warn the same way. This catches re-imports of the same Excel file.
+1. In the `allPurchaseReturns` query (line 113), also select `credit_status`.
+2. In the unreflected aggregator (line 121), only count returns where the user has explicitly chosen an adjustment that affects balance:
+   ```ts
+   if ((!pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id))
+       && ['adjusted', 'adjusted_outstanding', 'refunded'].includes(pr.credit_status)) { ... }
+   ```
+   Pending returns are excluded from the balance calculation.
+3. In the per-supplier transactions block (line 276), apply the same `credit_status` filter to `unreflectedReturns` so pending PRs still appear in the ledger as **display-only rows with debit = 0** (informational), not subtracting from `runningBalance`. Add a new branch:
+   ```ts
+   } else if (item.type === 'purchase_return' && pr.credit_status === 'pending') {
+     // display-only row, do NOT mutate runningBalance
+     allTransactions.push({ ..., debit: 0, credit: 0, balance: runningBalance,
+       description: `Purchase Return - ${pr.return_number} (Pending — not adjusted)` });
+   }
+   ```
 
-**3. Save-button debounce / lock**
-Disable the Save button immediately on click and keep it disabled until the response returns. Prevents double-click from creating two bills with consecutive numbers.
+This keeps pending returns visible in the ledger for awareness but stops them from changing the balance until the user picks **Adjust Against Bill / Outstanding / Refund**.
 
-**4. Cleanup tool for VELVET (and any other affected org)**
-Add a one-time admin action in Settings → "Reconcile Duplicate Purchase Bills":
-- Lists candidate duplicate groups (same org + supplier + invoice_no + date OR same org + supplier + date + identical item-set saved within 60 minutes)
-- For each group, show all 3 bills side-by-side with totals
-- "Cancel Duplicates" button uses the existing `cancel_purchase_bill` RPC (which already reverses stock and validates that nothing was sold) to cancel all but the earliest bill
-- Result for VELVET: PUR/26-27/27 and /28 get cancelled with strikethrough tag; stock for barcode `150007516` drops from 15 → 5; ledger and GST stay clean.
+### Fix 3 — Cascade CN-adjustment vouchers on sale soft-delete / restore
 
-### Technical Details
-- **Files**: `src/pages/PurchaseEntry.tsx` (duplicate check before insert + button lock), `src/pages/Settings.tsx` (new admin tab), one new dialog component `DuplicatePurchaseBillDialog.tsx`
-- **DB**: no schema change. New read-only RPC `find_duplicate_purchase_bills(org_id)` for the cleanup tool. Existing `cancel_purchase_bill` RPC handles the reversal.
-- **Permissions**: "Save Anyway" override gated on `cancel_invoice` special permission so cashiers can't bypass.
-- **No impact on legitimate daily restocks** (BOMBAY COLDCHAIN) — they have different `supplier_invoice_no` and/or different `bill_date`, so the guard never triggers.
+New migration replacing `soft_delete_sale` and `restore_sale`. Current functions only touch vouchers with `reference_type = 'sale'`, leaving CN-adjustment receipts (which have `reference_type = 'customer'` but mention the invoice number in their description) orphaned in the customer ledger after a sale is recycled.
 
-### What Will NOT Be Done
-- No automatic background job — this is operator error, not auto-generation.
-- No hard-deletion of the 3 VELVET bills — they'll be soft-cancelled (with strikethrough tag) so the audit trail stays intact, matching the project's soft-delete policy.
+**New migration** (`supabase/migrations/<timestamp>_cascade_sale_voucher_delete.sql`):
+
+```sql
+CREATE OR REPLACE FUNCTION public.soft_delete_sale(p_sale_id uuid, p_user_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE
+  v_item RECORD; v_org_id uuid; v_sale_number text;
+  v_remaining_qty INTEGER; v_batch RECORD;
+BEGIN
+  SELECT organization_id, sale_number INTO v_org_id, v_sale_number
+    FROM sales WHERE id = p_sale_id;
+
+  -- Stock restoration (unchanged)
+  FOR v_item IN ... LOOP ... END LOOP;
+
+  UPDATE sale_items SET deleted_at = now(), deleted_by = p_user_id
+    WHERE sale_id = p_sale_id;
+
+  -- Direct vouchers
+  UPDATE voucher_entries SET deleted_at = now(), deleted_by = p_user_id
+    WHERE reference_id = p_sale_id
+      AND reference_type IN ('sale','invoice')
+      AND deleted_at IS NULL;
+
+  -- CN/receipt vouchers linked via description (reference_type='customer')
+  UPDATE voucher_entries SET deleted_at = now(), deleted_by = p_user_id
+    WHERE organization_id = v_org_id
+      AND v_sale_number IS NOT NULL
+      AND description ILIKE '%' || v_sale_number || '%'
+      AND voucher_type IN ('receipt','credit_note')
+      AND deleted_at IS NULL;
+
+  UPDATE sales SET deleted_at = now(), deleted_by = p_user_id WHERE id = p_sale_id;
+END; $$;
+```
+
+Mirror the same two UPDATEs in `restore_sale` (setting `deleted_at = NULL`, `deleted_by = NULL`) using the sale's `organization_id` + `sale_number` lookup, immediately after the existing `reference_type = 'sale'` restore.
+
+### Fix 4 — Rani Sarees one-time cleanup: SKIP
+
+I checked the database. There is **no organization** matching `'%rani%'` or `'%total it infra%'`, and no `voucher_entries` rows with `voucher_number` `VCH/25-26/2` or `VCH/25-26/14` in any matching org. The cleanup INSERT/UPDATE would be a no-op, so I will not create the migration. If you need this run on a different org name or another database, share the correct organization name and I'll add it.
+
+### Files
+
+- **Edit**: `src/components/AdjustCreditNoteDialog.tsx` (Fix 1)
+- **Edit**: `src/components/SupplierLedger.tsx` (Fix 2)
+- **New migration**: `supabase/migrations/<ts>_cascade_sale_voucher_delete.sql` (Fix 3)
+
+### Out of scope (explicitly not touched)
+
+Purchase save flow, sale save flow, POS save flow, any other RPCs.
 
