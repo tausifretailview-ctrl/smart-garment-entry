@@ -1961,6 +1961,9 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            <div className="mt-4">
+              <DuplicatePurchaseBillsReconciler />
+            </div>
           </TabsContent>
 
           <TabsContent value="sale">
