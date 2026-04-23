@@ -1039,16 +1039,26 @@ const ProductDashboard = () => {
         accessorKey: "product_name",
         header: "Product Name",
         cell: ({ row }) => (
-          <span
-            className="cursor-pointer text-primary hover:underline font-medium"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedProductForHistory({ id: row.original.product_id, name: row.original.product_name });
-              setShowProductHistory(true);
-            }}
-          >
-            {row.original.product_name?.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="cursor-pointer text-primary hover:underline font-medium"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedProductForHistory({ id: row.original.product_id, name: row.original.product_name });
+                setShowProductHistory(true);
+              }}
+            >
+              {row.original.product_name?.toUpperCase()}
+            </span>
+            {row.original.user_cancelled_at && (
+              <Badge
+                className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[10px] px-1.5 py-0 h-4"
+                title="Added in Purchase Entry but removed before saving the bill"
+              >
+                User Cancelled
+              </Badge>
+            )}
+          </div>
         ),
         size: 200,
       });
