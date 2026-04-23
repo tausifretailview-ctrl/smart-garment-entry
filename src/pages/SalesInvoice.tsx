@@ -173,9 +173,9 @@ export default function SalesInvoice() {
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
   
-  // Initialize 5 empty rows for predefined table
+  // Initialize 7 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
-    Array(5).fill(null).map((_, i) => ({
+    Array(7).fill(null).map((_, i) => ({
       id: `row-${i}`,
       productId: '',
       variantId: '',
