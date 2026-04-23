@@ -269,7 +269,7 @@ export default function SalesInvoice() {
     if (!data) return;
     setInvoiceDate(data.invoiceDate ? new Date(data.invoiceDate) : new Date());
     setDueDate(data.dueDate ? new Date(data.dueDate) : new Date());
-    setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
+    setLineItems(data.lineItems || Array(7).fill(null).map((_, i) => ({
       id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
       quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
     })));
