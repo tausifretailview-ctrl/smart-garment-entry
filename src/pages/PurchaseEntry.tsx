@@ -192,6 +192,9 @@ const PurchaseEntry = () => {
   const { invalidatePurchases } = useDashboardInvalidation();
   const queryClient = useQueryClient();
   const { isColumnVisible } = useUserPermissions();
+  const { hasSpecialPermission } = useUserPermissions();
+  const [duplicateWarning, setDuplicateWarning] = useState<{ bill: ExistingDuplicateBill; reason: string } | null>(null);
+  const overrideDuplicateRef = useRef(false);
   const showPurCol = {
     size: isColumnVisible('purchase_bill', 'size'),
     gst: isColumnVisible('purchase_bill', 'gst'),
