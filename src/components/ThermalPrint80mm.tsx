@@ -84,19 +84,12 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const { currentOrganization } = useOrganization();
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+    const { data: orgSettings } = useSettings();
 
     useEffect(() => {
       if (settingsOverride) { setSettings(settingsOverride); return; }
-      if (!currentOrganization?.id) return;
-      (async () => {
-        const { data } = await (supabase as any)
-          .from('settings')
-          .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-        if (data) setSettings(data);
-      })();
-    }, [currentOrganization?.id, settingsOverride]);
+      if (orgSettings) setSettings(orgSettings);
+    }, [orgSettings, settingsOverride]);
 
     useEffect(() => {
       const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)

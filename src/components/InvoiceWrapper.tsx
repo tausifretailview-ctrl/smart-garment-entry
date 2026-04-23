@@ -134,9 +134,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
+    const { data: orgSettings } = useSettings();
     useEffect(() => {
-      fetchSettings();
-    }, [currentOrganization?.id]);
+      if (orgSettings) setSettings(orgSettings);
+    }, [orgSettings]);
 
     useEffect(() => {
       if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
@@ -144,24 +145,6 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       }
     }, [settings, props.grandTotal]);
 
-    const fetchSettings = async () => {
-      if (!currentOrganization?.id) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('settings')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (data) {
-          setSettings(data);
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-      }
-    };
 
     const generateUpiQrCode = async () => {
       try {

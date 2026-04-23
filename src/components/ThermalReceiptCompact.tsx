@@ -79,18 +79,11 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const { currentOrganization } = useOrganization();
     const [settings, setSettings] = useState<any>(null);
     const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+    const { data: orgSettings } = useSettings();
 
     useEffect(() => {
-      if (!currentOrganization?.id) return;
-      (async () => {
-        const { data } = await (supabase as any)
-          .from('settings')
-          .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-        if (data) setSettings(data);
-      })();
-    }, [currentOrganization?.id]);
+      if (orgSettings) setSettings(orgSettings);
+    }, [orgSettings]);
 
     useEffect(() => {
       const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
