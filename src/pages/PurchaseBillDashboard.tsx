@@ -926,22 +926,39 @@ const PurchaseBillDashboard = () => {
       return;
     }
 
-    const currentPaid = selectedBillForPayment.paid_amount || 0;
-    const newTotalPaid = currentPaid + amount;
-
-    if (newTotalPaid > selectedBillForPayment.net_amount + 1) {
-      toast({
-        title: "Amount Exceeds Bill Total",
-        description: "Payment amount exceeds the remaining bill amount",
-        variant: "destructive",
-      });
+    setIsRecordingPayment(true);
+    // Re-fetch bill from DB to avoid stale state-driven overpayment
+    const { data: freshBill, error: freshErr } = await supabase
+      .from("purchase_bills")
+      .select("id, net_amount, paid_amount, is_cancelled, deleted_at")
+      .eq("id", selectedBillForPayment.id)
+      .maybeSingle();
+    if (freshErr) {
+      toast({ title: "Error", description: freshErr.message, variant: "destructive" });
+      setIsRecordingPayment(false);
       return;
     }
-
-    setIsRecordingPayment(true);
+    if (!freshBill || freshBill.deleted_at) {
+      toast({ title: "Bill unavailable", variant: "destructive" });
+      setIsRecordingPayment(false);
+      return;
+    }
+    const currentPaid = Number(freshBill.paid_amount) || 0;
+    const billNet = Number(freshBill.net_amount) || 0;
+    const newTotalPaid = currentPaid + amount;
+    if (newTotalPaid > billNet + 1) {
+      toast({
+        title: "Overpayment Blocked",
+        description: `Already paid ₹${currentPaid} of ₹${billNet}. Refresh and retry.`,
+        variant: "destructive",
+      });
+      await fetchBills();
+      setIsRecordingPayment(false);
+      return;
+    }
     try {
       let newStatus = 'unpaid';
-      if (Math.abs(newTotalPaid - selectedBillForPayment.net_amount) < 1) {
+      if (Math.abs(newTotalPaid - billNet) < 1) {
         newStatus = 'paid';
       } else if (newTotalPaid > 0) {
         newStatus = 'partial';
@@ -974,7 +991,7 @@ const PurchaseBillDashboard = () => {
           voucher_type: "payment",
           voucher_date: paymentDate,
           reference_type: "supplier",
-          reference_id: selectedBillForPayment.supplier_id || null,
+          reference_id: selectedBillForPayment.id,
           description: paymentDescription,
           total_amount: amount,
         });
