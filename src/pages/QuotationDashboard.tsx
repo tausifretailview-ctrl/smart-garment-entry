@@ -75,21 +75,8 @@ export default function QuotationDashboard() {
     enabled: !!currentOrganization?.id && !!user?.id,
   });
 
-  // Fetch settings for print
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch settings for print (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   const { data: quotationsData, isLoading, refetch } = useQuery({
     queryKey: ['quotations', currentOrganization?.id],

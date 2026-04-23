@@ -281,33 +281,17 @@ const POSDashboard = () => {
   useEffect(() => {
     const loadData = async () => {
       await fetchSales();
-      fetchPosBillFormat();
     };
     loadData();
   }, [currentOrganization]);
 
-  const fetchPosBillFormat = async () => {
-    if (!currentOrganization?.id) return;
-    try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
-      if (!error && data?.sale_settings) {
-        const settings = data.sale_settings as any;
-        if (settings.pos_bill_format) {
-          setPosBillFormat(settings.pos_bill_format);
-        }
-        if (settings.invoice_template) {
-          setPosInvoiceTemplate(settings.invoice_template);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching POS bill format:', error);
-    }
-  };
+  // Sync POS bill format / invoice template from cached settings
+  useEffect(() => {
+    const sale = (settings as any)?.sale_settings;
+    if (!sale) return;
+    if (sale.pos_bill_format) setPosBillFormat(sale.pos_bill_format);
+    if (sale.invoice_template) setPosInvoiceTemplate(sale.invoice_template);
+  }, [settings]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
