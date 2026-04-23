@@ -10,6 +10,8 @@ type ToasterToast = ToastProps & {
   title?: React.ReactNode;
   description?: React.ReactNode;
   action?: ToastActionElement;
+  /** When true, render destructive toast as bottom-right toast (skip modal). */
+  inline?: boolean;
 };
 
 const actionTypes = {
@@ -52,10 +54,14 @@ interface State {
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
-const addToRemoveQueue = (toastId: string) => {
+const addToRemoveQueue = (toastId: string, variant?: string, inline?: boolean) => {
   if (toastTimeouts.has(toastId)) {
     return;
   }
+
+  // Destructive toasts (rendered as modal ErrorDialog) are dismissed manually via OK click.
+  // Inline destructive toasts still auto-dismiss like regular toasts.
+  if (variant === "destructive" && !inline) return;
 
   const timeout = setTimeout(() => {
     toastTimeouts.delete(toastId);
@@ -88,10 +94,11 @@ export const reducer = (state: State, action: Action): State => {
       // ! Side effects ! - This could be extracted into a dismissToast() action,
       // but I'll keep it here for simplicity
       if (toastId) {
-        addToRemoveQueue(toastId);
+        const t = state.toasts.find((x) => x.id === toastId);
+        addToRemoveQueue(toastId, (t as any)?.variant, (t as any)?.inline);
       } else {
         state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id);
+          addToRemoveQueue(toast.id, (toast as any).variant, (toast as any).inline);
         });
       }
 
@@ -181,6 +188,22 @@ function useToast() {
     toast,
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
   };
+}
+
+export function showError(message: string, title?: string) {
+  return toast({
+    variant: "destructive",
+    title: title || "Error",
+    description: message,
+  });
+}
+
+export function showWarning(message: string, title?: string) {
+  return toast({
+    variant: "destructive",
+    title: title || "Warning",
+    description: message,
+  });
 }
 
 export { useToast, toast };
