@@ -3906,6 +3906,67 @@ Thank you for choosing us!`;
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Payment shortcuts: Cash F1 / UPI F2 / Mix F3 (default = Credit / pay_later) */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePaymentShortcut('cash')}
+              disabled={isSaving || !lineItems.some(i => i.productId)}
+              className={cn(
+                "h-8 px-3 text-xs gap-1 font-semibold border",
+                paymentOverride?.method === 'cash'
+                  ? "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-500"
+                  : "text-emerald-200 border-emerald-700/60 hover:bg-emerald-800/40 hover:text-emerald-100"
+              )}
+              title="Cash payment (F1)"
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              Cash <kbd className="ml-0.5 px-1 py-px rounded bg-black/20 text-[10px] font-mono">F1</kbd>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePaymentShortcut('upi')}
+              disabled={isSaving || !lineItems.some(i => i.productId)}
+              className={cn(
+                "h-8 px-3 text-xs gap-1 font-semibold border",
+                paymentOverride?.method === 'upi'
+                  ? "bg-violet-500 text-white border-violet-400 hover:bg-violet-500"
+                  : "text-violet-200 border-violet-700/60 hover:bg-violet-800/40 hover:text-violet-100"
+              )}
+              title="UPI payment (F2)"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              UPI <kbd className="ml-0.5 px-1 py-px rounded bg-black/20 text-[10px] font-mono">F2</kbd>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePaymentShortcut('mix')}
+              disabled={isSaving || !lineItems.some(i => i.productId)}
+              className={cn(
+                "h-8 px-3 text-xs gap-1 font-semibold border",
+                paymentOverride?.method === 'multiple'
+                  ? "bg-amber-500 text-white border-amber-400 hover:bg-amber-500"
+                  : "text-amber-200 border-amber-700/60 hover:bg-amber-800/40 hover:text-amber-100"
+              )}
+              title="Mix payment (F3)"
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              Mix <kbd className="ml-0.5 px-1 py-px rounded bg-black/20 text-[10px] font-mono">F3</kbd>
+            </Button>
+            {paymentOverride && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPaymentOverride(null)}
+                className="h-8 px-2 text-xs text-teal-300 hover:bg-teal-800 hover:text-white"
+                title="Clear payment selection (back to Credit)"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <div className="w-px h-6 bg-teal-700 mx-1" />
             <Button
               variant="ghost"
               size="sm"
