@@ -1,37 +1,54 @@
 
 
-## Fix: Customer Ledger CN Attribution for Multi-SR Adjustments
+## Investigation: Duplicate March Purchase Bills
 
-### Audit findings (Ella Noor org)
+### What's Actually Happening
 
-Scanning all customers, **5 customers** have CN-applied vs SR-amount mismatches. The previous fix correctly handles 4 (Hanif, Priyanka, Arezah, Sharmin — partial unused balance). The 5th, **Amrin**, exposes a deeper bug:
+I queried the database to find duplicates. **There is no auto-import process creating purchase bills.** The duplication is human re-entry, but the system isn't preventing it. Two distinct patterns:
 
-| Customer | SR | Net | Applied (voucher) | Issue |
-|---|---|---:|---:|---|
-| Hanif bhai | SR/26-27/11 | 6,250 | 3,200 | ✅ fixed (partial unused 3,050) |
-| Priyanka Yadav | SR/26-27/9 | 4,400 | 3,900 | ✅ fixed (partial unused 500) |
-| Arezah Nathani | SR/26-27/4 | 3,200 | 50 | ✅ fixed (partial unused 3,150) |
-| Sharmin Mewara | SR/25-26/39 | 13,450 | 1,950 | ✅ fixed (partial unused 11,500) |
-| **Amrin** | SR/25-26/21 + SR/26-27/3 | 6,400 + 2,800 | 9,200 (single voucher on INV/25-26/733) | ❌ phantom pending |
+**Pattern A — VELVET EXCLUSIVE (the real bug visible in your screenshot)**
+- 3 bills `PUR/26-27/26`, `/27`, `/28`, supplier `OPENING STOCK`, all dated `01-Mar-2026`
+- All 3 created on `11-Apr-2026` between `09:52` and `10:19` (27-minute window)
+- Same barcodes (`150007516`–`150007522`), same quantities, same `sku_id`
+- Stock for barcode `150007516` = **15** (5 added 3 times) instead of expected **5**
+- Cause: user opened the Purchase Entry screen and clicked Save 3 times (or re-imported the same Excel) — every save inserts new rows and the `purchase_items_after_insert` trigger adds stock again. Nothing stops it.
 
-Amrin's case: invoice INV/25-26/733 was billed with `sale_return_adjust = ₹9,200` (both SRs applied at billing time). The voucher row credits ₹9,200 against INV/25-26/733. But **SR/26-27/3 has no `linked_sale_id`**, so the current allocator only attributes ₹6,400 (from SR/25-26/21 which is linked); the remaining ₹2,800 of voucher remains "unattributed" and SR/26-27/3 wrongly shows as ₹2,800 Pending CN — even though the customer already used it on INV/25-26/733.
+**Pattern B — BOMBAY COLDCHAIN (legitimate, do NOT block)**
+- Same SKUs (COW MILK, CURD, etc.) appear in 8–16 different bills across March
+- Different days, different `supplier_invoice_no`, different bill_dates → daily restock business. Correct.
 
-### Fix
+### Root Cause
+Purchase Entry has **no duplicate-bill guard**. A user can save the same supplier + supplier_invoice_no + date twice (or any number of times) and the trigger will inflate stock every time.
 
-In `src/components/CustomerLedger.tsx` (`srAppliedMap` builder, lines ~796-816):
+### The Fix
 
-1. **Two-pass allocation** within the customer's SRs:
-   - **Pass 1** (existing): Allocate CN voucher remaining-by-sale to SRs whose `linked_sale_id` matches that sale (chronological).
-   - **Pass 2** (new): For any voucher remainder still on a sale (i.e., `remainingBySale[saleId] > 0` after pass 1), distribute it across this customer's *unlinked* SRs (chronological by date) up to each SR's `net_amount`. Tag those SR entries with the sale they were applied to (using `linkedSaleMap[saleId]`).
+**1. Pre-save duplicate detection (Purchase Entry)**
+Before inserting a new `purchase_bills` row, query existing non-deleted, non-cancelled bills with the same `(organization_id, supplier_id OR supplier_name, supplier_invoice_no, bill_date)`. If found, show a blocking dialog:
 
-2. Result: Amrin's SR/26-27/3 will show "Applied to INV/25-26/733 ₹2,800" (Credit) and SR/25-26/21 will show "Applied to INV/25-26/733 ₹6,400" — both fully accounted, no phantom pending CN, balance reconciles.
+> "A bill from this supplier with invoice no. **{X}** dated **{date}** already exists (Bill: {software_bill_no}, Total: ₹{amount}). Saving again will double-count stock. Choose: **Open Existing**, **Save Anyway** (requires Cancel Invoice permission), or **Cancel**."
 
-### Technical changes
+This catches the VELVET case (supplier_invoice_no 56/57/58 with same date) and any double-click / accidental re-save.
 
-- **`src/components/CustomerLedger.tsx`** — extend the `srAppliedMap` builder to add Pass 2: after the existing chronological allocation against linked SRs, iterate remaining `cnVoucherBySaleId` balances and allocate to unlinked SRs of the same customer in chronological order. No DB changes; presentation-only fix that uses already-existing data (voucher rows + SR rows).
+**2. Identical-content detection (cart hash)**
+After items are added, compute a hash of `(supplier, date, sorted [barcode|qty|price] list)`. Compare against bills saved in the last 24 hours. If identical, warn the same way. This catches re-imports of the same Excel file.
 
-### Out of scope
+**3. Save-button debounce / lock**
+Disable the Save button immediately on click and keep it disabled until the response returns. Prevents double-click from creating two bills with consecutive numbers.
 
-- Cleanup of the 4 already-fixed customers (no action needed — display now correct).
-- Auto-linking historical unlinked SRs to their billing-time invoice via `sales.sale_return_adjust` (would need a backfill migration; current presentation fix avoids needing it).
+**4. Cleanup tool for VELVET (and any other affected org)**
+Add a one-time admin action in Settings → "Reconcile Duplicate Purchase Bills":
+- Lists candidate duplicate groups (same org + supplier + invoice_no + date OR same org + supplier + date + identical item-set saved within 60 minutes)
+- For each group, show all 3 bills side-by-side with totals
+- "Cancel Duplicates" button uses the existing `cancel_purchase_bill` RPC (which already reverses stock and validates that nothing was sold) to cancel all but the earliest bill
+- Result for VELVET: PUR/26-27/27 and /28 get cancelled with strikethrough tag; stock for barcode `150007516` drops from 15 → 5; ledger and GST stay clean.
+
+### Technical Details
+- **Files**: `src/pages/PurchaseEntry.tsx` (duplicate check before insert + button lock), `src/pages/Settings.tsx` (new admin tab), one new dialog component `DuplicatePurchaseBillDialog.tsx`
+- **DB**: no schema change. New read-only RPC `find_duplicate_purchase_bills(org_id)` for the cleanup tool. Existing `cancel_purchase_bill` RPC handles the reversal.
+- **Permissions**: "Save Anyway" override gated on `cancel_invoice` special permission so cashiers can't bypass.
+- **No impact on legitimate daily restocks** (BOMBAY COLDCHAIN) — they have different `supplier_invoice_no` and/or different `bill_date`, so the guard never triggers.
+
+### What Will NOT Be Done
+- No automatic background job — this is operator error, not auto-generation.
+- No hard-deletion of the 3 VELVET bills — they'll be soft-cancelled (with strikethrough tag) so the audit trail stays intact, matching the project's soft-delete policy.
 
