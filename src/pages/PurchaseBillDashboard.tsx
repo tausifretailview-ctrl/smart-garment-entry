@@ -269,6 +269,17 @@ const PurchaseBillDashboard = () => {
           }
         },
       },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Cancel Bill",
+        icon: Ban,
+        onClick: () => {
+          setCancelReason('');
+          setBillToCancel(bill);
+        },
+        disabled: !canDelete || bill.is_cancelled,
+        destructive: true,
+      },
     ];
   };
 
