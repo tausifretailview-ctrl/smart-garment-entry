@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText, Coins, Trash2, Save } from "lucide-react";
+import { Banknote, Smartphone, Wallet } from "lucide-react";
+import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
