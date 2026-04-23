@@ -239,7 +239,7 @@ const ProductDashboard = () => {
           }
         },
       },
-      {
+      ...(canDelete ? [{
         label: "Delete Product",
         icon: Trash2,
         onClick: () => {
@@ -247,7 +247,7 @@ const ProductDashboard = () => {
           setShowBulkDeleteDialog(true);
         },
         destructive: true,
-      },
+      }] : []),
     ];
   };
 
