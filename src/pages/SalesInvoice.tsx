@@ -4001,6 +4001,26 @@ Thank you for choosing us!`;
         </div>
       </footer>
 
+      {/* Mix Payment Dialog (F3) */}
+      <MixPaymentDialog
+        open={showMixPaymentDialog}
+        onOpenChange={setShowMixPaymentDialog}
+        billAmount={netAmount}
+        onSave={(payment) => {
+          setShowMixPaymentDialog(false);
+          setPaymentOverride({
+            method: 'multiple',
+            cashAmount: payment.cashAmount,
+            upiAmount: payment.upiAmount,
+            cardAmount: payment.cardAmount,
+            bankAmount: payment.bankAmount,
+            financeAmount: payment.financeAmount,
+            totalPaid: payment.totalPaid,
+          });
+          pendingAutoSaveRef.current = true;
+        }}
+      />
+
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
         <DialogContent className="sm:max-w-[500px]">
