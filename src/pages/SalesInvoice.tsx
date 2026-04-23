@@ -422,6 +422,43 @@ export default function SalesInvoice() {
     return () => window.removeEventListener('keydown', handler);
   });
 
+  // Handle payment shortcut buttons: set payment override then auto-save
+  const handlePaymentShortcut = (mode: 'cash' | 'upi' | 'mix') => {
+    const filledItems = lineItems.filter(item => item.productId !== '');
+    if (filledItems.length === 0) {
+      toast({ variant: 'destructive', title: 'No items', description: 'Please add at least one product first.' });
+      return;
+    }
+    if (mode === 'cash') {
+      setPaymentOverride({
+        method: 'cash',
+        cashAmount: netAmount, upiAmount: 0, cardAmount: 0, bankAmount: 0, financeAmount: 0,
+        totalPaid: netAmount,
+      });
+      pendingAutoSaveRef.current = true;
+    } else if (mode === 'upi') {
+      setPaymentOverride({
+        method: 'upi',
+        cashAmount: 0, upiAmount: netAmount, cardAmount: 0, bankAmount: 0, financeAmount: 0,
+        totalPaid: netAmount,
+      });
+      pendingAutoSaveRef.current = true;
+    } else {
+      setShowMixPaymentDialog(true);
+    }
+  };
+
+  // After paymentOverride is set via Cash/UPI shortcut, trigger save
+  useEffect(() => {
+    if (pendingAutoSaveRef.current && paymentOverride) {
+      pendingAutoSaveRef.current = false;
+      if (!isSaving && !savingLockRef.current) {
+        handleSaveInvoice();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentOverride]);
+
   // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
   useEffect(() => {
     if (selectedCustomer && !hasBrandDiscounts) {
