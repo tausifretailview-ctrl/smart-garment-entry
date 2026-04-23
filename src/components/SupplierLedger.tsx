@@ -67,7 +67,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch all purchase bills
       const { data: purchaseBillsData, error: billsError } = await supabase
         .from("purchase_bills")
-        .select("id, supplier_id, net_amount, paid_amount")
+        .select("id, supplier_id, net_amount, paid_amount, software_bill_no, supplier_invoice_no")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .or("is_cancelled.is.null,is_cancelled.eq.false");
@@ -77,7 +77,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch voucher payments to suppliers
       const { data: voucherPayments, error: voucherError } = await supabase
         .from("voucher_entries")
-        .select("reference_id, total_amount")
+        .select("reference_id, total_amount, description")
         .eq("organization_id", organizationId)
         .eq("reference_type", "supplier")
         .eq("voucher_type", "payment")
