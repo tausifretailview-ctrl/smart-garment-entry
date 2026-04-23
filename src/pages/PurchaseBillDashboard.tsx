@@ -134,6 +134,10 @@ const PurchaseBillDashboard = () => {
   const [printingBill, setPrintingBill] = useState<string | null>(null);
   const [deletingBill, setDeletingBill] = useState<string | null>(null);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
+  // Cancel bill state
+  const [billToCancel, setBillToCancel] = useState<PurchaseBill | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Selection and pagination states
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
