@@ -14,6 +14,7 @@ import { StatusBar } from "@/components/StatusBar";
 import { useEscapeBack } from "@/hooks/useEscapeBack";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { initUIScale } from "@/components/UIScaleSelector";
+import { useLocation } from "react-router-dom";
 
 interface LayoutProps {
   children: ReactNode;
@@ -23,6 +24,9 @@ export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
   useEscapeBack();
   const { orgNavigate } = useOrgNavigation();
+  const location = useLocation();
+  // Full-screen billing: hide sidebar + header/tabs on Sales Invoice
+  const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
 
   // Apply saved UI scale on mount
   useEffect(() => { initUIScale(); }, []);
@@ -55,18 +59,30 @@ export const Layout = ({ children }: LayoutProps) => {
         <OfflineIndicator />
         
         <div className="flex min-h-screen w-full bg-background">
-          <AppSidebar />
+          {!isSalesInvoicePage && <AppSidebar />}
           <SidebarInset className="flex flex-col flex-1">
-            <Header />
-            {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
-            <div className="hidden lg:block">
-              <WindowTabsBar />
-            </div>
-            <div className="flex lg:hidden items-center gap-1 px-2 py-0.5 border-b bg-sidebar">
-              <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
-            </div>
+            {!isSalesInvoicePage && (
+              <>
+                <Header />
+                {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
+                <div className="hidden lg:block">
+                  <WindowTabsBar />
+                </div>
+                <div className="flex lg:hidden items-center gap-1 px-2 py-0.5 border-b bg-sidebar">
+                  <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
+                </div>
+              </>
+            )}
             {/* Add bottom padding on mobile for bottom nav; lg adds extra for status bar */}
-            <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]">{children}</main>
+            <main
+              className={
+                isSalesInvoicePage
+                  ? "flex-1 overflow-auto pb-14 relative z-[1]"
+                  : "flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]"
+              }
+            >
+              {children}
+            </main>
           </SidebarInset>
         </div>
         
