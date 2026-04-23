@@ -196,7 +196,13 @@ const PurchaseBillDashboard = () => {
       {
         label: "Edit Bill",
         icon: Edit,
-        onClick: () => navigate(`/purchase-entry/${bill.id}`),
+        onClick: () => {
+          if (bill.is_cancelled) {
+            toast({ title: "Bill Cancelled", description: "Cancelled bills cannot be edited.", variant: "destructive" });
+            return;
+          }
+          navigate(`/purchase-entry/${bill.id}`);
+        },
         disabled: bill.is_cancelled,
       },
       { label: "", separator: true, onClick: () => {} },
