@@ -3046,7 +3046,7 @@ Thank you for choosing us!`;
             </Button>
             <div className="w-px h-6 bg-white/20 mx-1" />
             <Button variant="ghost" size="sm" onClick={() => {
-                setLineItems(Array(5).fill(null).map((_, i) => ({
+                setLineItems(Array(7).fill(null).map((_, i) => ({
                   id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
                   quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
                 })));
