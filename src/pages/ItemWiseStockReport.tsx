@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useProductFieldLabels } from "@/hooks/useSettings";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,14 +22,6 @@ interface AggregatedRow {
   purchase_value: number;
   sale_value: number;
 }
-
-const GROUP_BY_LABELS: Record<GroupByField, string> = {
-  product_name: "Product Name",
-  supplier: "Supplier",
-  brand: "Brand",
-  category: "Category",
-  department: "Department",
-};
 
 const PAGE_SIZE = 200;
 
@@ -52,6 +45,14 @@ async function fetchAllPages(
 
 export default function ItemWiseStockReport() {
   const { currentOrganization } = useOrganization();
+  const fieldLabels = useProductFieldLabels();
+  const GROUP_BY_LABELS: Record<GroupByField, string> = {
+    product_name: "Product Name",
+    supplier: "Supplier",
+    brand: fieldLabels.brand,
+    category: fieldLabels.category,
+    department: fieldLabels.style,
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [groupBy, setGroupBy] = useState<GroupByField>("product_name");
   const [brandFilter, setBrandFilter] = useState("");
@@ -464,9 +465,9 @@ export default function ItemWiseStockReport() {
           <SelectContent>
             <SelectItem value="product_name">Product Name</SelectItem>
             <SelectItem value="supplier">Supplier</SelectItem>
-            <SelectItem value="brand">Brand</SelectItem>
-            <SelectItem value="category">Category</SelectItem>
-            <SelectItem value="department">Department</SelectItem>
+            <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
+            <SelectItem value="category">{fieldLabels.category}</SelectItem>
+            <SelectItem value="department">{fieldLabels.style}</SelectItem>
           </SelectContent>
         </Select>
 
@@ -484,10 +485,10 @@ export default function ItemWiseStockReport() {
 
         <Select value={brandFilter} onValueChange={(v) => { setBrandFilter(v); setCurrentPage(1); }}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Brands" />
+            <SelectValue placeholder={`All ${fieldLabels.brand}`} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All Brands</SelectItem>
+            <SelectItem value="__all__">All {fieldLabels.brand}</SelectItem>
             {(filterOptions?.brands || []).map((brand) => (
               <SelectItem key={brand} value={brand}>{brand}</SelectItem>
             ))}
@@ -496,10 +497,10 @@ export default function ItemWiseStockReport() {
 
         <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setCurrentPage(1); }}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Categories" />
+            <SelectValue placeholder={`All ${fieldLabels.category}`} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All Categories</SelectItem>
+            <SelectItem value="__all__">All {fieldLabels.category}</SelectItem>
             {(filterOptions?.categories || []).map((cat) => (
               <SelectItem key={cat} value={cat}>{cat}</SelectItem>
             ))}
@@ -508,10 +509,10 @@ export default function ItemWiseStockReport() {
 
         <Select value={departmentFilter} onValueChange={(v) => { setDepartmentFilter(v); setCurrentPage(1); }}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="All Departments" />
+            <SelectValue placeholder={`All ${fieldLabels.style}`} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">All Departments</SelectItem>
+            <SelectItem value="__all__">All {fieldLabels.style}</SelectItem>
             {(filterOptions?.departments || []).map((dept) => (
               <SelectItem key={dept} value={dept}>{dept}</SelectItem>
             ))}
