@@ -230,13 +230,20 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     setCustomerPhone('');
     setCustomerId(null);
     setPaymentMethod('cash');
+    setFlatDiscountValue(0);
+    setFlatDiscountMode('percent');
+    setSrAdjust(0);
     setSavedInvoiceData(null);
     setShowDropdown(false);
     onOpenChange(false);
   };
 
   const grossAmount = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
-  const netAmount = items.reduce((s, i) => s + i.netAmount, 0);
+  const subTotal = items.reduce((s, i) => s + i.netAmount, 0);
+  const flatDiscountAmount = flatDiscountMode === 'percent'
+    ? Math.round((subTotal * (flatDiscountValue || 0)) / 100 * 100) / 100
+    : (flatDiscountValue || 0);
+  const netAmount = Math.max(0, subTotal - flatDiscountAmount - (srAdjust || 0));
 
   const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Handle dropdown navigation using refs for latest state
