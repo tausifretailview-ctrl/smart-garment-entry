@@ -241,17 +241,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
-  const fsBody = isA4 ? "11px" : "9px";
-  const fsHeader = isA4 ? "12px" : "9px";
-  const fsHeading = isA4 ? "11px" : "9px";
-  const fsTotals = isA4 ? "12px" : "10px";
-  const fsGrand = isA4 ? "14px" : "12px";
-  const titleFs = isA4 ? "14px" : "11px";
-  const fsCustName = isA4 ? "13px" : "11px";
-  const fsCustDetail = isA4 ? "12px" : "10px";
-  const fsInvoiceNo = isA4 ? "13px" : "11px";
+  const fsBody = isA4 ? "13px" : "12px";
+  const fsHeader = isA4 ? "14px" : "12px";
+  const fsHeading = isA4 ? "13px" : "12px";
+  const fsTotals = isA4 ? "14px" : "13px";
+  const fsGrand = isA4 ? "16px" : "15px";
+  const titleFs = isA4 ? "16px" : "14px";
+  const fsCustName = isA4 ? "15px" : "14px";
+  const fsCustDetail = isA4 ? "14px" : "12px";
+  const fsInvoiceNo = isA4 ? "15px" : "13px";
 
-  const ROW_H = isA4 ? "24px" : "20px";
+  const ROW_H = isA4 ? "26px" : "22px";
 
   // Determine columns
   const showHSNCol = showHSN;
@@ -273,6 +273,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     borderBottom: B,
     padding: isA4 ? "2px 5px" : "1px 4px",
     fontSize: fsBody,
+    fontWeight: "bold",
     verticalAlign: "middle",
     lineHeight: "1.3",
     height: ROW_H,
