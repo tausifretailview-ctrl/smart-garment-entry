@@ -408,31 +408,14 @@ export default function SalesInvoiceDashboard() {
   // Fetch company settings (centralized, cached 5min)
   const { data: settings } = useSettings();
 
+  // Sync bill format / template / preview flag from cached settings
   useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchBillFormat();
-    }
-  }, [currentOrganization?.id]);
-
-  const fetchBillFormat = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data?.sale_settings) {
-        const settings = data.sale_settings as any;
-        setBillFormat(settings.sales_bill_format || 'a4');
-        setInvoiceTemplate(settings.invoice_template || 'professional');
-        setShowInvoicePreviewSetting(settings.show_invoice_preview ?? true);
-      }
-    } catch (error) {
-      console.error('Error fetching bill format:', error);
-    }
-  };
+    const sale = (settings as any)?.sale_settings;
+    if (!sale) return;
+    setBillFormat(sale.sales_bill_format || 'a4');
+    setInvoiceTemplate(sale.invoice_template || 'professional');
+    setShowInvoicePreviewSetting(sale.show_invoice_preview ?? true);
+  }, [settings]);
 
   // Debounce search input
   useEffect(() => {

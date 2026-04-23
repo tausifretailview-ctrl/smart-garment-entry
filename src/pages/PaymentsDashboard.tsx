@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -107,25 +108,8 @@ export default function PaymentsDashboard() {
     defaultColumnSettings
   );
 
-  // Fetch company settings for receipt branding
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('settings')
-        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
+  // Fetch company settings for receipt branding (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   const { data: invoices, isLoading, refetch } = useQuery<Invoice[]>({
     queryKey: ['payment-invoices', currentOrganization?.id, statusFilter, dateFrom, dateTo],
