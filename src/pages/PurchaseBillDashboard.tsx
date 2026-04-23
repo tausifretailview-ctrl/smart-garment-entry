@@ -277,7 +277,7 @@ const PurchaseBillDashboard = () => {
           setCancelReason('');
           setBillToCancel(bill);
         },
-        disabled: !canDelete || bill.is_cancelled,
+        disabled: !canCancel || bill.is_cancelled,
         destructive: true,
       },
     ];
