@@ -1225,12 +1225,20 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md">
+          <div className={cn("flex items-center gap-1.5", bill.is_cancelled && "opacity-60")}>
+            <span className={cn("font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md", bill.is_cancelled && "line-through")}>
               {bill.software_bill_no || "N/A"}
             </span>
             {bill.is_dc_purchase && (
               <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
+            )}
+            {bill.is_cancelled && (
+              <span
+                title={bill.cancelled_reason || 'Cancelled — stock reversed'}
+                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive border border-destructive/30 uppercase tracking-wide"
+              >
+                Cancelled
+              </span>
             )}
             <button
               onClick={(e) => handleToggleLock(bill, e)}
