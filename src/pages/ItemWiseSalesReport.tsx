@@ -59,6 +59,7 @@ const CHART_COLORS = [
 
 export default function ItemWiseSalesReport() {
   const { currentOrganization } = useOrganization();
+  const fieldLabels = useProductFieldLabels();
   const [periodType, setPeriodType] = useState<PeriodType>("daily");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [customDateRange, setCustomDateRange] = useState<{ from: Date; to: Date }>({
@@ -733,52 +734,52 @@ export default function ItemWiseSalesReport() {
               <div className="flex flex-wrap gap-4 pt-2 border-t">
                 {/* Brand Filter */}
                 <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Brand</label>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.brand}</label>
                   <SearchableSelect
                     value={selectedBrand}
                     onValueChange={setSelectedBrand}
                     options={filterOptions.brands}
-                    placeholder="All Brands"
-                    allLabel="All Brands"
+                    placeholder={`All ${fieldLabels.brand}`}
+                    allLabel={`All ${fieldLabels.brand}`}
                     allValue="all"
                   />
                 </div>
 
                 {/* Category Filter */}
                 <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Category</label>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.category}</label>
                   <SearchableSelect
                     value={selectedCategory}
                     onValueChange={setSelectedCategory}
                     options={filterOptions.categories}
-                    placeholder="All Categories"
-                    allLabel="All Categories"
+                    placeholder={`All ${fieldLabels.category}`}
+                    allLabel={`All ${fieldLabels.category}`}
                     allValue="all"
                   />
                 </div>
 
                 {/* Department Filter */}
                 <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Department</label>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.style}</label>
                   <SearchableSelect
                     value={selectedDepartment}
                     onValueChange={setSelectedDepartment}
                     options={filterOptions.departments}
-                    placeholder="All Departments"
-                    allLabel="All Departments"
+                    placeholder={`All ${fieldLabels.style}`}
+                    allLabel={`All ${fieldLabels.style}`}
                     allValue="all"
                   />
                 </div>
 
                 {/* Color Filter */}
                 <div className="w-full md:w-44">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Color</label>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">{fieldLabels.color}</label>
                   <SearchableSelect
                     value={selectedColor}
                     onValueChange={setSelectedColor}
                     options={filterOptions.colors}
-                    placeholder="All Colors"
-                    allLabel="All Colors"
+                    placeholder={`All ${fieldLabels.color}`}
+                    allLabel={`All ${fieldLabels.color}`}
                     allValue="all"
                   />
                 </div>
@@ -1239,7 +1240,7 @@ export default function ItemWiseSalesReport() {
             <CardHeader className="pb-3">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <CardTitle className="text-lg">
-                  {({ product_name: "Product Name", brand: "Brand", category: "Category", department: "Department", barcode: "Barcode" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
+                  {({ product_name: "Product Name", brand: fieldLabels.brand, category: fieldLabels.category, department: fieldLabels.style, barcode: "Barcode" })[saleDetailsGroupBy]} Wise Sale Details ({saleDetailsData.length} rows)
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" onClick={exportToExcel}>
@@ -1259,9 +1260,9 @@ export default function ItemWiseSalesReport() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="product_name">Product Name</SelectItem>
-                      <SelectItem value="brand">Brand</SelectItem>
-                      <SelectItem value="category">Category</SelectItem>
-                      <SelectItem value="department">Department</SelectItem>
+                      <SelectItem value="brand">{fieldLabels.brand}</SelectItem>
+                      <SelectItem value="category">{fieldLabels.category}</SelectItem>
+                      <SelectItem value="department">{fieldLabels.style}</SelectItem>
                       <SelectItem value="barcode">Barcode</SelectItem>
                     </SelectContent>
                   </Select>
