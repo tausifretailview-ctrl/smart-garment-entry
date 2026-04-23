@@ -443,6 +443,19 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             credit: 0,
             balance: runningBalance,
           });
+        } else if (item.type === 'purchase_return_pending') {
+          // Display-only row for pending purchase returns — does NOT mutate balance
+          const pr = item.data as any;
+          allTransactions.push({
+            id: `pr-pending-${pr.id}`,
+            date: pr.return_date,
+            type: 'purchase_return',
+            reference: pr.return_number,
+            description: `Purchase Return - ${pr.return_number} (Pending — not adjusted)`,
+            debit: 0,
+            credit: 0,
+            balance: runningBalance,
+          });
         } else {
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
