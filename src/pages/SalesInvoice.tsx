@@ -2372,8 +2372,14 @@ Thank you for choosing us!`;
             round_off: roundOff,
             net_amount: netAmount,
             points_redeemed_amount: pointsRedemptionValue,
-            payment_method: 'pay_later',
-            payment_status: 'pending',
+            payment_method: paymentOverride?.method ?? 'pay_later',
+            payment_status: paymentOverride
+              ? (paymentOverride.totalPaid >= netAmount ? 'completed' : 'partial')
+              : 'pending',
+            paid_amount: paymentOverride?.totalPaid ?? 0,
+            cash_amount: paymentOverride?.cashAmount ?? 0,
+            upi_amount: paymentOverride?.upiAmount ?? 0,
+            card_amount: paymentOverride?.cardAmount ?? 0,
             organization_id: currentOrganization?.id,
             shop_name: shopName || null,
             due_date: dueDate.toISOString().split('T')[0],
