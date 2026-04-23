@@ -234,6 +234,7 @@ export default function SalesInvoice() {
     totalPaid: number;
   } | null>(null);
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
+  const pendingAutoSaveRef = useRef(false);
   
   // Size grid entry mode - default to grid, will be overridden by settings
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
