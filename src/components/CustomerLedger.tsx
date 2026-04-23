@@ -1971,20 +1971,31 @@ Please clear your dues at the earliest. Thank you!`;
         : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
       const bNum = Math.round(t.balance);
       const bStr = bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
+      const dispDebit = t.displayDebit ?? t.debit ?? 0;
+      const dispCredit = t.displayCredit ?? t.credit ?? 0;
+      const desc = t.informational ? `(info) ${t.description}` : t.description;
       const rowData = [
         dateTimeStr,
-        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
+        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'advance_application' ? 'Adv Adj' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
         t.reference,
-        t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
-        t.debit > 0 ? `Rs. ${Math.round(t.debit).toLocaleString("en-IN")}` : "",
-        t.credit > 0 ? `Rs. ${Math.round(t.credit).toLocaleString("en-IN")}` : "",
-        bStr,
+        desc.length > 28 ? desc.substring(0, 28) + "..." : desc,
+        dispDebit > 0 ? `Rs. ${Math.round(dispDebit).toLocaleString("en-IN")}` : "",
+        dispCredit > 0 ? `Rs. ${Math.round(dispCredit).toLocaleString("en-IN")}` : "",
+        // Informational rows: balance unchanged → suppress to avoid the
+        // visual confusion of two consecutive identical balance values.
+        t.informational ? '' : bStr,
       ];
 
+      if (t.informational) {
+        doc.setFont("helvetica", "italic");
+      }
       rowData.forEach((cell, i) => {
         doc.text(cell, xPos + 1, yPos);
         xPos += colWidths[i];
       });
+      if (t.informational) {
+        doc.setFont("helvetica", "normal");
+      }
       yPos += 6;
     });
 
