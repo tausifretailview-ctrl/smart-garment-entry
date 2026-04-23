@@ -930,7 +930,17 @@ const PurchaseEntry = () => {
             .single();
           
           if (billError) throw billError;
-          
+
+          if ((existingBill as any)?.is_cancelled) {
+            toast({
+              title: "Cannot Edit Cancelled Bill",
+              description: "This bill was cancelled and cannot be edited. Create a new bill or contact admin.",
+              variant: "destructive",
+            });
+            navigate("/purchase-bills");
+            return;
+          }
+
           setBillData({
             supplier_id: existingBill.supplier_id || "",
             supplier_name: existingBill.supplier_name,

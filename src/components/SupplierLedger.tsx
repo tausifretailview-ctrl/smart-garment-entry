@@ -69,7 +69,8 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         .from("purchase_bills")
         .select("id, supplier_id, net_amount, paid_amount")
         .eq("organization_id", organizationId)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false");
 
       if (billsError) throw billsError;
 
@@ -177,7 +178,8 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         .from("purchase_bills")
         .select("*")
         .eq("supplier_id", selectedSupplier.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false");
 
       if (startDate) {
         billsQuery = billsQuery.gte("bill_date", format(startDate, 'yyyy-MM-dd'));
@@ -203,7 +205,8 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         .from("purchase_bills")
         .select("id")
         .eq("supplier_id", selectedSupplier.id)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false");
 
       const billIds = allBills?.map(b => b.id) || [];
 
