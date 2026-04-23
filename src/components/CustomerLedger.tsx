@@ -2291,7 +2291,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-0">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border-l-4 border-l-orange-400 overflow-hidden">
@@ -2344,6 +2344,32 @@ Please clear your dues at the earliest. Thank you!`;
                         : '0.0';
                     })()}%
                   </div>
+                </CardContent>
+              </Card>
+              {/* FIX 5 — Single, unambiguous Returns / CR card */}
+              <Card className="border-l-4 border-l-amber-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Returns / CR</div>
+                  {saleReturnsSummary.pending + saleReturnsSummary.partialPending > 0 ? (
+                    <>
+                      <div className="text-xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                        ₹{(saleReturnsSummary.pending + saleReturnsSummary.partialPending).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Pending adjustment</div>
+                    </>
+                  ) : saleReturnsSummary.adjusted > 0 ? (
+                    <>
+                      <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                        ₹{saleReturnsSummary.adjusted.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Adjusted ✓</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-bold text-muted-foreground tabular-nums">₹0.00</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">No returns</div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
