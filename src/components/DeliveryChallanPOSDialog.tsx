@@ -14,7 +14,7 @@ import { useStockValidation } from '@/hooks/useStockValidation';
 import { useReactToPrint } from 'react-to-print';
 import { InvoiceWrapper } from '@/components/InvoiceWrapper';
 import { toast } from 'sonner';
-import { Truck, X, Trash2, Plus, Minus, Printer, Search } from 'lucide-react';
+import { Truck, X, Trash2, Plus, Minus, Printer, Search, Percent, IndianRupee } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
@@ -56,6 +56,9 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card' | 'pay_later'>('cash');
   const [dcNumber, setDcNumber] = useState('');
+  const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
+  const [flatDiscountValue, setFlatDiscountValue] = useState<number>(0);
+  const [srAdjust, setSrAdjust] = useState<number>(0);
   const [isSavingDC, setIsSavingDC] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -227,13 +230,20 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     setCustomerPhone('');
     setCustomerId(null);
     setPaymentMethod('cash');
+    setFlatDiscountValue(0);
+    setFlatDiscountMode('percent');
+    setSrAdjust(0);
     setSavedInvoiceData(null);
     setShowDropdown(false);
     onOpenChange(false);
   };
 
   const grossAmount = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
-  const netAmount = items.reduce((s, i) => s + i.netAmount, 0);
+  const subTotal = items.reduce((s, i) => s + i.netAmount, 0);
+  const flatDiscountAmount = flatDiscountMode === 'percent'
+    ? Math.round((subTotal * (flatDiscountValue || 0)) / 100 * 100) / 100
+    : (flatDiscountValue || 0);
+  const netAmount = Math.max(0, subTotal - flatDiscountAmount - (srAdjust || 0));
 
   const handleBarcodeEnter = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Handle dropdown navigation using refs for latest state
@@ -351,7 +361,12 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     try {
       const now = new Date().toISOString();
       const gross = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
-      const net   = items.reduce((s, i) => s + i.netAmount, 0);
+      const sub   = items.reduce((s, i) => s + i.netAmount, 0);
+      const flatDisc = flatDiscountMode === 'percent'
+        ? Math.round((sub * (flatDiscountValue || 0)) / 100 * 100) / 100
+        : (flatDiscountValue || 0);
+      const sr = srAdjust || 0;
+      const net = Math.max(0, sub - flatDisc - sr);
 
       const cashAmt  = method === 'cash'  ? net : 0;
       const upiAmt   = method === 'upi'   ? net : 0;
@@ -371,10 +386,10 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           customer_name:         customerName || 'Walk-in',
           customer_phone:        customerPhone || null,
           gross_amount:          gross,
-          discount_amount:       0,
-          flat_discount_percent: 0,
-          flat_discount_amount:  0,
-          sale_return_adjust:    0,
+          discount_amount:       flatDisc,
+          flat_discount_percent: flatDiscountMode === 'percent' ? (flatDiscountValue || 0) : 0,
+          flat_discount_amount:  flatDisc,
+          sale_return_adjust:    sr,
           round_off:             0,
           net_amount:            net,
           payment_method:        method,
@@ -440,7 +455,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           total:       item.netAmount,
         })),
         subTotal:      gross,
-        discount:      0,
+        discount:      flatDisc,
         grandTotal:    net,
         tenderAmount:  net,
         cashPaid:      cashAmt,
@@ -472,6 +487,8 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
       setCustomerName('');
       setCustomerPhone('');
       setCustomerId(null);
+      setFlatDiscountValue(0);
+      setSrAdjust(0);
       setSavedInvoiceData(null);
 
       // Generate next DC number
@@ -628,7 +645,63 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
             </div>
 
             {/* Footer — totals + payment */}
-            <div className="flex items-center justify-between gap-4 pt-2 border-t">
+            <div className="flex flex-col gap-2 pt-2 border-t">
+              {/* Discount + S/R Adjust row */}
+              <div className="flex items-center justify-end gap-3 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground font-medium">FLAT DISC</span>
+                  <div className="flex items-center border rounded-md overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setFlatDiscountMode('percent')}
+                      className={cn(
+                        "px-2 h-8 flex items-center justify-center text-xs",
+                        flatDiscountMode === 'percent' ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"
+                      )}
+                    >
+                      <Percent className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFlatDiscountMode('amount')}
+                      className={cn(
+                        "px-2 h-8 flex items-center justify-center text-xs border-l",
+                        flatDiscountMode === 'amount' ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"
+                      )}
+                    >
+                      <IndianRupee className="h-3 w-3" />
+                    </button>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={flatDiscountValue || ''}
+                      onChange={e => setFlatDiscountValue(Number(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-20 h-8 text-sm text-right border-0 rounded-none focus-visible:ring-0"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground font-medium">S/R ADJ</span>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={srAdjust || ''}
+                    onChange={e => setSrAdjust(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    className="w-24 h-8 text-sm text-right"
+                  />
+                </div>
+                {(flatDiscountAmount > 0 || srAdjust > 0) && (
+                  <div className="text-xs text-muted-foreground">
+                    Sub: ₹{Math.round(subTotal).toLocaleString('en-IN')}
+                    {flatDiscountAmount > 0 && <> − Disc: ₹{Math.round(flatDiscountAmount).toLocaleString('en-IN')}</>}
+                    {srAdjust > 0 && <> − S/R: ₹{Math.round(srAdjust).toLocaleString('en-IN')}</>}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
               {/* Totals */}
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-1">
@@ -681,6 +754,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
                 <Button variant="outline" size="sm" onClick={handleClose}>
                   Close
                 </Button>
+              </div>
               </div>
             </div>
           </div>
