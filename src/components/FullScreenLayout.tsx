@@ -20,7 +20,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
   // Full-screen billing: hide sidebar + header/tabs ONLY on Sales Invoice entry page
   // (not the dashboard). Matches /sales-invoice and /:org/sales-invoice exactly.
-  const isSalesInvoicePage = /\/sales-invoice(\/?$|\?)/.test(location.pathname + (location.search ? '?' : ''));
+  const isSalesInvoicePage = /\/sales-invoice\/?$/.test(location.pathname);
   return (
     <ChatProvider>
       <SidebarProvider>
