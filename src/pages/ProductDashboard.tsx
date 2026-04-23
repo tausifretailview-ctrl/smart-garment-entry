@@ -72,6 +72,7 @@ interface ProductRow {
   variants: ProductVariant[];
   total_stock: number;
   variant_count: number;
+  user_cancelled_at?: string | null;
 }
 
 interface DashboardStats {
@@ -493,6 +494,20 @@ const ProductDashboard = () => {
         setTotalCount(Number((data as any)[0].total_count) || 0);
       } else if (currentPage === 1) {
         setTotalCount(0);
+      }
+
+      // Fetch user_cancelled_at flags for the visible page's products
+      if (rows.length > 0) {
+        const ids = rows.map(r => r.product_id);
+        const { data: cancelledData } = await supabase
+          .from("products")
+          .select("id, user_cancelled_at")
+          .in("id", ids)
+          .not("user_cancelled_at", "is", null);
+        const cancelledMap = new Map<string, string>(
+          (cancelledData || []).map((p: any) => [p.id, p.user_cancelled_at])
+        );
+        rows.forEach(r => { r.user_cancelled_at = cancelledMap.get(r.product_id) || null; });
       }
 
       setProductRows(rows);
@@ -1024,16 +1039,26 @@ const ProductDashboard = () => {
         accessorKey: "product_name",
         header: "Product Name",
         cell: ({ row }) => (
-          <span
-            className="cursor-pointer text-primary hover:underline font-medium"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedProductForHistory({ id: row.original.product_id, name: row.original.product_name });
-              setShowProductHistory(true);
-            }}
-          >
-            {row.original.product_name?.toUpperCase()}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className="cursor-pointer text-primary hover:underline font-medium"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedProductForHistory({ id: row.original.product_id, name: row.original.product_name });
+                setShowProductHistory(true);
+              }}
+            >
+              {row.original.product_name?.toUpperCase()}
+            </span>
+            {row.original.user_cancelled_at && (
+              <Badge
+                className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[10px] px-1.5 py-0 h-4"
+                title="Added in Purchase Entry but removed before saving the bill"
+              >
+                User Cancelled
+              </Badge>
+            )}
+          </div>
         ),
         size: 200,
       });

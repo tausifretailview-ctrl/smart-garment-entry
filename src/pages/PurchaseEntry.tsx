@@ -2343,8 +2343,51 @@ const PurchaseEntry = () => {
     setRollEntryProduct(null);
   };
 
-  const removeLineItem = (temp_id: string) => {
+  const removeLineItem = async (temp_id: string) => {
+    // Capture removed item BEFORE state update so we can tag the product
+    const removed = lineItems.find((item) => item.temp_id === temp_id);
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
+
+    // Tag the underlying product as "user cancelled" so it's easy to spot
+    // on the Product Dashboard (added but never billed). Only when the
+    // product currently has 0 stock and no purchase history.
+    if (removed?.product_id && currentOrganization?.id) {
+      try {
+        const { data: pi } = await supabase
+          .from("purchase_items")
+          .select("id", { head: true, count: "exact" })
+          .eq("product_id", removed.product_id)
+          .is("deleted_at", null)
+          .limit(1);
+        // If product has any prior purchase, don't tag
+        const { count: purchaseCount } = await supabase
+          .from("purchase_items")
+          .select("id", { head: true, count: "exact" })
+          .eq("product_id", removed.product_id)
+          .is("deleted_at", null);
+        if ((purchaseCount ?? 0) === 0) {
+          // Check total stock across variants
+          const { data: vrows } = await supabase
+            .from("product_variants")
+            .select("stock_qty")
+            .eq("product_id", removed.product_id)
+            .is("deleted_at", null);
+          const totalStock = (vrows || []).reduce(
+            (s: number, v: any) => s + (Number(v.stock_qty) || 0),
+            0
+          );
+          if (totalStock === 0) {
+            await supabase
+              .from("products")
+              .update({ user_cancelled_at: new Date().toISOString() })
+              .eq("id", removed.product_id)
+              .eq("organization_id", currentOrganization.id);
+          }
+        }
+      } catch (err) {
+        console.warn("[PurchaseEntry] tag user_cancelled failed:", err);
+      }
+    }
   };
 
   const handleCopyLastRow = () => {
@@ -2926,6 +2969,17 @@ const PurchaseEntry = () => {
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems(insertedNewItems);
 
+        // Clear "user cancelled" tag for products that are now in this saved bill
+        if (editUniqueProductIds.length > 0) {
+          for (let pi = 0; pi < editUniqueProductIds.length; pi += 200) {
+            const chunk = editUniqueProductIds.slice(pi, pi + 200);
+            await supabase
+              .from("products")
+              .update({ user_cancelled_at: null })
+              .in("id", chunk);
+          }
+        }
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
         if (priceChanges.length > 0) {
@@ -3072,6 +3126,18 @@ const PurchaseEntry = () => {
         for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
           const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
           await supabase.from("product_variants").update({ is_dc_product: isDcPurchase }).in("id", chunk);
+        }
+
+        // Clear "user cancelled" tag for products that are now actually billed
+        const billedProductIds = [...new Set(lineItems.map(i => i.product_id).filter(Boolean))];
+        if (billedProductIds.length > 0) {
+          for (let pi = 0; pi < billedProductIds.length; pi += VARIANT_CHUNK) {
+            const chunk = billedProductIds.slice(pi, pi + VARIANT_CHUNK);
+            await supabase
+              .from("products")
+              .update({ user_cancelled_at: null })
+              .in("id", chunk);
+          }
         }
 
         // Check for price changes and show dialog if any
