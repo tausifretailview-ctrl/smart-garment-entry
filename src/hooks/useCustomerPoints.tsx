@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/hooks/useSettings";
+import { useMemo } from "react";
 
 export interface PointsSettings {
   enable_points_system: boolean;
@@ -49,34 +51,25 @@ export function useCustomerPoints() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
 
-  // Fetch points settings
-  const { data: pointsSettings, isLoading: isSettingsLoading } = useOrgQuery<PointsSettings>({
-    queryKey: ['points-settings'],
-    queryFn: async (orgId) => {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', orgId)
-        .maybeSingle();
-      
-      if (error) throw error;
-      
-      const saleSettings = data?.sale_settings as Record<string, unknown> | null;
-      return {
-        enable_points_system: saleSettings?.enable_points_system ?? false,
-        points_ratio_amount: saleSettings?.points_ratio_amount ?? 100,
-        points_per_ratio: saleSettings?.points_per_ratio ?? 1,
-        points_rounding: saleSettings?.points_rounding ?? 'floor',
-        min_purchase_for_points: saleSettings?.min_purchase_for_points ?? 0,
-        points_expiry_days: saleSettings?.points_expiry_days ?? 0,
-        enable_points_redemption: saleSettings?.enable_points_redemption ?? false,
-        points_redemption_value: saleSettings?.points_redemption_value ?? 1,
-        max_redemption_percent: saleSettings?.max_redemption_percent ?? 50,
-        min_points_for_redemption: saleSettings?.min_points_for_redemption ?? 10,
-        min_purchase_for_redemption: saleSettings?.min_purchase_for_redemption ?? 0,
-      } as PointsSettings;
-    },
-  });
+  // Derive points settings from centralized cached settings (no extra round-trip)
+  const { data: settingsRow, isLoading: isSettingsLoading } = useSettings();
+  const pointsSettings = useMemo<PointsSettings | undefined>(() => {
+    if (!settingsRow) return undefined;
+    const saleSettings = (settingsRow as any)?.sale_settings as Record<string, unknown> | null;
+    return {
+      enable_points_system: (saleSettings?.enable_points_system as boolean) ?? false,
+      points_ratio_amount: (saleSettings?.points_ratio_amount as number) ?? 100,
+      points_per_ratio: (saleSettings?.points_per_ratio as number) ?? 1,
+      points_rounding: (saleSettings?.points_rounding as PointsSettings['points_rounding']) ?? 'floor',
+      min_purchase_for_points: (saleSettings?.min_purchase_for_points as number) ?? 0,
+      points_expiry_days: (saleSettings?.points_expiry_days as number) ?? 0,
+      enable_points_redemption: (saleSettings?.enable_points_redemption as boolean) ?? false,
+      points_redemption_value: (saleSettings?.points_redemption_value as number) ?? 1,
+      max_redemption_percent: (saleSettings?.max_redemption_percent as number) ?? 50,
+      min_points_for_redemption: (saleSettings?.min_points_for_redemption as number) ?? 10,
+      min_purchase_for_redemption: (saleSettings?.min_purchase_for_redemption as number) ?? 0,
+    } as PointsSettings;
+  }, [settingsRow]);
 
   // Calculate points for a given amount
   const calculatePoints = (netAmount: number): number => {
