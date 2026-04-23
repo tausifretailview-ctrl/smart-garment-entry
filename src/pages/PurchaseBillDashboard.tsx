@@ -661,6 +661,59 @@ const PurchaseBillDashboard = () => {
   const [bulkDependencies, setBulkDependencies] = useState<{billId: string; billNo: string; deps: StockDependency[]}[]>([]);
   const [showBulkDependencyWarning, setShowBulkDependencyWarning] = useState(false);
 
+  // Bulk cancel state
+  const [showBulkCancelDialog, setShowBulkCancelDialog] = useState(false);
+  const [bulkCancelReason, setBulkCancelReason] = useState('');
+  const [isBulkCancelling, setIsBulkCancelling] = useState(false);
+
+  const handleBulkCancel = async () => {
+    if (!canCancel) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to cancel purchase bills. Ask admin to enable 'Cancel Invoice' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsBulkCancelling(true);
+    let success = 0;
+    let failed = 0;
+    try {
+      const ids = Array.from(selectedBills);
+      for (const id of ids) {
+        const bill = bills.find(b => b.id === id);
+        if (bill?.is_cancelled) continue;
+        const { data, error } = await supabase.rpc('cancel_purchase_bill', {
+          p_bill_id: id,
+          p_reason: bulkCancelReason.trim() || null,
+        });
+        const result = data as { success: boolean; error?: string };
+        if (error || !result?.success) {
+          failed++;
+        } else {
+          success++;
+        }
+      }
+      toast({
+        title: "Bulk Cancel Complete",
+        description: `${success} bill(s) cancelled${failed > 0 ? `, ${failed} failed` : ''}. Stock reversed.`,
+        variant: failed > 0 ? "destructive" : "default",
+      });
+      setSelectedBills(new Set());
+      setShowBulkCancelDialog(false);
+      setBulkCancelReason('');
+      await fetchBills();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to cancel bills",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkCancelling(false);
+    }
+  };
+
   const handleBulkDeleteClick = async () => {
     if (!canDelete) {
       toast({
