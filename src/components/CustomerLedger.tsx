@@ -69,6 +69,14 @@ interface Transaction {
     method?: string;
   };
   appliedAmount?: number;
+  /** Optional display-only amounts used to show GROSS invoice or informational
+   *  offset rows without changing the balance math. When undefined, falls back
+   *  to debit/credit. */
+  displayDebit?: number;
+  displayCredit?: number;
+  /** Informational/secondary row — rendered with muted styling and EXCLUDED
+   *  from the totals row to avoid double-counting. */
+  informational?: boolean;
 }
 
 export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
@@ -1063,20 +1071,56 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           if (sale.cash_amount && sale.cash_amount > 0) paymentBreakdown.cash = sale.cash_amount;
           if (sale.card_amount && sale.card_amount > 0) paymentBreakdown.card = sale.card_amount;
           if (sale.upi_amount && sale.upi_amount > 0) paymentBreakdown.upi = sale.upi_amount;
-          
+
+          // ── Display strategy ────────────────────────────────────────────
+          // BALANCE MATH unchanged: only `net_amount` debits the running balance.
+          // DISPLAY: when sale_return_adjust > 0, show GROSS in the Debit column
+          // so the customer sees the full bill value, then add an inline
+          // informational sub-row that visibly credits the S/R offset. The
+          // sub-row has balanceEffect = 0 (debit=0, credit=0 for math/totals)
+          // so the running balance is unchanged.
+          const grossAmount = (sale.net_amount || 0) + saleReturnAdjust;
+          const showGross = saleReturnAdjust > 0 && !isCancelled;
+          const invoiceDescription = showGross
+            ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(sale.net_amount || 0).toLocaleString('en-IN')})`
+            : `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
+
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
             timestamp: item.timestamp || null,
             type: 'invoice',
             reference: sale.sale_number,
-            description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}${saleReturnAdjust > 0 ? ` (S/R Adj ₹${saleReturnAdjust.toLocaleString('en-IN')} applied)` : ''}`,
+            description: invoiceDescription,
+            // `debit` drives both the running balance addition (already done
+            // above) AND the totals row. Keep it = net_amount so totals match
+            // the balance math. `displayDebit` overrides the rendered value.
             debit: isCancelled ? 0 : invoiceDebit,
             credit: 0,
+            displayDebit: isCancelled ? 0 : (showGross ? grossAmount : invoiceDebit),
             balance: runningBalance,
             paymentStatus: sale.payment_status,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
+
+          // Inline informational row showing the S/R offset that brought
+          // gross down to net. No balance impact (already inside net_amount).
+          if (showGross) {
+            allTransactions.push({
+              id: `${sale.id}-sr-note`,
+              date: sale.sale_date,
+              timestamp: item.timestamp || null,
+              type: 'invoice',
+              reference: sale.sale_number,
+              description: `↳ Less: S/R Adjustment applied to ${sale.sale_number}`,
+              debit: 0,
+              credit: 0,
+              displayDebit: 0,
+              displayCredit: saleReturnAdjust,
+              balance: runningBalance,
+              informational: true,
+            });
+          }
 
           // Skip payment processing for cancelled invoices
           if (isCancelled) return;
@@ -1216,46 +1260,37 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const appliedAmount = appliedInfo?.applied || 0;
           const unusedAmount = Math.max(0, amount - appliedAmount);
 
-          // Row 1: applied portion (if any) — credited against a specific invoice
-          if (appliedAmount > 0) {
-            runningBalance -= appliedAmount;
-            allTransactions.push({
-              id: `cn-${sr.id}-applied`,
-              date: sr.return_date,
-              timestamp: item.timestamp || null,
-              type: 'return' as const,
-              reference: sr.return_number,
-              description: `Sale Return ${sr.return_number} — applied to ${appliedInfo?.saleNumber || 'invoice'}`,
-              debit: 0,
-              credit: appliedAmount,
-              balance: runningBalance,
-            });
-          }
+          // ONE consolidated row per SR. Balance math unchanged — the full
+          // SR net_amount is credited (= old applied + unused split summed).
+          // The description lists how the SR was applied / its status.
+          if (amount > 0) {
+            runningBalance -= amount;
 
-          // Row 2: unused / pending portion (if any)
-          if (unusedAmount > 0) {
-            runningBalance -= unusedAmount;
-            let unusedDesc = `Sale Return ${sr.return_number}`;
-            if (appliedAmount > 0) {
-              unusedDesc += ` (Pending CN — ₹${unusedAmount.toLocaleString('en-IN')} available)`;
-            } else if (sr.credit_status === 'refunded') {
-              unusedDesc += ` (Cash Refunded)`;
-            } else if (sr.credit_status === 'adjusted_outstanding') {
-              unusedDesc += ` (Adjusted to Outstanding)`;
-            } else if (sr.credit_status === 'pending') {
-              unusedDesc += ` (Pending — not yet applied)`;
-            } else if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber) {
-              unusedDesc += ` (Adjusted via CN against ${sr.linkedSaleNumber})`;
-            }
+            let status: string;
+            if (appliedAmount > 0 && unusedAmount === 0) status = 'Fully Adjusted';
+            else if (appliedAmount > 0 && unusedAmount > 0)
+              status = `Partial — ₹${unusedAmount.toLocaleString('en-IN')} pending`;
+            else if (sr.credit_status === 'refunded') status = 'Cash Refunded';
+            else if (sr.credit_status === 'adjusted_outstanding') status = 'Adjusted to Outstanding';
+            else if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber)
+              status = `Adjusted via CN against ${sr.linkedSaleNumber}`;
+            else status = 'Pending';
+
+            const appliedSummary = appliedAmount > 0 && appliedInfo?.saleNumber
+              ? ` — ₹${appliedAmount.toLocaleString('en-IN')} applied to ${appliedInfo.saleNumber}`
+              : '';
+
+            const desc = `Sale Return [${status}]${appliedSummary}`;
+
             allTransactions.push({
-              id: `cn-${sr.id}-unused`,
+              id: `cn-${sr.id}`,
               date: sr.return_date,
               timestamp: item.timestamp || null,
               type: 'return' as const,
               reference: sr.return_number,
-              description: unusedDesc,
+              description: desc,
               debit: 0,
-              credit: unusedAmount,
+              credit: amount,
               balance: runningBalance,
             });
           }
@@ -1650,11 +1685,80 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   const transactionTotals = useMemo(() => {
     if (!transactions) return { totalDebit: 0, totalCredit: 0 };
-    
-    return transactions.reduce((acc, t) => ({
-      totalDebit: acc.totalDebit + (t.debit || 0),
-      totalCredit: acc.totalCredit + (t.credit || 0),
-    }), { totalDebit: 0, totalCredit: 0 });
+
+    // Sum the DISPLAYED amounts (e.g. invoice GROSS for visible columns) but
+    // skip informational rows so the S/R offset isn't double-counted in the
+    // totals row.
+    return transactions.reduce((acc, t) => {
+      if (t.informational) return acc;
+      const d = (t.displayDebit ?? t.debit) || 0;
+      const c = (t.displayCredit ?? t.credit) || 0;
+      return {
+        totalDebit: acc.totalDebit + d,
+        totalCredit: acc.totalCredit + c,
+      };
+    }, { totalDebit: 0, totalCredit: 0 });
+  }, [transactions]);
+
+  // Reconciliation summary for the footer box. Numbers are derived directly
+  // from the transaction list so they always tally with what the user sees.
+  const reconciliation = useMemo(() => {
+    const empty = {
+      opening: 0,
+      grossInvoiced: 0,
+      saleReturns: 0,
+      netInvoiced: 0,
+      payments: 0,
+      advanceApplied: 0,
+      advanceCredit: 0,
+      adjustments: 0,
+      finalBalance: 0,
+    };
+    if (!transactions || transactions.length === 0) return empty;
+
+    let opening = 0;
+    let grossInvoiced = 0;
+    let saleReturns = 0;
+    let netInvoiced = 0;
+    let payments = 0;
+    let advanceApplied = 0;
+    let advanceCredit = 0;
+    let adjustments = 0;
+
+    for (const t of transactions) {
+      if (t.id === 'opening-balance') {
+        opening = (t.debit || 0) - (t.credit || 0);
+        continue;
+      }
+      if (t.informational) continue;
+      if (t.type === 'invoice') {
+        grossInvoiced += t.displayDebit ?? t.debit ?? 0;
+        netInvoiced += t.debit || 0;
+      } else if (t.type === 'return') {
+        saleReturns += t.credit || 0;
+      } else if (t.type === 'payment') {
+        payments += t.credit || 0;
+      } else if (t.type === 'advance_application') {
+        advanceApplied += t.appliedAmount || 0;
+      } else if (t.type === 'advance') {
+        advanceCredit += t.credit || 0;
+      } else if (t.type === 'adjustment') {
+        adjustments += (t.debit || 0) - (t.credit || 0);
+      }
+    }
+
+    const finalBalance = transactions[transactions.length - 1]?.balance ?? 0;
+    return {
+      opening,
+      grossInvoiced,
+      saleReturns,
+      netInvoiced,
+      payments,
+      advanceApplied,
+      advanceCredit,
+      adjustments,
+      finalBalance,
+    };
   }, [transactions]);
 
   // Send ledger summary via WhatsApp
@@ -1867,20 +1971,31 @@ Please clear your dues at the earliest. Thank you!`;
         : format(new Date(t.date), "dd/MM/yy") + (t.timestamp ? ' ' + format(new Date(t.timestamp), "hh:mm a") : '');
       const bNum = Math.round(t.balance);
       const bStr = bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
+      const dispDebit = t.displayDebit ?? t.debit ?? 0;
+      const dispCredit = t.displayCredit ?? t.credit ?? 0;
+      const desc = t.informational ? `(info) ${t.description}` : t.description;
       const rowData = [
         dateTimeStr,
-        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
+        t.type === 'invoice' ? 'Invoice' : t.type === 'return' ? 'Sale Return' : t.type === 'advance' ? 'Advance' : t.type === 'advance_application' ? 'Adv Adj' : t.type === 'adjustment' ? 'Adjustment' : 'Payment',
         t.reference,
-        t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
-        t.debit > 0 ? `Rs. ${Math.round(t.debit).toLocaleString("en-IN")}` : "",
-        t.credit > 0 ? `Rs. ${Math.round(t.credit).toLocaleString("en-IN")}` : "",
-        bStr,
+        desc.length > 28 ? desc.substring(0, 28) + "..." : desc,
+        dispDebit > 0 ? `Rs. ${Math.round(dispDebit).toLocaleString("en-IN")}` : "",
+        dispCredit > 0 ? `Rs. ${Math.round(dispCredit).toLocaleString("en-IN")}` : "",
+        // Informational rows: balance unchanged → suppress to avoid the
+        // visual confusion of two consecutive identical balance values.
+        t.informational ? '' : bStr,
       ];
 
+      if (t.informational) {
+        doc.setFont("helvetica", "italic");
+      }
       rowData.forEach((cell, i) => {
         doc.text(cell, xPos + 1, yPos);
         xPos += colWidths[i];
       });
+      if (t.informational) {
+        doc.setFont("helvetica", "normal");
+      }
       yPos += 6;
     });
 
@@ -1906,8 +2021,47 @@ Please clear your dues at the earliest. Thank you!`;
       xPos += colWidths[i];
     });
 
+    // Reconciliation block
+    yPos += 12;
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Balance Reconciliation", margin, yPos);
+    yPos += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const reconLines: Array<[string, number]> = [
+      ["Opening Balance", reconciliation.opening],
+      ["(+) Total Invoiced (Gross)", reconciliation.grossInvoiced],
+      ["(-) Sale Returns", -reconciliation.saleReturns],
+      ["(=) Net Invoiced", reconciliation.netInvoiced],
+      ["(-) Cash / UPI / Card Payments", -reconciliation.payments],
+    ];
+    if (reconciliation.advanceCredit > 0) {
+      reconLines.push(["(-) Advance Received", -reconciliation.advanceCredit]);
+    }
+    if (reconciliation.adjustments !== 0) {
+      reconLines.push(["(+/-) Balance Adjustments", reconciliation.adjustments]);
+    }
+    const labelX = margin + 4;
+    const valueX = margin + 90;
+    reconLines.forEach(([label, val]) => {
+      doc.text(label, labelX, yPos);
+      const sign = val < 0 ? "-" : "";
+      doc.text(`${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`, valueX, yPos, { align: "left" });
+      yPos += 5;
+    });
+    doc.setFont("helvetica", "bold");
+    const finalLabel = reconciliation.finalBalance > 0 ? "Outstanding (Dr)" : reconciliation.finalBalance < 0 ? "Advance (Cr)" : "Settled";
+    doc.text(finalLabel, labelX, yPos + 1);
+    doc.text(`Rs. ${Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 8;
+
     // Footer
-    yPos += 15;
+    yPos += 6;
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
@@ -2236,11 +2390,13 @@ Please clear your dues at the earliest. Thank you!`;
                           </TableCell>
                         </TableRow>
                       ) : (
-                        transactions.map((transaction) => (
-                          <TableRow key={transaction.id} className={transaction.id === 'opening-balance'
-                            ? 'bg-orange-50/60 dark:bg-orange-950/20 border-l-4 border-l-orange-400'
-                            : 'hover:bg-slate-50/50 dark:hover:bg-slate-900/30'
-                          }>
+                         transactions.map((transaction) => (
+                           <TableRow key={transaction.id} className={cn(
+                             transaction.id === 'opening-balance'
+                               ? 'bg-orange-50/60 dark:bg-orange-950/20 border-l-4 border-l-orange-400'
+                               : 'hover:bg-slate-50/50 dark:hover:bg-slate-900/30',
+                             transaction.informational && 'italic text-muted-foreground bg-muted/20'
+                           )}>
                             <TableCell>
                               {transaction.id === 'opening-balance'
                                 ? <span className="font-bold text-orange-600 dark:text-orange-400 text-sm">B/F Opening</span>
@@ -2352,18 +2508,32 @@ Please clear your dues at the earliest. Thank you!`;
                               </div>
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              {transaction.debit > 0 && (
-                                <span className="text-red-600 dark:text-red-400">
-                                  ₹{transaction.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                </span>
-                              )}
+                              {(() => {
+                                const dispDebit = transaction.displayDebit ?? transaction.debit;
+                                if (!dispDebit || dispDebit <= 0) return null;
+                                return (
+                                  <span className={cn(
+                                    "text-red-600 dark:text-red-400",
+                                    transaction.informational && "italic font-normal"
+                                  )}>
+                                    ₹{dispDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </span>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              {transaction.credit > 0 && (
-                                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
-                                  ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                </span>
-                              )}
+                              {(() => {
+                                const dispCredit = transaction.displayCredit ?? transaction.credit;
+                                if (!dispCredit || dispCredit <= 0) return null;
+                                return (
+                                  <span className={cn(
+                                    "text-emerald-700 dark:text-emerald-300 font-semibold",
+                                    transaction.informational && "italic font-normal"
+                                  )}>
+                                    ₹{dispCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </span>
+                                );
+                              })()}
                               {transaction.type === 'advance_application' && transaction.credit === 0 && (transaction.appliedAmount || 0) > 0 && (
                                 <span className="text-xs italic text-muted-foreground">
                                   (₹{(transaction.appliedAmount || 0).toLocaleString("en-IN")} applied)
@@ -2408,6 +2578,58 @@ Please clear your dues at the earliest. Thank you!`;
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Balance Reconciliation Box — derived from rendered transactions */}
+                {transactions.length > 0 && (
+                  <div className="mt-4 rounded-md border bg-muted/30 p-4">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">
+                      Balance Reconciliation
+                    </div>
+                    <div className="space-y-1.5 text-sm tabular-nums max-w-md">
+                      <div className="flex justify-between">
+                        <span>Opening Balance</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.opening).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>(+) Total Invoiced (Gross)</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.grossInvoiced).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                        <span>(−) Sale Returns</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.saleReturns).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1.5">
+                        <span className="font-semibold">(=) Net Invoiced</span>
+                        <span className="font-semibold">₹{Math.round(reconciliation.netInvoiced).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                        <span>(−) Cash / UPI / Card Payments</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.payments).toLocaleString("en-IN")}</span>
+                      </div>
+                      {reconciliation.advanceCredit > 0 && (
+                        <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                          <span>(−) Advance Received</span>
+                          <span className="font-medium">₹{Math.round(reconciliation.advanceCredit).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {reconciliation.adjustments !== 0 && (
+                        <div className="flex justify-between">
+                          <span>(±) Balance Adjustments</span>
+                          <span className="font-medium">₹{Math.round(reconciliation.adjustments).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      <div className={cn(
+                        "flex justify-between border-t-2 pt-2 mt-2 text-base font-bold",
+                        reconciliation.finalBalance > 0 ? "text-red-600 dark:text-red-400" :
+                        reconciliation.finalBalance < 0 ? "text-emerald-700 dark:text-emerald-300" :
+                        "text-foreground"
+                      )}>
+                        <span>Outstanding ({reconciliation.finalBalance > 0 ? 'Dr' : reconciliation.finalBalance < 0 ? 'Cr' : 'Settled'})</span>
+                        <span>₹{Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="payments">
