@@ -1246,6 +1246,16 @@ const PurchaseBillDashboard = () => {
   }, []);
 
   const getPaymentStatusBadge = (bill: PurchaseBill) => {
+    if (bill.is_cancelled) {
+      return (
+        <Badge
+          className="min-w-[70px] justify-center bg-gray-500 hover:bg-gray-600 text-white"
+          title={bill.cancelled_reason ? `Cancelled: ${bill.cancelled_reason}` : 'Cancelled'}
+        >
+          Cancelled
+        </Badge>
+      );
+    }
     const status = bill.payment_status || 'unpaid';
     const paidAmount = bill.paid_amount || 0;
     const isFullyPaid = status === 'paid' || Math.abs(paidAmount - bill.net_amount) < 1;
