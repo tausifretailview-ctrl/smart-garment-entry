@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { useShopName } from "@/hooks/useShopName";
+import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 
 interface CartItem {
@@ -53,6 +54,8 @@ export const useSaveSale = () => {
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
   const { invalidateSales } = useDashboardInvalidation();
   const shopName = useShopName();
+  // Centralized cached org settings (5 min) — used by save handlers below
+  const { data: orgSettings } = useSettings();
 
   /**
    * Auto-correct FY year in literal formats like "INV/25-26/1" → "INV/26-27/1"
@@ -168,15 +171,9 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
-      // Fetch settings to get invoice format
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
+      // Read cached settings (no extra round-trip)
       let saleNumber: string;
-      const saleSettings = settings?.sale_settings as Record<string, any> | null;
+      const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
       
       // Use POS format for POS sales, Invoice format for regular sales
       if (saleType === 'pos') {
@@ -352,15 +349,9 @@ export const useSaveSale = () => {
             .maybeSingle();
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
-            // Fetch company settings from settings table (not organizations.settings)
-            const { data: companySettings } = await supabase
-              .from('settings')
-              .select('business_name, mobile_number, address, gst_number, bill_barcode_settings')
-              .eq('organization_id', currentOrganization.id)
-              .maybeSingle();
-
+            // Read cached org settings (centralized)
+            const companySettings = orgSettings as any;
             const logoUrl = (companySettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url as string | undefined;
-
             const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
             
             // Build invoice message for template parameters
@@ -949,14 +940,8 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
-      // Generate a NEW running POS number for the resumed sale
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('sale_settings')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-
-      const saleSettings = settings?.sale_settings as Record<string, any> | null;
+      // Generate a NEW running POS number for the resumed sale (cached settings)
+      const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
       let newSaleNumber: string;
 
       if (saleSettings?.pos_numbering_format) {
