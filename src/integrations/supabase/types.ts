@@ -3286,6 +3286,9 @@ export type Database = {
         Row: {
           bill_date: string
           bill_image_url: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          cancelled_reason: string | null
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
@@ -3293,6 +3296,7 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          is_cancelled: boolean
           is_dc_purchase: boolean | null
           is_locked: boolean
           net_amount: number
@@ -3312,6 +3316,9 @@ export type Database = {
         Insert: {
           bill_date?: string
           bill_image_url?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -3319,6 +3326,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_cancelled?: boolean
           is_dc_purchase?: boolean | null
           is_locked?: boolean
           net_amount?: number
@@ -3338,6 +3346,9 @@ export type Database = {
         Update: {
           bill_date?: string
           bill_image_url?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          cancelled_reason?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -3345,6 +3356,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_cancelled?: boolean
           is_dc_purchase?: boolean | null
           is_locked?: boolean
           net_amount?: number
@@ -6963,6 +6975,10 @@ export type Database = {
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
+        Returns: Json
+      }
+      cancel_purchase_bill: {
+        Args: { p_bill_id: string; p_reason?: string }
         Returns: Json
       }
       check_barcode_duplicate: {
