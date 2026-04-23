@@ -65,11 +65,14 @@ export const StatusBar = () => {
       if (!currentOrganization?.id) return null;
       const { data } = await supabase
         .from("sales")
-        .select("balance_due")
+        .select("net_amount, paid_amount")
         .eq("organization_id", currentOrganization.id)
         .eq("payment_status", "due")
         .is("deleted_at", null);
-      const total = (data || []).reduce((s: number, r: any) => s + (r.balance_due || 0), 0);
+      const total = (data || []).reduce(
+        (s: number, r: any) => s + Math.max(0, (Number(r.net_amount) || 0) - (Number(r.paid_amount) || 0)),
+        0,
+      );
       return { total };
     },
     enabled: !!currentOrganization?.id,
