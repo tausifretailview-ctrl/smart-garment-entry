@@ -398,6 +398,20 @@ const ProductEntry = () => {
         if (purchaseSettings.default_uom && !editingProductId) {
           setFormData(prev => ({ ...prev, uom: purchaseSettings.default_uom }));
         }
+        // Default markup % — wired to existing markupPercent input, which auto-computes
+        // sale_price from pur_price on every change. Only prefill for NEW products and
+        // only when the user hasn't typed a markup yet, so we never overwrite intent.
+        if (
+          purchaseSettings.default_margin !== undefined &&
+          purchaseSettings.default_margin !== null &&
+          purchaseSettings.default_margin !== '' &&
+          !editingProductId
+        ) {
+          const marginNum = Number(purchaseSettings.default_margin);
+          if (!isNaN(marginNum) && marginNum >= 0) {
+            setMarkupPercent(prev => (prev && prev.trim() !== '' ? prev : String(marginNum)));
+          }
+        }
         // Set show_mrp from purchase settings
         setShowMrp(purchaseSettings.show_mrp || false);
         // Set discount fields visibility
