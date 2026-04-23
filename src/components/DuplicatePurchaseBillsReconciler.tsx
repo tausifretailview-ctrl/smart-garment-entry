@@ -34,7 +34,7 @@ export const DuplicatePurchaseBillsReconciler = () => {
     if (!currentOrganization?.id) return;
     setScanning(true);
     try {
-      const { data, error } = await supabase.rpc("find_duplicate_purchase_bills", { p_org_id: currentOrganization.id });
+      const { data, error } = await (supabase.rpc as any)("find_duplicate_purchase_bills", { p_org_id: currentOrganization.id });
       if (error) throw error;
       const rows = (data || []) as DupRow[];
       const grouped: Record<string, DupRow[]> = {};
