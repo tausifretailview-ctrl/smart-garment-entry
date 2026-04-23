@@ -64,6 +64,7 @@ interface SizeWiseRow {
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
+  const fieldLabels = useProductFieldLabels();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -1412,19 +1413,19 @@ export default function StockReport() {
             <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={derivedFilterOptions.brands} allLabel="All Brands" placeholder="All Brands" />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Category</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fieldLabels.category}</label>
             <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={derivedFilterOptions.categories} allLabel="All Categories" placeholder="All Categories" />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Department</label>
-            <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={derivedFilterOptions.departments} allLabel="All Departments" placeholder="All Departments" />
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fieldLabels.style}</label>
+            <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={derivedFilterOptions.departments} allLabel={`All ${fieldLabels.style}`} placeholder={`All ${fieldLabels.style}`} />
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
             <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={derivedFilterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Color</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fieldLabels.color}</label>
             <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={derivedFilterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
           </div>
           <div className="space-y-2">
@@ -1602,10 +1603,10 @@ export default function StockReport() {
                           <TableHead>Supplier</TableHead>
                           <TableHead>Supplier Invoice</TableHead>
                           <TableHead>Product</TableHead>
-                          <TableHead>Brand</TableHead>
+                          <TableHead>{fieldLabels.brand}</TableHead>
                           <TableHead>Size</TableHead>
-                          <TableHead>Color</TableHead>
-                          <TableHead>Style</TableHead>
+                          <TableHead>{fieldLabels.color}</TableHead>
+                          <TableHead>{fieldLabels.style}</TableHead>
                           <TableHead>Barcode</TableHead>
                           <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
                           <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
