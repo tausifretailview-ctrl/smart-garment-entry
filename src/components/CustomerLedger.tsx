@@ -1211,8 +1211,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           }
 
           const description = linkedSaleNumber
-            ? `Advance Applied (₹${amount.toLocaleString('en-IN')}) to ${linkedSaleNumber}`
-            : `Advance Applied — ₹${amount.toLocaleString('en-IN')}`;
+            ? `Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber} (info only)`
+            : `Advance Applied — ₹${amount.toLocaleString('en-IN')} (info only)`;
 
           allTransactions.push({
             id: voucher.id,
@@ -1221,8 +1221,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'advance_application',
             reference: voucher.voucher_number || 'ADV-APP',
             description,
-            debit: 0,       // intentionally 0 — balance already reflects this via
-            credit: 0,      // the advance credit + invoice debit rows
+            // Balance math unchanged (already reflected via advance + invoice rows).
+            // Real ledger impact remains 0; we expose the amount via display-only fields.
+            debit: 0,
+            credit: 0,
+            displayDebit: amount,   // visible reduction of the customer's credit
+            displayCredit: 0,
+            informational: true,    // muted/italic styling, excluded from totals
             balance: runningBalance,
             appliedAmount: amount,
           });
@@ -1371,7 +1376,23 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      return allTransactions;
+      // FIX 1 — Suppress "ghost" adjustment rows that have no debit, no credit
+      // and leave the running balance unchanged. They clutter the ledger
+      // without conveying any information.
+      const cleanedTransactions = allTransactions.filter((t, i, arr) => {
+        if (
+          t.type === 'adjustment' &&
+          (t.debit || 0) === 0 &&
+          (t.credit || 0) === 0 &&
+          i > 0 &&
+          t.balance === arr[i - 1].balance
+        ) {
+          return false;
+        }
+        return true;
+      });
+
+      return cleanedTransactions;
     },
     enabled: !!selectedCustomer?.id,
   });
@@ -1759,6 +1780,34 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       adjustments,
       finalBalance,
     };
+  }, [transactions]);
+
+  // FIX 5 — Single, unambiguous "Returns / CR" stat. We classify each Sale
+  // Return row from the rendered ledger as either Pending or Adjusted by
+  // reading the status hint already embedded in the description by the
+  // queryFn ("Sale Return [Pending]" / "[Fully Adjusted]" / "[Adjusted to
+  // Outstanding]" / "[Cash Refunded]" / "Partial — ₹X pending").
+  const saleReturnsSummary = useMemo(() => {
+    const summary = { pending: 0, adjusted: 0, partialPending: 0 };
+    if (!transactions) return summary;
+    for (const t of transactions) {
+      if (t.type !== 'return') continue;
+      const amount = t.credit || 0;
+      const desc = t.description || '';
+      if (/\[Pending\]/i.test(desc)) {
+        summary.pending += amount;
+      } else if (/Partial.*pending/i.test(desc)) {
+        // Extract the pending portion from "Partial — ₹X pending"
+        const m = desc.match(/Partial\s*—\s*₹([\d,]+(?:\.\d+)?)\s*pending/i);
+        const pendingPortion = m ? Number(m[1].replace(/,/g, '')) : 0;
+        summary.partialPending += pendingPortion;
+        summary.adjusted += Math.max(0, amount - pendingPortion);
+      } else {
+        // Fully Adjusted, Adjusted to Outstanding, Cash Refunded, etc.
+        summary.adjusted += amount;
+      }
+    }
+    return summary;
   }, [transactions]);
 
   // Send ledger summary via WhatsApp
@@ -2242,7 +2291,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-0">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border-l-4 border-l-orange-400 overflow-hidden">
@@ -2295,6 +2344,32 @@ Please clear your dues at the earliest. Thank you!`;
                         : '0.0';
                     })()}%
                   </div>
+                </CardContent>
+              </Card>
+              {/* FIX 5 — Single, unambiguous Returns / CR card */}
+              <Card className="border-l-4 border-l-amber-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Returns / CR</div>
+                  {saleReturnsSummary.pending + saleReturnsSummary.partialPending > 0 ? (
+                    <>
+                      <div className="text-xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                        ₹{(saleReturnsSummary.pending + saleReturnsSummary.partialPending).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Pending adjustment</div>
+                    </>
+                  ) : saleReturnsSummary.adjusted > 0 ? (
+                    <>
+                      <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                        ₹{saleReturnsSummary.adjusted.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Adjusted ✓</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-bold text-muted-foreground tabular-nums">₹0.00</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">No returns</div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
