@@ -56,6 +56,9 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'card' | 'pay_later'>('cash');
   const [dcNumber, setDcNumber] = useState('');
+  const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
+  const [flatDiscountValue, setFlatDiscountValue] = useState<number>(0);
+  const [srAdjust, setSrAdjust] = useState<number>(0);
   const [isSavingDC, setIsSavingDC] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
