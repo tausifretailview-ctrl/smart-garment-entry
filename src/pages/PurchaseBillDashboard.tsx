@@ -438,12 +438,21 @@ const PurchaseBillDashboard = () => {
       }
 
       // Payment status filter
-      if (paymentStatusFilter && paymentStatusFilter !== "all") {
-        if (paymentStatusFilter === "not_paid") {
-          query = query.or("payment_status.is.null,payment_status.eq.pending");
-        } else {
-          query = query.eq("payment_status", paymentStatusFilter);
-        }
+      // Default behavior: "all" means active (non-cancelled) only
+      if (paymentStatusFilter === "all" || !paymentStatusFilter) {
+        query = query.or("is_cancelled.is.null,is_cancelled.eq.false");
+      } else if (paymentStatusFilter === "cancelled") {
+        query = query.eq("is_cancelled", true);
+      } else if (paymentStatusFilter === "all_including_cancelled") {
+        // No is_cancelled filter — show everything
+      } else if (paymentStatusFilter === "not_paid") {
+        query = query
+          .or("is_cancelled.is.null,is_cancelled.eq.false")
+          .or("payment_status.is.null,payment_status.eq.pending");
+      } else {
+        query = query
+          .or("is_cancelled.is.null,is_cancelled.eq.false")
+          .eq("payment_status", paymentStatusFilter);
       }
 
       // DC filter
@@ -1135,12 +1144,21 @@ const PurchaseBillDashboard = () => {
       if (startDate) query = query.gte("bill_date", startDate);
       if (endDate) query = query.lte("bill_date", endDate);
 
-      if (paymentStatusFilter && paymentStatusFilter !== "all") {
-        if (paymentStatusFilter === "not_paid") {
-          query = query.or("payment_status.is.null,payment_status.eq.pending");
-        } else {
-          query = query.eq("payment_status", paymentStatusFilter);
-        }
+      // Same cancelled-aware filter as bills query
+      if (paymentStatusFilter === "all" || !paymentStatusFilter) {
+        query = query.or("is_cancelled.is.null,is_cancelled.eq.false");
+      } else if (paymentStatusFilter === "cancelled") {
+        query = query.eq("is_cancelled", true);
+      } else if (paymentStatusFilter === "all_including_cancelled") {
+        // show everything
+      } else if (paymentStatusFilter === "not_paid") {
+        query = query
+          .or("is_cancelled.is.null,is_cancelled.eq.false")
+          .or("payment_status.is.null,payment_status.eq.pending");
+      } else {
+        query = query
+          .or("is_cancelled.is.null,is_cancelled.eq.false")
+          .eq("payment_status", paymentStatusFilter);
       }
 
       if (dcFilter === "dc") {
@@ -1520,16 +1538,24 @@ const PurchaseBillDashboard = () => {
             <Button
               size="icon"
               variant="ghost"
-              className={`h-7 w-7 ${bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
+              className={`h-7 w-7 ${bill.is_cancelled ? 'opacity-40 cursor-not-allowed' : bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
               onClick={(e) => {
                 e.stopPropagation();
+                if (bill.is_cancelled) {
+                  toast({
+                    title: "Bill Cancelled",
+                    description: "Cancelled bills cannot be edited. Create a new bill.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
                 if (bill.is_locked) {
                   toast({ title: "Bill is locked", description: "Unlock the bill first to edit it.", variant: "destructive" });
                   return;
                 }
                 navigate("/purchase-entry", { state: { editBillId: bill.id } });
               }}
-              title={bill.is_locked ? "Unlock bill to edit" : "Edit bill"}
+              title={bill.is_cancelled ? "Bill is cancelled" : bill.is_locked ? "Unlock bill to edit" : "Edit bill"}
             >
               <Edit className="h-3.5 w-3.5" />
             </Button>
@@ -2045,10 +2071,12 @@ const PurchaseBillDashboard = () => {
                   <SelectValue placeholder="Payment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">All (Active)</SelectItem>
                   <SelectItem value="completed">Paid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
                   <SelectItem value="not_paid">Not Paid</SelectItem>
+                  <SelectItem value="cancelled">Cancelled Only</SelectItem>
+                  <SelectItem value="all_including_cancelled">All (Including Cancelled)</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={dcFilter} onValueChange={setDcFilter}>
