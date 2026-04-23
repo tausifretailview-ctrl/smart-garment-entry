@@ -112,14 +112,16 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch purchase returns without linked credit note vouchers for balance correction
       const { data: allPurchaseReturns } = await supabase
         .from("purchase_returns" as any)
-        .select("supplier_id, net_amount, credit_note_id")
+        .select("supplier_id, net_amount, credit_note_id, credit_status")
         .eq("organization_id", organizationId)
         .is("deleted_at", null);
 
       const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn: any) => cn.id));
       const unreflectedReturnsBySupplier = new Map<string, number>();
       (allPurchaseReturns || []).forEach((pr: any) => {
-        if (!pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id)) {
+        const notLinked = !pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id);
+        const affectsBalance = ['adjusted', 'adjusted_outstanding', 'refunded'].includes(pr.credit_status);
+        if (notLinked && affectsBalance) {
           const prev = unreflectedReturnsBySupplier.get(pr.supplier_id) || 0;
           unreflectedReturnsBySupplier.set(pr.supplier_id, prev + (Number(pr.net_amount) || 0));
         }
