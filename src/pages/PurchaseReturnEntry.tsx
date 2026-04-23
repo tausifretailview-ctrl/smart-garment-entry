@@ -1353,6 +1353,7 @@ const PurchaseReturnEntry = () => {
                     <TableHead>Size</TableHead>
                     <TableHead>Barcode</TableHead>
                     <TableHead className="w-24">Qty</TableHead>
+                    {showMrp && <TableHead className="w-24">MRP</TableHead>}
                     <TableHead className="w-32">Price</TableHead>
                     <TableHead className="w-20">Disc%</TableHead>
                     <TableHead className="w-24">Disc ₹</TableHead>
@@ -1382,6 +1383,21 @@ const PurchaseReturnEntry = () => {
                           className="w-20"
                         />
                       </TableCell>
+                      {showMrp && (
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.mrp ?? 0}
+                            onChange={(e) =>
+                              updateLineItem(item.temp_id, "mrp", parseFloat(e.target.value) || 0)
+                            }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-24"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Input
                           type="number"
