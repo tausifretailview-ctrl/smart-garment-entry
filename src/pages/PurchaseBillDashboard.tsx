@@ -1964,6 +1964,12 @@ const PurchaseBillDashboard = () => {
                       Delete Selected ({selectedBills.size})
                     </Button>
                   )}
+                  {canCancel && (
+                    <Button variant="outline" size="sm" onClick={() => setShowBulkCancelDialog(true)} disabled={isBulkCancelling}>
+                      {isBulkCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
+                      Cancel Selected ({selectedBills.size})
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
