@@ -2021,8 +2021,47 @@ Please clear your dues at the earliest. Thank you!`;
       xPos += colWidths[i];
     });
 
+    // Reconciliation block
+    yPos += 12;
+    if (yPos > 240) {
+      doc.addPage();
+      yPos = 20;
+    }
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Balance Reconciliation", margin, yPos);
+    yPos += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const reconLines: Array<[string, number]> = [
+      ["Opening Balance", reconciliation.opening],
+      ["(+) Total Invoiced (Gross)", reconciliation.grossInvoiced],
+      ["(-) Sale Returns", -reconciliation.saleReturns],
+      ["(=) Net Invoiced", reconciliation.netInvoiced],
+      ["(-) Cash / UPI / Card Payments", -reconciliation.payments],
+    ];
+    if (reconciliation.advanceCredit > 0) {
+      reconLines.push(["(-) Advance Received", -reconciliation.advanceCredit]);
+    }
+    if (reconciliation.adjustments !== 0) {
+      reconLines.push(["(+/-) Balance Adjustments", reconciliation.adjustments]);
+    }
+    const labelX = margin + 4;
+    const valueX = margin + 90;
+    reconLines.forEach(([label, val]) => {
+      doc.text(label, labelX, yPos);
+      const sign = val < 0 ? "-" : "";
+      doc.text(`${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`, valueX, yPos, { align: "left" });
+      yPos += 5;
+    });
+    doc.setFont("helvetica", "bold");
+    const finalLabel = reconciliation.finalBalance > 0 ? "Outstanding (Dr)" : reconciliation.finalBalance < 0 ? "Advance (Cr)" : "Settled";
+    doc.text(finalLabel, labelX, yPos + 1);
+    doc.text(`Rs. ${Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    yPos += 8;
+
     // Footer
-    yPos += 15;
+    yPos += 6;
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
