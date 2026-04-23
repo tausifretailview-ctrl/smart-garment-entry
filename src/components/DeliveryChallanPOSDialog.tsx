@@ -645,7 +645,63 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
             </div>
 
             {/* Footer — totals + payment */}
-            <div className="flex items-center justify-between gap-4 pt-2 border-t">
+            <div className="flex flex-col gap-2 pt-2 border-t">
+              {/* Discount + S/R Adjust row */}
+              <div className="flex items-center justify-end gap-3 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground font-medium">FLAT DISC</span>
+                  <div className="flex items-center border rounded-md overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setFlatDiscountMode('percent')}
+                      className={cn(
+                        "px-2 h-8 flex items-center justify-center text-xs",
+                        flatDiscountMode === 'percent' ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"
+                      )}
+                    >
+                      <Percent className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFlatDiscountMode('amount')}
+                      className={cn(
+                        "px-2 h-8 flex items-center justify-center text-xs border-l",
+                        flatDiscountMode === 'amount' ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"
+                      )}
+                    >
+                      <IndianRupee className="h-3 w-3" />
+                    </button>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      value={flatDiscountValue || ''}
+                      onChange={e => setFlatDiscountValue(Number(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-20 h-8 text-sm text-right border-0 rounded-none focus-visible:ring-0"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground font-medium">S/R ADJ</span>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={srAdjust || ''}
+                    onChange={e => setSrAdjust(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    className="w-24 h-8 text-sm text-right"
+                  />
+                </div>
+                {(flatDiscountAmount > 0 || srAdjust > 0) && (
+                  <div className="text-xs text-muted-foreground">
+                    Sub: ₹{Math.round(subTotal).toLocaleString('en-IN')}
+                    {flatDiscountAmount > 0 && <> − Disc: ₹{Math.round(flatDiscountAmount).toLocaleString('en-IN')}</>}
+                    {srAdjust > 0 && <> − S/R: ₹{Math.round(srAdjust).toLocaleString('en-IN')}</>}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
               {/* Totals */}
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-1">
@@ -698,6 +754,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
                 <Button variant="outline" size="sm" onClick={handleClose}>
                   Close
                 </Button>
+              </div>
               </div>
             </div>
           </div>
