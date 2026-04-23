@@ -173,9 +173,9 @@ export default function SalesInvoice() {
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput, scheduleAutoSubmit, cancelAutoSubmit, markSubmitted } = useBarcodeScanner();
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
   
-  // Initialize 5 empty rows for predefined table
+  // Initialize 7 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
-    Array(5).fill(null).map((_, i) => ({
+    Array(7).fill(null).map((_, i) => ({
       id: `row-${i}`,
       productId: '',
       variantId: '',
@@ -269,7 +269,7 @@ export default function SalesInvoice() {
     if (!data) return;
     setInvoiceDate(data.invoiceDate ? new Date(data.invoiceDate) : new Date());
     setDueDate(data.dueDate ? new Date(data.dueDate) : new Date());
-    setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
+    setLineItems(data.lineItems || Array(7).fill(null).map((_, i) => ({
       id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
       quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
     })));
@@ -2597,7 +2597,7 @@ Thank you for choosing us!`;
 
         // Reset form immediately for new invoice readiness
         setLineItems(
-          Array(5).fill(null).map((_, i) => ({
+          Array(7).fill(null).map((_, i) => ({
             id: `row-${i}`,
             productId: '',
             variantId: '',
@@ -3046,7 +3046,7 @@ Thank you for choosing us!`;
             </Button>
             <div className="w-px h-6 bg-white/20 mx-1" />
             <Button variant="ghost" size="sm" onClick={() => {
-                setLineItems(Array(5).fill(null).map((_, i) => ({
+                setLineItems(Array(7).fill(null).map((_, i) => ({
                   id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
                   quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
                 })));
