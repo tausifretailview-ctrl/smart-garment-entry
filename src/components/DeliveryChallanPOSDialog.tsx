@@ -361,7 +361,12 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
     try {
       const now = new Date().toISOString();
       const gross = items.reduce((s, i) => s + i.mrp * i.quantity, 0);
-      const net   = items.reduce((s, i) => s + i.netAmount, 0);
+      const sub   = items.reduce((s, i) => s + i.netAmount, 0);
+      const flatDisc = flatDiscountMode === 'percent'
+        ? Math.round((sub * (flatDiscountValue || 0)) / 100 * 100) / 100
+        : (flatDiscountValue || 0);
+      const sr = srAdjust || 0;
+      const net = Math.max(0, sub - flatDisc - sr);
 
       const cashAmt  = method === 'cash'  ? net : 0;
       const upiAmt   = method === 'upi'   ? net : 0;
@@ -381,10 +386,10 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           customer_name:         customerName || 'Walk-in',
           customer_phone:        customerPhone || null,
           gross_amount:          gross,
-          discount_amount:       0,
-          flat_discount_percent: 0,
-          flat_discount_amount:  0,
-          sale_return_adjust:    0,
+          discount_amount:       flatDisc,
+          flat_discount_percent: flatDiscountMode === 'percent' ? (flatDiscountValue || 0) : 0,
+          flat_discount_amount:  flatDiscountAmount,
+          sale_return_adjust:    sr,
           round_off:             0,
           net_amount:            net,
           payment_method:        method,
