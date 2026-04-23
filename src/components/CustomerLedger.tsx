@@ -2528,6 +2528,58 @@ Please clear your dues at the earliest. Thank you!`;
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Balance Reconciliation Box — derived from rendered transactions */}
+                {transactions.length > 0 && (
+                  <div className="mt-4 rounded-md border bg-muted/30 p-4">
+                    <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">
+                      Balance Reconciliation
+                    </div>
+                    <div className="space-y-1.5 text-sm tabular-nums max-w-md">
+                      <div className="flex justify-between">
+                        <span>Opening Balance</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.opening).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>(+) Total Invoiced (Gross)</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.grossInvoiced).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                        <span>(−) Sale Returns</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.saleReturns).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1.5">
+                        <span className="font-semibold">(=) Net Invoiced</span>
+                        <span className="font-semibold">₹{Math.round(reconciliation.netInvoiced).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                        <span>(−) Cash / UPI / Card Payments</span>
+                        <span className="font-medium">₹{Math.round(reconciliation.payments).toLocaleString("en-IN")}</span>
+                      </div>
+                      {reconciliation.advanceCredit > 0 && (
+                        <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                          <span>(−) Advance Received</span>
+                          <span className="font-medium">₹{Math.round(reconciliation.advanceCredit).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {reconciliation.adjustments !== 0 && (
+                        <div className="flex justify-between">
+                          <span>(±) Balance Adjustments</span>
+                          <span className="font-medium">₹{Math.round(reconciliation.adjustments).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      <div className={cn(
+                        "flex justify-between border-t-2 pt-2 mt-2 text-base font-bold",
+                        reconciliation.finalBalance > 0 ? "text-red-600 dark:text-red-400" :
+                        reconciliation.finalBalance < 0 ? "text-emerald-700 dark:text-emerald-300" :
+                        "text-foreground"
+                      )}>
+                        <span>Outstanding ({reconciliation.finalBalance > 0 ? 'Dr' : reconciliation.finalBalance < 0 ? 'Cr' : 'Settled'})</span>
+                        <span>₹{Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="payments">
