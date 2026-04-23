@@ -3743,6 +3743,15 @@ const PurchaseEntry = () => {
         <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} mobileERPMode={mobileERPSettings || undefined} />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
+        <DuplicatePurchaseBillDialog
+          open={!!duplicateWarning}
+          existingBill={duplicateWarning?.bill ?? null}
+          matchReason={duplicateWarning?.reason ?? ""}
+          canOverride={hasSpecialPermission('cancel_invoice')}
+          onClose={() => setDuplicateWarning(null)}
+          onOpenExisting={(billId) => { setDuplicateWarning(null); navigate("/purchase-entry", { state: { editBillId: billId } }); }}
+          onSaveAnyway={async () => { overrideDuplicateRef.current = true; setDuplicateWarning(null); await doSave(); }}
+        />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} />
         {isMobileERPMode && (
           <IMEIScanDialog
