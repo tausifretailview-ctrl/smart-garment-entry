@@ -2658,6 +2658,7 @@ Thank you for choosing us!`;
         title: "Error",
         description: error.message || "Failed to save invoice",
       });
+      setPaymentOverride(null);
     } finally {
       savingLockRef.current = false;
       setIsSaving(false);
