@@ -1685,11 +1685,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   const transactionTotals = useMemo(() => {
     if (!transactions) return { totalDebit: 0, totalCredit: 0 };
-    
-    return transactions.reduce((acc, t) => ({
-      totalDebit: acc.totalDebit + (t.debit || 0),
-      totalCredit: acc.totalCredit + (t.credit || 0),
-    }), { totalDebit: 0, totalCredit: 0 });
+
+    // Sum the DISPLAYED amounts (e.g. invoice GROSS for visible columns) but
+    // skip informational rows so the S/R offset isn't double-counted in the
+    // totals row.
+    return transactions.reduce((acc, t) => {
+      if (t.informational) return acc;
+      const d = (t.displayDebit ?? t.debit) || 0;
+      const c = (t.displayCredit ?? t.credit) || 0;
+      return {
+        totalDebit: acc.totalDebit + d,
+        totalCredit: acc.totalCredit + c,
+      };
+    }, { totalDebit: 0, totalCredit: 0 });
   }, [transactions]);
 
   // Send ledger summary via WhatsApp
