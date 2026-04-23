@@ -4159,6 +4159,11 @@ export default function POSSales() {
                                     <span className="font-mono">{displayBarcode(item.variant.barcode)}</span>
                                   )}
                                   <span className="font-bold text-primary">₹{item.variant.sale_price}</span>
+                                  {item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
+                                    <span className="text-[10px] line-through text-muted-foreground">
+                                      MRP ₹{item.variant.mrp}
+                                    </span>
+                                  )}
                                   <span className={item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
                                     Stock: {item.variant.stock_qty}
                                   </span>
