@@ -42,6 +42,7 @@ import { ProductImageGallery, ProductImage } from "@/components/ProductImageGall
 import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
+import { useSettings } from "@/hooks/useSettings";
 
 interface ProductVariant {
   variant_id: string;
