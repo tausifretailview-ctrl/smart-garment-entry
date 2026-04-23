@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import * as XLSX from "xlsx";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -83,6 +84,8 @@ const ProductDashboard = () => {
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { hasSpecialPermission } = useUserPermissions();
+  const canDelete = hasSpecialPermission('delete_records');
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -238,7 +241,7 @@ const ProductDashboard = () => {
           }
         },
       },
-      {
+      ...(canDelete ? [{
         label: "Delete Product",
         icon: Trash2,
         onClick: () => {
@@ -246,7 +249,7 @@ const ProductDashboard = () => {
           setShowBulkDeleteDialog(true);
         },
         destructive: true,
-      },
+      }] : []),
     ];
   };
 
@@ -630,6 +633,15 @@ const ProductDashboard = () => {
   const { getProductRelationDetails } = useProductProtection();
 
   const handleBulkDelete = async () => {
+    if (!canDelete) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to delete products. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      setShowBulkDeleteDialog(false);
+      return;
+    }
     setIsDeleting(true);
     try {
       const productsToDelete = Array.from(selectedProducts);
@@ -1561,15 +1573,17 @@ const ProductDashboard = () => {
                       Merge Selected
                     </Button>
                   )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowBulkDeleteDialog(true)}
-                    className="gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Selected
-                  </Button>
+                  {canDelete && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowBulkDeleteDialog(true)}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Selected
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
