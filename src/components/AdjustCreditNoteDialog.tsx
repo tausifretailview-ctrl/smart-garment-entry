@@ -81,6 +81,40 @@ export function AdjustCreditNoteDialog({
 
     setLoading(true);
     try {
+      // Re-check current credit_note_id on the purchase_return so a second click
+      // (after a successful save linked a voucher) does not insert a duplicate.
+      let effectiveCreditNoteId = creditNoteId;
+      try {
+        const { data: prRow } = await supabase
+          .from("purchase_returns" as any)
+          .select("credit_note_id")
+          .eq("id", purchaseReturnId)
+          .maybeSingle();
+        if (prRow && (prRow as any).credit_note_id) {
+          effectiveCreditNoteId = (prRow as any).credit_note_id;
+        }
+      } catch {}
+
+      // Helper: find an existing matching credit_note voucher to avoid duplicates
+      const findExistingCreditNoteVoucher = async (descNeedles: string[]) => {
+        const orFilter = descNeedles
+          .filter(Boolean)
+          .map((s) => `description.ilike.%${s.replace(/[%,()]/g, " ")}%`)
+          .join(",");
+        let q = supabase
+          .from("voucher_entries")
+          .select("id, description")
+          .eq("organization_id", currentOrganization?.id)
+          .eq("voucher_type", "credit_note")
+          .eq("reference_type", "supplier")
+          .eq("reference_id", supplierId)
+          .eq("total_amount", creditAmount)
+          .is("deleted_at", null);
+        if (orFilter) q = q.or(orFilter);
+        const { data } = await q.limit(1).maybeSingle();
+        return data as { id: string; description: string } | null;
+      };
+
       if (adjustmentType === "bill") {
         // Adjust against bill - update bill's paid_amount and payment_status
         const selectedBill = unpaidBills.find((b: any) => b.id === selectedBillId);
@@ -112,15 +146,33 @@ export function AdjustCreditNoteDialog({
 
         if (returnError) throw returnError;
 
-        if (creditNoteId) {
+        if (effectiveCreditNoteId) {
           // Update existing credit note description
           await supabase
             .from("voucher_entries")
             .update({
               description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
             })
-            .eq("id", creditNoteId);
+            .eq("id", effectiveCreditNoteId);
         } else {
+          // Guard: a voucher might already exist (created earlier, but not linked to PR)
+          const existing = await findExistingCreditNoteVoucher([
+            creditNoteNumber,
+            selectedBill.supplier_invoice_no,
+            selectedBill.software_bill_no,
+          ]);
+          if (existing) {
+            await supabase
+              .from("voucher_entries")
+              .update({
+                description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
+              })
+              .eq("id", existing.id);
+            await supabase
+              .from("purchase_returns" as any)
+              .update({ credit_note_id: existing.id })
+              .eq("id", purchaseReturnId);
+          } else {
           // Create credit_note voucher now (was not auto-created at return save time)
           const today = format(new Date(), "yyyy-MM-dd");
           const { data: lastVoucher } = await supabase
@@ -156,6 +208,7 @@ export function AdjustCreditNoteDialog({
             .from("purchase_returns" as any)
             .update({ credit_note_id: newVoucher.id })
             .eq("id", purchaseReturnId);
+          }
         }
 
         toast({
@@ -218,15 +271,29 @@ export function AdjustCreditNoteDialog({
 
         if (returnError) throw returnError;
 
-        if (creditNoteId) {
+        if (effectiveCreditNoteId) {
           // Existing credit_note voucher — just update description
           await supabase
             .from("voucher_entries")
             .update({
               description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
             })
-            .eq("id", creditNoteId);
+            .eq("id", effectiveCreditNoteId);
         } else {
+          // Guard: a matching credit_note voucher may already exist
+          const existing = await findExistingCreditNoteVoucher([creditNoteNumber]);
+          if (existing) {
+            await supabase
+              .from("voucher_entries")
+              .update({
+                description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
+              })
+              .eq("id", existing.id);
+            await supabase
+              .from("purchase_returns" as any)
+              .update({ credit_note_id: existing.id })
+              .eq("id", purchaseReturnId);
+          } else {
           // No credit_note voucher was created at save time — create one now
           const today = format(new Date(), "yyyy-MM-dd");
           const { data: lastVoucher } = await supabase
@@ -262,6 +329,7 @@ export function AdjustCreditNoteDialog({
             .from("purchase_returns" as any)
             .update({ credit_note_id: newVoucher.id })
             .eq("id", purchaseReturnId);
+          }
         }
 
         toast({

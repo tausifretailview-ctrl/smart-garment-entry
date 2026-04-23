@@ -112,14 +112,16 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch purchase returns without linked credit note vouchers for balance correction
       const { data: allPurchaseReturns } = await supabase
         .from("purchase_returns" as any)
-        .select("supplier_id, net_amount, credit_note_id")
+        .select("supplier_id, net_amount, credit_note_id, credit_status")
         .eq("organization_id", organizationId)
         .is("deleted_at", null);
 
       const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn: any) => cn.id));
       const unreflectedReturnsBySupplier = new Map<string, number>();
       (allPurchaseReturns || []).forEach((pr: any) => {
-        if (!pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id)) {
+        const notLinked = !pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id);
+        const affectsBalance = ['adjusted', 'adjusted_outstanding', 'refunded'].includes(pr.credit_status);
+        if (notLinked && affectsBalance) {
           const prev = unreflectedReturnsBySupplier.get(pr.supplier_id) || 0;
           unreflectedReturnsBySupplier.set(pr.supplier_id, prev + (Number(pr.net_amount) || 0));
         }
@@ -273,8 +275,15 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       // Only include purchase returns that have NO linked credit_note voucher
       const creditNoteVoucherIds = new Set((creditNotesData || []).map((cn: any) => cn.id));
+      // Returns whose adjustment affects balance (already chosen by user)
       const unreflectedReturns = (purchaseReturnsData || []).filter((pr: any) =>
-        !pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)
+        (!pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)) &&
+        ['adjusted', 'adjusted_outstanding', 'refunded'].includes(pr.credit_status)
+      );
+      // Pending returns: show informationally but do not affect running balance
+      const pendingReturns = (purchaseReturnsData || []).filter((pr: any) =>
+        (!pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)) &&
+        (pr.credit_status === 'pending' || !pr.credit_status)
       );
 
       // Fetch refunds received from supplier (when CN is marked 'refunded')
@@ -342,6 +351,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         ...(unreflectedReturns || []).map((pr: any) => ({
           date: pr.return_date,
           type: 'purchase_return' as const,
+          data: pr,
+        })),
+        ...(pendingReturns || []).map((pr: any) => ({
+          date: pr.return_date,
+          type: 'purchase_return_pending' as const,
           data: pr,
         })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -426,6 +440,19 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             reference: pr.return_number,
             description,
             debit: amount,
+            credit: 0,
+            balance: runningBalance,
+          });
+        } else if (item.type === 'purchase_return_pending') {
+          // Display-only row for pending purchase returns — does NOT mutate balance
+          const pr = item.data as any;
+          allTransactions.push({
+            id: `pr-pending-${pr.id}`,
+            date: pr.return_date,
+            type: 'purchase_return',
+            reference: pr.return_number,
+            description: `Purchase Return - ${pr.return_number} (Pending — not adjusted)`,
+            debit: 0,
             credit: 0,
             balance: runningBalance,
           });
