@@ -2458,18 +2458,32 @@ Please clear your dues at the earliest. Thank you!`;
                               </div>
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              {transaction.debit > 0 && (
-                                <span className="text-red-600 dark:text-red-400">
-                                  ₹{transaction.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                </span>
-                              )}
+                              {(() => {
+                                const dispDebit = transaction.displayDebit ?? transaction.debit;
+                                if (!dispDebit || dispDebit <= 0) return null;
+                                return (
+                                  <span className={cn(
+                                    "text-red-600 dark:text-red-400",
+                                    transaction.informational && "italic font-normal"
+                                  )}>
+                                    ₹{dispDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </span>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              {transaction.credit > 0 && (
-                                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
-                                  ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                </span>
-                              )}
+                              {(() => {
+                                const dispCredit = transaction.displayCredit ?? transaction.credit;
+                                if (!dispCredit || dispCredit <= 0) return null;
+                                return (
+                                  <span className={cn(
+                                    "text-emerald-700 dark:text-emerald-300 font-semibold",
+                                    transaction.informational && "italic font-normal"
+                                  )}>
+                                    ₹{dispCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </span>
+                                );
+                              })()}
                               {transaction.type === 'advance_application' && transaction.credit === 0 && (transaction.appliedAmount || 0) > 0 && (
                                 <span className="text-xs italic text-muted-foreground">
                                   (₹{(transaction.appliedAmount || 0).toLocaleString("en-IN")} applied)
