@@ -87,6 +87,8 @@ const ProductDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
+  const { data: orgSettings } = useSettings();
+  const lowStockThreshold = Number((orgSettings as any)?.product_settings?.low_stock_threshold) || 10;
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
