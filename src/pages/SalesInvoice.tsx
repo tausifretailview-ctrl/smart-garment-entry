@@ -222,6 +222,18 @@ export default function SalesInvoice() {
   const [otherCharges, setOtherCharges] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
+
+  // Payment override (default = credit / pay_later). Footer Cash/UPI/Mix buttons set this.
+  const [paymentOverride, setPaymentOverride] = useState<{
+    method: 'cash' | 'upi' | 'multiple';
+    cashAmount: number;
+    upiAmount: number;
+    cardAmount: number;
+    bankAmount: number;
+    financeAmount: number;
+    totalPaid: number;
+  } | null>(null);
+  const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   
   // Size grid entry mode - default to grid, will be overridden by settings
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
