@@ -590,6 +590,7 @@ const PurchaseReturnEntry = () => {
           size,
           color,
           pur_price,
+          mrp,
           barcode,
           stock_qty,
           active,
@@ -634,6 +635,7 @@ const PurchaseReturnEntry = () => {
           gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
           hsn_code: v.products?.hsn_code || "",
           stock_qty: v.stock_qty || 0,
+          mrp: v.mrp ?? 0,
         }));
 
       // Apply smart sorting
