@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText, Coins, Trash2, Save } from "lucide-react";
+import { Banknote, Smartphone, Wallet } from "lucide-react";
+import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -220,6 +222,19 @@ export default function SalesInvoice() {
   const [otherCharges, setOtherCharges] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
+
+  // Payment override (default = credit / pay_later). Footer Cash/UPI/Mix buttons set this.
+  const [paymentOverride, setPaymentOverride] = useState<{
+    method: 'cash' | 'upi' | 'multiple';
+    cashAmount: number;
+    upiAmount: number;
+    cardAmount: number;
+    bankAmount: number;
+    financeAmount: number;
+    totalPaid: number;
+  } | null>(null);
+  const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
+  const pendingAutoSaveRef = useRef(false);
   
   // Size grid entry mode - default to grid, will be overridden by settings
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
@@ -385,6 +400,64 @@ export default function SalesInvoice() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [lineItems, isSaving]);
+
+  // F1 = Cash, F2 = UPI, F3 = Mix payment shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+      if (isTyping) return;
+      if (e.key === 'F1') {
+        e.preventDefault();
+        handlePaymentShortcut('cash');
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        handlePaymentShortcut('upi');
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        handlePaymentShortcut('mix');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
+
+  // Handle payment shortcut buttons: set payment override then auto-save
+  const handlePaymentShortcut = (mode: 'cash' | 'upi' | 'mix') => {
+    const filledItems = lineItems.filter(item => item.productId !== '');
+    if (filledItems.length === 0) {
+      toast({ variant: 'destructive', title: 'No items', description: 'Please add at least one product first.' });
+      return;
+    }
+    if (mode === 'cash') {
+      setPaymentOverride({
+        method: 'cash',
+        cashAmount: netAmount, upiAmount: 0, cardAmount: 0, bankAmount: 0, financeAmount: 0,
+        totalPaid: netAmount,
+      });
+      pendingAutoSaveRef.current = true;
+    } else if (mode === 'upi') {
+      setPaymentOverride({
+        method: 'upi',
+        cashAmount: 0, upiAmount: netAmount, cardAmount: 0, bankAmount: 0, financeAmount: 0,
+        totalPaid: netAmount,
+      });
+      pendingAutoSaveRef.current = true;
+    } else {
+      setShowMixPaymentDialog(true);
+    }
+  };
+
+  // After paymentOverride is set via Cash/UPI shortcut, trigger save
+  useEffect(() => {
+    if (pendingAutoSaveRef.current && paymentOverride) {
+      pendingAutoSaveRef.current = false;
+      if (!isSaving && !savingLockRef.current) {
+        handleSaveInvoice();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentOverride]);
 
   // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
   useEffect(() => {
@@ -2358,8 +2431,14 @@ Thank you for choosing us!`;
             round_off: roundOff,
             net_amount: netAmount,
             points_redeemed_amount: pointsRedemptionValue,
-            payment_method: 'pay_later',
-            payment_status: 'pending',
+            payment_method: paymentOverride?.method ?? 'pay_later',
+            payment_status: paymentOverride
+              ? (paymentOverride.totalPaid >= netAmount ? 'completed' : 'partial')
+              : 'pending',
+            paid_amount: paymentOverride?.totalPaid ?? 0,
+            cash_amount: paymentOverride?.cashAmount ?? 0,
+            upi_amount: paymentOverride?.upiAmount ?? 0,
+            card_amount: paymentOverride?.cardAmount ?? 0,
             organization_id: currentOrganization?.id,
             shop_name: shopName || null,
             due_date: dueDate.toISOString().split('T')[0],
@@ -2554,6 +2633,7 @@ Thank you for choosing us!`;
         setRoundOff(0);
         setEditingInvoiceId(null);
         setOriginalItemsForEdit([]);
+        setPaymentOverride(null);
 
         // Now show print dialog with saved data
         setSavedInvoiceData(invoiceDataForPrint);
@@ -2578,6 +2658,7 @@ Thank you for choosing us!`;
         title: "Error",
         description: error.message || "Failed to save invoice",
       });
+      setPaymentOverride(null);
     } finally {
       savingLockRef.current = false;
       setIsSaving(false);
@@ -3825,6 +3906,67 @@ Thank you for choosing us!`;
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Payment shortcuts: Cash F1 / UPI F2 / Mix F3 (default = Credit / pay_later) */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePaymentShortcut('cash')}
+              disabled={isSaving || !lineItems.some(i => i.productId)}
+              className={cn(
+                "h-8 px-3 text-xs gap-1 font-semibold border",
+                paymentOverride?.method === 'cash'
+                  ? "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-500"
+                  : "text-emerald-200 border-emerald-700/60 hover:bg-emerald-800/40 hover:text-emerald-100"
+              )}
+              title="Cash payment (F1)"
+            >
+              <Banknote className="h-3.5 w-3.5" />
+              Cash <kbd className="ml-0.5 px-1 py-px rounded bg-black/20 text-[10px] font-mono">F1</kbd>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePaymentShortcut('upi')}
+              disabled={isSaving || !lineItems.some(i => i.productId)}
+              className={cn(
+                "h-8 px-3 text-xs gap-1 font-semibold border",
+                paymentOverride?.method === 'upi'
+                  ? "bg-violet-500 text-white border-violet-400 hover:bg-violet-500"
+                  : "text-violet-200 border-violet-700/60 hover:bg-violet-800/40 hover:text-violet-100"
+              )}
+              title="UPI payment (F2)"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              UPI <kbd className="ml-0.5 px-1 py-px rounded bg-black/20 text-[10px] font-mono">F2</kbd>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePaymentShortcut('mix')}
+              disabled={isSaving || !lineItems.some(i => i.productId)}
+              className={cn(
+                "h-8 px-3 text-xs gap-1 font-semibold border",
+                paymentOverride?.method === 'multiple'
+                  ? "bg-amber-500 text-white border-amber-400 hover:bg-amber-500"
+                  : "text-amber-200 border-amber-700/60 hover:bg-amber-800/40 hover:text-amber-100"
+              )}
+              title="Mix payment (F3)"
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              Mix <kbd className="ml-0.5 px-1 py-px rounded bg-black/20 text-[10px] font-mono">F3</kbd>
+            </Button>
+            {paymentOverride && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPaymentOverride(null)}
+                className="h-8 px-2 text-xs text-teal-300 hover:bg-teal-800 hover:text-white"
+                title="Clear payment selection (back to Credit)"
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <div className="w-px h-6 bg-teal-700 mx-1" />
             <Button
               variant="ghost"
               size="sm"
@@ -3858,6 +4000,26 @@ Thank you for choosing us!`;
           </div>
         </div>
       </footer>
+
+      {/* Mix Payment Dialog (F3) */}
+      <MixPaymentDialog
+        open={showMixPaymentDialog}
+        onOpenChange={setShowMixPaymentDialog}
+        billAmount={netAmount}
+        onSave={(payment) => {
+          setShowMixPaymentDialog(false);
+          setPaymentOverride({
+            method: 'multiple',
+            cashAmount: payment.cashAmount,
+            upiAmount: payment.upiAmount,
+            cardAmount: payment.cardAmount,
+            bankAmount: payment.bankAmount,
+            financeAmount: payment.financeAmount,
+            totalPaid: payment.totalPaid,
+          });
+          pendingAutoSaveRef.current = true;
+        }}
+      />
 
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
