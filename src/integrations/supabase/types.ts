@@ -3127,6 +3127,7 @@ export type Database = {
           style: string | null
           uom: string
           updated_at: string | null
+          user_cancelled_at: string | null
         }
         Insert: {
           brand?: string | null
@@ -3155,6 +3156,7 @@ export type Database = {
           style?: string | null
           uom?: string
           updated_at?: string | null
+          user_cancelled_at?: string | null
         }
         Update: {
           brand?: string | null
@@ -3183,6 +3185,7 @@ export type Database = {
           style?: string | null
           uom?: string
           updated_at?: string | null
+          user_cancelled_at?: string | null
         }
         Relationships: [
           {
