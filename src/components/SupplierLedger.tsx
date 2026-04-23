@@ -294,7 +294,15 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         .order('voucher_date', { ascending: true });
 
       // Merge bill payments and opening balance payments
-      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
+      // Skip legacy supplier-referenced vouchers whose description already names a specific bill
+      // (those are now rendered via the bill row's "Payment at purchase" calc)
+      const billRefs = (billsData || [])
+        .map((b: any) => b.software_bill_no || b.supplier_invoice_no)
+        .filter(Boolean);
+      const trueOpeningPayments = (openingBalancePayments || []).filter((v: any) =>
+        !billRefs.some((r: string) => (v.description || "").includes(r))
+      );
+      const allVouchers = [...(vouchersData || []), ...trueOpeningPayments];
 
       // Calculate total voucher payments per bill
       const voucherPaymentsByBillId: Record<string, number> = {};
@@ -379,7 +387,13 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           // Calculate payment at purchase (exclude amounts paid via vouchers)
           const totalPaidOnBill = bill.paid_amount || 0;
           const voucherPayments = voucherPaymentsByBillId[bill.id] || 0;
-          const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPayments);
+          const billRef = bill.software_bill_no || bill.supplier_invoice_no || '';
+          const legacyVoucherPayments = billRef
+            ? (openingBalancePayments || [])
+                .filter((v: any) => (v.description || "").includes(billRef))
+                .reduce((s: number, v: any) => s + (Number(v.total_amount) || 0), 0)
+            : 0;
+          const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPayments - legacyVoucherPayments);
           
           if (paidAtPurchase > 0) {
             runningBalance -= paidAtPurchase;
