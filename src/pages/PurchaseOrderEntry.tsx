@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -193,21 +194,8 @@ export default function PurchaseOrderEntry() {
     };
   }, [editingOrderId, startAutoSave, stopAutoSave, location.state?.editOrderId, lineItems, orderDate, expectedDelivery, selectedSupplierId, selectedSupplier, termsConditions, notes, taxType, saveDraft]);
 
-  // Fetch settings
-  const { data: settings } = useQuery({
-    queryKey: ['settings', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  // Fetch settings (centralized, cached 5min)
+  const { data: settings } = useSettings();
 
   const supplierForm = useForm<z.infer<typeof supplierSchema>>({
     resolver: zodResolver(supplierSchema),

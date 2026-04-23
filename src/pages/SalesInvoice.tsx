@@ -2450,13 +2450,7 @@ Thank you for choosing us!`;
               .maybeSingle();
 
             if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
-              const { data: companySettings } = await supabase
-                .from('settings')
-                .select('business_name, mobile_number')
-                .eq('organization_id', currentOrganization.id)
-                .maybeSingle();
-
-              const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+              const companyName = (settingsData as any)?.business_name || currentOrganization.name || 'Our Company';
 
               const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
                 day: '2-digit',
