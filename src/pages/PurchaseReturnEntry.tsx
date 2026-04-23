@@ -38,6 +38,7 @@ interface ProductVariant {
   gst_per: number;
   hsn_code: string;
   stock_qty: number;
+  mrp?: number;
 }
 
 interface LineItem {
@@ -56,6 +57,7 @@ interface LineItem {
   brand?: string;
   discount_percent: number;
   discount_amount: number;
+  mrp?: number;
 }
 
 const PurchaseReturnEntry = () => {
