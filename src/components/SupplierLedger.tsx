@@ -275,8 +275,15 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       // Only include purchase returns that have NO linked credit_note voucher
       const creditNoteVoucherIds = new Set((creditNotesData || []).map((cn: any) => cn.id));
+      // Returns whose adjustment affects balance (already chosen by user)
       const unreflectedReturns = (purchaseReturnsData || []).filter((pr: any) =>
-        !pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)
+        (!pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)) &&
+        ['adjusted', 'adjusted_outstanding', 'refunded'].includes(pr.credit_status)
+      );
+      // Pending returns: show informationally but do not affect running balance
+      const pendingReturns = (purchaseReturnsData || []).filter((pr: any) =>
+        (!pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)) &&
+        (pr.credit_status === 'pending' || !pr.credit_status)
       );
 
       // Fetch refunds received from supplier (when CN is marked 'refunded')
