@@ -146,11 +146,66 @@ const PriceHistoryReport = () => {
     }
   }, [currentOrganization?.id]);
 
-  const fetchAllData = async () => {
+  // Re-fetch when user types a search term (barcode/product/bill) so we bypass row caps
+  // and pull EVERY historical record for that specific item across all tables.
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+    const term = searchTerm.trim();
+    if (term.length < 2) return;
+    const handle = setTimeout(() => {
+      fetchAllData(term);
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, currentOrganization?.id]);
+
+  const fetchAllData = async (focusTerm?: string) => {
     if (!currentOrganization?.id) return;
     
     setLoading(true);
     try {
+      // When a focus term is supplied (typed barcode / product), resolve matching
+      // variant ids first so we can fetch ALL related rows without 500-row caps
+      // and across joined tables (sale_items, stock_movements, audit_logs).
+      let focusVariantIds: string[] | null = null;
+      let focusBarcodes: string[] | null = null;
+      let focusProductIds: string[] | null = null;
+      if (focusTerm && focusTerm.length >= 2) {
+        const t = focusTerm.trim();
+        const { data: matchedVariants } = await supabase
+          .from("product_variants")
+          .select("id, barcode, product_id, products!inner(product_name, brand)")
+          .eq("organization_id", currentOrganization.id)
+          .or(`barcode.ilike.%${t}%,size.ilike.%${t}%`)
+          .limit(500);
+        const { data: matchedProducts } = await supabase
+          .from("products")
+          .select("id, product_variants(id, barcode)")
+          .eq("organization_id", currentOrganization.id)
+          .or(`product_name.ilike.%${t}%,brand.ilike.%${t}%`)
+          .limit(200);
+        const vIds = new Set<string>();
+        const bcs = new Set<string>();
+        const pIds = new Set<string>();
+        (matchedVariants || []).forEach((v: any) => {
+          vIds.add(v.id);
+          if (v.barcode) bcs.add(v.barcode);
+          if (v.product_id) pIds.add(v.product_id);
+        });
+        (matchedProducts || []).forEach((p: any) => {
+          pIds.add(p.id);
+          (p.product_variants || []).forEach((v: any) => {
+            vIds.add(v.id);
+            if (v.barcode) bcs.add(v.barcode);
+          });
+        });
+        if (vIds.size > 0 || bcs.size > 0 || pIds.size > 0) {
+          focusVariantIds = Array.from(vIds);
+          focusBarcodes = Array.from(bcs);
+          focusProductIds = Array.from(pIds);
+        }
+      }
+
       // Fetch all data in parallel
       const [
         purchaseResult,
@@ -161,7 +216,20 @@ const PriceHistoryReport = () => {
         customersResult,
       ] = await Promise.all([
         // Fetch purchase items with bill info
-        supabase
+        (focusBarcodes && focusBarcodes.length > 0
+          ? supabase
+              .from("purchase_items")
+              .select(`
+                id, barcode, product_name, brand, category, size,
+                pur_price, sale_price, qty, bill_number, created_at,
+                purchase_bills!inner (
+                  software_bill_no, supplier_name, bill_date, organization_id
+                )
+              `)
+              .eq("purchase_bills.organization_id", currentOrganization.id)
+              .in("barcode", focusBarcodes)
+              .order("created_at", { ascending: false })
+          : supabase
           .from("purchase_items")
           .select(`
             id, barcode, product_name, brand, category, size,
@@ -171,7 +239,8 @@ const PriceHistoryReport = () => {
             )
           `)
           .eq("purchase_bills.organization_id", currentOrganization.id)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+        ),
         
         // Fetch sales
         supabase
@@ -180,7 +249,20 @@ const PriceHistoryReport = () => {
           .eq("organization_id", currentOrganization.id),
         
         // Fetch stock movements
-        supabase
+        (focusVariantIds && focusVariantIds.length > 0
+          ? supabase
+              .from("stock_movements")
+              .select(`
+                id, movement_type, quantity, bill_number, notes, created_at,
+                product_variants!inner (
+                  barcode, size,
+                  products!inner (product_name)
+                )
+              `)
+              .eq("organization_id", currentOrganization.id)
+              .in("variant_id", focusVariantIds)
+              .order("created_at", { ascending: false })
+          : supabase
           .from("stock_movements")
           .select(`
             id, movement_type, quantity, bill_number, notes, created_at,
@@ -191,16 +273,29 @@ const PriceHistoryReport = () => {
           `)
           .eq("organization_id", currentOrganization.id)
           .order("created_at", { ascending: false })
-          .limit(500),
+          .limit(500)
+        ),
         
         // Fetch audit logs for price edits and product changes
-        supabase
+        (focusVariantIds && (focusVariantIds.length > 0 || (focusProductIds && focusProductIds.length > 0))
+          ? supabase
+              .from("audit_logs")
+              .select("*")
+              .eq("organization_id", currentOrganization.id)
+              .in("entity_type", ["product_variant", "product"])
+              .in("entity_id", [
+                ...(focusVariantIds || []),
+                ...(focusProductIds || []),
+              ])
+              .order("created_at", { ascending: false })
+          : supabase
           .from("audit_logs")
           .select("*")
           .eq("organization_id", currentOrganization.id)
           .in("entity_type", ["product_variant", "product"])
           .order("created_at", { ascending: false })
-          .limit(500),
+          .limit(500)
+        ),
         
         // Fetch suppliers
         supabase
@@ -731,7 +826,7 @@ const PriceHistoryReport = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchAllData} disabled={loading}>
+          <Button variant="outline" onClick={() => fetchAllData()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
