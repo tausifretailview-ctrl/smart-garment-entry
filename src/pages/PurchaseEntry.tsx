@@ -59,6 +59,7 @@ import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
+import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 
 interface PriceChange {
   sku_id: string;
@@ -191,6 +192,9 @@ const PurchaseEntry = () => {
   const { invalidatePurchases } = useDashboardInvalidation();
   const queryClient = useQueryClient();
   const { isColumnVisible } = useUserPermissions();
+  const { hasSpecialPermission } = useUserPermissions();
+  const [duplicateWarning, setDuplicateWarning] = useState<{ bill: ExistingDuplicateBill; reason: string } | null>(null);
+  const overrideDuplicateRef = useRef(false);
   const showPurCol = {
     size: isColumnVisible('purchase_bill', 'size'),
     gst: isColumnVisible('purchase_bill', 'gst'),
@@ -2656,6 +2660,59 @@ const PurchaseEntry = () => {
       }
     }
 
+    // CONTENT/DATE DUPLICATE GUARD: catch identical re-saves that have a different
+    // supplier_invoice_no (e.g. the VELVET case: 3 bills /26 /27 /28 for the same
+    // supplier on the same date with the same items, all saved within ~30 minutes).
+    // We only check non-edit mode; user can override via "Save Anyway".
+    if (!isEditMode && !overrideDuplicateRef.current && billData.supplier_id && currentOrganization?.id) {
+      const filledQty = lineItems.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+      if (filledQty > 0) {
+        const billDateStr = format(billDate, "yyyy-MM-dd");
+        const { data: sameDayBills } = await supabase
+          .from("purchase_bills")
+          .select("id, software_bill_no, supplier_name, supplier_invoice_no, bill_date, net_amount, created_at, total_qty")
+          .eq("organization_id", currentOrganization.id)
+          .eq("supplier_id", billData.supplier_id)
+          .eq("bill_date", billDateStr)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (sameDayBills && sameDayBills.length > 0) {
+          const calcGross = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
+          const calcItemDisc = lineItems.reduce((sum, r) => {
+            const sub = getMtrMultiplier(r) * r.pur_price;
+            return sum + (sub * r.discount_percent / 100);
+          }, 0);
+          const calcGst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+          const calcNet = (calcGross - calcItemDisc - discountAmount) + (isDcPurchase ? 0 : calcGst) + otherCharges + roundOff;
+
+          const match = sameDayBills.find((b: any) => {
+            const qtyMatch = b.total_qty != null && Math.abs(Number(b.total_qty) - filledQty) < 0.001;
+            const amtMatch = Math.abs(Number(b.net_amount || 0) - calcNet) < 1;
+            return qtyMatch || amtMatch;
+          }) || sameDayBills[0];
+
+          // Only block if (a) qty AND amount match, OR (b) any same-day bill within 60 min
+          const matchedQty = match.total_qty != null && Math.abs(Number(match.total_qty) - filledQty) < 0.001;
+          const matchedAmt = Math.abs(Number(match.net_amount || 0) - calcNet) < 1;
+          const minsAgo = (Date.now() - new Date(match.created_at).getTime()) / 60000;
+          const recent = minsAgo < 60;
+
+          if ((matchedQty && matchedAmt) || (recent && (matchedQty || matchedAmt))) {
+            const reason = matchedQty && matchedAmt
+              ? `Same supplier, same date, same total qty (${filledQty}) and net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}).`
+              : matchedQty
+                ? `Same supplier, same date, same total qty (${filledQty}) — saved ${Math.round(minsAgo)} min ago.`
+                : `Same supplier, same date, same net amount (₹${Math.round(calcNet).toLocaleString("en-IN")}) — saved ${Math.round(minsAgo)} min ago.`;
+            setDuplicateWarning({ bill: match as ExistingDuplicateBill, reason });
+            return;
+          }
+        }
+      }
+    }
+    overrideDuplicateRef.current = false;
+
     if (lineItems.length === 0 || !lineItems.some(item => item.qty > 0)) {
       toast({
         title: "Validation Error",
@@ -3686,6 +3743,15 @@ const PurchaseEntry = () => {
         <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} mobileERPMode={mobileERPSettings || undefined} />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
+        <DuplicatePurchaseBillDialog
+          open={!!duplicateWarning}
+          existingBill={duplicateWarning?.bill ?? null}
+          matchReason={duplicateWarning?.reason ?? ""}
+          canOverride={hasSpecialPermission('cancel_invoice')}
+          onClose={() => setDuplicateWarning(null)}
+          onOpenExisting={(billId) => { setDuplicateWarning(null); navigate("/purchase-entry", { state: { editBillId: billId } }); }}
+          onSaveAnyway={async () => { overrideDuplicateRef.current = true; setDuplicateWarning(null); await doSave(); }}
+        />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} />
         {isMobileERPMode && (
           <IMEIScanDialog

@@ -32,6 +32,7 @@ import BackupSettings from "@/components/BackupSettings";
 import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
 import { ChequeFormatManagement } from "@/components/ChequeFormatManagement";
 import { PaymentGatewaySettings } from "@/components/PaymentGatewaySettings";
+import { DuplicatePurchaseBillsReconciler } from "@/components/DuplicatePurchaseBillsReconciler";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
@@ -1961,6 +1962,9 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            <div className="mt-4">
+              <DuplicatePurchaseBillsReconciler />
+            </div>
           </TabsContent>
 
           <TabsContent value="sale">
