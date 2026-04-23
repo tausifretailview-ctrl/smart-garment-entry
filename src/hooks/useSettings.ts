@@ -73,3 +73,33 @@ export function useBusinessInfo() {
     gstNumber: (d?.gst_number || '') as string,
   };
 }
+
+/**
+ * Organization-wide custom labels for product master fields.
+ * Configurable per-org under Settings → Product Settings → Field Labels.
+ * Falls back to the default English label if the org hasn't customized it.
+ *
+ * Use this in every report / filter / dropdown that surfaces these fields
+ * so the UI matches whatever the merchant calls them in Product Entry
+ * (e.g. some shops rename "Style" to "Department" or vice-versa).
+ */
+export type ProductFieldKey = 'category' | 'brand' | 'style' | 'color' | 'hsn_code';
+
+const DEFAULT_PRODUCT_FIELD_LABELS: Record<ProductFieldKey, string> = {
+  category: 'Category',
+  brand: 'Brand',
+  style: 'Style',
+  color: 'Color',
+  hsn_code: 'HSN Code',
+};
+
+export function useProductFieldLabels(): Record<ProductFieldKey, string> {
+  const { data } = useSettings();
+  const fields = ((data as any)?.product_settings?.fields || {}) as Record<string, { label?: string; enabled?: boolean }>;
+  const out: Record<ProductFieldKey, string> = { ...DEFAULT_PRODUCT_FIELD_LABELS };
+  (Object.keys(DEFAULT_PRODUCT_FIELD_LABELS) as ProductFieldKey[]).forEach((k) => {
+    const lbl = fields?.[k]?.label;
+    if (lbl && typeof lbl === 'string' && lbl.trim()) out[k] = lbl.trim();
+  });
+  return out;
+}
