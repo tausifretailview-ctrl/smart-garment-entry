@@ -388,7 +388,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
           gross_amount:          gross,
           discount_amount:       flatDisc,
           flat_discount_percent: flatDiscountMode === 'percent' ? (flatDiscountValue || 0) : 0,
-          flat_discount_amount:  flatDiscountAmount,
+          flat_discount_amount:  flatDisc,
           sale_return_adjust:    sr,
           round_off:             0,
           net_amount:            net,
