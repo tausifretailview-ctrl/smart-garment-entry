@@ -693,6 +693,7 @@ const PurchaseBillDashboard = () => {
     setIsBulkCancelling(true);
     let success = 0;
     let failed = 0;
+    const failureReasons: string[] = [];
     try {
       const ids = Array.from(selectedBills);
       for (const id of ids) {
@@ -705,13 +706,18 @@ const PurchaseBillDashboard = () => {
         const result = data as { success: boolean; error?: string };
         if (error || !result?.success) {
           failed++;
+          const billLabel = bill?.software_bill_no || bill?.supplier_invoice_no || id.slice(0, 8);
+          const reason = error?.message || result?.error || 'Unknown error';
+          failureReasons.push(`${billLabel}: ${reason}`);
         } else {
           success++;
         }
       }
       toast({
         title: "Bulk Cancel Complete",
-        description: `${success} bill(s) cancelled${failed > 0 ? `, ${failed} failed` : ''}. Stock reversed.`,
+        description:
+          `${success} bill(s) cancelled${failed > 0 ? `, ${failed} failed` : ''}.` +
+          (failureReasons.length > 0 ? ` Reason: ${failureReasons.join(' | ')}` : ' Stock reversed.'),
         variant: failed > 0 ? "destructive" : "default",
       });
       setSelectedBills(new Set());
