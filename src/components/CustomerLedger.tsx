@@ -1782,6 +1782,34 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     };
   }, [transactions]);
 
+  // FIX 5 — Single, unambiguous "Returns / CR" stat. We classify each Sale
+  // Return row from the rendered ledger as either Pending or Adjusted by
+  // reading the status hint already embedded in the description by the
+  // queryFn ("Sale Return [Pending]" / "[Fully Adjusted]" / "[Adjusted to
+  // Outstanding]" / "[Cash Refunded]" / "Partial — ₹X pending").
+  const saleReturnsSummary = useMemo(() => {
+    const summary = { pending: 0, adjusted: 0, partialPending: 0 };
+    if (!transactions) return summary;
+    for (const t of transactions) {
+      if (t.type !== 'return') continue;
+      const amount = t.credit || 0;
+      const desc = t.description || '';
+      if (/\[Pending\]/i.test(desc)) {
+        summary.pending += amount;
+      } else if (/Partial.*pending/i.test(desc)) {
+        // Extract the pending portion from "Partial — ₹X pending"
+        const m = desc.match(/Partial\s*—\s*₹([\d,]+(?:\.\d+)?)\s*pending/i);
+        const pendingPortion = m ? Number(m[1].replace(/,/g, '')) : 0;
+        summary.partialPending += pendingPortion;
+        summary.adjusted += Math.max(0, amount - pendingPortion);
+      } else {
+        // Fully Adjusted, Adjusted to Outstanding, Cash Refunded, etc.
+        summary.adjusted += amount;
+      }
+    }
+    return summary;
+  }, [transactions]);
+
   // Send ledger summary via WhatsApp
   const handleSendLedgerWhatsApp = useCallback(() => {
     if (!selectedCustomer) return;
