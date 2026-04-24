@@ -2725,8 +2725,8 @@ export default function POSSales() {
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
       
-      if (!isCreditNote && creditApplied > 0 && customerId) {
-        applyCredit(customerId, creditApplied);
+      if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
+        applyCredit(customerId, result.id, creditApplied);
       }
       if (!isCreditNote && pointsToRedeem > 0 && customerId) {
         redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number).then(() => {
