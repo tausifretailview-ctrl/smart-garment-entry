@@ -325,6 +325,44 @@ export const useSaveSale = () => {
 
       if (itemsError) throw itemsError;
 
+      // Mark consumed sale_return(s) as adjusted and link to this sale.
+      // When sale_return_adjust > 0, FIFO-consume pending SRs for this customer
+      // so the customer balance formula recognizes them as already absorbed
+      // into this sale's net_amount (prevents double-counting credit).
+      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+        try {
+          const { data: pendingSRs } = await supabase
+            .from('sale_returns')
+            .select('id, net_amount, credit_status, linked_sale_id')
+            .eq('customer_id', saleData.customerId)
+            .eq('organization_id', currentOrganization.id)
+            .or('credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
+            .is('deleted_at', null)
+            .order('return_date', { ascending: true });
+
+          let remaining = saleData.saleReturnAdjust;
+          for (const sr of (pendingSRs || [])) {
+            if (remaining <= 0) break;
+            const srAmt = Number(sr.net_amount) || 0;
+            if (remaining >= srAmt - 1) {
+              await supabase
+                .from('sale_returns')
+                .update({
+                  credit_status: 'adjusted',
+                  linked_sale_id: sale.id,
+                })
+                .eq('id', sr.id);
+              remaining -= srAmt;
+            } else {
+              console.warn(`Partial SR consumption not supported for SR ${sr.id}`);
+              break;
+            }
+          }
+        } catch (srErr) {
+          console.error('Failed to mark SR as adjusted:', srErr);
+        }
+      }
+
       // Award loyalty points if enabled and customer exists
       let pointsAwarded = 0;
       if (isPointsEnabled && saleData.customerId && paymentMethod !== 'pay_later') {
@@ -752,6 +790,46 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
+      // Mark consumed sale_return(s) as adjusted and link to this sale (edit path)
+      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+        try {
+          const { data: pendingSRs } = await supabase
+            .from('sale_returns')
+            .select('id, net_amount, credit_status, linked_sale_id')
+            .eq('customer_id', saleData.customerId)
+            .eq('organization_id', currentOrganization.id)
+            .or(`credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null),and(credit_status.eq.adjusted,linked_sale_id.eq.${sale.id})`)
+            .is('deleted_at', null)
+            .order('return_date', { ascending: true });
+
+          let remaining = saleData.saleReturnAdjust;
+          for (const sr of (pendingSRs || [])) {
+            if (remaining <= 0) break;
+            const srAmt = Number(sr.net_amount) || 0;
+            // Skip already-linked-to-this-sale rows in remaining count
+            if (sr.linked_sale_id === sale.id && sr.credit_status === 'adjusted') {
+              remaining -= srAmt;
+              continue;
+            }
+            if (remaining >= srAmt - 1) {
+              await supabase
+                .from('sale_returns')
+                .update({
+                  credit_status: 'adjusted',
+                  linked_sale_id: sale.id,
+                })
+                .eq('id', sr.id);
+              remaining -= srAmt;
+            } else {
+              console.warn(`Partial SR consumption not supported for SR ${sr.id}`);
+              break;
+            }
+          }
+        } catch (srErr) {
+          console.error('Failed to mark SR as adjusted:', srErr);
+        }
+      }
+
       toast({
         title: "Sale updated successfully",
         description: `Sale ${sale.sale_number} has been updated`,
@@ -1066,6 +1144,41 @@ export const useSaveSale = () => {
         .single();
 
       if (saleError) throw saleError;
+
+      // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)
+      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+        try {
+          const { data: pendingSRs } = await supabase
+            .from('sale_returns')
+            .select('id, net_amount, credit_status, linked_sale_id')
+            .eq('customer_id', saleData.customerId)
+            .eq('organization_id', currentOrganization.id)
+            .or('credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
+            .is('deleted_at', null)
+            .order('return_date', { ascending: true });
+
+          let remaining = saleData.saleReturnAdjust;
+          for (const sr of (pendingSRs || [])) {
+            if (remaining <= 0) break;
+            const srAmt = Number(sr.net_amount) || 0;
+            if (remaining >= srAmt - 1) {
+              await supabase
+                .from('sale_returns')
+                .update({
+                  credit_status: 'adjusted',
+                  linked_sale_id: sale.id,
+                })
+                .eq('id', sr.id);
+              remaining -= srAmt;
+            } else {
+              console.warn(`Partial SR consumption not supported for SR ${sr.id}`);
+              break;
+            }
+          }
+        } catch (srErr) {
+          console.error('Failed to mark SR as adjusted:', srErr);
+        }
+      }
 
       toast({
         title: "Sale completed",
