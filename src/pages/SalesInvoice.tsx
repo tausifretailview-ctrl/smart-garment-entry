@@ -2996,7 +2996,8 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-50 dark:bg-background" data-entry-form>
+    <div className="w-[125vw] h-[125vh] origin-top-left scale-[0.80] overflow-hidden bg-slate-900">
+    <div className="h-full w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background" data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className="h-[52px] flex items-center px-5 gap-3">
