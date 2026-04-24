@@ -1099,6 +1099,48 @@ export type Database = {
           },
         ]
       }
+      customer_ledger_entries: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          credit: number | null
+          customer_id: string
+          debit: number | null
+          id: string
+          organization_id: string
+          particulars: string | null
+          transaction_date: string | null
+          voucher_no: string | null
+          voucher_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          credit?: number | null
+          customer_id: string
+          debit?: number | null
+          id?: string
+          organization_id: string
+          particulars?: string | null
+          transaction_date?: string | null
+          voucher_no?: string | null
+          voucher_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          credit?: number | null
+          customer_id?: string
+          debit?: number | null
+          id?: string
+          organization_id?: string
+          particulars?: string | null
+          transaction_date?: string | null
+          voucher_no?: string | null
+          voucher_type?: string
+        }
+        Relationships: []
+      }
       customer_points_history: {
         Row: {
           created_at: string | null
@@ -7179,6 +7221,24 @@ export type Database = {
       get_accounts_dashboard_stats: {
         Args: { p_org_id: string }
         Returns: Json
+      }
+      get_customer_ledger_statement: {
+        Args: {
+          p_customer_id: string
+          p_end_date?: string
+          p_organization_id: string
+          p_start_date?: string
+        }
+        Returns: {
+          credit: number
+          debit: number
+          id: string
+          particulars: string
+          running_balance: number
+          transaction_date: string
+          voucher_no: string
+          voucher_type: string
+        }[]
       }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
