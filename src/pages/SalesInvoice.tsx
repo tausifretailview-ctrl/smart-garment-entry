@@ -3908,9 +3908,38 @@ Thank you for choosing us!`;
             )}
 
             {/* Right-pinned Net Amount */}
-            <div className="ml-auto pl-4 border-l-2 border-blue-600/60 flex items-center gap-3 shrink-0">
-              <span className="text-[13px] font-extrabold uppercase tracking-wider text-yellow-400">Net</span>
-              <span className="text-[26px] font-black font-mono tabular-nums leading-none text-green-400">₹{netAmount.toLocaleString('en-IN')}</span>
+            {/* Mini stats block: Items / Qty / Gross / Discount */}
+            <div className="ml-auto flex items-center gap-4 shrink-0">
+              <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Items</span>
+                  <span className="text-[13px] font-bold text-white tabular-nums">
+                    {lineItems.filter(i => i.productId).length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Total Qty</span>
+                  <span className="text-[13px] font-bold text-white tabular-nums">
+                    {lineItems.reduce((s, i) => s + (i.productId ? i.quantity : 0), 0)}
+                  </span>
+                </div>
+              </div>
+              <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Gross</span>
+                  <span className="text-[13px] font-bold text-slate-200 tabular-nums">₹{grossAmount.toFixed(0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[10px] uppercase tracking-wider text-rose-400 font-bold">Discount</span>
+                  <span className="text-[13px] font-bold text-rose-400 tabular-nums">
+                    -₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}
+                  </span>
+                </div>
+              </div>
+              <div className="pl-4 border-l-2 border-blue-600/60 flex flex-col items-end shrink-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-yellow-400 underline decoration-yellow-400/40 underline-offset-2">Net Payable</span>
+                <span className="text-[34px] font-black font-mono tabular-nums leading-none text-green-400 tracking-tighter">₹{netAmount.toLocaleString('en-IN')}</span>
+              </div>
             </div>
           </div>
         </div>
