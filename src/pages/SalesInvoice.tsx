@@ -3696,7 +3696,7 @@ Thank you for choosing us!`;
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>}
                       <td className="text-center px-3 py-2">
-                        <span className="font-mono text-[13px] text-muted-foreground">{item.barcode || <span className="text-slate-300">—</span>}</span>
+                        <span className="font-mono text-[13px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
                       </td>
                       {showCol.hsn && <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
                       <td className="text-center px-1.5 py-1">
