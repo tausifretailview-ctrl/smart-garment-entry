@@ -27,9 +27,17 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         {/* Mobile offline indicator */}
         <OfflineIndicator />
         
-        <div className="flex min-h-screen w-full bg-background">
+        <div className={
+          isSalesInvoicePage
+            ? "flex h-screen w-full overflow-hidden bg-background"
+            : "flex min-h-screen w-full bg-background"
+        }>
           {!isSalesInvoicePage && <AppSidebar />}
-          <SidebarInset className="flex flex-col flex-1">
+          <SidebarInset className={
+            isSalesInvoicePage
+              ? "flex flex-col flex-1 min-h-0 overflow-hidden"
+              : "flex flex-col flex-1"
+          }>
             {!isSalesInvoicePage && (
               <>
                 <Header />
@@ -46,7 +54,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             <main
               className={
                 isSalesInvoicePage
-                  ? "flex-1 animate-fade-in pb-14 relative z-[1]"
+                  ? "flex-1 animate-fade-in relative z-[1] min-h-0 overflow-hidden"
                   : "flex-1 animate-fade-in p-4 pb-20 lg:pb-10 relative z-[1]"
               }
             >

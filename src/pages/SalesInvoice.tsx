@@ -2996,7 +2996,7 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background" data-entry-form>
+    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background pb-6" data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className="h-[52px] flex items-center px-5 gap-3">
@@ -3145,7 +3145,7 @@ Thank you for choosing us!`;
       </header>
 
       {/* Main content area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
       {/* Invoice & Customer Details Section */}
       <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0 shadow-sm">
@@ -3605,11 +3605,11 @@ Thank you for choosing us!`;
           </div>
       </section>
 
-      {/* Line Items Table — caps at ~7 rows then scrolls so footer stays visible */}
-      <section className="flex-1 px-6 pb-2 min-h-0 overflow-hidden bg-slate-100 relative">
+      {/* Line Items Table — fills remaining space; only this area scrolls */}
+      <section className="flex-1 min-h-0 px-6 pb-2 overflow-hidden bg-slate-100 relative">
         <div
           ref={tableContainerRef}
-          className="overflow-y-auto isolate max-h-[min(calc(7*42px+56px),100%)] h-full rounded-lg border border-slate-200 shadow-sm bg-slate-100"
+          className="h-full overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
          <div className="bg-white min-h-full pb-4">
           <table className="w-full border-separate border-spacing-0 erp-desktop-table">
@@ -3816,10 +3816,11 @@ Thank you for choosing us!`;
           </table>
          </div>
         </div>
+      </section>
 
-        {/* Collapsible Notes Section */}
+        {/* Collapsible Notes Section — sibling of table so it never pushes the footer */}
         {showNotesSection && (
-          <div className="px-6 py-3 bg-slate-50 border-t border-slate-200">
+          <div className="shrink-0 px-6 py-3 bg-slate-50 border-t border-slate-200 max-h-[30vh] overflow-y-auto">
             <div className="flex items-center gap-2 mb-2">
               <Label className="text-[12px] font-semibold text-slate-600">Notes / Remarks</Label>
               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setShowNotesSection(false)}>
@@ -3832,7 +3833,7 @@ Thank you for choosing us!`;
 
         {/* Financer Details (Mobile ERP) */}
         {mobileERP.enabled && mobileERP.financer_billing && (
-          <div className="px-6 py-3 border-t border-slate-200">
+          <div className="shrink-0 px-6 py-3 border-t border-slate-200 max-h-[30vh] overflow-y-auto bg-white">
             <FinancerDetailsForm
               value={financerDetails}
               onChange={(details) => setFinancerDetails(details)}
@@ -3840,12 +3841,10 @@ Thank you for choosing us!`;
           </div>
         )}
 
-      </section>
-
       </main>
 
-      {/* Sticky Footer — Compact teal bar */}
-      <footer className="sticky bottom-0 shrink-0 relative z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
+      {/* Footer — sibling of <main>, locked above the global StatusBar */}
+      <footer className="shrink-0 relative z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
           <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
