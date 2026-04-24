@@ -59,7 +59,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 }}
               >
                 {row.map((item, colIdx) => (
-                  <div key={colIdx} style={{ width: `${labelWidth}mm`, height: `${labelHeight}mm`, flexShrink: 0, overflow: 'clip', position: 'relative', paddingLeft: '1mm', paddingRight: '0.5mm', boxSizing: 'border-box' }}>
+                  <div key={colIdx} style={{ width: `${labelWidth}mm`, height: `${labelHeight}mm`, flexShrink: 0, overflow: 'clip', position: 'relative', padding: 0, margin: 0, boxSizing: 'border-box' }}>
                     <PrecisionLabelPreview
                       item={item}
                       width={labelWidth}
