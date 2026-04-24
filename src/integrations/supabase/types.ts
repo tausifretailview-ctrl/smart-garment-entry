@@ -6976,6 +6976,15 @@ export type Database = {
     }
     Functions: {
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
+      apply_credit_note_to_sale: {
+        Args: {
+          p_apply_amount: number
+          p_customer_id: string
+          p_organization_id: string
+          p_sale_id: string
+        }
+        Returns: Json
+      }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
         Returns: Json
