@@ -2743,7 +2743,9 @@ export default function BarcodePrinting() {
 
     const newTemplate: LabelTemplate = {
       name: trimmedName,
-      config: { ...labelConfig }
+      config: { ...labelConfig },
+      labelWidth: precisionSettings.labelWidth,
+      labelHeight: precisionSettings.labelHeight,
     };
 
     // Save to database
