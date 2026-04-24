@@ -138,6 +138,28 @@ export function SalesInvoiceERPTable({
         size: 36,
       });
     }
+    // Always show selection column so any user can pick invoices for bulk actions.
+    // The bulk-cancel / bulk-delete buttons themselves remain permission-gated in the toolbar.
+    if (!canDelete) {
+      cols.push({
+        id: "select",
+        header: () => (
+          <Checkbox
+            checked={selectedInvoices.size === (invoicesData?.length || 0) && invoicesData && invoicesData.length > 0}
+            onCheckedChange={toggleSelectAll}
+          />
+        ),
+        cell: ({ row }) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={selectedInvoices.has(row.original.id)}
+              onCheckedChange={() => toggleSelectInvoice(row.original.id)}
+            />
+          </div>
+        ),
+        size: 36,
+      });
+    }
 
     cols.push({
         accessorKey: "sale_number",
