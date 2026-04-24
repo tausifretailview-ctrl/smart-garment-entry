@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -13,65 +14,58 @@ interface UserPermissions {
 export const useUserPermissions = () => {
   const { user } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
-  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetchPermissions = async () => {
-      if (!user || !currentOrganization?.id) {
-        setPermissions(null);
-        setLoading(false);
-        return;
-      }
+  const userId = user?.id;
+  const orgId = currentOrganization?.id;
 
-      try {
-        const { data, error } = await supabase
-          .from("user_permissions")
-          .select("permissions")
-          .eq("organization_id", currentOrganization.id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (cancelled) return;
-        if (error) throw error;
-
-        if (data?.permissions) {
-          const perms = data.permissions as unknown as UserPermissions;
-          setPermissions(perms);
-        } else {
-          setPermissions(null);
-        }
-      } catch (error) {
+  // Single shared query across the entire app — deduplicated by react-query
+  const { data: permissions = null, isLoading } = useQuery({
+    queryKey: ["user_permissions", userId, orgId],
+    enabled: !!userId && !!orgId,
+    staleTime: 5 * 60 * 1000, // 5 minutes — permissions rarely change
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    retry: 1,
+    queryFn: async (): Promise<UserPermissions | null> => {
+      const { data, error } = await supabase
+        .from("user_permissions")
+        .select("permissions")
+        .eq("organization_id", orgId!)
+        .eq("user_id", userId!)
+        .maybeSingle();
+      if (error) {
         console.error("Error fetching user permissions:", error);
-        if (!cancelled) setPermissions(null);
-      } finally {
-        if (!cancelled) setLoading(false);
+        return null;
       }
-    };
+      return (data?.permissions as unknown as UserPermissions) ?? null;
+    },
+  });
 
-    fetchPermissions();
-    return () => { cancelled = true; };
-  }, [user, currentOrganization?.id, organizationRole]);
-
-  // Realtime listener for instant permission updates from other tabs/users
+  // Realtime listener — single subscription, updates the shared cache
   useEffect(() => {
-    if (!user?.id || !currentOrganization?.id) return;
+    if (!userId || !orgId) return;
     const channel = supabase
-      .channel("user-permissions-realtime")
+      .channel(`user-permissions-${userId}-${orgId}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "user_permissions",
-        filter: `user_id=eq.${user.id}`,
+        filter: `user_id=eq.${userId}`,
       }, (payload) => {
         if (payload.new && (payload.new as any).permissions) {
-          setPermissions((payload.new as any).permissions as UserPermissions);
+          queryClient.setQueryData(
+            ["user_permissions", userId, orgId],
+            (payload.new as any).permissions as UserPermissions
+          );
         }
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.id, currentOrganization?.id]);
+  }, [userId, orgId, queryClient]);
+
+  const loading = isLoading;
 
   // Helper to check if a specific menu item is accessible
   const hasMenuAccess = (menuId: string): boolean => {
