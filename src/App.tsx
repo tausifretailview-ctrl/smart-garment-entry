@@ -102,6 +102,7 @@ const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
 const DailySaleAnalysis = lazyWithRetry(() => import("./pages/DailySaleAnalysis"));
 const EInvoiceReport = lazyWithRetry(() => import("./pages/EInvoiceReport"));
 const CustomerLedgerPage = lazyWithRetry(() => import("./pages/CustomerLedgerPage"));
+const CustomerLedgerReport = lazyWithRetry(() => import("./pages/CustomerLedgerReport"));
 const CustomerReconciliation = lazyWithRetry(() => import("./pages/CustomerReconciliation"));
 const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"));
 const DeliveryChallanEntry = lazyWithRetry(() => import("./pages/DeliveryChallanEntry"));
@@ -1046,6 +1047,16 @@ const App = () => {
                 />
                 <Route
                   path="customer-ledger-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerLedgerReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-account-statement"
                   element={
                     <ProtectedRoute>
                       <Layout>
