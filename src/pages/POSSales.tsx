@@ -4568,11 +4568,11 @@ export default function POSSales() {
               
               {/* Date & Time Display + EMI Button Row */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-1.5 flex flex-col items-center justify-center shadow-sm whitespace-nowrap leading-[1.05]">
-                  <div className="text-white font-semibold text-[10px]">
+                 <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-1.5 flex flex-col items-center justify-center shadow-sm whitespace-nowrap leading-[1.05] shrink-0">
+                  <div className="text-white font-semibold text-[10px] font-mono tabular-nums">
                     {currentDateTime.toLocaleDateString('en-GB')}
                   </div>
-                  <div className="text-white/80 text-[8px]">
+                  <div className="text-white/80 text-[8px] font-mono tabular-nums">
                     {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </div>
                 </div>
@@ -4889,7 +4889,7 @@ export default function POSSales() {
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
         <div className="fixed bottom-0 md:bottom-[52px] left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
-          <div className="flex items-center px-4 py-1.5 gap-0 border-b border-white/10">
+          <div className="flex flex-wrap lg:flex-nowrap items-center px-4 py-1.5 gap-y-2 gap-0 border-b border-white/10">
             {/* Qty */}
             <div className="text-center px-3">
               <div className="text-lg font-bold leading-tight">{totals.quantity}</div>
@@ -5096,7 +5096,7 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2">
+        <div className="hidden md:flex flex-wrap fixed bottom-0 left-[72px] right-0 min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
             { key: 'F1', label: 'Cash' },
