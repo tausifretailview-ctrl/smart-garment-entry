@@ -132,56 +132,30 @@ export function useCreditNotes() {
   };
 
   // Apply credit from customer's credit notes to a sale (FIFO)
-  const applyCredit = async (customerId: string, amountToApply: number): Promise<{ success: boolean; appliedAmount: number; creditNotesUsed: string[] }> => {
-    if (!currentOrganization?.id || amountToApply <= 0) {
+  const applyCredit = async (
+    customerId: string,
+    saleId: string,
+    amountToApply: number
+  ): Promise<{ success: boolean; appliedAmount: number; creditNotesUsed: string[] }> => {
+    if (!currentOrganization?.id || !saleId || amountToApply <= 0) {
       return { success: false, appliedAmount: 0, creditNotesUsed: [] };
     }
 
     setIsApplying(true);
     try {
-      // Fetch active credit notes for customer (ordered by creation date - FIFO)
-      const creditNotes = await fetchCustomerCreditNotes(customerId);
-      
-      let remainingToApply = amountToApply;
-      let totalApplied = 0;
-      const creditNotesUsed: string[] = [];
+      // Atomic RPC: applies CN(s) FIFO, writes voucher, updates sale.paid_amount
+      const { data, error } = await supabase.rpc('apply_credit_note_to_sale', {
+        p_customer_id: customerId,
+        p_sale_id: saleId,
+        p_apply_amount: amountToApply,
+        p_organization_id: currentOrganization.id,
+      });
 
-      // Apply to each credit note in FIFO order
-      for (const note of creditNotes) {
-        if (remainingToApply <= 0) break;
+      if (error) throw error;
 
-        const availableBalance = note.credit_amount - note.used_amount;
-        if (availableBalance <= 0) continue;
-
-        const amountFromThisNote = Math.min(remainingToApply, availableBalance);
-        const newUsedAmount = note.used_amount + amountFromThisNote;
-        
-        // Determine new status
-        let newStatus = 'active';
-        if (newUsedAmount >= note.credit_amount) {
-          newStatus = 'fully_used';
-        } else if (newUsedAmount > 0) {
-          newStatus = 'partially_used';
-        }
-
-        // Update credit note
-        const { error } = await supabase
-          .from('credit_notes')
-          .update({
-            used_amount: newUsedAmount,
-            status: newStatus,
-          })
-          .eq('id', note.id);
-
-        if (error) {
-          console.error("Error updating credit note:", error);
-          continue;
-        }
-
-        totalApplied += amountFromThisNote;
-        remainingToApply -= amountFromThisNote;
-        creditNotesUsed.push(note.credit_note_number);
-      }
+      const result = (data as any) || {};
+      const totalApplied: number = Number(result.applied_amount) || 0;
+      const creditNotesUsed: string[] = Array.isArray(result.notes_used) ? result.notes_used : [];
 
       if (totalApplied > 0) {
         toast({

@@ -2132,9 +2132,9 @@ export default function POSSales() {
       
       // Silent operation - no toast for POS save
       
-      // Apply credit if any
-      if (creditApplied > 0 && customerId) {
-        await applyCredit(customerId, creditApplied);
+      // Apply credit if any (atomic via RPC; requires saleId)
+      if (creditApplied > 0 && customerId && result?.id) {
+        await applyCredit(customerId, result.id, creditApplied);
       }
       
       // Check for DC items — offer transfer to delivery challan for cash sales

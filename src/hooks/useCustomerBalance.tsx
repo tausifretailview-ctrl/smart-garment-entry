@@ -170,17 +170,22 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Fetch sale returns (credit notes) for this customer
       const { data: saleReturns, error: srError } = await supabase
         .from('sale_returns')
-        .select('net_amount, credit_status')
+        .select('id, net_amount, credit_status, linked_sale_id')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null);
 
       if (srError) throw srError;
 
-      // Only actioned returns reduce balance; pending returns are not yet settled
+      // Only actioned returns reduce balance; pending returns are not yet settled.
+      // SRs that are 'adjusted' AND linked to a sale are already absorbed into that
+      // sale's net_amount via sale_return_adjust at POS save time — don't double-subtract.
       const saleReturnTotal = saleReturns
         ?.filter((sr: any) => sr.credit_status && sr.credit_status !== 'pending')
-        .reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
+        .reduce((sum: number, sr: any) => {
+          const alreadyInNet = sr.linked_sale_id && sr.credit_status === 'adjusted';
+          return sum + (alreadyInNet ? 0 : (sr.net_amount || 0));
+        }, 0) || 0;
 
       // Fetch refund payments made to customer (from CN refund)
       const { data: refundVouchers } = await supabase
