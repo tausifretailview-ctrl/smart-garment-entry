@@ -437,18 +437,26 @@ export function CustomerPaymentTab({
     ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "sale" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
     .sort((a, b) => new Date(b.voucher_date).getTime() - new Date(a.voucher_date).getTime()) || [];
   
-  const customerPayments = paymentSearchTerm
-    ? allCustomerPayments.filter((v) => {
-        const invoice = sales?.find((s) => s.id === v.reference_id);
-        let custName = "";
-        if (invoice?.customer_name) custName = invoice.customer_name;
-        else if (v.reference_type === 'customer') custName = customers?.find((c) => c.id === v.reference_id)?.customer_name || "";
-        else if (invoice?.customer_id) custName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "";
-        return custName.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
-          (v.voucher_number || "").toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
-          (v.description || "").toLowerCase().includes(paymentSearchTerm.toLowerCase());
-      })
-    : allCustomerPayments;
+  const customerPayments = allCustomerPayments.filter((v) => {
+    // Payment method filter
+    if (paymentMethodFilter.length > 0) {
+      const method = (v.payment_method || "").toLowerCase();
+      if (!paymentMethodFilter.includes(method)) return false;
+    }
+    // Search filter
+    if (paymentSearchTerm) {
+      const invoice = sales?.find((s) => s.id === v.reference_id);
+      let custName = "";
+      if (invoice?.customer_name) custName = invoice.customer_name;
+      else if (v.reference_type === 'customer') custName = customers?.find((c) => c.id === v.reference_id)?.customer_name || "";
+      else if (invoice?.customer_id) custName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "";
+      const q = paymentSearchTerm.toLowerCase();
+      if (!(custName.toLowerCase().includes(q) ||
+        (v.voucher_number || "").toLowerCase().includes(q) ||
+        (v.description || "").toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
   
   const totalPages = Math.ceil(customerPayments.length / CUSTOMER_PAYMENTS_PER_PAGE);
   const startIndex = (customerPaymentsPage - 1) * CUSTOMER_PAYMENTS_PER_PAGE;
