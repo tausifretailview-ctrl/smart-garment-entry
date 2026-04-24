@@ -2996,7 +2996,8 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-50 dark:bg-background" data-entry-form>
+    <div className="w-[125vw] h-[125vh] origin-top-left scale-[0.80] overflow-hidden bg-slate-900">
+    <div className="h-full w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background" data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className="h-[52px] flex items-center px-5 gap-3">
@@ -3606,11 +3607,12 @@ Thank you for choosing us!`;
       </section>
 
       {/* Line Items Table — caps at ~7 rows then scrolls so footer stays visible */}
-      <section className="flex-1 px-6 pb-2 min-h-0 overflow-hidden">
+      <section className="flex-1 px-6 pb-2 min-h-0 overflow-hidden bg-slate-100 relative">
         <div
           ref={tableContainerRef}
-          className="overflow-y-auto isolate max-h-[min(calc(7*42px+56px),100%)] h-full rounded-lg border border-slate-200 shadow-sm bg-white"
+          className="overflow-y-auto isolate max-h-[min(calc(7*42px+56px),100%)] h-full rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
+         <div className="bg-white min-h-full pb-4">
           <table className="w-full border-separate border-spacing-0 erp-desktop-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
@@ -3813,6 +3815,7 @@ Thank you for choosing us!`;
               )}
             </tbody>
           </table>
+         </div>
         </div>
 
         {/* Collapsible Notes Section */}
@@ -3843,7 +3846,7 @@ Thank you for choosing us!`;
       </main>
 
       {/* Sticky Footer — Compact teal bar */}
-      <footer className="sticky bottom-0 z-20 shrink-0">
+      <footer className="sticky bottom-0 shrink-0 relative z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
           <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
@@ -4285,6 +4288,7 @@ Thank you for choosing us!`;
           }}
         />
       )}
+    </div>
     </div>
   );
 }
