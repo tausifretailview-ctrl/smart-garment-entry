@@ -1870,12 +1870,17 @@ export default function StockReport() {
                                 <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm">
                                   <div className="flex flex-col">
                                     <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none font-bold">{row.productName}</span>
-                                    <span className="text-xs text-muted-foreground truncate max-w-[160px] md:max-w-none">
-                                      {[row.brand, row.color].filter(Boolean).join(' - ')}
-                                    </span>
+                                    {(row.brand || row.color) && (
+                                      <span className="text-xs text-muted-foreground truncate max-w-[220px] md:max-w-none">
+                                        <span className="font-semibold">Brand:</span> {row.brand || '-'}
+                                        {row.color && <> · <span className="font-semibold">Color:</span> {row.color}</>}
+                                      </span>
+                                    )}
                                     {(row.category || row.department) && (
-                                      <span className="text-xs text-muted-foreground/70 truncate max-w-[160px] md:max-w-none">
-                                        {[row.category, row.department].filter(Boolean).join(' · ')}
+                                      <span className="text-xs text-muted-foreground/80 truncate max-w-[220px] md:max-w-none">
+                                        {row.category && <><span className="font-semibold">Category:</span> {row.category}</>}
+                                        {row.category && row.department && ' · '}
+                                        {row.department && <><span className="font-semibold">Style:</span> {row.department}</>}
                                       </span>
                                     )}
                                   </div>
