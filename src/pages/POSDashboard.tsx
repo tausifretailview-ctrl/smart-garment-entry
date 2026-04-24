@@ -637,6 +637,42 @@ const POSDashboard = () => {
     }
   };
 
+  const handleBulkCancel = async () => {
+    if (selectedSales.size === 0 || !hasSpecialPermission('cancel_invoice')) return;
+    setIsBulkCancelling(true);
+    try {
+      const ids = Array.from(selectedSales);
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of ids) {
+        try {
+          const { data, error } = await supabase.rpc('cancel_invoice', {
+            p_sale_id: id,
+            p_reason: bulkCancelReason.trim() || null,
+          });
+          if (error) { failCount++; continue; }
+          const result = data as any;
+          if (result && (result.success === true || result === true)) successCount++;
+          else failCount++;
+        } catch {
+          failCount++;
+        }
+      }
+      toast({
+        title: 'Invoices Cancelled',
+        description: `${successCount} sale(s) cancelled${failCount > 0 ? `, ${failCount} failed` : ''}. Stock restored.`,
+      });
+      setSelectedSales(new Set());
+      setShowBulkCancelDialog(false);
+      setBulkCancelReason('');
+      await fetchSales();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to cancel sales', variant: 'destructive' });
+    } finally {
+      setIsBulkCancelling(false);
+    }
+  };
+
   // Note: toggleSelectAll moved after filteredSales is defined
 
   const getPageStyle = () => {
