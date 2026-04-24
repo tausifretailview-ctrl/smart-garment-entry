@@ -236,16 +236,22 @@ const FeeCollection = () => {
       const classIds = [...new Set(data.map((s: any) => s.class_id).filter(Boolean))];
       const studentIds = data.map((s: any) => s.id);
 
-      const [structuresRes, paymentsRes] = await Promise.all([
+      const [structuresRes, paymentsRes, adjustmentsRes] = await Promise.all([
         classIds.length > 0
           ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
         // Fetch payments for the active academic year (for structure-based dues)
         supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
+        // Fetch balance adjustments (audit log) — these reduce/increase the displayed due
+        (supabase.from("student_balance_audit" as any) as any)
+          .select("student_id, adjustment_type, change_amount, academic_year_id")
+          .eq("organization_id", currentOrganization.id)
+          .in("student_id", studentIds),
       ]);
 
       const structures = structuresRes.data || [];
       const allPayments = paymentsRes.data || [];
+      const allAdjustments = adjustmentsRes.data || [];
 
       return data.map((student: any) => {
         const classStructures = structures.filter((s: any) => s.class_id === student.class_id);
@@ -264,7 +270,21 @@ const FeeCollection = () => {
 
         const importedBalance = student.closing_fees_balance || 0;
         const hasStructures = totalExpected > 0;
-        const totalDue = hasStructures ? Math.max(0, totalExpected - paidInYear) : Math.max(0, importedBalance - paidTotal);
+        // Apply balance adjustments from audit log:
+        //  - 'credit' increases due
+        //  - 'debit'  reduces due
+        //  - 'set' is handled by directly writing closing_fees_balance (imported mode only)
+        // For structure-based students, the adjustment is the ONLY way to reduce due
+        // without recording an actual payment, so it must be reflected here.
+        const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
+        const adjustmentNet = studentAdjustments.reduce((sum: number, a: any) => {
+          if (a.adjustment_type === 'credit') return sum + (a.change_amount || 0);
+          if (a.adjustment_type === 'debit')  return sum - (a.change_amount || 0);
+          return sum;
+        }, 0);
+        const totalDue = hasStructures
+          ? Math.max(0, totalExpected + adjustmentNet - paidInYear)
+          : Math.max(0, importedBalance - paidTotal);
         const totalPaid = hasStructures ? paidInYear : paidTotal;
         const effectiveExpected = hasStructures ? totalExpected : importedBalance;
         const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
