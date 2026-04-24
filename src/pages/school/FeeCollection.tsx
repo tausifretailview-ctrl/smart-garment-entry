@@ -269,13 +269,17 @@ const FeeCollection = () => {
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
         const importedBalance = student.closing_fees_balance || 0;
-        const hasStructures = totalExpected > 0;
+        // hasStructures: any fee_structures row exists for the class, even if amount=0.
+        // Using row presence (not totalExpected>0) matches BalanceEditDialog's logic
+        // so balance reductions saved as audit entries are applied consistently.
+        const hasStructures = classStructures.length > 0;
         // Apply balance adjustments from audit log:
         //  - 'credit' increases due
         //  - 'debit'  reduces due
         //  - 'set' is handled by directly writing closing_fees_balance (imported mode only)
-        // For structure-based students, the adjustment is the ONLY way to reduce due
-        // without recording an actual payment, so it must be reflected here.
+        // Adjustments apply in BOTH modes: structure-based students rely on audit
+        // entries to reduce due, AND imported-balance students may also receive
+        // adjustments via the BalanceEditDialog (debit/credit branches).
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
         const adjustmentNet = studentAdjustments.reduce((sum: number, a: any) => {
           if (a.adjustment_type === 'credit') return sum + (a.change_amount || 0);
@@ -284,7 +288,7 @@ const FeeCollection = () => {
         }, 0);
         const totalDue = hasStructures
           ? Math.max(0, totalExpected + adjustmentNet - paidInYear)
-          : Math.max(0, importedBalance - paidTotal);
+          : Math.max(0, importedBalance + adjustmentNet - paidTotal);
         const totalPaid = hasStructures ? paidInYear : paidTotal;
         const effectiveExpected = hasStructures ? totalExpected : importedBalance;
         const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
