@@ -6985,6 +6985,15 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_customer_advance_to_sale: {
+        Args: {
+          p_advance_id: string
+          p_apply_amount: number
+          p_organization_id: string
+          p_sale_id: string
+        }
+        Returns: Json
+      }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
         Returns: Json
