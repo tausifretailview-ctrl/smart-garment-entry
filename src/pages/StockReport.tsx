@@ -821,7 +821,7 @@ export default function StockReport() {
     const productMap = new Map<string, SizeWiseRow>();
     
     filteredStockItems.forEach(item => {
-      const productKey = `${item.product_name}-${item.brand}-${item.color}`;
+      const productKey = `${item.product_name}-${item.brand}-${item.color}-${item.department}`;
       
       if (!productMap.has(productKey)) {
         productMap.set(productKey, {
