@@ -1157,6 +1157,38 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               },
             });
           }
+
+          // ── Refund outflow row ────────────────────────────────────────
+          // For invoices saved with refund_amount > 0 (negative-net Mix
+          // refund where cash was paid OUT of the drawer to the customer),
+          // record an offsetting DEBIT so the customer balance doesn't
+          // double-count the SR credit. Detected via negative cash/upi/card
+          // (set by POSSales handleMixPaymentSave) — falls back to
+          // refund_amount for legacy data with mode=cash.
+          const refundAmt = Number(sale.refund_amount) || 0;
+          if (refundAmt > 0) {
+            const negCash = sale.cash_amount < 0 ? Math.abs(sale.cash_amount) : 0;
+            const negUpi = sale.upi_amount < 0 ? Math.abs(sale.upi_amount) : 0;
+            const negCard = sale.card_amount < 0 ? Math.abs(sale.card_amount) : 0;
+            const refundOut = negCash + negUpi + negCard || refundAmt;
+            const refundParts: string[] = [];
+            if (negCash > 0) refundParts.push(`Cash: ₹${negCash.toLocaleString('en-IN')}`);
+            if (negUpi > 0) refundParts.push(`UPI: ₹${negUpi.toLocaleString('en-IN')}`);
+            if (negCard > 0) refundParts.push(`Bank: ₹${negCard.toLocaleString('en-IN')}`);
+            const refundDesc = `Refund paid for ${sale.sale_number}${refundParts.length > 0 ? ' - ' + refundParts.join(', ') : ''}`;
+            runningBalance += refundOut;
+            allTransactions.push({
+              id: `${sale.id}-refund-out`,
+              date: sale.sale_date,
+              timestamp: item.timestamp || null,
+              type: 'refund',
+              reference: sale.sale_number,
+              description: refundDesc,
+              debit: refundOut,
+              credit: 0,
+              balance: runningBalance,
+            });
+          }
         } else if (item.type === 'advance') {
           // Handle advance booking entries
           const advance = item.data as any;
