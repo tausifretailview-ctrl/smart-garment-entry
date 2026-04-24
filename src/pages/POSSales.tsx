@@ -2132,9 +2132,9 @@ export default function POSSales() {
       
       // Silent operation - no toast for POS save
       
-      // Apply credit if any
-      if (creditApplied > 0 && customerId) {
-        await applyCredit(customerId, creditApplied);
+      // Apply credit if any (atomic via RPC; requires saleId)
+      if (creditApplied > 0 && customerId && result?.id) {
+        await applyCredit(customerId, result.id, creditApplied);
       }
       
       // Check for DC items — offer transfer to delivery challan for cash sales
@@ -2725,8 +2725,8 @@ export default function POSSales() {
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
       
-      if (!isCreditNote && creditApplied > 0 && customerId) {
-        applyCredit(customerId, creditApplied);
+      if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
+        applyCredit(customerId, result.id, creditApplied);
       }
       if (!isCreditNote && pointsToRedeem > 0 && customerId) {
         redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number).then(() => {
