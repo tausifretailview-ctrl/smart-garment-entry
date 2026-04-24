@@ -77,7 +77,7 @@ export const Layout = ({ children }: LayoutProps) => {
             <main
               className={
                 isSalesInvoicePage
-                  ? "flex-1 overflow-auto pb-14 relative z-[1]"
+                  ? "flex-1 overflow-hidden relative z-[1] min-h-0"
                   : "flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]"
               }
             >

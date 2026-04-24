@@ -3609,7 +3609,7 @@ Thank you for choosing us!`;
       <section className="flex-1 px-6 pb-2 min-h-0 overflow-hidden">
         <div
           ref={tableContainerRef}
-          className="overflow-y-auto isolate max-h-[min(calc(7*42px+56px),100%)] rounded-lg border border-slate-200 shadow-sm bg-white"
+          className="overflow-y-auto isolate max-h-[min(calc(7*42px+56px),100%)] h-full rounded-lg border border-slate-200 shadow-sm bg-white"
         >
           <table className="w-full border-separate border-spacing-0 erp-desktop-table">
             <thead className="sticky top-0 z-10">
@@ -3639,7 +3639,7 @@ Thank you for choosing us!`;
                   const baseCols = 8; // #, product, size, barcode, qty, price, total, action
                   const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                   const totalCols = baseCols + optCols;
-                  return Array.from({ length: 5 }, (_, i) => (
+                  return Array.from({ length: 7 }, (_, i) => (
                     <tr key={`empty-${i}`} className="h-[38px] border-b border-muted/30">
                       <td className="text-center text-[12px] text-muted-foreground/40 px-3">{i + 1}</td>
                       {Array.from({ length: totalCols - 1 }, (_, j) => (
@@ -3655,7 +3655,7 @@ Thank you for choosing us!`;
                 const baseCols = 8;
                 const optCols = [showCol.color, showCol.hsn, showCol.box, showCol.mrp, showCol.disc_percent, showCol.disc_amount, showCol.gst].filter(Boolean).length;
                 const totalCols = baseCols + optCols;
-                const padCount = Math.max(0, 5 - displayItems.length);
+                const padCount = Math.max(0, 7 - displayItems.length);
 
                 const itemRows = displayItems.map((item, displayIndex) => {
                   const originalIndex = lineItems.findIndex(li => li.id === item.id);
