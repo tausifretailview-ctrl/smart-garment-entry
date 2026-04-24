@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { withJwtRetry } from "@/lib/jwtRetry";
 import {
   Table,
   TableBody,
@@ -121,13 +122,15 @@ export function SizeGroupManagement() {
     try {
       const sizesArray = newGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
       
-      const { error } = await supabase
-        .from("size_groups")
-        .insert({
-          group_name: newGroup.group_name,
-          sizes: sizesArray,
-          organization_id: currentOrganization.id,
-        });
+      const { error } = await withJwtRetry(() =>
+        supabase
+          .from("size_groups")
+          .insert({
+            group_name: newGroup.group_name,
+            sizes: sizesArray,
+            organization_id: currentOrganization.id,
+          })
+      );
 
       if (error) {
         console.error("Database error details:", error);
@@ -169,13 +172,15 @@ export function SizeGroupManagement() {
     try {
       const sizesArray = editGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
       
-      const { error } = await supabase
-        .from("size_groups")
-        .update({
-          group_name: editGroup.group_name,
-          sizes: sizesArray,
-        })
-        .eq("id", editingId);
+      const { error } = await withJwtRetry(() =>
+        supabase
+          .from("size_groups")
+          .update({
+            group_name: editGroup.group_name,
+            sizes: sizesArray,
+          })
+          .eq("id", editingId)
+      );
 
       if (error) throw error;
 
@@ -208,10 +213,12 @@ export function SizeGroupManagement() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("size_groups")
-        .delete()
-        .eq("id", deleteId);
+      const { error } = await withJwtRetry(() =>
+        supabase
+          .from("size_groups")
+          .delete()
+          .eq("id", deleteId)
+      );
 
       if (error) throw error;
 
