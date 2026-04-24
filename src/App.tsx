@@ -1050,6 +1050,16 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <Layout>
+                        <CustomerLedgerReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-account-statement"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
                         <CustomerLedgerPage />
                       </Layout>
                     </ProtectedRoute>
