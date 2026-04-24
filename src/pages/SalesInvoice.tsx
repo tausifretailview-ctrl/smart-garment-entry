@@ -3815,6 +3815,7 @@ Thank you for choosing us!`;
               )}
             </tbody>
           </table>
+         </div>
         </div>
 
         {/* Collapsible Notes Section */}
