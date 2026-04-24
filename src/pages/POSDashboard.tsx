@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown, Ban } from "lucide-react";
 import * as XLSX from "xlsx";
 import { format } from "date-fns";
 
@@ -190,6 +190,9 @@ const POSDashboard = () => {
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkCancelDialog, setShowBulkCancelDialog] = useState(false);
+  const [bulkCancelReason, setBulkCancelReason] = useState("");
+  const [isBulkCancelling, setIsBulkCancelling] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [printData, setPrintData] = useState<any>(null);
@@ -631,6 +634,42 @@ const POSDashboard = () => {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleBulkCancel = async () => {
+    if (selectedSales.size === 0 || !hasSpecialPermission('cancel_invoice')) return;
+    setIsBulkCancelling(true);
+    try {
+      const ids = Array.from(selectedSales);
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of ids) {
+        try {
+          const { data, error } = await supabase.rpc('cancel_invoice', {
+            p_sale_id: id,
+            p_reason: bulkCancelReason.trim() || null,
+          });
+          if (error) { failCount++; continue; }
+          const result = data as any;
+          if (result && (result.success === true || result === true)) successCount++;
+          else failCount++;
+        } catch {
+          failCount++;
+        }
+      }
+      toast({
+        title: 'Invoices Cancelled',
+        description: `${successCount} sale(s) cancelled${failCount > 0 ? `, ${failCount} failed` : ''}. Stock restored.`,
+      });
+      setSelectedSales(new Set());
+      setShowBulkCancelDialog(false);
+      setBulkCancelReason('');
+      await fetchSales();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to cancel sales', variant: 'destructive' });
+    } finally {
+      setIsBulkCancelling(false);
     }
   };
 
@@ -1486,6 +1525,17 @@ const POSDashboard = () => {
               >
                 <Trash2 className="h-4 w-4" />
                 Delete Selected ({selectedSales.size})
+              </Button>
+            )}
+            {selectedSales.size > 0 && hasSpecialPermission('cancel_invoice') && (
+              <Button
+                onClick={() => setShowBulkCancelDialog(true)}
+                disabled={isBulkCancelling}
+                variant="outline"
+                className="gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+              >
+                {isBulkCancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                Cancel Selected ({selectedSales.size})
               </Button>
             )}
           </div>
@@ -2597,6 +2647,48 @@ const POSDashboard = () => {
                 </>
               ) : (
                 'Delete All'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkCancelDialog} onOpenChange={setShowBulkCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel {selectedSales.size} Sale(s)</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>Are you sure you want to cancel <strong>{selectedSales.size}</strong> selected sale(s)? Stock quantities will be restored for all items.</p>
+                <p className="text-orange-600 font-medium">Cancelled bills remain in records for audit but are excluded from sales totals.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="bulkCancelReason" className="text-sm font-medium">Reason (optional)</Label>
+            <Textarea
+              id="bulkCancelReason"
+              value={bulkCancelReason}
+              onChange={(e) => setBulkCancelReason(e.target.value)}
+              placeholder="Enter reason for cancellation..."
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkCancelling}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkCancel}
+              className="bg-orange-600 hover:bg-orange-700"
+              disabled={isBulkCancelling}
+            >
+              {isBulkCancelling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Cancelling...
+                </>
+              ) : (
+                'Cancel All'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
