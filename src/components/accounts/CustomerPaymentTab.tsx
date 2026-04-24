@@ -10,10 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet } from "lucide-react";
+import { Filter } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -72,6 +74,7 @@ export function CustomerPaymentTab({
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string[]>([]);
   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
 
   // Reassign dialog state
@@ -434,18 +437,26 @@ export function CustomerPaymentTab({
     ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "sale" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
     .sort((a, b) => new Date(b.voucher_date).getTime() - new Date(a.voucher_date).getTime()) || [];
   
-  const customerPayments = paymentSearchTerm
-    ? allCustomerPayments.filter((v) => {
-        const invoice = sales?.find((s) => s.id === v.reference_id);
-        let custName = "";
-        if (invoice?.customer_name) custName = invoice.customer_name;
-        else if (v.reference_type === 'customer') custName = customers?.find((c) => c.id === v.reference_id)?.customer_name || "";
-        else if (invoice?.customer_id) custName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "";
-        return custName.toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
-          (v.voucher_number || "").toLowerCase().includes(paymentSearchTerm.toLowerCase()) ||
-          (v.description || "").toLowerCase().includes(paymentSearchTerm.toLowerCase());
-      })
-    : allCustomerPayments;
+  const customerPayments = allCustomerPayments.filter((v) => {
+    // Payment method filter
+    if (paymentMethodFilter.length > 0) {
+      const method = (v.payment_method || "").toLowerCase();
+      if (!paymentMethodFilter.includes(method)) return false;
+    }
+    // Search filter
+    if (paymentSearchTerm) {
+      const invoice = sales?.find((s) => s.id === v.reference_id);
+      let custName = "";
+      if (invoice?.customer_name) custName = invoice.customer_name;
+      else if (v.reference_type === 'customer') custName = customers?.find((c) => c.id === v.reference_id)?.customer_name || "";
+      else if (invoice?.customer_id) custName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "";
+      const q = paymentSearchTerm.toLowerCase();
+      if (!(custName.toLowerCase().includes(q) ||
+        (v.voucher_number || "").toLowerCase().includes(q) ||
+        (v.description || "").toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
   
   const totalPages = Math.ceil(customerPayments.length / CUSTOMER_PAYMENTS_PER_PAGE);
   const startIndex = (customerPaymentsPage - 1) * CUSTOMER_PAYMENTS_PER_PAGE;
@@ -782,6 +793,41 @@ export function CustomerPaymentTab({
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Customer Payments</CardTitle>
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Filter className="mr-2 h-4 w-4" />
+                  Payment Mode{paymentMethodFilter.length > 0 ? ` (${paymentMethodFilter.length})` : ""}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Filter by Method</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {["cash", "cheque", "upi", "bank_transfer", "advance_adjustment", "other"].map((m) => (
+                  <DropdownMenuCheckboxItem
+                    key={m}
+                    checked={paymentMethodFilter.includes(m)}
+                    onCheckedChange={(checked) => {
+                      setCustomerPaymentsPage(1);
+                      setPaymentMethodFilter((prev) =>
+                        checked ? [...prev, m] : prev.filter((x) => x !== m)
+                      );
+                    }}
+                    className="uppercase text-xs"
+                  >
+                    {m.replace("_", " ")}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {paymentMethodFilter.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => { setPaymentMethodFilter([]); setCustomerPaymentsPage(1); }}>
+                      Clear filters
+                    </Button>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             {isAdmin && selectedPaymentIds.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -824,10 +870,11 @@ export function CustomerPaymentTab({
               <TableRow>
                 {isAdmin && <TableHead className="w-10"></TableHead>}
                 <TableHead>Voucher No</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead>Payment Date</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Method</TableHead>
+                <TableHead>Cheque/Txn Date</TableHead>
                 <TableHead>Description</TableHead>
                 {isAdmin && <TableHead>Actions</TableHead>}
               </TableRow>
@@ -844,6 +891,10 @@ export function CustomerPaymentTab({
                   customerName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "-";
                 }
                 const isSelected = selectedPaymentIds.includes(voucher.id);
+                // Extract cheque/UPI date from description (format: ", Date: dd/MM/yyyy" or ", UPI Date: dd/MM/yyyy")
+                const desc = voucher.description || "";
+                const dateMatch = desc.match(/(?:UPI Date|Date):\s*(\d{2}\/\d{2}\/\d{4})/);
+                const extractedDate = dateMatch ? dateMatch[1] : "-";
                 return (
                   <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>
                     {isAdmin && (
@@ -859,6 +910,7 @@ export function CustomerPaymentTab({
                     <TableCell>{customerName}</TableCell>
                     <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
                     <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
+                    <TableCell className="text-xs tabular-nums">{extractedDate}</TableCell>
                     <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                     {isAdmin && (
                       <TableCell>
