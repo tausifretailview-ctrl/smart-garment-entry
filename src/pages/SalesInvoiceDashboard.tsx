@@ -2543,7 +2543,7 @@ export default function SalesInvoiceDashboard() {
             <Button onClick={() => navigate("/sales-invoice")} className="h-9 px-5 text-[13px] font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all">
               New Invoice
             </Button>
-            {selectedInvoices.size > 0 && hasSpecialPermission('delete_records') && (
+            {selectedInvoices.size > 0 && (
               <div className="flex gap-2">
                 <Button
                   onClick={() => { setBulkCancelReason(''); setShowBulkCancelDialog(true); }}
@@ -2554,14 +2554,16 @@ export default function SalesInvoiceDashboard() {
                   <Ban className="h-4 w-4 mr-2" />
                   Cancel Selected ({selectedInvoices.size})
                 </Button>
-                <Button
-                  onClick={() => setShowBulkDeleteDialog(true)}
-                  disabled={isDeleting}
-                  variant="destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Selected ({selectedInvoices.size})
-                </Button>
+                {hasSpecialPermission('delete_records') && (
+                  <Button
+                    onClick={() => setShowBulkDeleteDialog(true)}
+                    disabled={isDeleting}
+                    variant="destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Selected ({selectedInvoices.size})
+                  </Button>
+                )}
               </div>
             )}
           </div>
