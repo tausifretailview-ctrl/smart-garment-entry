@@ -2743,7 +2743,9 @@ export default function BarcodePrinting() {
 
     const newTemplate: LabelTemplate = {
       name: trimmedName,
-      config: { ...labelConfig }
+      config: { ...labelConfig },
+      labelWidth: precisionSettings.labelWidth,
+      labelHeight: precisionSettings.labelHeight,
     };
 
     // Save to database
@@ -5409,6 +5411,19 @@ export default function BarcodePrinting() {
                   }, { onConflict: "organization_id,name" });
                 if (error) { toast.error("Failed to save preset"); return; }
                 toast.success(`Preset "${preset.name}" saved`);
+                // Mirror label design to barcode_label_settings so Label Designer dropdown lists it
+                if (preset.labelConfig) {
+                  try {
+                    await saveTemplateToDb({
+                      name: preset.name,
+                      config: preset.labelConfig,
+                      labelWidth: preset.width,
+                      labelHeight: preset.height,
+                    });
+                  } catch (mirrorErr) {
+                    console.warn('Failed to mirror preset to label_template:', mirrorErr);
+                  }
+                }
                 const { data } = await supabase
                   .from("printer_presets")
                   .select("*")
