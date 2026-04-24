@@ -47,9 +47,21 @@ export default function CustomerLedgerPage() {
   const [searchParams] = useSearchParams();
   const preSelectedCustomerId = searchParams.get("customer");
 
+  // Default to current Indian Financial Year (1-Apr → 31-Mar)
+  const { fyStart, fyEnd } = useMemo(() => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth(); // 0-indexed
+    const startYear = m >= 3 ? y : y - 1; // Apr=3
+    return {
+      fyStart: new Date(startYear, 3, 1),
+      fyEnd: new Date(startYear + 1, 2, 31),
+    };
+  }, []);
+
   const [customerId, setCustomerId] = useState<string | null>(preSelectedCustomerId);
-  const [fromDate, setFromDate] = useState<Date | undefined>();
-  const [toDate, setToDate] = useState<Date | undefined>();
+  const [fromDate, setFromDate] = useState<Date | undefined>(fyStart);
+  const [toDate, setToDate] = useState<Date | undefined>(fyEnd);
   const [custOpen, setCustOpen] = useState(false);
 
   // Customers list
