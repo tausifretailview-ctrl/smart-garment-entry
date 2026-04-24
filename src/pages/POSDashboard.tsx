@@ -283,7 +283,7 @@ const POSDashboard = () => {
       await fetchSales();
     };
     loadData();
-  }, [currentOrganization]);
+  }, [currentOrganization, startDate, endDate]);
 
   // Sync POS bill format / invoice template from cached settings
   useEffect(() => {
@@ -322,13 +322,19 @@ const POSDashboard = () => {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let query = supabase
           .from("sales")
           .select("*, customers:customer_id (gst_number)")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
-          .eq("is_cancelled", false)
+          .eq("is_cancelled", false);
+
+        // Server-side date filter for performance — avoids loading entire history
+        if (startDate) query = query.gte("sale_date", startDate);
+        if (endDate) query = query.lte("sale_date", endDate);
+
+        const { data, error } = await query
           .order("sale_date", { ascending: false })
           .order("id")
           .range(offset, offset + pageSize - 1);
