@@ -29,7 +29,7 @@ export const isJwtExpiredError = (err: any): boolean => {
  *   );
  */
 export async function withJwtRetry<T>(
-  fn: () => Promise<T>
+  fn: () => PromiseLike<T>
 ): Promise<T> {
   const result: any = await fn();
   if (result && isJwtExpiredError(result.error)) {
