@@ -3616,20 +3616,20 @@ Thank you for choosing us!`;
           <table className="w-full border-separate border-spacing-0 erp-desktop-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
-                <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[200px]">PRODUCT</th>
-                <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
-                {showCol.color && <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
-                <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
-                {showCol.hsn && <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">HSN</th>}
-                <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">QTY</th>
-                {showCol.box && <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">BOX</th>}
-                {showCol.mrp && <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">MRP</th>}
-                <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">PRICE</th>
-                {showCol.disc_percent && <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">DISC%</th>}
-                {showCol.disc_amount && <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">DISC ₹</th>}
-                {showCol.gst && <th className="text-center text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">GST%</th>}
-                <th className="text-right text-[12px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
+                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
+                <th className="text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[200px]">PRODUCT</th>
+                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
+                {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
+                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
+                {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">HSN</th>}
+                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">QTY</th>
+                {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">BOX</th>}
+                {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">MRP</th>}
+                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">PRICE</th>
+                {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">DISC%</th>}
+                {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">DISC ₹</th>}
+                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">GST%</th>}
+                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="w-8 px-1 h-10 bg-slate-800"></th>
               </tr>
             </thead>
@@ -3668,7 +3668,7 @@ Thank you for choosing us!`;
                       key={item.id}
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
-                      <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5">{srNo}</td>
+                      <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{srNo}</td>
                       <td className="px-3 py-2">
                         <button
                           type="button"
@@ -3683,7 +3683,7 @@ Thank you for choosing us!`;
                       </td>
                       <td className="text-center px-3 py-2">
                         {item.size ? (
-                          <span className={`inline-block text-[13px] font-bold px-2 py-0.5 rounded ${
+                          <span className={`inline-block text-[15px] font-bold px-2 py-0.5 rounded ${
                             ['XS','S','M','L','XL','XXL','XXXL'].includes(item.size?.toUpperCase())
                               ? 'bg-blue-100 text-blue-700'
                               : /^\d+$/.test(item.size)
@@ -3694,13 +3694,13 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      {showCol.color && <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5 hidden lg:table-cell">
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>}
                       <td className="text-center px-3 py-2">
-                        <span className="font-mono text-[13px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
+                        <span className="font-mono text-[15px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
                       </td>
-                      {showCol.hsn && <td className="text-center text-[13px] text-muted-foreground px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
+                      {showCol.hsn && <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -3710,7 +3710,7 @@ Thank you for choosing us!`;
                           placeholder="1"
                           onChange={(e) => updateQuantity(item.id, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-10 text-center font-bold text-[15px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                          className="w-16 h-10 text-center font-bold text-[17px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
                         {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
@@ -3722,7 +3722,7 @@ Thank you for choosing us!`;
                           value={item.box || ''}
                           onChange={(e) => updateBox(item.id, e.target.value)}
                           placeholder=""
-                          className="w-14 h-10 text-center text-[13px] mx-auto"
+                          className="w-14 h-10 text-center text-[15px] mx-auto"
                         />
                       </td>}
                       {showCol.mrp && <td className="text-right px-1.5 py-1">
@@ -3733,7 +3733,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[90px] h-10 text-right text-[15px] tabular-nums ml-auto"
+                          className="w-[90px] h-10 text-right text-[17px] tabular-nums ml-auto"
                         />
                       </td>}
                       <td className="text-right px-1.5 py-1">
@@ -3756,7 +3756,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-10 text-right text-[15px] tabular-nums ml-auto"
+                          className="w-16 h-10 text-right text-[17px] tabular-nums ml-auto"
                         />
                       </td>}
                       {showCol.disc_amount && <td className="text-right px-1.5 py-1">
@@ -3767,14 +3767,14 @@ Thank you for choosing us!`;
                           placeholder="-"
                           onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20 h-10 text-right text-[15px] tabular-nums ml-auto text-destructive"
+                          className="w-20 h-10 text-right text-[17px] tabular-nums ml-auto text-destructive"
                         />
                       </td>}
                       {showCol.gst && <td className="text-center px-3 py-2">
-                        <span className="text-[13px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
+                        <span className="text-[15px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>}
                       <td className="text-right px-3 py-2 bg-blue-50/40">
-                        <span className="text-[15px] font-bold text-blue-700 font-mono tabular-nums">
+                        <span className="text-[17px] font-bold text-blue-700 font-mono tabular-nums">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
