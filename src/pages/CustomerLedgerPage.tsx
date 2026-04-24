@@ -11,7 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface LedgerRow {
@@ -42,6 +50,7 @@ export default function CustomerLedgerPage() {
   const [customerId, setCustomerId] = useState<string | null>(preSelectedCustomerId);
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
+  const [custOpen, setCustOpen] = useState(false);
 
   // Customers list
   const { data: customers = [] } = useQuery({
@@ -133,16 +142,53 @@ export default function CustomerLedgerPage() {
           <CardContent className="p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="md:col-span-2">
               <label className="text-xs font-medium text-muted-foreground">Customer</label>
-              <SearchableSelect
-                value={customerId ?? ""}
-                onValueChange={(v) => setCustomerId(v || null)}
-                placeholder="Select customer..."
-                searchPlaceholder="Search by name or phone..."
-                options={customers.map((c) => ({
-                  value: c.id,
-                  label: c.phone ? `${c.customer_name} — ${c.phone}` : c.customer_name,
-                }))}
-              />
+              <Popover open={custOpen} onOpenChange={setCustOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between font-normal"
+                  >
+                    {selectedCustomer
+                      ? selectedCustomer.phone
+                        ? `${selectedCustomer.customer_name} — ${selectedCustomer.phone}`
+                        : selectedCustomer.customer_name
+                      : <span className="text-muted-foreground">Select customer...</span>}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search by name or phone..." />
+                    <CommandList>
+                      <CommandEmpty>No customers found.</CommandEmpty>
+                      <CommandGroup>
+                        {customers.map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={`${c.customer_name} ${c.phone ?? ""}`}
+                            onSelect={() => {
+                              setCustomerId(c.id);
+                              setCustOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                customerId === c.id ? "opacity-100" : "opacity-0",
+                              )}
+                            />
+                            <span>{c.customer_name}</span>
+                            {c.phone && (
+                              <span className="ml-2 text-xs text-muted-foreground">{c.phone}</span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <DateField label="From Date" value={fromDate} onChange={setFromDate} />
             <DateField label="To Date" value={toDate} onChange={setToDate} />
