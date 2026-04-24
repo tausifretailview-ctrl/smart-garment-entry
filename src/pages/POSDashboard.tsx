@@ -1527,6 +1527,17 @@ const POSDashboard = () => {
                 Delete Selected ({selectedSales.size})
               </Button>
             )}
+            {selectedSales.size > 0 && hasSpecialPermission('cancel_invoice') && (
+              <Button
+                onClick={() => setShowBulkCancelDialog(true)}
+                disabled={isBulkCancelling}
+                variant="outline"
+                className="gap-2 border-orange-500 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+              >
+                {isBulkCancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                Cancel Selected ({selectedSales.size})
+              </Button>
+            )}
           </div>
         </div>
 
