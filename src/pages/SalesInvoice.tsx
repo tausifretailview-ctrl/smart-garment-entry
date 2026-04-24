@@ -3846,7 +3846,7 @@ Thank you for choosing us!`;
       </main>
 
       {/* Sticky Footer — Compact teal bar */}
-      <footer className="sticky bottom-0 z-20 shrink-0">
+      <footer className="sticky bottom-0 shrink-0 relative z-20 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
           <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
