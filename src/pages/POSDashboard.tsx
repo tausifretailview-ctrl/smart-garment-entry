@@ -2653,6 +2653,48 @@ const POSDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={showBulkCancelDialog} onOpenChange={setShowBulkCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel {selectedSales.size} Sale(s)</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>Are you sure you want to cancel <strong>{selectedSales.size}</strong> selected sale(s)? Stock quantities will be restored for all items.</p>
+                <p className="text-orange-600 font-medium">Cancelled bills remain in records for audit but are excluded from sales totals.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Label htmlFor="bulkCancelReason" className="text-sm font-medium">Reason (optional)</Label>
+            <Textarea
+              id="bulkCancelReason"
+              value={bulkCancelReason}
+              onChange={(e) => setBulkCancelReason(e.target.value)}
+              placeholder="Enter reason for cancellation..."
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkCancelling}>Back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkCancel}
+              className="bg-orange-600 hover:bg-orange-700"
+              disabled={isBulkCancelling}
+            >
+              {isBulkCancelling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Cancelling...
+                </>
+              ) : (
+                'Cancel All'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Hidden invoice for printing */}
       <div style={{ 
         position: 'fixed', 
