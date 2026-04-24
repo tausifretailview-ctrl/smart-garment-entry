@@ -1786,7 +1786,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (t.informational) continue;
       if (t.type === 'invoice') {
         grossInvoiced += t.displayDebit ?? t.debit ?? 0;
-        netInvoiced += t.debit || 0;
       } else if (t.type === 'return') {
         saleReturns += t.credit || 0;
       } else if (t.type === 'payment') {
@@ -1801,6 +1800,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     }
 
     const finalBalance = transactions[transactions.length - 1]?.balance ?? 0;
+    netInvoiced = grossInvoiced - saleReturns;
     return {
       opening,
       grossInvoiced,
