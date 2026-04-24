@@ -3845,10 +3845,10 @@ Thank you for choosing us!`;
       {/* Sticky Footer — Compact teal bar */}
       <footer className="sticky bottom-0 z-20 shrink-0">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
-        <div className="bg-gradient-to-r from-teal-700 to-teal-800 text-white overflow-x-auto">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
           <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
             {/* FLAT DISC % */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Flat Disc %</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-300 mr-2 whitespace-nowrap">Flat Disc %</span>
             <Input
               type="number" min="0" max="100"
               value={flatDiscountPercent || ""}
@@ -3858,10 +3858,10 @@ Thank you for choosing us!`;
               className="w-[72px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
             {/* FLAT DISC ₹ */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Flat Disc ₹</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-300 mr-2 whitespace-nowrap">Flat Disc ₹</span>
             <Input
               type="number" min="0"
               value={flatDiscountRupees || ""}
@@ -3871,10 +3871,10 @@ Thank you for choosing us!`;
               className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
             {/* Other Charges */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Charges</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-300 mr-2 whitespace-nowrap">Charges</span>
             <Input
               type="number" min="0"
               value={otherCharges || ""}
@@ -3884,10 +3884,10 @@ Thank you for choosing us!`;
               className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
             {/* Round Off */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Round</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-300 mr-2 whitespace-nowrap">Round</span>
             <Input
               type="number" step="0.01"
               value={roundOff || ""}
@@ -3899,7 +3899,7 @@ Thank you for choosing us!`;
 
             {pointsToRedeem > 0 && (
               <>
-                <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+                <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
                 <span className="text-[13px] text-amber-300 font-bold flex items-center gap-1 whitespace-nowrap">
                   <Coins className="h-3.5 w-3.5" />
                   Pts: -₹{pointsRedemptionValue.toFixed(0)}
@@ -3908,22 +3908,22 @@ Thank you for choosing us!`;
             )}
 
             {/* Right-pinned Net Amount */}
-            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-3 shrink-0">
-              <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100">Net</span>
-              <span className="text-[26px] font-black font-mono tabular-nums leading-none">₹{netAmount.toLocaleString('en-IN')}</span>
+            <div className="ml-auto pl-4 border-l-2 border-blue-600/60 flex items-center gap-3 shrink-0">
+              <span className="text-[13px] font-extrabold uppercase tracking-wider text-yellow-400">Net</span>
+              <span className="text-[26px] font-black font-mono tabular-nums leading-none text-green-400">₹{netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
 
         {/* Bottom Bar: Formula strip + action buttons */}
-        <div className="bg-teal-900 flex flex-wrap items-center px-4 py-1.5 gap-x-3 gap-y-1.5">
-          <div className="hidden xl:flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+        <div className="bg-slate-950 flex flex-wrap items-center px-4 py-1.5 gap-x-3 gap-y-1.5">
+          <div className="hidden xl:flex items-center gap-2 text-[13px] text-slate-400 font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
             <span>Subtotal <span className="text-white font-bold">₹{grossAmount.toFixed(0)}</span></span>
-            <span className="text-teal-500">—</span>
+            <span className="text-slate-600">—</span>
             <span>Disc <span className="text-red-300 font-bold">₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}</span></span>
-            <span className="text-teal-500">+</span>
+            <span className="text-slate-600">+</span>
             <span>GST <span className="text-white font-bold">₹{taxType === 'exclusive' ? totalGST.toFixed(0) : '0'}</span></span>
-            <span className="text-teal-500">=</span>
+            <span className="text-slate-600">=</span>
             <span>Net <span className="text-emerald-300 font-extrabold">₹{netAmount.toLocaleString('en-IN')}</span></span>
           </div>
 
@@ -3938,7 +3938,7 @@ Thank you for choosing us!`;
                 "h-8 px-3 text-xs gap-1 font-bold border text-white",
                 paymentOverride?.method === 'cash'
                   ? "bg-emerald-500 text-white border-emerald-400 hover:bg-emerald-500"
-                  : "border-emerald-400/70 hover:bg-emerald-700/50 hover:text-white"
+                  : "border-emerald-500/60 hover:bg-emerald-700/40 hover:text-white"
               )}
               title="Cash payment (F1)"
             >
@@ -3954,7 +3954,7 @@ Thank you for choosing us!`;
                 "h-8 px-3 text-xs gap-1 font-bold border text-white",
                 paymentOverride?.method === 'upi'
                   ? "bg-violet-500 text-white border-violet-400 hover:bg-violet-500"
-                  : "border-violet-400/70 hover:bg-violet-700/50 hover:text-white"
+                  : "border-violet-500/60 hover:bg-violet-700/40 hover:text-white"
               )}
               title="UPI payment (F2)"
             >
@@ -3970,7 +3970,7 @@ Thank you for choosing us!`;
                 "h-8 px-3 text-xs gap-1 font-bold border text-white",
                 paymentOverride?.method === 'multiple'
                   ? "bg-amber-500 text-white border-amber-400 hover:bg-amber-500"
-                  : "border-amber-400/70 hover:bg-amber-700/50 hover:text-white"
+                  : "border-amber-500/60 hover:bg-amber-700/40 hover:text-white"
               )}
               title="Mix payment (F3)"
             >
@@ -3982,18 +3982,18 @@ Thank you for choosing us!`;
                 variant="ghost"
                 size="sm"
                 onClick={() => setPaymentOverride(null)}
-                className="h-8 px-2 text-xs text-teal-300 hover:bg-teal-800 hover:text-white"
+                className="h-8 px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
                 title="Clear payment selection (back to Credit)"
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
             )}
-            <div className="w-px h-6 bg-teal-700 mx-1" />
+            <div className="w-px h-6 bg-slate-700 mx-1" />
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowNotesSection(prev => !prev)}
-              className="h-8 px-3 text-xs text-teal-200 hover:bg-teal-800 hover:text-white gap-1"
+              className="h-8 px-3 text-xs text-slate-300 hover:bg-slate-800 hover:text-white gap-1"
             >
               <FileText className="h-3.5 w-3.5" />
               Notes
@@ -4011,7 +4011,7 @@ Thank you for choosing us!`;
               size="sm"
               onClick={handleSaveInvoice}
               disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
-              className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm"
+              className="h-8 px-5 text-xs bg-green-600 text-white hover:bg-green-500 font-bold gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.4)] active:scale-95 transition-all"
             >
               {isSaving ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
