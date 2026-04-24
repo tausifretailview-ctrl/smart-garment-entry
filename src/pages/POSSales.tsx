@@ -2537,11 +2537,35 @@ export default function POSSales() {
     };
 
     const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';
-    
+
+    // ── Refund cash-flow audit fix ─────────────────────────────────────────
+    // For refunds (negative net) where cash/upi/card amounts in the dialog
+    // are 0 and the user picked a refundMode, persist the refund as NEGATIVE
+    // cash/upi/card on the sale so cashier reports show the outflow and the
+    // ledger can detect a true refund (vs phantom credit).
+    let breakdownForSave = paymentData;
+    const isRefundOutflow =
+      paymentData.refundAmount > 0 &&
+      !paymentData.issueCreditNote &&
+      paymentData.cashAmount === 0 &&
+      paymentData.cardAmount === 0 &&
+      paymentData.upiAmount === 0;
+    if (isRefundOutflow) {
+      const refund = paymentData.refundAmount;
+      const mode = paymentData.refundMode || 'cash';
+      breakdownForSave = {
+        ...paymentData,
+        cashAmount: mode === 'cash' ? -refund : 0,
+        upiAmount: mode === 'upi' ? -refund : 0,
+        // 'bank_transfer' is treated as a card/bank outflow on the sale row
+        cardAmount: mode === 'bank_transfer' ? -refund : 0,
+      };
+    }
+
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, paymentData)
-      : await saveSale(saleData, paymentMethodType as any, paymentData);
+      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave)
+      : await saveSale(saleData, paymentMethodType as any, breakdownForSave);
     
     if (result) {
       // Save financer details if provided
