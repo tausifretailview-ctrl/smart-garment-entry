@@ -328,7 +328,7 @@ const POSDashboard = () => {
       while (hasMore) {
         let query = supabase
           .from("sales")
-          .select("*, customers:customer_id (gst_number)")
+          .select("*")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null)
@@ -364,6 +364,7 @@ const POSDashboard = () => {
         const cnBySaleId: Record<string, any> = {};
         for (let i = 0; i < saleIdsForCN.length; i += cnBatchSize) {
           const batch = saleIdsForCN.slice(i, i + cnBatchSize);
+          if (batch.length === 0) continue;
           const { data: cnData } = await supabase
             .from('credit_notes')
             .select('id, sale_id, credit_amount, used_amount, status')
@@ -407,23 +408,25 @@ const POSDashboard = () => {
       // Phase 1 complete - show table immediately
       setLoading(false);
       
-      // Phase 2: Fetch sale items in background (non-blocking)
+      // Phase 2: Fetch sale items in background (non-blocking, deferred to idle time)
       if (allSales.length > 0) {
-        const saleIds = allSales.map(sale => sale.id);
-        const batchSize = 500;
-        const allItems: any[] = [];
+        const runPhase2 = async () => {
+          const saleIds = allSales.map(sale => sale.id);
+          const batchSize = 500;
+          const allItems: any[] = [];
 
-        for (let i = 0; i < saleIds.length; i += batchSize) {
-          const batchIds = saleIds.slice(i, i + batchSize);
-          const { data: itemsData, error: itemsError } = await supabase
-            .from("sale_items")
-            .select("*")
-            .in("sale_id", batchIds);
-          
-          if (!itemsError && itemsData) {
-            allItems.push(...itemsData);
+          for (let i = 0; i < saleIds.length; i += batchSize) {
+            const batchIds = saleIds.slice(i, i + batchSize);
+            if (batchIds.length === 0) continue;
+            const { data: itemsData, error: itemsError } = await supabase
+              .from("sale_items")
+              .select("*")
+              .in("sale_id", batchIds);
+            
+            if (!itemsError && itemsData) {
+              allItems.push(...itemsData);
+            }
           }
-        }
 
         const itemsBySale: Record<string, SaleItem[]> = {};
         allItems.forEach((item: any) => {
@@ -462,7 +465,16 @@ const POSDashboard = () => {
           }
         });
 
-        setSaleItems(itemsBySale);
+          setSaleItems(itemsBySale);
+        };
+
+        // Defer to idle time so the table renders first
+        const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+        if (typeof ric === 'function') {
+          ric(() => { runPhase2(); }, { timeout: 1500 });
+        } else {
+          setTimeout(() => { runPhase2(); }, 0);
+        }
       }
     } catch (error: any) {
       toast({
@@ -1918,8 +1930,21 @@ const POSDashboard = () => {
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="rounded-md border max-h-[600px] overflow-hidden">
+                <div className="h-10 bg-muted/70 border-b" />
+                <div className="divide-y">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                      <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div 
