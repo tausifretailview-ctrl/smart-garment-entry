@@ -28,6 +28,10 @@ import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
+
+// Sentinel ID used to represent the customer's remaining Opening Balance
+// as a selectable row inside the invoice picker.
+const OPENING_BALANCE_ID = "__opening_balance__";
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
@@ -159,6 +163,36 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
+  // Remaining Opening Balance for the selected customer
+  // = customers.opening_balance − sum(receipt vouchers with reference_type='customer')
+  const { data: openingBalanceRemaining = 0 } = useQuery({
+    queryKey: ["customer-opening-balance-remaining", referenceId, organizationId],
+    queryFn: async () => {
+      if (!referenceId) return 0;
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("opening_balance")
+        .eq("id", referenceId)
+        .maybeSingle();
+      const ob = Number(cust?.opening_balance || 0);
+      if (ob <= 0) return 0;
+      const { data: vouchersData } = await supabase
+        .from("voucher_entries")
+        .select("total_amount")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "receipt")
+        .eq("reference_type", "customer")
+        .eq("reference_id", referenceId)
+        .is("deleted_at", null);
+      const paid = (vouchersData || []).reduce(
+        (s: number, v: any) => s + Number(v.total_amount || 0),
+        0
+      );
+      return Math.max(0, ob - paid);
+    },
+    enabled: !!referenceId && !!organizationId,
+  });
+
   // Customer balance — uses correct formula including balance adjustments
   const { balance: customerBalance } = useCustomerBalance(
     referenceId || null,
@@ -172,12 +206,15 @@ export function CustomerPaymentTab({
   // Auto-fill amount
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
-      const total = customerInvoices
+      const invoiceTotal = customerInvoices
         .filter(inv => selectedInvoiceIds.includes(inv.id))
         .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0);
-      setAmount(total.toFixed(2));
+      const obSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
+        ? Number(openingBalanceRemaining || 0)
+        : 0;
+      setAmount((invoiceTotal + obSelected).toFixed(2));
     }
-  }, [selectedInvoiceIds, customerInvoices]);
+  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
