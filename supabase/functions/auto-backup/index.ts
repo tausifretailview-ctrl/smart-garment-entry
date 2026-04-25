@@ -8,7 +8,7 @@ const corsHeaders = {
 // Purge backup files in storage and backup_logs older than retentionDays for one org.
 // Caps at 1000 files per run for safety. Returns counts.
 async function purgeOldBackups(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   organizationId: string,
   retentionDays: number,
 ): Promise<{ files_deleted: number; logs_deleted: number }> {
@@ -47,10 +47,10 @@ async function purgeOldBackups(
 
   try {
     // Purge backup_logs via RPC helper (created in migration)
-    const { data, error } = await supabase.rpc('purge_old_backup_logs', {
+    const { data, error } = await supabase.rpc('purge_old_backup_logs' as any, {
       p_org_id: organizationId,
       p_days: retentionDays,
-    });
+    } as any);
     if (error) {
       console.error(`Purge logs RPC failed for ${organizationId}:`, error.message);
     } else {

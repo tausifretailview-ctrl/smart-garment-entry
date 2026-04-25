@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
 
 // ─── Helper: generate + store OTP, send via WhatsApp ────────────────────────
 async function processOTPSend(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   customer: { id: string; customer_name: string },
   org: { id: string; name: string },
   cleanPhone: string,

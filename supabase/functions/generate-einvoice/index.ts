@@ -491,7 +491,7 @@ Deno.serve(async (req) => {
           ...(settingsData?.email_id ? { Em: settingsData.email_id } : {}),
         };
       })(),
-      BuyerDtls: (() => {
+      BuyerDtls: ((): any => {
         const buyerAddr = (sale.customer_address || sale.customers?.address || '').substring(0, 100);
         const safeAddr = buyerAddr.length >= 3 ? buyerAddr : 'Address Not Provided';
         const buyerPin = parseInt((sale.customer_address || sale.customers?.address || '')?.match(/\d{6}/)?.[0] || '000000');
