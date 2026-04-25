@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
