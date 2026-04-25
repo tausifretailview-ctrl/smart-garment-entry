@@ -782,7 +782,7 @@ const DailyCashierReport = () => {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
@@ -844,6 +844,19 @@ const DailyCashierReport = () => {
               <CardContent>
                 <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalBalance)}</p>
                 <p className="text-xs text-white/70">Outstanding</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 border-0 shadow-lg">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
+                  <Banknote className="h-4 w-4" />
+                  Old Payment Receipts
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.rcpTotalCollection)}</p>
+                <p className="text-xs text-white/70">{totals.rcpCount} Receipt{totals.rcpCount === 1 ? "" : "s"} • Against existing balance</p>
               </CardContent>
             </Card>
 
