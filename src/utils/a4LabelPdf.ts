@@ -63,9 +63,26 @@ export const generateA4LabelPdf = async (
 ): Promise<Uint8Array> => {
   const {
     labelWidthMm, labelHeightMm, cols, rows, gapMm,
-    topOffsetMm = 0, leftOffsetMm = 0,
+    topOffsetMm: rawTopOffsetMm = 0,
+    leftOffsetMm: rawLeftOffsetMm = 0,
     labelConfig, businessName = '',
   } = options;
+
+  // Enforce a minimum printable-area margin to prevent column 1 / row 1
+  // labels from rendering inside the printer's non-printable margin.
+  // Most consumer/office printers reserve 3-5mm on all edges.
+  const MIN_PRINTABLE_MARGIN_MM = 5;
+  const topOffsetMm = Math.max(rawTopOffsetMm, MIN_PRINTABLE_MARGIN_MM);
+  const leftOffsetMm = Math.max(rawLeftOffsetMm, MIN_PRINTABLE_MARGIN_MM);
+
+  // Informational warning if layout exceeds A4 dimensions
+  const totalWidthMm = leftOffsetMm + cols * labelWidthMm + (cols - 1) * gapMm;
+  const totalHeightMm = topOffsetMm + rows * labelHeightMm + (rows - 1) * gapMm;
+  if (totalWidthMm > 210 || totalHeightMm > 297) {
+    console.warn(
+      `[a4LabelPdf] Layout may exceed A4 page bounds: ${totalWidthMm.toFixed(1)}mm x ${totalHeightMm.toFixed(1)}mm (A4 = 210x297mm)`
+    );
+  }
 
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
