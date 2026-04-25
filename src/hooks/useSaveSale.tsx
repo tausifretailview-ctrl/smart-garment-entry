@@ -8,6 +8,7 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
+import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 
 interface CartItem {
   id: string;
