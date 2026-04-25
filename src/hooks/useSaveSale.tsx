@@ -818,6 +818,42 @@ export const useSaveSale = () => {
 
       // Mark consumed sale_return(s) as adjusted and link to this sale (edit path)
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
+        // (ledger refresh handled below)
+      }
+
+      // Customer Account Statement — refresh ledger entries (delete + re-insert)
+      if (sale?.sale_number && currentOrganization?.id) {
+        await deleteLedgerEntries({
+          organizationId: currentOrganization.id,
+          voucherNo: sale.sale_number,
+          voucherTypes: ['SALE', 'RECEIPT'],
+        });
+        if (saleData.customerId) {
+          const txnDate = new Date().toISOString().slice(0, 10);
+          insertLedgerDebit({
+            organizationId: currentOrganization.id,
+            customerId: saleData.customerId,
+            voucherType: 'SALE',
+            voucherNo: sale.sale_number,
+            particulars: `Sales Invoice ${sale.sale_number}`,
+            transactionDate: txnDate,
+            amount: saleData.netAmount,
+          });
+          if (paidAmt > 0) {
+            insertLedgerCredit({
+              organizationId: currentOrganization.id,
+              customerId: saleData.customerId,
+              voucherType: 'RECEIPT',
+              voucherNo: sale.sale_number,
+              particulars: `Payment at Sale ${sale.sale_number}`,
+              transactionDate: txnDate,
+              amount: paidAmt,
+            });
+          }
+        }
+      }
+
+      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
         try {
           const { data: pendingSRs } = await supabase
             .from('sale_returns')
