@@ -429,7 +429,14 @@ const WhatsAppLogs = () => {
                         <TableCell>{getTypeBadge(log.template_type)}</TableCell>
                         <TableCell>{getStatusBadge(log.status)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
-                          {log.message?.substring(0, 50)}...
+                          {log.status === 'failed' && getFriendlyErrorHint(log.error_message, log.provider_response) ? (
+                            <span className="text-red-600 text-xs flex items-center gap-1" title={getFriendlyErrorHint(log.error_message, log.provider_response)?.reason}>
+                              <Info className="h-3 w-3 shrink-0" />
+                              {getFriendlyErrorHint(log.error_message, log.provider_response)?.title}
+                            </span>
+                          ) : (
+                            <>{log.message?.substring(0, 50)}...</>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
