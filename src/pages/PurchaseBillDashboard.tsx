@@ -454,7 +454,7 @@ const PurchaseBillDashboard = () => {
       } else if (paymentStatusFilter === "not_paid") {
         query = query
           .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .or("payment_status.is.null,payment_status.eq.pending");
+          .or("payment_status.is.null,payment_status.eq.unpaid,payment_status.eq.pending");
       } else {
         query = query
           .or("is_cancelled.is.null,is_cancelled.eq.false")
@@ -1166,7 +1166,7 @@ const PurchaseBillDashboard = () => {
       } else if (paymentStatusFilter === "not_paid") {
         query = query
           .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .or("payment_status.is.null,payment_status.eq.pending");
+          .or("payment_status.is.null,payment_status.eq.unpaid,payment_status.eq.pending");
       } else {
         query = query
           .or("is_cancelled.is.null,is_cancelled.eq.false")
@@ -1226,13 +1226,13 @@ const PurchaseBillDashboard = () => {
       const total_count = allBills.length;
       const total_amount = allBills.reduce((s, b) => s + (b.net_amount || 0), 0);
       const paid_amount = allBills
-        .filter(b => b.payment_status === 'completed')
+        .filter(b => b.payment_status === 'paid')
         .reduce((s, b) => s + (b.net_amount || 0), 0);
       const partial_amount = allBills
         .filter(b => b.payment_status === 'partial')
         .reduce((s, b) => s + (b.net_amount || 0), 0);
       const unpaid_amount = allBills
-        .filter(b => !b.payment_status || b.payment_status === 'pending')
+        .filter(b => !b.payment_status || b.payment_status === 'unpaid' || b.payment_status === 'pending')
         .reduce((s, b) => s + (b.net_amount || 0), 0);
 
       return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
@@ -1665,7 +1665,7 @@ const PurchaseBillDashboard = () => {
       if (endDate) query = query.lte("bill_date", endDate);
       if (paymentStatusFilter && paymentStatusFilter !== "all") {
         if (paymentStatusFilter === "not_paid") {
-          query = query.or("payment_status.is.null,payment_status.eq.pending");
+          query = query.or("payment_status.is.null,payment_status.eq.unpaid,payment_status.eq.pending");
         } else {
           query = query.eq("payment_status", paymentStatusFilter);
         }
@@ -2084,7 +2084,7 @@ const PurchaseBillDashboard = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All (Active)</SelectItem>
-                  <SelectItem value="completed">Paid</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
                   <SelectItem value="not_paid">Not Paid</SelectItem>
                   <SelectItem value="cancelled">Cancelled Only</SelectItem>
