@@ -40,10 +40,105 @@ import {
   Search,
   FileText,
   Download,
-  Calendar
+  Calendar,
+  Info
 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+
+/**
+ * Convert cryptic Meta WhatsApp error messages / codes into friendly, actionable hints
+ * the shop owner can understand. Returns null if no specific hint applies.
+ */
+const getFriendlyErrorHint = (
+  errorMessage?: string | null,
+  providerResponse?: any
+): { title: string; reason: string; action: string } | null => {
+  const raw = `${errorMessage || ''} ${JSON.stringify(providerResponse || {})}`.toLowerCase();
+  const errCode =
+    providerResponse?.error?.code ||
+    providerResponse?.errors?.[0]?.code ||
+    providerResponse?.message?.error?.code;
+
+  // 131026 — Message undeliverable (recipient not on WhatsApp / inactive / blocked)
+  if (errCode === 131026 || raw.includes('message undeliverable') || raw.includes('undeliverable')) {
+    return {
+      title: 'Recipient unreachable on WhatsApp',
+      reason:
+        'Meta accepted the message but could not deliver it. The number is most likely not registered on WhatsApp, the WhatsApp account is inactive, or the recipient has blocked your business number.',
+      action:
+        'Confirm the phone number is correct and active on WhatsApp. Try calling the customer to verify, or send via SMS as a fallback.',
+    };
+  }
+
+  // 131047 — Re-engagement (24h customer service window expired)
+  if (errCode === 131047 || raw.includes('re-engagement') || raw.includes('24 hours') || raw.includes('24-hour')) {
+    return {
+      title: '24-hour reply window expired',
+      reason:
+        'Free-form messages (text / image / PDF) can only be sent within 24 hours of the customer\'s last reply. The customer has not messaged you in over 24 hours.',
+      action:
+        'Send an approved template message instead (e.g. invoice template). The template will reach the customer and re-open the 24-hour window once they reply.',
+    };
+  }
+
+  // 131051 — Unsupported message type
+  if (errCode === 131051 || raw.includes('unsupported message type')) {
+    return {
+      title: 'Unsupported message type',
+      reason: 'The message format is not supported by WhatsApp.',
+      action: 'Try a different template or message format.',
+    };
+  }
+
+  // 131056 — Pair rate limit
+  if (errCode === 131056 || raw.includes('pair rate')) {
+    return {
+      title: 'Too many messages to this number',
+      reason: 'You have sent too many messages to this recipient in a short period.',
+      action: 'Wait a few minutes before retrying.',
+    };
+  }
+
+  // 131031 — Account locked
+  if (errCode === 131031 || raw.includes('account has been locked')) {
+    return {
+      title: 'WhatsApp business account locked',
+      reason: 'Your WhatsApp Business account has been temporarily locked by Meta.',
+      action: 'Visit Meta Business Manager to resolve the issue.',
+    };
+  }
+
+  // 132000–132016 — Template-related errors
+  if ((typeof errCode === 'number' && errCode >= 132000 && errCode <= 132099) ||
+      raw.includes('template') && (raw.includes('does not exist') || raw.includes('not found'))) {
+    return {
+      title: 'Template issue',
+      reason: 'The WhatsApp template was rejected, paused, or has incorrect parameters.',
+      action: 'Check the template status in Meta Business Manager and verify the parameters match the approved template.',
+    };
+  }
+
+  // 190 / 200 / token errors
+  if (errCode === 190 || raw.includes('access token') || raw.includes('expired') || raw.includes('invalid token')) {
+    return {
+      title: 'WhatsApp API token expired or invalid',
+      reason: 'The Meta API access token is expired or no longer valid.',
+      action: 'Go to Settings → WhatsApp API and update the access token.',
+    };
+  }
+
+  // Generic phone format issue
+  if (raw.includes('not a valid whatsapp') || raw.includes('invalid phone') || raw.includes('wa_id')) {
+    return {
+      title: 'Invalid phone number',
+      reason: 'The phone number format is not valid for WhatsApp.',
+      action: 'Ensure the number includes country code (e.g. 91 for India) and is 10 digits long.',
+    };
+  }
+
+  return null;
+};
 
 const WhatsAppLogs = () => {
   const { fetchMessageLogs, retryMessage, isRetrying } = useWhatsAppAPI();
@@ -334,7 +429,14 @@ const WhatsAppLogs = () => {
                         <TableCell>{getTypeBadge(log.template_type)}</TableCell>
                         <TableCell>{getStatusBadge(log.status)}</TableCell>
                         <TableCell className="max-w-[200px] truncate">
-                          {log.message?.substring(0, 50)}...
+                          {log.status === 'failed' && getFriendlyErrorHint(log.error_message, log.provider_response) ? (
+                            <span className="text-red-600 text-xs flex items-center gap-1" title={getFriendlyErrorHint(log.error_message, log.provider_response)?.reason}>
+                              <Info className="h-3 w-3 shrink-0" />
+                              {getFriendlyErrorHint(log.error_message, log.provider_response)?.title}
+                            </span>
+                          ) : (
+                            <>{log.message?.substring(0, 50)}...</>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
@@ -433,6 +535,24 @@ const WhatsAppLogs = () => {
                     <div className="mt-1 p-3 bg-red-50 text-red-800 rounded-lg text-sm">
                       {selectedLog.error_message}
                     </div>
+                    {(() => {
+                      const hint = getFriendlyErrorHint(selectedLog.error_message, selectedLog.provider_response);
+                      if (!hint) return null;
+                      return (
+                        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                            <div className="font-semibold text-amber-900">{hint.title}</div>
+                          </div>
+                          <div className="text-amber-800 pl-6">
+                            <strong>Why:</strong> {hint.reason}
+                          </div>
+                          <div className="text-amber-800 pl-6">
+                            <strong>What to do:</strong> {hint.action}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 {selectedLog.error_message && selectedLog.status === 'retried' && (
