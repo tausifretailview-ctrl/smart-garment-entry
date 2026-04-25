@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -271,6 +272,17 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
             description: `Payment for ${p.invoice.sale_number}${paymentDetails}`,
             total_amount: p.amountApplied,
           });
+          if (referenceId) {
+            insertLedgerCredit({
+              organizationId,
+              customerId: referenceId,
+              voucherType: 'RECEIPT',
+              voucherNo: vNum,
+              particulars: `Receipt for ${p.invoice.sale_number}`,
+              transactionDate: format(voucherDate, "yyyy-MM-dd"),
+              amount: p.amountApplied,
+            });
+          }
         }
       } else {
         const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
@@ -284,6 +296,17 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
           description: description || `Opening Balance Payment from ${customerName}${paymentDetails}`,
           total_amount: paymentAmount,
         });
+        if (referenceId) {
+          insertLedgerCredit({
+            organizationId,
+            customerId: referenceId,
+            voucherType: 'RECEIPT',
+            voucherNo: voucherNumber,
+            particulars: isOpeningBalancePayment ? 'Opening Balance Receipt' : 'Receipt',
+            transactionDate: format(voucherDate, "yyyy-MM-dd"),
+            amount: paymentAmount,
+          });
+        }
       }
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod };

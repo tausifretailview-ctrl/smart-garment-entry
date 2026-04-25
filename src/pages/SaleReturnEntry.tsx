@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { logError } from "@/lib/errorLogger";
+import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -771,6 +772,26 @@ export default function SaleReturnEntry() {
         if (updateError) throw updateError;
 
         toast({ title: "Success", description: `Sale return ${nextReturnNumber} updated successfully` });
+
+        // Customer Account Statement — refresh ledger entry on edit
+        if (currentOrganization?.id && nextReturnNumber) {
+          await deleteLedgerEntries({
+            organizationId: currentOrganization.id,
+            voucherNo: nextReturnNumber,
+            voucherTypes: ['SALE_RETURN'],
+          });
+          if (selectedCustomer) {
+            insertLedgerCredit({
+              organizationId: currentOrganization.id,
+              customerId: selectedCustomer,
+              voucherType: 'SALE_RETURN',
+              voucherNo: nextReturnNumber,
+              particulars: `Sale Return ${nextReturnNumber}`,
+              transactionDate: returnDate,
+              amount: totals.netAmount,
+            });
+          }
+        }
       } else {
         const { data: returnNumber, error: returnNumberError } = await supabase
           .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
@@ -821,6 +842,19 @@ export default function SaleReturnEntry() {
           if (itemsError) throw itemsError;
 
           toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
+
+          // Customer Account Statement — write credit ledger entry
+          if (currentOrganization?.id && selectedCustomer) {
+            insertLedgerCredit({
+              organizationId: currentOrganization.id,
+              customerId: selectedCustomer,
+              voucherType: 'SALE_RETURN',
+              voucherNo: returnData.return_number,
+              particulars: `Sale Return ${returnData.return_number}`,
+              transactionDate: returnDate,
+              amount: totals.netAmount,
+            });
+          }
         } catch (innerError) {
           // Clean up orphan parent if items failed
           if (createdReturnId) {

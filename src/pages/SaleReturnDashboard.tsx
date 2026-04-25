@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -303,8 +304,12 @@ export default function SaleReturnDashboard() {
   const handleDelete = async () => {
     if (!returnToDelete) return;
 
+    const ret: any = (returns as any[])?.find?.((r: any) => r.id === returnToDelete);
     const success = await softDelete("sale_returns", returnToDelete);
     if (success) {
+      if (ret?.return_number && currentOrganization?.id) {
+        await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: ret.return_number, voucherTypes: ['SALE_RETURN'] });
+      }
       toast({ title: "Success", description: "Return moved to recycle bin" });
       refetchReturns();
     }
