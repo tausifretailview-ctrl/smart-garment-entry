@@ -465,6 +465,7 @@ export function CustomerPaymentTab({
 
       const totalPaid = parseFloat(amount);
       const discountValue = data.discountAmount || 0;
+      queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
 
       if (data.isOpeningBalancePayment) {
         const customer = customersWithBalance?.find(c => c.id === referenceId);
