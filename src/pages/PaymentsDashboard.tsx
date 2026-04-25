@@ -372,6 +372,19 @@ export default function PaymentsDashboard() {
 
       if (voucherEntryError) throw voucherEntryError;
 
+      // Customer Account Statement — credit ledger entry
+      if (currentOrganization?.id && selectedInvoice.customer_id) {
+        insertLedgerCredit({
+          organizationId: currentOrganization.id,
+          customerId: selectedInvoice.customer_id,
+          voucherType: 'RECEIPT',
+          voucherNo: voucherNumber,
+          particulars: `Receipt for ${selectedInvoice.sale_number}`,
+          transactionDate: format(paymentDate, 'yyyy-MM-dd'),
+          amount: amount,
+        });
+      }
+
       toast({
         title: "Payment Recorded",
         description: `Payment of ₹${amount.toFixed(2)} recorded successfully`,
