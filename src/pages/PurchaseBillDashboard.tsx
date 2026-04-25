@@ -2084,7 +2084,7 @@ const PurchaseBillDashboard = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All (Active)</SelectItem>
-                  <SelectItem value="completed">Paid</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
                   <SelectItem value="not_paid">Not Paid</SelectItem>
                   <SelectItem value="cancelled">Cancelled Only</SelectItem>
