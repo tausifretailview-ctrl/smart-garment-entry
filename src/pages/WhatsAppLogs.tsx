@@ -535,6 +535,24 @@ const WhatsAppLogs = () => {
                     <div className="mt-1 p-3 bg-red-50 text-red-800 rounded-lg text-sm">
                       {selectedLog.error_message}
                     </div>
+                    {(() => {
+                      const hint = getFriendlyErrorHint(selectedLog.error_message, selectedLog.provider_response);
+                      if (!hint) return null;
+                      return (
+                        <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Info className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                            <div className="font-semibold text-amber-900">{hint.title}</div>
+                          </div>
+                          <div className="text-amber-800 pl-6">
+                            <strong>Why:</strong> {hint.reason}
+                          </div>
+                          <div className="text-amber-800 pl-6">
+                            <strong>What to do:</strong> {hint.action}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 {selectedLog.error_message && selectedLog.status === 'retried' && (
