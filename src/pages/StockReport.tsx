@@ -1856,6 +1856,22 @@ export default function StockReport() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0 md:p-6">
+                  <div className="px-4 md:px-0 pb-3 md:pb-4">
+                    <div className="relative max-w-2xl">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search live: type product-category-brand-style-color-size (use - or space)"
+                        value={sizeWiseSearch}
+                        onChange={(e) => setSizeWiseSearch(e.target.value)}
+                        className="pl-9 h-9"
+                      />
+                    </div>
+                    {sizeWiseSearch && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Showing {sizeWiseData.rows.length} matching products
+                      </div>
+                    )}
+                  </div>
                   {sizeWiseData.rows.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No products found matching your filters</p>
                   ) : (
