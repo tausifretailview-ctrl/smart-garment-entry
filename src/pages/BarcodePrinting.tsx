@@ -2741,11 +2741,13 @@ export default function BarcodePrinting() {
       return;
     }
 
+    const { width: currentLabelWidth, height: currentLabelHeight } = getLabelDimensions();
+
     const newTemplate: LabelTemplate = {
       name: trimmedName,
       config: { ...labelConfig },
-      labelWidth: precisionSettings.labelWidth,
-      labelHeight: precisionSettings.labelHeight,
+      labelWidth: currentLabelWidth,
+      labelHeight: currentLabelHeight,
     };
 
     // Save to database
@@ -4969,9 +4971,12 @@ export default function BarcodePrinting() {
                       size="sm" 
                       variant="default"
                       onClick={async () => {
+                        const { width: currentLabelWidth, height: currentLabelHeight } = getLabelDimensions();
                         const newTemplate: LabelTemplate = {
                           name: selectedLabelTemplate,
-                          config: { ...labelConfig }
+                          config: { ...labelConfig },
+                          labelWidth: currentLabelWidth,
+                          labelHeight: currentLabelHeight,
                         };
                         const success = await saveTemplateToDb(newTemplate);
                         if (success) {
