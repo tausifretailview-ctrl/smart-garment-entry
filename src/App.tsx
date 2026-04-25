@@ -308,6 +308,8 @@ const App = () => {
               <Route path="/:orgSlug" element={<OrgLayout />}>
                 {/* Field Sales dedicated login - public, no auth required */}
                 <Route path="field-sales" element={<FieldSalesAuth />} />
+                {/* Per-organization install landing page - public */}
+                <Route path="install" element={<InstallApp />} />
                 {/* Public invoice view - org-scoped (no auth required) */}
                 <Route path="invoice/view/:saleId" element={<PublicInvoiceView />} />
                 {/* Buyer Portal - public, no auth required */}
