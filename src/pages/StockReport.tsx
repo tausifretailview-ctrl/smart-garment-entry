@@ -83,6 +83,7 @@ export default function StockReport() {
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
+  const [sizeWiseSearch, setSizeWiseSearch] = useState("");
   const [sizeFilter, setSizeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState(() => {
@@ -817,10 +818,29 @@ export default function StockReport() {
 
   // Size-wise stock report data
   const sizeWiseData = useMemo(() => {
-    const allSizes = sortSizes([...new Set(filteredStockItems.map(i => i.size))]);
+    // Independent search: split by '-' or whitespace, AND-match across product fields + size
+    const tokens = (sizeWiseSearch || "")
+      .toLowerCase()
+      .split(/[-\s]+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+    const matchesSearch = (item: typeof filteredStockItems[number]) => {
+      if (tokens.length === 0) return true;
+      const hay = [
+        item.product_name,
+        item.brand,
+        item.color,
+        item.size,
+        item.category,
+        item.department,
+      ].map(v => (v != null ? String(v) : "")).join(" ").toLowerCase();
+      return tokens.every(t => hay.includes(t));
+    };
+    const searched = filteredStockItems.filter(matchesSearch);
+    const allSizes = sortSizes([...new Set(searched.map(i => i.size))]);
     const productMap = new Map<string, SizeWiseRow>();
     
-    filteredStockItems.forEach(item => {
+    searched.forEach(item => {
       const productKey = `${item.product_name}-${item.brand}-${item.color}-${item.department}`;
       
       if (!productMap.has(productKey)) {
@@ -845,7 +865,7 @@ export default function StockReport() {
       sizes: allSizes,
       rows: Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName))
     };
-  }, [filteredStockItems]);
+  }, [filteredStockItems, sizeWiseSearch]);
 
   // Calculate totals for size-wise report
   const sizeWiseTotals = useMemo(() => {
@@ -1836,6 +1856,22 @@ export default function StockReport() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-0 md:p-6">
+                  <div className="px-4 md:px-0 pb-3 md:pb-4">
+                    <div className="relative max-w-2xl">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search live: type product-category-brand-style-color-size (use - or space)"
+                        value={sizeWiseSearch}
+                        onChange={(e) => setSizeWiseSearch(e.target.value)}
+                        className="pl-9 h-9"
+                      />
+                    </div>
+                    {sizeWiseSearch && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Showing {sizeWiseData.rows.length} matching products
+                      </div>
+                    )}
+                  </div>
                   {sizeWiseData.rows.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No products found matching your filters</p>
                   ) : (
