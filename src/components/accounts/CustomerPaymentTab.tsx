@@ -662,16 +662,33 @@ export function CustomerPaymentTab({
 
               {/* Invoice Selection */}
               <div className="space-y-2 md:col-span-2">
-                <Label>{customerInvoices && customerInvoices.length > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
+                <Label>{(customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0 ? "Select Invoices (Required)" : "Select Invoices"}</Label>
                 {!referenceId ? (
                   <p className="text-xs text-muted-foreground">Select a customer first</p>
-                ) : customerInvoices?.length === 0 ? (
+                ) : (customerInvoices?.length === 0 && openingBalanceRemaining <= 0) ? (
                   <div className="p-3 bg-muted/30 border rounded-md">
                     <p className="text-xs text-muted-foreground">No pending invoices - Payment will be applied to Opening Balance</p>
                   </div>
                 ) : (
                   <>
                     <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
+                      {openingBalanceRemaining > 0 && (() => {
+                        const isSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
+                        return (
+                          <div
+                            key={OPENING_BALANCE_ID}
+                            className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-amber-100/60 dark:bg-amber-900/20 border border-amber-400/40" : "hover:bg-muted")}
+                            onClick={() => setSelectedInvoiceIds(prev => prev.includes(OPENING_BALANCE_ID) ? prev.filter(id => id !== OPENING_BALANCE_ID) : [...prev, OPENING_BALANCE_ID])}
+                          >
+                            <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
+                            <div className="flex-1 flex justify-between items-center">
+                              <span className="font-medium text-amber-700 dark:text-amber-400">Opening Balance</span>
+                              <span className="text-sm text-muted-foreground">—</span>
+                              <Badge variant="destructive">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
+                            </div>
+                          </div>
+                        );
+                      })()}
                       {customerInvoices?.map((invoice) => {
                         const balance = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
                         const isSelected = selectedInvoiceIds.includes(invoice.id);
@@ -699,7 +716,10 @@ export function CustomerPaymentTab({
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="secondary" className="bg-primary/10">{selectedInvoiceIds.length} invoice(s) selected</Badge>
                     <span className="text-sm text-muted-foreground">
-                      Total: ₹{customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0).toFixed(2)}
+                      Total: ₹{(
+                        (customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0) || 0)
+                        + (selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0)
+                      ).toFixed(2)}
                     </span>
                     <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedInvoiceIds([])}>Clear</Button>
                   </div>
