@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
