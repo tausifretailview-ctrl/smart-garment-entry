@@ -83,6 +83,7 @@ export default function StockReport() {
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
+  const [sizeWiseSearch, setSizeWiseSearch] = useState("");
   const [sizeFilter, setSizeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState(() => {
