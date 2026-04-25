@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { logError } from "@/lib/errorLogger";
+import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
