@@ -442,9 +442,12 @@ export function CustomerPaymentTab({
       await supabase.from("voucher_items").delete().eq("voucher_id", voucherId);
       const { error } = await supabase.from("voucher_entries").delete().eq("id", voucherId);
       if (error) throw error;
-      return { voucherId, paymentAmount };
+      return { voucherId, paymentAmount, voucherNumber: payment.voucher_number };
     },
     onSuccess: (data) => {
+      if (data.voucherNumber && organizationId) {
+        deleteLedgerEntries({ organizationId, voucherNo: data.voucherNumber, voucherTypes: ['RECEIPT'] });
+      }
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
