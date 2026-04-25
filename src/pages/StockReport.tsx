@@ -184,7 +184,9 @@ export default function StockReport() {
           () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
         ),
         fetchAllPages(
-          () => supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+          // Query purchase_bills directly (small table) instead of batch_stock (huge),
+          // since we only need the unique supplier names and invoice numbers for filters.
+          () => supabase.from("purchase_bills").select("supplier_name, supplier_invoice_no").eq("organization_id", currentOrganization.id).is("deleted_at", null)
         ),
       ]);
 
