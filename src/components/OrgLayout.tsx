@@ -24,8 +24,12 @@ export const OrgLayout = () => {
     return () => clearTimeout(timer);
   }, [isOrgSynced]);
 
-  // Check if this is a public invoice view route (no auth required)
+  // Check if this is a public route (no auth required)
   const isPublicInvoiceRoute = location.pathname.includes('/invoice/view/');
+  const isPublicInstallRoute = /^\/[^/]+\/install\/?$/.test(location.pathname);
+  const isPublicPortalRoute = /^\/[^/]+\/portal(\/|$)/.test(location.pathname);
+  const isFieldSalesRoute = /^\/[^/]+\/field-sales\/?$/.test(location.pathname);
+  const isPublicRoute = isPublicInvoiceRoute || isPublicInstallRoute || isPublicPortalRoute || isFieldSalesRoute;
 
   useEffect(() => {
     if (orgSlug && user && !orgLoading && organizations.length > 0) {
@@ -57,8 +61,8 @@ export const OrgLayout = () => {
     }
   }, [currentOrganization, orgSlug]);
 
-  // For public invoice routes, allow access without authentication
-  if (isPublicInvoiceRoute) {
+  // For public routes, allow access without authentication
+  if (isPublicRoute) {
     // Store org slug for context even for public views (in both storages)
     if (orgSlug) {
       storeOrgSlug(orgSlug);
