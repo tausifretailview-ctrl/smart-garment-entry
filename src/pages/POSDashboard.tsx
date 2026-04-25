@@ -2037,6 +2037,15 @@ const POSDashboard = () => {
                                     ₹{Math.round(sale.net_amount).toLocaleString('en-IN')}
                                   </span>
                                 </div>
+                                {((sale.discount_amount || 0) + (sale.flat_discount_amount || 0)) > 0 && (
+                                  <div
+                                    className="text-xs font-medium text-muted-foreground whitespace-nowrap leading-tight"
+                                    title={`Gross ₹${Math.round(sale.gross_amount || 0).toLocaleString('en-IN')} − Disc ₹${Math.round((sale.discount_amount || 0) + (sale.flat_discount_amount || 0)).toLocaleString('en-IN')} = ₹${Math.round(sale.net_amount).toLocaleString('en-IN')}`}
+                                  >
+                                    ₹{Math.round(sale.gross_amount || 0).toLocaleString('en-IN')}
+                                    <span className="text-rose-600"> − ₹{Math.round((sale.discount_amount || 0) + (sale.flat_discount_amount || 0)).toLocaleString('en-IN')}</span>
+                                  </div>
+                                )}
                                 {(sale.sale_return_adjust || 0) > 0 && (
                                   <div
                                     className="text-xs font-semibold text-foreground whitespace-nowrap leading-tight"
