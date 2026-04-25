@@ -148,8 +148,14 @@ export const generateA4LabelPdf = async (
         const pdfX = toX(fieldX);
         const pdfY = toY(fieldY, fsPt);
 
-        // Truncate text to fit within field width or label width
-        const maxWidthMm = field.width ?? (labelWidthMm - fieldX);
+        // Truncate text to fit within field width or label width.
+        // CRITICAL: Clamp the field width to the available space inside the
+        // label box. Saved label configs may declare width=50mm on a 38mm
+        // label, which (combined with textAlign='right') would position text
+        // outside the label and into the next column — making column 1 appear
+        // empty because its overflow lands under column 2's content.
+        const availableWidthMm = Math.max(1, labelWidthMm - fieldX);
+        const maxWidthMm = Math.min(field.width ?? availableWidthMm, availableWidthMm);
         const maxWidthPt = mmToPt(maxWidthMm);
         
         let displayText = content;
