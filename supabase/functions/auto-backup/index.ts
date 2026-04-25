@@ -26,8 +26,8 @@ async function purgeOldBackups(
       console.error(`Purge list failed for ${organizationId}:`, listErr.message);
     } else if (files?.length) {
       const toDelete = files
-        .filter(f => f.created_at && new Date(f.created_at) < cutoff)
-        .map(f => `${organizationId}/${f.name}`);
+        .filter((f: any) => f.created_at && new Date(f.created_at) < cutoff)
+        .map((f: any) => `${organizationId}/${f.name}`);
 
       if (toDelete.length) {
         const { error: delErr } = await supabase.storage
@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
     }).eq('organization_id', organizationId);
 
     // Retention purge (per-org, honors backup_retention_days)
-    const purgeResult = await purgeOldBackups(supabase, organizationId, retentionDays);
+    const purgeResult = await purgeOldBackups(supabase, organizationId, retentionDays ?? 30);
 
     return new Response(
       JSON.stringify({
