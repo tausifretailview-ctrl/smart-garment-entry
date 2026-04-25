@@ -301,14 +301,26 @@ export function CustomerPaymentTab({
   // Create voucher mutation
   const createVoucher = useMutation({
     mutationFn: async () => {
-      const invoicesToProcess = selectedInvoiceIds;
+      const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
+      const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
       const paymentAmount = parseFloat(amount);
       const discountValue = parseFloat(discountAmount) || 0;
       const totalSettlement = paymentAmount + discountValue;
       let remainingAmount = totalSettlement;
       const processedInvoices: any[] = [];
+      // Treat as opening-balance-only when nothing real is selected and either OB row is selected,
+      // or no invoices exist at all (legacy behaviour).
       const isOpeningBalancePayment = invoicesToProcess.length === 0;
+      let openingBalanceApplied = 0;
+
+      // If user selected the Opening Balance row alongside invoices, settle OB FIRST
+      // up to its remaining amount, then apply the rest to invoices.
+      if (includesOpeningBalance && invoicesToProcess.length > 0) {
+        const obRemaining = Number(openingBalanceRemaining || 0);
+        openingBalanceApplied = Math.min(remainingAmount, obRemaining);
+        remainingAmount -= openingBalanceApplied;
+      }
 
       if (invoicesToProcess.length > 0) {
         for (const invoiceId of invoicesToProcess) {
@@ -353,6 +365,32 @@ export function CustomerPaymentTab({
 
       let createdVouchers: any[] = [];
       if (!isOpeningBalancePayment && processedInvoices.length > 0) {
+        // Optional Opening Balance leg, when mixed with invoices
+        if (includesOpeningBalance && openingBalanceApplied > 0) {
+          const obVoucherNumber = `${voucherNumber}-OB`;
+          const { data: obVoucher, error: obErr } = await supabase.from("voucher_entries").insert({
+            organization_id: organizationId,
+            voucher_number: obVoucherNumber,
+            voucher_type: "receipt",
+            voucher_date: format(voucherDate, "yyyy-MM-dd"),
+            reference_type: 'customer',
+            reference_id: referenceId,
+            description: `Opening Balance Payment${paymentDetails}`,
+            total_amount: openingBalanceApplied,
+            payment_method: paymentMethod,
+          }).select().single();
+          if (obErr) throw obErr;
+          createdVouchers.push(obVoucher);
+          insertLedgerCredit({
+            organizationId,
+            customerId: referenceId,
+            voucherType: 'RECEIPT',
+            voucherNo: obVoucherNumber,
+            particulars: 'Opening Balance Receipt',
+            transactionDate: format(voucherDate, "yyyy-MM-dd"),
+            amount: openingBalanceApplied,
+          });
+        }
         for (let i = 0; i < processedInvoices.length; i++) {
           const processed = processedInvoices[i];
           const invoiceVoucherNumber = processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
