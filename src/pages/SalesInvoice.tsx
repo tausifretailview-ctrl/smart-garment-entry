@@ -3693,13 +3693,13 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      {showCol.color && <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5 hidden lg:table-cell">
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>}
                       <td className="text-center px-3 py-2">
                         <span className="font-mono text-[15px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
                       </td>
-                      {showCol.hsn && <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
+                      {showCol.hsn && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
                       <td className="text-center px-1.5 py-1">
                         <Input
                           type="number"
@@ -3732,7 +3732,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[90px] h-10 text-right text-[17px] tabular-nums ml-auto"
+                          className="w-[120px] h-10 text-right text-[17px] tabular-nums ml-auto"
                         />
                       </td>}
                       <td className="text-right px-1.5 py-1">
@@ -3743,7 +3743,7 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[90px] h-10 text-right text-[15px] font-semibold tabular-nums ml-auto"
+                          className="w-[120px] h-10 text-right text-[15px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
                       {showCol.disc_percent && <td className="text-right px-1.5 py-1">
@@ -3895,7 +3895,7 @@ Thank you for choosing us!`;
               placeholder="0"
               onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[80px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+              className="w-[110px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
             {pointsToRedeem > 0 && (
