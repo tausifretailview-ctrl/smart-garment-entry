@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -590,6 +591,10 @@ const POSDashboard = () => {
       const success = await softDelete("sales", saleToDelete.id);
       if (!success) throw new Error("Failed to delete sale");
 
+      if (saleToDelete?.sale_number && currentOrganization?.id) {
+        await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: saleToDelete.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+      }
+
       toast({
         title: "Success",
         description: `Sale ${saleToDelete.sale_number} moved to recycle bin`,
@@ -616,6 +621,15 @@ const POSDashboard = () => {
     try {
       const salesToDelete = Array.from(selectedSales);
       const count = await bulkSoftDelete("sales", salesToDelete);
+
+      if (currentOrganization?.id) {
+        for (const sid of salesToDelete) {
+          const s: any = sales.find((x: any) => x.id === sid);
+          if (s?.sale_number) {
+            await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: s.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+          }
+        }
+      }
 
       toast({
         title: "Success",
@@ -646,14 +660,19 @@ const POSDashboard = () => {
       let failCount = 0;
       for (const id of ids) {
         try {
+          const s: any = sales.find((x: any) => x.id === id);
           const { data, error } = await supabase.rpc('cancel_invoice', {
             p_sale_id: id,
             p_reason: bulkCancelReason.trim() || null,
           });
           if (error) { failCount++; continue; }
           const result = data as any;
-          if (result && (result.success === true || result === true)) successCount++;
-          else failCount++;
+          if (result && (result.success === true || result === true)) {
+            successCount++;
+            if (s?.sale_number && currentOrganization?.id) {
+              await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: s.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+            }
+          } else failCount++;
         } catch {
           failCount++;
         }
