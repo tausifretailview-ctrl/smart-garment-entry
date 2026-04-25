@@ -799,8 +799,10 @@ export function CustomerPaymentTab({
 
               {/* Discount Fields */}
               {(() => {
+                const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0) || 0;
+                const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0;
                 const selectedInvoiceTotal = selectedInvoiceIds.length > 0
-                  ? customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0) || 0
+                  ? invoicePart + obPart
                   : (customerBalance || 0);
                 const paymentValue = parseFloat(amount) || 0;
                 const suggestedDiscount = Math.max(0, selectedInvoiceTotal - paymentValue);
