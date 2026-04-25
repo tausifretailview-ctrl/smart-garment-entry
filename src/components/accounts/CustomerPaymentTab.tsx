@@ -231,6 +231,17 @@ export function CustomerPaymentTab({
         await supabase.from('sales').update({ paid_amount: newPaid, payment_status: newStatus }).eq('id', invoice.id);
         const vNum = invoicesToProcess.length > 1 ? `${voucherNumber}-${idx + 1}` : voucherNumber;
         await supabase.from("voucher_entries").insert({ organization_id: organizationId, voucher_number: vNum, voucher_type: "receipt", voucher_date: format(new Date(), "yyyy-MM-dd"), reference_type: 'sale', reference_id: invoice.id, description: `Adjusted from advance balance for ${invoice.sale_number}`, total_amount: applyAmt, payment_method: 'advance_adjustment' });
+        if (referenceId) {
+          insertLedgerCredit({
+            organizationId,
+            customerId: referenceId,
+            voucherType: 'RECEIPT',
+            voucherNo: vNum,
+            particulars: `Advance adjusted for ${invoice.sale_number}`,
+            transactionDate: format(new Date(), "yyyy-MM-dd"),
+            amount: applyAmt,
+          });
+        }
         remaining -= applyAmt;
         idx++;
       }
@@ -325,6 +336,17 @@ export function CustomerPaymentTab({
           }).select().single();
           if (voucherError) throw voucherError;
           createdVouchers.push(voucher);
+          if (referenceId) {
+            insertLedgerCredit({
+              organizationId,
+              customerId: referenceId,
+              voucherType: 'RECEIPT',
+              voucherNo: invoiceVoucherNumber,
+              particulars: `Receipt for ${processed.invoice.sale_number}`,
+              transactionDate: format(voucherDate, "yyyy-MM-dd"),
+              amount: processed.amountApplied,
+            });
+          }
         }
       } else {
         const { data: voucher, error: voucherError } = await supabase.from("voucher_entries").insert({
@@ -342,6 +364,17 @@ export function CustomerPaymentTab({
         }).select().single();
         if (voucherError) throw voucherError;
         createdVouchers.push(voucher);
+        if (referenceId) {
+          insertLedgerCredit({
+            organizationId,
+            customerId: referenceId,
+            voucherType: 'RECEIPT',
+            voucherNo: voucherNumber,
+            particulars: isOpeningBalancePayment ? 'Opening Balance Receipt' : 'Receipt',
+            transactionDate: format(voucherDate, "yyyy-MM-dd"),
+            amount: paymentAmount,
+          });
+        }
       }
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod, discountAmount: discountValue, discountReason };
