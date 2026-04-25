@@ -325,6 +325,31 @@ export const useSaveSale = () => {
 
       if (itemsError) throw itemsError;
 
+      // Customer Account Statement — write double-entry ledger (fire-and-forget)
+      if (saleData.customerId) {
+        const txnDate = new Date().toISOString().slice(0, 10);
+        insertLedgerDebit({
+          organizationId: currentOrganization.id,
+          customerId: saleData.customerId,
+          voucherType: 'SALE',
+          voucherNo: saleNumber,
+          particulars: `Sales Invoice ${saleNumber}`,
+          transactionDate: txnDate,
+          amount: saleData.netAmount,
+        });
+        if (paidAmt > 0) {
+          insertLedgerCredit({
+            organizationId: currentOrganization.id,
+            customerId: saleData.customerId,
+            voucherType: 'RECEIPT',
+            voucherNo: saleNumber,
+            particulars: `Payment at Sale ${saleNumber}`,
+            transactionDate: txnDate,
+            amount: paidAmt,
+          });
+        }
+      }
+
       // Mark consumed sale_return(s) as adjusted and link to this sale.
       // When sale_return_adjust > 0, FIFO-consume pending SRs for this customer
       // so the customer balance formula recognizes them as already absorbed
