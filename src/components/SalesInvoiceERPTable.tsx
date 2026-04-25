@@ -272,7 +272,7 @@ export function SalesInvoiceERPTable({
       cols.push(
         {
           id: "pay_status",
-          header: "Pay Status",
+          header: "Status",
           cell: ({ row }) => {
             const invoice = row.original;
             const cnAdjusted = cnAdjustedMap[invoice.id];
@@ -315,8 +315,8 @@ export function SalesInvoiceERPTable({
               </div>
             );
           },
-          size: 90,
-          minSize: 80,
+          size: 110,
+          minSize: 95,
         },
         {
           id: "balance",
@@ -326,8 +326,8 @@ export function SalesInvoiceERPTable({
               ₹{Math.max(0, Math.round((row.original.net_amount || 0) - (row.original.paid_amount || 0) - (row.original.sale_return_adjust || 0))).toLocaleString('en-IN')}
             </span>
           ),
-          size: 90,
-          minSize: 75,
+          size: 110,
+          minSize: 95,
         }
       );
     }
@@ -352,8 +352,8 @@ export function SalesInvoiceERPTable({
             </div>
           );
         },
-        size: 95,
-        minSize: 80,
+        size: 110,
+        minSize: 95,
       });
     }
 
