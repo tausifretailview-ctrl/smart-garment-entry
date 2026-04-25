@@ -38,13 +38,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               ? "flex flex-col flex-1 min-h-0 overflow-hidden"
               : "flex flex-col flex-1"
           }>
-            {isSalesInvoicePage ? (
-              /* Compact top strip on Sales Invoice with sidebar toggle so the
-                 collapsed icon rail can be expanded on demand. */
-              <div className="flex items-center gap-1 px-2 py-1 border-b bg-sidebar shrink-0">
-                <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
-              </div>
-            ) : (
+            {!isSalesInvoicePage && (
               <>
                 <Header />
                 {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
