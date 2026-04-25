@@ -184,7 +184,9 @@ export default function StockReport() {
           () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
         ),
         fetchAllPages(
-          () => supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+          // Query purchase_bills directly (small table) instead of batch_stock (huge),
+          // since we only need the unique supplier names and invoice numbers for filters.
+          () => supabase.from("purchase_bills").select("supplier_name, supplier_invoice_no").eq("organization_id", currentOrganization.id).is("deleted_at", null)
         ),
       ]);
 
@@ -206,8 +208,8 @@ export default function StockReport() {
         departments: [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[],
         sizes: [...new Set(allVariants.map((v: any) => v.size).filter(Boolean))].sort() as string[],
         colors: [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[],
-        suppliers: [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[],
-        supplierInvoices: [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[],
+        suppliers: [...new Set(batchData.map((b: any) => b.supplier_name).filter(Boolean))].sort() as string[],
+        supplierInvoices: [...new Set(batchData.map((b: any) => b.supplier_invoice_no).filter(Boolean))].sort() as string[],
         productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
         rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
         variantsByProductId,
@@ -294,7 +296,7 @@ export default function StockReport() {
           () => supabase.from("product_variants").select("product_id, size, color").eq("organization_id", currentOrganization.id).eq("active", true).is("deleted_at", null)
         ),
         fetchAllPages(
-          () => supabase.from("batch_stock").select("purchase_bills(supplier_name, supplier_invoice_no)").eq("organization_id", currentOrganization.id)
+          () => supabase.from("purchase_bills").select("supplier_name, supplier_invoice_no").eq("organization_id", currentOrganization.id).is("deleted_at", null)
         ),
       ]);
 
@@ -314,8 +316,8 @@ export default function StockReport() {
       const departments = [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[];
       const sizes = [...new Set(allVariants.map((v: any) => v.size).filter(Boolean))].sort() as string[];
       const colors = [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[];
-      const suppliers = [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[];
-      const supplierInvoices = [...new Set(batchData.map((b: any) => b.purchase_bills?.supplier_invoice_no).filter(Boolean))].sort() as string[];
+      const suppliers = [...new Set(batchData.map((b: any) => b.supplier_name).filter(Boolean))].sort() as string[];
+      const supplierInvoices = [...new Set(batchData.map((b: any) => b.supplier_invoice_no).filter(Boolean))].sort() as string[];
       
       setFilterOptions({
         brands,
