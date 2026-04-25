@@ -816,11 +816,6 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
-      // Mark consumed sale_return(s) as adjusted and link to this sale (edit path)
-      if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
-        // (ledger refresh handled below)
-      }
-
       // Customer Account Statement — refresh ledger entries (delete + re-insert)
       if (sale?.sale_number && currentOrganization?.id) {
         await deleteLedgerEntries({
