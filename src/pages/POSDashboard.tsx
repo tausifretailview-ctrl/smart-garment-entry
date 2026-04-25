@@ -1930,8 +1930,21 @@ const POSDashboard = () => {
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="rounded-md border max-h-[600px] overflow-hidden">
+                <div className="h-10 bg-muted/70 border-b" />
+                <div className="divide-y">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="h-4 w-4 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                      <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div 
