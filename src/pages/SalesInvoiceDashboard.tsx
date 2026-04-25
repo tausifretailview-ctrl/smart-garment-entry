@@ -836,6 +836,7 @@ export default function SalesInvoiceDashboard() {
       let failCount = 0;
       for (const id of invoiceIds) {
         try {
+          const inv: any = (paginatedInvoices as any[])?.find?.((x: any) => x.id === id);
           const { data, error } = await supabase.rpc('cancel_invoice', {
             p_sale_id: id,
             p_reason: bulkCancelReason.trim() || null,
@@ -846,8 +847,14 @@ export default function SalesInvoiceDashboard() {
             failCount++;
           } else if (data && typeof data === 'object' && (data as any).success) {
             successCount++;
+            if (inv?.sale_number && currentOrganization?.id) {
+              await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: inv.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+            }
           } else if (typeof data === 'boolean' && data === true) {
             successCount++;
+            if (inv?.sale_number && currentOrganization?.id) {
+              await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: inv.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+            }
           } else {
             console.error('Cancel invoice unexpected result:', id, data);
             failCount++;
@@ -887,6 +894,9 @@ export default function SalesInvoiceDashboard() {
       if (!result.success) throw new Error(result.error);
 
       toast({ title: 'Invoice Cancelled', description: result.message });
+      if (invoiceToCancel?.sale_number && currentOrganization?.id) {
+        await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: invoiceToCancel.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+      }
       setInvoiceToCancel(null);
       setCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -909,6 +919,9 @@ export default function SalesInvoiceDashboard() {
         title: 'Invoice Permanently Deleted',
         description: `Invoice ${invoiceToHardDelete.sale_number} has been permanently deleted and stock restored.`,
       });
+      if (invoiceToHardDelete?.sale_number && currentOrganization?.id) {
+        await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: invoiceToHardDelete.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+      }
       setInvoiceToHardDelete(null);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
