@@ -334,9 +334,11 @@ const POSDashboard = () => {
           .is("deleted_at", null)
           .eq("is_cancelled", false);
 
-        // Server-side date filter for performance — avoids loading entire history
-        if (startDate) query = query.gte("sale_date", startDate);
-        if (endDate) query = query.lte("sale_date", endDate);
+        // Server-side date filter for performance — avoids loading entire history.
+        // sale_date is timestamptz, so use full-day bounds to include sales saved
+        // later in the day (otherwise lte("2026-04-25") excludes 2026-04-25 05:35:56).
+        if (startDate) query = query.gte("sale_date", `${startDate}T00:00:00`);
+        if (endDate) query = query.lte("sale_date", `${endDate}T23:59:59.999`);
 
         const { data, error } = await query
           .order("sale_date", { ascending: false })
