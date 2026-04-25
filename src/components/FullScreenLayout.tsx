@@ -23,7 +23,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const isSalesInvoicePage = /\/sales-invoice\/?$/.test(location.pathname);
   return (
     <ChatProvider>
-      <SidebarProvider>
+      <SidebarProvider defaultOpen={!isSalesInvoicePage}>
         {/* Mobile offline indicator */}
         <OfflineIndicator />
         
@@ -32,13 +32,19 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             ? "flex h-screen w-full overflow-hidden bg-background"
             : "flex min-h-screen w-full bg-background"
         }>
-          {!isSalesInvoicePage && <AppSidebar />}
+          <AppSidebar />
           <SidebarInset className={
             isSalesInvoicePage
               ? "flex flex-col flex-1 min-h-0 overflow-hidden"
               : "flex flex-col flex-1"
           }>
-            {!isSalesInvoicePage && (
+            {isSalesInvoicePage ? (
+              /* Compact top strip on Sales Invoice with sidebar toggle so the
+                 collapsed icon rail can be expanded on demand. */
+              <div className="flex items-center gap-1 px-2 py-1 border-b bg-sidebar shrink-0">
+                <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
+              </div>
+            ) : (
               <>
                 <Header />
                 {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}

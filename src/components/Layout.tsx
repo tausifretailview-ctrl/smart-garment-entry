@@ -59,9 +59,15 @@ export const Layout = ({ children }: LayoutProps) => {
         <OfflineIndicator />
         
         <div className="flex min-h-screen w-full bg-background">
-          {!isSalesInvoicePage && <AppSidebar />}
+          <AppSidebar />
           <SidebarInset className="flex flex-col flex-1">
-            {!isSalesInvoicePage && (
+            {isSalesInvoicePage ? (
+              /* Minimal top strip on Sales Invoice: just a sidebar toggle so the
+                 collapsed icon rail can be expanded on demand. */
+              <div className="flex items-center gap-1 px-2 py-1 border-b bg-sidebar">
+                <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
+              </div>
+            ) : (
               <>
                 <Header />
                 {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
