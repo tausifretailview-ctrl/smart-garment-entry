@@ -3509,7 +3509,7 @@ export default function BarcodePrinting() {
       return;
     }
 
-    // Classic mode: Generate labels in the print area
+    // Classic mode: Generate labels in the print area (for on-screen preview)
     generatePreview("printArea");
 
     // For thermal sheets: keep existing window.print() approach
@@ -3523,81 +3523,65 @@ export default function BarcodePrinting() {
       return;
     }
 
-    // For A4 sheets: open clean isolated print window (same as Precision Pro)
-    setTimeout(() => {
-      const printAreaEl = document.getElementById("printArea");
-      if (!printAreaEl) return;
+    // For A4 sheets: route through the same absolute-positioned PDF generator
+    // as "Perfect PDF" to eliminate cumulative drift across the sheet.
+    const hasLabels = labelItems.some((item) => item.qty > 0);
+    if (!hasLabels) {
+      toast.error('Please add at least one label with quantity > 0');
+      return;
+    }
+    toast.info('Preparing label sheet…');
+    try {
+      const dimensions = sheetType === 'custom'
+        ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+        : {
+            cols: sheetPresets[sheetType].cols,
+            rows: (sheetPresets[sheetType] as any).rows || 10,
+            width: parseInt(sheetPresets[sheetType].width),
+            height: parseInt(sheetPresets[sheetType].height),
+            gap: parseInt(sheetPresets[sheetType].gap),
+          };
 
-      const labelHTML = printAreaEl.innerHTML;
-      const { marginTop, marginBottom, marginLeft, marginRight } = getSheetPageMargins();
+      const pdfBytes = await generateA4LabelPdf(labelItems, {
+        labelWidthMm: dimensions.width,
+        labelHeightMm: dimensions.height,
+        cols: dimensions.cols,
+        rows: dimensions.rows,
+        gapMm: dimensions.gap,
+        topOffsetMm: topOffset,
+        leftOffsetMm: leftOffset,
+        labelConfig,
+        businessName,
+      });
 
-      const printWindow = window.open('', '_blank');
+      const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
+      const pdfUrl = URL.createObjectURL(blob);
+      const printWindow = window.open(pdfUrl, '_blank');
+
       if (!printWindow) {
-        toast.error("Popup blocked — please allow popups for this site.");
+        // Pop-up blocker — fall back to download
+        const a = document.createElement('a');
+        a.href = pdfUrl;
+        a.download = `labels-${Date.now()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.error('Pop-up blocked — PDF downloaded. Open it and print at Actual Size (100%).');
+        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
         return;
       }
 
-      printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-<style>
-  @page {
-    size: A4 portrait;
-    margin: ${marginTop.toFixed(2)}mm ${marginRight.toFixed(2)}mm ${marginBottom.toFixed(2)}mm ${marginLeft.toFixed(2)}mm !important;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 210mm;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .label-grid {
-    display: grid;
-    page-break-after: always;
-    break-after: page;
-    align-content: start;
-  }
-  .label-grid:last-child {
-    page-break-after: auto;
-    break-after: auto;
-  }
-  .label-cell {
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    align-self: start;
-    flex-shrink: 0;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  .brand { font-family: Arial, sans-serif; font-weight: 800; text-transform: uppercase; }
-  .prod  { font-family: Arial, sans-serif; }
-  .mrp   { font-family: Arial, sans-serif; font-weight: 700; }
-  .meta  { font-family: Arial, sans-serif; }
-  svg, canvas { display: block; }
-  @media print {
-    html, body { margin: 0 !important; padding: 0 !important; }
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-</style>
-</head>
-<body>${labelHTML}</body>
-</html>`);
-
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 400);
-    }, 300);
+      printWindow.addEventListener('load', () => {
+        setTimeout(() => {
+          try { printWindow.print(); } catch { /* ignore */ }
+          setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+        }, 500);
+      });
+      toast.success('Print at Actual Size (100%) for accurate labels');
+    } catch (err) {
+      console.error('Label PDF generation error:', err);
+      toast.error('Failed to generate label sheet');
+    }
   };
 
   const handleTestPrint = async () => {
