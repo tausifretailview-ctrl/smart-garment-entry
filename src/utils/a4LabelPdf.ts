@@ -148,14 +148,12 @@ export const generateA4LabelPdf = async (
         const pdfX = toX(fieldX);
         const pdfY = toY(fieldY, fsPt);
 
-        // Truncate text to fit within field width or label width.
-        // CRITICAL: Clamp the field width to the available space inside the
-        // label box. Saved label configs may declare width=50mm on a 38mm
-        // label, which (combined with textAlign='right') would position text
-        // outside the label and into the next column — making column 1 appear
-        // empty because its overflow lands under column 2's content.
+        // Field width is stored by the label designer as a percentage of the
+        // label width (20-100), not as millimetres. Match the Standard Printing
+        // HTML renderer so left/right-half fields do not print on the wrong side.
         const availableWidthMm = Math.max(1, labelWidthMm - fieldX);
-        const maxWidthMm = Math.min(field.width ?? availableWidthMm, availableWidthMm);
+        const requestedWidthMm = ((field.width ?? 100) / 100) * labelWidthMm;
+        const maxWidthMm = Math.min(requestedWidthMm, availableWidthMm);
         const maxWidthPt = mmToPt(maxWidthMm);
         
         let displayText = content;
@@ -203,7 +201,11 @@ export const generateA4LabelPdf = async (
       if (barcodeConfig?.show && item.barcode) {
         const bcX = barcodeConfig.x ?? 1;
         const bcY = barcodeConfig.y ?? (labelHeightMm * 0.35);
-        const bcWidthMm = barcodeConfig.width ?? (labelWidthMm - 2);
+        const bcAvailableWidthMm = Math.max(1, labelWidthMm - bcX);
+        const bcRequestedWidthMm = barcodeConfig.width !== undefined
+          ? (barcodeConfig.width / 100) * labelWidthMm
+          : bcAvailableWidthMm;
+        const bcWidthMm = Math.min(bcRequestedWidthMm, bcAvailableWidthMm);
         const barcodeHeightPx = labelConfig.barcodeHeight ?? Math.max(15, labelHeightMm * 0.3 * 3.78);
         const bcHeightMm = barcodeHeightPx / 3.7795;
 
