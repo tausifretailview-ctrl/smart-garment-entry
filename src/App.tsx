@@ -80,6 +80,7 @@ const Auth = lazyWithRetry(() => import("./pages/Auth"));
 const ResetPassword = lazyWithRetry(() => import("./pages/ResetPassword"));
 const OrgAuth = lazyWithRetry(() => import("./pages/OrgAuth"));
 const FieldSalesAuth = lazyWithRetry(() => import("./pages/FieldSalesAuth"));
+const InstallApp = lazyWithRetry(() => import("./pages/InstallApp"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const PlatformAdmin = lazyWithRetry(() => import("./pages/PlatformAdmin"));
 const PublicInvoiceView = lazyWithRetry(() => import("./pages/PublicInvoiceView"));
