@@ -3895,7 +3895,7 @@ Thank you for choosing us!`;
               placeholder="0"
               onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[80px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+              className="w-[110px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
             {pointsToRedeem > 0 && (
