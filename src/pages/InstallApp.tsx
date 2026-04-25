@@ -36,10 +36,10 @@ export default function InstallApp() {
     (async () => {
       const { data } = await supabase
         .from("organizations")
-        .select("name, business_name")
+        .select("name")
         .eq("slug", orgSlug)
         .maybeSingle();
-      if (data) setOrgName(data.business_name || data.name || "");
+      if (data) setOrgName((data as any).name || "");
       setLoading(false);
     })();
   }, [orgSlug]);
