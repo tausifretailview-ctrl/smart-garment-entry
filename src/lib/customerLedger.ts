@@ -12,7 +12,12 @@ import { logError } from "@/lib/errorLogger";
  * app_error_logs but never thrown — they must not block the primary save.
  */
 
-export type LedgerVoucherType = "OPENING" | "SALE" | "RECEIPT" | "SALE_RETURN";
+export type LedgerVoucherType =
+  | "OPENING"
+  | "SALE"
+  | "RECEIPT"
+  | "SALE_RETURN"
+  | "PAYMENT";
 
 interface LedgerEntryInput {
   organizationId: string;
