@@ -735,17 +735,25 @@ export const FloatingSaleReturn = ({
       }
 
       // Apply pending credit note if one was selected alongside this return
-      if (appliedCreditNoteId && customerId) {
+      if (appliedCreditNoteId && effectiveCustomerId) {
         try {
           const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
           if (cn) {
-            await supabase
-              .from("sale_returns")
-              .update({
-                credit_status: "adjusted",
-                linked_sale_id: null,
-              })
-              .eq("id", cn.id);
+            const redeemAmount = Math.max(0, Math.min(appliedCreditAmount || cn.creditAmount, cn.creditAmount));
+            const isPartial = redeemAmount < cn.creditAmount;
+            if (isPartial) {
+              await supabase.from("sale_returns").update({
+                net_amount: cn.creditAmount - redeemAmount,
+              } as any).eq("id", cn.id);
+            } else {
+              await supabase
+                .from("sale_returns")
+                .update({
+                  credit_status: "adjusted",
+                  linked_sale_id: null,
+                })
+                .eq("id", cn.id);
+            }
 
             const { data: lastVoucher } = await supabase
               .from("voucher_entries")
@@ -763,9 +771,11 @@ export const FloatingSaleReturn = ({
               voucher_type: "receipt",
               voucher_date: new Date().toISOString().split("T")[0],
               reference_type: "customer",
-              reference_id: customerId,
-              description: `Credit note ${cn.returnNumber} applied via POS`,
-              total_amount: cn.creditAmount,
+              reference_id: effectiveCustomerId,
+              description: isPartial
+                ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
+                : `Credit note ${cn.returnNumber} applied via POS`,
+              total_amount: redeemAmount,
               payment_method: "credit_note_adjustment",
             });
           }
