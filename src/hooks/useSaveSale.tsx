@@ -831,6 +831,17 @@ export const useSaveSale = () => {
         refundAmt = saleData.refundAmount;
       }
 
+      const exchange = getExchangeAmounts(saleData, refundAmt);
+      const { isExchangeRefund } = exchange;
+      if (isExchangeRefund) {
+        paidAmt = exchange.billAmount;
+        payStatus = 'completed';
+        cashAmt = 0;
+        cardAmt = 0;
+        upiAmt = 0;
+        refundAmt = 0;
+      }
+
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
       const { error: deleteError } = await supabase
         .from('sale_items')
@@ -918,6 +929,7 @@ export const useSaveSale = () => {
         });
         if (saleData.customerId) {
           const txnDate = new Date().toISOString().slice(0, 10);
+          const saleDebitAmount = isExchangeRefund ? exchange.billAmount : saleData.netAmount;
           insertLedgerDebit({
             organizationId: currentOrganization.id,
             customerId: saleData.customerId,
@@ -925,9 +937,9 @@ export const useSaveSale = () => {
             voucherNo: sale.sale_number,
             particulars: `Sales Invoice ${sale.sale_number}`,
             transactionDate: txnDate,
-            amount: saleData.netAmount,
+            amount: saleDebitAmount,
           });
-          if (paidAmt > 0) {
+          if (!isExchangeRefund && paidAmt > 0) {
             insertLedgerCredit({
               organizationId: currentOrganization.id,
               customerId: saleData.customerId,
@@ -938,6 +950,36 @@ export const useSaveSale = () => {
               amount: paidAmt,
             });
           }
+        }
+      }
+
+      if (isExchangeRefund && saleData.customerId && sale?.sale_number) {
+        try {
+          const txnDate = new Date().toISOString().slice(0, 10);
+          await (supabase as any)
+            .from('voucher_entries')
+            .delete()
+            .eq('organization_id', currentOrganization.id)
+            .eq('voucher_type', 'payment')
+            .eq('reference_type', 'customer')
+            .eq('reference_id', saleData.customerId)
+            .ilike('description', `%POS exchange ${sale.sale_number}%`);
+          await (supabase as any)
+            .from('customer_ledger_entries')
+            .delete()
+            .eq('organization_id', currentOrganization.id)
+            .eq('customer_id', saleData.customerId)
+            .eq('voucher_type', 'PAYMENT')
+            .ilike('particulars', `%POS exchange ${sale.sale_number}%`);
+          await writeExchangePaymentVouchers({
+            saleNumber: sale.sale_number,
+            customerId: saleData.customerId,
+            txnDate,
+            cashRefund: exchange.cashRefund,
+            roundOffRemainder: exchange.roundOffRemainder,
+          });
+        } catch (exErr) {
+          console.error('Exchange refund voucher refresh failed:', exErr);
         }
       }
 
