@@ -571,14 +571,14 @@ const DailyCashierReport = () => {
     y += 7;
     doc.text("UPI (Sales + RCP): " + formatCurrency(grandUpiCollection), 20, y);
     y += 7;
-    doc.text("Less: Refund: " + formatCurrency(totals.totalRefund), 20, y);
+    doc.text("Refund (already in Cash): " + formatCurrency(totals.totalRefund), 20, y);
     y += 7;
     if (totals.cashRefundTotal > 0) {
       doc.text("Less: S/R Cash Refund (" + totals.cashRefundCount + "): " + formatCurrency(totals.cashRefundTotal), 20, y);
       y += 7;
     }
     doc.setFont("helvetica", "bold");
-    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.totalRefund - totals.cashRefundTotal), 20, y);
+    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.cashRefundTotal), 20, y);
     y += 10;
     doc.setFont("helvetica", "normal");
     doc.text("Credit Outstanding: " + formatCurrency(totals.creditSale), 20, y);
