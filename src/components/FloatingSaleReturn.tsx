@@ -108,6 +108,8 @@ export const FloatingSaleReturn = ({
   }>>([]);
   const [appliedCreditNoteId, setAppliedCreditNoteId] = useState<string | null>(null);
   const [appliedCreditAmount, setAppliedCreditAmount] = useState(0);
+  // Per-CN editable redeem amount (keyed by sale_return id). Defaults to full amount.
+  const [cnRedeemInputs, setCnRedeemInputs] = useState<Record<string, number>>({});
 
   // Fetch sale return price setting
   useEffect(() => {
@@ -150,27 +152,6 @@ export const FloatingSaleReturn = ({
     if (open && organizationId) {
       loadSoldProducts();
       setTimeout(() => barcodeInputRef.current?.focus(), 200);
-      if (customerId) {
-        supabase
-          .from("sale_returns")
-          .select("id, return_number, return_date, net_amount, credit_note_id")
-          .eq("customer_id", customerId)
-          .eq("organization_id", organizationId)
-          .eq("credit_status", "pending")
-          .is("deleted_at", null)
-          .order("return_date", { ascending: false })
-          .then(({ data }) => {
-            setPendingCreditNotes(
-              (data || []).map((r: any) => ({
-                id: r.id,
-                returnNumber: r.return_number,
-                returnDate: r.return_date,
-                creditAmount: Number(r.net_amount) || 0,
-                creditNoteId: r.credit_note_id || null,
-              }))
-            );
-          });
-      }
     }
     if (!open) {
       setReturnItems([]);
@@ -183,12 +164,49 @@ export const FloatingSaleReturn = ({
       setPendingCreditNotes([]);
       setAppliedCreditNoteId(null);
       setAppliedCreditAmount(0);
+      setCnRedeemInputs({});
       setPickedCustomerId(null);
       setPickedCustomerName(null);
       setCustomerSearchTerm("");
       setCustomerSearchOpen(false);
     }
   }, [open, organizationId, customerId]);
+
+  // Load pending credit notes whenever the effective customer changes
+  // (covers both prop-passed customer and inline-picked customer).
+  useEffect(() => {
+    if (!open || !organizationId || !effectiveCustomerId) {
+      setPendingCreditNotes([]);
+      setAppliedCreditNoteId(null);
+      setAppliedCreditAmount(0);
+      setCnRedeemInputs({});
+      return;
+    }
+    supabase
+      .from("sale_returns")
+      .select("id, return_number, return_date, net_amount, credit_note_id")
+      .eq("customer_id", effectiveCustomerId)
+      .eq("organization_id", organizationId)
+      .eq("credit_status", "pending")
+      .is("deleted_at", null)
+      .order("return_date", { ascending: false })
+      .then(({ data }) => {
+        const list = (data || []).map((r: any) => ({
+          id: r.id,
+          returnNumber: r.return_number,
+          returnDate: r.return_date,
+          creditAmount: Number(r.net_amount) || 0,
+          creditNoteId: r.credit_note_id || null,
+        }));
+        setPendingCreditNotes(list);
+        // Reset edited amounts to full when list changes
+        const defaults: Record<string, number> = {};
+        list.forEach((c) => { defaults[c.id] = c.creditAmount; });
+        setCnRedeemInputs(defaults);
+        setAppliedCreditNoteId(null);
+        setAppliedCreditAmount(0);
+      });
+  }, [open, organizationId, effectiveCustomerId]);
 
   const loadSoldProducts = async () => {
     setLoading(true);
@@ -524,11 +542,24 @@ export const FloatingSaleReturn = ({
     if (returnItems.length === 0 && appliedCreditNoteId) {
       const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
       if (!cn) return;
+      const redeemAmount = Math.max(0, Math.min(appliedCreditAmount || cn.creditAmount, cn.creditAmount));
+      if (redeemAmount <= 0) {
+        toast({ title: "Invalid", description: "Redeem amount must be greater than 0", variant: "destructive" });
+        return;
+      }
+      const isPartial = redeemAmount < cn.creditAmount;
       setSaving(true);
       try {
-        await supabase.from("sale_returns").update({
-          credit_status: "adjusted",
-        }).eq("id", cn.id);
+        if (isPartial) {
+          // Keep SR pending, reduce its net_amount by what's being redeemed now
+          await supabase.from("sale_returns").update({
+            net_amount: cn.creditAmount - redeemAmount,
+          } as any).eq("id", cn.id);
+        } else {
+          await supabase.from("sale_returns").update({
+            credit_status: "adjusted",
+          }).eq("id", cn.id);
+        }
 
         const { data: lastVoucher } = await supabase
           .from("voucher_entries")
@@ -545,16 +576,18 @@ export const FloatingSaleReturn = ({
           voucher_date: new Date().toISOString().split("T")[0],
           reference_type: "customer",
           reference_id: effectiveCustomerId,
-          description: `Credit note ${cn.returnNumber} applied via POS`,
-          total_amount: cn.creditAmount,
+          description: isPartial
+            ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
+            : `Credit note ${cn.returnNumber} applied via POS`,
+          total_amount: redeemAmount,
           payment_method: "credit_note_adjustment",
         });
 
         toast({
           title: "Credit Note Applied",
-          description: `${cn.returnNumber} — ₹${Math.round(cn.creditAmount).toLocaleString("en-IN")} applied to current bill`,
+          description: `${cn.returnNumber} — ₹${Math.round(redeemAmount).toLocaleString("en-IN")} applied to current bill${isPartial ? ` (₹${Math.round(cn.creditAmount - redeemAmount).toLocaleString("en-IN")} remaining)` : ""}`,
         });
-        onReturnSaved(cn.creditAmount, cn.returnNumber, "credit_note");
+        onReturnSaved(redeemAmount, cn.returnNumber, "credit_note");
         onOpenChange(false);
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to apply credit note", variant: "destructive" });
@@ -702,17 +735,25 @@ export const FloatingSaleReturn = ({
       }
 
       // Apply pending credit note if one was selected alongside this return
-      if (appliedCreditNoteId && customerId) {
+      if (appliedCreditNoteId && effectiveCustomerId) {
         try {
           const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
           if (cn) {
-            await supabase
-              .from("sale_returns")
-              .update({
-                credit_status: "adjusted",
-                linked_sale_id: null,
-              })
-              .eq("id", cn.id);
+            const redeemAmount = Math.max(0, Math.min(appliedCreditAmount || cn.creditAmount, cn.creditAmount));
+            const isPartial = redeemAmount < cn.creditAmount;
+            if (isPartial) {
+              await supabase.from("sale_returns").update({
+                net_amount: cn.creditAmount - redeemAmount,
+              } as any).eq("id", cn.id);
+            } else {
+              await supabase
+                .from("sale_returns")
+                .update({
+                  credit_status: "adjusted",
+                  linked_sale_id: null,
+                })
+                .eq("id", cn.id);
+            }
 
             const { data: lastVoucher } = await supabase
               .from("voucher_entries")
@@ -730,9 +771,11 @@ export const FloatingSaleReturn = ({
               voucher_type: "receipt",
               voucher_date: new Date().toISOString().split("T")[0],
               reference_type: "customer",
-              reference_id: customerId,
-              description: `Credit note ${cn.returnNumber} applied via POS`,
-              total_amount: cn.creditAmount,
+              reference_id: effectiveCustomerId,
+              description: isPartial
+                ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
+                : `Credit note ${cn.returnNumber} applied via POS`,
+              total_amount: redeemAmount,
               payment_method: "credit_note_adjustment",
             });
           }
@@ -936,51 +979,84 @@ export const FloatingSaleReturn = ({
             </p>
             {pendingCreditNotes.map((pcn) => {
               const isApplied = appliedCreditNoteId === pcn.id;
+              const editVal = cnRedeemInputs[pcn.id] ?? pcn.creditAmount;
               return (
                 <div
                   key={pcn.id}
                   className={cn(
-                    "flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-all",
+                    "flex flex-col gap-1.5 px-3 py-2 rounded-md border text-sm transition-all",
                     isApplied
                       ? "border-green-500 bg-green-50 dark:bg-green-900/30"
                       : "border-amber-300 bg-white dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40"
                   )}
                 >
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono text-xs bg-amber-100 dark:bg-amber-800/50 px-1.5 py-0.5 rounded mr-2">
-                      {pcn.returnNumber}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {pcn.returnDate}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-mono text-xs bg-amber-100 dark:bg-amber-800/50 px-1.5 py-0.5 rounded mr-2">
+                        {pcn.returnNumber}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {pcn.returnDate}
+                      </span>
+                    </div>
+                    <span className="font-bold text-amber-800 dark:text-amber-200 shrink-0">
+                      Available: ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-bold text-amber-800 dark:text-amber-200">
-                      ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
-                    </span>
-                    {isApplied ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAppliedCreditNoteId(null);
-                          setAppliedCreditAmount(0);
-                        }}
-                        className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 border border-red-300 font-medium"
-                      >
-                        ✕ Remove
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAppliedCreditNoteId(pcn.id);
-                          setAppliedCreditAmount(pcn.creditAmount);
-                        }}
-                        className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
-                      >
-                        Apply ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
-                      </button>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] text-muted-foreground shrink-0">Redeem ₹</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={pcn.creditAmount}
+                      step="1"
+                      value={editVal || ""}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setCnRedeemInputs((prev) => ({ ...prev, [pcn.id]: v }));
+                        if (isApplied) {
+                          const clamped = Math.max(0, Math.min(v, pcn.creditAmount));
+                          setAppliedCreditAmount(clamped);
+                        }
+                      }}
+                      disabled={isApplied}
+                      className="h-7 w-28 text-sm no-uppercase"
+                    />
+                    <span className="text-[11px] text-muted-foreground">of ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}</span>
+                    <div className="ml-auto">
+                      {isApplied ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedCreditNoteId(null);
+                            setAppliedCreditAmount(0);
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 border border-red-300 font-medium"
+                        >
+                          ✕ Remove
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const requested = cnRedeemInputs[pcn.id] ?? pcn.creditAmount;
+                            if (!requested || requested <= 0) {
+                              toast({ title: "Invalid amount", description: "Enter an amount greater than 0", variant: "destructive" });
+                              return;
+                            }
+                            if (requested > pcn.creditAmount) {
+                              toast({ title: "Exceeds available", description: `Max ₹${Math.round(pcn.creditAmount).toLocaleString("en-IN")}`, variant: "destructive" });
+                              return;
+                            }
+                            setAppliedCreditNoteId(pcn.id);
+                            setAppliedCreditAmount(requested);
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
+                        >
+                          Apply ₹{Math.round(cnRedeemInputs[pcn.id] ?? pcn.creditAmount).toLocaleString("en-IN")}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -1176,14 +1252,24 @@ export const FloatingSaleReturn = ({
                 CN: ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
               </div>
             )}
-            {appliedCreditNoteId && returnItems.length === 0 ? (
-              <div>
-                Apply Credit Note:{" "}
-                <span className="text-green-600">
-                  ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
-                </span>
-              </div>
-            ) : (
+            {appliedCreditNoteId && returnItems.length === 0 ? (() => {
+              const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
+              const full = cn?.creditAmount || 0;
+              const remaining = Math.max(0, full - appliedCreditAmount);
+              return (
+                <div>
+                  Apply Credit Note:{" "}
+                  <span className="text-green-600">
+                    ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
+                  </span>
+                  {remaining > 0 && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      (of ₹{Math.round(full).toLocaleString("en-IN")} — ₹{Math.round(remaining).toLocaleString("en-IN")} remains)
+                    </span>
+                  )}
+                </div>
+              );
+            })() : (
               <div>
                 Return Total:{" "}
                 <span className="text-destructive">
