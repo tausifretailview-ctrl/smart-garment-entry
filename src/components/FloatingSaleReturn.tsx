@@ -542,11 +542,24 @@ export const FloatingSaleReturn = ({
     if (returnItems.length === 0 && appliedCreditNoteId) {
       const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
       if (!cn) return;
+      const redeemAmount = Math.max(0, Math.min(appliedCreditAmount || cn.creditAmount, cn.creditAmount));
+      if (redeemAmount <= 0) {
+        toast({ title: "Invalid", description: "Redeem amount must be greater than 0", variant: "destructive" });
+        return;
+      }
+      const isPartial = redeemAmount < cn.creditAmount;
       setSaving(true);
       try {
-        await supabase.from("sale_returns").update({
-          credit_status: "adjusted",
-        }).eq("id", cn.id);
+        if (isPartial) {
+          // Keep SR pending, reduce its net_amount by what's being redeemed now
+          await supabase.from("sale_returns").update({
+            net_amount: cn.creditAmount - redeemAmount,
+          } as any).eq("id", cn.id);
+        } else {
+          await supabase.from("sale_returns").update({
+            credit_status: "adjusted",
+          }).eq("id", cn.id);
+        }
 
         const { data: lastVoucher } = await supabase
           .from("voucher_entries")
@@ -563,16 +576,18 @@ export const FloatingSaleReturn = ({
           voucher_date: new Date().toISOString().split("T")[0],
           reference_type: "customer",
           reference_id: effectiveCustomerId,
-          description: `Credit note ${cn.returnNumber} applied via POS`,
-          total_amount: cn.creditAmount,
+          description: isPartial
+            ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
+            : `Credit note ${cn.returnNumber} applied via POS`,
+          total_amount: redeemAmount,
           payment_method: "credit_note_adjustment",
         });
 
         toast({
           title: "Credit Note Applied",
-          description: `${cn.returnNumber} — ₹${Math.round(cn.creditAmount).toLocaleString("en-IN")} applied to current bill`,
+          description: `${cn.returnNumber} — ₹${Math.round(redeemAmount).toLocaleString("en-IN")} applied to current bill${isPartial ? ` (₹${Math.round(cn.creditAmount - redeemAmount).toLocaleString("en-IN")} remaining)` : ""}`,
         });
-        onReturnSaved(cn.creditAmount, cn.returnNumber, "credit_note");
+        onReturnSaved(redeemAmount, cn.returnNumber, "credit_note");
         onOpenChange(false);
       } catch (err: any) {
         toast({ title: "Error", description: err.message || "Failed to apply credit note", variant: "destructive" });
