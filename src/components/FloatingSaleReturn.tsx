@@ -954,51 +954,84 @@ export const FloatingSaleReturn = ({
             </p>
             {pendingCreditNotes.map((pcn) => {
               const isApplied = appliedCreditNoteId === pcn.id;
+              const editVal = cnRedeemInputs[pcn.id] ?? pcn.creditAmount;
               return (
                 <div
                   key={pcn.id}
                   className={cn(
-                    "flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-all",
+                    "flex flex-col gap-1.5 px-3 py-2 rounded-md border text-sm transition-all",
                     isApplied
                       ? "border-green-500 bg-green-50 dark:bg-green-900/30"
                       : "border-amber-300 bg-white dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40"
                   )}
                 >
-                  <div className="flex-1 min-w-0">
-                    <span className="font-mono text-xs bg-amber-100 dark:bg-amber-800/50 px-1.5 py-0.5 rounded mr-2">
-                      {pcn.returnNumber}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {pcn.returnDate}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-mono text-xs bg-amber-100 dark:bg-amber-800/50 px-1.5 py-0.5 rounded mr-2">
+                        {pcn.returnNumber}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {pcn.returnDate}
+                      </span>
+                    </div>
+                    <span className="font-bold text-amber-800 dark:text-amber-200 shrink-0">
+                      Available: ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-bold text-amber-800 dark:text-amber-200">
-                      ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
-                    </span>
-                    {isApplied ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAppliedCreditNoteId(null);
-                          setAppliedCreditAmount(0);
-                        }}
-                        className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 border border-red-300 font-medium"
-                      >
-                        ✕ Remove
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAppliedCreditNoteId(pcn.id);
-                          setAppliedCreditAmount(pcn.creditAmount);
-                        }}
-                        className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
-                      >
-                        Apply ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}
-                      </button>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] text-muted-foreground shrink-0">Redeem ₹</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={pcn.creditAmount}
+                      step="1"
+                      value={editVal || ""}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value) || 0;
+                        setCnRedeemInputs((prev) => ({ ...prev, [pcn.id]: v }));
+                        if (isApplied) {
+                          const clamped = Math.max(0, Math.min(v, pcn.creditAmount));
+                          setAppliedCreditAmount(clamped);
+                        }
+                      }}
+                      disabled={isApplied}
+                      className="h-7 w-28 text-sm no-uppercase"
+                    />
+                    <span className="text-[11px] text-muted-foreground">of ₹{Math.round(pcn.creditAmount).toLocaleString("en-IN")}</span>
+                    <div className="ml-auto">
+                      {isApplied ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedCreditNoteId(null);
+                            setAppliedCreditAmount(0);
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 border border-red-300 font-medium"
+                        >
+                          ✕ Remove
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const requested = cnRedeemInputs[pcn.id] ?? pcn.creditAmount;
+                            if (!requested || requested <= 0) {
+                              toast({ title: "Invalid amount", description: "Enter an amount greater than 0", variant: "destructive" });
+                              return;
+                            }
+                            if (requested > pcn.creditAmount) {
+                              toast({ title: "Exceeds available", description: `Max ₹${Math.round(pcn.creditAmount).toLocaleString("en-IN")}`, variant: "destructive" });
+                              return;
+                            }
+                            setAppliedCreditNoteId(pcn.id);
+                            setAppliedCreditAmount(requested);
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700 font-medium"
+                        >
+                          Apply ₹{Math.round(cnRedeemInputs[pcn.id] ?? pcn.creditAmount).toLocaleString("en-IN")}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
