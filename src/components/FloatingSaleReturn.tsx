@@ -10,6 +10,7 @@ import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditC
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { insertLedgerCredit } from "@/lib/customerLedger";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
