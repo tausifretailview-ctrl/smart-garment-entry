@@ -426,8 +426,8 @@ export const useSaveSale = () => {
             insertLedgerDebit({
               organizationId: currentOrganization.id,
               customerId: saleData.customerId!,
-              voucherType: 'SALE_RETURN',
-              voucherNo: saleNumber,
+              voucherType: 'PAYMENT',
+              voucherNo: voucherNumber,
               particulars: description,
               transactionDate: txnDate,
               amount,
