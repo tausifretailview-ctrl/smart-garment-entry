@@ -395,7 +395,9 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                       )}
                       <TableRow className="bg-green-50 dark:bg-green-950">
                         <TableCell className="font-bold">Net Cash Collection</TableCell>
-                        <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
+                        {/* cash_amount on the sale row is already negative for refund outflows,
+                            so cashSale already reflects the refund — do NOT subtract totalRefund again. */}
+                        <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

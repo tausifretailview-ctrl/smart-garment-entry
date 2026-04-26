@@ -250,8 +250,10 @@ const DailyCashierReport = () => {
     // Process sales data
     if (salesData) {
       salesData.forEach((sale) => {
-        // Skip credit note issue sales (negative net_amount) — tracked in credit_notes, not revenue
-        if ((Number(sale.net_amount) || 0) < 0) return;
+        // NOTE: Refund-only sales (negative net_amount from S/R Adjust > bill) are
+        // INCLUDED here. Their cash_amount/upi_amount/card_amount are stored as
+        // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
+        // cardSale below — no separate "Less: Refund" subtraction is needed.
         grossSale += Number(sale.gross_amount) || 0;
         totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0) + (Number((sale as any).points_redeemed_amount) || 0);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
@@ -474,9 +476,9 @@ const DailyCashierReport = () => {
       ["UPI (Sales + RCP)", grandUpiCollection],
       ["S/R Adjusted", totals.totalSRAdjusted],
       ["Total Collection", grandTotalCollection],
-      ["Less: Refund", totals.totalRefund],
+      ["Refund (already in Cash)", totals.totalRefund],
       ["Less: Sale Return Cash Refund", totals.cashRefundTotal],
-      ["Net Cash Collection", grandCashCollection - totals.totalRefund - totals.cashRefundTotal],
+      ["Net Cash Collection", grandCashCollection - totals.cashRefundTotal],
       [],
       ["Outstanding"],
       ["Credit (Pay Later)", totals.creditSale],
@@ -569,14 +571,14 @@ const DailyCashierReport = () => {
     y += 7;
     doc.text("UPI (Sales + RCP): " + formatCurrency(grandUpiCollection), 20, y);
     y += 7;
-    doc.text("Less: Refund: " + formatCurrency(totals.totalRefund), 20, y);
+    doc.text("Refund (already in Cash): " + formatCurrency(totals.totalRefund), 20, y);
     y += 7;
     if (totals.cashRefundTotal > 0) {
       doc.text("Less: S/R Cash Refund (" + totals.cashRefundCount + "): " + formatCurrency(totals.cashRefundTotal), 20, y);
       y += 7;
     }
     doc.setFont("helvetica", "bold");
-    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.totalRefund - totals.cashRefundTotal), 20, y);
+    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.cashRefundTotal), 20, y);
     y += 10;
     doc.setFont("helvetica", "normal");
     doc.text("Credit Outstanding: " + formatCurrency(totals.creditSale), 20, y);
@@ -938,10 +940,10 @@ const DailyCashierReport = () => {
                         <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
                           <Banknote className="h-4 w-4 text-red-600 dark:text-red-400" />
                         </div>
-                        <span className="font-medium">Less: Refund</span>
+                        <span className="font-medium text-muted-foreground">Refund (already in Cash)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.totalRefund)}</TableCell>
+                    <TableCell className="text-right font-semibold text-muted-foreground">{formatCurrency(totals.totalRefund)}</TableCell>
                   </TableRow>
                   {totals.cashRefundTotal > 0 && (
                     <TableRow>
@@ -966,7 +968,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund - totals.cashRefundTotal)}</TableCell>
+                      <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.cashRefundTotal)}</TableCell>
                   </TableRow>
                   {/* RCP Collections Section */}
                   {totals.rcpTotalCollection > 0 && (
