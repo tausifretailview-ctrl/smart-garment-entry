@@ -254,6 +254,21 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         </div>
         <div style={dblLine} />
 
+        {/* REFUND PAID — settles negative bill to zero */}
+        {isRefundReceipt && (
+          <>
+            <div style={{ ...row, fontSize: '13px', fontWeight: 900, margin: '2px 0' }}>
+              <span>Refund Paid ({refundMode})</span>
+              <span>₹{fmtAmt(refundOutflow)}</span>
+            </div>
+            <div style={{ ...row, fontSize: '14px', fontWeight: 900, margin: '2px 0' }}>
+              <span>Net Settled</span>
+              <span>₹{fmtAmt(grandTotal + refundOutflow)}</span>
+            </div>
+            <div style={dblLine} />
+          </>
+        )}
+
         {/* YOU SAVED */}
         {discount > 0 && (
           <div style={{ ...center, fontSize: '13px', fontWeight: 900, margin: '2px 0' }}>
