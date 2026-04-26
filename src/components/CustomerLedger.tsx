@@ -1058,6 +1058,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const sale = item.data as any;
           const isCancelled = sale.payment_status === 'cancelled';
           const saleReturnAdjust = sale.sale_return_adjust || 0;
+          const isExchangeCoveredByReturn = saleReturnAdjust > 0 && sale.net_amount > 0 && saleReturnAdjust >= sale.net_amount;
           // net_amount is already the post-return amount saved at POS.
           // The sale return entry is a separate credit row — do NOT add
           // sale_return_adjust here or it double-counts the return.
@@ -1079,10 +1080,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // informational sub-row that visibly credits the S/R offset. The
           // sub-row has balanceEffect = 0 (debit=0, credit=0 for math/totals)
           // so the running balance is unchanged.
-          const grossAmount = (sale.net_amount || 0) + saleReturnAdjust;
+          const grossAmount = isExchangeCoveredByReturn ? (sale.net_amount || 0) : (sale.net_amount || 0) + saleReturnAdjust;
           const showGross = saleReturnAdjust > 0 && !isCancelled;
           const invoiceDescription = showGross
-            ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(sale.net_amount || 0).toLocaleString('en-IN')})`
+            ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(grossAmount - saleReturnAdjust).toLocaleString('en-IN')})`
             : `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
 
           allTransactions.push({
@@ -1127,7 +1128,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
           // Calculate "payment at sale" - exclude amounts paid via vouchers (recorded payments)
           // Total paid_amount includes all payments, but voucher payments are recorded separately
-          const totalPaidOnSale = sale.paid_amount || 0;
+          const totalPaidOnSale = isExchangeCoveredByReturn ? 0 : (sale.paid_amount || 0);
           const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
           const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
           
@@ -1377,6 +1378,22 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const voucher = item.data as any;
           const discountAmount = voucher.discount_amount || 0;
           const totalCredit = voucher.total_amount + discountAmount;
+          if (voucher.voucher_type === 'payment' && voucher.reference_type === 'customer') {
+            runningBalance += totalCredit;
+            allTransactions.push({
+              id: voucher.id,
+              date: voucher.voucher_date,
+              timestamp: item.timestamp || null,
+              type: 'refund',
+              reference: voucher.voucher_number,
+              description: voucher.description || 'Payment / refund paid to customer',
+              debit: totalCredit,
+              credit: 0,
+              balance: runningBalance,
+              paymentBreakdown: voucher.payment_method ? { method: voucher.payment_method } : undefined,
+            });
+            return;
+          }
           runningBalance -= totalCredit;
           
           // Determine if this is an opening balance payment or invoice payment

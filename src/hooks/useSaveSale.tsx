@@ -109,6 +109,66 @@ export const useSaveSale = () => {
     return data as string;
   };
 
+  const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+
+  const getExchangeAmounts = (saleData: SaleData, refundAmt: number) => {
+    const saleReturnTotal = roundMoney(saleData.saleReturnAdjust || 0);
+    const billAmount = Math.max(0, roundMoney((saleData.netAmount || 0) + saleReturnTotal));
+    const isExchangeRefund = saleReturnTotal > 0 && (saleData.netAmount || 0) <= 0 && billAmount > 0;
+    const refundDue = isExchangeRefund ? Math.max(0, roundMoney(saleReturnTotal - billAmount)) : 0;
+    const cashRefund = Math.min(Math.max(0, roundMoney(refundAmt || 0)), refundDue);
+    const roundOffRemainder = Math.max(0, roundMoney(refundDue - cashRefund));
+
+    return { isExchangeRefund, billAmount, cashRefund, roundOffRemainder };
+  };
+
+  const writeExchangePaymentVouchers = async (params: {
+    saleNumber: string;
+    customerId: string;
+    txnDate: string;
+    cashRefund: number;
+    roundOffRemainder: number;
+  }) => {
+    const writePaymentVoucher = async (
+      amount: number,
+      method: 'cash' | 'round_off',
+      description: string
+    ) => {
+      if (amount <= 0 || !currentOrganization?.id) return;
+      const { data: voucherNumber, error: numberError } = await supabase.rpc('generate_voucher_number' as any, {
+        p_type: 'payment',
+        p_date: params.txnDate,
+      } as any);
+      if (numberError) throw numberError;
+
+      const { error } = await supabase.from('voucher_entries').insert({
+        organization_id: currentOrganization.id,
+        voucher_number: voucherNumber as string,
+        voucher_type: 'payment',
+        voucher_date: params.txnDate,
+        reference_type: 'customer',
+        reference_id: params.customerId,
+        description,
+        total_amount: amount,
+        payment_method: method,
+      } as any);
+      if (error) throw error;
+
+      await insertLedgerDebit({
+        organizationId: currentOrganization.id,
+        customerId: params.customerId,
+        voucherType: 'PAYMENT',
+        voucherNo: voucherNumber as string,
+        particulars: description,
+        transactionDate: params.txnDate,
+        amount,
+      });
+    };
+
+    await writePaymentVoucher(params.cashRefund, 'cash', `Refund paid for POS exchange ${params.saleNumber}`);
+    await writePaymentVoucher(params.roundOffRemainder, 'round_off', `Round off adjustment for POS exchange ${params.saleNumber}`);
+  };
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
@@ -252,22 +312,15 @@ export const useSaveSale = () => {
         refundAmt = saleData.refundAmount;
       }
 
-      // ── POS Exchange Fix ────────────────────────────────────────────────
-      // When a Sale Return is applied to a new bill and SR > items value,
-      // the bill is fully covered by the SR (no money received from customer).
-      // Treat paid_amount as the items value so the sale row balances cleanly,
-      // and do NOT write a RECEIPT — the SR credit is already in the ledger.
-      // The cash refund (if any) and round-off remainder are written below as
-      // PAYMENT vouchers (debits) which exactly cancel out the SR credit.
-      const isExchangeRefund =
-        (saleData.saleReturnAdjust || 0) > 0 &&
-        saleData.netAmount < (saleData.saleReturnAdjust || 0);
-      const itemsValueForExchange = isExchangeRefund
-        ? Math.max(0, Math.round((saleData.netAmount + (saleData.saleReturnAdjust || 0)) * 100) / 100)
-        : 0;
+      const exchange = getExchangeAmounts(saleData, refundAmt);
+      const { isExchangeRefund } = exchange;
       if (isExchangeRefund) {
-        paidAmt = itemsValueForExchange;
+        paidAmt = exchange.billAmount;
         payStatus = 'completed';
+        cashAmt = 0;
+        cardAmt = 0;
+        upiAmt = 0;
+        refundAmt = 0;
       }
 
       // Insert sale record
@@ -285,7 +338,7 @@ export const useSaveSale = () => {
           flat_discount_amount: saleData.flatDiscountAmount,
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
-          net_amount: saleData.netAmount,
+          net_amount: isExchangeRefund ? exchange.billAmount : saleData.netAmount,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
@@ -350,7 +403,7 @@ export const useSaveSale = () => {
         // For exchange-with-refund, debit the items value (positive) — the SR
         // credit (already written when SR was created) will offset it. For
         // normal sales, debit the net amount.
-        const saleDebitAmount = isExchangeRefund ? itemsValueForExchange : saleData.netAmount;
+        const saleDebitAmount = isExchangeRefund ? exchange.billAmount : saleData.netAmount;
         if (saleDebitAmount > 0) {
           insertLedgerDebit({
             organizationId: currentOrganization.id,
@@ -376,74 +429,16 @@ export const useSaveSale = () => {
         }
       }
 
-      // ── POS Exchange Fix — write PAYMENT vouchers for refund + round-off ──
-      // The SR credit (e.g. ₹1990) is already in the customer ledger. The new
-      // sale debit (e.g. ₹1599) covers part of it. The remaining ₹391 is paid
-      // back to the customer as: (a) cash refund (e.g. ₹300) and (b) any
-      // un-refunded remainder treated as a round-off write-off (e.g. ₹91).
       if (isExchangeRefund && saleData.customerId) {
         try {
           const txnDate = new Date().toISOString().slice(0, 10);
-          const cashRefund = Math.max(0, Math.round((refundAmt || 0) * 100) / 100);
-          const totalToReturn = Math.max(
-            0,
-            Math.round(((saleData.saleReturnAdjust || 0) - itemsValueForExchange) * 100) / 100
-          );
-          const roundOffRemainder = Math.max(
-            0,
-            Math.round((totalToReturn - cashRefund) * 100) / 100
-          );
-
-          const writePaymentVoucher = async (
-            amount: number,
-            method: 'cash' | 'round_off',
-            description: string
-          ) => {
-            if (amount <= 0) return;
-            const { data: lastV } = await supabase
-              .from('voucher_entries')
-              .select('voucher_number')
-              .eq('organization_id', currentOrganization.id)
-              .eq('voucher_type', 'payment')
-              .order('created_at', { ascending: false })
-              .limit(1);
-            const lastNum =
-              (lastV as any)?.[0]?.voucher_number?.match(/\d+$/)?.[0] || '0';
-            const voucherNumber = `PAY-${String(parseInt(lastNum) + 1).padStart(5, '0')}`;
-            await supabase.from('voucher_entries').insert({
-              organization_id: currentOrganization.id,
-              voucher_number: voucherNumber,
-              voucher_type: 'payment',
-              voucher_date: txnDate,
-              reference_type: 'customer',
-              reference_id: saleData.customerId,
-              description,
-              total_amount: amount,
-              payment_method: method,
-            } as any);
-            // Mirror as PAYMENT debit in customer_ledger_entries so the
-            // Customer Account Statement balances cleanly.
-            insertLedgerDebit({
-              organizationId: currentOrganization.id,
-              customerId: saleData.customerId!,
-              voucherType: 'PAYMENT',
-              voucherNo: voucherNumber,
-              particulars: description,
-              transactionDate: txnDate,
-              amount,
-            });
-          };
-
-          await writePaymentVoucher(
-            cashRefund,
-            'cash',
-            `Refund paid for POS exchange ${saleNumber}`
-          );
-          await writePaymentVoucher(
-            roundOffRemainder,
-            'round_off',
-            `Round off adjustment for POS exchange ${saleNumber}`
-          );
+          await writeExchangePaymentVouchers({
+            saleNumber,
+            customerId: saleData.customerId,
+            txnDate,
+            cashRefund: exchange.cashRefund,
+            roundOffRemainder: exchange.roundOffRemainder,
+          });
         } catch (exErr) {
           console.error('Exchange refund voucher write failed:', exErr);
         }
@@ -836,6 +831,17 @@ export const useSaveSale = () => {
         refundAmt = saleData.refundAmount;
       }
 
+      const exchange = getExchangeAmounts(saleData, refundAmt);
+      const { isExchangeRefund } = exchange;
+      if (isExchangeRefund) {
+        paidAmt = exchange.billAmount;
+        payStatus = 'completed';
+        cashAmt = 0;
+        cardAmt = 0;
+        upiAmt = 0;
+        refundAmt = 0;
+      }
+
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
       const { error: deleteError } = await supabase
         .from('sale_items')
@@ -895,7 +901,7 @@ export const useSaveSale = () => {
           flat_discount_amount: saleData.flatDiscountAmount,
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
-          net_amount: saleData.netAmount,
+          net_amount: isExchangeRefund ? exchange.billAmount : saleData.netAmount,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
@@ -923,6 +929,7 @@ export const useSaveSale = () => {
         });
         if (saleData.customerId) {
           const txnDate = new Date().toISOString().slice(0, 10);
+          const saleDebitAmount = isExchangeRefund ? exchange.billAmount : saleData.netAmount;
           insertLedgerDebit({
             organizationId: currentOrganization.id,
             customerId: saleData.customerId,
@@ -930,9 +937,9 @@ export const useSaveSale = () => {
             voucherNo: sale.sale_number,
             particulars: `Sales Invoice ${sale.sale_number}`,
             transactionDate: txnDate,
-            amount: saleData.netAmount,
+            amount: saleDebitAmount,
           });
-          if (paidAmt > 0) {
+          if (!isExchangeRefund && paidAmt > 0) {
             insertLedgerCredit({
               organizationId: currentOrganization.id,
               customerId: saleData.customerId,
@@ -943,6 +950,36 @@ export const useSaveSale = () => {
               amount: paidAmt,
             });
           }
+        }
+      }
+
+      if (isExchangeRefund && saleData.customerId && sale?.sale_number) {
+        try {
+          const txnDate = new Date().toISOString().slice(0, 10);
+          await (supabase as any)
+            .from('voucher_entries')
+            .delete()
+            .eq('organization_id', currentOrganization.id)
+            .eq('voucher_type', 'payment')
+            .eq('reference_type', 'customer')
+            .eq('reference_id', saleData.customerId)
+            .ilike('description', `%POS exchange ${sale.sale_number}%`);
+          await (supabase as any)
+            .from('customer_ledger_entries')
+            .delete()
+            .eq('organization_id', currentOrganization.id)
+            .eq('customer_id', saleData.customerId)
+            .eq('voucher_type', 'PAYMENT')
+            .ilike('particulars', `%POS exchange ${sale.sale_number}%`);
+          await writeExchangePaymentVouchers({
+            saleNumber: sale.sale_number,
+            customerId: saleData.customerId,
+            txnDate,
+            cashRefund: exchange.cashRefund,
+            roundOffRemainder: exchange.roundOffRemainder,
+          });
+        } catch (exErr) {
+          console.error('Exchange refund voucher refresh failed:', exErr);
         }
       }
 
