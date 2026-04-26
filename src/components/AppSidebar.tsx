@@ -179,7 +179,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/admin/health")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/admin/health" className="flex items-center gap-2 group">
                     <AlertTriangle className="h-5 w-5 text-amber-500 sidebar-icon group-hover:animate-icon-pulse" />
-                    {open && <span className="font-semibold dark:text-white">System Health</span>}
+                    {open && <span className="font-semibold text-slate-100 dark:text-slate-100 group-hover:text-white">System Health</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -197,7 +197,7 @@ export function AppSidebar() {
                     <Shield className="h-5 w-5 text-primary dark:text-[hsl(187,100%,42%)] sidebar-icon group-hover:animate-icon-pulse" />
                     {open && (
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold dark:text-white">Platform Admin</span>
+                        <span className="font-semibold text-slate-100 dark:text-slate-100 group-hover:text-white">Platform Admin</span>
                         <span className="text-xs bg-gradient-to-r from-primary to-secondary text-white px-2.5 py-0.5 rounded-full font-medium shadow-sm">Super</span>
                       </div>
                     )}
@@ -216,7 +216,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/" className="flex items-center gap-2 group">
                     <LayoutDashboard className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-medium dark:text-white">Dashboard</span>}
+                    {open && <span className="font-medium text-slate-200 dark:text-slate-200 group-hover:text-white">Dashboard</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -246,7 +246,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/students")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/students" className="flex items-center gap-2 group">
                               <GraduationCap className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Students</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Students</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -254,7 +254,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/teachers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/teachers" className="flex items-center gap-2 group">
                               <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Teachers</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Teachers</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -262,7 +262,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/classes")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/classes" className="flex items-center gap-2 group">
                               <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Classes</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Classes</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -270,7 +270,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/academic-years")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/academic-years" className="flex items-center gap-2 group">
                               <Calendar className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Academic Years</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Academic Years</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -278,7 +278,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/fee-heads")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/fee-heads" className="flex items-center gap-2 group">
                               <CreditCard className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Fee Heads</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Fee Heads</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -286,7 +286,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/fee-structures")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/fee-structures" className="flex items-center gap-2 group">
                               <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Fee Structures</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Fee Structures</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -294,7 +294,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/fee-collection")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/fee-collection" className="flex items-center gap-2 group">
                               <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Fee Collection</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Fee Collection</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -302,7 +302,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/student-reports")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/student-reports" className="flex items-center gap-2 group">
                               <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Student Reports</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Student Reports</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -310,7 +310,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/student-ledger")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/student-ledger" className="flex items-center gap-2 group">
                               <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Student Ledger</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Student Ledger</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -318,7 +318,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/student-promotion")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/student-promotion" className="flex items-center gap-2 group">
                               <ArrowRight className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Promote Students</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Promote Students</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -354,7 +354,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/customers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/customers" className="flex items-center gap-2 group">
                                 <UserCircle className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Customer</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Customer</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -364,7 +364,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/suppliers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/suppliers" className="flex items-center gap-2 group">
                                 <Truck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Supplier</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Supplier</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -374,7 +374,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/employees")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/employees" className="flex items-center gap-2 group">
                                 <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Employee Master</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Employee Master</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -384,7 +384,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/salesman-commission")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/salesman-commission" className="flex items-center gap-2 group">
                                 <Coins className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Commission</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Commission</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -421,7 +421,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-orders")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/purchase-orders" className="flex items-center gap-2 group">
                                 <ClipboardList className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Purchase Orders</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Purchase Orders</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -431,7 +431,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-bills")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/purchase-bills" className="flex items-center gap-2 group">
                                 <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Purchase Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Purchase Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -441,7 +441,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-returns")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/purchase-returns" className="flex items-center gap-2 group">
                                 <TrendingDown className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Purchase Returns</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Purchase Returns</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -451,7 +451,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/purchase-return-entry" className="flex items-center gap-2 group">
                                 <Plus className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Purchase Return</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Purchase Return</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -461,7 +461,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/purchase-entry" className="flex items-center gap-2 group">
                                 <ShoppingBag className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Purchase Bill</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Purchase Bill</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -471,7 +471,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/product-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/product-entry" className="flex items-center gap-2 group">
                                 <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Product Entry</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Product Entry</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -481,7 +481,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/products")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/products" className="flex items-center gap-2 group">
                                 <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Product Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Product Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -491,7 +491,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/bulk-product-update")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/bulk-product-update" className="flex items-center gap-2 group">
                                 <Pencil className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Bulk Update</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Bulk Update</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -501,7 +501,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-settlement")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/stock-settlement" className="flex items-center gap-2 group">
                                 <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Stock Settlement</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Stock Settlement</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -538,7 +538,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/quotation-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/quotation-entry" className="flex items-center gap-2 group">
                                 <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Quotation Entry</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Quotation Entry</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -548,7 +548,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/quotation-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/quotation-dashboard" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Quotation Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Quotation Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -558,7 +558,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sale-order-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sale-order-entry" className="flex items-center gap-2 group">
                                 <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sale Order Entry</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sale Order Entry</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -568,7 +568,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sale-order-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sale-order-dashboard" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sale Order Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sale Order Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -578,7 +578,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/pos-sales")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/pos-sales" className="flex items-center gap-2 group">
                                 <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">POS</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">POS</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -588,7 +588,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/pos-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/pos-dashboard" className="flex items-center gap-2 group">
                                 <ShoppingBag className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">POS Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">POS Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -598,7 +598,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sales-invoice" className="flex items-center gap-2 group">
                                 <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sales Bill</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sales Bill</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -608,7 +608,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Invoice Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Invoice Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -618,7 +618,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sale-return-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sale-return-entry" className="flex items-center gap-2 group">
                                 <TrendingDown className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sale Return</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sale Return</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -628,7 +628,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sale-returns")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sale-returns" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Return Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Return Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -638,7 +638,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/delivery-challan-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/delivery-challan-entry" className="flex items-center gap-2 group">
                                 <Truck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Delivery Challan</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Delivery Challan</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -648,7 +648,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/delivery-challan-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/delivery-challan-dashboard" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Challan Dashboard</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Challan Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -657,7 +657,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/advance-booking-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/advance-booking-dashboard" className="flex items-center gap-2 group">
                               <Coins className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Advance Booking</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Advance Booking</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -693,7 +693,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/stock-report" className="flex items-center gap-2 group">
                                 <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Stock Report</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Stock Report</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -703,7 +703,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-report?tab=sizewise")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/stock-report?tab=sizewise" className="flex items-center gap-2 group">
                                 <Grid3X3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Size-wise Stock</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Size-wise Stock</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -713,7 +713,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-analysis")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/stock-analysis" className="flex items-center gap-2 group">
                                 <TrendingDown className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Stock Analysis</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Stock Analysis</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -723,7 +723,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/stock-ageing")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/stock-ageing" className="flex items-center gap-2 group">
                                 <Clock className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Stock Ageing</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Stock Ageing</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -733,7 +733,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sales-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sales-report" className="flex items-center gap-2 group">
                                 <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sales</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sales</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -743,7 +743,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/purchase-report" className="flex items-center gap-2 group">
                                 <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Purchase</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Purchase</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -753,7 +753,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/product-tracking")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/product-tracking" className="flex items-center gap-2 group">
                                 <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Product Tracking</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Product Tracking</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -763,7 +763,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/daily-cashier-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/daily-cashier-report" className="flex items-center gap-2 group">
                                 <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Daily Cashier</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Daily Cashier</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -773,7 +773,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/daily-tally")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/daily-tally" className="flex items-center gap-2 group">
                                 <Coins className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Daily Tally</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Daily Tally</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -783,7 +783,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/daily-sale-analysis")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/daily-sale-analysis" className="flex items-center gap-2 group">
                                 <ClipboardList className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sale Analysis</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sale Analysis</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -793,7 +793,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/einvoice-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/einvoice-report" className="flex items-center gap-2 group">
                                 <ClipboardList className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">E-Invoice Report</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">E-Invoice Report</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -803,7 +803,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/item-wise-sales")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/item-wise-sales" className="flex items-center gap-2 group">
                                 <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Item-wise Sales</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Item-wise Sales</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -813,7 +813,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/item-wise-stock")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/item-wise-stock" className="flex items-center gap-2 group">
                                 <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Item-wise Stock</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Item-wise Stock</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -823,7 +823,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/price-history")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/price-history" className="flex items-center gap-2 group">
                                 <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Price History</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Price History</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -833,7 +833,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/gst-reports")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/gst-reports" className="flex items-center gap-2 group">
                                 <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">GST Reports</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">GST Reports</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -843,7 +843,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/gst-register")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/gst-register" className="flex items-center gap-2 group">
                                 <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">GST Register</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">GST Register</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -853,7 +853,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/tally-export")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/tally-export" className="flex items-center gap-2 group">
                                 <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Tally Export</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Tally Export</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -863,7 +863,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/sales-analytics")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/sales-analytics" className="flex items-center gap-2 group">
                                 <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Sales Analytics</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Sales Analytics</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -873,7 +873,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/accounting-reports")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/accounting-reports" className="flex items-center gap-2 group">
                                 <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Accounting Reports</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Accounting Reports</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -883,7 +883,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-ledger-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/customer-ledger-report" className="flex items-center gap-2 group">
                                 <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Customer Ledger</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Customer Ledger</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -893,7 +893,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-account-statement")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/customer-account-statement" className="flex items-center gap-2 group">
                                 <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Customer Account Statement</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Customer Account Statement</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -915,7 +915,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/delivery-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/delivery-dashboard" className="flex items-center gap-2 group">
                     <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-medium dark:text-white">Delivery Status</span>}
+                    {open && <span className="font-medium text-slate-200 dark:text-slate-200 group-hover:text-white">Delivery Status</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -946,7 +946,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/accounts")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/accounts" className="flex items-center gap-2 group">
                                 <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Account Ledgers</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Account Ledgers</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -956,7 +956,7 @@ export function AppSidebar() {
                             <SidebarMenuSubButton asChild isActive={isActive("/payments-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/payments-dashboard" className="flex items-center gap-2 group">
                                 <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                                <span className="dark:text-white">Payments</span>
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Payments</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -992,7 +992,7 @@ export function AppSidebar() {
                         <SidebarMenuSubButton asChild isActive={isActive("/profile")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                           <NavLink to="/profile" className="flex items-center gap-2 group">
                             <User className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Profile</span>
+                            <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Profile</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -1001,7 +1001,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/settings")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/settings" className="flex items-center gap-2 group">
                               <Settings className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Settings</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Settings</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -1011,7 +1011,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/organization-management")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/organization-management" className="flex items-center gap-2 group">
                               <Building2 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Organization</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Organization</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -1021,7 +1021,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/barcode-printing")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/barcode-printing" className="flex items-center gap-2 group">
                               <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Barcode Printing</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Barcode Printing</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -1031,7 +1031,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-logs")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/whatsapp-logs" className="flex items-center gap-2 group">
                               <MessageSquare className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">WhatsApp Logs</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">WhatsApp Logs</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -1041,7 +1041,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                             <NavLink to="/whatsapp-inbox" className="flex items-center gap-2 group">
                               <Inbox className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">WhatsApp Inbox</span>
+                              <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">WhatsApp Inbox</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -1063,7 +1063,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/recycle-bin")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/recycle-bin" className="flex items-center gap-2 group">
                     <Archive className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-medium dark:text-white">Recycle Bin</span>}
+                    {open && <span className="font-medium text-slate-200 dark:text-slate-200 group-hover:text-white">Recycle Bin</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -1082,7 +1082,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                   <NavLink to="/whatsapp-inbox" className="flex items-center gap-2 group">
                     <MessageSquare className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-medium dark:text-white">WhatsApp Inbox</span>}
+                    {open && <span className="font-medium text-slate-200 dark:text-slate-200 group-hover:text-white">WhatsApp Inbox</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -1147,7 +1147,7 @@ function AIAssistantMenuItem({ open }: { open: boolean }) {
           >
             <div className="flex items-center gap-2 group">
               <Bot className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-              {open && <span className="font-medium dark:text-white">AI Assistant</span>}
+              {open && <span className="font-medium text-slate-200 dark:text-slate-200 group-hover:text-white">AI Assistant</span>}
             </div>
           </SidebarMenuButton>
         </SidebarMenuItem>
