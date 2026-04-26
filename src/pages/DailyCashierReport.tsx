@@ -940,10 +940,10 @@ const DailyCashierReport = () => {
                         <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
                           <Banknote className="h-4 w-4 text-red-600 dark:text-red-400" />
                         </div>
-                        <span className="font-medium">Less: Refund</span>
+                        <span className="font-medium text-muted-foreground">Refund (already in Cash)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.totalRefund)}</TableCell>
+                    <TableCell className="text-right font-semibold text-muted-foreground">{formatCurrency(totals.totalRefund)}</TableCell>
                   </TableRow>
                   {totals.cashRefundTotal > 0 && (
                     <TableRow>
@@ -969,6 +969,7 @@ const DailyCashierReport = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund - totals.cashRefundTotal)}</TableCell>
+                      {/* NOTE: refund is already baked into negative cash_amount; do NOT subtract again */}
                   </TableRow>
                   {/* RCP Collections Section */}
                   {totals.rcpTotalCollection > 0 && (
