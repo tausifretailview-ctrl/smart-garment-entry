@@ -10,6 +10,7 @@ import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditC
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { insertLedgerCredit } from "@/lib/customerLedger";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -663,6 +664,20 @@ export const FloatingSaleReturn = ({
 
       // Stock is restored automatically by the database trigger
       // (restore_stock_on_sale_return) — no manual increment needed
+
+      // Customer Account Statement — write SR credit so it shows in the new
+      // ledger and gets offset by future exchange/refund debits.
+      if (effectiveCustomerId) {
+        insertLedgerCredit({
+          organizationId,
+          customerId: effectiveCustomerId,
+          voucherType: 'SALE_RETURN',
+          voucherNo: returnNumber,
+          particulars: `Sale Return ${returnNumber}`,
+          transactionDate: new Date().toISOString().slice(0, 10),
+          amount: grossAmount,
+        });
+      }
 
       // For cash_refund: create payment voucher so ledger balance updates
       if (refundType === "cash_refund" && effectiveCustomerId) {
