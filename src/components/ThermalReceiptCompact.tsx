@@ -77,6 +77,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
+      cashAmount = 0, upiAmount = 0, cardAmount = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
@@ -116,6 +117,18 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const totalPaid = (cashPaid + upiPaid + cardPaid + creditPaid) > 0 ? (cashPaid + upiPaid + cardPaid + creditPaid) : paidAmount;
     const balanceDue = grandTotal - totalPaid;
     const salesPerson = salesman || cashier;
+
+    // Refund detection: when net is negative AND any of cash/upi/card was paid out
+    // (negative amounts on the saved sale), the customer was already refunded.
+    const refundOutflow =
+      (cashAmount < 0 ? -cashAmount : 0) +
+      (upiAmount < 0 ? -upiAmount : 0) +
+      (cardAmount < 0 ? -cardAmount : 0);
+    const isRefundReceipt = grandTotal < 0 && refundOutflow > 0;
+    const refundMode =
+      cashAmount < 0 ? 'Cash' :
+      upiAmount < 0 ? 'UPI' :
+      cardAmount < 0 ? 'Bank' : 'Cash';
 
     const base: React.CSSProperties = {
       width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
