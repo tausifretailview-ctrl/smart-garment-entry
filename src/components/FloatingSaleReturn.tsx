@@ -1252,14 +1252,24 @@ export const FloatingSaleReturn = ({
                 CN: ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
               </div>
             )}
-            {appliedCreditNoteId && returnItems.length === 0 ? (
-              <div>
-                Apply Credit Note:{" "}
-                <span className="text-green-600">
-                  ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
-                </span>
-              </div>
-            ) : (
+            {appliedCreditNoteId && returnItems.length === 0 ? (() => {
+              const cn = pendingCreditNotes.find(c => c.id === appliedCreditNoteId);
+              const full = cn?.creditAmount || 0;
+              const remaining = Math.max(0, full - appliedCreditAmount);
+              return (
+                <div>
+                  Apply Credit Note:{" "}
+                  <span className="text-green-600">
+                    ₹{Math.round(appliedCreditAmount).toLocaleString("en-IN")}
+                  </span>
+                  {remaining > 0 && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      (of ₹{Math.round(full).toLocaleString("en-IN")} — ₹{Math.round(remaining).toLocaleString("en-IN")} remains)
+                    </span>
+                  )}
+                </div>
+              );
+            })() : (
               <div>
                 Return Total:{" "}
                 <span className="text-destructive">
