@@ -48,6 +48,12 @@ interface ThermalReceiptCompactProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  // Saved-sale signed amounts (negative = refund outflow). When provided and
+  // grandTotal < 0, the receipt renders a "Refund Paid" line and shows the
+  // bill as settled (Net Settled ₹0) instead of leaving a negative TOTAL.
+  cashAmount?: number;
+  upiAmount?: number;
+  cardAmount?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
   notes?: string;
@@ -71,6 +77,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
+      cashAmount = 0, upiAmount = 0, cardAmount = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
@@ -110,6 +117,18 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const totalPaid = (cashPaid + upiPaid + cardPaid + creditPaid) > 0 ? (cashPaid + upiPaid + cardPaid + creditPaid) : paidAmount;
     const balanceDue = grandTotal - totalPaid;
     const salesPerson = salesman || cashier;
+
+    // Refund detection: when net is negative AND any of cash/upi/card was paid out
+    // (negative amounts on the saved sale), the customer was already refunded.
+    const refundOutflow =
+      (cashAmount < 0 ? -cashAmount : 0) +
+      (upiAmount < 0 ? -upiAmount : 0) +
+      (cardAmount < 0 ? -cardAmount : 0);
+    const isRefundReceipt = grandTotal < 0 && refundOutflow > 0;
+    const refundMode =
+      cashAmount < 0 ? 'Cash' :
+      upiAmount < 0 ? 'UPI' :
+      cardAmount < 0 ? 'Bank' : 'Cash';
 
     const base: React.CSSProperties = {
       width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
@@ -234,6 +253,21 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
           <span>TOTAL</span><span>₹{fmtAmt(grandTotal)}</span>
         </div>
         <div style={dblLine} />
+
+        {/* REFUND PAID — settles negative bill to zero */}
+        {isRefundReceipt && (
+          <>
+            <div style={{ ...row, fontSize: '13px', fontWeight: 900, margin: '2px 0' }}>
+              <span>Refund Paid ({refundMode})</span>
+              <span>₹{fmtAmt(refundOutflow)}</span>
+            </div>
+            <div style={{ ...row, fontSize: '14px', fontWeight: 900, margin: '2px 0' }}>
+              <span>Net Settled</span>
+              <span>₹{fmtAmt(grandTotal + refundOutflow)}</span>
+            </div>
+            <div style={dblLine} />
+          </>
+        )}
 
         {/* YOU SAVED */}
         {discount > 0 && (
