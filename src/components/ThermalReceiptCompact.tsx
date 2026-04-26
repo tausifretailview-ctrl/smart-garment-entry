@@ -48,6 +48,12 @@ interface ThermalReceiptCompactProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  // Saved-sale signed amounts (negative = refund outflow). When provided and
+  // grandTotal < 0, the receipt renders a "Refund Paid" line and shows the
+  // bill as settled (Net Settled ₹0) instead of leaving a negative TOTAL.
+  cashAmount?: number;
+  upiAmount?: number;
+  cardAmount?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
   notes?: string;
