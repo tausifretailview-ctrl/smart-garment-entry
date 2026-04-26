@@ -108,6 +108,8 @@ export const FloatingSaleReturn = ({
   }>>([]);
   const [appliedCreditNoteId, setAppliedCreditNoteId] = useState<string | null>(null);
   const [appliedCreditAmount, setAppliedCreditAmount] = useState(0);
+  // Per-CN editable redeem amount (keyed by sale_return id). Defaults to full amount.
+  const [cnRedeemInputs, setCnRedeemInputs] = useState<Record<string, number>>({});
 
   // Fetch sale return price setting
   useEffect(() => {
@@ -150,27 +152,6 @@ export const FloatingSaleReturn = ({
     if (open && organizationId) {
       loadSoldProducts();
       setTimeout(() => barcodeInputRef.current?.focus(), 200);
-      if (customerId) {
-        supabase
-          .from("sale_returns")
-          .select("id, return_number, return_date, net_amount, credit_note_id")
-          .eq("customer_id", customerId)
-          .eq("organization_id", organizationId)
-          .eq("credit_status", "pending")
-          .is("deleted_at", null)
-          .order("return_date", { ascending: false })
-          .then(({ data }) => {
-            setPendingCreditNotes(
-              (data || []).map((r: any) => ({
-                id: r.id,
-                returnNumber: r.return_number,
-                returnDate: r.return_date,
-                creditAmount: Number(r.net_amount) || 0,
-                creditNoteId: r.credit_note_id || null,
-              }))
-            );
-          });
-      }
     }
     if (!open) {
       setReturnItems([]);
@@ -183,12 +164,49 @@ export const FloatingSaleReturn = ({
       setPendingCreditNotes([]);
       setAppliedCreditNoteId(null);
       setAppliedCreditAmount(0);
+      setCnRedeemInputs({});
       setPickedCustomerId(null);
       setPickedCustomerName(null);
       setCustomerSearchTerm("");
       setCustomerSearchOpen(false);
     }
   }, [open, organizationId, customerId]);
+
+  // Load pending credit notes whenever the effective customer changes
+  // (covers both prop-passed customer and inline-picked customer).
+  useEffect(() => {
+    if (!open || !organizationId || !effectiveCustomerId) {
+      setPendingCreditNotes([]);
+      setAppliedCreditNoteId(null);
+      setAppliedCreditAmount(0);
+      setCnRedeemInputs({});
+      return;
+    }
+    supabase
+      .from("sale_returns")
+      .select("id, return_number, return_date, net_amount, credit_note_id")
+      .eq("customer_id", effectiveCustomerId)
+      .eq("organization_id", organizationId)
+      .eq("credit_status", "pending")
+      .is("deleted_at", null)
+      .order("return_date", { ascending: false })
+      .then(({ data }) => {
+        const list = (data || []).map((r: any) => ({
+          id: r.id,
+          returnNumber: r.return_number,
+          returnDate: r.return_date,
+          creditAmount: Number(r.net_amount) || 0,
+          creditNoteId: r.credit_note_id || null,
+        }));
+        setPendingCreditNotes(list);
+        // Reset edited amounts to full when list changes
+        const defaults: Record<string, number> = {};
+        list.forEach((c) => { defaults[c.id] = c.creditAmount; });
+        setCnRedeemInputs(defaults);
+        setAppliedCreditNoteId(null);
+        setAppliedCreditAmount(0);
+      });
+  }, [open, organizationId, effectiveCustomerId]);
 
   const loadSoldProducts = async () => {
     setLoading(true);
