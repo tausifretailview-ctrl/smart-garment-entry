@@ -968,8 +968,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund - totals.cashRefundTotal)}</TableCell>
-                      {/* NOTE: refund is already baked into negative cash_amount; do NOT subtract again */}
+                      <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.cashRefundTotal)}</TableCell>
                   </TableRow>
                   {/* RCP Collections Section */}
                   {totals.rcpTotalCollection > 0 && (
