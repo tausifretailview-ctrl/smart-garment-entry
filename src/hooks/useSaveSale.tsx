@@ -109,6 +109,66 @@ export const useSaveSale = () => {
     return data as string;
   };
 
+  const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
+
+  const getExchangeAmounts = (saleData: SaleData, refundAmt: number) => {
+    const saleReturnTotal = roundMoney(saleData.saleReturnAdjust || 0);
+    const billAmount = Math.max(0, roundMoney((saleData.netAmount || 0) + saleReturnTotal));
+    const isExchangeRefund = saleReturnTotal > 0 && (saleData.netAmount || 0) <= 0 && billAmount > 0;
+    const refundDue = isExchangeRefund ? Math.max(0, roundMoney(saleReturnTotal - billAmount)) : 0;
+    const cashRefund = Math.min(Math.max(0, roundMoney(refundAmt || 0)), refundDue);
+    const roundOffRemainder = Math.max(0, roundMoney(refundDue - cashRefund));
+
+    return { isExchangeRefund, billAmount, cashRefund, roundOffRemainder };
+  };
+
+  const writeExchangePaymentVouchers = async (params: {
+    saleNumber: string;
+    customerId: string;
+    txnDate: string;
+    cashRefund: number;
+    roundOffRemainder: number;
+  }) => {
+    const writePaymentVoucher = async (
+      amount: number,
+      method: 'cash' | 'round_off',
+      description: string
+    ) => {
+      if (amount <= 0 || !currentOrganization?.id) return;
+      const { data: voucherNumber, error: numberError } = await supabase.rpc('generate_voucher_number' as any, {
+        p_type: 'payment',
+        p_date: params.txnDate,
+      } as any);
+      if (numberError) throw numberError;
+
+      const { error } = await supabase.from('voucher_entries').insert({
+        organization_id: currentOrganization.id,
+        voucher_number: voucherNumber as string,
+        voucher_type: 'payment',
+        voucher_date: params.txnDate,
+        reference_type: 'customer',
+        reference_id: params.customerId,
+        description,
+        total_amount: amount,
+        payment_method: method,
+      } as any);
+      if (error) throw error;
+
+      await insertLedgerDebit({
+        organizationId: currentOrganization.id,
+        customerId: params.customerId,
+        voucherType: 'PAYMENT',
+        voucherNo: voucherNumber as string,
+        particulars: description,
+        transactionDate: params.txnDate,
+        amount,
+      });
+    };
+
+    await writePaymentVoucher(params.cashRefund, 'cash', `Refund paid for POS exchange ${params.saleNumber}`);
+    await writePaymentVoucher(params.roundOffRemainder, 'round_off', `Round off adjustment for POS exchange ${params.saleNumber}`);
+  };
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
