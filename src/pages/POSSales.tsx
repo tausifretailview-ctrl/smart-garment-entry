@@ -4586,8 +4586,11 @@ export default function POSSales() {
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => setShowFinancerDialog(true)}
+                        disabled={!mobileERP.enabled}
                         className={`h-10 px-1.5 flex items-center gap-1 text-[11px] font-semibold rounded-md shadow-sm transition-all whitespace-nowrap ${
-                          financerDetails?.financer_name
+                          !mobileERP.enabled
+                            ? 'bg-muted/40 text-muted-foreground border border-border/50 opacity-50 cursor-not-allowed'
+                            : financerDetails?.financer_name
                             ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white'
                             : 'bg-muted/60 hover:bg-muted text-foreground border border-border/50'
                         }`}
@@ -4602,7 +4605,7 @@ export default function POSSales() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Financer / EMI Details</p>
+                      <p>{mobileERP.enabled ? 'Financer / EMI Details' : 'Enable Mobile ERP in Settings → Product to use EMI'}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
