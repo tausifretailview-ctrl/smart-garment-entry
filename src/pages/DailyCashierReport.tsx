@@ -250,8 +250,10 @@ const DailyCashierReport = () => {
     // Process sales data
     if (salesData) {
       salesData.forEach((sale) => {
-        // Skip credit note issue sales (negative net_amount) — tracked in credit_notes, not revenue
-        if ((Number(sale.net_amount) || 0) < 0) return;
+        // NOTE: Refund-only sales (negative net_amount from S/R Adjust > bill) are
+        // INCLUDED here. Their cash_amount/upi_amount/card_amount are stored as
+        // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
+        // cardSale below — no separate "Less: Refund" subtraction is needed.
         grossSale += Number(sale.gross_amount) || 0;
         totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0) + (Number((sale as any).points_redeemed_amount) || 0);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
