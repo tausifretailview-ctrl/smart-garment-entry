@@ -1058,7 +1058,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const sale = item.data as any;
           const isCancelled = sale.payment_status === 'cancelled';
           const saleReturnAdjust = sale.sale_return_adjust || 0;
-          const isExchangeCoveredByReturn = saleReturnAdjust > 0 && sale.net_amount > 0 && saleReturnAdjust > sale.net_amount;
+          const isExchangeCoveredByReturn = saleReturnAdjust > 0 && sale.net_amount > 0 && saleReturnAdjust >= sale.net_amount;
           // net_amount is already the post-return amount saved at POS.
           // The sale return entry is a separate credit row — do NOT add
           // sale_return_adjust here or it double-counts the return.
@@ -1378,6 +1378,22 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const voucher = item.data as any;
           const discountAmount = voucher.discount_amount || 0;
           const totalCredit = voucher.total_amount + discountAmount;
+          if (voucher.voucher_type === 'payment' && voucher.reference_type === 'customer') {
+            runningBalance += totalCredit;
+            allTransactions.push({
+              id: voucher.id,
+              date: voucher.voucher_date,
+              timestamp: item.timestamp || null,
+              type: 'refund',
+              reference: voucher.voucher_number,
+              description: voucher.description || 'Payment / refund paid to customer',
+              debit: totalCredit,
+              credit: 0,
+              balance: runningBalance,
+              paymentBreakdown: voucher.payment_method ? { method: voucher.payment_method } : undefined,
+            });
+            return;
+          }
           runningBalance -= totalCredit;
           
           // Determine if this is an opening balance payment or invoice payment
