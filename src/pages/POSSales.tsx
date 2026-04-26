@@ -4098,7 +4098,7 @@ export default function POSSales() {
               </div>
             </PopoverTrigger>
              <PopoverContent 
-              className="w-[480px] p-0 z-50" 
+              className="w-[480px] p-0 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-lg" 
               align="start"
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
@@ -4136,11 +4136,11 @@ export default function POSSales() {
                               onSelect={() => {
                                 addItemToCart(product, item.variant);
                               }}
-                              className="cursor-pointer group"
+                              className="cursor-pointer group text-slate-900 dark:text-slate-100 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800"
                             >
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
-                                <span className="font-semibold text-sm">{product.product_name}</span>
+                                <span className="font-medium text-slate-900 dark:text-white">{product.product_name}</span>
                                 {item.matchedOn && item.matchedOn.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mb-0.5">
                                     <span className="text-[9px] uppercase tracking-wide text-muted-foreground mr-1 flex items-center">
@@ -4181,13 +4181,13 @@ export default function POSSales() {
                                     Size: {item.variant.size}
                                   </span>
                                 </div>
-                                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                                   {displayBarcode(item.variant.barcode) && (
                                     <span className="font-mono">{displayBarcode(item.variant.barcode)}</span>
                                   )}
-                                  <span className="font-bold text-primary">₹{item.variant.sale_price}</span>
+                                  <span className="font-semibold text-primary">₹{item.variant.sale_price}</span>
                                   {item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
-                                    <span className="text-[10px] line-through text-muted-foreground">
+                                    <span className="text-[10px] line-through text-slate-500 dark:text-slate-400">
                                       MRP ₹{item.variant.mrp}
                                     </span>
                                   )}
