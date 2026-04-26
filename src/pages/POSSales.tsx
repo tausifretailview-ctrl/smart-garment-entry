@@ -4136,20 +4136,20 @@ export default function POSSales() {
                               onSelect={() => {
                                 addItemToCart(product, item.variant);
                               }}
-                              className="cursor-pointer group text-slate-900 dark:text-slate-100 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800"
+                              className="cursor-pointer group text-slate-900 dark:text-slate-100 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground"
                             >
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
-                                <span className="font-medium text-slate-900 dark:text-white">{product.product_name}</span>
+                                <span className="font-medium text-slate-900 dark:text-white group-data-[selected=true]:text-white">{product.product_name}</span>
                                 {item.matchedOn && item.matchedOn.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mb-0.5">
-                                    <span className="text-[9px] uppercase tracking-wide text-muted-foreground mr-1 flex items-center">
+                                    <span className="text-[9px] uppercase tracking-wide text-muted-foreground group-data-[selected=true]:text-white/80 mr-1 flex items-center">
                                       Matched:
                                     </span>
                                     {item.matchedOn.map((m: string) => (
                                       <span
                                         key={m}
-                                        className="text-[10px] bg-primary/10 text-primary border border-primary/30 px-1.5 py-0 rounded font-medium"
+                                        className="text-[10px] bg-primary/10 text-primary border border-primary/30 px-1.5 py-0 rounded font-medium group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white group-data-[selected=true]:border-white/40"
                                       >
                                         {m}
                                       </span>
@@ -4158,40 +4158,40 @@ export default function POSSales() {
                                 )}
                                 <div className="flex flex-wrap gap-1">
                                   {product.brand && (
-                                    <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded">
+                                    <span className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white group-data-[selected=true]:border-white/40">
                                       {product.brand}
                                     </span>
                                   )}
                                   {product.category && (
-                                    <span className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1 py-0.5 rounded">
+                                    <span className="text-[10px] bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800 px-1 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white group-data-[selected=true]:border-white/40">
                                       {product.category}
                                     </span>
                                   )}
                                   {product.style && (
-                                    <span className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1 py-0.5 rounded">
+                                    <span className="text-[10px] bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 px-1 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white group-data-[selected=true]:border-white/40">
                                       {product.style}
                                     </span>
                                   )}
                                   {item.variant.color && item.variant.color !== '-' && (
-                                    <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">
+                                    <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
                                       {item.variant.color}
                                     </span>
                                   )}
-                                  <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono">
+                                  <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded font-mono group-data-[selected=true]:bg-white/20 group-data-[selected=true]:text-white">
                                     Size: {item.variant.size}
                                   </span>
                                 </div>
-                                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                 <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/90">
                                   {displayBarcode(item.variant.barcode) && (
                                     <span className="font-mono">{displayBarcode(item.variant.barcode)}</span>
                                   )}
-                                  <span className="font-semibold text-primary">₹{item.variant.sale_price}</span>
+                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
                                   {item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
-                                    <span className="text-[10px] line-through text-slate-500 dark:text-slate-400">
+                                    <span className="text-[10px] line-through text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/70">
                                       MRP ₹{item.variant.mrp}
                                     </span>
                                   )}
-                                  <span className={item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+                                  <span className={(item.variant.stock_qty > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive") + " group-data-[selected=true]:text-white"}>
                                     Stock: {item.variant.stock_qty}
                                   </span>
                                 </div>
