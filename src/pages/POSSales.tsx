@@ -2617,11 +2617,14 @@ export default function POSSales() {
       // Auto-issue credit note when bill ends up with negative net_amount
       // (excess S/R Adj on cart, no Mix Pay → Issue C/Note used).
       // Only for identified customers, only if no CN already linked, only on new sale.
+      // IMPORTANT: skip when a real refund (cash/upi/bank) was already processed —
+      // otherwise we double-count the refund (customer gets cash AND a credit note).
       try {
         const billNet = Number((result as any).net_amount ?? 0);
         const alreadyLinkedCn = (result as any).credit_note_id;
         if (
           !isCreditNote &&
+          !isRefund &&
           !wasEditing &&
           billNet < 0 &&
           customerId &&
