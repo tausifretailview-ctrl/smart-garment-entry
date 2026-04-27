@@ -315,7 +315,10 @@ export const useSaveSale = () => {
       const exchange = getExchangeAmounts(saleData, refundAmt);
       const { isExchangeRefund } = exchange;
       if (isExchangeRefund) {
-        paidAmt = exchange.billAmount;
+        // Bill fully settled by Sale Return credit (S/R Adjust).
+        // Net amount is the TRUE net (≈0); no actual cash/card/upi was collected.
+        // Paid amount equals net so the bill shows as fully settled, not outstanding.
+        paidAmt = Math.max(0, saleData.netAmount || 0);
         payStatus = 'completed';
         cashAmt = 0;
         cardAmt = 0;
@@ -338,7 +341,7 @@ export const useSaveSale = () => {
           flat_discount_amount: saleData.flatDiscountAmount,
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
-          net_amount: isExchangeRefund ? exchange.billAmount : saleData.netAmount,
+          net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
@@ -834,7 +837,9 @@ export const useSaveSale = () => {
       const exchange = getExchangeAmounts(saleData, refundAmt);
       const { isExchangeRefund } = exchange;
       if (isExchangeRefund) {
-        paidAmt = exchange.billAmount;
+        // Bill fully settled by Sale Return credit (S/R Adjust).
+        // Keep net_amount as the TRUE net; no real cash collected.
+        paidAmt = Math.max(0, saleData.netAmount || 0);
         payStatus = 'completed';
         cashAmt = 0;
         cardAmt = 0;
@@ -901,7 +906,7 @@ export const useSaveSale = () => {
           flat_discount_amount: saleData.flatDiscountAmount,
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
-          net_amount: isExchangeRefund ? exchange.billAmount : saleData.netAmount,
+          net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
