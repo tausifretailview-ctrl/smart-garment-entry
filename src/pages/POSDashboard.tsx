@@ -1286,6 +1286,7 @@ const POSDashboard = () => {
     totalCard: filteredSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
     totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
     totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    totalSaleReturnAdjust: filteredSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
     // Bill counts by payment method
     cashBillCount: filteredSales.filter(sale => (sale.cash_amount || 0) > 0).length,
     cardBillCount: filteredSales.filter(sale => (sale.card_amount || 0) > 0).length,
@@ -1591,20 +1592,6 @@ const POSDashboard = () => {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-amber-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter(["hold"])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">On Hold</CardDescription>
-              <Pause className="h-4 w-4 text-white" />
-            </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">{summaryStats.holdCount}</div>
-              <p className="text-xs text-white/80 mt-0.5">₹{summaryStats.holdAmount.toFixed(0)}</p>
-            </CardContent>
-          </Card>
-
-          <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-emerald-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter(["completed"])}
           >
@@ -1643,6 +1630,24 @@ const POSDashboard = () => {
             <CardContent className="p-4 pt-1">
               <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
               <p className="text-xs text-white/80 mt-0.5">Disc: ₹{summaryStats.totalDiscount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-teal-600 border-0 shadow-none"
+            onClick={() => setPaymentStatusFilter([])}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
+              <CardDescription className="text-xs font-semibold text-white/90">Net Sale</CardDescription>
+              <IndianRupee className="h-4 w-4 text-white" />
+            </CardHeader>
+            <CardContent className="p-4 pt-1">
+              <div className="text-2xl font-bold text-white">
+                ₹{(summaryStats.totalAmount - summaryStats.totalDiscount - summaryStats.totalSaleReturnAdjust - summaryStats.refundAmount).toFixed(0)}
+              </div>
+              <p className="text-[10px] text-white/80 mt-0.5 leading-tight">
+                Sale ₹{summaryStats.totalAmount.toFixed(0)} − Disc ₹{summaryStats.totalDiscount.toFixed(0)} − S/R ₹{summaryStats.totalSaleReturnAdjust.toFixed(0)} − Refund ₹{summaryStats.refundAmount.toFixed(0)}
+              </p>
             </CardContent>
           </Card>
         </div>
