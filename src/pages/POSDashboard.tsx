@@ -1286,6 +1286,7 @@ const POSDashboard = () => {
     totalCard: filteredSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
     totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
     totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    totalSaleReturnAdjust: filteredSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
     // Bill counts by payment method
     cashBillCount: filteredSales.filter(sale => (sale.cash_amount || 0) > 0).length,
     cardBillCount: filteredSales.filter(sale => (sale.card_amount || 0) > 0).length,
