@@ -146,6 +146,79 @@ const StudentMaster = () => {
   const totalCount = studentsResult?.count || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
+  // Fetch closing fee balance for the students currently on screen.
+  // Formula mirrors FeeCollection: opening + structure_expected + adjustments − receipts
+  const studentIds = students.map((s: any) => s.id);
+  const classIds = [...new Set(students.map((s: any) => s.class_id).filter(Boolean))] as string[];
+
+  const { data: balanceMap } = useQuery({
+    queryKey: ["students-closing-balances", currentOrganization?.id, selectedYearId, studentIds.join(",")],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !selectedYearId || studentIds.length === 0) return {};
+
+      const [structuresRes, paymentsRes, adjustmentsRes] = await Promise.all([
+        classIds.length > 0
+          ? supabase
+              .from("fee_structures")
+              .select("class_id, amount, frequency")
+              .eq("organization_id", currentOrganization.id)
+              .eq("academic_year_id", selectedYearId)
+              .in("class_id", classIds)
+          : Promise.resolve({ data: [] as any[] }),
+        supabase
+          .from("student_fees")
+          .select("student_id, paid_amount, status")
+          .eq("organization_id", currentOrganization.id)
+          .in("student_id", studentIds)
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0),
+        (supabase.from("student_balance_audit" as any) as any)
+          .select("student_id, adjustment_type, change_amount")
+          .eq("organization_id", currentOrganization.id)
+          .in("student_id", studentIds),
+      ]);
+
+      const structures = (structuresRes as any).data || [];
+      const payments = (paymentsRes as any).data || [];
+      const adjustments = (adjustmentsRes as any).data || [];
+
+      // Per-class expected total
+      const expectedByClass: Record<string, number> = {};
+      for (const s of structures) {
+        const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
+        expectedByClass[s.class_id] = (expectedByClass[s.class_id] || 0) + (s.amount || 0) * mult;
+      }
+
+      const paidByStudent: Record<string, number> = {};
+      for (const p of payments) {
+        paidByStudent[p.student_id] = (paidByStudent[p.student_id] || 0) + (p.paid_amount || 0);
+      }
+
+      const adjByStudent: Record<string, number> = {};
+      for (const a of adjustments) {
+        const v = a.adjustment_type === "credit" ? (a.change_amount || 0)
+               : a.adjustment_type === "debit" ? -(a.change_amount || 0)
+               : 0;
+        adjByStudent[a.student_id] = (adjByStudent[a.student_id] || 0) + v;
+      }
+
+      const map: Record<string, number> = {};
+      for (const st of students) {
+        const opening = st.closing_fees_balance || 0;
+        const expected = expectedByClass[st.class_id] || 0;
+        const hasStructures = expected > 0;
+        const paid = paidByStudent[st.id] || 0;
+        const adj = adjByStudent[st.id] || 0;
+        const due = hasStructures
+          ? Math.max(0, opening + expected + adj - paid)
+          : Math.max(0, opening + adj - paid);
+        map[st.id] = due;
+      }
+      return map;
+    },
+    enabled: !!currentOrganization?.id && !!selectedYearId && studentIds.length > 0,
+  });
+
   const { data: stats } = useQuery({
     queryKey: ["student-stats", currentOrganization?.id, selectedYearId],
     queryFn: async () => {
