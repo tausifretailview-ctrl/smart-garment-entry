@@ -137,6 +137,40 @@ const FeeStructureSetup = () => {
     enabled: !!currentOrganization?.id && !!selectedYear && !!selectedClass && showHistory,
   });
 
+  // Fetch ALL fee structures for the selected year (across all classes)
+  const { data: allStructures, isLoading: loadingAll } = useQuery({
+    queryKey: ["fee-structures-all", currentOrganization?.id, selectedYear],
+    queryFn: async () => {
+      if (!selectedYear) return [];
+      const { data, error } = await supabase
+        .from("fee_structures")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", selectedYear);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !!selectedYear,
+  });
+
+  // Fetch ALL history for the selected year (across all classes)
+  const { data: allHistory, isLoading: loadingAllHistory } = useQuery({
+    queryKey: ["fee-structure-history-all", currentOrganization?.id, selectedYear],
+    queryFn: async () => {
+      if (!selectedYear) return [];
+      const { data, error } = await supabase
+        .from("fee_structure_history")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", selectedYear)
+        .order("changed_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !!selectedYear,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id || !selectedYear || !selectedClass) return;
@@ -210,6 +244,8 @@ const FeeStructureSetup = () => {
       toast.success("Fee structure saved successfully!");
       queryClient.invalidateQueries({ queryKey: ["fee-structures"] });
       queryClient.invalidateQueries({ queryKey: ["fee-structure-history"] });
+      queryClient.invalidateQueries({ queryKey: ["fee-structures-all"] });
+      queryClient.invalidateQueries({ queryKey: ["fee-structure-history-all"] });
     },
     onError: (err: any) => {
       toast.error("Failed to save: " + err.message);
@@ -243,6 +279,30 @@ const FeeStructureSetup = () => {
   // Map fee_head_id to name for history display
   const feeHeadMap: Record<string, string> = {};
   feeHeads?.forEach((h: any) => { feeHeadMap[h.id] = h.head_name; });
+  const classMap: Record<string, string> = {};
+  classes?.forEach((c: any) => { classMap[c.id] = c.class_name; });
+
+  // Build pivot grid: rows = classes, cols = fee heads
+  const classesWithStructures = (() => {
+    if (!allStructures || !classes || !feeHeads) return [];
+    const byClass: Record<string, Record<string, { amount: number; frequency: string }>> = {};
+    allStructures.forEach((fs: any) => {
+      if (!byClass[fs.class_id]) byClass[fs.class_id] = {};
+      byClass[fs.class_id][fs.fee_head_id] = { amount: Number(fs.amount) || 0, frequency: fs.frequency };
+    });
+    return classes
+      .filter((c: any) => byClass[c.id])
+      .map((c: any) => {
+        const heads = byClass[c.id];
+        const total = feeHeads.reduce((sum: number, h: any) => {
+          const cell = heads[h.id];
+          if (!cell) return sum;
+          const mult = cell.frequency === "monthly" ? 12 : cell.frequency === "quarterly" ? 4 : 1;
+          return sum + cell.amount * mult;
+        }, 0);
+        return { class_id: c.id, class_name: c.class_name, heads, total };
+      });
+  })();
 
   if (!currentOrganization) {
     return (
@@ -317,6 +377,78 @@ const FeeStructureSetup = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* All Fee Structures Overview (year-wide) */}
+      {selectedYear && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>All Fee Structures ({academicYears?.find((y: any) => y.id === selectedYear)?.year_name})</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {classesWithStructures.length} class{classesWithStructures.length === 1 ? "" : "es"} configured
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingAll ? (
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : classesWithStructures.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">
+                No fee structures defined yet. Select a class below and add fees.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background">Class</TableHead>
+                      {feeHeads?.map((h: any) => (
+                        <TableHead key={h.id} className="text-right whitespace-nowrap">{h.head_name}</TableHead>
+                      ))}
+                      <TableHead className="text-right font-bold">Total Annual</TableHead>
+                      <TableHead className="w-20 text-center">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {classesWithStructures.map((row: any) => (
+                      <TableRow key={row.class_id} className={selectedClass === row.class_id ? "bg-accent/30" : ""}>
+                        <TableCell className="font-medium sticky left-0 bg-background">{row.class_name}</TableCell>
+                        {feeHeads?.map((h: any) => {
+                          const cell = row.heads[h.id];
+                          return (
+                            <TableCell key={h.id} className="text-right tabular-nums font-mono">
+                              {cell && cell.amount > 0 ? (
+                                <span title={cell.frequency}>₹{cell.amount.toLocaleString("en-IN")}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-right font-bold tabular-nums font-mono text-primary">
+                          ₹{row.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedClass(row.class_id)}
+                            title="Edit this class"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Fee Structure Table */}
       {selectedYear && selectedClass && (
@@ -490,6 +622,70 @@ const FeeStructureSetup = () => {
                   ))}
                 </TableBody>
               </Table>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All History (year-wide, across all classes) */}
+      {selectedYear && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              All Fee Structure Updates ({academicYears?.find((y: any) => y.id === selectedYear)?.year_name})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingAllHistory ? (
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !allHistory || allHistory.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">No updates recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Fee Head</TableHead>
+                      <TableHead className="text-right">Old Amount</TableHead>
+                      <TableHead className="text-right">New Amount</TableHead>
+                      <TableHead>Frequency</TableHead>
+                      <TableHead>Changed By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allHistory.map((h: any) => (
+                      <TableRow key={h.id}>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {format(new Date(h.changed_at), "dd MMM yyyy, hh:mm a")}
+                        </TableCell>
+                        <TableCell className="font-medium">{classMap[h.class_id] || "-"}</TableCell>
+                        <TableCell>{feeHeadMap[h.fee_head_id] || "Unknown"}</TableCell>
+                        <TableCell className="text-right tabular-nums font-mono">
+                          <span className={Number(h.old_amount) > 0 ? "text-destructive line-through" : "text-muted-foreground"}>
+                            ₹{Number(h.old_amount).toLocaleString("en-IN")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-mono font-semibold text-primary">
+                          ₹{Number(h.new_amount).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell className="text-sm capitalize">
+                          {h.old_frequency && h.old_frequency !== h.new_frequency ? (
+                            <span>{h.old_frequency} → {h.new_frequency}</span>
+                          ) : (
+                            h.new_frequency || "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{h.changed_by || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
