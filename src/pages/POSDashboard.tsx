@@ -1259,9 +1259,15 @@ const POSDashboard = () => {
 
       const matchesUser = userFilter === "all" || userFilter === "__pending__" || sale.created_by === userFilter;
 
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser;
+      const isCancelled = !!(sale as any).is_cancelled;
+      const matchesCancel =
+        cancelFilter === "all" ||
+        (cancelFilter === "active" && !isCancelled) ||
+        (cancelFilter === "cancelled" && isCancelled);
+
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser && matchesCancel;
     });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter]);
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter, cancelFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
   const summaryStats = useMemo(() => ({
