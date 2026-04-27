@@ -299,7 +299,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch refund payment vouchers per customer
       const { data: refundVouchers } = await supabase
         .from('voucher_entries')
-        .select('reference_id, total_amount')
+        .select('reference_id, total_amount, description, payment_method')
         .eq('organization_id', organizationId)
         .eq('voucher_type', 'payment')
         .eq('reference_type', 'customer')
@@ -307,9 +307,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       const customerRefundsPaid = new Map<string, number>();
       refundVouchers?.forEach((v: any) => {
-        if (v.reference_id) {
-          customerRefundsPaid.set(v.reference_id, (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0));
-        }
+        if (!v.reference_id) return;
+        // Exclude exchange-refund vouchers (POS refund + round-off). Those refunds
+        // settle the SR-overflow that is ALREADY captured via creditNoteTotal +
+        // GROSS sales math; counting them again would create a phantom debit.
+        const desc = (v.description || '').toLowerCase();
+        const isExchangeRefund =
+          desc.includes('refund paid for pos exchange') ||
+          desc.includes('round off adjustment for pos exchange') ||
+          v.payment_method === 'round_off';
+        if (isExchangeRefund) return;
+        customerRefundsPaid.set(v.reference_id, (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0));
       });
 
       // Build sale_id -> customer_id map for invoice vouchers
@@ -389,8 +397,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled' && s.payment_status !== 'hold');
-        // net_amount is already post-return; do NOT add sale_return_adjust (would double-count).
-        const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
+        // Use GROSS sales (net + sale_return_adjust) because creditNoteTotal is
+        // subtracted separately below. If we used net_amount alone, the SR
+        // adjustment portion would be subtracted twice (once via the net and
+        // once via creditNoteTotal), producing a phantom credit balance.
+        const totalSales = customerSales.reduce(
+          (sum: number, s: any) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0),
+          0
+        );
         
         let totalPaidOnSales = 0;
         let totalAdvanceApplied = 0;
