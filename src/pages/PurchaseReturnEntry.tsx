@@ -421,6 +421,7 @@ const PurchaseReturnEntry = () => {
     // Prevent duplicate processing from multiple triggers
     if (processingBarcodeRef.current) return;
     processingBarcodeRef.current = true;
+    barcodeScanner.markSubmitted(barcode);
     
     try {
       const variant = await handleBarcodeSearch(barcode);
