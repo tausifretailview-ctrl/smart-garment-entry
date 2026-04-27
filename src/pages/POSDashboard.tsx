@@ -1821,6 +1821,16 @@ const POSDashboard = () => {
                   <SelectItem value="cn">CN Only</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={cancelFilter} onValueChange={setCancelFilter}>
+                <SelectTrigger className="w-36" title="Cancellation status filter">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="cancelled">Cancelled Only</SelectItem>
+                  <SelectItem value="all">All (Active + Cancelled)</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="All Users" />
