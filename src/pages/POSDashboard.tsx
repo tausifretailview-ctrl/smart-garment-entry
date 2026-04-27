@@ -333,8 +333,7 @@ const POSDashboard = () => {
           .select("*")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
-          .is("deleted_at", null)
-          .eq("is_cancelled", false);
+          .is("deleted_at", null);
 
         // Server-side date filter for performance — avoids loading entire history.
         // sale_date is timestamptz, so use full-day bounds to include sales saved
