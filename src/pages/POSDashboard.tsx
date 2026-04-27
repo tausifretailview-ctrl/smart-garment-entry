@@ -98,6 +98,7 @@ interface Sale {
   created_by?: string | null;
   sale_type?: string;
   status?: string | null;
+  is_cancelled?: boolean | null;
   // E-Invoice fields
   irn?: string | null;
   ack_no?: string | null;
@@ -146,6 +147,8 @@ const POSDashboard = () => {
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
+  // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
+  const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
 
   // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({
@@ -331,8 +334,7 @@ const POSDashboard = () => {
           .select("*")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
-          .is("deleted_at", null)
-          .eq("is_cancelled", false);
+          .is("deleted_at", null);
 
         // Server-side date filter for performance — avoids loading entire history.
         // sale_date is timestamptz, so use full-day bounds to include sales saved
@@ -1258,9 +1260,15 @@ const POSDashboard = () => {
 
       const matchesUser = userFilter === "all" || userFilter === "__pending__" || sale.created_by === userFilter;
 
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser;
+      const isCancelled = !!sale.is_cancelled;
+      const matchesCancel =
+        cancelFilter === "all" ||
+        (cancelFilter === "active" && !isCancelled) ||
+        (cancelFilter === "cancelled" && isCancelled);
+
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser && matchesCancel;
     });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter]);
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter, cancelFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
   const summaryStats = useMemo(() => ({
@@ -1812,6 +1820,16 @@ const POSDashboard = () => {
                   <SelectItem value="pos">POS Bills</SelectItem>
                   <SelectItem value="dc">DC Only</SelectItem>
                   <SelectItem value="cn">CN Only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={cancelFilter} onValueChange={setCancelFilter}>
+                <SelectTrigger className="w-36" title="Cancellation status filter">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="cancelled">Cancelled Only</SelectItem>
+                  <SelectItem value="all">All (Active + Cancelled)</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
