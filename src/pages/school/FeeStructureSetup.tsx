@@ -627,6 +627,70 @@ const FeeStructureSetup = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* All History (year-wide, across all classes) */}
+      {selectedYear && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              All Fee Structure Updates ({academicYears?.find((y: any) => y.id === selectedYear)?.year_name})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingAllHistory ? (
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : !allHistory || allHistory.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">No updates recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Fee Head</TableHead>
+                      <TableHead className="text-right">Old Amount</TableHead>
+                      <TableHead className="text-right">New Amount</TableHead>
+                      <TableHead>Frequency</TableHead>
+                      <TableHead>Changed By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allHistory.map((h: any) => (
+                      <TableRow key={h.id}>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {format(new Date(h.changed_at), "dd MMM yyyy, hh:mm a")}
+                        </TableCell>
+                        <TableCell className="font-medium">{classMap[h.class_id] || "-"}</TableCell>
+                        <TableCell>{feeHeadMap[h.fee_head_id] || "Unknown"}</TableCell>
+                        <TableCell className="text-right tabular-nums font-mono">
+                          <span className={Number(h.old_amount) > 0 ? "text-destructive line-through" : "text-muted-foreground"}>
+                            ₹{Number(h.old_amount).toLocaleString("en-IN")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums font-mono font-semibold text-primary">
+                          ₹{Number(h.new_amount).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell className="text-sm capitalize">
+                          {h.old_frequency && h.old_frequency !== h.new_frequency ? (
+                            <span>{h.old_frequency} → {h.new_frequency}</span>
+                          ) : (
+                            h.new_frequency || "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{h.changed_by || "-"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
