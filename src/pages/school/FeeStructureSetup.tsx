@@ -41,6 +41,7 @@ const FeeStructureSetup = () => {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [feeRows, setFeeRows] = useState<FeeRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showAllStructures, setShowAllStructures] = useState(true);
 
   const { data: academicYears } = useQuery({
     queryKey: ["academic-years", currentOrganization?.id],
@@ -137,6 +138,40 @@ const FeeStructureSetup = () => {
     enabled: !!currentOrganization?.id && !!selectedYear && !!selectedClass && showHistory,
   });
 
+  // Fetch ALL fee structures for the selected year (across all classes)
+  const { data: allStructures, isLoading: loadingAll } = useQuery({
+    queryKey: ["fee-structures-all", currentOrganization?.id, selectedYear],
+    queryFn: async () => {
+      if (!selectedYear) return [];
+      const { data, error } = await supabase
+        .from("fee_structures")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", selectedYear);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !!selectedYear,
+  });
+
+  // Fetch ALL history for the selected year (across all classes)
+  const { data: allHistory, isLoading: loadingAllHistory } = useQuery({
+    queryKey: ["fee-structure-history-all", currentOrganization?.id, selectedYear],
+    queryFn: async () => {
+      if (!selectedYear) return [];
+      const { data, error } = await supabase
+        .from("fee_structure_history")
+        .select("*")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", selectedYear)
+        .order("changed_at", { ascending: false })
+        .limit(500);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !!selectedYear,
+  });
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id || !selectedYear || !selectedClass) return;
@@ -210,6 +245,8 @@ const FeeStructureSetup = () => {
       toast.success("Fee structure saved successfully!");
       queryClient.invalidateQueries({ queryKey: ["fee-structures"] });
       queryClient.invalidateQueries({ queryKey: ["fee-structure-history"] });
+      queryClient.invalidateQueries({ queryKey: ["fee-structures-all"] });
+      queryClient.invalidateQueries({ queryKey: ["fee-structure-history-all"] });
     },
     onError: (err: any) => {
       toast.error("Failed to save: " + err.message);
@@ -243,6 +280,30 @@ const FeeStructureSetup = () => {
   // Map fee_head_id to name for history display
   const feeHeadMap: Record<string, string> = {};
   feeHeads?.forEach((h: any) => { feeHeadMap[h.id] = h.head_name; });
+  const classMap: Record<string, string> = {};
+  classes?.forEach((c: any) => { classMap[c.id] = c.class_name; });
+
+  // Build pivot grid: rows = classes, cols = fee heads
+  const classesWithStructures = (() => {
+    if (!allStructures || !classes || !feeHeads) return [];
+    const byClass: Record<string, Record<string, { amount: number; frequency: string }>> = {};
+    allStructures.forEach((fs: any) => {
+      if (!byClass[fs.class_id]) byClass[fs.class_id] = {};
+      byClass[fs.class_id][fs.fee_head_id] = { amount: Number(fs.amount) || 0, frequency: fs.frequency };
+    });
+    return classes
+      .filter((c: any) => byClass[c.id])
+      .map((c: any) => {
+        const heads = byClass[c.id];
+        const total = feeHeads.reduce((sum: number, h: any) => {
+          const cell = heads[h.id];
+          if (!cell) return sum;
+          const mult = cell.frequency === "monthly" ? 12 : cell.frequency === "quarterly" ? 4 : 1;
+          return sum + cell.amount * mult;
+        }, 0);
+        return { class_id: c.id, class_name: c.class_name, heads, total };
+      });
+  })();
 
   if (!currentOrganization) {
     return (
