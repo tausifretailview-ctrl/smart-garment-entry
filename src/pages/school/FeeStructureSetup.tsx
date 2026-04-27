@@ -398,7 +398,11 @@ const FeeStructureSetup = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears?.map((y: any) => (
-                    <SelectItem key={y.id} value={y.id}>{y.year_name}</SelectItem>
+                    <SelectItem key={y.id} value={y.id}>
+                      {y.year_name}
+                      {yearSummary && yearSummary[y.id] ? ` • ${yearSummary[y.id]} fees configured` : ""}
+                      {y.is_current ? " • Current" : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
