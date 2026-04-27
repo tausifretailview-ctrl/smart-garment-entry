@@ -328,7 +328,12 @@ const FeeStructureSetup = () => {
       byClass[fs.class_id][fs.fee_head_id] = { amount: Number(fs.amount) || 0, frequency: fs.frequency };
     });
     return classes
-      .filter((c: any) => byClass[c.id])
+      .filter((c: any) => {
+        const heads = byClass[c.id];
+        if (!heads) return false;
+        // Only include classes that have at least one non-zero fee
+        return Object.values(heads).some(h => h.amount > 0);
+      })
       .map((c: any) => {
         const heads = byClass[c.id];
         const total = feeHeads.reduce((sum: number, h: any) => {
