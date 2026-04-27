@@ -389,8 +389,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled' && s.payment_status !== 'hold');
-        // net_amount is already post-return; do NOT add sale_return_adjust (would double-count).
-        const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
+        // Use GROSS sales (net + sale_return_adjust) because creditNoteTotal is
+        // subtracted separately below. If we used net_amount alone, the SR
+        // adjustment portion would be subtracted twice (once via the net and
+        // once via creditNoteTotal), producing a phantom credit balance.
+        const totalSales = customerSales.reduce(
+          (sum: number, s: any) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0),
+          0
+        );
         
         let totalPaidOnSales = 0;
         let totalAdvanceApplied = 0;
