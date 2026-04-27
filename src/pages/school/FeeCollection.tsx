@@ -269,10 +269,12 @@ const FeeCollection = () => {
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
         const importedBalance = student.closing_fees_balance || 0;
-        // hasStructures: any fee_structures row exists for the class, even if amount=0.
-        // Using row presence (not totalExpected>0) matches BalanceEditDialog's logic
-        // so balance reductions saved as audit entries are applied consistently.
-        const hasStructures = classStructures.length > 0;
+        // hasStructures: structure rows exist AND have a non-zero total.
+        // Rows with amount=0 are placeholders (not yet configured) and must NOT
+        // override the imported closing balance — otherwise students with an
+        // opening balance but no fee structure get displayed as ₹0 due / Paid,
+        // mismatching the Customer Ledger which uses closing_fees_balance.
+        const hasStructures = classStructures.length > 0 && totalExpected > 0;
         // Apply balance adjustments from audit log:
         //  - 'credit' increases due
         //  - 'debit'  reduces due
