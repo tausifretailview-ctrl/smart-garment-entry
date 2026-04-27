@@ -379,6 +379,78 @@ const FeeStructureSetup = () => {
         </CardContent>
       </Card>
 
+      {/* All Fee Structures Overview (year-wide) */}
+      {selectedYear && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>All Fee Structures ({academicYears?.find((y: any) => y.id === selectedYear)?.year_name})</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {classesWithStructures.length} class{classesWithStructures.length === 1 ? "" : "es"} configured
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingAll ? (
+              <div className="flex items-center justify-center h-24">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : classesWithStructures.length === 0 ? (
+              <p className="text-center text-muted-foreground py-6">
+                No fee structures defined yet. Select a class below and add fees.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background">Class</TableHead>
+                      {feeHeads?.map((h: any) => (
+                        <TableHead key={h.id} className="text-right whitespace-nowrap">{h.head_name}</TableHead>
+                      ))}
+                      <TableHead className="text-right font-bold">Total Annual</TableHead>
+                      <TableHead className="w-20 text-center">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {classesWithStructures.map((row: any) => (
+                      <TableRow key={row.class_id} className={selectedClass === row.class_id ? "bg-accent/30" : ""}>
+                        <TableCell className="font-medium sticky left-0 bg-background">{row.class_name}</TableCell>
+                        {feeHeads?.map((h: any) => {
+                          const cell = row.heads[h.id];
+                          return (
+                            <TableCell key={h.id} className="text-right tabular-nums font-mono">
+                              {cell && cell.amount > 0 ? (
+                                <span title={cell.frequency}>₹{cell.amount.toLocaleString("en-IN")}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-right font-bold tabular-nums font-mono text-primary">
+                          ₹{row.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedClass(row.class_id)}
+                            title="Edit this class"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Fee Structure Table */}
       {selectedYear && selectedClass && (
         <Card>
