@@ -1260,7 +1260,7 @@ const POSDashboard = () => {
 
       const matchesUser = userFilter === "all" || userFilter === "__pending__" || sale.created_by === userFilter;
 
-      const isCancelled = !!(sale as any).is_cancelled;
+      const isCancelled = !!sale.is_cancelled;
       const matchesCancel =
         cancelFilter === "all" ||
         (cancelFilter === "active" && !isCancelled) ||
