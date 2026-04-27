@@ -509,6 +509,7 @@ const PurchaseBillDashboard = () => {
         .from("purchase_items")
         .select("id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
         .eq("bill_id", billId)
+        .is("deleted_at", null)
         .order("created_at");
 
       if (error) throw error;
