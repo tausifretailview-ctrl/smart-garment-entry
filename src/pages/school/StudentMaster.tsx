@@ -409,6 +409,7 @@ const StudentMaster = () => {
                 <TableHead>Roll No</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Contact</TableHead>
+                <TableHead className="text-right">Closing Balance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -416,13 +417,13 @@ const StudentMaster = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={11} className="text-center py-8">
                     Loading students...
                   </TableCell>
                 </TableRow>
               ) : students.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={11} className="text-center py-8">
                     <div className="text-muted-foreground">
                     {searchTerm ? "No students found matching your search" : "No students added yet"}
                     </div>
@@ -483,6 +484,17 @@ const StudentMaster = () => {
                           </span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {(() => {
+                        const bal = balanceMap?.[student.id];
+                        if (bal === undefined) return <span className="text-muted-foreground">—</span>;
+                        return (
+                          <span className={bal > 0 ? "text-destructive font-semibold" : "text-emerald-600"}>
+                            ₹{bal.toFixed(2)}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Badge variant={student.status === "active" ? "default" : "secondary"}>
