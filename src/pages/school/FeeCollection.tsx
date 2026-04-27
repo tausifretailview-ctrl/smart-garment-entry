@@ -189,7 +189,10 @@ const FeeCollection = () => {
       }, 0);
 
       const totalImportedBalance = (allStudents || []).reduce((s: number, st: any) => s + (st.closing_fees_balance || 0), 0);
-      const pending = Math.max(0, (totalExpected > 0 ? totalExpected : totalImportedBalance) - totalPaid);
+      // Pending = opening balance + structure expected − all receipts.
+      // Including the imported opening prevents double-counting when
+      // receipts already settled the opening but a fee structure is added later.
+      const pending = Math.max(0, totalImportedBalance + totalExpected - totalPaid);
 
       return { today: todayTotal, month: monthTotal, pending };
     },
@@ -288,11 +291,16 @@ const FeeCollection = () => {
           if (a.adjustment_type === 'debit')  return sum - (a.change_amount || 0);
           return sum;
         }, 0);
+        // When both an imported opening balance AND a fee structure exist,
+        // the total expected for the year = opening carried forward + structure.
+        // Use paidTotal (all receipts) so receipts that already settled the
+        // opening balance correctly reduce the displayed due, instead of
+        // double-counting (opening cleared in ledger but structure showing again).
         const totalDue = hasStructures
-          ? Math.max(0, totalExpected + adjustmentNet - paidInYear)
+          ? Math.max(0, importedBalance + totalExpected + adjustmentNet - paidTotal)
           : Math.max(0, importedBalance + adjustmentNet - paidTotal);
-        const totalPaid = hasStructures ? paidInYear : paidTotal;
-        const effectiveExpected = hasStructures ? totalExpected : importedBalance;
+        const totalPaid = paidTotal;
+        const effectiveExpected = hasStructures ? (importedBalance + totalExpected) : importedBalance;
         const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
 
         return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus, importedBalance };
