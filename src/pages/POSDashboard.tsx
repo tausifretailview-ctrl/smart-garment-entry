@@ -98,6 +98,7 @@ interface Sale {
   created_by?: string | null;
   sale_type?: string;
   status?: string | null;
+  is_cancelled?: boolean | null;
   // E-Invoice fields
   irn?: string | null;
   ack_no?: string | null;
