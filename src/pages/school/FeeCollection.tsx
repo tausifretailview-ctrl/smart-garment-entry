@@ -189,7 +189,10 @@ const FeeCollection = () => {
       }, 0);
 
       const totalImportedBalance = (allStudents || []).reduce((s: number, st: any) => s + (st.closing_fees_balance || 0), 0);
-      const pending = Math.max(0, (totalExpected > 0 ? totalExpected : totalImportedBalance) - totalPaid);
+      // Pending = opening balance + structure expected − all receipts.
+      // Including the imported opening prevents double-counting when
+      // receipts already settled the opening but a fee structure is added later.
+      const pending = Math.max(0, totalImportedBalance + totalExpected - totalPaid);
 
       return { today: todayTotal, month: monthTotal, pending };
     },
