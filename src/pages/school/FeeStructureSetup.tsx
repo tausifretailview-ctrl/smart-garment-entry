@@ -41,7 +41,6 @@ const FeeStructureSetup = () => {
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [feeRows, setFeeRows] = useState<FeeRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [showAllStructures, setShowAllStructures] = useState(true);
 
   const { data: academicYears } = useQuery({
     queryKey: ["academic-years", currentOrganization?.id],
