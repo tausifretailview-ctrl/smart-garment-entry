@@ -56,6 +56,43 @@ const FeeStructureSetup = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch a summary of how many non-zero fee structures each year has, to help auto-pick
+  const { data: yearSummary } = useQuery({
+    queryKey: ["fee-structures-year-summary", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("fee_structures")
+        .select("academic_year_id, amount")
+        .eq("organization_id", currentOrganization!.id)
+        .gt("amount", 0);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        counts[r.academic_year_id] = (counts[r.academic_year_id] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Auto-select the year with most configured fees on first load
+  useEffect(() => {
+    if (selectedYear || !academicYears?.length || !yearSummary) return;
+    let bestId = academicYears[0].id;
+    let bestCount = yearSummary[bestId] || 0;
+    academicYears.forEach((y: any) => {
+      const c = yearSummary[y.id] || 0;
+      if (c > bestCount) { bestCount = c; bestId = y.id; }
+    });
+    // Prefer the current year if marked, otherwise the most-populated year
+    const current = academicYears.find((y: any) => y.is_current);
+    if (current && (yearSummary[current.id] || 0) > 0) {
+      setSelectedYear(current.id);
+    } else {
+      setSelectedYear(bestId);
+    }
+  }, [academicYears, yearSummary, selectedYear]);
+
   const { data: classes } = useQuery({
     queryKey: ["school-classes", currentOrganization?.id],
     queryFn: async () => {
