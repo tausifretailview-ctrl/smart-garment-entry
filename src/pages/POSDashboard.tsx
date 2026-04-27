@@ -146,6 +146,8 @@ const POSDashboard = () => {
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
+  // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
+  const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
 
   // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({
