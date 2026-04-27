@@ -1274,6 +1274,12 @@ const PurchaseReturnEntry = () => {
                     barcodeScanner.recordKeystroke();
                     const newValue = e.target.value;
                     setSearchQuery(newValue);
+                    // Auto-submit for hardware scanners that don't send Enter
+                    if (newValue.trim().length >= 4) {
+                      barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
+                        processBarcodeInput(val.trim());
+                      });
+                    }
                   }}
                   onFocus={() => {
                     if (searchResults.length > 0) setShowSearch(true);
