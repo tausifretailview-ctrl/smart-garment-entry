@@ -407,6 +407,7 @@ const PurchaseReturnEntry = () => {
   const barcodeScanner = useBarcodeScanner({
     minBarcodeLength: 4,
     maxKeystrokeInterval: 50,
+    autoSubmitDelay: 120,
   });
 
   // Pending barcode from scanner Enter key
@@ -420,6 +421,7 @@ const PurchaseReturnEntry = () => {
     // Prevent duplicate processing from multiple triggers
     if (processingBarcodeRef.current) return;
     processingBarcodeRef.current = true;
+    barcodeScanner.markSubmitted(barcode);
     
     try {
       const variant = await handleBarcodeSearch(barcode);
@@ -1272,6 +1274,12 @@ const PurchaseReturnEntry = () => {
                     barcodeScanner.recordKeystroke();
                     const newValue = e.target.value;
                     setSearchQuery(newValue);
+                    // Auto-submit for hardware scanners that don't send Enter
+                    if (newValue.trim().length >= 4) {
+                      barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
+                        processBarcodeInput(val.trim());
+                      });
+                    }
                   }}
                   onFocus={() => {
                     if (searchResults.length > 0) setShowSearch(true);
