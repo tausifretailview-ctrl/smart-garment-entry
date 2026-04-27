@@ -407,6 +407,7 @@ const PurchaseReturnEntry = () => {
   const barcodeScanner = useBarcodeScanner({
     minBarcodeLength: 4,
     maxKeystrokeInterval: 50,
+    autoSubmitDelay: 120,
   });
 
   // Pending barcode from scanner Enter key
