@@ -4939,7 +4939,7 @@ export default function POSSales() {
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
         <div className="shrink-0 w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
-          <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10">
+          <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
             <div className="text-center px-3">
               <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
@@ -4984,10 +4984,10 @@ export default function POSSales() {
             </div>
             
             {/* Spacer */}
-            <div className="flex-1" />
+            <div className="flex-1 hidden xl:block" />
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round */}
-            <div className="flex items-end gap-4">
+            <div className="flex items-end gap-3 flex-wrap justify-end">
               {/* Flat Disc */}
               <div className="text-center">
                 <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
@@ -5120,7 +5120,7 @@ export default function POSSales() {
             <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
             
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
-            <div className="text-right min-w-[180px]">
+            <div className="text-right min-w-[140px] sm:min-w-[180px] shrink-0">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
                 <div className="text-[10px] text-white/50 line-through leading-tight">
                   MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
@@ -5131,7 +5131,7 @@ export default function POSSales() {
               </div>
               <Input 
                 type="number"
-                className={`w-full h-12 text-right text-3xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-[140px] sm:w-[180px] h-12 text-right text-2xl sm:text-3xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
