@@ -169,6 +169,98 @@ export const useSaveSale = () => {
     await writePaymentVoucher(params.roundOffRemainder, 'round_off', `Round off adjustment for POS exchange ${params.saleNumber}`);
   };
 
+  const consumeSaleReturnAdjustments = async (params: {
+    customerId: string;
+    saleId: string;
+    adjustmentAmount: number;
+  }) => {
+    if (!currentOrganization?.id || !params.customerId || params.adjustmentAmount <= 0) return;
+
+    const { data: pendingSRs } = await supabase
+      .from('sale_returns')
+      .select('id, net_amount, gross_amount, gst_amount, credit_status, linked_sale_id, customer_id, customer_name, organization_id, refund_type, return_date, return_number, original_sale_number, notes, credit_note_id')
+      .eq('customer_id', params.customerId)
+      .eq('organization_id', currentOrganization.id)
+      .or('credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
+      .is('deleted_at', null)
+      .order('return_date', { ascending: true });
+
+    const targetAmount = roundMoney(params.adjustmentAmount);
+    const sortedSRs = [...(pendingSRs || [])].sort((a: any, b: any) => {
+      const aAmt = roundMoney(Number(a.net_amount) || 0);
+      const bAmt = roundMoney(Number(b.net_amount) || 0);
+      const aExact = Math.abs(aAmt - targetAmount) < 0.01 ? 1 : 0;
+      const bExact = Math.abs(bAmt - targetAmount) < 0.01 ? 1 : 0;
+      if (aExact !== bExact) return bExact - aExact;
+      return 0;
+    });
+
+    let remaining = targetAmount;
+    for (const sr of sortedSRs) {
+      if (remaining <= 0) break;
+      const srAmt = roundMoney(Number(sr.net_amount) || 0);
+      if (srAmt <= 0) continue;
+
+      // Full consume
+      if (remaining >= srAmt - 0.01) {
+        await supabase
+          .from('sale_returns')
+          .update({
+            credit_status: 'adjusted',
+            linked_sale_id: params.saleId,
+          })
+          .eq('id', sr.id);
+        remaining = roundMoney(remaining - srAmt);
+        continue;
+      }
+
+      // Mamta/Vasim reconciliation: allow partial consume by splitting row.
+      const consumeAmt = roundMoney(remaining);
+      const leftoverAmt = roundMoney(srAmt - consumeAmt);
+      const srGross = roundMoney(Number(sr.gross_amount) || srAmt);
+      const srGst = roundMoney(Number(sr.gst_amount) || 0);
+      const ratio = srAmt > 0 ? consumeAmt / srAmt : 0;
+      const consumedGross = roundMoney(srGross * ratio);
+      const consumedGst = roundMoney(srGst * ratio);
+      const leftoverGross = roundMoney(srGross - consumedGross);
+      const leftoverGst = roundMoney(srGst - consumedGst);
+
+      await supabase
+        .from('sale_returns')
+        .update({
+          net_amount: consumeAmt,
+          gross_amount: consumedGross,
+          gst_amount: consumedGst,
+          credit_status: 'adjusted',
+          linked_sale_id: params.saleId,
+          notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Partially adjusted in POS sale`,
+        })
+        .eq('id', sr.id);
+
+      if (leftoverAmt > 0.01) {
+        await supabase.from('sale_returns').insert({
+          organization_id: sr.organization_id,
+          customer_id: sr.customer_id,
+          customer_name: sr.customer_name,
+          refund_type: sr.refund_type || 'credit_note',
+          return_date: sr.return_date,
+          return_number: null,
+          original_sale_number: sr.original_sale_number || null,
+          credit_note_id: sr.credit_note_id || null,
+          credit_status: 'pending',
+          linked_sale_id: null,
+          gross_amount: leftoverGross,
+          gst_amount: leftoverGst,
+          net_amount: leftoverAmt,
+          notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Pending balance after partial POS adjustment`,
+        } as any);
+      }
+
+      remaining = 0;
+      break;
+    }
+  };
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
@@ -453,33 +545,11 @@ export const useSaveSale = () => {
       // into this sale's net_amount (prevents double-counting credit).
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
         try {
-          const { data: pendingSRs } = await supabase
-            .from('sale_returns')
-            .select('id, net_amount, credit_status, linked_sale_id')
-            .eq('customer_id', saleData.customerId)
-            .eq('organization_id', currentOrganization.id)
-            .or('credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
-            .is('deleted_at', null)
-            .order('return_date', { ascending: true });
-
-          let remaining = saleData.saleReturnAdjust;
-          for (const sr of (pendingSRs || [])) {
-            if (remaining <= 0) break;
-            const srAmt = Number(sr.net_amount) || 0;
-            if (remaining >= srAmt - 1) {
-              await supabase
-                .from('sale_returns')
-                .update({
-                  credit_status: 'adjusted',
-                  linked_sale_id: sale.id,
-                })
-                .eq('id', sr.id);
-              remaining -= srAmt;
-            } else {
-              console.warn(`Partial SR consumption not supported for SR ${sr.id}`);
-              break;
-            }
-          }
+          await consumeSaleReturnAdjustments({
+            customerId: saleData.customerId,
+            saleId: sale.id,
+            adjustmentAmount: saleData.saleReturnAdjust,
+          });
         } catch (srErr) {
           console.error('Failed to mark SR as adjusted:', srErr);
         }
@@ -990,38 +1060,11 @@ export const useSaveSale = () => {
 
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
         try {
-          const { data: pendingSRs } = await supabase
-            .from('sale_returns')
-            .select('id, net_amount, credit_status, linked_sale_id')
-            .eq('customer_id', saleData.customerId)
-            .eq('organization_id', currentOrganization.id)
-            .or(`credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null),and(credit_status.eq.adjusted,linked_sale_id.eq.${sale.id})`)
-            .is('deleted_at', null)
-            .order('return_date', { ascending: true });
-
-          let remaining = saleData.saleReturnAdjust;
-          for (const sr of (pendingSRs || [])) {
-            if (remaining <= 0) break;
-            const srAmt = Number(sr.net_amount) || 0;
-            // Skip already-linked-to-this-sale rows in remaining count
-            if (sr.linked_sale_id === sale.id && sr.credit_status === 'adjusted') {
-              remaining -= srAmt;
-              continue;
-            }
-            if (remaining >= srAmt - 1) {
-              await supabase
-                .from('sale_returns')
-                .update({
-                  credit_status: 'adjusted',
-                  linked_sale_id: sale.id,
-                })
-                .eq('id', sr.id);
-              remaining -= srAmt;
-            } else {
-              console.warn(`Partial SR consumption not supported for SR ${sr.id}`);
-              break;
-            }
-          }
+          await consumeSaleReturnAdjustments({
+            customerId: saleData.customerId,
+            saleId: sale.id,
+            adjustmentAmount: saleData.saleReturnAdjust,
+          });
         } catch (srErr) {
           console.error('Failed to mark SR as adjusted:', srErr);
         }
@@ -1401,33 +1444,11 @@ export const useSaveSale = () => {
       // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
         try {
-          const { data: pendingSRs } = await supabase
-            .from('sale_returns')
-            .select('id, net_amount, credit_status, linked_sale_id')
-            .eq('customer_id', saleData.customerId)
-            .eq('organization_id', currentOrganization.id)
-            .or('credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
-            .is('deleted_at', null)
-            .order('return_date', { ascending: true });
-
-          let remaining = saleData.saleReturnAdjust;
-          for (const sr of (pendingSRs || [])) {
-            if (remaining <= 0) break;
-            const srAmt = Number(sr.net_amount) || 0;
-            if (remaining >= srAmt - 1) {
-              await supabase
-                .from('sale_returns')
-                .update({
-                  credit_status: 'adjusted',
-                  linked_sale_id: sale.id,
-                })
-                .eq('id', sr.id);
-              remaining -= srAmt;
-            } else {
-              console.warn(`Partial SR consumption not supported for SR ${sr.id}`);
-              break;
-            }
-          }
+          await consumeSaleReturnAdjustments({
+            customerId: saleData.customerId,
+            saleId: sale.id,
+            adjustmentAmount: saleData.saleReturnAdjust,
+          });
         } catch (srErr) {
           console.error('Failed to mark SR as adjusted:', srErr);
         }
