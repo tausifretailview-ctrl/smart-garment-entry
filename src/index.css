@@ -984,6 +984,24 @@ body.pos-hide-toasts [data-sonner-toaster] [data-sonner-toast][data-type="error"
   display: flex !important;
 }
 
+/* POS desktop readability boost: larger text and controls */
+body.pos-large-ui .pos-desktop-readable {
+  font-size: 14px;
+}
+body.pos-large-ui .pos-desktop-readable input,
+body.pos-large-ui .pos-desktop-readable [role="combobox"] {
+  font-size: 15px !important;
+}
+body.pos-large-ui .pos-desktop-readable button {
+  font-size: 13px;
+}
+body.pos-large-ui .pos-desktop-readable table th {
+  font-size: 12px !important;
+}
+body.pos-large-ui .pos-desktop-readable table td {
+  font-size: 13px !important;
+}
+
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   .fade-in-fast,

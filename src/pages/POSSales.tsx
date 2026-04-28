@@ -650,8 +650,10 @@ export default function POSSales() {
   // Hide toast popups while POS is open (less distraction for cashier workflow)
   useEffect(() => {
     document.body.classList.add("pos-hide-toasts");
+    document.body.classList.add("pos-large-ui");
     return () => {
       document.body.classList.remove("pos-hide-toasts");
+      document.body.classList.remove("pos-large-ui");
     };
   }, []);
 
@@ -3923,7 +3925,7 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="min-h-screen w-full bg-background flex">
+    <div className="min-h-screen w-full bg-background flex pos-desktop-readable">
       {/* Left Action Button Bar */}
       <div className="w-[72px] bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 pb-32 z-30 relative overflow-y-auto">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
