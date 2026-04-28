@@ -307,7 +307,7 @@ const FeeCollection = () => {
         // settle the combined liability without double-counting.
         const liability = Math.max(importedBalance, totalExpected);
         const totalDueGross = liability + adjustmentNet;
-        const totalPaid = effectivePaid;
+        const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
         const hasStructures = classStructures.length > 0 && totalExpected > 0;
