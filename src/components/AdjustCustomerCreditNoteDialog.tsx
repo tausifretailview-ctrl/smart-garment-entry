@@ -71,6 +71,7 @@ export function AdjustCustomerCreditNoteDialog({
   });
 
   const handleApply = async () => {
+    if (loading) return;
     if (adjustmentType === "invoice" && !selectedSaleId) {
       toast({
         title: "Error",
@@ -82,6 +83,23 @@ export function AdjustCustomerCreditNoteDialog({
 
     setLoading(true);
     try {
+      const { data: currentReturn, error: currentReturnError } = await supabase
+        .from("sale_returns")
+        .select("credit_status")
+        .eq("id", saleReturnId)
+        .single();
+
+      if (currentReturnError) throw currentReturnError;
+
+      if (["adjusted", "adjusted_outstanding"].includes((currentReturn as any)?.credit_status || "")) {
+        toast({
+          title: "Already Adjusted",
+          description: "This return has already been adjusted.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (adjustmentType === "invoice") {
         // Adjust against invoice - update sale's paid_amount and payment_status
         const selectedSale = unpaidSales.find((s: any) => s.id === selectedSaleId);

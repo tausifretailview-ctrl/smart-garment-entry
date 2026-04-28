@@ -290,7 +290,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       paymentMethod: props.paymentMethod,
       amountPaid: props.paidAmount || props.cashPaid || props.upiPaid,
-      balanceDue: Math.max(0, props.grandTotal - (props.paidAmount || props.cashPaid || 0) - (props.upiPaid || 0) - (props.saleReturnAdjust || 0)),
+      balanceDue: props.grandTotal - (props.paidAmount || props.cashPaid || 0) - (props.upiPaid || 0) - (props.saleReturnAdjust || 0),
       cashAmount: props.cashAmount,
       cardAmount: props.cardAmount,
       upiAmount: props.upiAmount,

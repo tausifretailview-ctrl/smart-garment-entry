@@ -1061,8 +1061,8 @@ const POSDashboard = () => {
 
   const openPaymentDialog = (sale: Sale) => {
     setSelectedSaleForPayment(sale);
-    const pending = Math.max(0, Math.round(sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)));
-    setPaidAmount(pending > 0 ? pending.toString() : "");
+    const pending = Math.round(sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0));
+    setPaidAmount(pending !== 0 ? pending.toString() : "");
     setPaymentDate(new Date());
     setPaymentMode("cash");
     setPaymentNarration("");
@@ -1099,7 +1099,7 @@ const POSDashboard = () => {
 
     const currentPaid = selectedSaleForPayment.paid_amount || 0;
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
-    const pendingAmount = Math.max(0, Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust));
+    const pendingAmount = Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust);
 
     if (amount > pendingAmount) {
       toast({
@@ -1166,8 +1166,8 @@ const POSDashboard = () => {
         invoiceDate: selectedSaleForPayment.sale_date,
         invoiceAmount: selectedSaleForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: Math.max(0, Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust)),
-        currentBalance: Math.max(0, Math.round(selectedSaleForPayment.net_amount - newPaidAmount - currentCNAdjust)),
+        previousBalance: Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust),
+        currentBalance: Math.round(selectedSaleForPayment.net_amount - newPaidAmount - currentCNAdjust),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
@@ -1292,7 +1292,7 @@ const POSDashboard = () => {
     completedCount: filteredSales.filter(sale => sale.payment_status === 'completed').length,
     completedAmount: filteredSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
     pendingCount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).length,
-    pendingAmount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    pendingAmount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
     holdCount: filteredSales.filter(sale => isHoldLikeSale(sale)).length,
     holdAmount: filteredSales.filter(sale => isHoldLikeSale(sale)).reduce((sum, sale) => sum + sale.net_amount, 0),
     refundCount: filteredSales.filter(sale => (sale.refund_amount || 0) > 0).length,
@@ -1303,7 +1303,7 @@ const POSDashboard = () => {
     totalCash: filteredSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
     totalCard: filteredSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
     totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
-    totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
     totalSaleReturnAdjust: filteredSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
     // Bill counts by payment method
     cashBillCount: filteredSales.filter(sale => (sale.cash_amount || 0) > 0).length,
@@ -2861,8 +2861,8 @@ const POSDashboard = () => {
               )}
               <div className="flex justify-between font-semibold border-t pt-1">
                 <span>Pending:</span>
-                <span className="text-destructive">
-                  ₹{Math.max(0, Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                <span className={((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0)) < 0 ? "text-emerald-600" : "text-destructive"}>
+                  ₹{Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0)).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>

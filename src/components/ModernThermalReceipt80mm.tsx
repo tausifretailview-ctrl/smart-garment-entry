@@ -333,8 +333,8 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           alignItems: 'center',
           padding: '4px 0',
         }}>
-          <span style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '1px' }}>GRAND TOTAL</span>
-          <span style={{ fontSize: '22px', fontWeight: 900, fontFamily: 'monospace' }}>₹{fmtAmt(grandTotal)}</span>
+          <span style={{ fontSize: '16px', fontWeight: 900, letterSpacing: '1px' }}>{grandTotal < 0 ? 'CREDIT DUE TO CUSTOMER' : 'GRAND TOTAL'}</span>
+          <span style={{ fontSize: '22px', fontWeight: 900, fontFamily: 'monospace' }}>{grandTotal < 0 ? '-₹' : '₹'}{fmtAmt(Math.abs(grandTotal))}</span>
         </div>
 
         {/* ═══ THICK BLACK LINE ═══ */}
@@ -355,10 +355,10 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
             {cardPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Card</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cardPaid)}</span></div>}
             {creditPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(creditPaid)}</span></div>}
             {refundCash > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Change</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(refundCash)}</span></div>}
-            {balanceDue > 1 && (
+            {Math.abs(balanceDue) > 1 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
-                <span>BALANCE DUE</span>
-                <span style={{ fontFamily: 'monospace' }}>₹{fmtAmt(balanceDue)}</span>
+                <span>{balanceDue < 0 ? 'CREDIT DUE TO CUSTOMER' : 'BALANCE DUE'}</span>
+                <span style={{ fontFamily: 'monospace' }}>{balanceDue < 0 ? '-₹' : '₹'}{fmtAmt(Math.abs(balanceDue))}</span>
               </div>
             )}
           </div>

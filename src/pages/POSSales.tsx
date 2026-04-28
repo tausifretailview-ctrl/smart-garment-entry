@@ -1103,6 +1103,7 @@ export default function POSSales() {
             .eq("customer_id", customerId)
             .is("deleted_at", null)
             .in("credit_status", ["pending"])
+            .not("credit_status", "in", '("adjusted","adjusted_outstanding")')
             .eq("refund_type", "credit_note")
             .order("return_date", { ascending: false });
           setPendingSaleReturnCredits(pendingReturns || []);

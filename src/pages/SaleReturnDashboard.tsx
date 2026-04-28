@@ -634,7 +634,7 @@ export default function SaleReturnDashboard() {
                             >
                               <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
-                            {(ret.credit_status === 'pending' || !ret.credit_status) && (
+                            {(!['adjusted', 'adjusted_outstanding'].includes(ret.credit_status || '') && (ret.credit_status === 'pending' || !ret.credit_status)) && (
                               <Button
                                 variant="ghost"
                                 size="icon"

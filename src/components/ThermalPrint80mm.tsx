@@ -284,8 +284,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ═══ GRAND TOTAL ═══ */}
         <div style={dblLine} />
         <div style={{ ...row, fontSize: '18px', fontWeight: 900, margin: '4px 0' }}>
-          <span>TOTAL</span>
-          <span>₹{fmtAmt(grandTotal)}</span>
+          <span>{grandTotal < 0 ? 'CREDIT DUE TO CUSTOMER' : 'TOTAL'}</span>
+          <span>{grandTotal < 0 ? '-₹' : '₹'}{fmtAmt(Math.abs(grandTotal))}</span>
         </div>
         <div style={dblLine} />
 
@@ -353,8 +353,11 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
               <div style={{ ...row, fontWeight: 900 }}><span>TOTAL PAID</span><span>₹{fmtAmt(totalPaid)}</span></div>
             )}
             {refundCash > 0 && <div style={row}><span>Change</span><span>₹{fmtAmt(refundCash)}</span></div>}
-            {balanceDue > 1 && (
-              <div style={{ ...row, fontWeight: 900 }}><span>BALANCE DUE</span><span>₹{fmtAmt(balanceDue)}</span></div>
+            {Math.abs(balanceDue) > 1 && (
+              <div style={{ ...row, fontWeight: 900 }}>
+                <span>{balanceDue < 0 ? "CREDIT DUE TO CUSTOMER" : "BALANCE DUE"}</span>
+                <span>{balanceDue < 0 ? '-₹' : '₹'}{fmtAmt(Math.abs(balanceDue))}</span>
+              </div>
             )}
           </div>
         )}

@@ -189,6 +189,7 @@ export const FloatingSaleReturn = ({
       .eq("customer_id", effectiveCustomerId)
       .eq("organization_id", organizationId)
       .eq("credit_status", "pending")
+      .not("credit_status", "in", '("adjusted","adjusted_outstanding")')
       .is("deleted_at", null)
       .order("return_date", { ascending: false })
       .then(({ data }) => {
