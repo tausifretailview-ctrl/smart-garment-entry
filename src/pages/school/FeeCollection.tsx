@@ -200,16 +200,17 @@ const FeeCollection = () => {
         paidByStudent.set(p.student_id, (paidByStudent.get(p.student_id) || 0) + (p.paid_amount || 0));
       });
 
-      // Aggregate pending using OPENING-REPLACED-BY-STRUCTURE per student
+      // Aggregate pending using MAX(Opening, Structure) − Paid per student.
+      // Opening (closing_fees_balance) and the newly-assigned fee structure
+      // represent the SAME yearly liability for newly-admitted students.
+      // Treating them additively double-counts dues.
       let pending = 0;
       (allStudents || []).forEach((st: any) => {
         const opening = st.closing_fees_balance || 0;
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
-        const openingCleared = opening > 0 && paid >= opening;
-        const effOpening = openingCleared ? 0 : opening;
-        const effPaid = openingCleared ? Math.max(0, paid - opening) : paid;
-        pending += Math.max(0, effOpening + struct - effPaid);
+        const liability = Math.max(opening, struct);
+        pending += Math.max(0, liability - paid);
       });
 
       return { today: todayTotal, month: monthTotal, pending };
@@ -299,18 +300,14 @@ const FeeCollection = () => {
           return sum;
         }, 0);
 
-        // OPENING-REPLACED-BY-STRUCTURE FORMULA:
-        // If the imported opening (closing_fees_balance) has already been
-        // settled by receipts, drop it from the due so only the newly
-        // assigned fee structure (+ adjustments) is pending. Otherwise fall
-        // back to global netting (Opening + Structure − Paid).
-        const openingCleared = importedBalance > 0 && paidTotal >= importedBalance;
-        const effectiveOpening = openingCleared ? 0 : importedBalance;
-        const effectivePaid = openingCleared
-          ? Math.max(0, paidTotal - importedBalance) // receipts beyond opening apply to structure
-          : paidTotal;
-        const totalDueGross = effectiveOpening + totalExpected + adjustmentNet;
-        const totalPaid = effectivePaid;
+        // MAX(Opening, Structure) FORMULA:
+        // Opening (closing_fees_balance captured at admission) and the
+        // assigned fee structure represent the SAME yearly liability for
+        // newly-admitted students. Use the larger of the two so receipts
+        // settle the combined liability without double-counting.
+        const liability = Math.max(importedBalance, totalExpected);
+        const totalDueGross = liability + adjustmentNet;
+        const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
         const hasStructures = classStructures.length > 0 && totalExpected > 0;
