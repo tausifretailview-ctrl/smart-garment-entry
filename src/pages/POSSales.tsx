@@ -3925,9 +3925,9 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="min-h-screen w-full bg-background flex pos-desktop-readable">
+    <div className="h-[calc(100vh-4rem)] w-full bg-background flex overflow-hidden pos-desktop-readable">
       {/* Left Action Button Bar */}
-      <div className="w-[72px] bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 pb-32 z-30 relative overflow-y-auto">
+      <div className="w-[72px] h-full bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
         <div className="space-y-1.5">
           {/* 1. Cash F1 */}
@@ -4113,9 +4113,9 @@ export default function POSSales() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="sticky top-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
+        <div className="shrink-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
           <div className="w-full pl-2">
             <div className="flex flex-wrap items-end gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
@@ -4658,9 +4658,9 @@ export default function POSSales() {
       </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col px-1 md:px-2 pb-36 mt-2">
-          <div className="w-full flex-1 flex flex-col overflow-hidden">
-          <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2">
+          <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
+          <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
               <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px' }}>
                 <div className="text-center">Sr No</div>
@@ -4937,7 +4937,7 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-0 md:bottom-[52px] left-[72px] right-0 w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
+        <div className="shrink-0 w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
           <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10">
             {/* Qty */}
@@ -5146,7 +5146,7 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="hidden md:flex flex-wrap fixed bottom-0 left-[72px] right-0 min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
+        <div className="hidden md:flex shrink-0 flex-wrap min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
             { key: 'F1', label: 'Cash' },
