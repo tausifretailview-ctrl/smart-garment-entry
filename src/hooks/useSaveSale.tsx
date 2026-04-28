@@ -1099,46 +1099,104 @@ export const useSaveSale = () => {
         roundOff: saleData.roundOff,
       };
 
+      const isMissingRpcError = (err: any) =>
+        (err?.message || '').toLowerCase().includes('could not find the function') ||
+        (err?.message || '').toLowerCase().includes('schema cache');
+
+      const getFallbackHoldNumber = async () => {
+        const now = new Date();
+        const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const fyStr = `${String(fy).slice(-2)}-${String(fy + 1).slice(-2)}`;
+        const holdPrefix = `Hold/${fyStr}/`;
+
+        const { data: existingHolds, error } = await supabase
+          .from('sales')
+          .select('sale_number')
+          .eq('organization_id', currentOrganization.id)
+          .eq('payment_status', 'hold')
+          .is('deleted_at', null)
+          .like('sale_number', `${holdPrefix}%`)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (error) throw error;
+
+        let maxSeq = 0;
+        for (const row of existingHolds || []) {
+          const seqMatch = row.sale_number?.match(/(\d+)$/);
+          if (!seqMatch) continue;
+          maxSeq = Math.max(maxSeq, parseInt(seqMatch[1], 10));
+        }
+        return `${holdPrefix}${maxSeq + 1}`;
+      };
+
+      const buildSaleInsertPayload = (saleNumber: string) => ({
+        sale_number: saleNumber,
+        sale_type: 'pos',
+        customer_id: saleData.customerId || null,
+        customer_name: saleData.customerName,
+        customer_phone: saleData.customerPhone || null,
+        gross_amount: saleData.grossAmount,
+        discount_amount: saleData.discountAmount,
+        flat_discount_percent: saleData.flatDiscountPercent,
+        flat_discount_amount: saleData.flatDiscountAmount,
+        sale_return_adjust: saleData.saleReturnAdjust,
+        round_off: saleData.roundOff,
+        net_amount: saleData.netAmount,
+        payment_method: 'pay_later',
+        payment_status: 'hold',
+        paid_amount: 0,
+        cash_amount: 0,
+        card_amount: 0,
+        upi_amount: 0,
+        refund_amount: 0,
+        salesman: saleData.salesman || null,
+        held_cart_data: holdData as any,
+        notes: saleData.notes || null,
+        created_by: user.id,
+        organization_id: currentOrganization.id,
+        shop_name: shopName || null,
+      });
+
+      let sale: any = null;
+      let lastError: any = null;
+
       const { data: holdNumber, error: holdNoError } = await supabase
         .rpc('generate_hold_number_atomic' as any, {
           p_organization_id: currentOrganization.id,
         } as any);
-      if (holdNoError) throw holdNoError;
-      if (!holdNumber) throw new Error('Failed to generate hold bill number');
 
-      const { data: sale, error: saleError } = await supabase
-        .from('sales')
-        .insert({
-          sale_number: holdNumber,
-          sale_type: 'pos',
-          customer_id: saleData.customerId || null,
-          customer_name: saleData.customerName,
-          customer_phone: saleData.customerPhone || null,
-          gross_amount: saleData.grossAmount,
-          discount_amount: saleData.discountAmount,
-          flat_discount_percent: saleData.flatDiscountPercent,
-          flat_discount_amount: saleData.flatDiscountAmount,
-          sale_return_adjust: saleData.saleReturnAdjust,
-          round_off: saleData.roundOff,
-          net_amount: saleData.netAmount,
-          payment_method: 'pay_later',
-          payment_status: 'hold',
-          paid_amount: 0,
-          cash_amount: 0,
-          card_amount: 0,
-          upi_amount: 0,
-          refund_amount: 0,
-          salesman: saleData.salesman || null,
-          held_cart_data: holdData as any,
-          notes: saleData.notes || null,
-          created_by: user.id,
-          organization_id: currentOrganization.id,
-          shop_name: shopName || null,
-        })
-        .select()
-        .single();
+      if (!holdNoError && holdNumber) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('sales')
+          .insert(buildSaleInsertPayload(holdNumber))
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        sale = inserted;
+      } else {
+        // Fallback path for envs where migration is not yet applied.
+        if (holdNoError && !isMissingRpcError(holdNoError)) throw holdNoError;
 
-      if (saleError) throw saleError;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const fallbackNumber = await getFallbackHoldNumber();
+          const { data: inserted, error: insertError } = await supabase
+            .from('sales')
+            .insert(buildSaleInsertPayload(fallbackNumber))
+            .select()
+            .single();
+
+          if (!insertError) {
+            sale = inserted;
+            break;
+          }
+
+          lastError = insertError;
+          const isDuplicate = insertError?.code === '23505' || insertError?.message?.includes('duplicate key');
+          if (!isDuplicate) throw insertError;
+        }
+      }
+
+      if (!sale) throw lastError || new Error('Failed to hold bill');
 
       toast({
         title: "Bill on Hold",
