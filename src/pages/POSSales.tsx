@@ -200,6 +200,8 @@ export default function POSSales() {
   const [isProductSearchLoading, setIsProductSearchLoading] = useState(false);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
+  const isInitializingEditRef = useRef(false);
+  const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showPrintConfirmDialog, setShowPrintConfirmDialog] = useState(false);
@@ -379,6 +381,8 @@ export default function POSSales() {
   }, [isIPadSafari]);
 
   const loadSaleForEdit = async (saleId: string) => {
+    isInitializingEditRef.current = true;
+    hasManuallyAddedNewItemRef.current = false;
     try {
       // Fetch sale data
       const { data: sale, error: saleError } = await supabase
@@ -504,6 +508,8 @@ export default function POSSales() {
     } catch (error: any) {
       console.error('Error loading sale:', error);
       toast.error("Error", { description: "Failed to load invoice for editing" });
+    } finally {
+      isInitializingEditRef.current = false;
     }
   };
 
@@ -648,6 +654,7 @@ export default function POSSales() {
   // Register POS header actions
   useEffect(() => {
     setOnNewSale(() => () => {
+      hasManuallyAddedNewItemRef.current = false;
       setItems([]);
       setCustomerName("");
       setCustomerId("");
@@ -674,6 +681,7 @@ export default function POSSales() {
     });
     
     setOnClearCart(() => () => {
+      hasManuallyAddedNewItemRef.current = false;
       setItems([]);
       setSaleNotes("");
       toast.success("Cart Cleared", { description: "All items removed from cart" });
@@ -709,6 +717,10 @@ export default function POSSales() {
   // Update isEditing state when currentSaleId changes
   useEffect(() => {
     setIsEditing(!!currentSaleId);
+    if (!currentSaleId) {
+      hasManuallyAddedNewItemRef.current = false;
+      isInitializingEditRef.current = false;
+    }
   }, [currentSaleId, setIsEditing]);
 
   // Save metadata changes handler (customer, salesman, notes only)
@@ -1119,6 +1131,9 @@ export default function POSSales() {
 
   // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
   useEffect(() => {
+    // Preserve historical invoice pricing while opening an existing bill in edit mode.
+    if (isInitializingEditRef.current) return;
+    if (currentSaleId && !hasManuallyAddedNewItemRef.current) return;
     if (customerId && customers) {
       const customer = customers.find((c: any) => c.id === customerId);
       if (customer && hasBrandDiscounts) {
@@ -1135,7 +1150,7 @@ export default function POSSales() {
       // If customer has brand discounts, don't auto-apply flat discount
       // Brand discounts will be applied per-item when products are added
     }
-  }, [customerId, customers, hasBrandDiscounts]);
+  }, [customerId, customers, hasBrandDiscounts, currentSaleId]);
 
   // Handle barcode/product search on Enter - reads DOM value to avoid React state lag
   const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1797,6 +1812,7 @@ export default function POSSales() {
         isDcProduct: variant.is_dc_product === true,
         uom: product.uom || 'NOS',
       };
+      hasManuallyAddedNewItemRef.current = true;
       setItems(prev => [...prev, newItem]);
       
       // Play success beep for new item added
@@ -1816,6 +1832,7 @@ export default function POSSales() {
   // Handle price selection from dialog
   const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
     if (pendingPriceSelection) {
+      hasManuallyAddedNewItemRef.current = true;
       addItemToCart(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
       setPendingPriceSelection(null);
       setShowPriceSelectionDialog(false);
@@ -2991,6 +3008,8 @@ export default function POSSales() {
 
   const loadInvoice = (sale: any) => {
     if (!sale || !sale.sale_items) return;
+    isInitializingEditRef.current = true;
+    hasManuallyAddedNewItemRef.current = false;
 
     // Load customer info
     setCustomerName(sale.customer_name || "");
@@ -3039,6 +3058,7 @@ export default function POSSales() {
     
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
+    isInitializingEditRef.current = false;
 
     // Set saved invoice data using actual stored values from DB
     setSavedInvoiceData({

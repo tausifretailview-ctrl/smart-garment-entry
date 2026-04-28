@@ -212,6 +212,8 @@ export default function SalesInvoice() {
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const isInitializingEditRef = useRef(false);
+  const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [showPrintDialog, setShowPrintDialog] = useState(false);
@@ -335,6 +337,13 @@ export default function SalesInvoice() {
       stopAutoSave();
     };
   }, [editingInvoiceId, startAutoSave, stopAutoSave, location.state?.editInvoiceId]);
+
+  useEffect(() => {
+    if (!editingInvoiceId) {
+      hasManuallyAddedNewItemRef.current = false;
+      isInitializingEditRef.current = false;
+    }
+  }, [editingInvoiceId]);
 
   // Separate effect for saving draft on unmount - uses ref to avoid stale closure issues
   useEffect(() => {
@@ -768,6 +777,8 @@ export default function SalesInvoice() {
   useEffect(() => {
     const invoiceData = location.state?.invoiceData;
     if (invoiceData) {
+      isInitializingEditRef.current = true;
+      hasManuallyAddedNewItemRef.current = false;
       setEditingInvoiceId(invoiceData.id);
       setInvoiceDate(new Date(invoiceData.sale_date));
       setDueDate(invoiceData.due_date ? new Date(invoiceData.due_date) : new Date());
@@ -824,6 +835,7 @@ export default function SalesInvoice() {
           quantity: item.quantity,
         })));
       }
+      isInitializingEditRef.current = false;
     }
   }, [location.state?.invoiceData]);
 
@@ -909,6 +921,9 @@ export default function SalesInvoice() {
 
   // Apply brand discounts to existing line items when brand discounts load
   useEffect(() => {
+    // Preserve historical invoice pricing while opening an existing bill in edit mode.
+    if (isInitializingEditRef.current) return;
+    if (editingInvoiceId && !hasManuallyAddedNewItemRef.current) return;
     if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
     if (!productsData) return;
     
@@ -947,7 +962,7 @@ export default function SalesInvoice() {
         description: "Discounts have been updated for matching products",
       });
     }
-  }, [brandDiscounts, hasBrandDiscounts, isBrandDiscountsLoading, productsData, selectedCustomer?.discount_percent]);
+  }, [brandDiscounts, hasBrandDiscounts, isBrandDiscountsLoading, productsData, selectedCustomer?.discount_percent, editingInvoiceId]);
 
   // Build in-memory barcode index for O(1) lookup (like POS)
   const barcodeIndex = useMemo(() => {
@@ -1530,6 +1545,7 @@ export default function SalesInvoice() {
     const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
 
     // Use functional update with duplicate check INSIDE to prevent stale state during rapid barcode scans
+    hasManuallyAddedNewItemRef.current = true;
     setLineItems(prev => {
       // Check for existing item inside the updater to always see latest state
       const existingIndex = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
@@ -1633,6 +1649,8 @@ export default function SalesInvoice() {
   // Load invoice by ID for navigation
   const loadInvoiceById = useCallback(async (saleId: string) => {
     if (!currentOrganization?.id) return;
+    isInitializingEditRef.current = true;
+    hasManuallyAddedNewItemRef.current = false;
     setIsLoadingNavInvoice(true);
     try {
       const { data: invoiceData, error } = await supabase
@@ -1755,6 +1773,7 @@ export default function SalesInvoice() {
       console.error('Failed to load invoice:', err);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to load invoice' });
     } finally {
+      isInitializingEditRef.current = false;
       setIsLoadingNavInvoice(false);
     }
   }, [currentOrganization?.id, toast]);

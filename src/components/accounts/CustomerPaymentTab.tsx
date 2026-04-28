@@ -40,6 +40,10 @@ const getInvoiceOutstanding = (invoice: any, voucherPaid = 0) => {
   const effectivePaid = Math.max(paid, Number(voucherPaid || 0));
   return Math.max(0, net - effectivePaid - srAdjust);
 };
+const toNumberOrZero = (value: any) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
@@ -68,6 +72,7 @@ export function CustomerPaymentTab({
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
   const [referenceId, setReferenceId] = useState("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [allocatedAmounts, setAllocatedAmounts] = useState<Record<string, string>>({});
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -262,25 +267,38 @@ export function CustomerPaymentTab({
   const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(referenceId || null, organizationId);
 
   // Auto-fill amount
+  const getAllocatedAmount = (invoiceId: string, fallbackOutstanding: number) => {
+    const raw = allocatedAmounts[invoiceId];
+    if (raw === undefined || raw === "") return fallbackOutstanding;
+    return Math.max(0, toNumberOrZero(raw));
+  };
+
+  const getSelectedPayableTotal = () => {
+    const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id))
+      .reduce((sum, inv) => {
+        const outstanding = getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0);
+        const allocated = Math.min(outstanding, getAllocatedAmount(inv.id, outstanding));
+        return sum + allocated;
+      }, 0) || 0;
+    const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
+      ? Number(openingBalanceRemaining || 0)
+      : 0;
+    const selectedSubtotal = invoicePart + obPart;
+    const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);
+    return Math.max(0, selectedSubtotal - appliedCreditNotes);
+  };
+
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
-      const invoiceTotal = customerInvoices
-        .filter(inv => selectedInvoiceIds.includes(inv.id))
-        .reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0);
-      const obSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
-        ? Number(openingBalanceRemaining || 0)
-        : 0;
-      const selectedSubtotal = invoiceTotal + obSelected;
-      const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);
-      const grandTotal = Math.max(0, selectedSubtotal - appliedCreditNotes);
-      setAmount(grandTotal.toFixed(2));
+      setAmount(getSelectedPayableTotal().toFixed(2));
     }
-  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherPayments, adjustedOutstandingCreditTotal]);
+  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherPayments, adjustedOutstandingCreditTotal, allocatedAmounts]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
     setReferenceId("");
     setSelectedInvoiceIds([]);
+    setAllocatedAmounts({});
     setDescription("");
     setAmount("");
     setPaymentMethod("cash");
@@ -363,6 +381,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       setSelectedInvoiceIds([]);
+      setAllocatedAmounts({});
     },
     onError: (error: Error) => toast.error(`Failed to apply advance: ${error.message}`),
   });
@@ -403,7 +422,8 @@ export function CustomerPaymentTab({
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
           const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoiceId) || 0);
-          const amountToApply = Math.min(remainingAmount, outstanding);
+          const allocatedForInvoice = getAllocatedAmount(invoiceId, outstanding);
+          const amountToApply = Math.min(remainingAmount, outstanding, allocatedForInvoice);
           if (amountToApply <= 0) continue;
           const projectedPaidAmount = currentPaid + amountToApply;
           processedInvoices.push({ invoice, amountApplied: amountToApply, newPaidAmount: projectedPaidAmount, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
@@ -649,6 +669,14 @@ export function CustomerPaymentTab({
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) { toast.error("Please enter a valid amount"); return; }
     if (!referenceId) { toast.error("Please select a customer"); return; }
+    if (selectedInvoiceIds.length > 0) {
+      const selectedPayable = getSelectedPayableTotal();
+      if ((parseFloat(amount) || 0) > selectedPayable) {
+        toast.error(`Amount cannot exceed pending total of ₹${selectedPayable.toFixed(2)}`);
+        setAmount(selectedPayable.toFixed(2));
+        return;
+      }
+    }
     if (customerBalance !== undefined && customerBalance <= 0) { toast.error("Cannot create payment receipt - customer balance is zero"); return; }
     const hasSelectableRows = (customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0;
     if (hasSelectableRows && selectedInvoiceIds.length === 0) { toast.error("Please select at least one invoice or Opening Balance"); return; }
@@ -750,6 +778,7 @@ export function CustomerPaymentTab({
                                 onSelect={() => {
                                   setReferenceId(customer.id);
                                   setSelectedInvoiceIds([]);
+                                  setAllocatedAmounts({});
                                   setCustomerSearchOpen(false);
                                   setCustomerSearchTerm("");
                                 }}
@@ -846,12 +875,45 @@ export function CustomerPaymentTab({
                         const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime()) ? format(invoiceDate, "dd/MM/yy") : "-";
                         return (
                           <div key={invoice.id} className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted")}
-                            onClick={() => setSelectedInvoiceIds(prev => prev.includes(invoice.id) ? prev.filter(id => id !== invoice.id) : [...prev, invoice.id])}>
+                            onClick={() => {
+                              setSelectedInvoiceIds(prev => {
+                                const exists = prev.includes(invoice.id);
+                                if (exists) {
+                                  setAllocatedAmounts((old) => {
+                                    const next = { ...old };
+                                    delete next[invoice.id];
+                                    return next;
+                                  });
+                                  return prev.filter(id => id !== invoice.id);
+                                }
+                                setAllocatedAmounts((old) => ({ ...old, [invoice.id]: balance.toFixed(2) }));
+                                return [...prev, invoice.id];
+                              });
+                            }}>
                             <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                            <div className="flex-1 flex justify-between items-center">
+                            <div className="flex-1 flex justify-between items-center gap-3">
                               <span className="font-medium">{invoice.sale_number}</span>
                               <span className="text-sm text-muted-foreground">{invoiceDateText}</span>
                               <Badge variant={balance > 0 ? "destructive" : "secondary"}>₹{balance.toFixed(2)}</Badge>
+                              {isSelected && (
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  className="h-8 w-28"
+                                  value={allocatedAmounts[invoice.id] ?? balance.toFixed(2)}
+                                  max={balance}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw === "") {
+                                      setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
+                                      return;
+                                    }
+                                    const next = Math.min(balance, Math.max(0, toNumberOrZero(raw)));
+                                    setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
+                                  }}
+                                />
+                              )}
                             </div>
                           </div>
                         );
@@ -868,7 +930,10 @@ export function CustomerPaymentTab({
                     <div className="text-sm text-muted-foreground">
                       {(() => {
                         const selectedSubtotal =
-                          (customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0) || 0)
+                          (customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => {
+                            const outstanding = getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0);
+                            return sum + Math.min(outstanding, getAllocatedAmount(inv.id, outstanding));
+                          }, 0) || 0)
                           + (selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0);
                         const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);
                         const grandTotal = Math.max(0, selectedSubtotal - appliedCreditNotes);
@@ -881,7 +946,7 @@ export function CustomerPaymentTab({
                         );
                       })()}
                     </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedInvoiceIds([])}>Clear</Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedInvoiceIds([]); setAllocatedAmounts({}); }}>Clear</Button>
                   </div>
                 )}
               </div>
@@ -954,12 +1019,32 @@ export function CustomerPaymentTab({
               {/* Amount */}
               <div className="space-y-2">
                 <Label>Amount</Label>
-                <Input type="number" step="0.01" placeholder="Enter amount" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter amount"
+                  value={amount}
+                  max={selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : undefined}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setAmount("");
+                      return;
+                    }
+                    const entered = toNumberOrZero(raw);
+                    const maxAllowed = selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : Infinity;
+                    setAmount(Math.min(entered, maxAllowed).toFixed(2));
+                  }}
+                  required
+                />
               </div>
 
               {/* Discount Fields */}
               {(() => {
-                const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0) || 0;
+                const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => {
+                  const outstanding = getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0);
+                  return sum + Math.min(outstanding, getAllocatedAmount(inv.id, outstanding));
+                }, 0) || 0;
                 const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0;
                 const selectedSubtotal = invoicePart + obPart;
                 const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);

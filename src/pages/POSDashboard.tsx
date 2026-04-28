@@ -1281,36 +1281,41 @@ const POSDashboard = () => {
   }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter, cancelFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
-  const summaryStats = useMemo(() => ({
-    totalBills: filteredSales.length,
-    totalQty: filteredSales.reduce((sum, sale) => {
-      const items = saleItems[sale.id] || [];
-      return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
-    }, 0),
-    totalAmount: filteredSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
-    totalDiscount: filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
-    completedCount: filteredSales.filter(sale => sale.payment_status === 'completed').length,
-    completedAmount: filteredSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
-    pendingCount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).length,
-    pendingAmount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
-    holdCount: filteredSales.filter(sale => isHoldLikeSale(sale)).length,
-    holdAmount: filteredSales.filter(sale => isHoldLikeSale(sale)).reduce((sum, sale) => sum + sale.net_amount, 0),
-    refundCount: filteredSales.filter(sale => (sale.refund_amount || 0) > 0).length,
-    refundAmount: filteredSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
-    creditNoteCount: filteredSales.filter(sale => sale.credit_note_id).length,
-    creditNoteAmount: filteredSales.reduce((sum, sale) => sum + (sale.credit_note_amount || 0), 0),
-    // Payment method totals
-    totalCash: filteredSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
-    totalCard: filteredSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
-    totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
-    totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
-    totalSaleReturnAdjust: filteredSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
-    totalRoundOff: filteredSales.reduce((sum, sale) => sum + (sale.round_off || 0), 0),
-    // Bill counts by payment method
-    cashBillCount: filteredSales.filter(sale => (sale.cash_amount || 0) > 0).length,
-    cardBillCount: filteredSales.filter(sale => (sale.card_amount || 0) > 0).length,
-    upiBillCount: filteredSales.filter(sale => (sale.upi_amount || 0) > 0).length,
-  }), [filteredSales, saleItems]);
+  const summaryStats = useMemo(() => {
+    // Hold invoices are draft-like POS states; exclude them from sales KPIs.
+    const nonHoldSales = filteredSales.filter((sale) => !isHoldLikeSale(sale));
+    const holdSales = filteredSales.filter((sale) => isHoldLikeSale(sale));
+    return {
+      totalBills: filteredSales.length,
+      totalQty: nonHoldSales.reduce((sum, sale) => {
+        const items = saleItems[sale.id] || [];
+        return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+      }, 0),
+      totalAmount: nonHoldSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
+      totalDiscount: nonHoldSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
+      completedCount: nonHoldSales.filter(sale => sale.payment_status === 'completed').length,
+      completedAmount: nonHoldSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
+      pendingCount: nonHoldSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,
+      pendingAmount: nonHoldSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
+      holdCount: holdSales.length,
+      holdAmount: holdSales.reduce((sum, sale) => sum + sale.net_amount, 0),
+      refundCount: nonHoldSales.filter(sale => (sale.refund_amount || 0) > 0).length,
+      refundAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
+      creditNoteCount: nonHoldSales.filter(sale => sale.credit_note_id).length,
+      creditNoteAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.credit_note_amount || 0), 0),
+      // Payment method totals
+      totalCash: nonHoldSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
+      totalCard: nonHoldSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
+      totalUpi: nonHoldSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
+      totalBalance: nonHoldSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
+      totalSaleReturnAdjust: nonHoldSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
+      totalRoundOff: nonHoldSales.reduce((sum, sale) => sum + (sale.round_off || 0), 0),
+      // Bill counts by payment method
+      cashBillCount: nonHoldSales.filter(sale => (sale.cash_amount || 0) > 0).length,
+      cardBillCount: nonHoldSales.filter(sale => (sale.card_amount || 0) > 0).length,
+      upiBillCount: nonHoldSales.filter(sale => (sale.upi_amount || 0) > 0).length,
+    };
+  }, [filteredSales, saleItems]);
 
   // Memoize pagination calculations
   const totalPages = useMemo(() => Math.ceil(filteredSales.length / itemsPerPage), [filteredSales.length, itemsPerPage]);
