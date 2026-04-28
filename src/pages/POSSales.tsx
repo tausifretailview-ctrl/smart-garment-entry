@@ -647,6 +647,14 @@ export default function POSSales() {
     return () => clearInterval(timer);
   }, []);
 
+  // Hide toast popups while POS is open (less distraction for cashier workflow)
+  useEffect(() => {
+    document.body.classList.add("pos-hide-toasts");
+    return () => {
+      document.body.classList.remove("pos-hide-toasts");
+    };
+  }, []);
+
   // Refs for print handlers (to avoid hoisting issues)
   const handleEstimatePrintRef = useRef<(() => void) | null>(null);
   const handlePrintRef = useRef<(() => void) | null>(null);
@@ -4610,17 +4618,8 @@ export default function POSSales() {
                 </div>
               </TooltipProvider>
               
-              {/* Date & Time Display + EMI Button Row */}
+              {/* EMI Button Row */}
               <div className="flex items-center gap-1.5 shrink-0">
-                 <div className="relative h-10 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-1.5 flex flex-col items-center justify-center shadow-sm whitespace-nowrap leading-[1.05] shrink-0">
-                  <div className="text-white font-semibold text-[10px] font-mono tabular-nums">
-                    {currentDateTime.toLocaleDateString('en-GB')}
-                  </div>
-                  <div className="text-white/80 text-[8px] font-mono tabular-nums">
-                    {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </div>
-                </div>
-
                 {/* Financer / EMI Button */}
                 <TooltipProvider>
                   <Tooltip>

@@ -976,6 +976,14 @@ All colors MUST be HSL.
   transition: transform 150ms ease-out, opacity 150ms ease-out !important;
 }
 
+/* POS mode: keep only error toasts visible (cashier UX request) */
+body.pos-hide-toasts [data-sonner-toaster] [data-sonner-toast] {
+  display: none !important;
+}
+body.pos-hide-toasts [data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  display: flex !important;
+}
+
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   .fade-in-fast,
