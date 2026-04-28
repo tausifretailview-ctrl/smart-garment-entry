@@ -1305,6 +1305,7 @@ const POSDashboard = () => {
     totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
     totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
     totalSaleReturnAdjust: filteredSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
+    totalRoundOff: filteredSales.reduce((sum, sale) => sum + (sale.round_off || 0), 0),
     // Bill counts by payment method
     cashBillCount: filteredSales.filter(sale => (sale.cash_amount || 0) > 0).length,
     cardBillCount: filteredSales.filter(sale => (sale.card_amount || 0) > 0).length,
@@ -1661,10 +1662,10 @@ const POSDashboard = () => {
             </CardHeader>
             <CardContent className="p-4 pt-1">
               <div className="text-2xl font-bold text-white">
-                ₹{(summaryStats.totalAmount - summaryStats.totalDiscount - summaryStats.totalSaleReturnAdjust - summaryStats.refundAmount).toFixed(0)}
+                ₹{(summaryStats.totalAmount - summaryStats.totalDiscount - summaryStats.totalSaleReturnAdjust - summaryStats.refundAmount - summaryStats.totalRoundOff).toFixed(0)}
               </div>
               <p className="text-[10px] text-white/80 mt-0.5 leading-tight">
-                Sale ₹{summaryStats.totalAmount.toFixed(0)} − Disc ₹{summaryStats.totalDiscount.toFixed(0)} − S/R ₹{summaryStats.totalSaleReturnAdjust.toFixed(0)} − Refund ₹{summaryStats.refundAmount.toFixed(0)}
+                Sale ₹{summaryStats.totalAmount.toFixed(0)} − Disc ₹{summaryStats.totalDiscount.toFixed(0)} − S/R ₹{summaryStats.totalSaleReturnAdjust.toFixed(0)} − Refund ₹{summaryStats.refundAmount.toFixed(0)} − Round Off ₹{summaryStats.totalRoundOff.toFixed(0)}
               </p>
             </CardContent>
           </Card>
