@@ -625,6 +625,32 @@ export default function SalesInvoiceDashboard() {
     refetchOnWindowFocus: false,
   });
 
+  // Credit notes adjusted to outstanding should reduce dashboard pending metric.
+  const { data: adjustedOutstandingCreditTotal = 0 } = useQuery({
+    queryKey: ['invoice-dashboard-adjusted-outstanding-credit', currentOrganization?.id, debouncedSearch, queryDateRange.start, queryDateRange.end],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return 0;
+      let query = supabase
+        .from('sale_returns')
+        .select('net_amount, customer_name')
+        .eq('organization_id', currentOrganization.id)
+        .eq('credit_status', 'adjusted_outstanding')
+        .is('deleted_at', null);
+      if (queryDateRange.start) query = query.gte('return_date', queryDateRange.start);
+      if (queryDateRange.end) query = query.lte('return_date', queryDateRange.end);
+      if (debouncedSearch) {
+        const s = debouncedSearch.trim();
+        query = query.ilike('customer_name', `%${s}%`);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data || []).reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   const productIdsForLookup: string[] = [];
 
   const productsById: Record<string, any> = {};
@@ -1003,7 +1029,7 @@ export default function SalesInvoiceDashboard() {
   }, [paginatedInvoices]);
 
   // Fallback summary stats if RPC hasn't loaded yet
-  const effectiveStats = summaryStats || {
+  const baseStats = summaryStats || {
     totalInvoices: totalCount,
     totalAmount: 0,
     totalDiscount: 0,
@@ -1013,6 +1039,10 @@ export default function SalesInvoiceDashboard() {
     deliveredAmount: 0,
     undeliveredCount: 0,
     undeliveredAmount: 0,
+  };
+  const effectiveStats = {
+    ...baseStats,
+    pendingAmount: Math.max(0, Number(baseStats.pendingAmount || 0) - Number(adjustedOutstandingCreditTotal || 0)),
   };
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {

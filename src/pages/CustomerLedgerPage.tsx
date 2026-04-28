@@ -147,14 +147,29 @@ export default function CustomerLedgerPage() {
         .select("id, return_number, return_date, net_amount, credit_status, created_at")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null)
-        .neq("credit_status", "pending");
+        .is("deleted_at", null);
 
       if (fromDate) saleReturnsQuery = saleReturnsQuery.gte("return_date", format(fromDate, "yyyy-MM-dd"));
       if (toDate) saleReturnsQuery = saleReturnsQuery.lte("return_date", format(toDate, "yyyy-MM-dd"));
 
       const { data: saleReturns, error: saleReturnsError } = await saleReturnsQuery;
       if (saleReturnsError) throw saleReturnsError;
+
+      // Also include direct credit-note vouchers when present in ledger period.
+      let creditNoteVouchersQuery = supabase
+        .from("voucher_entries")
+        .select("id, voucher_number, voucher_date, total_amount, description")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("voucher_type", "credit_note")
+        .eq("reference_type", "customer")
+        .eq("reference_id", customerId!)
+        .is("deleted_at", null);
+
+      if (fromDate) creditNoteVouchersQuery = creditNoteVouchersQuery.gte("voucher_date", format(fromDate, "yyyy-MM-dd"));
+      if (toDate) creditNoteVouchersQuery = creditNoteVouchersQuery.lte("voucher_date", format(toDate, "yyyy-MM-dd"));
+
+      const { data: creditNoteVouchers, error: creditNoteVouchersError } = await creditNoteVouchersQuery;
+      if (creditNoteVouchersError) throw creditNoteVouchersError;
 
       const existingReturnRefs = new Set(
         ((data ?? []) as LedgerRow[])
@@ -165,10 +180,12 @@ export default function CustomerLedgerPage() {
       const returnRows: LedgerRow[] = (saleReturns || []).map((sr: any) => ({
         id: `sr-${sr.id}`,
         transaction_date: sr.return_date,
-        voucher_type: sr.credit_status === "adjusted_outstanding" ? "CREDIT_NOTE" : "SALE_RETURN",
+        voucher_type: sr.credit_status === "pending" ? "CREDIT_NOTE" : sr.credit_status === "adjusted_outstanding" ? "CREDIT_NOTE" : "SALE_RETURN",
         voucher_no: sr.return_number || null,
         particulars:
-          sr.credit_status === "adjusted_outstanding"
+          sr.credit_status === "pending"
+            ? `Credit Note pending adjustment (${sr.return_number || "N/A"})`
+            : sr.credit_status === "adjusted_outstanding"
             ? `Credit Note adjusted to outstanding (${sr.return_number || "N/A"})`
             : `Sale Return / Credit Note (${sr.return_number || "N/A"})`,
         debit: 0,
@@ -176,7 +193,18 @@ export default function CustomerLedgerPage() {
         running_balance: 0,
       })).filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
 
-      const combined = ([...(data ?? []) as LedgerRow[], ...missingInvoiceRows, ...returnRows]).sort((a, b) => {
+      const creditNoteRows: LedgerRow[] = (creditNoteVouchers || []).map((v: any) => ({
+        id: `cnv-${v.id}`,
+        transaction_date: v.voucher_date,
+        voucher_type: "CREDIT_NOTE",
+        voucher_no: v.voucher_number || null,
+        particulars: v.description || "Credit Note",
+        debit: 0,
+        credit: Number(v.total_amount || 0),
+        running_balance: 0,
+      })).filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
+
+      const combined = ([...(data ?? []) as LedgerRow[], ...missingInvoiceRows, ...returnRows, ...creditNoteRows]).sort((a, b) => {
         const dA = new Date(a.transaction_date).getTime();
         const dB = new Date(b.transaction_date).getTime();
         if (dA !== dB) return dA - dB;
