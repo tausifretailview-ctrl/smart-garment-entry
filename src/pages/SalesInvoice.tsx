@@ -303,6 +303,14 @@ export default function SalesInvoice() {
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
+  // Keep Sales Invoice full-view readable scale stable across refresh/navigation.
+  useEffect(() => {
+    document.body.classList.add("pos-large-ui");
+    return () => {
+      document.body.classList.remove("pos-large-ui");
+    };
+  }, []);
+
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
     const filledItems = lineItems.filter(item => item.productId !== '');
@@ -2802,7 +2810,7 @@ Thank you for choosing us!`;
     const filledItems = lineItems.filter(i => i.productId !== '');
     const totalQty = filledItems.reduce((s, i) => s + (i.quantity || 0), 0);
     return (
-      <div className="flex flex-col min-h-screen bg-muted/30">
+      <div className="flex flex-col min-h-screen bg-muted/30 pos-desktop-readable">
         <MobilePageHeader
           title={editingInvoiceId ? "Edit Invoice" : "Sales Invoice"}
           subtitle={savedInvoiceData?.sale_number || nextInvoicePreview || "NEW"}
@@ -3015,7 +3023,7 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background pb-6" data-entry-form>
+    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background pb-6 pos-desktop-readable" data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className="h-[52px] flex items-center px-5 gap-3">

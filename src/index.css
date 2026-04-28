@@ -1002,6 +1002,26 @@ body.pos-large-ui .pos-desktop-readable table td {
   font-size: 13px !important;
 }
 
+/* Fallback: keep POS/Sales Invoice readable even if body class races on refresh */
+@media (min-width: 1024px) {
+  .pos-desktop-readable {
+    font-size: 14px;
+  }
+  .pos-desktop-readable input,
+  .pos-desktop-readable [role="combobox"] {
+    font-size: 15px !important;
+  }
+  .pos-desktop-readable button {
+    font-size: 13px;
+  }
+  .pos-desktop-readable table th {
+    font-size: 12px !important;
+  }
+  .pos-desktop-readable table td {
+    font-size: 13px !important;
+  }
+}
+
 /* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   .fade-in-fast,
