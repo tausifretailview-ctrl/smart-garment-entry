@@ -3934,7 +3934,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
             disabled={items.length === 0 || isSaving}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold relative w-full rounded-lg bg-green-500 hover:bg-green-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Cash Payment - Save & Print (F1)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F1</Badge>
@@ -3946,7 +3946,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold relative w-full rounded-lg bg-purple-500 hover:bg-purple-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="UPI Payment - Save & Print (F2)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F2</Badge>
@@ -3958,7 +3958,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('card')}
             disabled={items.length === 0 || isSaving}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Card Payment - Save & Print (F3)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F3</Badge>
@@ -3970,7 +3970,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('pay_later')}
             disabled={items.length === 0 || isSaving}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold relative w-full rounded-lg bg-orange-500 hover:bg-orange-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Credit - Pay Later (F4)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F4</Badge>
@@ -3993,7 +3993,7 @@ export default function POSSales() {
           <Button
             onClick={handleMixPayment}
             disabled={items.length === 0 || isSaving}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-violet-500 hover:bg-violet-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold relative w-full rounded-lg bg-violet-500 hover:bg-violet-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Mix Payment - Save & Print (F6)"
           >
             <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F6</Badge>
@@ -4071,7 +4071,7 @@ export default function POSSales() {
           <Button
             onClick={handlePrint}
             disabled={items.length === 0}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Print"
           >
             <Printer className="h-4 w-4" />
@@ -4937,12 +4937,12 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-0 md:bottom-[52px] left-[72px] right-0 bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
+        <div className="fixed bottom-0 md:bottom-[52px] left-[72px] right-0 w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-[0_-4px_20px_rgba(0,0,0,0.15)] z-20">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
-          <div className="flex flex-wrap lg:flex-nowrap items-center px-4 py-1.5 gap-y-2 gap-0 border-b border-white/10">
+          <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10">
             {/* Qty */}
             <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight">{totals.quantity}</div>
+              <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
               <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Qty</div>
             </div>
             
@@ -4950,7 +4950,7 @@ export default function POSSales() {
             
             {/* MRP Total */}
             <div className="text-center px-3">
-              <div className="text-sm font-bold leading-tight">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
+              <div className="text-base font-bold leading-tight">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
               <div className="text-[9px] text-white/60 uppercase font-medium">MRP Total</div>
             </div>
             
@@ -4959,7 +4959,7 @@ export default function POSSales() {
               <>
                 <div className="w-px h-8 bg-white/20 shrink-0" />
                 <div className="text-center bg-green-500/90 rounded-md py-1 px-3 mx-2 shrink-0">
-                  <div className="text-sm font-bold leading-tight">
+                  <div className="text-base font-bold leading-tight">
                     ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
                   </div>
                   <div className="text-[9px] font-medium uppercase">Savings</div>
@@ -4971,7 +4971,7 @@ export default function POSSales() {
             
             {/* Charges */}
             <div className="text-center px-3">
-              <div className="text-sm font-bold leading-tight">₹0</div>
+              <div className="text-base font-bold leading-tight">₹0</div>
               <div className="text-[9px] text-white/60 uppercase font-medium">Charges</div>
             </div>
             
@@ -4979,7 +4979,7 @@ export default function POSSales() {
             
             {/* Discount */}
             <div className="text-center px-3">
-              <div className="text-sm font-bold leading-tight">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
+              <div className="text-base font-bold leading-tight">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
               <div className="text-[9px] text-white/60 uppercase font-medium">Discount</div>
             </div>
             
@@ -4987,22 +4987,22 @@ export default function POSSales() {
             <div className="flex-1" />
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round */}
-            <div className="flex items-end gap-3">
+            <div className="flex items-end gap-4">
               {/* Flat Disc */}
               <div className="text-center">
-                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">Flat Disc</div>
+                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="bg-white/20 text-white px-1.5 py-0.5 text-xs rounded-l-md h-7 hover:bg-white/30 border-0 font-bold min-w-[22px]"
+                    className="bg-white/20 text-white px-2 py-1 text-sm rounded-l-md h-9 hover:bg-white/30 border-0 font-bold min-w-[26px]"
                     onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
                   >
                     {flatDiscountMode === 'percent' ? '%' : '₹'}
                   </Button>
                   <Input 
                     type="number"
-                    className="w-20 h-7 bg-white text-foreground text-center text-sm font-semibold rounded-l-none border-0" 
+                    className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold rounded-l-none border-0" 
                     value={flatDiscountValue || ""}
                     placeholder="0"
                     onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
@@ -5012,13 +5012,13 @@ export default function POSSales() {
               
               {/* S/R Adj */}
               <div className="text-center">
-                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">
+                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
                 </div>
                 <div className="flex items-center">
                   <Input 
                     type="number"
-                    className="w-20 h-7 bg-white text-foreground text-center text-sm font-semibold border-0 rounded-md" 
+                    className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold border-0 rounded-md" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
                     onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
@@ -5027,7 +5027,7 @@ export default function POSSales() {
                   {customerId && pendingSaleReturnCredits.length > 0 && (
                     <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:bg-white/20 p-0 ml-0.5">
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-white hover:bg-white/20 p-0 ml-1">
                           <ChevronDown className="h-3.5 w-3.5" />
                         </Button>
                       </PopoverTrigger>
@@ -5056,7 +5056,7 @@ export default function POSSales() {
               
               {/* Round */}
               <div className="text-center">
-                <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">
+                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">
                   Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
                 </div>
                 <div className="flex items-center gap-0.5">
@@ -5067,7 +5067,7 @@ export default function POSSales() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="bg-white/20 text-white px-1 py-0.5 text-xs rounded h-5 hover:bg-white/30"
+                            className="bg-white/20 text-white px-1.5 py-1 text-xs rounded h-7 hover:bg-white/30"
                             onClick={handleResetRoundOff}
                           >
                             <RotateCcw className="h-2.5 w-2.5" />
@@ -5081,7 +5081,7 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-20 h-7 text-center text-sm font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-24 h-9 text-center text-base font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
@@ -5093,10 +5093,10 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-[11px] text-white/80 uppercase font-bold mb-0.5 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
-                    className="w-20 h-7 bg-purple-100 text-purple-700 text-center text-sm font-semibold border-0 rounded-md" 
+                    className="w-24 h-9 bg-purple-100 text-purple-700 text-center text-base font-semibold border-0 rounded-md" 
                     value={creditApplied || ""}
                     placeholder="0"
                     onChange={(e) => {
@@ -5120,18 +5120,18 @@ export default function POSSales() {
             <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
             
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
-            <div className="text-right min-w-[130px]">
+            <div className="text-right min-w-[180px]">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
                 <div className="text-[10px] text-white/50 line-through leading-tight">
                   MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">
-                <span className="text-[10px] text-white/60 uppercase font-medium">Net Amount</span>
+                <span className="text-sm text-white/70 uppercase font-semibold">Net Amount</span>
               </div>
               <Input 
                 type="number"
-                className={`w-full h-9 text-right text-xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-full h-12 text-right text-3xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
