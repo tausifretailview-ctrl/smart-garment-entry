@@ -106,7 +106,49 @@ export default function CustomerLedgerPage() {
         p_end_date: toDate ? format(toDate, "yyyy-MM-dd") : undefined,
       });
       if (error) throw error;
-      return (data ?? []) as LedgerRow[];
+
+      // Include sale return / credit note adjustments in statement transactions.
+      let saleReturnsQuery = supabase
+        .from("sale_returns")
+        .select("id, return_number, return_date, net_amount, credit_status, created_at")
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .neq("credit_status", "pending");
+
+      if (fromDate) saleReturnsQuery = saleReturnsQuery.gte("return_date", format(fromDate, "yyyy-MM-dd"));
+      if (toDate) saleReturnsQuery = saleReturnsQuery.lte("return_date", format(toDate, "yyyy-MM-dd"));
+
+      const { data: saleReturns, error: saleReturnsError } = await saleReturnsQuery;
+      if (saleReturnsError) throw saleReturnsError;
+
+      const returnRows: LedgerRow[] = (saleReturns || []).map((sr: any) => ({
+        id: `sr-${sr.id}`,
+        transaction_date: sr.return_date,
+        voucher_type: sr.credit_status === "adjusted_outstanding" ? "CREDIT_NOTE" : "SALE_RETURN",
+        voucher_no: sr.return_number || null,
+        particulars:
+          sr.credit_status === "adjusted_outstanding"
+            ? `Credit Note adjusted to outstanding (${sr.return_number || "N/A"})`
+            : `Sale Return / Credit Note (${sr.return_number || "N/A"})`,
+        debit: 0,
+        credit: Number(sr.net_amount || 0),
+        running_balance: 0,
+      }));
+
+      const combined = ([...(data ?? []) as LedgerRow[], ...returnRows]).sort((a, b) => {
+        const dA = new Date(a.transaction_date).getTime();
+        const dB = new Date(b.transaction_date).getTime();
+        if (dA !== dB) return dA - dB;
+        return String(a.id).localeCompare(String(b.id));
+      });
+
+      // Recompute running balance after merge so header/table stay consistent.
+      let running = 0;
+      return combined.map((row) => {
+        running += Number(row.debit || 0) - Number(row.credit || 0);
+        return { ...row, running_balance: running };
+      });
     },
   });
 

@@ -126,9 +126,9 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         totalCnApplied += cnVoucher;
       });
 
-      // net_amount already accounts for CN adjustments at POS save time, so do not
-      // add totalCnApplied here (would double-count).
-      const totalPaid = totalPaidOnSales + totalAdvanceApplied + openingBalanceVoucherPayments;
+      // Include CN-adjusted portions in paid total so global outstanding matches
+      // invoice-level balances (Dashboard/Statement) where CN adjustment reduces due.
+      const totalPaid = totalPaidOnSales + totalAdvanceApplied + totalCnApplied + openingBalanceVoucherPayments;
 
       // Fetch balance adjustments
       const { data: adjustments, error: adjError } = await supabase
