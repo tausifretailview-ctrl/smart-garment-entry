@@ -40,7 +40,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: "sale" | "payment";
+  type: "sale" | "payment" | "sale_return" | "credit_note";
   reference: string;
   debit: number;
   credit: number;
@@ -121,6 +121,17 @@ const SalesmanCustomerAccount = () => {
 
       if (receiptsError) throw receiptsError;
 
+      // Fetch sale returns / credit notes for this customer
+      const { data: saleReturnsData, error: saleReturnsError } = await supabase
+        .from("sale_returns")
+        .select("id, return_number, return_date, net_amount, credit_status, created_at")
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .order("return_date", { ascending: true });
+
+      if (saleReturnsError) throw saleReturnsError;
+
       // Filter receipts for this customer's sales AND opening balance payments
       const customerSaleIds = new Set((salesData || []).map(s => s.id));
       const customerReceipts = (receiptsData || []).filter(r => 
@@ -161,7 +172,7 @@ const SalesmanCustomerAccount = () => {
       }
 
       // Combine and sort all transactions
-      const allTxns: { date: Date; timestamp: string | null; type: "sale" | "payment"; data: any }[] = [];
+      const allTxns: { date: Date; timestamp: string | null; type: "sale" | "payment" | "sale_return"; data: any }[] = [];
       
       (salesData || []).forEach(sale => {
         allTxns.push({ date: new Date(sale.sale_date), timestamp: sale.created_at || null, type: "sale", data: sale });
@@ -171,9 +182,22 @@ const SalesmanCustomerAccount = () => {
         allTxns.push({ date: new Date(receipt.voucher_date), timestamp: receipt.created_at || null, type: "payment", data: receipt });
       });
 
+      (saleReturnsData || []).forEach((sr: any) => {
+        allTxns.push({
+          date: new Date(sr.return_date),
+          timestamp: sr.created_at || null,
+          type: "sale_return",
+          data: sr,
+        });
+      });
+
       allTxns.sort((a, b) => {
-        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : a.date.getTime();
-        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : b.date.getTime();
+        // Primary sort by transaction date, secondary by created timestamp
+        const dateA = a.date.getTime();
+        const dateB = b.date.getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : dateA;
+        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : dateB;
         return tsA - tsB;
       });
 
@@ -212,7 +236,7 @@ const SalesmanCustomerAccount = () => {
               balance: runningBalance,
             });
           }
-        } else {
+        } else if (txn.type === "payment") {
           runningBalance -= txn.data.total_amount;
           txns.push({
             id: txn.data.id,
@@ -222,6 +246,24 @@ const SalesmanCustomerAccount = () => {
             reference: txn.data.voucher_number,
             debit: 0,
             credit: txn.data.total_amount,
+            balance: runningBalance,
+          });
+        } else if (txn.type === "sale_return") {
+          const creditAmount = Number(txn.data.net_amount) || 0;
+          if (creditAmount <= 0) return;
+          runningBalance -= creditAmount;
+
+          const isCreditNote = (txn.data.credit_status || "").toLowerCase() !== "refunded";
+          const label = isCreditNote ? "Credit Note" : "Sale Return";
+
+          txns.push({
+            id: txn.data.id,
+            date: txn.data.return_date,
+            timestamp: txn.timestamp,
+            type: isCreditNote ? "credit_note" : "sale_return",
+            reference: txn.data.return_number || label,
+            debit: 0,
+            credit: creditAmount,
             balance: runningBalance,
           });
         }

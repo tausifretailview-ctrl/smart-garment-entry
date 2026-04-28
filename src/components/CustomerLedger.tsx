@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -100,6 +101,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const [overpaymentRefundNote, setOverpaymentRefundNote] = useState('');
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const queryClient = useQueryClient();
+  const { balance: authoritativeBalance } = useCustomerBalance(
+    selectedCustomer?.id || null,
+    organizationId || null
+  );
+  const effectiveBalance = selectedCustomer ? authoritativeBalance : 0;
 
   const openHistory = (id: string, name: string) => {
     setCustomerForHistory({ id, name });
@@ -1947,7 +1953,7 @@ ${showOpeningInMsg ? `\n💰 Opening Balance: ₹${Math.round(openingBalance).to
 📈 ${feesLabel}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
 ✅ ${paidLabel}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
 ────────────────${balanceBreakdown}
-💵 *Outstanding: ₹${Math.abs(Math.round(selectedCustomer.balance)).toLocaleString("en-IN")}${selectedCustomer.balance < 0 ? " (Advance)" : ""}*${txnSummary}
+💵 *Outstanding: ₹${Math.abs(Math.round(effectiveBalance)).toLocaleString("en-IN")}${effectiveBalance < 0 ? " (Advance)" : ""}*${txnSummary}
 
 Please clear your dues at the earliest. Thank you!`;
 
@@ -2047,9 +2053,9 @@ Please clear your dues at the earliest. Thank you!`;
 
     // Outstanding Balance with Dr/Cr
     doc.setFont("helvetica", "bold");
-    const hdrBalance = selectedCustomer.balance < 0
-      ? `Advance Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} Cr`
-      : `Outstanding Balance: Rs. ${selectedCustomer.balance.toLocaleString("en-IN")} Dr`;
+    const hdrBalance = effectiveBalance < 0
+      ? `Advance Balance: Rs. ${Math.abs(effectiveBalance).toLocaleString("en-IN")} Cr`
+      : `Outstanding Balance: Rs. ${effectiveBalance.toLocaleString("en-IN")} Dr`;
     doc.text(hdrBalance, pageWidth - margin, yPos, { align: "right" });
     yPos += 10;
 
@@ -2322,31 +2328,31 @@ Please clear your dues at the earliest. Thank you!`;
               </div>
               <div className={cn(
                 "text-right px-5 py-4 rounded-xl min-w-[160px]",
-                selectedCustomer.balance > 0
+                effectiveBalance > 0
                   ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
-                  : selectedCustomer.balance < 0
+                  : effectiveBalance < 0
                   ? "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800"
                   : "bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
               )}>
                 <div className="text-sm text-muted-foreground mb-1">
-                  {selectedCustomer.balance > 0 ? "Outstanding (Dr)" : selectedCustomer.balance < 0 ? "Advance Balance (Cr)" : "Balance"}
+                  {effectiveBalance > 0 ? "Outstanding (Dr)" : effectiveBalance < 0 ? "Advance Balance (Cr)" : "Balance"}
                 </div>
                 <div className={cn(
                   "text-3xl font-bold tabular-nums",
-                  selectedCustomer.balance > 0 ? "text-red-600 dark:text-red-400"
-                  : selectedCustomer.balance < 0 ? "text-emerald-600 dark:text-emerald-400"
+                  effectiveBalance > 0 ? "text-red-600 dark:text-red-400"
+                  : effectiveBalance < 0 ? "text-emerald-600 dark:text-emerald-400"
                   : "text-foreground"
                 )}>
-                  ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  ₹{Math.abs(effectiveBalance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
                 <div className="mt-2">
-                  {selectedCustomer.balance > 0 && (
+                  {effectiveBalance > 0 && (
                     <Badge variant="destructive">Customer Owes</Badge>
                   )}
-                  {selectedCustomer.balance < 0 && (
+                  {effectiveBalance < 0 && (
                     <Badge className="bg-green-100 text-green-800">In Advance / Overpaid</Badge>
                   )}
-                  {selectedCustomer.balance === 0 && (
+                  {effectiveBalance === 0 && (
                     <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
@@ -2438,11 +2444,11 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
 
             {/* Refund shortcut - shows when customer has credit balance */}
-            {selectedCustomer.balance < 0 && (
+            {effectiveBalance < 0 && (
               <div className="mt-3 mb-1 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                    ₹{Math.abs(selectedCustomer.balance).toLocaleString("en-IN")} credit balance — refund to customer
+                    ₹{Math.abs(effectiveBalance).toLocaleString("en-IN")} credit balance — refund to customer
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
                     {(selectedCustomer.unusedAdvanceTotal || 0) > 0
@@ -2603,7 +2609,7 @@ Please clear your dues at the earliest. Thank you!`;
                                       ✓ Paid
                                     </Badge>
                                   )}
-                                  {transaction.type === 'invoice' && transaction.paymentStatus !== 'completed' && selectedCustomer.balance < 0 && (
+                                  {transaction.type === 'invoice' && transaction.paymentStatus !== 'completed' && effectiveBalance < 0 && (
                                     <Badge className="bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] ml-1">
                                       ⚡ Advance available
                                     </Badge>
@@ -2916,8 +2922,8 @@ Please clear your dues at the earliest. Thank you!`;
                     t.paymentStatus !== 'completed'
                   ) || [];
 
-                  const hasAdvanceBalance = selectedCustomer.balance < 0;
-                  const advanceAmount = hasAdvanceBalance ? Math.abs(selectedCustomer.balance) : 0;
+                  const hasAdvanceBalance = effectiveBalance < 0;
+                  const advanceAmount = hasAdvanceBalance ? Math.abs(effectiveBalance) : 0;
 
                   return (
                     <div className="space-y-4">

@@ -177,15 +177,26 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
 
       if (srError) throw srError;
 
+      // Explicitly fetch credits adjusted to outstanding balance.
+      // This path can be triggered from Sale Return Dashboard and must always
+      // reduce the global outstanding shown in headers/receipts.
+      const adjustedOutstandingTotal = saleReturns
+        ?.filter((sr: any) => sr.credit_status === 'adjusted_outstanding')
+        .reduce((sum: number, sr: any) => sum + (sr.net_amount || 0), 0) || 0;
+
       // Only actioned returns reduce balance; pending returns are not yet settled.
       // SRs that are 'adjusted' AND linked to a sale are already absorbed into that
       // sale's net_amount via sale_return_adjust at POS save time — don't double-subtract.
-      const saleReturnTotal = saleReturns
+      const actionedReturnTotal = saleReturns
         ?.filter((sr: any) => sr.credit_status && sr.credit_status !== 'pending')
         .reduce((sum: number, sr: any) => {
           const alreadyInNet = sr.linked_sale_id && sr.credit_status === 'adjusted';
           return sum + (alreadyInNet ? 0 : (sr.net_amount || 0));
         }, 0) || 0;
+
+      // Keep an explicit term for adjusted_outstanding credits in the final formula
+      // (single-source-of-truth requirement for UI header + receipt).
+      const saleReturnTotal = Math.max(0, actionedReturnTotal - adjustedOutstandingTotal);
 
       // Fetch refund payments made to customer (from CN refund)
       const { data: refundVouchers } = await supabase
@@ -198,11 +209,14 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         .is('deleted_at', null);
       const totalRefundsPaid = refundVouchers?.reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
 
-      // Balance = Opening + Sales - Paid + Adjustments - (Unused Advances - Advance Refunds) - Sale Returns - Refunds
+      // Gross Outstanding (before explicit adjusted-outstanding credits)
+      // = Opening + Sales - Paid + Adjustments - (Unused Advances - Advance Refunds)
+      //   - Other actioned sale returns + Refunds paid out
       const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
-      // totalRefundsPaid: cash/UPI paid OUT to customer cancels the saleReturn credit
-      // + sign: adding back what we paid them reverses the credit liability
-      const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - saleReturnTotal + totalRefundsPaid);
+      const grossOutstanding =
+        openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - saleReturnTotal + totalRefundsPaid;
+      // Explicit subtraction for returns adjusted directly to outstanding.
+      const balance = Math.round(grossOutstanding - adjustedOutstandingTotal);
 
       return {
         balance,
