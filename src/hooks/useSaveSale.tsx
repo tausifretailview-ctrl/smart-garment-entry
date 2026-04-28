@@ -1091,31 +1091,6 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
-      // Generate Hold series number: Hold/YY-YY/N
-      const now = new Date();
-      const fy = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-      const fyStr = `${String(fy).slice(-2)}-${String(fy + 1).slice(-2)}`;
-      const holdPrefix = `Hold/${fyStr}/`;
-
-      // Find the last hold number in this FY
-      const { data: lastHold } = await supabase
-        .from('sales')
-        .select('sale_number')
-        .eq('organization_id', currentOrganization.id)
-        .eq('payment_status', 'hold')
-        .is('deleted_at', null)
-        .like('sale_number', `${holdPrefix}%`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let holdSeq = 1;
-      if (lastHold?.sale_number) {
-        const seqMatch = lastHold.sale_number.match(/(\d+)$/);
-        if (seqMatch) holdSeq = parseInt(seqMatch[1]) + 1;
-      }
-      const saleNumber = `${holdPrefix}${holdSeq}`;
-
       // Store items as JSON in dedicated held_cart_data column (notes preserved for real customer notes)
       const holdData = {
         items: saleData.items,
@@ -1124,11 +1099,17 @@ export const useSaveSale = () => {
         roundOff: saleData.roundOff,
       };
 
-      // Insert sale record with hold status (NO sale_items - no stock impact)
+      const { data: holdNumber, error: holdNoError } = await supabase
+        .rpc('generate_hold_number_atomic' as any, {
+          p_organization_id: currentOrganization.id,
+        } as any);
+      if (holdNoError) throw holdNoError;
+      if (!holdNumber) throw new Error('Failed to generate hold bill number');
+
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
-          sale_number: saleNumber,
+          sale_number: holdNumber,
           sale_type: 'pos',
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
@@ -1161,7 +1142,7 @@ export const useSaveSale = () => {
 
       toast({
         title: "Bill on Hold",
-        description: `Bill ${saleNumber} has been put on hold`,
+        description: `Bill ${sale.sale_number} has been put on hold`,
       });
 
       return sale;
