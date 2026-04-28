@@ -180,18 +180,27 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Explicitly fetch credits adjusted to outstanding balance.
       // This path can be triggered from Sale Return Dashboard and must always
       // reduce the global outstanding shown in headers/receipts.
+      const normalizeStatus = (status: unknown) =>
+        String(status || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      const isAdjustedOutstanding = (status: unknown) =>
+        normalizeStatus(status) === 'adjusted_outstanding';
+
       const adjustedOutstandingTotal = saleReturns
-        ?.filter((sr: any) => sr.credit_status === 'adjusted_outstanding')
-        .reduce((sum: number, sr: any) => sum + (sr.net_amount || 0), 0) || 0;
+        ?.filter((sr: any) => isAdjustedOutstanding(sr.credit_status))
+        .reduce((sum: number, sr: any) => sum + (Number(sr.net_amount) || 0), 0) || 0;
 
       // Only actioned returns reduce balance; pending returns are not yet settled.
       // SRs that are 'adjusted' AND linked to a sale are already absorbed into that
       // sale's net_amount via sale_return_adjust at POS save time — don't double-subtract.
       const actionedReturnTotal = saleReturns
-        ?.filter((sr: any) => sr.credit_status && sr.credit_status !== 'pending')
+        ?.filter((sr: any) => {
+          const status = normalizeStatus(sr.credit_status);
+          return !!status && status !== 'pending';
+        })
         .reduce((sum: number, sr: any) => {
-          const alreadyInNet = sr.linked_sale_id && sr.credit_status === 'adjusted';
-          return sum + (alreadyInNet ? 0 : (sr.net_amount || 0));
+          const status = normalizeStatus(sr.credit_status);
+          const alreadyInNet = !!sr.linked_sale_id && status === 'adjusted';
+          return sum + (alreadyInNet ? 0 : (Number(sr.net_amount) || 0));
         }, 0) || 0;
 
       // Keep an explicit term for adjusted_outstanding credits in the final formula
