@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -361,7 +361,7 @@ export function CustomerHistoryDialog({
       const { data, error } = await supabase
         .from('sales')
         .select(`
-          id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_type, refund_amount,
+          id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_return_adjust, sale_type, refund_amount,
           discount_amount, flat_discount_amount,
           sale_items (
             id, product_name, size, color, quantity, unit_price, mrp, line_total, barcode
@@ -500,6 +500,15 @@ export function CustomerHistoryDialog({
 
   const refunds = salesHistory?.filter(s => (s.refund_amount || 0) > 0) || [];
   const isLoading = balanceLoading || salesLoading;
+  // Fix Apr 2026: subtract sale_return_adjust to match per-invoice outstanding.
+  // Test case: Mamta Footwear-Kandivali W (1ce7dbea-...) outstanding = ₹15,054
+  const displayBalance = useMemo(() => {
+    const saleReturnAdjustTotal = (salesHistory || []).reduce(
+      (sum, sale: any) => sum + (Number(sale.sale_return_adjust) || 0),
+      0
+    );
+    return balance - saleReturnAdjustTotal;
+  }, [balance, salesHistory]);
 
   // Keyboard navigation for Legacy tab
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -648,12 +657,12 @@ export function CustomerHistoryDialog({
                     </p>
                   </CardContent>
                 </Card>
-                <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : balance < 0 ? 'border-l-emerald-500' : 'border-l-slate-400'}`}>
+                <Card className={`border-l-4 ${displayBalance > 0 ? 'border-l-red-500' : displayBalance < 0 ? 'border-l-emerald-500' : 'border-l-slate-400'}`}>
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">
-                      {balance > 0
+                      {displayBalance > 0
                         ? 'Outstanding (Dr)'
-                        : balance < 0
+                        : displayBalance < 0
                           ? (advanceBalance > 0
                               ? 'Unused Advance'
                               : crPending > 0
@@ -661,13 +670,13 @@ export function CustomerHistoryDialog({
                                 : 'Net Credit Bal')
                           : 'Current Bal'}
                     </p>
-                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${balance > 0 ? 'text-red-600' : balance < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                      ₹{Math.abs(balance).toFixed(2)}
+                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${displayBalance > 0 ? 'text-red-600' : displayBalance < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                      ₹{Math.abs(displayBalance).toFixed(2)}
                     </p>
-                    <p className={`text-[10px] font-semibold mt-0.5 ${balance > 0 ? 'text-red-500' : balance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {balance > 0
+                    <p className={`text-[10px] font-semibold mt-0.5 ${displayBalance > 0 ? 'text-red-500' : displayBalance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {displayBalance > 0
                         ? 'Customer Owes'
-                        : balance < 0
+                        : displayBalance < 0
                           ? (advanceBalance > 0
                               ? 'Available for future bills'
                               : crPending > 0

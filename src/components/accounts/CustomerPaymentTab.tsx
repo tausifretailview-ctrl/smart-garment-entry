@@ -24,7 +24,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
-import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
@@ -32,6 +31,15 @@ import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
+// Fix Apr 2026: subtract sale_return_adjust to match per-invoice outstanding.
+// Test case: Mamta Footwear-Kandivali W (1ce7dbea-...) outstanding = ₹15,054
+const getInvoiceOutstanding = (invoice: any, voucherPaid = 0) => {
+  const net = Number(invoice?.net_amount || 0);
+  const paid = Number(invoice?.paid_amount || 0);
+  const srAdjust = Number(invoice?.sale_return_adjust || 0);
+  const effectivePaid = Math.max(paid, Number(voucherPaid || 0));
+  return Math.max(0, net - effectivePaid - srAdjust);
+};
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
@@ -128,7 +136,15 @@ export function CustomerPaymentTab({
           customerOpeningBalancePayments.set(v.reference_id, (customerOpeningBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
         }
       });
-      const customerBalances = calculateCustomerInvoiceBalances(allSales, invoiceVoucherPayments);
+      const customerBalances = new Map<string, number>();
+      allSales.forEach((sale: any) => {
+        if (!sale?.customer_id) return;
+        const outstanding = getInvoiceOutstanding(sale, invoiceVoucherPayments.get(sale.id) || 0);
+        customerBalances.set(
+          sale.customer_id,
+          (customerBalances.get(sale.customer_id) || 0) + outstanding
+        );
+      });
       return allCustomers
         .filter((c: any) => {
           const ob = c.opening_balance || 0;
@@ -162,6 +178,30 @@ export function CustomerPaymentTab({
       return data;
     },
     enabled: !!referenceId,
+  });
+
+  const { data: customerInvoiceVoucherPayments = new Map<string, number>() } = useQuery({
+    queryKey: ["customer-invoice-voucher-payments", organizationId, referenceId, customerInvoices?.length || 0],
+    queryFn: async () => {
+      const saleIds = (customerInvoices || []).map((s: any) => s.id).filter(Boolean);
+      if (!organizationId || saleIds.length === 0) return new Map<string, number>();
+      const { data, error } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, total_amount")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "receipt")
+        .eq("reference_type", "sale")
+        .is("deleted_at", null)
+        .in("reference_id", saleIds);
+      if (error) throw error;
+      const map = new Map<string, number>();
+      (data || []).forEach((v: any) => {
+        if (!v.reference_id) return;
+        map.set(v.reference_id, (map.get(v.reference_id) || 0) + Number(v.total_amount || 0));
+      });
+      return map;
+    },
+    enabled: !!organizationId && !!referenceId && !!customerInvoices && customerInvoices.length > 0,
   });
 
   // Remaining Opening Balance for the selected customer
@@ -209,13 +249,13 @@ export function CustomerPaymentTab({
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
       const invoiceTotal = customerInvoices
         .filter(inv => selectedInvoiceIds.includes(inv.id))
-        .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0);
+        .reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0);
       const obSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
         ? Number(openingBalanceRemaining || 0)
         : 0;
       setAmount((invoiceTotal + obSelected).toFixed(2));
     }
-  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining]);
+  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherPayments]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
@@ -244,7 +284,7 @@ export function CustomerPaymentTab({
       if (!referenceId || selectedInvoiceIds.length === 0) throw new Error("Select customer and invoices");
       const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
       if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
-      const totalOutstanding = invoicesToProcess.reduce((sum, inv) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0)), 0);
+      const totalOutstanding = invoicesToProcess.reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0);
       const amountToApply = Math.min(advanceBalance, totalOutstanding);
       if (amountToApply <= 0) throw new Error("No advance balance to apply");
       
@@ -266,7 +306,7 @@ export function CustomerPaymentTab({
       let idx = 0;
       for (const invoice of invoicesToProcess) {
         if (remaining <= 0) break;
-        const outstanding = Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0));
+        const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoice.id) || 0);
         const applyAmt = Math.min(remaining, outstanding);
         if (applyAmt <= 0) continue;
         const newPaid = (invoice.paid_amount || 0) + applyAmt;
@@ -735,7 +775,7 @@ export function CustomerPaymentTab({
                           onClick={() => applyAdvanceMutation.mutate()}
                         >
                           <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
+                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
                         </Button>
                       )}
                     </div>
@@ -776,7 +816,7 @@ export function CustomerPaymentTab({
                         );
                       })()}
                       {customerInvoices?.map((invoice) => {
-                        const balance = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
+                        const balance = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoice.id) || 0);
                         const isSelected = selectedInvoiceIds.includes(invoice.id);
                         const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
                         const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime()) ? format(invoiceDate, "dd/MM/yy") : "-";
@@ -803,7 +843,7 @@ export function CustomerPaymentTab({
                     <Badge variant="secondary" className="bg-primary/10">{selectedInvoiceIds.length} invoice(s) selected</Badge>
                     <span className="text-sm text-muted-foreground">
                       Total: ₹{(
-                        (customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0) || 0)
+                        (customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0) || 0)
                         + (selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0)
                       ).toFixed(2)}
                     </span>
@@ -885,7 +925,7 @@ export function CustomerPaymentTab({
 
               {/* Discount Fields */}
               {(() => {
-                const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0) || 0;
+                const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0), 0) || 0;
                 const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0;
                 const selectedInvoiceTotal = selectedInvoiceIds.length > 0
                   ? invoicePart + obPart

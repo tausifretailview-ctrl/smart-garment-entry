@@ -439,10 +439,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const advanceRefundTotal = customerAdvanceRefunds.get(customer.id) || 0;
         const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
         const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
+        // Fix Apr 2026: subtract sale_return_adjust to match per-invoice outstanding.
+        // Test case: Mamta Footwear-Kandivali W (1ce7dbea-...) outstanding = ₹15,054
+        const totalSaleReturnAdjust = customerSales.reduce(
+          (sum: number, s: any) => sum + (Number(s.sale_return_adjust) || 0),
+          0
+        );
         const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
         // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes + Refunds Paid
         // refundsPaidTotal uses + sign because cash refunds paid OUT cancel the credit liability from sale returns
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - creditNoteTotal + refundsPaidTotal);
+        const balance = Math.round(
+          openingBalance + totalSales - totalPaid + adjustmentTotal
+          - effectiveUnusedAdvances - creditNoteTotal - totalSaleReturnAdjust + refundsPaidTotal
+        );
 
         return {
           ...customer,
