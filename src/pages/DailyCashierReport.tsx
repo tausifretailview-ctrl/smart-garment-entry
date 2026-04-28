@@ -247,9 +247,30 @@ const DailyCashierReport = () => {
     let creditBills = 0;
     let mixBills = 0;
 
+    const isHoldLikeSale = (sale: any) => {
+      if (sale?.payment_status === "hold") return true;
+      return sale?.payment_status === "pending" && String(sale?.sale_number || "").startsWith("Hold/");
+    };
+
+    const getEffectiveNet = (sale: any) => {
+      const discountTotal =
+        (Number(sale?.discount_amount) || 0) +
+        (Number(sale?.flat_discount_amount) || 0) +
+        (Number((sale as any)?.points_redeemed_amount) || 0);
+      return (
+        (Number(sale?.gross_amount) || 0) -
+        discountTotal -
+        (Number((sale as any)?.sale_return_adjust) || 0) -
+        (Number(sale?.refund_amount) || 0) -
+        (Number((sale as any)?.round_off) || 0)
+      );
+    };
+
+    const eligibleSales = (salesData || []).filter((sale: any) => !isHoldLikeSale(sale));
+
     // Process sales data
-    if (salesData) {
-      salesData.forEach((sale) => {
+    if (eligibleSales.length) {
+      eligibleSales.forEach((sale) => {
         // NOTE: Refund-only sales (negative net_amount from S/R Adjust > bill) are
         // INCLUDED here. Their cash_amount/upi_amount/card_amount are stored as
         // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
@@ -257,9 +278,10 @@ const DailyCashierReport = () => {
         grossSale += Number(sale.gross_amount) || 0;
         totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0) + (Number((sale as any).points_redeemed_amount) || 0);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
-        totalSale += Number(sale.net_amount) || 0;
+        const effectiveNet = getEffectiveNet(sale);
+        totalSale += effectiveNet;
 
-        const netAmount = Number(sale.net_amount) || 0;
+        const netAmount = effectiveNet;
         const paidAmount = Number(sale.paid_amount) || 0;
         const refundAmt = Number(sale.refund_amount) || 0;
         const balance = netAmount - paidAmount;
@@ -395,7 +417,7 @@ const DailyCashierReport = () => {
       totalPaid,
       totalBalance,
       totalRefund,
-      totalBills: salesData?.length || 0,
+      totalBills: eligibleSales.length,
       cashBills,
       cardBills,
       upiBills,

@@ -257,9 +257,29 @@ const DailyTally = () => {
     const employeeSalary = emptyBreakdown();
     const saleReturnRefunds = emptyBreakdown();
 
-    // Process sales
+    const isHoldLikeSale = (s: any) => {
+      if (s?.payment_status === "hold") return true;
+      return s?.payment_status === "pending" && String(s?.sale_number || "").startsWith("Hold/");
+    };
+
+    const getEffectiveNet = (s: any) => {
+      const discountTotal =
+        (Number(s?.discount_amount) || 0) +
+        (Number(s?.flat_discount_amount) || 0) +
+        (Number(s?.points_redeemed_amount) || 0);
+      return (
+        (Number(s?.gross_amount) || 0) -
+        discountTotal -
+        (Number(s?.sale_return_adjust) || 0) -
+        (Number(s?.refund_amount) || 0) -
+        (Number(s?.round_off) || 0)
+      );
+    };
+
+    // Process sales (exclude hold/cancelled-like rows to match POS dashboard)
     (salesData || []).forEach((s: any) => {
-      const net = Number(s.net_amount) || 0;
+      if (isHoldLikeSale(s)) return;
+      const net = getEffectiveNet(s);
       const target = s.sale_type === "pos" ? posSales : invoiceSales;
       if (s.payment_method === "multiple") {
         target.cash += Number(s.cash_amount) || 0;
@@ -575,7 +595,7 @@ const DailyTally = () => {
               <ArrowDownLeft className="h-5 w-5" /> Money In
               {/* UI-3: transaction count badge */}
               <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                {(salesData?.length || 0) + (vouchersData?.filter((v: any) => v.voucher_type === "receipt").length || 0)} txns
+                {((salesData || []).filter((s: any) => !(s?.payment_status === "hold" || (s?.payment_status === "pending" && String(s?.sale_number || "").startsWith("Hold/")))).length || 0) + (vouchersData?.filter((v: any) => v.voucher_type === "receipt").length || 0)} txns
               </Badge>
             </CardTitle>
           </CardHeader>
