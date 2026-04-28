@@ -200,16 +200,17 @@ const FeeCollection = () => {
         paidByStudent.set(p.student_id, (paidByStudent.get(p.student_id) || 0) + (p.paid_amount || 0));
       });
 
-      // Aggregate pending using OPENING-REPLACED-BY-STRUCTURE per student
+      // Aggregate pending using MAX(Opening, Structure) − Paid per student.
+      // Opening (closing_fees_balance) and the newly-assigned fee structure
+      // represent the SAME yearly liability for newly-admitted students.
+      // Treating them additively double-counts dues.
       let pending = 0;
       (allStudents || []).forEach((st: any) => {
         const opening = st.closing_fees_balance || 0;
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
-        const openingCleared = opening > 0 && paid >= opening;
-        const effOpening = openingCleared ? 0 : opening;
-        const effPaid = openingCleared ? Math.max(0, paid - opening) : paid;
-        pending += Math.max(0, effOpening + struct - effPaid);
+        const liability = Math.max(opening, struct);
+        pending += Math.max(0, liability - paid);
       });
 
       return { today: todayTotal, month: monthTotal, pending };
