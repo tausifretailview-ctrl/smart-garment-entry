@@ -41,6 +41,8 @@ interface SaleReturn {
   credit_note_number?: string;
   customer_phone?: string | null;
   total_qty?: number;
+  adjusted_sale_number?: string | null;
+  adjusted_sale_type?: string | null;
 }
 
 interface SaleReturnItem {
@@ -211,10 +213,24 @@ export default function SaleReturnDashboard() {
       }
 
       // Enrich returns
+      const linkedSaleIds = [...new Set(returnsList.map(r => r.linked_sale_id).filter(Boolean))] as string[];
+      const linkedSaleMap: Record<string, { sale_number: string; sale_type: string | null }> = {};
+      if (linkedSaleIds.length > 0) {
+        const { data: linkedSales } = await supabase
+          .from("sales")
+          .select("id, sale_number, sale_type")
+          .in("id", linkedSaleIds);
+        (linkedSales || []).forEach((s: any) => {
+          linkedSaleMap[s.id] = { sale_number: s.sale_number, sale_type: s.sale_type || null };
+        });
+      }
+
       const enriched = returnsList.map(r => ({
         ...r,
         customer_phone: r.customer_id ? customerPhoneMap[r.customer_id] || null : null,
         total_qty: qtyMap[r.id] || 0,
+        adjusted_sale_number: r.linked_sale_id ? linkedSaleMap[r.linked_sale_id]?.sale_number || null : null,
+        adjusted_sale_type: r.linked_sale_id ? linkedSaleMap[r.linked_sale_id]?.sale_type || null : null,
       }));
 
       return { returns: enriched, totalCount: count || 0 };
@@ -355,6 +371,7 @@ export default function SaleReturnDashboard() {
       "GST": Math.round(ret.gst_amount * 100) / 100,
       "Net Amount": Math.round(ret.net_amount),
       "Credit Status": ret.credit_status || "-",
+      "Adjusted In Invoice": ret.adjusted_sale_number || ret.original_sale_number || "-",
       "Refund Type": ret.refund_type === 'cash_refund' ? 'Cash Refund' : ret.refund_type === 'exchange' ? 'Exchange' : 'Credit Note',
     }));
 
@@ -501,6 +518,7 @@ export default function SaleReturnDashboard() {
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
                     <TableHead>Credit Status</TableHead>
+                    <TableHead>Adjusted In Invoice</TableHead>
                     <TableHead>Refund Type</TableHead>
                     <TableHead className="text-right print:hidden">Actions</TableHead>
                   </TableRow>
@@ -576,6 +594,17 @@ export default function SaleReturnDashboard() {
                           )}
                         </TableCell>
                         <TableCell>
+                          {ret.adjusted_sale_number ? (
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">
+                              {ret.adjusted_sale_number} {ret.adjusted_sale_type === 'pos' ? '(S/R Adjusted)' : ''}
+                            </Badge>
+                          ) : ret.original_sale_number ? (
+                            <Badge variant="outline">{ret.original_sale_number}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           {ret.refund_type === 'cash_refund' && (
                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
                               <Banknote className="h-3 w-3 mr-1" />
@@ -642,7 +671,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
-                          <TableCell colSpan={13} className="bg-muted/50">
+                          <TableCell colSpan={14} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
