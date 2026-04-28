@@ -4116,7 +4116,7 @@ export default function POSSales() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
         <div className="sticky top-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
-          <div className="max-w-[1800px] w-full pl-2">
+          <div className="w-full pl-2">
             <div className="flex flex-wrap items-end gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
@@ -4659,7 +4659,7 @@ export default function POSSales() {
 
         {/* Items Table - Scrollable Section */}
         <div className="flex-1 overflow-hidden flex flex-col px-1 md:px-2 pb-36 mt-2">
-          <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
+          <div className="w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
               <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px' }}>
