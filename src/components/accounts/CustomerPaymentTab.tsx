@@ -402,7 +402,7 @@ export function CustomerPaymentTab({
           const invoice = customerInvoices?.find(inv => inv.id === invoiceId);
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
-          const outstanding = invoice.net_amount - currentPaid;
+          const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoiceId) || 0);
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
           const projectedPaidAmount = currentPaid + amountToApply;
@@ -533,14 +533,17 @@ export function CustomerPaymentTab({
 
             const { data: sale, error: saleError } = await supabase
               .from("sales")
-              .select("paid_amount, net_amount")
+              .select("paid_amount, net_amount, sale_return_adjust")
               .eq("id", invoiceId)
+              .eq("organization_id", organizationId)
               .single();
             if (saleError) throw saleError;
 
-            const newPaidAmount = Number(sale?.paid_amount || 0) + allocatedAmount;
             const netAmount = Number(sale?.net_amount || 0);
-            const newStatus = newPaidAmount >= netAmount ? "completed" : "partial";
+            const saleReturnAdjust = Number((sale as any)?.sale_return_adjust || 0);
+            const payableCap = Math.max(0, netAmount - saleReturnAdjust);
+            const newPaidAmount = Math.min(payableCap, Number(sale?.paid_amount || 0) + allocatedAmount);
+            const newStatus = (newPaidAmount + saleReturnAdjust) >= netAmount ? "completed" : "partial";
 
             const { error: updateError } = await supabase
               .from("sales")
@@ -549,7 +552,8 @@ export function CustomerPaymentTab({
                 payment_status: newStatus,
                 payment_date: format(voucherDate, "yyyy-MM-dd"),
               })
-              .eq("id", invoiceId);
+              .eq("id", invoiceId)
+              .eq("organization_id", organizationId);
             if (updateError) throw updateError;
           })
         );
