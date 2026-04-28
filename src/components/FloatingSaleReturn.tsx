@@ -85,7 +85,7 @@ export const FloatingSaleReturn = ({
   const [billItems, setBillItems] = useState<SaleItemRecord[]>([]);
   const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
-  const [refundType, setRefundType] = useState<RefundType>("credit_note");
+  const [refundType, setRefundType] = useState<RefundType>("exchange");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
 
   // Inline customer picker (used when no customer was passed from POS)
@@ -161,7 +161,7 @@ export const FloatingSaleReturn = ({
       setBillNumber("");
       setBillSaleId(null);
       setBillItems([]);
-      setRefundType("credit_note");
+      setRefundType("exchange");
       setPendingCreditNotes([]);
       setAppliedCreditNoteId(null);
       setAppliedCreditAmount(0);
