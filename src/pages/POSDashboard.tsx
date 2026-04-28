@@ -2090,36 +2090,48 @@ const POSDashboard = () => {
                               {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
-                              <div className="flex flex-col items-end gap-0.5">
-                                <div className="flex items-center justify-end gap-1">
-                                  {(sale.sale_return_adjust || 0) > 0 && (
-                                    <Badge variant="outline" className="text-xs px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
-                                      S/R Adj
-                                    </Badge>
-                                  )}
-                                  <span className={sale.net_amount < 0 ? 'text-red-600' : ''}>
-                                    ₹{Math.round(sale.net_amount).toLocaleString('en-IN')}
-                                  </span>
-                                </div>
-                                {((sale.discount_amount || 0) + (sale.flat_discount_amount || 0)) > 0 && (
-                                  <div
-                                    className="text-xs font-medium text-muted-foreground whitespace-nowrap leading-tight"
-                                    title={`Gross ₹${Math.round(sale.gross_amount || 0).toLocaleString('en-IN')} − Disc ₹${Math.round((sale.discount_amount || 0) + (sale.flat_discount_amount || 0)).toLocaleString('en-IN')} = ₹${Math.round(sale.net_amount).toLocaleString('en-IN')}`}
-                                  >
-                                    ₹{Math.round(sale.gross_amount || 0).toLocaleString('en-IN')}
-                                    <span className="text-rose-600"> − ₹{Math.round((sale.discount_amount || 0) + (sale.flat_discount_amount || 0)).toLocaleString('en-IN')}</span>
+                              {(() => {
+                                const discountTotal = (sale.discount_amount || 0) + (sale.flat_discount_amount || 0) + ((sale as any).points_redeemed_amount || 0);
+                                const srAdjust = Number(sale.sale_return_adjust || 0);
+                                const baseBillBeforeSR = Number(sale.gross_amount || 0) - discountTotal + Number((sale as any).round_off || 0);
+                                // Preserve historical behavior for normal rows; fix clamped-zero CN rows.
+                                const displayAmount =
+                                  srAdjust > 0 && Number(sale.net_amount || 0) === 0
+                                    ? (baseBillBeforeSR - srAdjust)
+                                    : Number(sale.net_amount || 0);
+                                return (
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {srAdjust > 0 && (
+                                        <Badge variant="outline" className="text-xs px-1 py-0 font-semibold border-orange-300 text-orange-600 bg-orange-50 dark:bg-orange-950 dark:border-orange-700 dark:text-orange-400 whitespace-nowrap">
+                                          S/R Adj
+                                        </Badge>
+                                      )}
+                                      <span className={displayAmount < 0 ? 'text-red-600' : ''}>
+                                        ₹{Math.round(displayAmount).toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+                                    {discountTotal > 0 && (
+                                      <div
+                                        className="text-xs font-medium text-muted-foreground whitespace-nowrap leading-tight"
+                                        title={`Gross ₹${Math.round(sale.gross_amount || 0).toLocaleString('en-IN')} − Disc ₹${Math.round(discountTotal).toLocaleString('en-IN')} = ₹${Math.round(baseBillBeforeSR).toLocaleString('en-IN')}`}
+                                      >
+                                        ₹{Math.round(sale.gross_amount || 0).toLocaleString('en-IN')}
+                                        <span className="text-rose-600"> − ₹{Math.round(discountTotal).toLocaleString('en-IN')}</span>
+                                      </div>
+                                    )}
+                                    {srAdjust > 0 && (
+                                      <div
+                                        className="text-xs font-semibold text-foreground whitespace-nowrap leading-tight"
+                                        title={`Bill ₹${Math.round(baseBillBeforeSR).toLocaleString('en-IN')} − S/R Adj ₹${Math.round(srAdjust).toLocaleString('en-IN')} = Payable ₹${Math.round(baseBillBeforeSR - srAdjust).toLocaleString('en-IN')}`}
+                                      >
+                                        ₹{Math.round(baseBillBeforeSR).toLocaleString('en-IN')}
+                                        <span className="text-orange-600"> − ₹{Math.round(srAdjust).toLocaleString('en-IN')}</span>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                                {(sale.sale_return_adjust || 0) > 0 && (
-                                  <div
-                                    className="text-xs font-semibold text-foreground whitespace-nowrap leading-tight"
-                                    title={`Bill ₹${Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')} − S/R Adj ₹${Math.round(sale.sale_return_adjust || 0).toLocaleString('en-IN')} = Payable ₹${Math.round(sale.net_amount).toLocaleString('en-IN')}`}
-                                  >
-                                    ₹{Math.round(sale.net_amount + (sale.sale_return_adjust || 0)).toLocaleString('en-IN')}
-                                    <span className="text-orange-600"> − ₹{Math.round(sale.sale_return_adjust || 0).toLocaleString('en-IN')}</span>
-                                  </div>
-                                )}
-                              </div>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {sale.cash_amount ? `₹${Math.round(sale.cash_amount).toLocaleString('en-IN')}` : '-'}
@@ -2135,12 +2147,25 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
+                                const discountTotal =
+                                  (sale.discount_amount || 0) +
+                                  (sale.flat_discount_amount || 0) +
+                                  ((sale as any).points_redeemed_amount || 0);
+                                const srAdjust = Number(sale.sale_return_adjust || 0);
+                                const baseBillBeforeSR =
+                                  Number(sale.gross_amount || 0) -
+                                  discountTotal +
+                                  Number((sale as any).round_off || 0);
+                                const effectiveNetAmount =
+                                  srAdjust > 0 && Number(sale.net_amount || 0) === 0
+                                    ? (baseBillBeforeSR - srAdjust)
+                                    : Number(sale.net_amount || 0);
                                 const esb = isHoldLikeSale(sale) ? 'hold'
-                                  : (sale.paid_amount || 0) >= sale.net_amount ? 'completed'
+                                  : (sale.paid_amount || 0) >= effectiveNetAmount ? 'completed'
                                   : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
                                 return esb !== 'completed' ? (
                                   <span className="font-semibold text-orange-600">
-                                    ₹{Math.round(sale.net_amount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
+                                    ₹{Math.round(effectiveNetAmount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
