@@ -206,12 +206,12 @@ const StudentMaster = () => {
       for (const st of students) {
         const opening = st.closing_fees_balance || 0;
         const expected = expectedByClass[st.class_id] || 0;
-        const hasStructures = expected > 0;
         const paid = paidByStudent[st.id] || 0;
         const adj = adjByStudent[st.id] || 0;
-        const due = hasStructures
-          ? Math.max(0, opening + expected + adj - paid)
-          : Math.max(0, opening + adj - paid);
+        // MAX(opening, structure) — opening balance and fee structure are
+        // alternative views of the same liability, not cumulative.
+        const liability = Math.max(opening, expected);
+        const due = Math.max(0, liability + adj - paid);
         map[st.id] = due;
       }
       return map;
