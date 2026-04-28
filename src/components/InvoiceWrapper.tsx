@@ -429,6 +429,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       // Use A5HorizontalBillFormat for a5-horizontal format
       if (format === 'a5-horizontal') {
+        const paymentMethodLabel = (() => {
+          if (props.paymentMethod === 'refund_cash') return 'Refund (Cash)';
+          if (props.paymentMethod === 'refund_upi') return 'Refund (UPI)';
+          if (props.paymentMethod === 'refund_bank_transfer') return 'Refund (Bank)';
+          return props.paymentMethod;
+        })();
         const a5HorizontalData = {
           invoiceNo: props.billNo,
           date: props.date.toLocaleDateString('en-IN'),
@@ -446,7 +452,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           tax: totalTax,
           discount: props.discount,
           grandTotal: props.grandTotal,
-          paymentMethod: props.paymentMethod,
+          paymentMethod: paymentMethodLabel,
+          cashAmount: props.cashAmount,
+          cardAmount: props.cardAmount,
+          upiAmount: props.upiAmount,
+          creditAmount: props.creditAmount,
+          paidAmount: props.paidAmount,
+          refundCash: props.refundCash,
           organization: {
             name: settings?.business_name || '',
             address: settings?.address || '',

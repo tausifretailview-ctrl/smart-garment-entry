@@ -26,6 +26,7 @@ interface BillData {
   upiAmount?: number;
   creditAmount?: number;
   paidAmount?: number;
+  refundCash?: number;
   organization: {
     name: string;
     address: string;
@@ -469,6 +470,14 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
                   )}
                 </div>
               )}
+              {data.refundCash && data.refundCash > 0 && (
+                <div style={{ marginTop: '4px', fontSize: '6pt', lineHeight: '1.3' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', color: '#b45309' }}>
+                    <span>Refund to Customer:</span>
+                    <span style={{ fontWeight: 700 }}>₹{data.refundCash.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
             </div>
             {qrCodeUrl && (
               <div className="a5h-qr-small">
@@ -514,6 +523,12 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
                   <span>₹{(data.grandTotal - data.paidAmount).toFixed(2)}</span>
                 </div>
               </>
+            )}
+            {data.refundCash !== undefined && data.refundCash > 0 && (
+              <div className="a5h-total-row" style={{ fontWeight: 700, color: '#b45309' }}>
+                <span>Refund to Customer:</span>
+                <span>₹{data.refundCash.toFixed(2)}</span>
+              </div>
             )}
           </div>
         </div>

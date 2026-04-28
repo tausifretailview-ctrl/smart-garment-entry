@@ -354,7 +354,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
             {upiPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>UPI</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(upiPaid)}</span></div>}
             {cardPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Card</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cardPaid)}</span></div>}
             {creditPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Credit</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(creditPaid)}</span></div>}
-            {refundCash > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Change</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(refundCash)}</span></div>}
+            {refundCash > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Refund to Customer</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(refundCash)}</span></div>}
             {Math.abs(balanceDue) > 1 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
                 <span>{balanceDue < 0 ? 'CREDIT DUE TO CUSTOMER' : 'BALANCE DUE'}</span>

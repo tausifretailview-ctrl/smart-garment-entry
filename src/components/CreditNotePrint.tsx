@@ -18,6 +18,7 @@ interface CreditNotePrintProps {
     email_id?: string;
     gst_number?: string;
   } | null;
+  format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
 }
 
 const numberToWords = (num: number): string => {
@@ -70,16 +71,29 @@ const amountInWords = (amount: number): string => {
 };
 
 export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintProps>(
-  ({ creditNote, settings }, ref) => {
+  ({ creditNote, settings, format = 'a5' }, ref) => {
+    const isThermal = format === 'thermal';
+    const pageSize = format === 'a4'
+      ? 'A4 portrait'
+      : format === 'a5-horizontal'
+      ? 'A5 landscape'
+      : format === 'thermal'
+      ? '80mm auto'
+      : 'A5 portrait';
+
+    const containerWidth = isThermal ? '72mm' : (format === 'a4' ? '210mm' : '148mm');
+    const containerMinHeight = isThermal ? 'auto' : (format === 'a4' ? '297mm' : '210mm');
+    const containerPadding = isThermal ? '4mm' : '8mm';
+
     return (
       <div 
         ref={ref} 
         className="credit-note-print print-document"
         style={{ 
           fontFamily: 'Arial, sans-serif',
-          width: '148mm',
-          minHeight: '210mm',
-          padding: '8mm',
+          width: containerWidth,
+          minHeight: containerMinHeight,
+          padding: containerPadding,
           backgroundColor: 'white',
           color: 'black',
           boxSizing: 'border-box'
@@ -89,13 +103,13 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
           {`
             @media print {
               @page {
-                size: A5 portrait;
-                margin: 5mm;
+                size: ${pageSize};
+                margin: ${isThermal ? '2mm' : '5mm'};
               }
               .credit-note-print {
-                width: 138mm !important;
-                min-height: 200mm !important;
-                padding: 5mm !important;
+                width: ${isThermal ? '76mm' : (format === 'a4' ? '200mm' : '138mm')} !important;
+                min-height: ${isThermal ? 'auto' : (format === 'a4' ? '287mm' : '200mm')} !important;
+                padding: ${isThermal ? '2mm' : '5mm'} !important;
               }
               .credit-note-print * {
                 color: black !important;

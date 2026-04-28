@@ -70,12 +70,11 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_date, gross_amount, discount_amount, flat_discount_amount, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust")
+        .select("id, sale_number, sale_date, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust, is_cancelled")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", startDate.toISOString())
         .lte("sale_date", endDate.toISOString())
-        .is("deleted_at", null)
-        .neq("payment_status", "hold");
+        .is("deleted_at", null);
       
       if (error) throw error;
       return data;
@@ -150,10 +149,32 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     let supplierPaid = 0, expensePaid = 0, employeePaid = 0;
     let advanceRefundTotal = 0, advanceRefundCash = 0;
 
-    (salesData || []).forEach((sale) => {
+    const isHoldLikeSale = (sale: any) => {
+      if (sale?.payment_status === "hold") return true;
+      return sale?.payment_status === "pending" && String(sale?.sale_number || "").startsWith("Hold/");
+    };
+
+    const eligibleSales = (salesData || []).filter((sale: any) => {
+      if (sale?.is_cancelled) return false;
+      if (sale?.payment_status === "cancelled") return false;
+      if (isHoldLikeSale(sale)) return false;
+      return true;
+    });
+
+    eligibleSales.forEach((sale: any) => {
       grossSale += Number(sale.gross_amount) || 0;
-      totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
-      totalSale += Number(sale.net_amount) || 0;
+      totalDiscount +=
+        (Number(sale.discount_amount) || 0) +
+        (Number(sale.flat_discount_amount) || 0) +
+        (Number((sale as any).points_redeemed_amount) || 0);
+      totalSale +=
+        (Number(sale.gross_amount) || 0) -
+        (Number(sale.discount_amount) || 0) -
+        (Number(sale.flat_discount_amount) || 0) -
+        (Number((sale as any).points_redeemed_amount) || 0) -
+        (Number((sale as any).sale_return_adjust) || 0) -
+        (Number(sale.refund_amount) || 0) -
+        (Number((sale as any).round_off) || 0);
       totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 
@@ -220,7 +241,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       creditSale: Math.round(creditSale),
       totalRefund: Math.round(totalRefund),
       totalSRAdjusted: Math.round(totalSRAdjusted),
-      totalBills: (salesData || []).length,
+      totalBills: eligibleSales.length,
       advanceReceived: Math.round(advanceReceived),
       receiptTotal: Math.round(receiptTotal),
       supplierPaid: Math.round(supplierPaid),

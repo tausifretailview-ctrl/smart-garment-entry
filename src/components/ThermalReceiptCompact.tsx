@@ -323,7 +323,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
             {cardPaid > 0 && <div style={row}><span>Card</span><span>₹{fmtAmt(cardPaid)}</span></div>}
             {creditPaid > 0 && <div style={row}><span>Credit</span><span>₹{fmtAmt(creditPaid)}</span></div>}
             {totalPaid > 0 && <div style={{ ...row, fontWeight: 900 }}><span>TOTAL PAID</span><span>₹{fmtAmt(totalPaid)}</span></div>}
-            {refundCash > 0 && <div style={row}><span>Change</span><span>₹{fmtAmt(refundCash)}</span></div>}
+            {refundCash > 0 && <div style={row}><span>Refund to Customer</span><span>₹{fmtAmt(refundCash)}</span></div>}
             {balanceDue > 1 && <div style={{ ...row, fontWeight: 900 }}><span>BAL DUE</span><span>₹{fmtAmt(balanceDue)}</span></div>}
           </div>
         )}

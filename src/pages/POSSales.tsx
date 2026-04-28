@@ -2580,7 +2580,7 @@ export default function POSSales() {
       pointsRedeemedAmount: pointsRedemptionValue,
     };
 
-    const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';
+    const paymentMethodType: 'multiple' = 'multiple';
 
     // ── Refund cash-flow audit fix ─────────────────────────────────────────
     // For refunds (negative net) where cash/upi/card amounts in the dialog
@@ -2705,8 +2705,8 @@ export default function POSSales() {
         totals: totals,
         flatDiscountAmount: flatDiscountAmount,
         saleReturnAdjust: saleReturnAdjust,
-        finalAmount: finalAmount,
-        method: isRefund ? 'refund' : 'multiple',
+        finalAmount: isRefund ? 0 : finalAmount,
+        method: isRefund ? `refund_${paymentData.refundMode || 'cash'}` : 'multiple',
         customerName: customerName,
         customerPhone: customerPhone,
         customerId: customerId,
@@ -2714,8 +2714,9 @@ export default function POSSales() {
         customerGstNumber: customers.find(c => c.id === customerId)?.gst_number || "",
         customerTransportDetails: (customers.find(c => c.id === customerId) as any)?.transport_details || "",
         roundOff: roundOff,
-        paymentBreakdown: paymentData,
+        paymentBreakdown: breakdownForSave,
         refundAmount: paymentData.refundAmount,
+        refundCash: isRefund ? paymentData.refundAmount : 0,
         creditApplied: creditApplied,
         notes: saleNotes || null,
         paidAmount: paymentData.totalPaid,
@@ -3907,6 +3908,7 @@ export default function POSSales() {
             upiAmount={savedInvoiceData?.upiAmount || 0}
             cardAmount={savedInvoiceData?.cardAmount || 0}
             creditAmount={savedInvoiceData?.creditAmount || 0}
+            refundCash={savedInvoiceData?.refundCash || 0}
             notes={savedInvoiceData?.notes || saleNotes}
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
@@ -5241,6 +5243,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
                 creditAmount={savedInvoiceData?.creditAmount || 0}
+                refundCash={savedInvoiceData?.refundCash || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
@@ -5433,6 +5436,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData.upiAmount || 0}
                 cardAmount={savedInvoiceData.cardAmount || 0}
                 creditAmount={savedInvoiceData.creditAmount || 0}
+                refundCash={savedInvoiceData.refundCash || 0}
                 notes={savedInvoiceData.notes}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
@@ -5533,6 +5537,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
                 creditAmount={savedInvoiceData?.creditAmount || 0}
+                refundCash={savedInvoiceData?.refundCash || 0}
                 notes={savedInvoiceData?.isEstimate ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}` : (savedInvoiceData?.notes || saleNotes)}
                 paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
@@ -5573,8 +5578,9 @@ export default function POSSales() {
                   if (creditNotePrintRef.current) {
                     const printWindow = window.open('', '_blank');
                     if (printWindow) {
+                      const printPadding = posBillFormat === 'thermal' ? '0' : '20px';
                       printWindow.document.write('<html><head><title>Credit Note</title>');
-                      printWindow.document.write('<style>body{margin:0;padding:20px;font-family:Arial,sans-serif;}</style>');
+                      printWindow.document.write(`<style>body{margin:0;padding:${printPadding};font-family:Arial,sans-serif;}</style>`);
                       printWindow.document.write('</head><body>');
                       printWindow.document.write(creditNotePrintRef.current.innerHTML);
                       printWindow.document.write('</body></html>');
@@ -5648,7 +5654,8 @@ export default function POSSales() {
             <CreditNotePrint 
               ref={creditNotePrintRef}
               creditNote={creditNoteData}
-              settings={null}
+              settings={settingsData as any}
+              format={posBillFormat || 'thermal'}
             />
           </div>
         )}

@@ -352,7 +352,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
             {totalPaid > 0 && (
               <div style={{ ...row, fontWeight: 900 }}><span>TOTAL PAID</span><span>₹{fmtAmt(totalPaid)}</span></div>
             )}
-            {refundCash > 0 && <div style={row}><span>Change</span><span>₹{fmtAmt(refundCash)}</span></div>}
+            {refundCash > 0 && <div style={row}><span>Refund to Customer</span><span>₹{fmtAmt(refundCash)}</span></div>}
             {Math.abs(balanceDue) > 1 && (
               <div style={{ ...row, fontWeight: 900 }}>
                 <span>{balanceDue < 0 ? "CREDIT DUE TO CUSTOMER" : "BALANCE DUE"}</span>
