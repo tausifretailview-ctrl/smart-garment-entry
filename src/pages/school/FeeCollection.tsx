@@ -281,14 +281,18 @@ const FeeCollection = () => {
           return sum;
         }, 0);
 
-        // GLOBAL NETTING FORMULA (single source of truth):
-        //   Total Due     = Opening Balance + Sum of Fee Structure amounts (+ adjustments)
-        //   Total Paid    = Sum of ALL fee receipts for this student (any year)
-        //   Net Pending   = max(0, Total Due − Total Paid)
-        // This prevents inflated dues when a receipt has already cleared the
-        // opening balance and a fee structure is later added.
-        const totalDueGross = importedBalance + totalExpected + adjustmentNet;
-        const totalPaid = paidTotal;
+        // OPENING-REPLACED-BY-STRUCTURE FORMULA:
+        // If the imported opening (closing_fees_balance) has already been
+        // settled by receipts, drop it from the due so only the newly
+        // assigned fee structure (+ adjustments) is pending. Otherwise fall
+        // back to global netting (Opening + Structure − Paid).
+        const openingCleared = importedBalance > 0 && paidTotal >= importedBalance;
+        const effectiveOpening = openingCleared ? 0 : importedBalance;
+        const effectivePaid = openingCleared
+          ? Math.max(0, paidTotal - importedBalance) // receipts beyond opening apply to structure
+          : paidTotal;
+        const totalDueGross = effectiveOpening + totalExpected + adjustmentNet;
+        const totalPaid = effectivePaid;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
         const hasStructures = classStructures.length > 0 && totalExpected > 0;
