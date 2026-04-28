@@ -200,16 +200,15 @@ const FeeCollection = () => {
         paidByStudent.set(p.student_id, (paidByStudent.get(p.student_id) || 0) + (p.paid_amount || 0));
       });
 
-      // Aggregate pending using MAX(Opening, Structure) − Paid per student.
-      // Opening (closing_fees_balance) and the newly-assigned fee structure
-      // represent the SAME yearly liability for newly-admitted students.
-      // Treating them additively double-counts dues.
+      // Aggregate pending:
+      // - New admission: follow opening (closing_fees_balance)
+      // - Promoted/existing: follow class fee structure
       let pending = 0;
       (allStudents || []).forEach((st: any) => {
         const opening = st.closing_fees_balance || 0;
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
-        const liability = Math.max(opening, struct);
+        const liability = st.is_new_admission ? opening : struct;
         pending += Math.max(0, liability - paid);
       });
 
@@ -300,12 +299,10 @@ const FeeCollection = () => {
           return sum;
         }, 0);
 
-        // MAX(Opening, Structure) FORMULA:
-        // Opening (closing_fees_balance captured at admission) and the
-        // assigned fee structure represent the SAME yearly liability for
-        // newly-admitted students. Use the larger of the two so receipts
-        // settle the combined liability without double-counting.
-        const liability = Math.max(importedBalance, totalExpected);
+        // Liability rule:
+        // - New admission: use closing_fees_balance entered during admission
+        // - Promoted/existing student: use yearly fee structure
+        const liability = student.is_new_admission ? importedBalance : totalExpected;
         const totalDueGross = liability + adjustmentNet;
         const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);

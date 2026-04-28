@@ -1114,7 +1114,6 @@ export const useSaveSale = () => {
           .select('sale_number')
           .eq('organization_id', currentOrganization.id)
           .eq('payment_status', 'hold')
-          .is('deleted_at', null)
           .like('sale_number', `${holdPrefix}%`)
           .order('created_at', { ascending: false })
           .limit(50);

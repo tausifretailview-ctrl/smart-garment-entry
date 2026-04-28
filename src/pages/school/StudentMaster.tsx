@@ -146,8 +146,10 @@ const StudentMaster = () => {
   const totalCount = studentsResult?.count || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  // Fetch closing fee balance for the students currently on screen.
-  // Formula mirrors FeeCollection: opening + structure_expected + adjustments − receipts
+  // Fetch current due for students currently on screen.
+  // Rule mirrors FeeCollection:
+  // - New admission => opening closing_fees_balance basis
+  // - Promoted/existing => fee structure basis
   const studentIds = students.map((s: any) => s.id);
   const classIds = [...new Set(students.map((s: any) => s.class_id).filter(Boolean))] as string[];
 
@@ -208,9 +210,7 @@ const StudentMaster = () => {
         const expected = expectedByClass[st.class_id] || 0;
         const paid = paidByStudent[st.id] || 0;
         const adj = adjByStudent[st.id] || 0;
-        // MAX(opening, structure) — opening balance and fee structure are
-        // alternative views of the same liability, not cumulative.
-        const liability = Math.max(opening, expected);
+        const liability = st.is_new_admission ? opening : expected;
         const due = Math.max(0, liability + adj - paid);
         map[st.id] = due;
       }

@@ -238,6 +238,8 @@ const StudentPromotion = () => {
           const updateData: any = {
             academic_year_id: toYearId,
             closing_fees_balance: newClosingBalance,
+            // Once a student is promoted, dues should follow fee structure rules.
+            is_new_admission: false,
           };
 
           if (isLastClass) {

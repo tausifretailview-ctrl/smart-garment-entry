@@ -37,8 +37,7 @@ BEGIN
   FROM sales
   WHERE organization_id = p_organization_id
     AND sale_number LIKE v_series || '/%'
-    AND payment_status = 'hold'
-    AND deleted_at IS NULL;
+    AND payment_status = 'hold';
 
   IF v_next <= v_actual_max THEN
     v_next := v_actual_max + 1;
