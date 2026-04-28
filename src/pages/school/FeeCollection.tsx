@@ -272,38 +272,34 @@ const FeeCollection = () => {
           .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
         const importedBalance = student.closing_fees_balance || 0;
-        // hasStructures: structure rows exist AND have a non-zero total.
-        // Rows with amount=0 are placeholders (not yet configured) and must NOT
-        // override the imported closing balance — otherwise students with an
-        // opening balance but no fee structure get displayed as ₹0 due / Paid,
-        // mismatching the Customer Ledger which uses closing_fees_balance.
-        const hasStructures = classStructures.length > 0 && totalExpected > 0;
         // Apply balance adjustments from audit log:
-        //  - 'credit' increases due
-        //  - 'debit'  reduces due
-        //  - 'set' is handled by directly writing closing_fees_balance (imported mode only)
-        // Adjustments apply in BOTH modes: structure-based students rely on audit
-        // entries to reduce due, AND imported-balance students may also receive
-        // adjustments via the BalanceEditDialog (debit/credit branches).
+        //  - 'credit' increases due, 'debit' reduces due
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
         const adjustmentNet = studentAdjustments.reduce((sum: number, a: any) => {
           if (a.adjustment_type === 'credit') return sum + (a.change_amount || 0);
           if (a.adjustment_type === 'debit')  return sum - (a.change_amount || 0);
           return sum;
         }, 0);
-        // When both an imported opening balance AND a fee structure exist,
-        // the total expected for the year = opening carried forward + structure.
-        // Use paidTotal (all receipts) so receipts that already settled the
-        // opening balance correctly reduce the displayed due, instead of
-        // double-counting (opening cleared in ledger but structure showing again).
-        const totalDue = hasStructures
-          ? Math.max(0, importedBalance + totalExpected + adjustmentNet - paidTotal)
-          : Math.max(0, importedBalance + adjustmentNet - paidTotal);
-        const totalPaid = paidTotal;
-        const effectiveExpected = hasStructures ? (importedBalance + totalExpected) : importedBalance;
-        const effectiveStatus = totalDue === 0 ? "paid" : totalPaid > 0 ? "partial" : effectiveExpected === 0 ? "no-structure" : "pending";
 
-        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus, importedBalance };
+        // GLOBAL NETTING FORMULA (single source of truth):
+        //   Total Due     = Opening Balance + Sum of Fee Structure amounts (+ adjustments)
+        //   Total Paid    = Sum of ALL fee receipts for this student (any year)
+        //   Net Pending   = max(0, Total Due − Total Paid)
+        // This prevents inflated dues when a receipt has already cleared the
+        // opening balance and a fee structure is later added.
+        const totalDueGross = importedBalance + totalExpected + adjustmentNet;
+        const totalPaid = paidTotal;
+        const totalDue = Math.max(0, totalDueGross - totalPaid);
+
+        const hasStructures = classStructures.length > 0 && totalExpected > 0;
+        const effectiveExpected = totalDueGross; // shown in "Total Fees" column
+        const effectiveStatus = totalDue === 0
+          ? "paid"
+          : totalPaid > 0
+            ? "partial"
+            : effectiveExpected === 0 ? "no-structure" : "pending";
+
+        return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus, importedBalance, hasStructures };
       });
     },
     enabled: !!currentOrganization?.id,
