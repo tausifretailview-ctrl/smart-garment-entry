@@ -331,11 +331,8 @@ export function CustomerPaymentTab({
           const outstanding = invoice.net_amount - currentPaid;
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
-          const newPaidAmount = currentPaid + amountToApply;
-          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : newPaidAmount > 0 ? 'partial' : 'pending';
-          const { error: updateError } = await supabase.from('sales').update({ paid_amount: newPaidAmount, payment_status: newStatus, payment_date: format(voucherDate, 'yyyy-MM-dd') }).eq('id', invoiceId);
-          if (updateError) throw updateError;
-          processedInvoices.push({ invoice, amountApplied: amountToApply, newPaidAmount, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
+          const projectedPaidAmount = currentPaid + amountToApply;
+          processedInvoices.push({ invoice, amountApplied: amountToApply, newPaidAmount: projectedPaidAmount, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
           remainingAmount -= amountToApply;
         }
       }
@@ -450,6 +447,38 @@ export function CustomerPaymentTab({
             amount: paymentAmount,
           });
         }
+      }
+
+      // After voucher creation succeeds, update all allocated invoices in parallel.
+      if (processedInvoices.length > 0) {
+        await Promise.all(
+          processedInvoices.map(async (processed) => {
+            const invoiceId = processed.invoice.id;
+            const allocatedAmount = Number(processed.amountApplied || 0);
+            if (allocatedAmount <= 0) return;
+
+            const { data: sale, error: saleError } = await supabase
+              .from("sales")
+              .select("paid_amount, net_amount")
+              .eq("id", invoiceId)
+              .single();
+            if (saleError) throw saleError;
+
+            const newPaidAmount = Number(sale?.paid_amount || 0) + allocatedAmount;
+            const netAmount = Number(sale?.net_amount || 0);
+            const newStatus = newPaidAmount >= netAmount ? "completed" : "partial";
+
+            const { error: updateError } = await supabase
+              .from("sales")
+              .update({
+                paid_amount: newPaidAmount,
+                payment_status: newStatus,
+                payment_date: format(voucherDate, "yyyy-MM-dd"),
+              })
+              .eq("id", invoiceId);
+            if (updateError) throw updateError;
+          })
+        );
       }
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod, discountAmount: discountValue, discountReason };
