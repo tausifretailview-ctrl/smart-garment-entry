@@ -173,26 +173,44 @@ const FeeCollection = () => {
         .eq("academic_year_id", activeYear.id)
         .is("deleted_at", null);
 
-      const { data: allPayments } = await supabase
-        .from("student_fees")
-        .select("paid_amount, status")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", activeYear.id)
-        .in("status", ["paid", "partial"])
-        .gt("paid_amount", 0);
+      // Fetch per-student receipts (any year) so opening-cleared logic can
+      // run per student before aggregation. This mirrors the row-level
+      // formula in the main grid.
+      const studentIdList = (allStudents || []).map((st: any) => st.id);
+      const { data: allPayments } = studentIdList.length > 0
+        ? await supabase
+            .from("student_fees")
+            .select("student_id, paid_amount, status")
+            .eq("organization_id", currentOrganization!.id)
+            .in("student_id", studentIdList)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0)
+        : { data: [] as any[] };
 
-      const totalPaid = (allPayments || []).reduce((s: number, r: any) => s + (r.paid_amount || 0), 0);
-
-      const totalExpected = (allStructures || []).reduce((s: number, r: any) => {
+      // Per-class structure totals (single year)
+      const structureByClass = new Map<string, number>();
+      (allStructures as any[] || []).forEach((r: any) => {
         const mult = r.frequency === "monthly" ? 12 : r.frequency === "quarterly" ? 4 : 1;
-        return s + r.amount * mult;
-      }, 0);
+        structureByClass.set(r.class_id, (structureByClass.get(r.class_id) || 0) + (r.amount || 0) * mult);
+      });
 
-      const totalImportedBalance = (allStudents || []).reduce((s: number, st: any) => s + (st.closing_fees_balance || 0), 0);
-      // Pending = opening balance + structure expected − all receipts.
-      // Including the imported opening prevents double-counting when
-      // receipts already settled the opening but a fee structure is added later.
-      const pending = Math.max(0, totalImportedBalance + totalExpected - totalPaid);
+      // Per-student paid totals (all years)
+      const paidByStudent = new Map<string, number>();
+      (allPayments as any[] || []).forEach((p: any) => {
+        paidByStudent.set(p.student_id, (paidByStudent.get(p.student_id) || 0) + (p.paid_amount || 0));
+      });
+
+      // Aggregate pending using OPENING-REPLACED-BY-STRUCTURE per student
+      let pending = 0;
+      (allStudents || []).forEach((st: any) => {
+        const opening = st.closing_fees_balance || 0;
+        const struct = structureByClass.get(st.class_id) || 0;
+        const paid = paidByStudent.get(st.id) || 0;
+        const openingCleared = opening > 0 && paid >= opening;
+        const effOpening = openingCleared ? 0 : opening;
+        const effPaid = openingCleared ? Math.max(0, paid - opening) : paid;
+        pending += Math.max(0, effOpening + struct - effPaid);
+      });
 
       return { today: todayTotal, month: monthTotal, pending };
     },
@@ -281,14 +299,18 @@ const FeeCollection = () => {
           return sum;
         }, 0);
 
-        // GLOBAL NETTING FORMULA (single source of truth):
-        //   Total Due     = Opening Balance + Sum of Fee Structure amounts (+ adjustments)
-        //   Total Paid    = Sum of ALL fee receipts for this student (any year)
-        //   Net Pending   = max(0, Total Due − Total Paid)
-        // This prevents inflated dues when a receipt has already cleared the
-        // opening balance and a fee structure is later added.
-        const totalDueGross = importedBalance + totalExpected + adjustmentNet;
-        const totalPaid = paidTotal;
+        // OPENING-REPLACED-BY-STRUCTURE FORMULA:
+        // If the imported opening (closing_fees_balance) has already been
+        // settled by receipts, drop it from the due so only the newly
+        // assigned fee structure (+ adjustments) is pending. Otherwise fall
+        // back to global netting (Opening + Structure − Paid).
+        const openingCleared = importedBalance > 0 && paidTotal >= importedBalance;
+        const effectiveOpening = openingCleared ? 0 : importedBalance;
+        const effectivePaid = openingCleared
+          ? Math.max(0, paidTotal - importedBalance) // receipts beyond opening apply to structure
+          : paidTotal;
+        const totalDueGross = effectiveOpening + totalExpected + adjustmentNet;
+        const totalPaid = effectivePaid;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
         const hasStructures = classStructures.length > 0 && totalExpected > 0;
