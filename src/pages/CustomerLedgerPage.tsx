@@ -107,6 +107,40 @@ export default function CustomerLedgerPage() {
       });
       if (error) throw error;
 
+      // Mamta Footwear customer balance reconciliation - Apr 2026:
+      // ensure in-range invoices are never dropped by RPC-side joins/filters.
+      let salesQuery = supabase
+        .from("sales")
+        .select("id, sale_number, sale_date, net_amount, payment_status")
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .not("payment_status", "in", '("cancelled","hold")');
+      if (fromDate) salesQuery = salesQuery.gte("sale_date", format(fromDate, "yyyy-MM-dd"));
+      if (toDate) salesQuery = salesQuery.lte("sale_date", format(toDate, "yyyy-MM-dd"));
+
+      const { data: inRangeSales, error: salesError } = await salesQuery;
+      if (salesError) throw salesError;
+
+      const existingInvoiceRefs = new Set(
+        ((data ?? []) as LedgerRow[])
+          .filter((row) => Number(row.debit || 0) > 0)
+          .map((row) => (row.voucher_no || "").trim())
+      );
+
+      const missingInvoiceRows: LedgerRow[] = (inRangeSales || [])
+        .filter((sale: any) => !existingInvoiceRefs.has((sale.sale_number || "").trim()))
+        .map((sale: any) => ({
+          id: `sale-${sale.id}`,
+          transaction_date: sale.sale_date,
+          voucher_type: "INVOICE",
+          voucher_no: sale.sale_number || null,
+          particulars: `Invoice - ${sale.payment_status || "pending"}`,
+          debit: Number(sale.net_amount || 0),
+          credit: 0,
+          running_balance: 0,
+        }));
+
       // Include sale return / credit note adjustments in statement transactions.
       let saleReturnsQuery = supabase
         .from("sale_returns")
@@ -122,6 +156,12 @@ export default function CustomerLedgerPage() {
       const { data: saleReturns, error: saleReturnsError } = await saleReturnsQuery;
       if (saleReturnsError) throw saleReturnsError;
 
+      const existingReturnRefs = new Set(
+        ((data ?? []) as LedgerRow[])
+          .filter((row) => Number(row.credit || 0) > 0)
+          .map((row) => (row.voucher_no || "").trim())
+      );
+
       const returnRows: LedgerRow[] = (saleReturns || []).map((sr: any) => ({
         id: `sr-${sr.id}`,
         transaction_date: sr.return_date,
@@ -134,9 +174,9 @@ export default function CustomerLedgerPage() {
         debit: 0,
         credit: Number(sr.net_amount || 0),
         running_balance: 0,
-      }));
+      })).filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
 
-      const combined = ([...(data ?? []) as LedgerRow[], ...returnRows]).sort((a, b) => {
+      const combined = ([...(data ?? []) as LedgerRow[], ...missingInvoiceRows, ...returnRows]).sort((a, b) => {
         const dA = new Date(a.transaction_date).getTime();
         const dB = new Date(b.transaction_date).getTime();
         if (dA !== dB) return dA - dB;

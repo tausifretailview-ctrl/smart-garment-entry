@@ -402,12 +402,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled' && s.payment_status !== 'hold');
-        // Use GROSS sales (net + sale_return_adjust) because creditNoteTotal is
-        // subtracted separately below. If we used net_amount alone, the SR
-        // adjustment portion would be subtracted twice (once via the net and
-        // once via creditNoteTotal), producing a phantom credit balance.
+        // Mamta Footwear customer balance reconciliation - Apr 2026:
+        // Keep totalSales as invoice net_amount only (single source display rule),
+        // then subtract sale returns/credit notes separately via creditNoteTotal.
         const totalSales = customerSales.reduce(
-          (sum: number, s: any) => sum + (s.net_amount || 0) + (s.sale_return_adjust || 0),
+          (sum: number, s: any) => sum + (s.net_amount || 0),
           0
         );
         
@@ -423,8 +422,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // sale.paid_amount typically includes advance + CN-adjusted portions.
           // Subtract them before the drift check so we only count true cash here.
           // Mirrors reconcile_customer_balances RPC GREATEST(...) logic.
-          // Advance + CN applied are added back below (totalSales is GROSS;
-          // saleReturnTotal subtracts the CN side once).
+          // Advance + CN applied are added back below; sale returns are handled
+          // via creditNoteTotal in the final balance formula.
           const actualPaid = Math.max(salePaidAmount - advCnVoucher, cashVoucher);
           totalPaidOnSales += actualPaid;
           totalAdvanceApplied += advVoucher;
@@ -1832,7 +1831,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       }
       if (t.informational) continue;
       if (t.type === 'invoice') {
-        grossInvoiced += t.displayDebit ?? t.debit ?? 0;
+        // Mamta Footwear customer balance reconciliation - Apr 2026:
+        // reconciliation must use true debit (net_amount), not displayDebit.
+        grossInvoiced += t.debit ?? 0;
       } else if (t.type === 'return') {
         saleReturns += t.credit || 0;
       } else if (t.type === 'payment') {
@@ -2163,7 +2164,7 @@ Please clear your dues at the earliest. Thank you!`;
     doc.setFontSize(9);
     const reconLines: Array<[string, number]> = [
       ["Opening Balance", reconciliation.opening],
-      ["(+) Total Invoiced (Gross)", reconciliation.grossInvoiced],
+      ["(+) Total Invoiced", reconciliation.grossInvoiced],
       ["(-) Sale Returns", -reconciliation.saleReturns],
       ["(=) Net Invoiced", reconciliation.netInvoiced],
       ["(-) Cash / UPI / Card Payments", -reconciliation.payments],
@@ -2745,7 +2746,7 @@ Please clear your dues at the earliest. Thank you!`;
                         <span className="font-medium">₹{Math.round(reconciliation.opening).toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>(+) Total Invoiced (Gross)</span>
+                        <span>(+) Total Invoiced</span>
                         <span className="font-medium">₹{Math.round(reconciliation.grossInvoiced).toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
