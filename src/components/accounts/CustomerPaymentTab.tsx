@@ -236,6 +236,11 @@ export function CustomerPaymentTab({
   // Apply advance to selected invoices
   const applyAdvanceMutation = useMutation({
     mutationFn: async () => {
+      if (savingRef.current) {
+        throw new Error('Save already in progress');
+      }
+      savingRef.current = true;
+      try {
       if (!referenceId || selectedInvoiceIds.length === 0) throw new Error("Select customer and invoices");
       const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
       if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
@@ -284,6 +289,9 @@ export function CustomerPaymentTab({
         idx++;
       }
       return { applied: amountToApply - remaining };
+      } finally {
+        savingRef.current = false;
+      }
     },
     onSuccess: (data) => {
       toast.success(`₹${Math.round(data.applied).toLocaleString('en-IN')} advance applied to selected invoice(s)`);
@@ -303,7 +311,7 @@ export function CustomerPaymentTab({
   const createVoucher = useMutation({
     mutationFn: async () => {
       if (savingRef.current) {
-        return;
+        throw new Error('Save already in progress');
       }
       savingRef.current = true;
       try {
