@@ -105,16 +105,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     selectedCustomer?.id || null,
     organizationId || null
   );
-  const effectiveBalance = useMemo(() => {
-    if (!selectedCustomer) return 0;
-    // Keep header/summary aligned with the visible statement rows:
-    // use the last running balance from current (date-filtered) transactions.
-    if (transactions && transactions.length > 0) {
-      return Number(transactions[transactions.length - 1].balance || 0);
-    }
-    // Fallback when transaction list is empty/loading.
-    return authoritativeBalance;
-  }, [selectedCustomer, transactions, authoritativeBalance]);
 
   const openHistory = (id: string, name: string) => {
     setCustomerForHistory({ id, name });
@@ -1671,6 +1661,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   }, [filteredCustomers, customerPage]);
 
   const totalPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
+
+  const effectiveBalance = useMemo(() => {
+    if (!selectedCustomer) return 0;
+    // Keep header/summary aligned with the visible statement rows:
+    // use the last running balance from current (date-filtered) transactions.
+    if (transactions && transactions.length > 0) {
+      return Number(transactions[transactions.length - 1].balance || 0);
+    }
+    // Fallback when transaction list is empty/loading.
+    return authoritativeBalance;
+  }, [selectedCustomer, transactions, authoritativeBalance]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
