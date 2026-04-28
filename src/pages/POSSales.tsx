@@ -390,8 +390,8 @@ export default function POSSales() {
 
       if (saleError) throw saleError;
 
-      // Check if this is a held sale
-      const isHeld = sale.payment_status === 'hold';
+      // Check if this is a held sale (support legacy pending Hold/* rows)
+      const isHeld = isHoldLikeBill(sale);
       setIsHeldSale(isHeld);
 
       // Populate form with sale data
@@ -867,6 +867,18 @@ export default function POSSales() {
     refetchOnWindowFocus: false,
   });
 
+  const isHoldLikeBill = (sale: any) => {
+    if (!sale) return false;
+    if (sale.payment_status === 'hold') return true;
+    // Backward-compat: older DB trigger rewrote pay_later hold rows to pending.
+    return (
+      sale.payment_status === 'pending' &&
+      typeof sale.sale_number === 'string' &&
+      sale.sale_number.startsWith('Hold/') &&
+      sale.payment_method === 'pay_later'
+    );
+  };
+
   // Held bills query (all-time, not just today)
   const { data: heldBills = [], refetch: refetchHeldBills } = useQuery({
     queryKey: ['held-bills', currentOrganization?.id],
@@ -874,14 +886,14 @@ export default function POSSales() {
       if (!currentOrganization?.id) return [];
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, held_cart_data, created_at, payment_status')
+        .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, held_cart_data, created_at, payment_status, payment_method')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
-        .eq('payment_status', 'hold')
+        .in('payment_status', ['hold', 'pending'])
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data || [];
+      return (data || []).filter((sale: any) => isHoldLikeBill(sale));
     },
     enabled: !!currentOrganization?.id,
     staleTime: 5 * 60 * 1000,   // Cache 5 minutes
@@ -890,6 +902,12 @@ export default function POSSales() {
 
   const [showHoldPanel, setShowHoldPanel] = useState(false);
   const [holdSearchQuery, setHoldSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (showHoldPanel) {
+      void refetchHeldBills();
+    }
+  }, [showHoldPanel, refetchHeldBills]);
 
   // Fetch employees for salesman dropdown
   const { data: employees } = useQuery({
@@ -3211,6 +3229,8 @@ export default function POSSales() {
 
   const getHoldItemCount = (bill: any) => {
     try {
+      const held = (bill as any).held_cart_data;
+      if (held?.items && Array.isArray(held.items)) return held.items.length;
       const d = JSON.parse(bill.notes || '{}');
       return d.items?.length || 0;
     } catch { return 0; }

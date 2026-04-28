@@ -150,6 +150,16 @@ const POSDashboard = () => {
   // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
   const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
 
+  const isHoldLikeSale = (sale: Sale) => {
+    if (sale.payment_status === "hold") return true;
+    return (
+      sale.payment_status === "pending" &&
+      typeof sale.sale_number === "string" &&
+      sale.sale_number.startsWith("Hold/") &&
+      sale.payment_method === "pay_later"
+    );
+  };
+
   // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({
     queryKey: ["org-users-filter", currentOrganization?.id],
@@ -438,11 +448,11 @@ const POSDashboard = () => {
           itemsBySale[item.sale_id].push(item);
         });
 
-        // Parse hold bill items from notes JSON (hold bills have no sale_items rows)
+        // Parse hold bill items from held_cart_data/notes fallback (hold bills have no sale_items rows)
         allSales.forEach((sale: any) => {
-          if (sale.payment_status === 'hold' && sale.notes && !itemsBySale[sale.id]) {
+          if (isHoldLikeSale(sale) && !itemsBySale[sale.id]) {
             try {
-              const holdData = JSON.parse(sale.notes);
+              const holdData = sale.held_cart_data || JSON.parse(sale.notes || '{}');
               if (holdData.items && Array.isArray(holdData.items)) {
                 itemsBySale[sale.id] = holdData.items.map((item: any, idx: number) => ({
                   id: `hold-${sale.id}-${idx}`,
@@ -1281,10 +1291,10 @@ const POSDashboard = () => {
     totalDiscount: filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
     completedCount: filteredSales.filter(sale => sale.payment_status === 'completed').length,
     completedAmount: filteredSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
-    pendingCount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,
-    pendingAmount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
-    holdCount: filteredSales.filter(sale => sale.payment_status === 'hold').length,
-    holdAmount: filteredSales.filter(sale => sale.payment_status === 'hold').reduce((sum, sale) => sum + sale.net_amount, 0),
+    pendingCount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).length,
+    pendingAmount: filteredSales.filter(sale => (sale.payment_status === 'pending' || sale.payment_status === 'partial') && !isHoldLikeSale(sale)).reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    holdCount: filteredSales.filter(sale => isHoldLikeSale(sale)).length,
+    holdAmount: filteredSales.filter(sale => isHoldLikeSale(sale)).reduce((sum, sale) => sum + sale.net_amount, 0),
     refundCount: filteredSales.filter(sale => (sale.refund_amount || 0) > 0).length,
     refundAmount: filteredSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
     creditNoteCount: filteredSales.filter(sale => sale.credit_note_id).length,
@@ -2119,7 +2129,7 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
-                                const esb = sale.payment_status === 'hold' ? 'hold'
+                                const esb = isHoldLikeSale(sale) ? 'hold'
                                   : (sale.paid_amount || 0) >= sale.net_amount ? 'completed'
                                   : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
                                 return esb !== 'completed' ? (
@@ -2205,7 +2215,7 @@ const POSDashboard = () => {
                             {columnSettings.status && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {(() => {
-                                  const es = sale.payment_status === 'hold' ? 'hold'
+                                  const es = isHoldLikeSale(sale) ? 'hold'
                                     : (sale.paid_amount || 0) >= sale.net_amount ? 'completed'
                                     : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
                                   return (
