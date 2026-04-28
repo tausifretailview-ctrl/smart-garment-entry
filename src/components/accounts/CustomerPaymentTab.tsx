@@ -70,6 +70,7 @@ export function CustomerPaymentTab({
   const [upiCalendarOpen, setUpiCalendarOpen] = useState(false);
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  const savingRef = useRef(false);
 
   // Customer search
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -301,6 +302,11 @@ export function CustomerPaymentTab({
   // Create voucher mutation
   const createVoucher = useMutation({
     mutationFn: async () => {
+      if (savingRef.current) {
+        return;
+      }
+      savingRef.current = true;
+      try {
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
       const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
@@ -482,6 +488,9 @@ export function CustomerPaymentTab({
       }
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod, discountAmount: discountValue, discountReason };
+      } finally {
+        savingRef.current = false;
+      }
     },
     onSuccess: (data) => {
       toast.success("Payment recorded successfully");
@@ -942,7 +951,7 @@ export function CustomerPaymentTab({
                       ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})
                     </p>
                   )}
-                  <Button type="submit" className="w-full md:w-auto" disabled={isDisabled || createVoucher.isPending}>
+                  <Button type="submit" className="w-full md:w-auto" disabled={isDisabled || createVoucher.isPending || savingRef.current}>
                     <Plus className="mr-2 h-4 w-4" />
                     {createVoucher.isPending ? "Recording..." : "Record Payment"}
                   </Button>
