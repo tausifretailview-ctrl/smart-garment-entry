@@ -1109,22 +1109,35 @@ export const useSaveSale = () => {
         const fyStr = `${String(fy).slice(-2)}-${String(fy + 1).slice(-2)}`;
         const holdPrefix = `Hold/${fyStr}/`;
 
-        const { data: existingHolds, error } = await supabase
-          .from('sales')
-          .select('sale_number')
-          .eq('organization_id', currentOrganization.id)
-          .eq('payment_status', 'hold')
-          .like('sale_number', `${holdPrefix}%`)
-          .order('created_at', { ascending: false })
-          .limit(50);
-        if (error) throw error;
-
+        // Read in pages to avoid 1000-row API caps and compute true max sequence.
         let maxSeq = 0;
-        for (const row of existingHolds || []) {
-          const seqMatch = row.sale_number?.match(/(\d+)$/);
-          if (!seqMatch) continue;
-          maxSeq = Math.max(maxSeq, parseInt(seqMatch[1], 10));
+        const pageSize = 1000;
+        let from = 0;
+
+        while (true) {
+          const to = from + pageSize - 1;
+          const { data: chunk, error } = await supabase
+            .from('sales')
+            .select('sale_number')
+            .eq('organization_id', currentOrganization.id)
+            .eq('payment_status', 'hold')
+            .like('sale_number', `${holdPrefix}%`)
+            .order('created_at', { ascending: false })
+            .range(from, to);
+
+          if (error) throw error;
+          if (!chunk || chunk.length === 0) break;
+
+          for (const row of chunk) {
+            const seqMatch = row.sale_number?.match(/(\d+)$/);
+            if (!seqMatch) continue;
+            maxSeq = Math.max(maxSeq, parseInt(seqMatch[1], 10));
+          }
+
+          if (chunk.length < pageSize) break;
+          from += pageSize;
         }
+
         return `${holdPrefix}${maxSeq + 1}`;
       };
 
@@ -1176,8 +1189,13 @@ export const useSaveSale = () => {
         // Fallback path for envs where migration is not yet applied.
         if (holdNoError && !isMissingRpcError(holdNoError)) throw holdNoError;
 
-        for (let attempt = 0; attempt < 4; attempt++) {
-          const fallbackNumber = await getFallbackHoldNumber();
+        const fallbackBaseNumber = await getFallbackHoldNumber();
+        const baseMatch = fallbackBaseNumber.match(/^(.*\/)(\d+)$/);
+        const basePrefix = baseMatch?.[1] || '';
+        const baseSeq = baseMatch ? parseInt(baseMatch[2], 10) : 1;
+
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const fallbackNumber = basePrefix ? `${basePrefix}${baseSeq + attempt}` : fallbackBaseNumber;
           const { data: inserted, error: insertError } = await supabase
             .from('sales')
             .insert(buildSaleInsertPayload(fallbackNumber))
