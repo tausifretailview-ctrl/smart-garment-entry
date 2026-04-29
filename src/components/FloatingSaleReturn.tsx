@@ -613,7 +613,10 @@ export const FloatingSaleReturn = ({
         return sum + (item.lineTotal - (item.lineTotal / (1 + gstPer / 100)));
       }, 0);
 
-      // Determine credit_status based on refund type
+      // Strict status transitions:
+      // - cash_refund => refunded
+      // - exchange => adjusted (later linked to final sale at save time)
+      // - credit_note => pending (credit is available until consumed)
       const creditStatus =
         refundType === "cash_refund" ? "refunded" :
         refundType === "exchange" ? "adjusted" :
@@ -632,7 +635,9 @@ export const FloatingSaleReturn = ({
           net_amount: grossAmount,
           refund_type: refundType,
           credit_status: creditStatus,
-          linked_sale_id: billSaleId || null,
+          // Do not bind to the original bill id. For exchange flow this is
+          // linked later to the newly created sale via consumeSaleReturnAdjustments.
+          linked_sale_id: null,
           original_sale_number: billSaleId ? billNumber.trim() : null,
         } as any)
         .select()
@@ -705,8 +710,8 @@ export const FloatingSaleReturn = ({
         } catch (vErr) { console.error("Refund voucher failed:", vErr); }
       }
 
-      // For credit_note: create a real credit_notes record and mark sale_return as adjusted
-      // (otherwise it stays 'pending' forever and inflates the customer ledger)
+      // For credit_note: create a real credit_notes record but keep sale_return
+      // in pending status so it can be consumed in future payments/sales.
       if (refundType === "credit_note" && effectiveCustomerId) {
         try {
           const { data: cnNumber } = await supabase
@@ -732,22 +737,15 @@ export const FloatingSaleReturn = ({
             await supabase
               .from('sale_returns')
               .update({
-                credit_status: 'adjusted',
+                credit_status: 'pending',
                 credit_note_id: creditNote.id,
+                linked_sale_id: null,
               } as any)
               .eq('id', returnData.id);
           }
         } catch (cnErr) {
           console.error('Credit note creation failed:', cnErr);
         }
-      } else if (refundType === "credit_note" && !effectiveCustomerId) {
-        // No customer — credit note cannot be tracked, mark as adjusted_outstanding
-        try {
-          await supabase
-            .from('sale_returns')
-            .update({ credit_status: 'adjusted_outstanding' } as any)
-            .eq('id', returnData.id);
-        } catch (e) { console.error('CN status update failed:', e); }
       }
 
       // Apply pending credit note if one was selected alongside this return

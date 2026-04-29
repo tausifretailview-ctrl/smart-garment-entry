@@ -64,6 +64,15 @@ interface BusinessDetails {
   gst_number: string | null;
 }
 
+const formatCreditStatusLabel = (ret: SaleReturn) => {
+  if (ret.credit_status === "refunded") return "Refunded to Customer";
+  if (ret.credit_status === "adjusted_outstanding") return "Adjusted to Customer Outstanding";
+  if (ret.credit_status === "adjusted" && ret.linked_sale_id) return "S/R Adjusted in Invoice";
+  if (ret.credit_status === "adjusted") return "Credit Note Generated";
+  if (ret.credit_status === "pending") return "Credit Note Pending";
+  return "Pending";
+};
+
 export default function SaleReturnDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
@@ -163,16 +172,22 @@ export default function SaleReturnDashboard() {
           .limit(200);
 
         const matchingReturnIds = [...new Set((matchingItems || []).map((i: any) => i.return_id).filter(Boolean))];
+        const { data: matchingCustomers } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .or(`customer_name.ilike.%${searchStr}%,phone.ilike.%${searchStr}%`)
+          .limit(200);
+        const matchingCustomerIds = [...new Set((matchingCustomers || []).map((c: any) => c.id).filter(Boolean))];
+        const clauses = [
+          `return_number.ilike.%${searchStr}%`,
+          `customer_name.ilike.%${searchStr}%`,
+          `original_sale_number.ilike.%${searchStr}%`,
+        ];
+        if (matchingReturnIds.length > 0) clauses.push(`id.in.(${matchingReturnIds.join(",")})`);
+        if (matchingCustomerIds.length > 0) clauses.push(`customer_id.in.(${matchingCustomerIds.join(",")})`);
 
-        if (matchingReturnIds.length > 0) {
-          query = query.or(
-            `return_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,original_sale_number.ilike.%${searchStr}%,id.in.(${matchingReturnIds.join(',')})`
-          );
-        } else {
-          query = query.or(
-            `return_number.ilike.%${searchStr}%,customer_name.ilike.%${searchStr}%,original_sale_number.ilike.%${searchStr}%`
-          );
-        }
+        query = query.or(clauses.join(","));
       }
 
       query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
@@ -241,6 +256,71 @@ export default function SaleReturnDashboard() {
   });
 
   const returns = returnsData?.returns || [];
+
+  const { data: summaryData } = useQuery({
+    queryKey: ["sale-returns-summary", currentOrganization?.id, debouncedSearch, fromDate, toDate, statusFilter],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { totalReturns: 0, totalValue: 0, totalQty: 0 };
+
+      let query = supabase
+        .from("sale_returns")
+        .select("id, net_amount", { count: "exact" })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+
+      if (fromDate) query = query.gte("return_date", fromDate);
+      if (toDate) query = query.lte("return_date", toDate);
+      if (statusFilter && statusFilter !== "all") query = query.eq("credit_status", statusFilter);
+
+      if (debouncedSearch) {
+        const searchStr = debouncedSearch.trim();
+        const { data: matchingItems } = await supabase
+          .from("sale_return_items")
+          .select("return_id")
+          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+          .limit(200);
+        const matchingReturnIds = [...new Set((matchingItems || []).map((i: any) => i.return_id).filter(Boolean))];
+
+        const { data: matchingCustomers } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .or(`customer_name.ilike.%${searchStr}%,phone.ilike.%${searchStr}%`)
+          .limit(200);
+        const matchingCustomerIds = [...new Set((matchingCustomers || []).map((c: any) => c.id).filter(Boolean))];
+
+        const clauses = [
+          `return_number.ilike.%${searchStr}%`,
+          `customer_name.ilike.%${searchStr}%`,
+          `original_sale_number.ilike.%${searchStr}%`,
+        ];
+        if (matchingReturnIds.length > 0) clauses.push(`id.in.(${matchingReturnIds.join(",")})`);
+        if (matchingCustomerIds.length > 0) clauses.push(`customer_id.in.(${matchingCustomerIds.join(",")})`);
+
+        query = query.or(clauses.join(","));
+      }
+
+      const { data, count, error } = await query;
+      if (error) throw error;
+      const rows = data || [];
+      const totalValue = rows.reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+
+      let totalQty = 0;
+      const returnIds = rows.map((r: any) => r.id).filter(Boolean);
+      if (returnIds.length > 0) {
+        const { data: items } = await supabase
+          .from("sale_return_items")
+          .select("quantity")
+          .in("return_id", returnIds);
+        totalQty = (items || []).reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+      }
+
+      return { totalReturns: count || 0, totalValue, totalQty };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (returnsData) setLoading(false);
@@ -382,10 +462,10 @@ export default function SaleReturnDashboard() {
     toast({ title: "Exported", description: `${returns.length} records exported to Excel` });
   };
 
-  const totalReturns = returnsData?.totalCount || returns.length;
-  const totalValue = returns.reduce((sum, ret) => sum + ret.net_amount, 0);
-  const averageValue = returns.length > 0 ? totalValue / returns.length : 0;
-  const totalQty = returns.reduce((sum, ret) => sum + (ret.total_qty || 0), 0);
+  const totalReturns = summaryData?.totalReturns ?? returnsData?.totalCount ?? returns.length;
+  const totalValue = summaryData?.totalValue ?? returns.reduce((sum, ret) => sum + ret.net_amount, 0);
+  const totalQty = summaryData?.totalQty ?? returns.reduce((sum, ret) => sum + (ret.total_qty || 0), 0);
+  const averageValue = totalReturns > 0 ? totalValue / totalReturns : 0;
   const totalPages = Math.ceil(totalReturns / pageSize);
 
   return (
@@ -505,28 +585,29 @@ export default function SaleReturnDashboard() {
               <div className="text-center py-8 text-muted-foreground">No returns found</div>
             ) : (
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                   <TableRow>
-                    <TableHead className="w-12 print:hidden"></TableHead>
-                    <TableHead>Return No</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Mobile</TableHead>
-                    <TableHead>Original Sale No</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Gross</TableHead>
-                    <TableHead className="text-right">GST</TableHead>
-                    <TableHead className="text-right">Net Amount</TableHead>
-                    <TableHead>Credit Status</TableHead>
-                    <TableHead>Adjusted In Invoice</TableHead>
-                    <TableHead>Refund Type</TableHead>
-                    <TableHead className="text-right print:hidden">Actions</TableHead>
+                    <TableHead className="w-12 print:hidden text-[13px] font-semibold"></TableHead>
+                    <TableHead className="text-[13px] font-semibold">Return No</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Date</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Customer</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Mobile</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Original Sale No</TableHead>
+                    <TableHead className="text-right text-[13px] font-semibold">Qty</TableHead>
+                    <TableHead className="text-right text-[13px] font-semibold">Gross</TableHead>
+                    <TableHead className="text-right text-[13px] font-semibold">GST</TableHead>
+                    <TableHead className="text-right text-[13px] font-semibold">Net Amount</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Status</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Adjusted In Invoice</TableHead>
+                    <TableHead className="text-right text-[13px] font-semibold">Adjusted Amt</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Settlement</TableHead>
+                    <TableHead className="text-right print:hidden text-[13px] font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {returns.map((ret) => (
                     <>
-                      <TableRow key={ret.id}>
+                      <TableRow key={ret.id} className="text-[13px] md:text-sm">
                         <TableCell className="print:hidden">
                           <Button
                             variant="ghost"
@@ -556,7 +637,7 @@ export default function SaleReturnDashboard() {
                             {ret.customer_name}
                           </button>
                         </TableCell>
-                        <TableCell className="text-sm">{ret.customer_phone || "-"}</TableCell>
+                        <TableCell className="text-[13px] md:text-sm">{ret.customer_phone || "-"}</TableCell>
                         <TableCell>
                           {ret.original_sale_number ? (
                             <Badge variant="outline">{ret.original_sale_number}</Badge>
@@ -569,29 +650,9 @@ export default function SaleReturnDashboard() {
                         <TableCell className="text-right">₹{ret.gst_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-medium">₹{ret.net_amount.toFixed(2)}</TableCell>
                         <TableCell>
-                          {ret.credit_status === 'pending' && (
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                              Pending
-                            </Badge>
-                          )}
-                          {ret.credit_status === 'adjusted' && (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                              Adjusted
-                            </Badge>
-                          )}
-                          {ret.credit_status === 'refunded' && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-                              Refunded
-                            </Badge>
-                          )}
-                          {ret.credit_status === 'adjusted_outstanding' && (
-                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
-                              Adjusted (Outstanding)
-                            </Badge>
-                          )}
-                          {!ret.credit_status && (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
+                          <Badge variant="outline" className="text-[12px] bg-slate-50 text-slate-700 border-slate-300">
+                            {formatCreditStatusLabel(ret)}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {ret.adjusted_sale_number ? (
@@ -601,9 +662,10 @@ export default function SaleReturnDashboard() {
                           ) : ret.original_sale_number ? (
                             <Badge variant="outline">{ret.original_sale_number}</Badge>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-muted-foreground text-[13px]">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-right font-medium">₹{ret.net_amount.toFixed(2)}</TableCell>
                         <TableCell>
                           {ret.refund_type === 'cash_refund' && (
                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
@@ -671,7 +733,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
-                          <TableCell colSpan={14} className="bg-muted/50">
+                          <TableCell colSpan={15} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
