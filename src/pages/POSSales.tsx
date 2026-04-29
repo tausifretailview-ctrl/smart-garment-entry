@@ -4658,7 +4658,7 @@ export default function POSSales() {
       </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2 pb-32">
           <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
@@ -4937,7 +4937,7 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="shrink-0 w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
+        <div className="fixed bottom-[52px] left-[72px] right-0 w-auto bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
           <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
@@ -5146,7 +5146,7 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="hidden md:flex shrink-0 flex-wrap min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
+        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 flex-wrap min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
             { key: 'F1', label: 'Cash' },
