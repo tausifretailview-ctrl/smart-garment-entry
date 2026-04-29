@@ -2002,6 +2002,16 @@ export default function POSSales() {
   
   const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff - pointsRedemptionValue;
   const finalAmount = amountBeforeCredit - creditApplied;
+  const paymentModeLabel =
+    paymentMethod === 'pay_later'
+      ? 'Credit'
+      : paymentMethod === 'upi'
+        ? 'UPI'
+        : paymentMethod === 'card'
+          ? 'Card'
+          : paymentMethod === 'multiple'
+            ? 'Mix'
+            : 'Cash';
   
   // Calculate effective discount percentage for customer display (after final amount adjustment)
   const effectiveDiscountPercent = totals.mrp > 0 ? ((totals.mrp - finalAmount) / totals.mrp) * 100 : 0;
@@ -2101,8 +2111,17 @@ export default function POSSales() {
       return;
     }
 
+    const effectiveMethod = forcePaymentMethod || paymentMethod;
+    const hasNamedCustomer = !!customerName?.trim() && customerName.trim().toLowerCase() !== 'walk-in customer';
+
+    // Credit / Pay Later must always have a named customer
+    if (effectiveMethod === 'pay_later' && !hasNamedCustomer) {
+      toast.error("Customer Name Required", { description: "Credit / Pay Later invoice is not allowed for walk-in. Please enter customer name first." });
+      return;
+    }
+
     // Check if payment method is pay_later and customer mobile is missing
-    if ((forcePaymentMethod || paymentMethod) === 'pay_later' && !customerPhone?.trim()) {
+    if (effectiveMethod === 'pay_later' && !customerPhone?.trim()) {
       toast.error("Customer Details Required", { description: "Please enter customer details first for balance invoice. Mobile number is mandatory for credit sales." });
       return;
     }
@@ -2133,8 +2152,8 @@ export default function POSSales() {
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, forcePaymentMethod || paymentMethod)
-      : await saveSale(saleData, forcePaymentMethod || paymentMethod);
+      ? await updateSale(currentSaleId, saleData, effectiveMethod)
+      : await saveSale(saleData, effectiveMethod);
     
     if (result) {
       // Save financer details if provided
@@ -2339,6 +2358,13 @@ export default function POSSales() {
     if (insufficientItems.length > 0) {
       paymentLockRef.current = false;
       showMultipleStockErrors(insufficientItems);
+      return;
+    }
+
+    const hasNamedCustomer = !!customerName?.trim() && customerName.trim().toLowerCase() !== 'walk-in customer';
+    if (method === 'pay_later' && !hasNamedCustomer) {
+      paymentLockRef.current = false;
+      toast.error("Customer Name Required", { description: "Credit / Pay Later invoice is not allowed for walk-in. Please enter customer name first." });
       return;
     }
 
@@ -4983,8 +5009,15 @@ export default function POSSales() {
               <div className="text-[9px] text-white/60 uppercase font-medium">Discount</div>
             </div>
             
-            {/* Spacer */}
-            <div className="flex-1 hidden xl:block" />
+            {/* Invoice payment mode indicator (helps identify Edit/Last/Previous invoice mode) */}
+            <div className="flex-1 hidden xl:flex items-center justify-center">
+              <div className="text-center px-3">
+                <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Payment Mode</div>
+                <div className="text-sm font-extrabold text-white mt-0.5">
+                  {paymentModeLabel}
+                </div>
+              </div>
+            </div>
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round */}
             <div className="flex items-end gap-3 flex-wrap justify-end">
