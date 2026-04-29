@@ -341,7 +341,9 @@ const POSDashboard = () => {
       while (hasMore) {
         let query = supabase
           .from("sales")
-          .select("*")
+          // Include customer GSTIN so e-invoice actions (Generate) work on POS dashboard.
+          // Without this, `sale.customers?.gst_number` is undefined and the generate option hides.
+          .select("*, customers:customer_id (gst_number)")
           .eq("organization_id", currentOrganization.id)
           .in("sale_type", ["pos", "delivery_challan"])
           .is("deleted_at", null);
@@ -1380,7 +1382,16 @@ const POSDashboard = () => {
 
   // ── E-Invoice handlers ──
   const handleGenerateEInvoice = async (sale: Sale) => {
-    const customerGstin = sale.customers?.gst_number;
+    let customerGstin = sale.customers?.gst_number;
+    if ((!customerGstin || customerGstin === "") && sale.customer_id) {
+      // Fallback: if customers join wasn't present for this row, fetch GSTIN on demand.
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("gst_number")
+        .eq("id", sale.customer_id)
+        .maybeSingle();
+      customerGstin = cust?.gst_number;
+    }
     if (!customerGstin) {
       toast({ title: "GSTIN Required", description: "Customer GSTIN is required for e-Invoice generation (B2B requirement).", variant: "destructive" });
       return;
@@ -2358,6 +2369,29 @@ const POSDashboard = () => {
                                     <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
+                                {(saleSettings?.einvoice_settings?.enabled ?? false) &&
+                                  sale.customer_id &&
+                                  !sale.irn &&
+                                  sale.einvoice_status !== "cancelled" &&
+                                  sale.status !== "cancelled" && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleGenerateEInvoice(sale);
+                                      }}
+                                      title="Generate E-Invoice"
+                                      disabled={isGeneratingEInvoice === sale.id}
+                                    >
+                                      {isGeneratingEInvoice === sale.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <FileCheck className="h-3.5 w-3.5 text-green-600" />
+                                      )}
+                                    </Button>
+                                  )}
                                 {isEInvoiceEnabled && sale.irn && sale.einvoice_status !== 'cancelled' && sale.status !== 'cancelled' && (
                                   <Button
                                     variant="ghost"
