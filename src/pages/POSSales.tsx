@@ -2097,6 +2097,15 @@ export default function POSSales() {
     setCreditApplied(maxApplicable);
   };
 
+  const showCustomerNameRequiredWindow = () => {
+    const message = "Please enter customer name first for Credit / Pay Later invoice.";
+    toast.error("Customer Name Required", { description: message });
+    setOpenCustomerSearch(true);
+    if (typeof window !== "undefined") {
+      window.alert(`Customer Details Required\n${message}`);
+    }
+  };
+
   // Handle save sale
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     if (items.length === 0) {
@@ -2116,7 +2125,7 @@ export default function POSSales() {
 
     // Credit / Pay Later must always have a named customer
     if (effectiveMethod === 'pay_later' && !hasNamedCustomer) {
-      toast.error("Customer Name Required", { description: "Credit / Pay Later invoice is not allowed for walk-in. Please enter customer name first." });
+      showCustomerNameRequiredWindow();
       return;
     }
 
@@ -2364,7 +2373,7 @@ export default function POSSales() {
     const hasNamedCustomer = !!customerName?.trim() && customerName.trim().toLowerCase() !== 'walk-in customer';
     if (method === 'pay_later' && !hasNamedCustomer) {
       paymentLockRef.current = false;
-      toast.error("Customer Name Required", { description: "Credit / Pay Later invoice is not allowed for walk-in. Please enter customer name first." });
+      showCustomerNameRequiredWindow();
       return;
     }
 
