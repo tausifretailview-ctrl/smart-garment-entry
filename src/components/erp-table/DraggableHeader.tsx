@@ -47,11 +47,11 @@ export function DraggableHeader<T>({ header, isSticky, density }: DraggableHeade
       style={{
         ...style,
         ...(((header.column.columnDef as any).meta as any)?.stickyRight
-          ? { position: 'sticky', right: 0, zIndex: 21, background: 'var(--muted)' }
+          ? { position: 'sticky', right: 0, zIndex: 21, background: '#000000' }
           : {}),
       }}
       className={cn(
-        "erp-table-header text-left text-foreground font-semibold text-[14px] uppercase tracking-wider select-none group bg-muted/70",
+        "erp-table-header text-left text-white font-bold text-[13px] uppercase tracking-wider select-none group bg-black",
         density === "compact" ? "px-3 py-2" : "px-5 py-4",
         isSticky && "erp-table-sticky-col-header"
       )}
@@ -62,7 +62,7 @@ export function DraggableHeader<T>({ header, isSticky, density }: DraggableHeade
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+          <GripVertical className="h-3.5 w-3.5 text-white/70" />
         </button>
         <span className="truncate" title={typeof header.column.columnDef.header === 'string' ? header.column.columnDef.header : ''}>
           {header.isPlaceholder
