@@ -53,6 +53,8 @@ export interface A4SheetOptions {
   gapMm: number;
   topOffsetMm?: number;
   leftOffsetMm?: number;
+  bottomOffsetMm?: number;
+  rightOffsetMm?: number;
   labelConfig: LabelDesignConfig;
   businessName?: string;
 }
@@ -65,19 +67,18 @@ export const generateA4LabelPdf = async (
     labelWidthMm, labelHeightMm, cols, rows, gapMm,
     topOffsetMm: rawTopOffsetMm = 0,
     leftOffsetMm: rawLeftOffsetMm = 0,
+    bottomOffsetMm: rawBottomOffsetMm = 0,
+    rightOffsetMm: rawRightOffsetMm = 0,
     labelConfig, businessName = '',
   } = options;
-
-  // Enforce a minimum printable-area margin to prevent column 1 / row 1
-  // labels from rendering inside the printer's non-printable margin.
-  // Most consumer/office printers reserve 3-5mm on all edges.
-  const MIN_PRINTABLE_MARGIN_MM = 5;
-  const topOffsetMm = Math.max(rawTopOffsetMm, MIN_PRINTABLE_MARGIN_MM);
-  const leftOffsetMm = Math.max(rawLeftOffsetMm, MIN_PRINTABLE_MARGIN_MM);
+  const topOffsetMm = Math.max(0, rawTopOffsetMm);
+  const leftOffsetMm = Math.max(0, rawLeftOffsetMm);
+  const bottomOffsetMm = Math.max(0, rawBottomOffsetMm);
+  const rightOffsetMm = Math.max(0, rawRightOffsetMm);
 
   // Informational warning if layout exceeds A4 dimensions
-  const totalWidthMm = leftOffsetMm + cols * labelWidthMm + (cols - 1) * gapMm;
-  const totalHeightMm = topOffsetMm + rows * labelHeightMm + (rows - 1) * gapMm;
+  const totalWidthMm = leftOffsetMm + rightOffsetMm + cols * labelWidthMm + (cols - 1) * gapMm;
+  const totalHeightMm = topOffsetMm + bottomOffsetMm + rows * labelHeightMm + (rows - 1) * gapMm;
   if (totalWidthMm > 210 || totalHeightMm > 297) {
     console.warn(
       `[a4LabelPdf] Layout may exceed A4 page bounds: ${totalWidthMm.toFixed(1)}mm x ${totalHeightMm.toFixed(1)}mm (A4 = 210x297mm)`
@@ -93,8 +94,14 @@ export const generateA4LabelPdf = async (
   const labelW = mmToPt(labelWidthMm);
   const labelH = mmToPt(labelHeightMm);
   const gap = mmToPt(gapMm);
-  const marginLeft = mmToPt(leftOffsetMm);
-  const marginTop = mmToPt(topOffsetMm);
+  const contentWidthMm = cols * labelWidthMm + (cols - 1) * gapMm;
+  const contentHeightMm = rows * labelHeightMm + (rows - 1) * gapMm;
+  const printableWidthMm = Math.max(0, 210 - leftOffsetMm - rightOffsetMm);
+  const printableHeightMm = Math.max(0, 297 - topOffsetMm - bottomOffsetMm);
+  const centeredPadXmm = Math.max(0, (printableWidthMm - contentWidthMm) / 2);
+  const centeredPadYmm = Math.max(0, (printableHeightMm - contentHeightMm) / 2);
+  const marginLeft = mmToPt(leftOffsetMm + centeredPadXmm);
+  const marginTop = mmToPt(topOffsetMm + centeredPadYmm);
 
   const allLabels: LabelItem[] = [];
   items.forEach(item => {

@@ -1244,16 +1244,7 @@ export default function BarcodePrinting() {
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
-    try {
-      const storedDefaultFormat = localStorage.getItem("barcode_default_format");
-      if (storedDefaultFormat) {
-        const defaultFormat = JSON.parse(storedDefaultFormat);
-        return defaultFormat.defaultTemplate || null;
-      }
-    } catch (error) {
-      console.error("Failed to read default template:", error);
-    }
-    return null;
+    return (dbDefaultFormat as any)?.defaultTemplate || null;
   };
 
   const isTemplateDefault = (templateName: string): boolean => {
@@ -3103,9 +3094,9 @@ export default function BarcodePrinting() {
       : {
           cols: sheetPresets[sheetType].cols,
           rows: (sheetPresets[sheetType] as any).rows || 10,
-          width: parseInt(sheetPresets[sheetType].width),
-          height: parseInt(sheetPresets[sheetType].height),
-          gap: parseInt(sheetPresets[sheetType].gap)
+          width: parseFloat(sheetPresets[sheetType].width),
+          height: parseFloat(sheetPresets[sheetType].height),
+          gap: parseFloat(sheetPresets[sheetType].gap)
         };
 
     // Exclude user offsets - they are handled by CSS padding, not content size
@@ -3122,11 +3113,11 @@ export default function BarcodePrinting() {
   };
 
   const getSheetPageMargins = () => {
-    const w = sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width);
-    const h = sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height);
+    const w = sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width);
+    const h = sheetType === 'custom' ? customHeight : parseFloat(sheetPresets[sheetType].height);
     const cols = sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols;
     const rows = sheetType === 'custom' ? (customRows || 8) : ((sheetPresets[sheetType] as any).rows || 8);
-    const gap = sheetType === 'custom' ? customGap : parseInt(sheetPresets[sheetType].gap);
+    const gap = sheetType === 'custom' ? customGap : parseFloat(sheetPresets[sheetType].gap);
 
     const totalLabelW = cols * w + (cols - 1) * gap;
     const totalLabelH = rows * h + (rows - 1) * gap;
@@ -3155,9 +3146,9 @@ export default function BarcodePrinting() {
         }
       : {
           cols: sheetPresets[sheetType].cols,
-          width: parseInt(sheetPresets[sheetType].width),
-          height: parseInt(sheetPresets[sheetType].height),
-          gap: parseInt(sheetPresets[sheetType].gap)
+          width: parseFloat(sheetPresets[sheetType].width),
+          height: parseFloat(sheetPresets[sheetType].height),
+          gap: parseFloat(sheetPresets[sheetType].gap)
         };
     
     printArea.innerHTML = "";
@@ -3539,9 +3530,9 @@ export default function BarcodePrinting() {
         : {
             cols: sheetPresets[sheetType].cols,
             rows: (sheetPresets[sheetType] as any).rows || 10,
-            width: parseInt(sheetPresets[sheetType].width),
-            height: parseInt(sheetPresets[sheetType].height),
-            gap: parseInt(sheetPresets[sheetType].gap),
+            width: parseFloat(sheetPresets[sheetType].width),
+            height: parseFloat(sheetPresets[sheetType].height),
+            gap: parseFloat(sheetPresets[sheetType].gap),
           };
 
       const pdfBytes = await generateA4LabelPdf(labelItems, {
@@ -3552,6 +3543,8 @@ export default function BarcodePrinting() {
         gapMm: dimensions.gap,
         topOffsetMm: topOffset,
         leftOffsetMm: leftOffset,
+        bottomOffsetMm: bottomOffset,
+        rightOffsetMm: rightOffset,
         labelConfig,
         businessName,
       });
@@ -3654,9 +3647,9 @@ export default function BarcodePrinting() {
         : {
             cols: sheetPresets[sheetType].cols,
             rows: (sheetPresets[sheetType] as any).rows || 10,
-            width: parseInt(sheetPresets[sheetType].width),
-            height: parseInt(sheetPresets[sheetType].height),
-            gap: parseInt(sheetPresets[sheetType].gap),
+            width: parseFloat(sheetPresets[sheetType].width),
+            height: parseFloat(sheetPresets[sheetType].height),
+            gap: parseFloat(sheetPresets[sheetType].gap),
           };
 
       const pdfBytes = await generateA4LabelPdf(labelItems, {
@@ -3667,6 +3660,8 @@ export default function BarcodePrinting() {
         gapMm: dimensions.gap,
         topOffsetMm: topOffset,
         leftOffsetMm: leftOffset,
+        bottomOffsetMm: bottomOffset,
+        rightOffsetMm: rightOffset,
         labelConfig,
         businessName,
       });
@@ -3840,9 +3835,9 @@ export default function BarcodePrinting() {
         : {
             cols: sheetPresets[sheetType].cols,
             rows: Math.ceil(totalLabels / sheetPresets[sheetType].cols),
-            width: parseInt(sheetPresets[sheetType].width),
-            height: parseInt(sheetPresets[sheetType].height),
-            gap: parseInt(sheetPresets[sheetType].gap)
+            width: parseFloat(sheetPresets[sheetType].width),
+            height: parseFloat(sheetPresets[sheetType].height),
+            gap: parseFloat(sheetPresets[sheetType].gap)
           };
       
       // Apply scale to dimensions for PDF
@@ -4995,8 +4990,8 @@ export default function BarcodePrinting() {
                   setLabelConfig={setLabelConfig}
                   businessName={businessName}
                   sampleItem={labelItems.length > 0 ? labelItems[0] : null}
-                  labelWidth={sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width)}
-                  labelHeight={sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height)}
+                  labelWidth={sheetType === 'custom' ? customWidth : parseFloat(sheetPresets[sheetType].width)}
+                  labelHeight={sheetType === 'custom' ? customHeight : parseFloat(sheetPresets[sheetType].height)}
                   columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
                   savedTemplates={dbLabelTemplates}
                   selectedTemplateName={selectedLabelTemplate}
@@ -5827,8 +5822,8 @@ export default function BarcodePrinting() {
 
       {!precisionSettings.enabled && <style>{`
         #printArea {
-          width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm` : '210mm'};
-          min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` : '297mm'};
+          width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm` : '210mm'};
+          min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm` : '297mm'};
           padding: 0;
           margin: 0;
         }
@@ -5917,7 +5912,7 @@ export default function BarcodePrinting() {
 
         @page { 
           size: ${isThermal1Up() 
-            ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
+            ? `${(sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
             : 'A4 portrait'}; 
           margin: ${isThermal1Up() ? '0mm' : `${topOffset}mm ${rightOffset}mm ${bottomOffset}mm ${leftOffset}mm`} !important;
         }
@@ -5952,7 +5947,7 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
-            width: ${isThermal1Up() ? `${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm` : '210mm'} !important;
+            width: ${isThermal1Up() ? `${(sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm` : '210mm'} !important;
             min-height: auto !important;
             height: auto !important;
             margin: 0 !important;
@@ -5963,10 +5958,10 @@ export default function BarcodePrinting() {
           #printArea .label-grid {
             ${isThermal1Up() ? `
               display: block !important;
-              width: ${(sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm !important;
-              height: ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
-              min-height: ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
-              max-height: ${(sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
+              width: ${(sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm !important;
+              height: ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
+              min-height: ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
+              max-height: ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
               page-break-before: auto !important;
               break-before: auto !important;
               page-break-after: always !important;
@@ -6002,9 +5997,9 @@ export default function BarcodePrinting() {
               display: block !important;
               -webkit-text-stroke: 0.3px black;
               line-height: inherit !important;
-              width: ${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm !important;
-              height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
-              min-height: ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm !important;
+              width: ${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm !important;
+              height: ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm !important;
+              min-height: ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm !important;
               padding: 0 !important;
               margin: 0 !important;
               overflow: visible !important;
