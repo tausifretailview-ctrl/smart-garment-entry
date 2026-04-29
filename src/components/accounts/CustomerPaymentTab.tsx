@@ -789,7 +789,7 @@ export function CustomerPaymentTab({
           <CardDescription>Record payment received from customers</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Date */}
               <div className="space-y-2">
@@ -961,7 +961,6 @@ export function CustomerPaymentTab({
                                   step="1"
                                   className="h-8 w-28"
                                   value={allocatedAmounts[invoice.id] ?? roundedBalance.toFixed(2)}
-                                  max={roundedBalance}
                                   onClick={(e) => e.stopPropagation()}
                                   onChange={(e) => {
                                     const raw = e.target.value;
@@ -1084,7 +1083,6 @@ export function CustomerPaymentTab({
                   step="1"
                   placeholder="Enter amount"
                   value={amount}
-                  max={selectedInvoiceIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : undefined}
                   onChange={(e) => {
                     const raw = e.target.value;
                     if (raw === "") {
