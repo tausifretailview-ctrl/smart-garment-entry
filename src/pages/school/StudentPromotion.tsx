@@ -146,7 +146,7 @@ const StudentPromotion = () => {
       if (!orgId || !fromYearId) return [];
       const { data, error } = await supabase
         .from("fee_structures")
-        .select("class_id, amount")
+        .select("class_id, amount, frequency")
         .eq("organization_id", orgId)
         .eq("academic_year_id", fromYearId);
       if (error) throw error;
@@ -180,7 +180,8 @@ const StudentPromotion = () => {
   const classFeeTotal = useMemo(() => {
     const map: Record<string, number> = {};
     feeStructures.forEach((fs: any) => {
-      map[fs.class_id] = (map[fs.class_id] || 0) + (fs.amount || 0);
+      const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
+      map[fs.class_id] = (map[fs.class_id] || 0) + (fs.amount || 0) * mult;
     });
     return map;
   }, [feeStructures]);

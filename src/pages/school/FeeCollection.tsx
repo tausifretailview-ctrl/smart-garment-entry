@@ -162,13 +162,13 @@ const FeeCollection = () => {
 
       const { data: allStructures } = await supabase
         .from("fee_structures")
-        .select("amount, frequency")
+        .select("class_id, amount, frequency")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id);
 
       const { data: allStudents } = await supabase
         .from("students")
-        .select("id, class_id, closing_fees_balance")
+        .select("id, class_id, closing_fees_balance, is_new_admission")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .is("deleted_at", null);
