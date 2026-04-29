@@ -1877,7 +1877,11 @@ export default function SalesInvoiceDashboard() {
           .eq('organization_id', currentOrganization?.id)
           .eq('customer_id', selectedInvoiceForPayment.customer_id)
           .is('deleted_at', null)
-          .in('credit_status', ['pending', 'adjusted'])
+          // Only APPROVED / adjusted sale returns become usable Credit Note balance.
+          // 'pending' returns still appear in the customer ledger as a pending
+          // adjustment but must NOT be selectable for "From Credit Note (CN)"
+          // payment mode until they are explicitly adjusted/approved.
+          .eq('credit_status', 'adjusted')
           .order('return_date', { ascending: true });
 
         // Total credit notional value from all pending/adjusted SRs for this customer.
