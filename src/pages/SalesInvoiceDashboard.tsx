@@ -664,61 +664,149 @@ export default function SalesInvoiceDashboard() {
     staleTime: 60000,
   });
 
-  // Server-side summary stats via RPC
-  const { data: summaryStats } = useQuery({
-    queryKey: ['invoice-dashboard-stats', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, queryDateRange.start, queryDateRange.end],
+  // Sales dashboard card stats derived from the same filtered invoice universe as table.
+  const { data: reconciledStats } = useQuery({
+    queryKey: [
+      'invoice-dashboard-reconciled-stats',
+      currentOrganization?.id,
+      debouncedSearch,
+      deliveryFilter,
+      paymentStatusFilter,
+      shopFilter,
+      userFilter,
+      queryDateRange.start,
+      queryDateRange.end,
+    ],
     queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase.rpc('get_sales_invoice_dashboard_stats', {
-        p_org_id: currentOrganization.id,
-        p_search: debouncedSearch || '',
-        p_delivery_status: deliveryFilter || 'all',
-        p_payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter.join(',') : 'all',
-        p_date_start: queryDateRange.start || '',
-        p_date_end: queryDateRange.end || '',
-      });
-      if (error) {
-        console.error('Error fetching dashboard stats:', error);
+      if (!currentOrganization?.id) {
         return { totalInvoices: 0, totalAmount: 0, totalDiscount: 0, totalQty: 0, pendingAmount: 0, deliveredCount: 0, deliveredAmount: 0, undeliveredCount: 0, undeliveredAmount: 0 };
       }
-      const s = data as any;
-      return {
-        totalInvoices: Number(s?.totalInvoices ?? s?.total_invoices ?? 0),
-        totalAmount: Number(s?.totalAmount ?? s?.total_amount ?? 0),
-        totalDiscount: Number(s?.totalDiscount ?? s?.total_discount ?? 0),
-        totalQty: Number(s?.totalQty ?? s?.total_qty ?? 0),
-        pendingAmount: Number(s?.pendingAmount ?? s?.pending_amount ?? 0),
-        deliveredCount: Number(s?.deliveredCount ?? s?.delivered_count ?? 0),
-        deliveredAmount: Number(s?.deliveredAmount ?? s?.delivered_amount ?? 0),
-        undeliveredCount: Number(s?.undeliveredCount ?? s?.undelivered_count ?? 0),
-        undeliveredAmount: Number(s?.undeliveredAmount ?? s?.undelivered_amount ?? 0),
-      };
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
 
-  // Credit notes adjusted to outstanding should reduce dashboard pending metric.
-  const { data: adjustedOutstandingCreditTotal = 0 } = useQuery({
-    queryKey: ['invoice-dashboard-adjusted-outstanding-credit', currentOrganization?.id, debouncedSearch, queryDateRange.start, queryDateRange.end],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return 0;
-      let query = supabase
-        .from('sale_returns')
-        .select('net_amount, customer_name')
-        .eq('organization_id', currentOrganization.id)
-        .eq('credit_status', 'adjusted_outstanding')
-        .is('deleted_at', null);
-      if (queryDateRange.start) query = query.gte('return_date', queryDateRange.start);
-      if (queryDateRange.end) query = query.lte('return_date', queryDateRange.end);
-      if (debouncedSearch) {
-        const s = debouncedSearch.trim();
-        query = query.ilike('customer_name', `%${s}%`);
+      const PAGE_SIZE = 1000;
+      const TOLERANCE = 0.01;
+      let offset = 0;
+      const allInvoices: any[] = [];
+
+      const buildFilteredQuery = () => {
+        let query = supabase
+          .from('sales')
+          .select('id, sale_number, customer_name, customer_phone, sale_date, salesman, net_amount, paid_amount, discount_amount, flat_discount_amount, total_qty, payment_status, sale_return_adjust, delivery_status, is_cancelled, shop_name')
+          .eq('organization_id', currentOrganization.id)
+          .eq('sale_type', 'invoice')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+
+        if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
+        if (shopFilter !== 'all') query = query.eq('shop_name', shopFilter);
+        if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
+        if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
+        if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
+
+        return query;
+      };
+
+      while (true) {
+        let query: any = buildFilteredQuery().range(offset, offset + PAGE_SIZE - 1);
+
+        if (debouncedSearch) {
+          const searchStr = debouncedSearch.trim();
+          const { data: matchingItems } = await (supabase as any)
+            .from('sale_items')
+            .select('sale_id')
+            .is('deleted_at', null)
+            .or(
+              `barcode.ilike.%${searchStr}%,` +
+              `product_name.ilike.%${searchStr}%,` +
+              `size.ilike.%${searchStr}%,` +
+              `color.ilike.%${searchStr}%`
+            )
+            .limit(1000);
+
+          const matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))] as string[];
+          const saleTextFilter =
+            `sale_number.ilike.%${searchStr}%,` +
+            `customer_name.ilike.%${searchStr}%,` +
+            `customer_phone.ilike.%${searchStr}%,` +
+            `salesman.ilike.%${searchStr}%`;
+
+          if (matchingSaleIds.length > 0) {
+            const { data: textMatches } = await supabase
+              .from('sales')
+              .select('id')
+              .eq('organization_id', currentOrganization.id)
+              .is('deleted_at', null)
+              .or(saleTextFilter);
+            const textMatchIds = (textMatches || []).map((s: any) => s.id);
+            const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
+            query = query.in('id', allMatchIds);
+          } else {
+            query = query.or(saleTextFilter);
+          }
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allInvoices.push(...data);
+        if (data.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []).reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+
+      const saleIds = allInvoices.map((s: any) => s.id).filter(Boolean);
+      const receiptBySale = new Map<string, number>();
+      for (let i = 0; i < saleIds.length; i += 400) {
+        const batch = saleIds.slice(i, i + 400);
+        const { data: receiptRows, error: receiptErr } = await supabase
+          .from('voucher_entries')
+          .select('reference_id, total_amount')
+          .eq('organization_id', currentOrganization.id)
+          .eq('voucher_type', 'receipt')
+          .eq('reference_type', 'sale')
+          .is('deleted_at', null)
+          .in('reference_id', batch);
+        if (receiptErr) throw receiptErr;
+        (receiptRows || []).forEach((r: any) => {
+          if (!r.reference_id) return;
+          receiptBySale.set(r.reference_id, (receiptBySale.get(r.reference_id) || 0) + Number(r.total_amount || 0));
+        });
+      }
+
+      const normalized = allInvoices
+        .filter((inv: any) => !inv?.is_cancelled && inv?.payment_status !== 'hold')
+        .map((inv: any) => {
+          const net = Number(inv.net_amount || 0);
+          const sr = Number(inv.sale_return_adjust || 0);
+          const cap = Math.max(0, net - sr);
+          const normalizedPaid = Math.min(cap, Math.max(Number(inv.paid_amount || 0), Number(receiptBySale.get(inv.id) || 0)));
+          const outstanding = Math.max(0, net - normalizedPaid - sr);
+          const normalizedStatus =
+            outstanding <= TOLERANCE
+              ? 'completed'
+              : normalizedPaid > TOLERANCE || sr > TOLERANCE
+                ? 'partial'
+                : 'pending';
+          return { ...inv, paid_amount: normalizedPaid, outstanding, payment_status: normalizedStatus };
+        });
+
+      const filteredByStatus = paymentStatusFilter.length > 0
+        ? normalized.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
+        : normalized;
+
+      return {
+        totalInvoices: filteredByStatus.length,
+        totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.net_amount || 0), 0),
+        totalDiscount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0), 0),
+        totalQty: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.total_qty || 0), 0),
+        pendingAmount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.outstanding || 0), 0),
+        deliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'delivered').length,
+        deliveredAmount: filteredByStatus
+          .filter((inv: any) => inv.delivery_status === 'delivered')
+          .reduce((s: number, inv: any) => s + Number(inv.net_amount || 0), 0),
+        undeliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'undelivered').length,
+        undeliveredAmount: filteredByStatus
+          .filter((inv: any) => inv.delivery_status === 'undelivered')
+          .reduce((s: number, inv: any) => s + Number(inv.net_amount || 0), 0),
+      };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 2 * 60 * 1000,
@@ -1102,8 +1190,8 @@ export default function SalesInvoiceDashboard() {
     };
   }, [paginatedInvoices]);
 
-  // Fallback summary stats if RPC hasn't loaded yet
-  const baseStats = summaryStats || {
+  // Fallback summary stats if reconciled query hasn't loaded yet
+  const baseStats = reconciledStats || {
     totalInvoices: totalCount,
     totalAmount: 0,
     totalDiscount: 0,
@@ -1115,24 +1203,7 @@ export default function SalesInvoiceDashboard() {
     undeliveredAmount: 0,
   };
 
-  const filteredPendingAmount = useMemo(() => {
-    return (invoicesData || [])
-      .filter((inv: any) => !inv?.is_cancelled && inv?.payment_status !== "hold")
-      .reduce((sum: number, inv: any) => {
-        const net = Number(inv?.net_amount || 0);
-        const paid = Number(inv?.paid_amount || 0);
-        const srAdjust = Number(inv?.sale_return_adjust || 0);
-        return sum + Math.max(0, net - paid - srAdjust);
-      }, 0);
-  }, [invoicesData]);
-
-  const useFilteredPendingCard = !!debouncedSearch?.trim();
-  const effectiveStats = {
-    ...baseStats,
-    pendingAmount: useFilteredPendingCard
-      ? Number(filteredPendingAmount || 0)
-      : Math.max(0, Number(baseStats.pendingAmount || 0) - Number(adjustedOutstandingCreditTotal || 0)),
-  };
+  const effectiveStats = baseStats;
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
