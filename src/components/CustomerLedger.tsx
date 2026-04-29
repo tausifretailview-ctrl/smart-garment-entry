@@ -2629,6 +2629,16 @@ Please clear your dues at the earliest. Thank you!`;
                                       ✓ Paid
                                     </Badge>
                                   )}
+                                  {transaction.type === 'invoice' && transaction.paymentStatus === 'partial' && (
+                                    <Badge className="bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 text-xs ml-1">
+                                      ◐ Partial
+                                    </Badge>
+                                  )}
+                                  {transaction.type === 'invoice' && transaction.paymentStatus === 'pending' && (
+                                    <Badge className="bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-900/30 dark:text-rose-400 text-xs ml-1">
+                                      ○ Pending
+                                    </Badge>
+                                  )}
                                   {transaction.type === 'invoice' && transaction.paymentStatus !== 'completed' && effectiveBalance < 0 && (
                                     <Badge className="bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] ml-1">
                                       ⚡ Advance available
