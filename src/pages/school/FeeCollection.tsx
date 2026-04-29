@@ -128,6 +128,26 @@ const FeeCollection = () => {
   // The active year used for all queries
   const activeYear = (academicYears || []).find((y: any) => y.id === selectedYearId) || currentYear;
 
+  const resolveLiability = (student: any, structureTotal: number, yearName?: string | null) => {
+    const importedBalance = Number(student?.closing_fees_balance) || 0;
+    const expected = Number(structureTotal) || 0;
+    const isNewAdmission = student?.is_new_admission === true;
+    const isLegacy2025 = yearName === "2025-26";
+
+    if (isNewAdmission) return importedBalance;
+    // Legacy safety fallback: for 2025-26, preserve imported closing balance
+    // when structure is absent/zero to avoid showing false zero dues.
+    if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
+    return expected;
+  };
+
+  const resolveFeeStatus = (totalDue: number, totalPaid: number, liabilityGross: number) => {
+    if (liabilityGross <= 0 && totalPaid <= 0) return "no-structure";
+    if (totalDue <= 0) return "paid";
+    if (totalPaid > 0) return "partial";
+    return "pending";
+  };
+
   // Summary: today's collection, month collection, pending dues
   const { data: summary } = useQuery({
     queryKey: ["fee-collection-summary", currentOrganization?.id, activeYear?.id],
@@ -177,15 +197,23 @@ const FeeCollection = () => {
       // run per student before aggregation. This mirrors the row-level
       // formula in the main grid.
       const studentIdList = (allStudents || []).map((st: any) => st.id);
-      const { data: allPayments } = studentIdList.length > 0
-        ? await supabase
-            .from("student_fees")
-            .select("student_id, paid_amount, status")
-            .eq("organization_id", currentOrganization!.id)
-            .in("student_id", studentIdList)
-            .in("status", ["paid", "partial"])
-            .gt("paid_amount", 0)
-        : { data: [] as any[] };
+      const [paymentsRes, adjustmentsRes] = studentIdList.length > 0
+        ? await Promise.all([
+            supabase
+              .from("student_fees")
+              .select("student_id, paid_amount, status")
+              .eq("organization_id", currentOrganization!.id)
+              .in("student_id", studentIdList)
+              .in("status", ["paid", "partial"])
+              .gt("paid_amount", 0),
+            (supabase.from("student_balance_audit" as any) as any)
+              .select("student_id, adjustment_type, change_amount")
+              .eq("organization_id", currentOrganization!.id)
+              .in("student_id", studentIdList),
+          ])
+        : [{ data: [] as any[] }, { data: [] as any[] }];
+      const allPayments = paymentsRes?.data || [];
+      const allAdjustments = adjustmentsRes?.data || [];
 
       // Per-class structure totals (single year)
       const structureByClass = new Map<string, number>();
@@ -196,8 +224,18 @@ const FeeCollection = () => {
 
       // Per-student paid totals (all years)
       const paidByStudent = new Map<string, number>();
-      (allPayments as any[] || []).forEach((p: any) => {
+      (allPayments as any[]).forEach((p: any) => {
         paidByStudent.set(p.student_id, (paidByStudent.get(p.student_id) || 0) + (p.paid_amount || 0));
+      });
+
+      const adjByStudent = new Map<string, number>();
+      (allAdjustments as any[]).forEach((a: any) => {
+        const delta = a.adjustment_type === "credit"
+          ? (a.change_amount || 0)
+          : a.adjustment_type === "debit"
+            ? -(a.change_amount || 0)
+            : 0;
+        adjByStudent.set(a.student_id, (adjByStudent.get(a.student_id) || 0) + delta);
       });
 
       // Aggregate pending:
@@ -205,11 +243,11 @@ const FeeCollection = () => {
       // - Promoted/existing: follow class fee structure
       let pending = 0;
       (allStudents || []).forEach((st: any) => {
-        const opening = st.closing_fees_balance || 0;
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
-        const liability = st.is_new_admission ? opening : struct;
-        pending += Math.max(0, liability - paid);
+        const adjustment = adjByStudent.get(st.id) || 0;
+        const liability = resolveLiability(st, struct, activeYear?.year_name);
+        pending += Math.max(0, liability + adjustment - paid);
       });
 
       return { today: todayTotal, month: monthTotal, pending };
@@ -302,18 +340,14 @@ const FeeCollection = () => {
         // Liability rule:
         // - New admission: use closing_fees_balance entered during admission
         // - Promoted/existing student: use yearly fee structure
-        const liability = student.is_new_admission ? importedBalance : totalExpected;
+        const liability = resolveLiability(student, totalExpected, activeYear?.year_name);
         const totalDueGross = liability + adjustmentNet;
         const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
         const hasStructures = classStructures.length > 0 && totalExpected > 0;
         const effectiveExpected = totalDueGross; // shown in "Total Fees" column
-        const effectiveStatus = totalDue === 0
-          ? "paid"
-          : totalPaid > 0
-            ? "partial"
-            : effectiveExpected === 0 ? "no-structure" : "pending";
+        const effectiveStatus = resolveFeeStatus(totalDue, totalPaid, effectiveExpected);
 
         return { ...student, totalExpected: effectiveExpected, totalPaid, totalDue, feeStatus: effectiveStatus, importedBalance, hasStructures };
       });
@@ -550,7 +584,7 @@ const FeeCollection = () => {
   const filteredStudents = (students || []).filter((s: any) => {
     if (classFilter !== "all" && s.class_id !== classFilter) return false;
     if (statusFilter === "all") return true;
-    if (statusFilter === "paid") return s.feeStatus === "paid" || (s.totalDue === 0 && s.feeStatus === "no-structure");
+    if (statusFilter === "paid") return s.feeStatus === "paid";
     if (statusFilter === "pending") return s.feeStatus === "pending" || s.feeStatus === "partial";
     if (statusFilter === "partial") return s.feeStatus === "partial";
     return true;
@@ -558,7 +592,7 @@ const FeeCollection = () => {
 
   const statusCounts = {
     total: filteredStudents.length,
-    paid: filteredStudents.filter((s: any) => s.feeStatus === "paid" || (s.totalDue === 0 && s.feeStatus === "no-structure")).length,
+    paid: filteredStudents.filter((s: any) => s.feeStatus === "paid").length,
     pending: filteredStudents.filter((s: any) => s.feeStatus === "pending").length,
     partial: filteredStudents.filter((s: any) => s.feeStatus === "partial").length,
   };
