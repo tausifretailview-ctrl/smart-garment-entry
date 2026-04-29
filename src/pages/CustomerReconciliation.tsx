@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -36,11 +36,26 @@ interface LedgerBalance {
   unusedAdvanceTotal: number;
 }
 
+interface AuditTransactionRow {
+  type: string;
+  reference: string;
+  date: string;
+  debit: number;
+  credit: number;
+}
+
 export default function CustomerReconciliation() {
   const { currentOrganization } = useOrganization();
   const { navigate } = useOrgNavigation();
   const [search, setSearch] = useState("");
   const [mismatchOnly, setMismatchOnly] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [selectedCustomerName, setSelectedCustomerName] = useState<string>("");
+  const [isCalculatingTrueBalance, setIsCalculatingTrueBalance] = useState(false);
+  const [auditTransactions, setAuditTransactions] = useState<AuditTransactionRow[]>([]);
+  const [calculatedBalance, setCalculatedBalance] = useState(0);
+  const [calculatedBalanceType, setCalculatedBalanceType] = useState<"Dr (Outstanding)" | "Cr (Advance)">("Dr (Outstanding)");
+  const [systemLedgerBalance, setSystemLedgerBalance] = useState(0);
 
   // Source 1: Raw transaction math via RPC
   const { data: rawBalances, isLoading: rawLoading, refetch, dataUpdatedAt } = useQuery({
@@ -262,6 +277,107 @@ export default function CustomerReconciliation() {
 
   const fmt = (n: number) => `₹${Math.abs(n).toLocaleString("en-IN")}${n < 0 ? " Cr" : n > 0 ? " Dr" : ""}`;
 
+  const handleCalculateTrueBalance = useCallback(async () => {
+    if (!currentOrganization?.id || !selectedCustomerId) return;
+    setIsCalculatingTrueBalance(true);
+    try {
+      // Fetch all source records in parallel for fast reconciliation.
+      const [{ data: customer }, { data: sales }, { data: returns }] = await Promise.all([
+        supabase
+          .from("customers")
+          .select("opening_balance")
+          .eq("organization_id", currentOrganization.id)
+          .eq("id", selectedCustomerId)
+          .maybeSingle(),
+        supabase
+          .from("sales")
+          .select("id, net_amount, sale_number, created_at, payment_status")
+          .eq("organization_id", currentOrganization.id)
+          .eq("customer_id", selectedCustomerId)
+          .is("deleted_at", null)
+          .not("payment_status", "in", '("cancelled","hold","draft")'),
+        supabase
+          .from("sale_returns")
+          .select("net_amount, return_number, created_at")
+          .eq("organization_id", currentOrganization.id)
+          .eq("customer_id", selectedCustomerId)
+          .is("deleted_at", null),
+      ]);
+
+      const saleIds = (sales || []).map((s: any) => s.id).filter(Boolean);
+      const { data: vouchers } = await supabase
+        .from("voucher_entries")
+        .select("total_amount, voucher_number, voucher_type, created_at, reference_id, reference_type")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .in("voucher_type", ["receipt", "payment", "credit_note", "advance"])
+        .or([
+          `and(reference_type.eq.customer,reference_id.eq.${selectedCustomerId})`,
+          saleIds.length > 0 ? `and(reference_type.eq.sale,reference_id.in.(${saleIds.join(",")}))` : "",
+        ].filter(Boolean).join(","));
+
+      const txns: AuditTransactionRow[] = [];
+
+      const opening = Number((customer as any)?.opening_balance || 0);
+      if (opening !== 0) {
+        txns.push({
+          type: "Opening Balance",
+          reference: "OB",
+          date: new Date(0).toISOString(),
+          debit: opening > 0 ? Math.abs(opening) : 0,
+          credit: opening < 0 ? Math.abs(opening) : 0,
+        });
+      }
+
+      (sales || []).forEach((sale: any) => {
+        txns.push({
+          type: "Sale",
+          reference: sale.sale_number || "-",
+          date: sale.created_at || new Date().toISOString(),
+          debit: Number(sale.net_amount || 0),
+          credit: 0,
+        });
+      });
+
+      (returns || []).forEach((ret: any) => {
+        txns.push({
+          type: "Sale Return",
+          reference: ret.return_number || "-",
+          date: ret.created_at || new Date().toISOString(),
+          debit: 0,
+          credit: Number(ret.net_amount || 0),
+        });
+      });
+
+      (vouchers || []).forEach((v: any) => {
+        txns.push({
+          type: (v.voucher_type || "").toUpperCase(),
+          reference: v.voucher_number || "-",
+          date: v.created_at || new Date().toISOString(),
+          debit: 0,
+          credit: Number(v.total_amount || 0),
+        });
+      });
+
+      txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const totalDebits = txns.reduce((sum, t) => sum + Number(t.debit || 0), 0);
+      const totalCredits = txns.reduce((sum, t) => sum + Number(t.credit || 0), 0);
+      const calcBal = Math.abs(totalDebits - totalCredits);
+      const balType: "Dr (Outstanding)" | "Cr (Advance)" =
+        totalDebits >= totalCredits ? "Dr (Outstanding)" : "Cr (Advance)";
+
+      setAuditTransactions(txns);
+      setCalculatedBalance(Math.round(calcBal * 100) / 100);
+      setCalculatedBalanceType(balType);
+
+      const selectedRow = rows.find((r) => r.customer_id === selectedCustomerId);
+      setSystemLedgerBalance(Number(selectedRow?.ledgerBalance || 0));
+    } finally {
+      setIsCalculatingTrueBalance(false);
+    }
+  }, [currentOrganization?.id, selectedCustomerId, rows]);
+
   const exportToExcel = () => {
     const ws = XLSX.utils.json_to_sheet(
       filtered.map((r) => ({
@@ -347,6 +463,13 @@ export default function CustomerReconciliation() {
         <Button size="sm" variant="outline" onClick={exportToExcel} disabled={!filtered.length}>
           <Download className="h-3.5 w-3.5 mr-1" /> Export Report
         </Button>
+        <Button
+          size="sm"
+          onClick={handleCalculateTrueBalance}
+          disabled={!selectedCustomerId || isCalculatingTrueBalance}
+        >
+          {isCalculatingTrueBalance ? "Calculating..." : "Calculate True Balance"}
+        </Button>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button size="sm" variant="outline" disabled>
@@ -391,8 +514,12 @@ export default function CustomerReconciliation() {
               filtered.map((row) => (
                 <TableRow
                   key={row.customer_id}
-                  className={`cursor-pointer text-xs ${!row.matched ? "bg-red-50 dark:bg-red-950/20 border-l-4 border-l-red-500" : "hover:bg-muted/50"}`}
-                  onClick={() => navigate(`/customer-ledger/${row.customer_id}`)}
+                  className={`cursor-pointer text-xs ${selectedCustomerId === row.customer_id ? "bg-blue-50 dark:bg-blue-950/20" : ""} ${!row.matched ? "border-l-4 border-l-red-500" : "hover:bg-muted/50"}`}
+                  onClick={() => {
+                    setSelectedCustomerId(row.customer_id);
+                    setSelectedCustomerName(row.customer_name);
+                  }}
+                  onDoubleClick={() => navigate(`/customer-ledger/${row.customer_id}`)}
                 >
                   <TableCell className="font-medium">{row.customer_name}</TableCell>
                   <TableCell>{row.phone || "—"}</TableCell>
@@ -415,6 +542,48 @@ export default function CustomerReconciliation() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Audit Log / Discrepancy Details */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <span><b>Selected Customer:</b> {selectedCustomerName || "—"}</span>
+          <span><b>Calculated Balance:</b> ₹{calculatedBalance.toLocaleString("en-IN")} {calculatedBalanceType}</span>
+          <span><b>Ledger Balance:</b> {fmt(systemLedgerBalance)}</span>
+          <span><b>Discrepancy:</b> {fmt(Math.round((calculatedBalance - Math.abs(systemLedgerBalance)) * 100) / 100)}</span>
+        </div>
+        <div className="border rounded-md overflow-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="text-xs">
+                <TableHead>TYPE</TableHead>
+                <TableHead>REFERENCE</TableHead>
+                <TableHead>DATE</TableHead>
+                <TableHead className="text-right">DEBIT</TableHead>
+                <TableHead className="text-right">CREDIT</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {auditTransactions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                    Select customer and click Calculate True Balance.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                auditTransactions.map((tx, idx) => (
+                  <TableRow key={`${tx.reference}-${idx}`} className="text-xs">
+                    <TableCell>{tx.type}</TableCell>
+                    <TableCell>{tx.reference}</TableCell>
+                    <TableCell>{format(new Date(tx.date), "dd/MM/yyyy HH:mm")}</TableCell>
+                    <TableCell className="text-right font-mono">{tx.debit > 0 ? `₹${tx.debit.toLocaleString("en-IN")}` : "—"}</TableCell>
+                    <TableCell className="text-right font-mono">{tx.credit > 0 ? `₹${tx.credit.toLocaleString("en-IN")}` : "—"}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </div>
   );
