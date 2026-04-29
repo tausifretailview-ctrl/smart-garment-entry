@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [transactionId, setTransactionId] = useState("");
+  const savingRef = useRef(false);
 
   // Search
   const [supplierSearchOpen, setSupplierSearchOpen] = useState(false);
@@ -126,6 +127,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       if (billIds.length > 0) {
         const { data: billVouchers } = await supabase.from("voucher_entries")
           .select("total_amount")
+          .eq("reference_type", "supplier")
           .in("reference_id", billIds)
           .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
           .is("deleted_at", null);
@@ -154,18 +156,99 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
     queryFn: async () => {
       const { data, error } = await supabase.from("purchase_bills").select("*").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
       if (error) throw error;
-      return data?.filter(bill => (bill.net_amount || 0) - (bill.paid_amount || 0) > 0) || [];
+      const bills = data || [];
+      const billIds = bills.map((b: any) => b.id).filter(Boolean);
+      const voucherPaidByBill = new Map<string, number>();
+
+      if (billIds.length > 0) {
+        const { data: paymentRows, error: paymentError } = await supabase
+          .from("voucher_entries")
+          .select("reference_id, total_amount")
+          .eq("organization_id", organizationId)
+          .eq("reference_type", "supplier")
+          .eq("voucher_type", "payment")
+          .is("deleted_at", null)
+          .in("reference_id", billIds);
+        if (paymentError) throw paymentError;
+
+        (paymentRows || []).forEach((row: any) => {
+          if (!row.reference_id) return;
+          voucherPaidByBill.set(
+            row.reference_id,
+            (voucherPaidByBill.get(row.reference_id) || 0) + Number(row.total_amount || 0)
+          );
+        });
+      }
+
+      // Supplier payment reconciliation - Apr 2026:
+      // keep bill paid_amount/payment_status synced with actual bill-linked payment vouchers.
+      const updates = bills
+        .map((bill: any) => {
+          const net = Number(bill.net_amount || 0);
+          const voucherPaid = Number(voucherPaidByBill.get(bill.id) || 0);
+          const effectivePaid = Math.min(net, Math.max(Number(bill.paid_amount || 0), voucherPaid));
+          const status = effectivePaid >= net - 0.01 ? "paid" : effectivePaid > 0 ? "partial" : "unpaid";
+          return { bill, effectivePaid, status };
+        })
+        .filter(({ bill, effectivePaid, status }) =>
+          Math.abs(Number(bill.paid_amount || 0) - effectivePaid) > 0.009 ||
+          (bill.payment_status || "unpaid") !== status
+        );
+
+      if (updates.length > 0) {
+        await Promise.all(
+          updates.map(({ bill, effectivePaid, status }) =>
+            supabase
+              .from("purchase_bills")
+              .update({ paid_amount: effectivePaid, payment_status: status })
+              .eq("id", bill.id)
+          )
+        );
+      }
+
+      return bills.filter((bill: any) => {
+        const net = Number(bill.net_amount || 0);
+        const paid = Math.max(Number(bill.paid_amount || 0), Number(voucherPaidByBill.get(bill.id) || 0));
+        return Math.max(0, net - paid) > 0.009;
+      });
     },
     enabled: !!referenceId,
   });
 
+  const { data: adjustedOutstandingCreditTotal = 0 } = useQuery({
+    queryKey: ["supplier-adjusted-outstanding-credit", organizationId, referenceId],
+    queryFn: async () => {
+      if (!organizationId || !referenceId) return 0;
+      const { data, error } = await supabase
+        .from("purchase_returns" as any)
+        .select("net_amount")
+        .eq("organization_id", organizationId)
+        .eq("supplier_id", referenceId)
+        .eq("credit_status", "adjusted_outstanding")
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data || []).reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+    },
+    enabled: !!organizationId && !!referenceId,
+  });
+
+  const getSelectedPayableTotal = () => {
+    const selectedSubtotal = (supplierBills ?? [])
+      .filter((bill) => selectedSupplierBillIds.includes(bill.id))
+      .reduce(
+        (sum, bill) => sum + Math.max(0, Number(bill.net_amount || 0) - Number(bill.paid_amount || 0)),
+        0
+      );
+    const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);
+    return Math.max(0, selectedSubtotal - appliedCreditNotes);
+  };
+
   // Auto-fill amount
   useEffect(() => {
     if (selectedSupplierBillIds.length > 0 && supplierBills) {
-      const total = supplierBills.filter(bill => selectedSupplierBillIds.includes(bill.id)).reduce((sum, bill) => sum + ((bill.net_amount || 0) - (bill.paid_amount || 0)), 0);
-      setAmount(total.toFixed(2));
+      setAmount(getSelectedPayableTotal().toFixed(2));
     }
-  }, [selectedSupplierBillIds, supplierBills]);
+  }, [selectedSupplierBillIds, supplierBills, adjustedOutstandingCreditTotal]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
@@ -181,8 +264,19 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
 
   const createVoucher = useMutation({
     mutationFn: async () => {
+      if (savingRef.current) {
+        throw new Error("Save already in progress");
+      }
+      savingRef.current = true;
+      try {
       if (!referenceId) throw new Error("Please select a supplier to record payment");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
+      if (selectedSupplierBillIds.length > 0) {
+        const selectedPayable = getSelectedPayableTotal();
+        if ((parseFloat(amount) || 0) > selectedPayable + 0.01) {
+          throw new Error(`Amount cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
+        }
+      }
       const paymentAmount = parseFloat(amount);
       let remainingAmount = paymentAmount;
       const processedBills: any[] = [];
@@ -196,7 +290,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           const outstanding = (bill.net_amount || 0) - currentPaid;
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
-          const newPaidAmount = currentPaid + amountToApply;
+          const newPaidAmount = Math.min(Number(bill.net_amount || 0), currentPaid + amountToApply);
           const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
           const { error: updateError } = await supabase.from('purchase_bills').update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq('id', billId);
           if (updateError) throw updateError;
@@ -226,18 +320,41 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         finalDescription = description ? `${description}${paymentDetails}` : `Payment for Bills: ${billNumbers}${paymentDetails}`;
       }
 
-      const { error } = await supabase.from("voucher_entries").insert({
-        organization_id: organizationId,
-        voucher_number: voucherNumber,
-        voucher_type: "payment",
-        voucher_date: format(voucherDate, "yyyy-MM-dd"),
-        reference_type: "supplier",
-        reference_id: referenceId,
-        description: finalDescription,
-        total_amount: paymentAmount,
-        payment_method: paymentMethod,
-      });
-      if (error) throw error;
+      if (processedBills.length > 0) {
+        for (let i = 0; i < processedBills.length; i++) {
+          const processed = processedBills[i];
+          const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
+          const billRef = processed.bill.software_bill_no || processed.bill.supplier_invoice_no || processed.bill.id.slice(0, 8);
+          const { error: voucherError } = await supabase.from("voucher_entries").insert({
+            organization_id: organizationId,
+            voucher_number: vNum,
+            voucher_type: "payment",
+            voucher_date: format(voucherDate, "yyyy-MM-dd"),
+            reference_type: "supplier",
+            reference_id: processed.bill.id,
+            description: `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`,
+            total_amount: processed.amountApplied,
+            payment_method: paymentMethod,
+          });
+          if (voucherError) throw voucherError;
+        }
+      } else {
+        const { error } = await supabase.from("voucher_entries").insert({
+          organization_id: organizationId,
+          voucher_number: voucherNumber,
+          voucher_type: "payment",
+          voucher_date: format(voucherDate, "yyyy-MM-dd"),
+          reference_type: "supplier",
+          reference_id: referenceId,
+          description: finalDescription,
+          total_amount: paymentAmount,
+          payment_method: paymentMethod,
+        });
+        if (error) throw error;
+      }
+      } finally {
+        savingRef.current = false;
+      }
     },
     onSuccess: () => {
       toast.success("Payment recorded successfully");
@@ -323,7 +440,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   };
 
   // Computed supplier payments for the table
-  const allSupplierPayments = vouchers?.filter((v) => v.reference_type === "supplier" && v.voucher_type === "payment") || [];
+  const allSupplierPayments = vouchers?.filter((v) => v.reference_type === "supplier" && (v.voucher_type === "payment" || v.voucher_type === "PAYMENT")) || [];
   const supplierPayments = paymentSearchTerm
     ? allSupplierPayments.filter((v) => {
         const supplierName = suppliers?.find((s) => s.id === v.reference_id)?.supplier_name || "";
@@ -424,6 +541,11 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                 {referenceId && supplierBalance !== undefined && (
                   <div className="mt-2 p-3 bg-gradient-to-r from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border border-rose-200 dark:border-rose-800 rounded-md">
                     <p className="text-sm font-medium text-rose-900 dark:text-rose-100">Total Outstanding: <span className="text-lg font-bold">₹{Math.round(supplierBalance).toLocaleString('en-IN')}</span></p>
+                    {adjustedOutstandingCreditTotal > 0 && (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
+                        Includes less credit adjusted to outstanding: ₹{Number(adjustedOutstandingCreditTotal).toFixed(2)}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -492,11 +614,19 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                 <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="text-sm">
                     {selectedSupplierBillIds.length > 0 ? (
-                      <span className="font-medium">
-                        {selectedSupplierBillIds.length} bill(s) selected • Total: <span className="text-primary font-bold">
-                          ₹{(supplierBills ?? []).filter(b => selectedSupplierBillIds.includes(b.id)).reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0).toFixed(2)}
-                        </span>
-                      </span>
+                      <div className="space-y-0.5">
+                        <div className="font-medium">
+                          {selectedSupplierBillIds.length} bill(s) selected • Subtotal: <span className="text-primary font-bold">
+                            ₹{(supplierBills ?? []).filter(b => selectedSupplierBillIds.includes(b.id)).reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-emerald-700 dark:text-emerald-400">
+                          Less: Applied Credit Notes: -₹{Math.min(Number(adjustedOutstandingCreditTotal || 0), (supplierBills ?? []).filter(b => selectedSupplierBillIds.includes(b.id)).reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0)).toFixed(2)}
+                        </div>
+                        <div className="font-semibold text-foreground">
+                          Grand Total: ₹{getSelectedPayableTotal().toFixed(2)}
+                        </div>
+                      </div>
                     ) : (
                       <span className="text-muted-foreground flex items-center gap-1"><AlertCircle className="h-4 w-4" /> No bills selected = Opening Balance / Advance payment</span>
                     )}
@@ -520,7 +650,24 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
               </div>
               <div className="space-y-2">
                 <Label>Amount {selectedSupplierBillIds.length > 0 && <span className="text-xs text-muted-foreground">(Auto-filled)</span>}</Label>
-                <Input type="number" step="0.01" placeholder="Enter amount" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter amount"
+                  value={amount}
+                  max={selectedSupplierBillIds.length > 0 ? getSelectedPayableTotal() : undefined}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setAmount("");
+                      return;
+                    }
+                    const entered = Number(raw);
+                    const maxAllowed = selectedSupplierBillIds.length > 0 ? getSelectedPayableTotal() : Infinity;
+                    setAmount(Math.min(Number.isFinite(entered) ? entered : 0, maxAllowed).toFixed(2));
+                  }}
+                  required
+                />
               </div>
 
               {paymentMethod === "cheque" && (
@@ -560,7 +707,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" className="w-full md:w-auto" disabled={createVoucher.isPending}>
+              <Button type="submit" className="w-full md:w-auto" disabled={createVoucher.isPending || savingRef.current}>
                 <Plus className="mr-2 h-4 w-4" />
                 {createVoucher.isPending ? "Recording..." : "Record Payment"}
               </Button>
@@ -631,7 +778,10 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
             </TableHeader>
             <TableBody>
               {paginatedPayments.map((voucher) => {
-                const supplierName = suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name || "-";
+                const supplierName =
+                  suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name ||
+                  voucher.description?.match(/Supplier:\s*([^|]+)/i)?.[1]?.trim() ||
+                  "-";
                 const isSelected = selectedPaymentIds.includes(voucher.id);
                 return (
                   <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>

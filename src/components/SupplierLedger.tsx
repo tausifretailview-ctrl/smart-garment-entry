@@ -88,7 +88,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch credit notes (from purchase returns)
       const { data: creditNotes, error: creditNoteError } = await supabase
         .from("voucher_entries")
-        .select("reference_id, total_amount")
+        .select("id, reference_id, total_amount")
         .eq("organization_id", organizationId)
         .eq("reference_type", "supplier")
         .eq("voucher_type", "credit_note")
@@ -262,7 +262,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch credit notes for this supplier
       let creditNotesQuery = supabase
         .from("voucher_entries")
-        .select("*")
+        .select("id, voucher_number, voucher_date, description, total_amount")
         .eq("reference_type", "supplier")
         .eq("reference_id", selectedSupplier.id)
         .eq("voucher_type", "credit_note")
