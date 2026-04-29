@@ -44,6 +44,9 @@ const toNumberOrZero = (value: any) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 };
+const MIN_PENDING_RUPEE = 1;
+const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
+const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
@@ -209,7 +212,7 @@ export function CustomerPaymentTab({
           const cap = Math.max(0, net - srAdjust);
           const effectivePaid = Math.min(cap, Math.max(Number(sale.paid_amount || 0), Number(voucherPaidBySale.get(sale.id) || 0)));
           const effectiveStatus =
-            effectivePaid + srAdjust >= net - 0.01
+            effectivePaid + srAdjust >= net - SETTLEMENT_TOLERANCE_RUPEE
               ? "completed"
               : effectivePaid > 0 || srAdjust > 0
                 ? "partial"
@@ -235,7 +238,7 @@ export function CustomerPaymentTab({
 
       return salesRows.filter((sale: any) => {
         const outstanding = getInvoiceOutstanding(sale, voucherPaidBySale.get(sale.id) || 0);
-        return outstanding > 0;
+        return outstanding >= MIN_PENDING_RUPEE;
       });
     },
     enabled: !!referenceId,
@@ -325,8 +328,8 @@ export function CustomerPaymentTab({
   // Auto-fill amount
   const getAllocatedAmount = (invoiceId: string, fallbackOutstanding: number) => {
     const raw = allocatedAmounts[invoiceId];
-    if (raw === undefined || raw === "") return fallbackOutstanding;
-    return Math.max(0, toNumberOrZero(raw));
+    if (raw === undefined || raw === "") return roundToRupee(fallbackOutstanding);
+    return roundToRupee(raw);
   };
 
   const getSelectedPayableTotal = () => {
@@ -346,7 +349,7 @@ export function CustomerPaymentTab({
 
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
-      setAmount(getSelectedPayableTotal().toFixed(2));
+      setAmount(roundToRupee(getSelectedPayableTotal()).toFixed(2));
     }
   }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherPayments, adjustedOutstandingCreditTotal, allocatedAmounts]);
 
@@ -453,8 +456,8 @@ export function CustomerPaymentTab({
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
       const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
-      const paymentAmount = parseFloat(amount);
-      const discountValue = parseFloat(discountAmount) || 0;
+      const paymentAmount = roundToRupee(amount);
+      const discountValue = roundToRupee(discountAmount);
       const totalSettlement = paymentAmount + discountValue;
       let remainingAmount = totalSettlement;
       const processedInvoices: any[] = [];
@@ -619,7 +622,7 @@ export function CustomerPaymentTab({
             const saleReturnAdjust = Number((sale as any)?.sale_return_adjust || 0);
             const payableCap = Math.max(0, netAmount - saleReturnAdjust);
             const newPaidAmount = Math.min(payableCap, Number(sale?.paid_amount || 0) + allocatedAmount);
-            const newStatus = (newPaidAmount + saleReturnAdjust) >= netAmount ? "completed" : "partial";
+            const newStatus = (newPaidAmount + saleReturnAdjust) >= (netAmount - SETTLEMENT_TOLERANCE_RUPEE) ? "completed" : "partial";
 
             const { error: updateError } = await supabase
               .from("sales")
@@ -649,7 +652,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
 
-      const totalPaid = parseFloat(amount);
+      const totalPaid = roundToRupee(amount);
       const discountValue = data.discountAmount || 0;
       queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
 
@@ -723,20 +726,20 @@ export function CustomerPaymentTab({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) { toast.error("Please enter a valid amount"); return; }
+    if (!amount || roundToRupee(amount) <= 0) { toast.error("Please enter a valid amount"); return; }
     if (!referenceId) { toast.error("Please select a customer"); return; }
     if (selectedInvoiceIds.length > 0) {
       const selectedPayable = getSelectedPayableTotal();
-      if ((parseFloat(amount) || 0) > selectedPayable) {
+      if (roundToRupee(amount) > roundToRupee(selectedPayable)) {
         toast.error(`Amount cannot exceed pending total of ₹${selectedPayable.toFixed(2)}`);
-        setAmount(selectedPayable.toFixed(2));
+        setAmount(roundToRupee(selectedPayable).toFixed(2));
         return;
       }
     }
     if (customerBalance !== undefined && customerBalance <= 0) { toast.error("Cannot create payment receipt - customer balance is zero"); return; }
     const hasSelectableRows = (customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0;
     if (hasSelectableRows && selectedInvoiceIds.length === 0) { toast.error("Please select at least one invoice or Opening Balance"); return; }
-    const discountValue = parseFloat(discountAmount) || 0;
+    const discountValue = roundToRupee(discountAmount);
     if (discountValue > 0 && !discountReason.trim()) { toast.error("Please enter a discount reason"); return; }
     createVoucher.mutate();
   };
@@ -926,6 +929,7 @@ export function CustomerPaymentTab({
                       })()}
                       {customerInvoices?.map((invoice) => {
                         const balance = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoice.id) || 0);
+                        const roundedBalance = roundToRupee(balance);
                         const isSelected = selectedInvoiceIds.includes(invoice.id);
                         const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
                         const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime()) ? format(invoiceDate, "dd/MM/yy") : "-";
@@ -942,7 +946,7 @@ export function CustomerPaymentTab({
                                   });
                                   return prev.filter(id => id !== invoice.id);
                                 }
-                                setAllocatedAmounts((old) => ({ ...old, [invoice.id]: balance.toFixed(2) }));
+                                setAllocatedAmounts((old) => ({ ...old, [invoice.id]: roundedBalance.toFixed(2) }));
                                 return [...prev, invoice.id];
                               });
                             }}>
@@ -950,14 +954,14 @@ export function CustomerPaymentTab({
                             <div className="flex-1 flex justify-between items-center gap-3">
                               <span className="font-medium">{invoice.sale_number}</span>
                               <span className="text-sm text-muted-foreground">{invoiceDateText}</span>
-                              <Badge variant={balance > 0 ? "destructive" : "secondary"}>₹{balance.toFixed(2)}</Badge>
+                              <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"}>₹{roundedBalance.toFixed(2)}</Badge>
                               {isSelected && (
                                 <Input
                                   type="number"
-                                  step="0.01"
+                                  step="1"
                                   className="h-8 w-28"
-                                  value={allocatedAmounts[invoice.id] ?? balance.toFixed(2)}
-                                  max={balance}
+                                  value={allocatedAmounts[invoice.id] ?? roundedBalance.toFixed(2)}
+                                  max={roundedBalance}
                                   onClick={(e) => e.stopPropagation()}
                                   onChange={(e) => {
                                     const raw = e.target.value;
@@ -965,7 +969,7 @@ export function CustomerPaymentTab({
                                       setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
                                       return;
                                     }
-                                    const next = Math.min(balance, Math.max(0, toNumberOrZero(raw)));
+                                    const next = Math.min(roundedBalance, roundToRupee(raw));
                                     setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
                                   }}
                                 />
@@ -1077,18 +1081,18 @@ export function CustomerPaymentTab({
                 <Label>Amount</Label>
                 <Input
                   type="number"
-                  step="0.01"
+                  step="1"
                   placeholder="Enter amount"
                   value={amount}
-                  max={selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : undefined}
+                  max={selectedInvoiceIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : undefined}
                   onChange={(e) => {
                     const raw = e.target.value;
                     if (raw === "") {
                       setAmount("");
                       return;
                     }
-                    const entered = toNumberOrZero(raw);
-                    const maxAllowed = selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : Infinity;
+                    const entered = roundToRupee(raw);
+                    const maxAllowed = selectedInvoiceIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : Infinity;
                     setAmount(Math.min(entered, maxAllowed).toFixed(2));
                   }}
                   required
@@ -1107,7 +1111,7 @@ export function CustomerPaymentTab({
                 const selectedInvoiceTotal = selectedInvoiceIds.length > 0
                   ? Math.max(0, selectedSubtotal - appliedCreditNotes)
                   : (customerBalance || 0);
-                const paymentValue = parseFloat(amount) || 0;
+                const paymentValue = roundToRupee(amount);
                 const suggestedDiscount = Math.max(0, selectedInvoiceTotal - paymentValue);
                 const showDiscountFields = paymentValue > 0 && paymentValue < selectedInvoiceTotal;
                 return showDiscountFields && (
@@ -1119,17 +1123,30 @@ export function CustomerPaymentTab({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Discount Amount</Label>
-                        <Input type="number" step="0.01" placeholder={`Suggested: ₹${suggestedDiscount.toFixed(2)}`} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} />
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setDiscountAmount(suggestedDiscount.toFixed(2))} className="text-xs text-primary hover:text-primary/80">
+                        <Input
+                          type="number"
+                          step="1"
+                          placeholder={`Suggested: ₹${roundToRupee(suggestedDiscount).toFixed(2)}`}
+                          value={discountAmount}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              setDiscountAmount("");
+                              return;
+                            }
+                            setDiscountAmount(roundToRupee(raw).toFixed(2));
+                          }}
+                        />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setDiscountAmount(roundToRupee(suggestedDiscount).toFixed(2))} className="text-xs text-primary hover:text-primary/80">
                           Apply ₹{suggestedDiscount.toFixed(2)} discount
                         </Button>
                       </div>
                       <div className="space-y-2">
                         <Label>Discount Reason <span className="text-red-500">*</span></Label>
-                        <Input placeholder="e.g., Customer loyalty" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} required={parseFloat(discountAmount) > 0} />
+                        <Input placeholder="e.g., Customer loyalty" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} required={roundToRupee(discountAmount) > 0} />
                       </div>
                     </div>
-                    {parseFloat(discountAmount) > 0 && (
+                    {roundToRupee(discountAmount) > 0 && (
                       <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
                         <div className="flex justify-between items-center text-sm">
                           <span>Payment Amount:</span>
@@ -1137,14 +1154,14 @@ export function CustomerPaymentTab({
                         </div>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>+ Discount:</span>
-                          <span className="font-medium">₹{parseFloat(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                          <span className="font-medium">₹{roundToRupee(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                         </div>
                         <Separator className="my-2" />
                         <div className="flex justify-between items-center text-sm font-bold text-green-700 dark:text-green-400">
                           <span>Total Settled:</span>
-                          <span>₹{(paymentValue + parseFloat(discountAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                          <span>₹{(paymentValue + roundToRupee(discountAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                         </div>
-                        {(paymentValue + parseFloat(discountAmount)) >= selectedInvoiceTotal && (
+                        {(paymentValue + roundToRupee(discountAmount)) >= selectedInvoiceTotal && (
                           <p className="text-xs text-green-600 dark:text-green-400 mt-2">✓ Invoice(s) will be marked as fully paid</p>
                         )}
                       </div>
@@ -1162,8 +1179,8 @@ export function CustomerPaymentTab({
 
             {/* Submit button with validation */}
             {(() => {
-              const paymentAmount = parseFloat(amount) || 0;
-              const discountValue = parseFloat(discountAmount) || 0;
+              const paymentAmount = roundToRupee(amount);
+              const discountValue = roundToRupee(discountAmount);
               const totalSettled = paymentAmount + discountValue;
               const outstandingBalance = customerBalance || 0;
               const isExcessPayment = Math.round(totalSettled) > Math.round(outstandingBalance) && outstandingBalance > 0;
