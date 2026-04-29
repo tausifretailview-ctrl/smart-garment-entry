@@ -53,6 +53,9 @@ export default function CustomerReconciliation() {
   const [selectedCustomerName, setSelectedCustomerName] = useState<string>("");
   const [isCalculatingTrueBalance, setIsCalculatingTrueBalance] = useState(false);
   const [auditTransactions, setAuditTransactions] = useState<AuditTransactionRow[]>([]);
+  const [totalSales, setTotalSales] = useState(0);
+  const [totalPayments, setTotalPayments] = useState(0);
+  const [totalReturns, setTotalReturns] = useState(0);
   const [calculatedBalance, setCalculatedBalance] = useState(0);
   const [calculatedBalanceType, setCalculatedBalanceType] = useState<"Dr (Outstanding)" | "Cr (Advance)">("Dr (Outstanding)");
   const [systemLedgerBalance, setSystemLedgerBalance] = useState(0);
@@ -285,7 +288,7 @@ export default function CustomerReconciliation() {
       const [{ data: customer }, { data: sales }, { data: returns }] = await Promise.all([
         supabase
           .from("customers")
-          .select("opening_balance")
+          .select("opening_balance, opening_balance_type")
           .eq("organization_id", currentOrganization.id)
           .eq("id", selectedCustomerId)
           .maybeSingle(),
@@ -298,7 +301,7 @@ export default function CustomerReconciliation() {
           .not("payment_status", "in", '("cancelled","hold","draft")'),
         supabase
           .from("sale_returns")
-          .select("net_amount, return_number, created_at")
+          .select("id, net_amount, return_number, created_at")
           .eq("organization_id", currentOrganization.id)
           .eq("customer_id", selectedCustomerId)
           .is("deleted_at", null),
@@ -307,10 +310,10 @@ export default function CustomerReconciliation() {
       const saleIds = (sales || []).map((s: any) => s.id).filter(Boolean);
       const { data: vouchers } = await supabase
         .from("voucher_entries")
-        .select("total_amount, voucher_number, voucher_type, created_at, reference_id, reference_type")
+        .select("id, total_amount, voucher_number, voucher_type, created_at, description, reference_id, reference_type")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .in("voucher_type", ["receipt", "payment", "credit_note", "advance"])
+        .in("voucher_type", ["receipt", "payment", "credit_note", "advance", "RECEIPT", "PAYMENT", "CREDIT_NOTE", "ADVANCE"])
         .or([
           `and(reference_type.eq.customer,reference_id.eq.${selectedCustomerId})`,
           saleIds.length > 0 ? `and(reference_type.eq.sale,reference_id.in.(${saleIds.join(",")}))` : "",
@@ -319,16 +322,19 @@ export default function CustomerReconciliation() {
       const txns: AuditTransactionRow[] = [];
 
       const opening = Number((customer as any)?.opening_balance || 0);
+      const openingTypeRaw = String((customer as any)?.opening_balance_type || "").toLowerCase();
+      const isOpeningDr = openingTypeRaw === "dr" || (openingTypeRaw !== "cr" && opening >= 0);
       if (opening !== 0) {
         txns.push({
           type: "Opening Balance",
           reference: "OB",
           date: new Date(0).toISOString(),
-          debit: opening > 0 ? Math.abs(opening) : 0,
-          credit: opening < 0 ? Math.abs(opening) : 0,
+          debit: isOpeningDr ? Math.abs(opening) : 0,
+          credit: !isOpeningDr ? Math.abs(opening) : 0,
         });
       }
 
+      const salesTotal = (sales || []).reduce((sum: number, sale: any) => sum + Number(sale.net_amount || 0), 0);
       (sales || []).forEach((sale: any) => {
         txns.push({
           type: "Sale",
@@ -339,9 +345,10 @@ export default function CustomerReconciliation() {
         });
       });
 
+      const returnTotalFromSalesReturns = (returns || []).reduce((sum: number, ret: any) => sum + Number(ret.net_amount || 0), 0);
       (returns || []).forEach((ret: any) => {
         txns.push({
-          type: "Sale Return",
+          type: "Return",
           reference: ret.return_number || "-",
           date: ret.created_at || new Date().toISOString(),
           debit: 0,
@@ -349,25 +356,52 @@ export default function CustomerReconciliation() {
         });
       });
 
+      const paymentVoucherTypes = new Set(["receipt", "payment", "advance", "RECEIPT", "PAYMENT", "ADVANCE"]);
+      const creditNoteVoucherTypes = new Set(["credit_note", "CREDIT_NOTE"]);
+      const returnIds = new Set((returns || []).map((r: any) => r.id).filter(Boolean));
+      const returnRefs = new Set((returns || []).map((r: any) => String(r.return_number || "").toLowerCase()).filter(Boolean));
+
+      let paymentTotal = 0;
+      let explicitCreditNoteTotal = 0;
       (vouchers || []).forEach((v: any) => {
+        const voucherType = String(v.voucher_type || "");
+        const amount = Number(v.total_amount || 0);
+        if (paymentVoucherTypes.has(voucherType)) {
+          paymentTotal += amount;
+        }
+        if (creditNoteVoucherTypes.has(voucherType)) {
+          const refId = String(v.reference_id || "");
+          const desc = String(v.description || "").toLowerCase();
+          const linksKnownReturn =
+            (v.reference_type === "sale_return" && !!refId) ||
+            returnIds.has(refId) ||
+            Array.from(returnRefs).some((ref) => ref && desc.includes(ref));
+          if (!linksKnownReturn) {
+            explicitCreditNoteTotal += amount;
+          }
+        }
+
         txns.push({
-          type: (v.voucher_type || "").toUpperCase(),
+          type: paymentVoucherTypes.has(voucherType) ? "Receipt" : "Return",
           reference: v.voucher_number || "-",
           date: v.created_at || new Date().toISOString(),
           debit: 0,
-          credit: Number(v.total_amount || 0),
+          credit: amount,
         });
       });
 
       txns.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      const totalDebits = txns.reduce((sum, t) => sum + Number(t.debit || 0), 0);
-      const totalCredits = txns.reduce((sum, t) => sum + Number(t.credit || 0), 0);
-      const calcBal = Math.abs(totalDebits - totalCredits);
+      const totalReturnsAndCreditNotes = returnTotalFromSalesReturns + explicitCreditNoteTotal;
+      const calcRawBalance = salesTotal - (paymentTotal + totalReturnsAndCreditNotes);
+      const calcBal = Math.abs(calcRawBalance);
       const balType: "Dr (Outstanding)" | "Cr (Advance)" =
-        totalDebits >= totalCredits ? "Dr (Outstanding)" : "Cr (Advance)";
+        calcRawBalance >= 0 ? "Dr (Outstanding)" : "Cr (Advance)";
 
       setAuditTransactions(txns);
+      setTotalSales(Math.round(salesTotal * 100) / 100);
+      setTotalPayments(Math.round(paymentTotal * 100) / 100);
+      setTotalReturns(Math.round(totalReturnsAndCreditNotes * 100) / 100);
       setCalculatedBalance(Math.round(calcBal * 100) / 100);
       setCalculatedBalanceType(balType);
 
@@ -546,6 +580,32 @@ export default function CustomerReconciliation() {
 
       {/* Audit Log / Discrepancy Details */}
       <div className="space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Total Billed (Sales)</div>
+              <div className="text-lg font-bold">₹{Math.round(totalSales).toLocaleString("en-IN")}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Total Received (Payments)</div>
+              <div className="text-lg font-bold text-green-700">₹{Math.round(totalPayments).toLocaleString("en-IN")}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Total Adjusted (Returns/CN)</div>
+              <div className="text-lg font-bold text-orange-700">₹{Math.round(totalReturns).toLocaleString("en-IN")}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-3">
+              <div className="text-xs text-muted-foreground">Calculated True Balance</div>
+              <div className="text-lg font-bold text-blue-700">₹{Math.round(calculatedBalance).toLocaleString("en-IN")} {calculatedBalanceType.startsWith("Dr") ? "Dr" : "Cr"}</div>
+            </CardContent>
+          </Card>
+        </div>
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <span><b>Selected Customer:</b> {selectedCustomerName || "—"}</span>
           <span><b>Calculated Balance:</b> ₹{calculatedBalance.toLocaleString("en-IN")} {calculatedBalanceType}</span>
