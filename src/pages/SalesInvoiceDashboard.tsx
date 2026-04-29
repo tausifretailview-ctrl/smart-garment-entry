@@ -1993,12 +1993,20 @@ export default function SalesInvoiceDashboard() {
       if (isCreditNoteMode) {
         // Credit note adjustment: update sale_return_adjust + status only (no payment_method change)
         if (selectedCNReturnId) {
+          // Only set linked_sale_id if not already linked, to avoid clobbering
+          // a prior link when the SR is being partially re-applied.
+          const { data: existingSR } = await supabase
+            .from('sale_returns')
+            .select('linked_sale_id')
+            .eq('id', selectedCNReturnId)
+            .maybeSingle();
+          const updatePayload: any = { credit_status: 'adjusted' };
+          if (!existingSR?.linked_sale_id) {
+            updatePayload.linked_sale_id = selectedInvoiceForPayment.id;
+          }
           await supabase
             .from('sale_returns')
-            .update({
-              credit_status: 'adjusted',
-              linked_sale_id: selectedInvoiceForPayment.id,
-            })
+            .update(updatePayload)
             .eq('id', selectedCNReturnId);
         }
 
