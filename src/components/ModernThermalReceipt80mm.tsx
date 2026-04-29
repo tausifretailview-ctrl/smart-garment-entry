@@ -147,7 +147,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           backgroundColor: 'white',
           color: '#000',
           padding: '12px',
-          fontSize: '11px',
+          fontSize: '12px',
           fontFamily: "'Inter', 'Segoe UI', sans-serif",
           lineHeight: '1.4',
           boxSizing: 'border-box',
@@ -188,11 +188,11 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           }}>
             {settings?.business_name || 'STORE NAME'}
           </div>
-          <div style={{ fontSize: '10px', lineHeight: '1.35', color: '#000', maxWidth: '260px', margin: '0 auto' }}>
+          <div style={{ fontSize: '11px', lineHeight: '1.35', color: '#000', maxWidth: '260px', margin: '0 auto' }}>
             {settings?.address || ''}
           </div>
           {settings?.mobile_number && (
-            <div style={{ fontSize: '10px', color: '#000' }}>Tel: {settings.mobile_number}</div>
+            <div style={{ fontSize: '11px', color: '#000' }}>Tel: {settings.mobile_number}</div>
           )}
           {settings?.gst_number && (
             <div style={{ fontSize: '11px', fontWeight: 800, marginTop: '2px' }}>
@@ -219,7 +219,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
 
         {/* ═══ META DETAILS ═══ */}
-        <div style={{ fontSize: '10px', marginBottom: '4px' }}>
+        <div style={{ fontSize: '11px', marginBottom: '4px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>{docLabel}: <strong>{billNo}</strong></span>
             <span>Date: <strong>{format(date, 'dd/MM/yyyy')}</strong></span>
@@ -246,7 +246,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           display: 'flex',
           justifyContent: 'space-between',
           fontWeight: 800,
-          fontSize: '10px',
+          fontSize: '11px',
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
           padding: '3px 0',
@@ -254,27 +254,27 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           marginBottom: '4px',
         }}>
           <span style={{ flex: 1 }}>ITEM</span>
-          <span style={{ width: '35px', textAlign: 'right', fontFamily: 'monospace' }}>QTY</span>
+          <span style={{ width: '40px', textAlign: 'right', fontFamily: 'monospace' }}>QTY</span>
           <span style={{ width: '50px', textAlign: 'right', fontFamily: 'monospace' }}>RATE</span>
-          <span style={{ width: '55px', textAlign: 'right', fontFamily: 'monospace' }}>AMT</span>
+          <span style={{ width: '60px', textAlign: 'right', fontFamily: 'monospace' }}>AMT</span>
         </div>
 
         {/* ═══ ITEMS ═══ */}
         {items.map((item, i) => (
-          <div key={i} style={{ marginBottom: '5px', fontSize: '10px' }}>
+          <div key={i} style={{ marginBottom: '6px', fontSize: '11px' }}>
             {/* Line 1: Item name full width */}
-            <div style={{ fontWeight: 700, lineHeight: '1.3', wordBreak: 'break-word', fontSize: '10.5px' }}>
+            <div style={{ fontWeight: 800, lineHeight: '1.3', wordBreak: 'break-word', fontSize: '11.5px' }}>
               {item.particulars}
             </div>
             {item.barcode && (
-              <div style={{ fontSize: '12px', fontWeight: 900, color: '#000' }}>BC: {item.barcode}</div>
+              <div style={{ fontSize: '13px', fontWeight: 900, color: '#000' }}>BC: {item.barcode}</div>
             )}
             {/* Line 2: Qty × Rate ... Amount */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1px' }}>
-              <span style={{ fontFamily: 'monospace', fontSize: '10px', color: '#000' }}>
+              <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#000', fontWeight: 700 }}>
                 {item.qty} × ₹{fmtAmt(item.rate)}
               </span>
-              <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '10.5px' }}>
+              <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '11.5px' }}>
                 ₹{fmtAmt(item.total)}
               </span>
             </div>
@@ -288,8 +288,8 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         <div style={{ borderBottom: '2px dashed #000', margin: '6px 0' }} />
 
         {/* ═══ TOTALS ═══ */}
-        <div style={{ fontSize: '11px', fontWeight: 700 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '13px', fontWeight: 900 }}>
+        <div style={{ fontSize: '12px', fontWeight: 700 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '14px', fontWeight: 900 }}>
             <span>Total Items: {items.length}</span>
             <span>Total Qty: {totalQty}</span>
           </div>
@@ -342,14 +342,14 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
 
         {/* ═══ PAYMENT MODE ═══ */}
         {paymentModeLabel && (
-          <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 900, marginBottom: '4px' }}>
+          <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 900, marginBottom: '4px' }}>
             Paid via <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px' }}>{paymentModeLabel}</span>
           </div>
         )}
 
         {/* ═══ PAYMENT DETAILS ═══ */}
         {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || creditPaid > 0 || paidAmount > 0) && (
-          <div style={{ fontSize: '11px', fontWeight: 800, marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 800, marginBottom: '4px' }}>
             {cashPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Cash</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cashPaid)}</span></div>}
             {upiPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>UPI</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(upiPaid)}</span></div>}
             {cardPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Card</span><span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(cardPaid)}</span></div>}

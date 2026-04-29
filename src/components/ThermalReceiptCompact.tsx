@@ -206,23 +206,23 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
             <tr style={{ borderBottom: '2px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '44%' }}>ITEM</th>
-              <th style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '12%' }}>QTY</th>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '20%' }}>RATE</th>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', width: '24%' }}>AMT</th>
+              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, fontSize: '15px', letterSpacing: '0.5px', width: '44%' }}>ITEM</th>
+              <th style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, fontSize: '15px', letterSpacing: '0.5px', width: '12%' }}>QTY</th>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '15px', letterSpacing: '0.5px', width: '20%' }}>RATE</th>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '15px', letterSpacing: '0.5px', width: '24%' }}>AMT</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, i) => (
               <React.Fragment key={i}>
                 <tr style={{ borderBottom: '0.5px dotted #000' }}>
-                  <td style={{ padding: '2px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700 }}>
+                  <td style={{ padding: '2px 0', lineHeight: '1.3', wordBreak: 'break-word', fontWeight: 700, fontSize: '13px' }}>
                     {item.particulars.length > 20 ? item.particulars.substring(0, 18) + '..' : item.particulars}
-                    {item.barcode && <div style={{ fontSize: '13px', fontWeight: 900 }}>BC:{item.barcode}</div>}
+                    {item.barcode && <div style={{ fontSize: '14px', fontWeight: 900 }}>BC:{item.barcode}</div>}
                   </td>
-                  <td style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900 }}>{item.qty}</td>
-                  <td style={{ textAlign: 'right', padding: '2px 0' }}>{fmtAmt(item.rate)}</td>
-                  <td style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900 }}>{fmtAmt(item.total)}</td>
+                  <td style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, fontSize: '14px' }}>{item.qty}</td>
+                  <td style={{ textAlign: 'right', padding: '2px 0', fontSize: '14px' }}>{fmtAmt(item.rate)}</td>
+                  <td style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px' }}>{fmtAmt(item.total)}</td>
                 </tr>
               </React.Fragment>
             ))}
@@ -232,7 +232,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
         <div style={singleLine} />
 
         {/* TOTALS */}
-        <div style={{ fontSize: '13px' }}>
+        <div style={{ fontSize: '14px' }}>
           <div style={row}><span style={{ fontWeight: 900 }}>Total Items: {items.length}</span><span style={{ fontWeight: 900 }}>Total Qty: {totalQty}</span></div>
           <div style={row}><span>Subtotal</span><span><b>₹{fmtAmt(subTotal)}</b></span></div>
           {discount > 0 && <div style={row}><span>Discount</span><span><b>-₹{fmtAmt(discount)}</b></span></div>}
@@ -249,7 +249,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
 
         {/* GRAND TOTAL */}
         <div style={dblLine} />
-        <div style={{ ...row, fontSize: '18px', fontWeight: 900, margin: '4px 0' }}>
+        <div style={{ ...row, fontSize: '20px', fontWeight: 900, margin: '4px 0' }}>
           <span>TOTAL</span><span>₹{fmtAmt(grandTotal)}</span>
         </div>
         <div style={dblLine} />
