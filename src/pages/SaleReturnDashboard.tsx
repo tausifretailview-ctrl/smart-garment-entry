@@ -585,7 +585,7 @@ export default function SaleReturnDashboard() {
               <div className="text-center py-8 text-muted-foreground">No returns found</div>
             ) : (
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                <TableHeader className="sticky top-0 z-10 bg-black backdrop-blur supports-[backdrop-filter]:bg-black [&_th]:text-white [&_th]:font-bold">
                   <TableRow>
                     <TableHead className="w-12 print:hidden text-[13px] font-semibold"></TableHead>
                     <TableHead className="text-[13px] font-semibold">Return No</TableHead>
