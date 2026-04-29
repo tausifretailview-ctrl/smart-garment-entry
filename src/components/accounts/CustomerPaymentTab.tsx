@@ -176,11 +176,67 @@ export function CustomerPaymentTab({
         .from("sales")
         .select("*")
         .eq("customer_id", referenceId)
-        .in("payment_status", ["pending", "partial"])
+        .not("payment_status", "in", '("cancelled","hold")')
         .is("deleted_at", null)
         .order("sale_date", { ascending: false });
       if (error) throw error;
-      return data;
+      const salesRows = data || [];
+      const saleIds = salesRows.map((s: any) => s.id).filter(Boolean);
+      if (saleIds.length === 0) return salesRows;
+
+      const { data: voucherRows, error: vouchersError } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, total_amount")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "receipt")
+        .eq("reference_type", "sale")
+        .is("deleted_at", null)
+        .in("reference_id", saleIds);
+      if (vouchersError) throw vouchersError;
+
+      const voucherPaidBySale = new Map<string, number>();
+      (voucherRows || []).forEach((v: any) => {
+        if (!v.reference_id) return;
+        voucherPaidBySale.set(v.reference_id, (voucherPaidBySale.get(v.reference_id) || 0) + Number(v.total_amount || 0));
+      });
+
+      // KS Footwear payment-status sync (Apr 2026):
+      // derive paid/status from receipts so fully settled invoices don't remain pending forever.
+      const updates = salesRows
+        .map((sale: any) => {
+          const net = Number(sale.net_amount || 0);
+          const srAdjust = Number(sale.sale_return_adjust || 0);
+          const cap = Math.max(0, net - srAdjust);
+          const effectivePaid = Math.min(cap, Math.max(Number(sale.paid_amount || 0), Number(voucherPaidBySale.get(sale.id) || 0)));
+          const effectiveStatus =
+            effectivePaid + srAdjust >= net - 0.01
+              ? "completed"
+              : effectivePaid > 0 || srAdjust > 0
+                ? "partial"
+                : "pending";
+          return { sale, effectivePaid, effectiveStatus };
+        })
+        .filter(({ sale, effectivePaid, effectiveStatus }) =>
+          Math.abs(Number(sale.paid_amount || 0) - effectivePaid) > 0.009 ||
+          (sale.payment_status || "pending") !== effectiveStatus
+        );
+
+      if (updates.length > 0) {
+        await Promise.all(
+          updates.map(({ sale, effectivePaid, effectiveStatus }) =>
+            supabase
+              .from("sales")
+              .update({ paid_amount: effectivePaid, payment_status: effectiveStatus })
+              .eq("id", sale.id)
+              .eq("organization_id", organizationId)
+          )
+        );
+      }
+
+      return salesRows.filter((sale: any) => {
+        const outstanding = getInvoiceOutstanding(sale, voucherPaidBySale.get(sale.id) || 0);
+        return outstanding > 0;
+      });
     },
     enabled: !!referenceId,
   });

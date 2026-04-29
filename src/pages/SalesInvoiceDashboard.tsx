@@ -534,8 +534,82 @@ export default function SalesInvoiceDashboard() {
         console.error('Error fetching invoices:', error);
         throw error;
       }
-      
-      return { data: data || [], count: count || 0 };
+
+      const invoices = data || [];
+      const saleIds = invoices.map((s: any) => s.id).filter(Boolean);
+      if (saleIds.length === 0) {
+        return { data: invoices, count: count || 0 };
+      }
+
+      const { data: receiptRows, error: receiptErr } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, total_amount')
+        .eq('organization_id', currentOrganization.id)
+        .eq('voucher_type', 'receipt')
+        .eq('reference_type', 'sale')
+        .is('deleted_at', null)
+        .in('reference_id', saleIds);
+      if (receiptErr) throw receiptErr;
+
+      const receiptBySale = new Map<string, number>();
+      (receiptRows || []).forEach((r: any) => {
+        if (!r.reference_id) return;
+        receiptBySale.set(r.reference_id, (receiptBySale.get(r.reference_id) || 0) + Number(r.total_amount || 0));
+      });
+
+      // KS Footwear payment-status reconciliation (Apr 2026):
+      // if receipts exist but paid_amount/payment_status is stale, sync sales row.
+      const staleUpdates = invoices
+        .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
+        .map((inv: any) => {
+          const net = Number(inv.net_amount || 0);
+          const sr = Number(inv.sale_return_adjust || 0);
+          const cap = Math.max(0, net - sr);
+          const normalizedPaid = Math.min(cap, Math.max(Number(inv.paid_amount || 0), Number(receiptBySale.get(inv.id) || 0)));
+          const normalizedStatus =
+            normalizedPaid + sr >= net - 0.01
+              ? 'completed'
+              : normalizedPaid > 0 || sr > 0
+                ? 'partial'
+                : 'pending';
+          return { inv, normalizedPaid, normalizedStatus };
+        })
+        .filter(({ inv, normalizedPaid, normalizedStatus }) =>
+          Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
+          (inv.payment_status || 'pending') !== normalizedStatus
+        );
+
+      if (staleUpdates.length > 0) {
+        await Promise.all(
+          staleUpdates.map(({ inv, normalizedPaid, normalizedStatus }) =>
+            supabase
+              .from('sales')
+              .update({ paid_amount: normalizedPaid, payment_status: normalizedStatus })
+              .eq('id', inv.id)
+              .eq('organization_id', currentOrganization.id)
+          )
+        );
+      }
+
+      const normalizedInvoices = invoices.map((inv: any) => {
+        const net = Number(inv.net_amount || 0);
+        const sr = Number(inv.sale_return_adjust || 0);
+        const cap = Math.max(0, net - sr);
+        const normalizedPaid = Math.min(cap, Math.max(Number(inv.paid_amount || 0), Number(receiptBySale.get(inv.id) || 0)));
+        const normalizedStatus =
+          normalizedPaid + sr >= net - 0.01
+            ? 'completed'
+            : normalizedPaid > 0 || sr > 0
+              ? 'partial'
+              : 'pending';
+        return { ...inv, paid_amount: normalizedPaid, payment_status: normalizedStatus };
+      });
+
+      const filteredNormalized = paymentStatusFilter.length > 0
+        ? normalizedInvoices.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
+        : normalizedInvoices;
+
+      return { data: filteredNormalized, count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
     staleTime: 2 * 60 * 1000,
