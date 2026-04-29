@@ -1114,9 +1114,24 @@ export default function SalesInvoiceDashboard() {
     undeliveredCount: 0,
     undeliveredAmount: 0,
   };
+
+  const filteredPendingAmount = useMemo(() => {
+    return (invoicesData || [])
+      .filter((inv: any) => !inv?.is_cancelled && inv?.payment_status !== "hold")
+      .reduce((sum: number, inv: any) => {
+        const net = Number(inv?.net_amount || 0);
+        const paid = Number(inv?.paid_amount || 0);
+        const srAdjust = Number(inv?.sale_return_adjust || 0);
+        return sum + Math.max(0, net - paid - srAdjust);
+      }, 0);
+  }, [invoicesData]);
+
+  const useFilteredPendingCard = !!debouncedSearch?.trim();
   const effectiveStats = {
     ...baseStats,
-    pendingAmount: Math.max(0, Number(baseStats.pendingAmount || 0) - Number(adjustedOutstandingCreditTotal || 0)),
+    pendingAmount: useFilteredPendingCard
+      ? Number(filteredPendingAmount || 0)
+      : Math.max(0, Number(baseStats.pendingAmount || 0) - Number(adjustedOutstandingCreditTotal || 0)),
   };
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
