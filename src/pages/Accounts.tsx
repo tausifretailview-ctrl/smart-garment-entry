@@ -303,15 +303,15 @@ export default function Accounts() {
   }), [reconciledInvoiceStats, dashboardStats, monthlyExpenses, monthlySales, monthlyPurchases]);
 
   const paymentStats = useMemo(() => ({
-    totalInvoices: reconciledInvoiceStats?.totalInvoices ?? invoiceStats.total || 0,
-    totalAmount: reconciledInvoiceStats?.totalAmount ?? invoiceStats.totalAmount || 0,
-    paidAmount: reconciledInvoiceStats?.paidAmount ?? invoiceStats.paidAmount || 0,
-    pendingCount: reconciledInvoiceStats?.pendingCount ?? invoiceStats.pending || 0,
-    pendingAmount: reconciledInvoiceStats?.pendingAmount ?? invoiceStats.pendingAmount || 0,
-    partialCount: reconciledInvoiceStats?.partialCount ?? invoiceStats.partial || 0,
-    partialAmount: reconciledInvoiceStats?.partialAmount ?? invoiceStats.partialAmount || 0,
-    completedCount: reconciledInvoiceStats?.completedCount ?? invoiceStats.paid || 0,
-    completedAmount: reconciledInvoiceStats?.completedAmount ?? invoiceStats.paidAmount || 0,
+    totalInvoices: reconciledInvoiceStats?.totalInvoices ?? (invoiceStats.total || 0),
+    totalAmount: reconciledInvoiceStats?.totalAmount ?? (invoiceStats.totalAmount || 0),
+    paidAmount: reconciledInvoiceStats?.paidAmount ?? (invoiceStats.paidAmount || 0),
+    pendingCount: reconciledInvoiceStats?.pendingCount ?? (invoiceStats.pending || 0),
+    pendingAmount: reconciledInvoiceStats?.pendingAmount ?? (invoiceStats.pendingAmount || 0),
+    partialCount: reconciledInvoiceStats?.partialCount ?? (invoiceStats.partial || 0),
+    partialAmount: reconciledInvoiceStats?.partialAmount ?? (invoiceStats.partialAmount || 0),
+    completedCount: reconciledInvoiceStats?.completedCount ?? (invoiceStats.paid || 0),
+    completedAmount: reconciledInvoiceStats?.completedAmount ?? (invoiceStats.paidAmount || 0),
   }), [reconciledInvoiceStats, invoiceStats]);
 
   const handleCardClick = (filter: string | null) => {

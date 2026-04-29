@@ -1,5 +1,5 @@
 import React from "react";
-import { format } from "date-fns";
+import { format as formatDate } from "date-fns";
 
 interface CreditNotePrintProps {
   creditNote: {
@@ -169,7 +169,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
           </div>
           <div style={{ padding: '8px', flex: 1, textAlign: 'right' }}>
             <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Issue Date:</div>
-            <div>{format(new Date(creditNote.issue_date), 'dd/MM/yyyy')}</div>
+          <div>{formatDate(new Date(creditNote.issue_date), 'dd/MM/yyyy')}</div>
           </div>
         </div>
 
@@ -220,7 +220,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
             padding: '6px',
             border: '1px dashed #999'
           }}>
-            <strong>Valid Until:</strong> {format(new Date(creditNote.expiry_date), 'dd/MM/yyyy')}
+            <strong>Valid Until:</strong> {formatDate(new Date(creditNote.expiry_date), 'dd/MM/yyyy')}
           </div>
         )}
 
