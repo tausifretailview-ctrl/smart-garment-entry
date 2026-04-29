@@ -3927,7 +3927,7 @@ export default function POSSales() {
   return (
     <div className="h-[calc(100vh-4rem)] w-full bg-background flex overflow-hidden pos-desktop-readable">
       {/* Left Action Button Bar */}
-      <div className="w-[72px] h-full bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
+      <div className="w-[88px] h-full bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
         <div className="space-y-1.5">
           {/* 1. Cash F1 */}
@@ -4937,7 +4937,7 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-[52px] left-[72px] right-0 w-auto bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30">
+        <div className="fixed bottom-[52px] left-[88px] right-0 w-auto bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
           <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
@@ -5127,11 +5127,11 @@ export default function POSSales() {
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">
-                <span className="text-sm text-white/70 uppercase font-semibold">Net Amount</span>
+                <span className="text-base text-white/80 uppercase font-semibold">Net Amount</span>
               </div>
               <Input 
                 type="number"
-                className={`w-[140px] sm:w-[180px] h-12 text-right text-2xl sm:text-3xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-[160px] sm:w-[210px] h-12 text-right text-3xl sm:text-4xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
@@ -5146,7 +5146,7 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="hidden md:flex fixed bottom-0 left-[72px] right-0 flex-wrap min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
+        <div className="hidden md:flex fixed bottom-0 left-[88px] right-0 flex-wrap min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
             { key: 'F1', label: 'Cash' },
