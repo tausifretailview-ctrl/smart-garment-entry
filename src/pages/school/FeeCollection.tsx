@@ -805,7 +805,14 @@ const FeeCollection = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-center">
-                          {getStatusBadge(student.feeStatus || "no-structure")}
+                          <div className="flex flex-col items-center gap-1">
+                            {getStatusBadge(student.feeStatus || "no-structure")}
+                            {student.feeStatus === "no-structure" && (
+                              <span className="text-[11px] text-amber-700 dark:text-amber-400">
+                                Configure fee structure
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 justify-end">
