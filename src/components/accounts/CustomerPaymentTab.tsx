@@ -281,8 +281,8 @@ export function CustomerPaymentTab({
         return sum + allocated;
       }, 0) || 0;
     const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID)
-      ? Number(openingBalanceRemaining || 0)
-      : 0;
+        ? Number(openingBalanceRemaining || 0)
+        : 0;
     const selectedSubtotal = invoicePart + obPart;
     const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);
     return Math.max(0, selectedSubtotal - appliedCreditNotes);
