@@ -1873,32 +1873,65 @@ export default function SalesInvoiceDashboard() {
       try {
         const { data: returns } = await supabase
           .from('sale_returns')
-          .select('id, return_number, net_amount, credit_status, linked_sale_id')
+          .select('id, return_number, net_amount, credit_status, linked_sale_id, return_date')
           .eq('organization_id', currentOrganization?.id)
           .eq('customer_id', selectedInvoiceForPayment.customer_id)
           .is('deleted_at', null)
           .in('credit_status', ['pending', 'adjusted'])
           .order('return_date', { ascending: true });
 
-        let totalAvailable = 0;
-        let bestReturnId: string | null = null;
+        // Total credit notional value from all pending/adjusted SRs for this customer.
+        // We treat a sale return as a free-standing credit-note balance regardless of
+        // whether it's already been linked to an invoice. Already-consumed amounts
+        // are subtracted via the sum of credit_note_adjustment vouchers below.
+        const totalCN = (returns || []).reduce(
+          (sum: number, r: any) => sum + (Number(r.net_amount) || 0),
+          0
+        );
 
-        for (const ret of (returns || [])) {
-          if (ret.credit_status === 'pending') {
-            totalAvailable += ret.net_amount;
-            if (!bestReturnId) bestReturnId = ret.id;
-          } else if (ret.credit_status === 'adjusted' && ret.linked_sale_id) {
-            const { data: linkedSale } = await supabase
-              .from('sales')
-              .select('sale_return_adjust')
-              .eq('id', ret.linked_sale_id)
-              .single();
-            const remaining = ret.net_amount - (linkedSale?.sale_return_adjust || 0);
-            if (remaining > 0) {
-              totalAvailable += remaining;
-              if (!bestReturnId) bestReturnId = ret.id;
-            }
+        // Sum of CN adjustments already applied for this customer's invoices.
+        // We look up customer's sale ids first, then sum credit_note_adjustment
+        // receipt vouchers against them.
+        const { data: customerSales } = await supabase
+          .from('sales')
+          .select('id')
+          .eq('organization_id', currentOrganization?.id)
+          .eq('customer_id', selectedInvoiceForPayment.customer_id)
+          .is('deleted_at', null);
+        const saleIds = (customerSales || []).map((s: any) => s.id);
+
+        let usedCN = 0;
+        if (saleIds.length > 0) {
+          const { data: cnVouchers } = await supabase
+            .from('voucher_entries')
+            .select('total_amount')
+            .eq('organization_id', currentOrganization?.id)
+            .eq('voucher_type', 'receipt')
+            .eq('reference_type', 'sale')
+            .eq('payment_method', 'credit_note_adjustment')
+            .in('reference_id', saleIds)
+            .is('deleted_at', null);
+          usedCN = (cnVouchers || []).reduce(
+            (sum: number, v: any) => sum + (Number(v.total_amount) || 0),
+            0
+          );
+        }
+
+        const totalAvailable = Math.max(0, totalCN - usedCN);
+
+        // Pick the oldest SR that still has a notional remaining balance to
+        // attach to this application (FIFO). Allocate usedCN against the
+        // chronological list to find the first not-yet-fully-consumed SR.
+        let remainingUsed = usedCN;
+        let bestReturnId: string | null = null;
+        for (const r of (returns || [])) {
+          const amt = Number(r.net_amount) || 0;
+          if (remainingUsed >= amt) {
+            remainingUsed -= amt;
+            continue;
           }
+          bestReturnId = r.id;
+          break;
         }
 
         setAvailableCNBalance(totalAvailable);
