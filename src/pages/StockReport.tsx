@@ -50,6 +50,11 @@ interface StockItem {
   uom: string;
 }
 
+interface SupplierPair {
+  supplier_name: string | null;
+  supplier_invoice_no: string | null;
+}
+
 
 interface SizeWiseRow {
   productKey: string;
@@ -109,8 +114,10 @@ export default function StockReport() {
     colors: [] as string[],
     suppliers: [] as string[],
     supplierInvoices: [] as string[],
+    supplierPairs: [] as SupplierPair[],
     productNames: [] as string[],
     rawProducts: [] as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
+    variantRows: [] as Array<{ product_id: string; size: string | null; color: string | null }>,
     variantsByProductId: {} as Record<string, { sizes: string[]; colors: string[] }>,
   });
   
@@ -210,8 +217,13 @@ export default function StockReport() {
         colors: [...new Set(allVariants.map((v: any) => v.color).filter(Boolean))].sort() as string[],
         suppliers: [...new Set(batchData.map((b: any) => b.supplier_name).filter(Boolean))].sort() as string[],
         supplierInvoices: [...new Set(batchData.map((b: any) => b.supplier_invoice_no).filter(Boolean))].sort() as string[],
+        supplierPairs: (batchData || []).map((b: any) => ({
+          supplier_name: b.supplier_name || null,
+          supplier_invoice_no: b.supplier_invoice_no || null,
+        })),
         productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
         rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
+        variantRows: allVariants as Array<{ product_id: string; size: string | null; color: string | null }>,
         variantsByProductId,
       };
     },
@@ -239,49 +251,92 @@ export default function StockReport() {
     }
   }, [currentOrganization?.id]);
 
-  // Derived cascading filter options based on selected product name
+  // Mamta Footwear customer balance reconciliation - Apr 2026:
+  // Full bidirectional cascading filters for stock report.
   const derivedFilterOptions = useMemo(() => {
-    if (!productNameFilter) {
-      return {
-        brands: filterOptions.brands,
-        categories: filterOptions.categories,
-        departments: filterOptions.departments,
-        sizes: filterOptions.sizes,
-        colors: filterOptions.colors,
-      };
-    }
-    const matchingProducts = filterOptions.rawProducts.filter(
-      p => p.product_name === productNameFilter
-    );
-    if (matchingProducts.length === 0) {
-      return {
-        brands: filterOptions.brands,
-        categories: filterOptions.categories,
-        departments: filterOptions.departments,
-        sizes: filterOptions.sizes,
-        colors: filterOptions.colors,
-      };
-    }
-    const matchingBrands = [...new Set(matchingProducts.map(p => p.brand).filter(Boolean))].sort();
-    const matchingCategories = [...new Set(matchingProducts.map(p => p.category).filter(Boolean))].sort();
-    const matchingDepartments = [...new Set(matchingProducts.map(p => p.style).filter(Boolean))].sort();
+    const getCandidates = (excludeField?: "product_name" | "brand" | "category" | "style" | "size" | "color") => {
+      const productMatches = filterOptions.rawProducts.filter((p) => {
+        if (excludeField !== "product_name" && productNameFilter && p.product_name !== productNameFilter) return false;
+        if (excludeField !== "brand" && brandFilter !== "all" && p.brand !== brandFilter) return false;
+        if (excludeField !== "category" && categoryFilter !== "all" && p.category !== categoryFilter) return false;
+        if (excludeField !== "style" && departmentFilter !== "all" && p.style !== departmentFilter) return false;
+        return true;
+      });
+
+      const productIdSet = new Set(productMatches.map((p) => p.id));
+
+      const hasSizeConstraint = excludeField !== "size" && sizeFilter !== "all";
+      const hasColorConstraint = excludeField !== "color" && colorFilter !== "all";
+      if (!hasSizeConstraint && !hasColorConstraint) return productMatches;
+
+      const variantQualifiedProductIds = new Set<string>();
+      filterOptions.variantRows.forEach((v) => {
+        if (!v.product_id || !productIdSet.has(v.product_id)) return;
+        if (hasSizeConstraint && v.size !== sizeFilter) return;
+        if (hasColorConstraint && v.color !== colorFilter) return;
+        variantQualifiedProductIds.add(v.product_id);
+      });
+
+      return productMatches.filter((p) => variantQualifiedProductIds.has(p.id));
+    };
+
+    const productCandidates = getCandidates("product_name");
+    const brandCandidates = getCandidates("brand");
+    const categoryCandidates = getCandidates("category");
+    const departmentCandidates = getCandidates("style");
+    const sizeColorCandidates = getCandidates();
+
+    const validProductIds = new Set(sizeColorCandidates.map((p) => p.id));
     const matchingSizes = new Set<string>();
     const matchingColors = new Set<string>();
-    matchingProducts.forEach(p => {
-      const variants = filterOptions.variantsByProductId[p.id];
-      if (variants) {
-        variants.sizes.forEach(s => matchingSizes.add(s));
-        variants.colors.forEach(c => matchingColors.add(c));
-      }
+    filterOptions.variantRows.forEach((v) => {
+      if (!v.product_id || !validProductIds.has(v.product_id)) return;
+      if (v.size) matchingSizes.add(v.size);
+      if (v.color) matchingColors.add(v.color);
     });
+
+    // Supplier/supplier-invoice interlink
+    const candidateSupplierPairs = filterOptions.supplierPairs.filter((pair) => {
+      const name = pair.supplier_name || "";
+      const invoice = pair.supplier_invoice_no || "";
+      if (supplierFilter !== "all" && name !== supplierFilter) return false;
+      if (supplierInvoiceFilter !== "all" && invoice !== supplierInvoiceFilter) return false;
+      return true;
+    });
+    const supplierOptions = [...new Set(
+      candidateSupplierPairs
+        .map((p) => p.supplier_name)
+        .filter((v): v is string => !!v)
+    )].sort();
+    const supplierInvoiceOptions = [...new Set(
+      candidateSupplierPairs
+        .map((p) => p.supplier_invoice_no)
+        .filter((v): v is string => !!v)
+    )].sort();
+
     return {
-      brands: matchingBrands,
-      categories: matchingCategories,
-      departments: matchingDepartments,
+      productNames: [...new Set(productCandidates.map((p) => p.product_name).filter(Boolean))].sort(),
+      brands: [...new Set(brandCandidates.map((p) => p.brand).filter(Boolean))].sort(),
+      categories: [...new Set(categoryCandidates.map((p) => p.category).filter(Boolean))].sort(),
+      departments: [...new Set(departmentCandidates.map((p) => p.style).filter(Boolean))].sort(),
       sizes: [...matchingSizes].sort(),
       colors: [...matchingColors].sort(),
+      suppliers: supplierOptions,
+      supplierInvoices: supplierInvoiceOptions,
     };
-  }, [productNameFilter, filterOptions]);
+  }, [productNameFilter, brandFilter, categoryFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, filterOptions]);
+
+  // Keep selected values valid when another field narrows options
+  useEffect(() => {
+    if (productNameFilter && !derivedFilterOptions.productNames.includes(productNameFilter)) setProductNameFilter("");
+    if (brandFilter !== "all" && !derivedFilterOptions.brands.includes(brandFilter)) setBrandFilter("all");
+    if (categoryFilter !== "all" && !derivedFilterOptions.categories.includes(categoryFilter)) setCategoryFilter("all");
+    if (departmentFilter !== "all" && !derivedFilterOptions.departments.includes(departmentFilter)) setDepartmentFilter("all");
+    if (sizeFilter !== "all" && !derivedFilterOptions.sizes.includes(sizeFilter)) setSizeFilter("all");
+    if (colorFilter !== "all" && !derivedFilterOptions.colors.includes(colorFilter)) setColorFilter("all");
+    if (supplierFilter !== "all" && !derivedFilterOptions.suppliers.includes(supplierFilter)) setSupplierFilter("all");
+    if (supplierInvoiceFilter !== "all" && !derivedFilterOptions.supplierInvoices.includes(supplierInvoiceFilter)) setSupplierInvoiceFilter("all");
+  }, [derivedFilterOptions, productNameFilter, brandFilter, categoryFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter]);
 
   // Pre-load filter dropdown options from products and variants (non-cached fallback)
   const fetchFilterOptions = async () => {
@@ -327,8 +382,13 @@ export default function StockReport() {
         colors,
         suppliers,
         supplierInvoices,
+        supplierPairs: (batchData || []).map((b: any) => ({
+          supplier_name: b.supplier_name || null,
+          supplier_invoice_no: b.supplier_invoice_no || null,
+        })),
         productNames: [...new Set(allProducts.map((p: any) => p.product_name).filter(Boolean))].sort() as string[],
         rawProducts: allProducts as Array<{ id: string; product_name: string; brand: string; category: string; style: string }>,
+        variantRows: allVariants as Array<{ product_id: string; size: string | null; color: string | null }>,
         variantsByProductId,
       });
     } catch (error) {
@@ -1425,7 +1485,7 @@ export default function StockReport() {
                   if (styles.length === 1) setDepartmentFilter(styles[0]);
                 }
               }}
-              options={filterOptions.productNames}
+              options={derivedFilterOptions.productNames}
               allLabel="All Products"
               placeholder="All Products"
             />
@@ -1479,11 +1539,11 @@ export default function StockReport() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</label>
-                <SearchableSelect value={supplierFilter} onValueChange={setSupplierFilter} options={filterOptions.suppliers} allLabel="All Suppliers" placeholder="All Suppliers" />
+                <SearchableSelect value={supplierFilter} onValueChange={setSupplierFilter} options={derivedFilterOptions.suppliers} allLabel="All Suppliers" placeholder="All Suppliers" />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier Invoice</label>
-                <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={filterOptions.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />
+                <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={derivedFilterOptions.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />
               </div>
             </div>
           </CollapsibleContent>
