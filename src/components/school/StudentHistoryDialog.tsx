@@ -17,6 +17,7 @@ interface StudentHistoryDialogProps {
     id: string;
     student_name: string;
     admission_number: string;
+    academic_year_id?: string | null;
     class_id?: string | null;
     parent_phone?: string | null;
     closing_fees_balance?: number | null;
@@ -47,6 +48,8 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: !!currentOrganization?.id && open,
   });
 
+  const activeAcademicYearId = student?.academic_year_id || currentYear?.id;
+
   // Fetch all real fee payments for this student (exclude balance_adjustment ghost records)
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
     queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id],
@@ -69,18 +72,18 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   // Fetch fee structures for the student's class
   const { data: feeStructures } = useQuery({
-    queryKey: ["student-fee-structures-history", student?.class_id, currentOrganization?.id, currentYear?.id],
+    queryKey: ["student-fee-structures-history", student?.class_id, currentOrganization?.id, activeAcademicYearId],
     queryFn: async () => {
-      if (!student?.class_id || !currentYear?.id) return [];
+      if (!student?.class_id || !activeAcademicYearId) return [];
       const { data } = await supabase
         .from("fee_structures")
         .select("*, fee_heads(head_name)")
         .eq("organization_id", currentOrganization!.id)
-        .eq("academic_year_id", currentYear.id)
+        .eq("academic_year_id", activeAcademicYearId)
         .eq("class_id", student.class_id);
       return data || [];
     },
-    enabled: open && !!student?.class_id && !!currentYear?.id && !!currentOrganization?.id,
+    enabled: open && !!student?.class_id && !!activeAcademicYearId && !!currentOrganization?.id,
   });
 
   // Fetch balance adjustment audit log
@@ -112,9 +115,9 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   
   // Separate real payments from balance adjustments
   const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" && p.status !== "deleted");
-  // For structure-based: only count current year payments; for imported balance: count all
-  const realPayments = hasStructures && currentYear?.id
-    ? allRealPayments.filter((p: any) => p.academic_year_id === currentYear.id)
+  // For structure-based: only count payments of the student's academic year context.
+  const realPayments = hasStructures && activeAcademicYearId
+    ? allRealPayments.filter((p: any) => p.academic_year_id === activeAcademicYearId)
     : allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
