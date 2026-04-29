@@ -1943,6 +1943,8 @@ export default function SalesInvoiceDashboard() {
     setIsRecordingPayment(true);
     try {
       const isCreditNoteMode = paymentMode === "credit_note";
+      let effectivePaidAmount = currentPaid;
+      let effectiveCNAdjust = currentCNAdjust;
 
       // For credit note: don't touch paid_amount, only sale_return_adjust
       const newPaidAmount = isCreditNoteMode
@@ -1976,6 +1978,7 @@ export default function SalesInvoiceDashboard() {
           .eq('id', selectedInvoiceForPayment.id);
 
         if (updateError) throw updateError;
+        effectiveCNAdjust = newCNAdjust;
       } else {
         // Normal / advance payment: update paid_amount + payment_method
         const { error: updateError } = await supabase
@@ -1989,6 +1992,7 @@ export default function SalesInvoiceDashboard() {
           .eq('id', selectedInvoiceForPayment.id);
 
         if (updateError) throw updateError;
+        effectivePaidAmount = newPaidAmount;
 
         // If payment mode is advance, apply advance deduction using FIFO (only for booking-based advances)
         if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
@@ -2036,6 +2040,53 @@ export default function SalesInvoiceDashboard() {
 
       if (voucherEntryError) throw voucherEntryError;
 
+      // Critical sync guard: after voucher creation, re-sync sales paid/status from persisted values.
+      // This guarantees advance_adjustment vouchers and sales table stay aligned.
+      const { data: refreshedSale, error: refreshedSaleError } = await supabase
+        .from('sales')
+        .select('paid_amount, net_amount, sale_return_adjust')
+        .eq('id', selectedInvoiceForPayment.id)
+        .single();
+      if (refreshedSaleError) throw refreshedSaleError;
+
+      const { data: saleReceipts, error: saleReceiptsError } = await supabase
+        .from('voucher_entries')
+        .select('total_amount')
+        .eq('organization_id', currentOrganization?.id)
+        .eq('voucher_type', 'receipt')
+        .eq('reference_type', 'sale')
+        .eq('reference_id', selectedInvoiceForPayment.id)
+        .is('deleted_at', null);
+      if (saleReceiptsError) throw saleReceiptsError;
+
+      const receiptTotal = (saleReceipts || []).reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0);
+      const latestNet = Number(refreshedSale?.net_amount || selectedInvoiceForPayment.net_amount || 0);
+      const latestSRAdjust = Number(refreshedSale?.sale_return_adjust || 0);
+      const payableCap = Math.max(0, latestNet - latestSRAdjust);
+      const reconciledPaid = Math.min(
+        payableCap,
+        Math.max(Number(refreshedSale?.paid_amount || 0), receiptTotal)
+      );
+      const reconciledStatus =
+        reconciledPaid + latestSRAdjust >= latestNet - 1
+          ? 'completed'
+          : reconciledPaid > 0 || latestSRAdjust > 0
+            ? 'partial'
+            : 'pending';
+
+      const { error: finalSyncError } = await supabase
+        .from('sales')
+        .update({
+          paid_amount: reconciledPaid,
+          payment_status: reconciledStatus,
+          payment_date: format(paymentDate, 'yyyy-MM-dd'),
+        })
+        .eq('id', selectedInvoiceForPayment.id);
+      if (finalSyncError) throw finalSyncError;
+
+      effectivePaidAmount = reconciledPaid;
+      effectiveCNAdjust = latestSRAdjust;
+
       toast({
         title: "Payment Recorded",
         description: `Payment of ₹${amount.toFixed(2)} recorded successfully`,
@@ -2053,7 +2104,7 @@ export default function SalesInvoiceDashboard() {
         invoiceAmount: selectedInvoiceForPayment.net_amount,
         paidAmount: amount,
         previousBalance: Math.max(0, selectedInvoiceForPayment.net_amount - currentPaid - currentCNAdjust),
-        currentBalance: Math.max(0, selectedInvoiceForPayment.net_amount - newPaidAmount - newCNAdjust),
+        currentBalance: Math.max(0, selectedInvoiceForPayment.net_amount - effectivePaidAmount - effectiveCNAdjust),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
