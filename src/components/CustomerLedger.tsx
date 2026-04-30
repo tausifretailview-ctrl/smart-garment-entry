@@ -3434,11 +3434,36 @@ Please clear your dues at the earliest. Thank you!`;
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="outstanding">Outstanding</SelectItem>
-                <SelectItem value="settled">Settled</SelectItem>
+                <SelectItem value="outstanding">{isSchool ? "Pending" : "Outstanding"}</SelectItem>
+                <SelectItem value="settled">{isSchool ? "Paid" : "Settled"}</SelectItem>
                 <SelectItem value="advance">Advance</SelectItem>
               </SelectContent>
             </Select>
+
+            {isSchool && (
+              <Select
+                value={selectedAcademicYearId}
+                onValueChange={(val) => {
+                  setSelectedAcademicYearId(val);
+                  if (val === "all") {
+                    setStartDate(undefined);
+                    setEndDate(undefined);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full md:w-[190px]">
+                  <SelectValue placeholder="Academic Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {(academicYears || []).map((y: any) => (
+                    <SelectItem key={y.id} value={y.id}>
+                      {y.year_name}{y.is_current ? " (Current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Popover>
               <PopoverTrigger asChild>
@@ -3474,13 +3499,14 @@ Please clear your dues at the earliest. Thank you!`;
               </PopoverContent>
             </Popover>
 
-            {(startDate || endDate || paymentStatusFilter !== "all") && (
+            {(startDate || endDate || paymentStatusFilter !== "all" || selectedAcademicYearId !== "all") && (
               <Button
                 variant="ghost"
                 onClick={() => {
                   setStartDate(undefined);
                   setEndDate(undefined);
                   setPaymentStatusFilter("all");
+                  setSelectedAcademicYearId("all");
                 }}
                 className="w-full md:w-auto"
               >
