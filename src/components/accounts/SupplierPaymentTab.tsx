@@ -324,7 +324,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         for (let i = 0; i < processedBills.length; i++) {
           const processed = processedBills[i];
           const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
-          const billRef = processed.bill.software_bill_no || processed.bill.supplier_invoice_no || processed.bill.id.slice(0, 8);
+          const billRef = processed.bill.supplier_invoice_no || processed.bill.software_bill_no || processed.bill.id.slice(0, 8);
           const { error: voucherError } = await supabase.from("voucher_entries").insert({
             organization_id: organizationId,
             voucher_number: vNum,
