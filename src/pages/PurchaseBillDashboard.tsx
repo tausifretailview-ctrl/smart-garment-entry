@@ -62,6 +62,7 @@ interface PurchaseItem {
   hsn_code: string;
   barcode: string;
   line_total: number;
+  deleted_at?: string | null;
 }
 
 const hasDisplayValue = (value?: string | null): value is string => {
@@ -382,8 +383,7 @@ const PurchaseBillDashboard = () => {
         .from("purchase_bills")
         .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .is("purchase_items.deleted_at", null);
+        .is("deleted_at", null);
 
       // Server-side search — also search product details in purchase_items
       if (debouncedSearch) {
@@ -499,18 +499,24 @@ const PurchaseBillDashboard = () => {
     refetchBills();
   };
 
-  const fetchBillItems = async (billId: string) => {
+  const fetchBillItems = async (billId: string, isCancelled?: boolean) => {
     if (billItems[billId]) {
       return; // Already fetched
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("purchase_items")
         .select("id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
         .eq("bill_id", billId)
-        .is("deleted_at", null)
         .order("created_at");
+
+      // Cancelled bills keep soft-deleted items; include them only for display in expanded view.
+      if (!isCancelled) {
+        query = query.is("deleted_at", null);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -566,11 +572,12 @@ const PurchaseBillDashboard = () => {
         next.delete(billId);
       } else {
         next.add(billId);
-        fetchBillItems(billId);
+        const targetBill = bills.find((bill) => bill.id === billId);
+        fetchBillItems(billId, !!targetBill?.is_cancelled);
       }
       return next;
     });
-  }, [billItems]);
+  }, [billItems, bills]);
 
   const { softDelete, bulkSoftDelete, checkPurchaseStockDependencies } = useSoftDelete();
   const { hasSpecialPermission } = useUserPermissions();
@@ -1605,25 +1612,21 @@ const PurchaseBillDashboard = () => {
           <Table>
             <TableHeader>
               <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                <TableHead>Product Description</TableHead>
-                <TableHead>Style</TableHead>
-                <TableHead>Barcode</TableHead>
-                <TableHead className="text-right">Quantity</TableHead>
-                <TableHead className="text-right">Purchase Price</TableHead>
-                <TableHead className="text-right">Sale Price</TableHead>
-                {showMrp && <TableHead className="text-right">MRP</TableHead>}
+                <TableHead>Product</TableHead>
+                <TableHead>SKU / Barcode</TableHead>
+                <TableHead>Size / Color</TableHead>
+                <TableHead className="text-right">Qty</TableHead>
+                <TableHead className="text-right">Rate</TableHead>
                 <TableHead className="text-right">GST %</TableHead>
-                <TableHead className="text-right">Line Total</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item) => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} className={item.deleted_at ? "bg-red-50/60 dark:bg-red-950/20" : ""}>
                   <TableCell className="font-medium whitespace-nowrap">
-                    {formatProductDescription(item)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {getDisplayStyle(item) || '—'}
+                    {item.product_name || "Unknown"}
                   </TableCell>
                   <TableCell>
                     {item.barcode ? (
@@ -1634,13 +1637,21 @@ const PurchaseBillDashboard = () => {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
+                  <TableCell>{`${item.size || "—"} / ${item.color || "—"}`}</TableCell>
                   <TableCell className="text-right">{item.qty}</TableCell>
                   <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
-                  {showMrp && <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>}
                   <TableCell className="text-right">{item.gst_per}%</TableCell>
                   <TableCell className="text-right font-bold text-primary tabular-nums">
                     ₹{item.line_total.toFixed(2)}
+                  </TableCell>
+                  <TableCell>
+                    {item.deleted_at ? (
+                      <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-xs">
+                        Cancelled
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">Active</Badge>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
