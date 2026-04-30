@@ -70,6 +70,8 @@ interface Transaction {
     method?: string;
   };
   appliedAmount?: number;
+  status?: string;
+  amount?: number;
   /** Optional display-only amounts used to show GROSS invoice or informational
    *  offset rows without changing the balance math. When undefined, falls back
    *  to debit/credit. */
@@ -79,6 +81,34 @@ interface Transaction {
    *  from the totals row to avoid double-counting. */
   informational?: boolean;
 }
+
+const cleanDescription = (desc: string) => {
+  return (desc || "")
+    .replace(/\(info only\)/gi, "")
+    .replace(/info only/gi, "")
+    .trim();
+};
+
+const getBadgeStyle = (type: string, status?: string) => {
+  switch (type) {
+    case 'advance':
+      return 'bg-blue-100 text-blue-700 border border-blue-200';
+    case 'sale_return':
+      return status === 'pending'
+        ? 'bg-orange-100 text-orange-700 border border-orange-200'
+        : 'bg-green-100 text-green-700 border border-green-200';
+    case 'invoice':
+      return 'bg-purple-100 text-purple-700 border border-purple-200';
+    case 'payment':
+      return 'bg-green-100 text-green-700 border border-green-200';
+    case 'adv_refund':
+      return 'bg-red-100 text-red-700 border border-red-200';
+    case 'advance_applied':
+      return 'bg-gray-100 text-gray-600 border border-gray-200';
+    default:
+      return 'bg-gray-100 text-gray-600 border border-gray-200';
+  }
+};
 
 export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -1297,8 +1327,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           }
 
           const description = linkedSaleNumber
-            ? `Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber} (info only)`
-            : `Advance Applied — ₹${amount.toLocaleString('en-IN')} (info only)`;
+            ? cleanDescription(`Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber} (info only)`)
+            : cleanDescription(`Advance Applied — ₹${amount.toLocaleString('en-IN')} (info only)`);
 
           allTransactions.push({
             id: voucher.id,
@@ -1316,6 +1346,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             informational: true,    // muted/italic styling, excluded from totals
             balance: runningBalance,
             appliedAmount: amount,
+            status: 'applied',
           });
         } else if (item.type === 'adjustment') {
           const adj = item.data as any;
@@ -1372,6 +1403,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               : '';
 
             const desc = `Sale Return [${status}]${appliedSummary}`;
+            const srStatus: "pending" | "adjusted" =
+              /\bPending\b/i.test(status) || /Partial.*pending/i.test(status)
+                ? "pending"
+                : "adjusted";
 
             allTransactions.push({
               id: `cn-${sr.id}`,
@@ -1383,6 +1418,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               debit: 0,
               credit: amount,
               balance: runningBalance,
+              status: srStatus,
+              amount,
             });
           }
         } else if (item.type === 'refund') {
@@ -1439,7 +1476,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               timestamp: item.timestamp || null,
               type: 'refund',
               reference: voucher.voucher_number,
-              description: voucher.description || 'Payment / refund paid to customer',
+              description: cleanDescription(voucher.description || 'Payment / refund paid to customer'),
               debit: totalCredit,
               credit: 0,
               balance: runningBalance,
@@ -1469,7 +1506,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             timestamp: item.timestamp || null,
             type: 'payment',
             reference: voucher.voucher_number,
-            description: description,
+            description: cleanDescription(description),
             debit: 0,
             credit: totalCredit,
             balance: runningBalance,
@@ -1924,6 +1961,25 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     }
     return summary;
   }, [transactions]);
+
+  const pendingSaleReturns = useMemo(() => {
+    return (transactions || [])
+      .filter((t) => t.type === 'return' && t.status === 'pending' && (t.credit || 0) > 0)
+      .map((t) => ({
+        id: t.id,
+        reference: t.reference,
+        amount: t.credit || 0,
+        description: t.description,
+      }));
+  }, [transactions]);
+
+  const cnAvailable = useMemo(() => {
+    return pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0);
+  }, [pendingSaleReturns]);
+
+  const handleApplyToInvoice = useCallback((sr: { reference: string }) => {
+    toast.info(`Open Accounts -> Customer Payment to apply ${sr.reference} to an invoice.`);
+  }, []);
 
   // Send ledger summary via WhatsApp
   const handleSendLedgerWhatsApp = useCallback(() => {
@@ -2406,7 +2462,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-0">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border-l-4 border-l-orange-400 overflow-hidden">
@@ -2484,6 +2540,20 @@ Please clear your dues at the earliest. Thank you!`;
                       <div className="text-xl font-bold text-muted-foreground tabular-nums">₹0.00</div>
                       <div className="text-xs text-muted-foreground mt-0.5">No returns</div>
                     </>
+                  )}
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-orange-400 overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">CN Available</div>
+                  <div className={cn(
+                    "text-xl font-bold tabular-nums",
+                    cnAvailable > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                  )}>
+                    ₹{cnAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </div>
+                  {cnAvailable > 0 && (
+                    <div className="text-xs text-orange-500 mt-0.5">Pending adjustment</div>
                   )}
                 </CardContent>
               </Card>
@@ -2610,11 +2680,11 @@ Please clear your dues at the earliest. Thank you!`;
                               ) : (
                                 <div className="flex items-center gap-1">
                                   {transaction.type === 'advance' ? (
-                                    <Badge className="bg-primary/20 text-primary border-primary/30">
+                                    <Badge className={getBadgeStyle('advance')}>
                                       <Wallet className="h-3 w-3 mr-1" /> ADVANCE
                                     </Badge>
                                   ) : transaction.type === 'advance_application' ? (
-                                    <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border border-teal-300 text-xs">
+                                    <Badge className={cn("text-xs", getBadgeStyle('advance_applied'))}>
                                       <TrendingUp className="h-3 w-3 mr-1" /> Advance Applied
                                     </Badge>
                                   ) : transaction.type === 'adjustment' ? (
@@ -2626,11 +2696,11 @@ Please clear your dues at the earliest. Thank you!`;
                                       <FileText className="h-3 w-3 mr-1" /> FEE
                                     </Badge>
                                   ) : transaction.type === 'return' ? (
-                                    <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-xs">
-                                      Sale Return
+                                    <Badge className={cn("text-xs", getBadgeStyle('sale_return', transaction.status))}>
+                                      {transaction.status === 'pending' ? 'Pending CN' : 'CN Used'}
                                     </Badge>
                                   ) : transaction.type === 'refund' ? (
-                                    <Badge className="bg-red-100 text-red-700 border border-red-300 text-xs">
+                                    <Badge className={cn("text-xs", getBadgeStyle('adv_refund'))}>
                                       Adv. Refund
                                     </Badge>
                                   ) : transaction.type === 'credit_note' ? (
@@ -2640,11 +2710,11 @@ Please clear your dues at the earliest. Thank you!`;
                                   ) : (
                                     <>
                                       {transaction.type === 'invoice' ? (
-                                        <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-0 text-xs">
+                                        <Badge className={cn("text-xs", getBadgeStyle('invoice'))}>
                                           <FileText className="h-3 w-3 mr-1" /> Invoice
                                         </Badge>
                                       ) : (
-                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs">
+                                        <Badge className={cn("text-xs", getBadgeStyle('payment'))}>
                                           <IndianRupee className="h-3 w-3 mr-1" /> Payment
                                         </Badge>
                                       )}
@@ -2680,7 +2750,30 @@ Please clear your dues at the earliest. Thank you!`;
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                <div className="text-muted-foreground">{transaction.description}</div>
+                                {transaction.type === 'return' && transaction.status === 'pending' ? (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-orange-500 font-medium">
+                                      ₹{(transaction.amount || transaction.credit || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                                      Pending CN
+                                    </span>
+                                    <span className="text-xs text-gray-400 italic">
+                                      Not yet usable as Credit Note
+                                    </span>
+                                  </div>
+                                ) : transaction.type === 'return' && transaction.status === 'adjusted' ? (
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-green-600 font-medium">
+                                      ₹{(transaction.amount || transaction.credit || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                      CN Used
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="text-muted-foreground">{cleanDescription(transaction.description || "")}</div>
+                                )}
                                 {transaction.paymentBreakdown && (
                                   <div className="flex flex-wrap gap-2 mt-1">
                                     {transaction.paymentBreakdown.cash !== undefined && transaction.paymentBreakdown.cash > 0 && (
@@ -2785,6 +2878,20 @@ Please clear your dues at the earliest. Thank you!`;
                     <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">
                       Balance Reconciliation
                     </div>
+                    {(() => {
+                      const confirmedReturns = (transactions || [])
+                        .filter((t) => t.type === 'return' && t.status === 'adjusted')
+                        .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
+                      const pendingReturns = (transactions || [])
+                        .filter((t) => t.type === 'return' && t.status === 'pending')
+                        .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
+                      const cashPaid = reconciliation.payments;
+                      const advanceAdjusted = reconciliation.advanceApplied;
+                      const advanceRefunded = Math.max(0, (transactions || [])
+                        .filter((t) => t.type === 'refund')
+                        .reduce((sum, t) => sum + (t.debit || 0), 0));
+                      const outstanding = reconciliation.finalBalance;
+                      return (
                     <div className="space-y-1.5 text-sm tabular-nums max-w-md">
                       <div className="flex justify-between">
                         <span>Opening Balance</span>
@@ -2794,22 +2901,33 @@ Please clear your dues at the earliest. Thank you!`;
                         <span>(+) Total Invoiced</span>
                         <span className="font-medium">₹{Math.round(reconciliation.grossInvoiced).toLocaleString("en-IN")}</span>
                       </div>
-                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
-                        <span>(−) Sale Returns</span>
-                        <span className="font-medium">₹{Math.round(reconciliation.saleReturns).toLocaleString("en-IN")}</span>
+                      <div className="flex justify-between text-green-700 dark:text-green-400">
+                        <span>(−) Sale Returns (Confirmed)</span>
+                        <span className="font-medium">₹{Math.round(confirmedReturns).toLocaleString("en-IN")}</span>
                       </div>
+                      <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                        <span>(−) Sale Returns (Pending CN)</span>
+                        <span className="font-medium">₹{Math.round(pendingReturns).toLocaleString("en-IN")}</span>
+                      </div>
+                      <div className="text-[11px] text-orange-500 -mt-1">Pending — awaiting adjustment</div>
                       <div className="flex justify-between border-t pt-1.5">
                         <span className="font-semibold">(=) Net Invoiced</span>
-                        <span className="font-semibold">₹{Math.round(reconciliation.netInvoiced).toLocaleString("en-IN")}</span>
+                        <span className="font-semibold">₹{Math.round(reconciliation.grossInvoiced - confirmedReturns - pendingReturns).toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                         <span>(−) Cash / UPI / Card Payments</span>
-                        <span className="font-medium">₹{Math.round(reconciliation.payments).toLocaleString("en-IN")}</span>
+                        <span className="font-medium">₹{Math.round(cashPaid).toLocaleString("en-IN")}</span>
                       </div>
-                      {reconciliation.advanceCredit > 0 && (
+                      {advanceAdjusted > 0 && (
                         <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
-                          <span>(−) Advance Received</span>
-                          <span className="font-medium">₹{Math.round(reconciliation.advanceCredit).toLocaleString("en-IN")}</span>
+                          <span>(−) Advance Adjusted</span>
+                          <span className="font-medium">₹{Math.round(advanceAdjusted).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {advanceRefunded > 0 && (
+                        <div className="flex justify-between">
+                          <span>(−) Advance Refunded Out</span>
+                          <span className="font-medium">₹{Math.round(advanceRefunded).toLocaleString("en-IN")}</span>
                         </div>
                       )}
                       {reconciliation.adjustments !== 0 && (
@@ -2820,14 +2938,16 @@ Please clear your dues at the earliest. Thank you!`;
                       )}
                       <div className={cn(
                         "flex justify-between border-t-2 pt-2 mt-2 text-base font-bold",
-                        reconciliation.finalBalance > 0 ? "text-red-600 dark:text-red-400" :
-                        reconciliation.finalBalance < 0 ? "text-emerald-700 dark:text-emerald-300" :
+                        outstanding > 0 ? "text-red-600 dark:text-red-400" :
+                        outstanding < 0 ? "text-emerald-700 dark:text-emerald-300" :
                         "text-foreground"
                       )}>
-                        <span>Outstanding ({reconciliation.finalBalance > 0 ? 'Dr' : reconciliation.finalBalance < 0 ? 'Cr' : 'Settled'})</span>
-                        <span>₹{Math.abs(Math.round(reconciliation.finalBalance)).toLocaleString("en-IN")}</span>
+                        <span>Outstanding ({outstanding > 0 ? 'Dr' : outstanding < 0 ? 'Cr' : 'Settled'})</span>
+                        <span>₹{Math.abs(Math.round(outstanding)).toLocaleString("en-IN")}</span>
                       </div>
                     </div>
+                      );
+                    })()}
                   </div>
                 )}
               </TabsContent>
@@ -2983,6 +3103,31 @@ Please clear your dues at the earliest. Thank you!`;
 
                   return (
                     <div className="space-y-4">
+                      <div className="pending-cn-section">
+                        <h3 className="text-sm font-semibold text-orange-600 mb-2">
+                          Pending Credit Notes
+                        </h3>
+                        {pendingSaleReturns.map((sr) => (
+                          <div key={sr.id} className="flex justify-between items-center p-3 bg-orange-50 rounded-lg mb-2">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {sr.reference} — ₹{sr.amount.toLocaleString('en-IN')}
+                              </p>
+                              <p className="text-xs text-gray-500">{sr.description}</p>
+                            </div>
+                            <button
+                              onClick={() => handleApplyToInvoice(sr)}
+                              className="text-xs bg-orange-500 text-white px-3 py-1 rounded-full hover:bg-orange-600"
+                            >
+                              Apply to Invoice
+                            </button>
+                          </div>
+                        ))}
+                        {pendingSaleReturns.length === 0 && (
+                          <p className="text-sm text-gray-400">No pending credit notes</p>
+                        )}
+                      </div>
+
                       {/* Advance balance warning */}
                       {hasAdvanceBalance && pendingInvoicesWithAdvance.length > 0 && (
                         <div className="p-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30">
