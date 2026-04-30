@@ -221,6 +221,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           (allYears || []).find((y: any) => y.is_current) ||
           (allYears || [])[0];
 
+        const previousYear = targetYear?.start_date
+          ? (allYears || [])
+              .filter((y: any) => new Date(y.end_date) < new Date(targetYear.start_date))
+              .sort((a: any, b: any) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())[0]
+          : null;
+
         // Fetch fee structures for current year to determine expected totals per class
         let classExpectedMap = new Map<string, number>();
         if (targetYear?.id) {
@@ -252,6 +258,28 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           studentPaidInYear.set(f.student_id, (studentPaidInYear.get(f.student_id) || 0) + amt);
         });
 
+        // Late receipt correction:
+        // if receipts are posted into previous academic year AFTER promotion,
+        // reduce carried opening for target year by those late entries only.
+        const latePrevYearPaidByStudent = new Map<string, number>();
+        if (previousYear?.id && targetYear?.start_date) {
+          const { data: latePrevYearFees } = await supabase
+            .from('student_fees')
+            .select('student_id, paid_amount, status, created_at')
+            .eq('organization_id', organizationId)
+            .eq('academic_year_id', previousYear.id)
+            .in('status', ['paid', 'partial'])
+            .gt('paid_amount', 0)
+            .gte('created_at', targetYear.start_date);
+          (latePrevYearFees || []).forEach((f: any) => {
+            const amt = Number(f.paid_amount || 0);
+            latePrevYearPaidByStudent.set(
+              f.student_id,
+              (latePrevYearPaidByStudent.get(f.student_id) || 0) + amt
+            );
+          });
+        }
+
         // Build school customer totals — mirror fee collection logic:
         // If fee structures exist for student's class, use structure total as expected
         // Otherwise fall back to closing_fees_balance
@@ -266,7 +294,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             const totalPaid = studentPaidInYear.get(student.id) || 0;
 
             // Carry forward opening should remain visible even when current year has structures.
-            const openingBalance = importedBalance;
+            const latePrevYearPaid = latePrevYearPaidByStudent.get(student.id) || 0;
+            const openingBalance = Math.max(0, importedBalance - latePrevYearPaid);
             const expectedTotal = openingBalance + (hasStructures ? structureTotal : 0);
             const balance = Math.round(expectedTotal - totalPaid);
 
