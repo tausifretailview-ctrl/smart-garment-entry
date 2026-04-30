@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
@@ -33,6 +34,7 @@ export interface StockDependency {
 
 export function useSoftDelete() {
   const { user } = useAuth();
+  const { organizationRole } = useOrganization();
   const { toast } = useToast();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
@@ -207,6 +209,22 @@ export function useSoftDelete() {
     }
 
     try {
+      const protectedEntities: SoftDeleteEntity[] = [
+        "purchase_bills",
+        "sales",
+        "sale_returns",
+        "purchase_returns",
+      ];
+      const isAdminOrOwner = organizationRole === "admin";
+      if (protectedEntities.includes(entity) && !isAdminOrOwner) {
+        toast({
+          title: "Permission Denied",
+          description: "Only admin can permanently delete this record.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       // For products, check if it has transactions before allowing hard delete
       if (entity === "products") {
         const { hasTransactions, usedIn } = await checkProductHasTransactions(id);

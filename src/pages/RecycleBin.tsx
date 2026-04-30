@@ -200,7 +200,7 @@ const formatValue = (value: any, field: { key: string; label: string; isAmount?:
 };
 
 export default function RecycleBin() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { hardDelete, restore } = useSoftDelete();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -210,6 +210,8 @@ export default function RecycleBin() {
   const [recordToDelete, setRecordToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRestoring, setIsRestoring] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
 
   // Fetch deleted records for the active tab
   const { data: deletedRecords = [], isLoading } = useQuery({
@@ -319,16 +321,59 @@ export default function RecycleBin() {
     return primaryValue.includes(search) || secondaryValue.includes(search) || detailMatch;
   });
 
+  const canHardDeleteRecord = (entity: SoftDeleteEntity) => {
+    const protectedEntities: SoftDeleteEntity[] = [
+      "purchase_bills",
+      "sales",
+      "sale_returns",
+      "purchase_returns",
+    ];
+    const isAdminOrOwner = organizationRole === "admin";
+    if (protectedEntities.includes(entity) && !isAdminOrOwner) return false;
+    return true;
+  };
+
+  const requiresStrictDeleteConfirm = activeTab === "purchase_bills" && canHardDeleteRecord(activeTab);
+  const requiredDeletePhrase = `DELETE ${recordToDelete?.name || ""}`.trim();
+
   const handleDeleteClick = (record: DeletedRecord) => {
+    if (!canHardDeleteRecord(activeTab)) {
+      toast({
+        title: "Permission Denied",
+        description: "Only admin can permanently delete this record.",
+        variant: "destructive",
+      });
+      return;
+    }
     setRecordToDelete({
       id: record.id,
       name: record[config.displayField] || "this record"
     });
+    setDeleteConfirmText("");
+    setDeleteReason("");
     setDeleteDialogOpen(true);
   };
 
   const handleConfirmDelete = async () => {
     if (!recordToDelete) return;
+    if (requiresStrictDeleteConfirm) {
+      if (deleteConfirmText.trim() !== requiredDeletePhrase) {
+        toast({
+          title: "Confirmation mismatch",
+          description: `Type exactly: ${requiredDeletePhrase}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!deleteReason.trim()) {
+        toast({
+          title: "Reason required",
+          description: "Please enter a reason for permanent deletion.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     
     setIsDeleting(true);
     const success = await hardDelete(activeTab, recordToDelete.id);
@@ -493,14 +538,16 @@ export default function RecycleBin() {
                                       )}
                                       <span className="ml-1 hidden sm:inline">Restore</span>
                                     </Button>
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      onClick={() => handleDeleteClick(record)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                      <span className="ml-1 hidden sm:inline">Delete</span>
-                                    </Button>
+                                    {canHardDeleteRecord(activeTab) && (
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => handleDeleteClick(record)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="ml-1 hidden sm:inline">Delete</span>
+                                      </Button>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -526,6 +573,30 @@ export default function RecycleBin() {
               This action cannot be undone and the record will be completely removed from the system.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {requiresStrictDeleteConfirm && (
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  Type <span className="font-mono font-semibold">{requiredDeletePhrase}</span> to confirm.
+                </p>
+                <Input
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder={requiredDeletePhrase}
+                  disabled={isDeleting}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Reason for permanent deletion</p>
+                <Input
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Enter reason"
+                  disabled={isDeleting}
+                />
+              </div>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
