@@ -263,25 +263,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // reduce carried opening for target year by those late entries only.
         const latePrevYearPaidByStudent = new Map<string, number>();
         if (previousYear?.id && targetYear?.id) {
-          const { data: promotionRun } = await supabase
-            .from('promotion_history')
-            .select('created_at')
-            .eq('organization_id', organizationId)
-            .eq('from_year_id', previousYear.id)
-            .eq('to_year_id', targetYear.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const promotionCutoff = promotionRun?.created_at || targetYear.start_date;
-
+          // Subtract ALL prev-year receipts from carried closing_fees_balance —
+          // a payment received in the previous year (whenever) reduces what carries forward.
           const { data: latePrevYearFees } = await supabase
             .from('student_fees')
-            .select('student_id, paid_amount, status, created_at')
+            .select('student_id, paid_amount, status')
             .eq('organization_id', organizationId)
             .eq('academic_year_id', previousYear.id)
             .in('status', ['paid', 'partial'])
-            .gt('paid_amount', 0)
-            .gte('created_at', promotionCutoff);
+            .gt('paid_amount', 0);
           (latePrevYearFees || []).forEach((f: any) => {
             const amt = Number(f.paid_amount || 0);
             latePrevYearPaidByStudent.set(
