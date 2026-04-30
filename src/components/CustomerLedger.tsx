@@ -116,6 +116,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(paymentFilter || "all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("transactions");
   const [customerPage, setCustomerPage] = useState(0);
   const CUSTOMERS_PER_PAGE = 20;
@@ -135,6 +136,31 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     selectedCustomer?.id || null,
     organizationId || null
   );
+
+  const { data: academicYears = [] } = useQuery({
+    queryKey: ["customer-ledger-academic-years", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("academic_years")
+        .select("id, year_name, start_date, end_date, is_current")
+        .eq("organization_id", organizationId)
+        .order("start_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!organizationId && !!isSchool,
+  });
+
+  useEffect(() => {
+    if (!isSchool || !academicYears.length) return;
+    if (selectedAcademicYearId === "all") return;
+    const picked = academicYears.find((y: any) => y.id === selectedAcademicYearId);
+    if (!picked) return;
+    const start = picked.start_date ? new Date(picked.start_date) : undefined;
+    const end = picked.end_date ? new Date(picked.end_date) : undefined;
+    setStartDate(start);
+    setEndDate(end);
+  }, [selectedAcademicYearId, academicYears, isSchool]);
 
   const openHistory = (id: string, name: string) => {
     setCustomerForHistory({ id, name });
@@ -178,15 +204,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .select('id, start_date, end_date, is_current')
           .eq('organization_id', organizationId)
           .order('start_date', { ascending: false });
-        const probeDate = startDate || endDate;
+        const selectedYearObj = selectedAcademicYearId !== "all"
+          ? (allYears || []).find((y: any) => y.id === selectedAcademicYearId)
+          : null;
+        const probeDate = selectedYearObj?.start_date
+          ? new Date(selectedYearObj.start_date)
+          : (startDate || endDate);
         const targetYear =
-          (probeDate
+          (selectedYearObj || (probeDate
             ? (allYears || []).find((y: any) => {
                 const start = new Date(y.start_date);
                 const end = new Date(y.end_date);
                 return probeDate >= start && probeDate <= end;
               })
-            : null) ||
+            : null)) ||
           (allYears || []).find((y: any) => y.is_current) ||
           (allYears || [])[0];
 
@@ -229,14 +260,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           if (student) {
             const structureTotal = classExpectedMap.get(student.class_id) || 0;
             const hasStructures = structureTotal > 0;
-            const importedBalance = student.closing_fees_balance || 0;
+            const importedBalance = Number(student.closing_fees_balance || 0);
             // Mamta Footwear customer balance reconciliation - Apr 2026:
             // both structure and opening-balance students must use the resolved target year's receipts only.
             const totalPaid = studentPaidInYear.get(student.id) || 0;
 
-            // Match fee collection logic: structures OR imported balance, never both
-            const expectedTotal = hasStructures ? structureTotal : importedBalance;
-            const openingBalance = hasStructures ? 0 : importedBalance;
+            // Carry forward opening should remain visible even when current year has structures.
+            const openingBalance = importedBalance;
+            const expectedTotal = openingBalance + (hasStructures ? structureTotal : 0);
             const balance = Math.round(expectedTotal - totalPaid);
 
             return {
@@ -533,15 +564,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .select('id, start_date, end_date, is_current')
           .eq('organization_id', organizationId)
           .order('start_date', { ascending: false });
-        const probeDate = startDate || endDate;
+        const selectedYearObj = selectedAcademicYearId !== "all"
+          ? (allYears || []).find((y: any) => y.id === selectedAcademicYearId)
+          : null;
+        const probeDate = selectedYearObj?.start_date
+          ? new Date(selectedYearObj.start_date)
+          : (startDate || endDate);
         const targetYear =
-          (probeDate
+          (selectedYearObj || (probeDate
             ? (allYears || []).find((y: any) => {
                 const start = new Date(y.start_date);
                 const end = new Date(y.end_date);
                 return probeDate >= start && probeDate <= end;
               })
-            : null) ||
+            : null)) ||
           (allYears || []).find((y: any) => y.is_current) ||
           (allYears || [])[0];
 
@@ -615,6 +651,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
         if (hasStructures && feeStructureDebits.length > 0) {
           // Show fee structure totals as debit entries (the expected fees)
+          if (openingBalance > 0) {
+            runningBalance = openingBalance;
+            allTransactions.push({
+              id: 'opening-balance',
+              date: targetYear?.start_date || '1900-01-01',
+              timestamp: null,
+              type: 'fee',
+              reference: 'Opening',
+              description: 'Opening Fees Balance (Carried Forward)',
+              debit: openingBalance,
+              credit: 0,
+              balance: runningBalance,
+            });
+          }
           feeStructureDebits.forEach((structure, idx) => {
             runningBalance += structure.total;
             allTransactions.push({
@@ -2303,6 +2353,31 @@ Please clear your dues at the earliest. Thank you!`;
           </Button>
           
           <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto">
+            {isSchool && (
+              <Select
+                value={selectedAcademicYearId}
+                onValueChange={(val) => {
+                  setSelectedAcademicYearId(val);
+                  if (val === "all") {
+                    setStartDate(undefined);
+                    setEndDate(undefined);
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full md:w-[190px]">
+                  <SelectValue placeholder="Academic Year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Years</SelectItem>
+                  {(academicYears || []).map((y: any) => (
+                    <SelectItem key={y.id} value={y.id}>
+                      {y.year_name}{y.is_current ? " (Current)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
