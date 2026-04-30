@@ -1058,6 +1058,11 @@ const ProductDashboard = () => {
                 User Cancelled
               </Badge>
             )}
+            {row.original.total_stock === 0 && (
+              <Badge className="bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 text-[10px] px-1.5 py-0 h-4">
+                No Stock
+              </Badge>
+            )}
           </div>
         ),
         size: 200,
