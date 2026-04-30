@@ -225,25 +225,17 @@ const FeeCollection = () => {
         : null;
       const latePrevPaidByStudent = new Map<string, number>();
       if (previousYear?.id && studentIdList.length > 0) {
-        const { data: promotionRun } = await supabase
-          .from("promotion_history")
-          .select("created_at")
-          .eq("organization_id", currentOrganization!.id)
-          .eq("from_year_id", previousYear.id)
-          .eq("to_year_id", activeYear.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const promotionCutoff = promotionRun?.created_at || activeYear.start_date;
+        // Subtract ALL prev-year receipts from carried closing_fees_balance
+        // (regardless of whether they were posted before or after promotion).
+        // This ensures the new-year opening reflects the true unpaid prev-year amount.
         const { data: latePrevFees } = await supabase
           .from("student_fees")
-          .select("student_id, paid_amount, status, created_at")
+          .select("student_id, paid_amount, status")
           .eq("organization_id", currentOrganization!.id)
           .eq("academic_year_id", previousYear.id)
           .in("student_id", studentIdList)
           .in("status", ["paid", "partial"])
-          .gt("paid_amount", 0)
-          .gte("created_at", promotionCutoff);
+          .gt("paid_amount", 0);
         (latePrevFees || []).forEach((f: any) => {
           latePrevPaidByStudent.set(
             f.student_id,
@@ -361,25 +353,15 @@ const FeeCollection = () => {
         : null;
       const latePrevPaidByStudent = new Map<string, number>();
       if (previousYear?.id && studentIds.length > 0) {
-        const { data: promotionRun } = await supabase
-          .from("promotion_history")
-          .select("created_at")
-          .eq("organization_id", currentOrganization.id)
-          .eq("from_year_id", previousYear.id)
-          .eq("to_year_id", activeYear.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        const promotionCutoff = promotionRun?.created_at || activeYear.start_date;
+        // Subtract ALL prev-year receipts from carried closing_fees_balance.
         const { data: latePrevFees } = await supabase
           .from("student_fees")
-          .select("student_id, paid_amount, status, created_at")
+          .select("student_id, paid_amount, status")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", previousYear.id)
           .in("student_id", studentIds)
           .in("status", ["paid", "partial"])
-          .gt("paid_amount", 0)
-          .gte("created_at", promotionCutoff);
+          .gt("paid_amount", 0);
         (latePrevFees || []).forEach((f: any) => {
           latePrevPaidByStudent.set(
             f.student_id,
