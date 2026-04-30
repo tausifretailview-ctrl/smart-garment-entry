@@ -1318,6 +1318,7 @@ const FeeCollection = () => {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         student={selectedStudent}
+        activeYearId={activeYear?.id || null}
       />
 
       <StudentHistoryDialog

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -33,6 +33,7 @@ interface FeeCollectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   student: Student | null;
+  activeYearId?: string | null;
 }
 
 interface FeeItem {
@@ -53,7 +54,7 @@ const PAYMENT_METHODS = [
   { value: "Bank Transfer", label: "Bank Transfer" },
 ];
 
-export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent }: FeeCollectionDialogProps) {
+export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent, activeYearId }: FeeCollectionDialogProps) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [paymentMethod, setPaymentMethod] = useState("Cash");
@@ -84,6 +85,11 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const logoUrl = (orgLogoSettings?.bill_barcode_settings as any)?.logo_url || "";
 
   const student = initialStudent || selectedStudent;
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedStudent(initialStudent || null);
+  }, [open, initialStudent]);
 
   // Search students when no initial student provided
   const { data: searchResults } = useQuery({
@@ -138,9 +144,16 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
   // Set default selected year to current year
   const activeYear = allAcademicYears.find((y: any) => y.id === selectedYearId) || currentYear;
-  if (currentYear && !selectedYearId) {
-    // Use effect-free default
-  }
+  useEffect(() => {
+    if (!open) return;
+    if (activeYearId) {
+      setSelectedYearId(activeYearId);
+      return;
+    }
+    if (!selectedYearId && currentYear?.id) {
+      setSelectedYearId(currentYear.id);
+    }
+  }, [open, activeYearId, currentYear?.id, selectedYearId]);
 
   // Helper: extract FY start/end full years from academic year name like "2025-26" or "2025-2026"
   const getFYYears = (yearName?: string) => {
