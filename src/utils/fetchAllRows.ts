@@ -634,7 +634,7 @@ export async function fetchAllVouchersWithFilters(
   while (hasMore) {
     let query = supabase
       .from("voucher_entries")
-      .select("id, voucher_number, voucher_date, voucher_type, total_amount, description")
+      .select("id, voucher_number, voucher_date, voucher_type, total_amount, payment_method, description")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("voucher_date", { ascending: false })

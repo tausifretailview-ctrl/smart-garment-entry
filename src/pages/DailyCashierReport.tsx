@@ -330,7 +330,7 @@ const DailyCashierReport = () => {
       });
     }
 
-    // Process receipt data (RCP) - extract payment method from description
+    // Process receipt data (RCP) - use actual voucher payment_method first, then fallback to description.
     let rcpCashCollection = 0;
     let rcpUpiCollection = 0;
     let rcpCardCollection = 0;
@@ -339,17 +339,27 @@ const DailyCashierReport = () => {
     if (receiptData) {
       receiptData.forEach((receipt) => {
         const amount = Number(receipt.total_amount) || 0;
+        const method = (receipt.payment_method || "").toLowerCase().trim();
         const desc = (receipt.description || '').toLowerCase();
-        
-        // Parse payment method from description or default to cash
-        if (desc.includes('upi')) {
+
+        // Primary source: explicit payment_method stored on voucher entry.
+        if (method === "upi") {
+          rcpUpiCollection += amount;
+        } else if (method === "card") {
+          rcpCardCollection += amount;
+        } else if (method === "cash") {
+          rcpCashCollection += amount;
+        } else if (method.includes("bank") || method === "cheque" || method === "other") {
+          rcpOtherCollection += amount;
+        // Fallback for legacy receipts where payment_method was not stored.
+        } else if (desc.includes('upi')) {
           rcpUpiCollection += amount;
         } else if (desc.includes('card')) {
           rcpCardCollection += amount;
         } else if (desc.includes('cheque') || desc.includes('bank') || desc.includes('transfer')) {
           rcpOtherCollection += amount;
         } else {
-          // Default to cash for receipts without specific method
+          // Final fallback: treat as cash.
           rcpCashCollection += amount;
         }
       });
