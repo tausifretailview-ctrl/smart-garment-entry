@@ -244,13 +244,21 @@ export default function RecycleBin() {
       if (!tableName) return [];
       
       while (hasMore) {
-        const { data, error } = await supabase
+        const baseQuery = supabase
           .from(tableName as any)
           .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .not('deleted_at', 'is', null)
-          .order('deleted_at', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
+          .eq('organization_id', currentOrganization.id);
+
+        const query =
+          activeTab === "purchase_bills"
+            ? baseQuery
+                .or('deleted_at.not.is.null,is_cancelled.eq.true')
+                .order('updated_at', { ascending: false })
+            : baseQuery
+                .not('deleted_at', 'is', null)
+                .order('deleted_at', { ascending: false });
+
+        const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
         
         if (error) throw error;
         
@@ -275,11 +283,15 @@ export default function RecycleBin() {
       if (!currentOrganization?.id) return {};
 
       const countPromises = Object.keys(entityConfig).map(async (entity) => {
-        const { count, error } = await supabase
+        const baseQuery = supabase
           .from(entity as any)
           .select("*", { count: "exact", head: true })
-          .eq("organization_id", currentOrganization.id)
-          .not("deleted_at", "is", null);
+          .eq("organization_id", currentOrganization.id);
+
+        const { count, error } =
+          entity === "purchase_bills"
+            ? await baseQuery.or("deleted_at.not.is.null,is_cancelled.eq.true")
+            : await baseQuery.not("deleted_at", "is", null);
 
         return { entity, count: error ? 0 : (count || 0) };
       });
