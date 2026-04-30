@@ -1382,6 +1382,22 @@ const POSDashboard = () => {
 
   // ── E-Invoice handlers ──
   const handleGenerateEInvoice = async (sale: Sale) => {
+    if (sale.sale_type === 'delivery_challan') {
+      toast({
+        title: "Not Eligible",
+        description: "E-Invoice can be generated only for POS/Invoice sales, not delivery challans.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (sale.status === "cancelled" || sale.einvoice_status === "cancelled") {
+      toast({
+        title: "Not Eligible",
+        description: "Cancelled invoices are not eligible for E-Invoice generation.",
+        variant: "destructive",
+      });
+      return;
+    }
     let customerGstin = sale.customers?.gst_number;
     if ((!customerGstin || customerGstin === "") && sale.customer_id) {
       // Fallback: if customers join wasn't present for this row, fetch GSTIN on demand.
@@ -1400,7 +1416,9 @@ const POSDashboard = () => {
       toast({ title: "Already Generated", description: `E-Invoice already exists. IRN: ${sale.irn.substring(0, 20)}...` });
       return;
     }
-    const sellerGstin = (settings as any)?.gst_number;
+    const sellerGstin =
+      (saleSettings?.einvoice_settings as any)?.seller_gstin ||
+      (settings as any)?.gst_number;
     if (!sellerGstin) {
       toast({ title: "Seller GSTIN Missing", description: "Configure Business GSTIN in Settings → Business Details.", variant: "destructive" });
       return;
@@ -1419,10 +1437,11 @@ const POSDashboard = () => {
         toast({ title: "✅ E-Invoice Generated Successfully!", description: `IRN: ${result.irn?.substring(0, 30)}...${result.ackNo ? ` | Ack No: ${result.ackNo}` : ''}` });
         fetchSales();
       } else {
-        toast({ title: "E-Invoice Failed", description: result.error || result.message || "E-Invoice generation failed", variant: "destructive" });
+        const errorMsg = safeErrorString(result.error || result.message) || "E-Invoice generation failed";
+        toast({ title: "E-Invoice Failed", description: errorMsg, variant: "destructive" });
       }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to generate e-Invoice", variant: "destructive" });
+      toast({ title: "Error", description: safeErrorString(error?.message || error) || "Failed to generate e-Invoice", variant: "destructive" });
     } finally {
       setIsGeneratingEInvoice(null);
     }
@@ -2370,7 +2389,7 @@ const POSDashboard = () => {
                                   </Button>
                                 )}
                                 {(saleSettings?.einvoice_settings?.enabled ?? false) &&
-                                  sale.customer_id &&
+                                  sale.sale_type !== "delivery_challan" &&
                                   !sale.irn &&
                                   sale.einvoice_status !== "cancelled" &&
                                   sale.status !== "cancelled" && (
@@ -2566,7 +2585,7 @@ const POSDashboard = () => {
                                   )}
 
                                   {/* E-Invoice Actions */}
-                                  {isEInvoiceEnabled && sale.customer_id && (
+                                  {isEInvoiceEnabled && sale.sale_type !== "delivery_challan" && (
                                     <div className="flex items-center gap-2 pt-2 border-t">
                                       <span className="text-xs font-semibold text-muted-foreground mr-1">E-Invoice:</span>
                                       {sale.irn ? (
