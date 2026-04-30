@@ -291,6 +291,7 @@ const DailyCashierReport = () => {
         // from gross - discount columns drifts when bills carry implicit discounts
         // not stored in discount_amount/flat_discount_amount columns.
         const balance = (Number(sale.net_amount) || 0) - paidAmount;
+        const netAmount = effectiveNet;
         
         totalPaid += paidAmount;
         totalBalance += balance;
