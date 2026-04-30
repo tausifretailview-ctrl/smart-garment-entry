@@ -135,10 +135,11 @@ const FeeCollection = () => {
     const isLegacy2025 = yearName === "2025-26";
 
     if (isNewAdmission) return importedBalance;
+    if (expected > 0) return expected + importedBalance;
     // Legacy safety fallback: for 2025-26, preserve imported closing balance
     // when structure is absent/zero to avoid showing false zero dues.
     if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
-    return expected;
+    return importedBalance;
   };
 
   const resolveFeeStatus = (totalDue: number, totalPaid: number, liabilityGross: number) => {
@@ -217,6 +218,40 @@ const FeeCollection = () => {
       const allPayments = paymentsRes?.data || [];
       const allAdjustments = adjustmentsRes?.data || [];
 
+      const previousYear = activeYear?.start_date
+        ? (academicYears || [])
+            .filter((y: any) => new Date(y.end_date) < new Date(activeYear.start_date))
+            .sort((a: any, b: any) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())[0]
+        : null;
+      const latePrevPaidByStudent = new Map<string, number>();
+      if (previousYear?.id && studentIdList.length > 0) {
+        const { data: promotionRun } = await supabase
+          .from("promotion_history")
+          .select("created_at")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("from_year_id", previousYear.id)
+          .eq("to_year_id", activeYear.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const promotionCutoff = promotionRun?.created_at || activeYear.start_date;
+        const { data: latePrevFees } = await supabase
+          .from("student_fees")
+          .select("student_id, paid_amount, status, created_at")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("academic_year_id", previousYear.id)
+          .in("student_id", studentIdList)
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0)
+          .gte("created_at", promotionCutoff);
+        (latePrevFees || []).forEach((f: any) => {
+          latePrevPaidByStudent.set(
+            f.student_id,
+            (latePrevPaidByStudent.get(f.student_id) || 0) + Number(f.paid_amount || 0)
+          );
+        });
+      }
+
       // Per-class structure totals (single year)
       const structureByClass = new Map<string, number>();
       (allStructures as any[] || []).forEach((r: any) => {
@@ -248,7 +283,12 @@ const FeeCollection = () => {
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
         const adjustment = adjByStudent.get(st.id) || 0;
-        const liability = resolveLiability(st, struct, activeYear?.year_name);
+        const latePrevPaid = latePrevPaidByStudent.get(st.id) || 0;
+        const effectiveStudent = {
+          ...st,
+          closing_fees_balance: Math.max(0, Number(st.closing_fees_balance || 0) - latePrevPaid),
+        };
+        const liability = resolveLiability(effectiveStudent, struct, activeYear?.year_name);
         pending += Math.max(0, liability + adjustment - paid);
       });
 
@@ -314,6 +354,39 @@ const FeeCollection = () => {
       const structures = structuresRes.data || [];
       const allPayments = paymentsRes.data || [];
       const allAdjustments = adjustmentsRes.data || [];
+      const previousYear = activeYear?.start_date
+        ? (academicYears || [])
+            .filter((y: any) => new Date(y.end_date) < new Date(activeYear.start_date))
+            .sort((a: any, b: any) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())[0]
+        : null;
+      const latePrevPaidByStudent = new Map<string, number>();
+      if (previousYear?.id && studentIds.length > 0) {
+        const { data: promotionRun } = await supabase
+          .from("promotion_history")
+          .select("created_at")
+          .eq("organization_id", currentOrganization.id)
+          .eq("from_year_id", previousYear.id)
+          .eq("to_year_id", activeYear.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const promotionCutoff = promotionRun?.created_at || activeYear.start_date;
+        const { data: latePrevFees } = await supabase
+          .from("student_fees")
+          .select("student_id, paid_amount, status, created_at")
+          .eq("organization_id", currentOrganization.id)
+          .eq("academic_year_id", previousYear.id)
+          .in("student_id", studentIds)
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0)
+          .gte("created_at", promotionCutoff);
+        (latePrevFees || []).forEach((f: any) => {
+          latePrevPaidByStudent.set(
+            f.student_id,
+            (latePrevPaidByStudent.get(f.student_id) || 0) + Number(f.paid_amount || 0)
+          );
+        });
+      }
 
       return data.map((student: any) => {
         const classStructures = structures.filter((s: any) => s.class_id === student.class_id);
@@ -326,7 +399,10 @@ const FeeCollection = () => {
         // Already filtered to active year + paid/partial with paid_amount > 0 in the query
         const paidTotal = studentPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
-        const importedBalance = student.closing_fees_balance || 0;
+        const importedBalance = Math.max(
+          0,
+          Number(student.closing_fees_balance || 0) - (latePrevPaidByStudent.get(student.id) || 0)
+        );
         // Apply balance adjustments from audit log:
         //  - 'credit' increases due, 'debit' reduces due
         // Already year-scoped in the query
@@ -340,7 +416,7 @@ const FeeCollection = () => {
         // Liability rule:
         // - New admission: use closing_fees_balance entered during admission
         // - Promoted/existing student: use yearly fee structure
-        const liability = resolveLiability(student, totalExpected, activeYear?.year_name);
+        const liability = resolveLiability({ ...student, closing_fees_balance: importedBalance }, totalExpected, activeYear?.year_name);
         const totalDueGross = liability + adjustmentNet;
         const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
