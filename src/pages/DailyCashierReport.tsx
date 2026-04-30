@@ -284,10 +284,13 @@ const DailyCashierReport = () => {
         const effectiveNet = getEffectiveNet(sale);
         totalSale += effectiveNet;
 
-        const netAmount = effectiveNet;
         const paidAmount = Number(sale.paid_amount) || 0;
         const refundAmt = Number(sale.refund_amount) || 0;
-        const balance = netAmount - paidAmount;
+        // Balance Pending uses authoritative net_amount (final billed amount after
+        // all discounts/SR/refund/roundoff already applied at save time). Recomputing
+        // from gross - discount columns drifts when bills carry implicit discounts
+        // not stored in discount_amount/flat_discount_amount columns.
+        const balance = (Number(sale.net_amount) || 0) - paidAmount;
         
         totalPaid += paidAmount;
         totalBalance += balance;
