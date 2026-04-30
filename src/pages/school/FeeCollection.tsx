@@ -203,12 +203,14 @@ const FeeCollection = () => {
               .from("student_fees")
               .select("student_id, paid_amount, status")
               .eq("organization_id", currentOrganization!.id)
+              .eq("academic_year_id", activeYear.id)
               .in("student_id", studentIdList)
               .in("status", ["paid", "partial"])
               .gt("paid_amount", 0),
             (supabase.from("student_balance_audit" as any) as any)
               .select("student_id, adjustment_type, change_amount")
               .eq("organization_id", currentOrganization!.id)
+              .eq("academic_year_id", activeYear.id)
               .in("student_id", studentIdList),
           ])
         : [{ data: [] as any[] }, { data: [] as any[] }];
@@ -222,7 +224,7 @@ const FeeCollection = () => {
         structureByClass.set(r.class_id, (structureByClass.get(r.class_id) || 0) + (r.amount || 0) * mult);
       });
 
-      // Per-student paid totals (all years)
+      // Per-student paid totals (active academic year only)
       const paidByStudent = new Map<string, number>();
       (allPayments as any[]).forEach((p: any) => {
         paidByStudent.set(p.student_id, (paidByStudent.get(p.student_id) || 0) + (p.paid_amount || 0));
@@ -300,11 +302,12 @@ const FeeCollection = () => {
           ? supabase.from("fee_structures").select("*").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("class_id", classIds)
           : { data: [] },
         // Fetch payments for the active academic year (for structure-based dues)
-        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
+        supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
         // Fetch balance adjustments (audit log) — these reduce/increase the displayed due
         (supabase.from("student_balance_audit" as any) as any)
           .select("student_id, adjustment_type, change_amount, academic_year_id")
           .eq("organization_id", currentOrganization.id)
+          .eq("academic_year_id", activeYear.id)
           .in("student_id", studentIds),
       ]);
 
@@ -320,16 +323,13 @@ const FeeCollection = () => {
         }, 0);
 
         const studentPayments = allPayments.filter((p: any) => p.student_id === student.id);
-        // Already filtered to paid/partial with paid_amount > 0 in the query
-        const paidInYear = studentPayments
-          .filter((p: any) => p.academic_year_id === activeYear.id)
-          .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-        const paidTotal = studentPayments
-          .reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
+        // Already filtered to active year + paid/partial with paid_amount > 0 in the query
+        const paidTotal = studentPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
         const importedBalance = student.closing_fees_balance || 0;
         // Apply balance adjustments from audit log:
         //  - 'credit' increases due, 'debit' reduces due
+        // Already year-scoped in the query
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
         const adjustmentNet = studentAdjustments.reduce((sum: number, a: any) => {
           if (a.adjustment_type === 'credit') return sum + (a.change_amount || 0);

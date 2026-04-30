@@ -66,6 +66,7 @@ export function ModifyFeeReceiptDialog({ open, onOpenChange, fee }: ModifyFeeRec
       await (supabase.from("student_balance_audit" as any) as any).insert({
         organization_id: currentOrganization.id,
         student_id: fee.student_id,
+        academic_year_id: fee.academic_year_id || null,
         adjustment_type: paidAmount > (fee.paid_amount || 0) ? 'credit' : 'debit',
         old_balance: fee.paid_amount || 0,
         new_balance: paidAmount,

@@ -52,14 +52,15 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   // Fetch all real fee payments for this student (exclude balance_adjustment ghost records)
   const { data: feePayments, isLoading: paymentsLoading } = useQuery({
-    queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id],
+    queryKey: ["student-fee-payments-history", student?.id, currentOrganization?.id, activeAcademicYearId],
     queryFn: async () => {
-      if (!student?.id || !currentOrganization?.id) return [];
+      if (!student?.id || !currentOrganization?.id || !activeAcademicYearId) return [];
       const { data, error } = await supabase
         .from("student_fees")
         .select("*, fee_heads(head_name)")
         .eq("student_id", student.id)
         .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", activeAcademicYearId)
         .in("status", ["paid", "partial"])
         .gt("paid_amount", 0)
         .order("paid_date", { ascending: false });
@@ -67,7 +68,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
       if (error) throw error;
       return data || [];
     },
-    enabled: open && !!student?.id && !!currentOrganization?.id,
+    enabled: open && !!student?.id && !!currentOrganization?.id && !!activeAcademicYearId,
   });
 
   // Fetch fee structures for the student's class
@@ -88,16 +89,18 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   // Fetch balance adjustment audit log
   const { data: adjustmentLog = [] } = useQuery({
-    queryKey: ["student-balance-audit", student?.id, currentOrganization?.id],
+    queryKey: ["student-balance-audit", student?.id, currentOrganization?.id, activeAcademicYearId],
     queryFn: async () => {
+      if (!activeAcademicYearId) return [];
       const { data } = await (supabase.from("student_balance_audit" as any) as any)
         .select("*")
         .eq("student_id", student!.id)
         .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", activeAcademicYearId)
         .order("created_at", { ascending: false });
       return data || [];
     },
-    enabled: open && !!student?.id && !!currentOrganization?.id,
+    enabled: open && !!student?.id && !!currentOrganization?.id && !!activeAcademicYearId,
   });
 
   if (!student) return null;
@@ -115,10 +118,8 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   
   // Separate real payments from balance adjustments
   const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" && p.status !== "deleted");
-  // For structure-based: only count payments of the student's academic year context.
-  const realPayments = hasStructures && activeAcademicYearId
-    ? allRealPayments.filter((p: any) => p.academic_year_id === activeAcademicYearId)
-    : allRealPayments;
+  // Queries are year-scoped; keep a single source list for calculations and ledger rows.
+  const realPayments = allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
   // Calculate net adjustment impact
@@ -146,7 +147,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
   // Build combined ledger: payments + adjustments, sorted chronologically
   const combinedEntries = [
-    ...allRealPayments.map((p: any) => ({
+    ...realPayments.map((p: any) => ({
       type: 'payment' as const,
       date: p.paid_date || p.created_at,
       data: p,

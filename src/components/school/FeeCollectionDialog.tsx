@@ -197,6 +197,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         .select("*")
         .eq("student_id", student.id)
         .eq("organization_id", currentOrganization!.id)
+        .eq("academic_year_id", usedYear.id)
         .in("status", ["paid", "partial"]);
 
       const items: FeeItem[] = (structures || []).map((s: any) => {
@@ -225,14 +226,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       if ((items.length === 0 || totalStructureAmount === 0) && student.closing_fees_balance && student.closing_fees_balance > 0) {
         // Clear zero-amount structure items so we use imported balance instead
         if (totalStructureAmount === 0) items.length = 0;
-        const totalPaidAll = (payments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-        const importedBalance = student.closing_fees_balance - totalPaidAll;
+        const totalPaidInYear = (payments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
+        const importedBalance = student.closing_fees_balance - totalPaidInYear;
         if (importedBalance > 0) {
           items.push({
             fee_head_id: "__imported_balance__",
             head_name: "Fees Balance (Imported)",
             structure_amount: student.closing_fees_balance,
-            already_paid: totalPaidAll,
+            already_paid: totalPaidInYear,
             balance: importedBalance,
             selected: true,
             paying: importedBalance,

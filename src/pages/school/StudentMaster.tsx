@@ -171,12 +171,14 @@ const StudentMaster = () => {
           .from("student_fees")
           .select("student_id, paid_amount, status")
           .eq("organization_id", currentOrganization.id)
+          .eq("academic_year_id", selectedYearId)
           .in("student_id", studentIds)
           .in("status", ["paid", "partial"])
           .gt("paid_amount", 0),
         (supabase.from("student_balance_audit" as any) as any)
           .select("student_id, adjustment_type, change_amount")
           .eq("organization_id", currentOrganization.id)
+          .eq("academic_year_id", selectedYearId)
           .in("student_id", studentIds),
       ]);
 
