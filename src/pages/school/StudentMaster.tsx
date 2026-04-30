@@ -105,8 +105,15 @@ const StudentMaster = () => {
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedYearId) return { data: [], count: 0 };
 
-      const from = (currentPage - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
+      // Keep historical-year visibility for promoted students:
+      // include students having receipts in selected year even if current row moved to next year.
+      const { data: yearFees } = await supabase
+        .from("student_fees")
+        .select("student_id")
+        .eq("organization_id", currentOrganization.id)
+        .eq("academic_year_id", selectedYearId)
+        .neq("status", "deleted");
+      const yearStudentIds = new Set((yearFees || []).map((r: any) => r.student_id));
 
       let query = supabase
         .from("students")
@@ -119,12 +126,10 @@ const StudentMaster = () => {
           academic_years (
             year_name
           )
-        `, { count: "exact" })
+        `)
         .eq("organization_id", currentOrganization.id)
-        .eq("academic_year_id", selectedYearId)
         .is("deleted_at", null)
-        .order("student_name")
-        .range(from, to);
+        .order("student_name");
 
       if (searchTerm) {
         query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
@@ -135,9 +140,19 @@ const StudentMaster = () => {
         query = query.eq("is_new_admission", true);
       }
 
-      const { data, error, count } = await query;
+      const { data, error } = await query;
       if (error) throw error;
-      return { data: data || [], count: count || 0 };
+
+      const filtered = (data || []).filter((student: any) =>
+        student.academic_year_id === selectedYearId || yearStudentIds.has(student.id)
+      );
+
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE;
+      return {
+        data: filtered.slice(from, to),
+        count: filtered.length,
+      };
     },
     enabled: !!currentOrganization?.id && !!selectedYearId,
   });
@@ -453,7 +468,11 @@ const StudentMaster = () => {
                     <TableCell>
                       <button
                         className="text-primary hover:underline font-medium text-left cursor-pointer bg-transparent border-none p-0"
-                        onClick={() => { setHistoryStudent(student); setHistoryOpen(true); }}
+                        onClick={() => {
+                          // Open history in the selected-year context for promoted students.
+                          setHistoryStudent({ ...student, academic_year_id: selectedYearId });
+                          setHistoryOpen(true);
+                        }}
                       >
                         {student.student_name}
                       </button>
