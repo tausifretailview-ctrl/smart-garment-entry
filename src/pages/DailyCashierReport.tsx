@@ -255,19 +255,7 @@ const DailyCashierReport = () => {
       return sale?.payment_status === "pending" && String(sale?.sale_number || "").startsWith("Hold/");
     };
 
-    const getEffectiveNet = (sale: any) => {
-      const discountTotal =
-        (Number(sale?.discount_amount) || 0) +
-        (Number(sale?.flat_discount_amount) || 0) +
-        (Number((sale as any)?.points_redeemed_amount) || 0);
-      return (
-        (Number(sale?.gross_amount) || 0) -
-        discountTotal -
-        (Number((sale as any)?.sale_return_adjust) || 0) -
-        (Number(sale?.refund_amount) || 0) -
-        (Number((sale as any)?.round_off) || 0)
-      );
-    };
+    const getEffectiveNet = (sale: any) => Number(sale?.net_amount) || 0;
 
     const eligibleSales = (salesData || []).filter((sale: any) => !isHoldLikeSale(sale));
 

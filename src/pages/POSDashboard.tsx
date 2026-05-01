@@ -1295,6 +1295,7 @@ const POSDashboard = () => {
       }, 0),
       totalAmount: nonHoldSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
       totalDiscount: nonHoldSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
+      netSale: nonHoldSales.reduce((sum, sale) => sum + (sale.net_amount || 0), 0),
       completedCount: nonHoldSales.filter(sale => sale.payment_status === 'completed').length,
       completedAmount: nonHoldSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
       pendingCount: nonHoldSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,
@@ -1697,10 +1698,10 @@ const POSDashboard = () => {
             </CardHeader>
             <CardContent className="p-4 pt-1">
               <div className="text-2xl font-bold text-white">
-                ₹{(summaryStats.totalAmount - summaryStats.totalDiscount - summaryStats.totalSaleReturnAdjust - summaryStats.refundAmount - summaryStats.totalRoundOff).toFixed(0)}
+                ₹{summaryStats.netSale.toFixed(0)}
               </div>
               <p className="text-[10px] text-white/80 mt-0.5 leading-tight">
-                Sale ₹{summaryStats.totalAmount.toFixed(0)} − Disc ₹{summaryStats.totalDiscount.toFixed(0)} − S/R ₹{summaryStats.totalSaleReturnAdjust.toFixed(0)} − Refund ₹{summaryStats.refundAmount.toFixed(0)} − Round Off ₹{summaryStats.totalRoundOff.toFixed(0)}
+                From final invoice net amounts (after discount/SR/refund/round off)
               </p>
             </CardContent>
           </Card>
