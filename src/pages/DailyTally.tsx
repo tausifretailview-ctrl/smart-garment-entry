@@ -20,7 +20,7 @@ import { format, isToday } from "date-fns";
 import {
   CalendarIcon, RefreshCw, Save, Printer, FileSpreadsheet,
   TrendingUp, TrendingDown, Wallet, ArrowDownLeft, ArrowUpRight, IndianRupee,
-  CheckCircle2, AlertTriangle, XCircle, Clock,
+  CheckCircle2, AlertTriangle, XCircle, Clock, Landmark,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -76,6 +76,7 @@ const DailyTally = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [openingCash, setOpeningCash] = useState(0);
   const [physicalCash, setPhysicalCash] = useState(0);
+  const [actualBankBalance, setActualBankBalance] = useState(0);
   const [leaveInDrawer, setLeaveInDrawer] = useState(0);
   const [depositToBank, setDepositToBank] = useState(0);
   const [notes, setNotes] = useState("");
@@ -364,6 +365,8 @@ const DailyTally = () => {
   const actualPaidOut = totalOut.cash + totalOut.upi + totalOut.card + totalOut.bank;
   const totalPaymentsOut = totalOut.total;
   const netMovement = actualCollected - actualPaidOut;
+  const expectedBank = totalIn.upi + totalIn.card + totalIn.bank - totalOut.bank;
+  const bankDifference = actualBankBalance - expectedBank;
 
   const expectedCash = openingCash + totalIn.cash - totalOut.cash;
   const difference = physicalCash - expectedCash;
@@ -447,6 +450,9 @@ const DailyTally = () => {
       ["Expected Cash", expectedCash],
       ["Physical Cash", physicalCash],
       ["Difference", difference],
+      ["Expected Bank/UPI Settlement", expectedBank],
+      ["Actual Bank/UPI Settlement", actualBankBalance],
+      ["Bank Difference", bankDifference],
       [],
       ["SETTLEMENT"],
       ["Leave in Drawer", leaveInDrawer],
@@ -457,7 +463,7 @@ const DailyTally = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Daily Tally");
     XLSX.writeFile(wb, `Daily_Tally_${dateStr}.xlsx`);
-  }, [selectedDate, aggregated, totalIn, totalOut, openingCash, expectedCash, physicalCash, difference, leaveInDrawer, depositToBank, handoverToOwner, settings, dateStr]);
+  }, [selectedDate, aggregated, totalIn, totalOut, openingCash, expectedCash, physicalCash, difference, expectedBank, actualBankBalance, bankDifference, leaveInDrawer, depositToBank, handoverToOwner, settings, dateStr]);
 
   // ─── Table row helper — UI-5: highlight non-zero rows ──────────────
   const MoneyRow = ({ label, data, highlight, type }: { label: string; data: PaymentBreakdown; highlight?: boolean; type?: "in" | "out" }) => (
@@ -479,13 +485,12 @@ const DailyTally = () => {
     </TableRow>
   );
 
-  // ─── Hero card data — FIX 2: Total Collection = actual collected, add Credit Extended card ─
+  // ─── Interactive summary cards ───────────────────────────────────────
   const heroCards = [
-    { title: "Total Sales", value: totalSales, icon: IndianRupee, borderColor: "border-l-emerald-600", iconBg: "bg-emerald-100 dark:bg-emerald-900/40", iconColor: "text-emerald-600" },
-    { title: "Total Collection", value: actualCollected, icon: ArrowDownLeft, borderColor: "border-l-blue-600", iconBg: "bg-blue-100 dark:bg-blue-900/40", iconColor: "text-blue-600" },
-    { title: "Total Payments", value: totalPaymentsOut, icon: ArrowUpRight, borderColor: "border-l-rose-600", iconBg: "bg-rose-100 dark:bg-rose-900/40", iconColor: "text-rose-600" },
-    { title: "Net Movement", value: netMovement, icon: TrendingUp, borderColor: netMovement >= 0 ? "border-l-emerald-600" : "border-l-rose-600", iconBg: netMovement >= 0 ? "bg-emerald-100 dark:bg-emerald-900/40" : "bg-rose-100 dark:bg-rose-900/40", iconColor: netMovement >= 0 ? "text-emerald-600" : "text-rose-600" },
-    { title: "Credit Extended", value: totalIn.credit, icon: Clock, borderColor: "border-l-amber-500", iconBg: "bg-amber-100 dark:bg-amber-900/40", iconColor: "text-amber-600" },
+    { title: "Total Collection", subtitle: "Money In", value: totalIn.total, icon: ArrowDownLeft, borderColor: "border-l-blue-600", iconBg: "bg-blue-100 dark:bg-blue-900/40", iconColor: "text-blue-600" },
+    { title: "Total Payouts", subtitle: "Money Out", value: totalOut.total, icon: ArrowUpRight, borderColor: "border-l-rose-600", iconBg: "bg-rose-100 dark:bg-rose-900/40", iconColor: "text-rose-600" },
+    { title: "Net Cash in Hand", subtitle: "Expected Cash", value: expectedCash, icon: Wallet, borderColor: "border-l-emerald-600", iconBg: "bg-emerald-100 dark:bg-emerald-900/40", iconColor: "text-emerald-600" },
+    { title: "Net Bank/UPI Settlement", subtitle: "Expected Bank", value: expectedBank, icon: Landmark, borderColor: "border-l-amber-500", iconBg: "bg-amber-100 dark:bg-amber-900/40", iconColor: "text-amber-600" },
   ];
 
   const moneyInChartData = useMemo(() => ([
@@ -496,27 +501,25 @@ const DailyTally = () => {
   ]), [aggregated]);
   const hasMoneyInChartData = moneyInChartData.some((d) => d.value > 0);
 
-  const moneyOutChartData = useMemo(() => {
-    const data = [
-      { name: "Supplier Payments", value: aggregated.supplierPayments.total, color: "#ef4444" },
-      { name: "Shop Expenses", value: aggregated.expenses.total, color: "#ec4899" },
-      { name: "Employee Salary", value: aggregated.employeeSalary.total, color: "#eab308" },
-      { name: "Sale Return Refunds", value: aggregated.saleReturnRefunds.total, color: "#6b7280" },
-      // Present in some tally variants; keep screen-only chart resilient without touching data flow.
-      { name: "Advance Refunds", value: Number((aggregated as any)?.advanceRefunds?.total || 0), color: "#06b6d4" },
-    ];
-    return data.filter((d) => d.name !== "Advance Refunds" || d.value > 0);
-  }, [aggregated]);
-  const hasMoneyOutChartData = moneyOutChartData.some((d) => d.value > 0);
-
   const paymentModeChartData = useMemo(() => ([
-    { name: "Money In", cash: totalIn.cash, upi: totalIn.upi, card: totalIn.card, bank: totalIn.bank },
-    { name: "Money Out", cash: totalOut.cash, upi: totalOut.upi, card: totalOut.card, bank: totalOut.bank },
-  ]), [totalIn, totalOut]);
+    { name: "Cash", value: totalIn.cash, color: "#22c55e" },
+    { name: "UPI", value: totalIn.upi, color: "#3b82f6" },
+    { name: "Card", value: totalIn.card, color: "#a855f7" },
+    { name: "Bank", value: totalIn.bank, color: "#f59e0b" },
+  ]), [totalIn]);
 
   const handleChartSliceClick = (entry: any) => {
     toast.info(`${entry?.name || "Amount"}: ${fmt(Number(entry?.value || 0))}`);
   };
+
+  const notesForReport = useMemo(() => {
+    const bankLines = [
+      `Expected Bank/UPI Settlement: ${fmt(expectedBank)}`,
+      `Actual Bank/UPI Settlement: ${fmt(actualBankBalance)}`,
+      `Bank Difference: ${bankDifference >= 0 ? "+" : ""}${fmt(bankDifference)}`,
+    ].join(" | ");
+    return notes?.trim() ? `${notes.trim()} | ${bankLines}` : bankLines;
+  }, [notes, expectedBank, actualBankBalance, bankDifference]);
 
   // ─── Render ────────────────────────────────────────────────────────
   return (
@@ -557,8 +560,8 @@ const DailyTally = () => {
           <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoading} className="border-[1.5px] border-slate-200 dark:border-slate-700">
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
-          <Button variant="outline" className="gap-2 border-[1.5px] border-slate-200 dark:border-slate-700" onClick={() => handlePrint()}>
-            <Printer className="h-4 w-4" /> Print
+          <Button className="gap-2 bg-indigo-700 hover:bg-indigo-800 text-white" onClick={() => handlePrint()}>
+            <Printer className="h-4 w-4" /> Print Tally
           </Button>
           <Button variant="outline" className="gap-2 border-[1.5px] border-slate-200 dark:border-slate-700" onClick={handleExportExcel}>
             <FileSpreadsheet className="h-4 w-4" /> Excel
@@ -577,8 +580,8 @@ const DailyTally = () => {
       {/* UI-4: Skeleton loading state */}
       {isLoading ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            {[1,2,3,4,5].map(i => (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => (
               <Card key={i} className="border-[1.5px] border-slate-200 dark:border-slate-700 border-l-4 border-l-slate-300">
                 <CardHeader className="pb-2 pt-4 px-4">
                   <Skeleton className="h-3 w-20" />
@@ -601,11 +604,18 @@ const DailyTally = () => {
       ) : (
       <>
       {/* ═══ Hero Summary Cards ═══ */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {heroCards.map((c) => (
-          <Card key={c.title} className={cn("border-[1.5px] border-slate-200 dark:border-slate-700 border-l-4 hover:shadow-lg transition-shadow", c.borderColor)}>
+          <Card
+            key={c.title}
+            onClick={() => toast.info(`${c.title}: ${fmt(c.value)}`)}
+            className={cn("cursor-pointer border-[1.5px] border-slate-200 dark:border-slate-700 border-l-4 hover:shadow-lg transition-shadow", c.borderColor)}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4">
-              <span className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{c.title}</span>
+              <div className="space-y-0.5">
+                <span className="block text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">{c.title}</span>
+                <span className="block text-[10px] text-slate-400 dark:text-slate-500">{c.subtitle}</span>
+              </div>
               <div className={cn("h-9 w-9 rounded-full flex items-center justify-center", c.iconBg)}>
                 <c.icon className={cn("h-4 w-4", c.iconColor)} />
               </div>
@@ -618,7 +628,7 @@ const DailyTally = () => {
       </div>
 
       {/* ═══ Visual Summary (screen only) ═══ */}
-      <div className="print:hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="print:hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Money In by Source</CardTitle>
@@ -653,39 +663,7 @@ const DailyTally = () => {
 
         <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Money Out by Source</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[280px]">
-            {!hasMoneyOutChartData ? (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                No money out today
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={moneyOutChartData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={88}
-                    onClick={handleChartSliceClick}
-                  >
-                    {moneyOutChartData.map((entry) => (
-                      <Cell key={`out-${entry.name}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip formatter={(value: number, name: string) => [fmt(Number(value || 0)), name]} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Payment Modes</CardTitle>
+            <CardTitle className="text-base">Collection by Payment Mode</CardTitle>
           </CardHeader>
           <CardContent className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -695,10 +673,11 @@ const DailyTally = () => {
                 <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
                 <RechartsTooltip formatter={(value: number, name: string) => [fmt(Number(value || 0)), name]} />
                 <Legend verticalAlign="bottom" height={24} />
-                <Bar dataKey="cash" stackId="a" fill="#22c55e" name="Cash" />
-                <Bar dataKey="upi" stackId="a" fill="#3b82f6" name="UPI" />
-                <Bar dataKey="card" stackId="a" fill="#a855f7" name="Card" />
-                <Bar dataKey="bank" stackId="a" fill="#f59e0b" name="Bank" />
+                <Bar dataKey="value" name="Collection">
+                  {paymentModeChartData.map((entry) => (
+                    <Cell key={`mode-${entry.name}`} fill={entry.color} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -790,10 +769,36 @@ const DailyTally = () => {
       <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold">
-            <Wallet className="h-5 w-5 text-indigo-600" /> Cash Reconciliation
+            <Wallet className="h-5 w-5 text-indigo-600" /> Closing Entry Form (Cash &amp; Bank)
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg border-[1.5px] border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-800/40">
+              <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 mb-1">Expected Bank/UPI Settlement</p>
+              <p className="text-2xl font-bold tabular-nums">{fmt(expectedBank)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                (UPI + Card + Bank In) - Bank Out
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 block">Actual Bank/UPI Settlement</label>
+              <Input
+                type="number"
+                value={actualBankBalance || ""}
+                onChange={(e) => setActualBankBalance(Number(e.target.value) || 0)}
+                placeholder="0.00"
+                className="text-lg font-bold tabular-nums"
+              />
+              <p className={cn(
+                "text-sm font-semibold",
+                Math.abs(bankDifference) < 0.01 ? "text-emerald-600" : bankDifference > 0 ? "text-amber-600" : "text-red-600"
+              )}>
+                Bank Difference: {bankDifference >= 0 ? "+" : ""}{fmt(bankDifference)}
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left — Expected */}
             <div className="space-y-4">
@@ -1056,7 +1061,7 @@ const DailyTally = () => {
           leaveInDrawer={leaveInDrawer}
           depositToBank={depositToBank}
           handoverToOwner={handoverToOwner}
-          notes={notes}
+          notes={notesForReport}
         />
       </div>
     </div>
