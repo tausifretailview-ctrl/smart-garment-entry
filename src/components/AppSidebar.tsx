@@ -147,7 +147,7 @@ export function AppSidebar() {
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/bulk-product-update", "/stock-settlement"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/advance-booking-dashboard"];
   const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/customer-ledger-report", "/customer-account-statement", "/daily-sale-analysis", "/einvoice-report"];
-  const accountsPaths = ["/accounts", "/payments-dashboard"];
+  const accountsPaths = ["/accounts", "/chart-of-accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion", "/student-ledger"];
 
@@ -958,6 +958,16 @@ export function AppSidebar() {
                               <NavLink to="/accounts" className="flex items-center gap-2 group">
                                 <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                                 <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Account Ledgers</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("accounts_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/chart-of-accounts")} className="text-slate-300 dark:text-slate-300 hover:text-white dark:hover:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
+                              <NavLink to="/chart-of-accounts" className="flex items-center gap-2 group">
+                                <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="text-slate-300 dark:text-slate-300 group-hover:text-white">Chart of Accounts</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
