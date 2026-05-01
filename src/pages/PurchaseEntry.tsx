@@ -570,7 +570,7 @@ const PurchaseEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("settings")
-        .select("purchase_settings, product_settings, bill_barcode_settings")
+        .select("purchase_settings, product_settings, bill_barcode_settings, accounting_engine_enabled")
         .eq("organization_id", currentOrganization?.id)
         .maybeSingle();
       if (error) throw error;
@@ -582,6 +582,7 @@ const PurchaseEntry = () => {
   });
 
   const showMrp = ((settings?.purchase_settings as any)?.show_mrp || false) && showPurCol.mrp;
+  const isAccountingEngineEnabled = Boolean((settings as any)?.accounting_engine_enabled);
   
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
@@ -3120,29 +3121,31 @@ const PurchaseEntry = () => {
           if (itemsError) throw itemsError;
         }
 
-        // Accounting reliability: auto-post purchase journal without blocking bill save
-        try {
-          await recordPurchaseJournalEntry(
-            billDataResult.id,
-            currentOrganization.id,
-            Number((billDataResult as any)?.net_amount ?? (isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet)),
-            Number((billDataResult as any)?.paid_amount ?? 0),
-            String((billDataResult as any)?.payment_method || "pay_later"),
-            supabase
-          );
-          void (supabase as any)
-            .from("purchase_bills")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", billDataResult.id);
-        } catch (journalErr) {
-          console.error("Auto-journal (purchase) failed:", journalErr);
-          void (supabase as any)
-            .from("purchase_bills")
-            .update({
-              journal_status: "failed",
-              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-            })
-            .eq("id", billDataResult.id);
+        // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
+        if (isAccountingEngineEnabled) {
+          try {
+            await recordPurchaseJournalEntry(
+              billDataResult.id,
+              currentOrganization.id,
+              Number((billDataResult as any)?.net_amount ?? (isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet)),
+              Number((billDataResult as any)?.paid_amount ?? 0),
+              String((billDataResult as any)?.payment_method || "pay_later"),
+              supabase
+            );
+            void (supabase as any)
+              .from("purchase_bills")
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", billDataResult.id);
+          } catch (journalErr) {
+            console.error("Auto-journal (purchase) failed:", journalErr);
+            void (supabase as any)
+              .from("purchase_bills")
+              .update({
+                journal_status: "failed",
+                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+              })
+              .eq("id", billDataResult.id);
+          }
         }
 
         // Flag product variants as DC products (or reset if non-DC purchase)

@@ -520,6 +520,7 @@ export default function SalesInvoice() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
+  const isAccountingEngineEnabled = Boolean((settingsData as any)?.accounting_engine_enabled);
 
   // Garment / Footwear GST auto-bump rule (from purchase_settings)
   const garmentGstSettings = {
@@ -2482,29 +2483,31 @@ Thank you for choosing us!`;
 
         if (saleError) throw saleError;
 
-        // Accounting Phase 1.5: auto-post strict double-entry journal
-        try {
-          await recordSaleJournalEntry(
-            saleData.id,
-            currentOrganization!.id,
-            Number(netAmount || 0),
-            Number(paymentOverride?.totalPaid || 0),
-            String(paymentOverride?.method || "pay_later"),
-            supabase
-          );
-          void (supabase as any)
-            .from("sales")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", saleData.id);
-        } catch (journalErr) {
-          console.error("Auto-journal (sales invoice) failed:", journalErr);
-          void (supabase as any)
-            .from("sales")
-            .update({
-              journal_status: "failed",
-              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-            })
-            .eq("id", saleData.id);
+        // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
+        if (isAccountingEngineEnabled) {
+          try {
+            await recordSaleJournalEntry(
+              saleData.id,
+              currentOrganization!.id,
+              Number(netAmount || 0),
+              Number(paymentOverride?.totalPaid || 0),
+              String(paymentOverride?.method || "pay_later"),
+              supabase
+            );
+            void (supabase as any)
+              .from("sales")
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", saleData.id);
+          } catch (journalErr) {
+            console.error("Auto-journal (sales invoice) failed:", journalErr);
+            void (supabase as any)
+              .from("sales")
+              .update({
+                journal_status: "failed",
+                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+              })
+              .eq("id", saleData.id);
+          }
         }
 
         const saleItems = filledItems.map(item => ({

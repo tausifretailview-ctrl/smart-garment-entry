@@ -58,6 +58,7 @@ export const useSaveSale = () => {
   const shopName = useShopName();
   // Centralized cached org settings (5 min) — used by save handlers below
   const { data: orgSettings } = useSettings();
+  const isAccountingEngineEnabled = Boolean((orgSettings as any)?.accounting_engine_enabled);
 
   /**
    * Auto-correct FY year in literal formats like "INV/25-26/1" → "INV/26-27/1"
@@ -454,29 +455,31 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
-      // Accounting Phase 1.5: auto-post double-entry journal for completed sale
-      try {
-        await recordSaleJournalEntry(
-          sale.id,
-          currentOrganization.id,
-          Number(saleData.netAmount || 0),
-          Number(paidAmt || 0),
-          String(finalPaymentMethod || ""),
-          supabase
-        );
-        void (supabase as any)
-          .from("sales")
-          .update({ journal_status: "posted", journal_error: null })
-          .eq("id", sale.id);
-      } catch (journalErr) {
-        console.error("Auto-journal (sale) failed:", journalErr);
-        void (supabase as any)
-          .from("sales")
-          .update({
-            journal_status: "failed",
-            journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-          })
-          .eq("id", sale.id);
+      // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
+      if (isAccountingEngineEnabled) {
+        try {
+          await recordSaleJournalEntry(
+            sale.id,
+            currentOrganization.id,
+            Number(saleData.netAmount || 0),
+            Number(paidAmt || 0),
+            String(finalPaymentMethod || ""),
+            supabase
+          );
+          void (supabase as any)
+            .from("sales")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", sale.id);
+        } catch (journalErr) {
+          console.error("Auto-journal (sale) failed:", journalErr);
+          void (supabase as any)
+            .from("sales")
+            .update({
+              journal_status: "failed",
+              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+            })
+            .eq("id", sale.id);
+        }
       }
 
       // Insert sale items with proportional bill discount + round-off distribution
@@ -1021,29 +1024,31 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
-      // Accounting Phase 1.5: re-post journal snapshot for resumed held sale completion
-      try {
-        await recordSaleJournalEntry(
-          sale.id,
-          currentOrganization.id,
-          Number(saleData.netAmount || 0),
-          Number(paidAmt || 0),
-          String(finalPaymentMethod || ""),
-          supabase
-        );
-        void (supabase as any)
-          .from("sales")
-          .update({ journal_status: "posted", journal_error: null })
-          .eq("id", sale.id);
-      } catch (journalErr) {
-        console.error("Auto-journal (resumed held sale) failed:", journalErr);
-        void (supabase as any)
-          .from("sales")
-          .update({
-            journal_status: "failed",
-            journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-          })
-          .eq("id", sale.id);
+      // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
+      if (isAccountingEngineEnabled) {
+        try {
+          await recordSaleJournalEntry(
+            sale.id,
+            currentOrganization.id,
+            Number(saleData.netAmount || 0),
+            Number(paidAmt || 0),
+            String(finalPaymentMethod || ""),
+            supabase
+          );
+          void (supabase as any)
+            .from("sales")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", sale.id);
+        } catch (journalErr) {
+          console.error("Auto-journal (resumed held sale) failed:", journalErr);
+          void (supabase as any)
+            .from("sales")
+            .update({
+              journal_status: "failed",
+              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+            })
+            .eq("id", sale.id);
+        }
       }
 
       // Customer Account Statement — refresh ledger entries (delete + re-insert)
