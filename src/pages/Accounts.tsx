@@ -31,6 +31,7 @@ import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdj
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchAllCustomers, fetchAllSalesSummary, fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { recordPurchaseJournalEntry, recordSaleJournalEntry } from "@/utils/accounting/journalService";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -62,6 +63,7 @@ export default function Accounts() {
   // Advance booking & balance adjustment dialog state
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
   const [showBalanceAdjustmentDialog, setShowBalanceAdjustmentDialog] = useState(false);
+  const [showFailedJournalsDialog, setShowFailedJournalsDialog] = useState(false);
 
   // Edit payment dialog state
   const [showEditPaymentDialog, setShowEditPaymentDialog] = useState(false);
@@ -139,6 +141,123 @@ export default function Accounts() {
     },
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
+  });
+
+  const { data: failedJournalRows = [], isLoading: failedRowsLoading } = useQuery({
+    queryKey: ["failed-journal-rows", currentOrganization?.id, showFailedJournalsDialog],
+    enabled: !!currentOrganization?.id && showFailedJournalsDialog,
+    queryFn: async () => {
+      const [{ data: failedSales, error: salesErr }, { data: failedPurchases, error: purchaseErr }] = await Promise.all([
+        supabase
+          .from("sales")
+          .select("id, created_at, net_amount, paid_amount, payment_method, journal_error")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("journal_status", "failed")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(100),
+        supabase
+          .from("purchase_bills")
+          .select("id, created_at, software_bill_no, net_amount, paid_amount, journal_error")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("journal_status", "failed")
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+
+      if (salesErr) throw salesErr;
+      if (purchaseErr) throw purchaseErr;
+
+      const salesRows = (failedSales || []).map((s: any) => ({
+        source: "sale" as const,
+        id: s.id as string,
+        created_at: s.created_at as string,
+        label: `Sale ${String(s.id).slice(0, 8).toUpperCase()}`,
+        net_amount: Number(s.net_amount || 0),
+        paid_amount: Number(s.paid_amount || 0),
+        payment_method: String(s.payment_method || "pay_later"),
+        journal_error: s.journal_error as string | null,
+      }));
+
+      const purchaseRows = (failedPurchases || []).map((p: any) => ({
+        source: "purchase" as const,
+        id: p.id as string,
+        created_at: p.created_at as string,
+        label: p.software_bill_no ? `Purchase ${p.software_bill_no}` : `Purchase ${String(p.id).slice(0, 8).toUpperCase()}`,
+        net_amount: Number(p.net_amount || 0),
+        paid_amount: Number(p.paid_amount || 0),
+        payment_method: "pay_later",
+        journal_error: p.journal_error as string | null,
+      }));
+
+      return [...salesRows, ...purchaseRows].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    },
+  });
+
+  const retryJournal = useMutation({
+    mutationFn: async (row: {
+      source: "sale" | "purchase";
+      id: string;
+      net_amount: number;
+      paid_amount: number;
+      payment_method: string;
+    }) => {
+      if (!currentOrganization?.id) throw new Error("Organization is required");
+
+      if (row.source === "sale") {
+        await recordSaleJournalEntry(
+          row.id,
+          currentOrganization.id,
+          Number(row.net_amount || 0),
+          Number(row.paid_amount || 0),
+          String(row.payment_method || "pay_later"),
+          supabase
+        );
+        await supabase
+          .from("sales")
+          .update({ journal_status: "posted", journal_error: null })
+          .eq("id", row.id);
+      } else {
+        await recordPurchaseJournalEntry(
+          row.id,
+          currentOrganization.id,
+          Number(row.net_amount || 0),
+          Number(row.paid_amount || 0),
+          String(row.payment_method || "pay_later"),
+          supabase
+        );
+        await supabase
+          .from("purchase_bills")
+          .update({ journal_status: "posted", journal_error: null })
+          .eq("id", row.id);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Journal retry posted successfully");
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers", currentOrganization?.id] });
+    },
+    onError: async (error: any, variables) => {
+      const errorMessage = error?.message || "Retry failed";
+      if (variables.source === "sale") {
+        await supabase
+          .from("sales")
+          .update({ journal_status: "failed", journal_error: errorMessage })
+          .eq("id", variables.id);
+      } else {
+        await supabase
+          .from("purchase_bills")
+          .update({ journal_status: "failed", journal_error: errorMessage })
+          .eq("id", variables.id);
+      }
+      toast.error(errorMessage);
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization?.id] });
+    },
   });
 
   // Fetch sales only when customer-payment or reconciliation tab is active
@@ -592,6 +711,7 @@ export default function Accounts() {
         paymentCardFilter={paymentCardFilter}
         onCardClick={handleCardClick}
         failedJournalCount={failedJournalCount}
+        onFailedJournalClick={() => setShowFailedJournalsDialog(true)}
       />
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
@@ -795,6 +915,58 @@ export default function Accounts() {
       {currentOrganization?.id && (
         <CustomerBalanceAdjustmentDialog open={showBalanceAdjustmentDialog} onOpenChange={setShowBalanceAdjustmentDialog} organizationId={currentOrganization.id} />
       )}
+
+      <Dialog open={showFailedJournalsDialog} onOpenChange={setShowFailedJournalsDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Failed Ledger Postings</DialogTitle>
+            <DialogDescription>Retry failed auto-journal transactions</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {failedRowsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading failed transactions...</p>
+            ) : failedJournalRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No failed transactions found.</p>
+            ) : (
+              failedJournalRows.map((row) => (
+                <Card key={`${row.source}-${row.id}`} className="border">
+                  <CardContent className="p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="text-sm font-semibold">{row.label}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {row.source === "sale" ? "Sale" : "Purchase"} • {format(new Date(row.created_at), "dd MMM yyyy, hh:mm a")}
+                        </div>
+                        <div className="text-xs">
+                          Net: ₹{Math.round(row.net_amount || 0).toLocaleString("en-IN")} | Paid: ₹{Math.round(row.paid_amount || 0).toLocaleString("en-IN")}
+                        </div>
+                        {row.journal_error && (
+                          <div className="text-xs text-red-600 dark:text-red-300">{row.journal_error}</div>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={retryJournal.isPending}
+                        onClick={() =>
+                          retryJournal.mutate({
+                            source: row.source,
+                            id: row.id,
+                            net_amount: row.net_amount,
+                            paid_amount: row.paid_amount,
+                            payment_method: row.payment_method,
+                          })
+                        }
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

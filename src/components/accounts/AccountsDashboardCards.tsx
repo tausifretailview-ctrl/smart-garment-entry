@@ -28,6 +28,7 @@ interface AccountsDashboardCardsProps {
   paymentCardFilter: string | null;
   onCardClick: (filter: string | null) => void;
   failedJournalCount?: number;
+  onFailedJournalClick?: () => void;
 }
 
 export function AccountsDashboardCards({
@@ -36,11 +37,15 @@ export function AccountsDashboardCards({
   paymentCardFilter,
   onCardClick,
   failedJournalCount = 0,
+  onFailedJournalClick,
 }: AccountsDashboardCardsProps) {
   return (
     <div className="space-y-4">
       {failedJournalCount > 0 && (
-        <Card className="border-l-4 border-l-red-600 bg-red-50/80 dark:bg-red-950/30">
+        <Card
+          className="border-l-4 border-l-red-600 bg-red-50/80 dark:bg-red-950/30 cursor-pointer hover:shadow-md transition-all"
+          onClick={onFailedJournalClick}
+        >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
