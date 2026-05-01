@@ -1289,6 +1289,7 @@ export function CustomerPaymentTab({
                 <TableHead>Amount</TableHead>
                 <TableHead>Method</TableHead>
                 <TableHead>Cheque/Txn Date</TableHead>
+                <TableHead>Discount</TableHead>
                 <TableHead>Description</TableHead>
                 {isAdmin && <TableHead>Actions</TableHead>}
               </TableRow>
@@ -1325,6 +1326,11 @@ export function CustomerPaymentTab({
                     <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
                     <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
                     <TableCell className="text-xs tabular-nums">{extractedDate}</TableCell>
+                    <TableCell className="text-xs tabular-nums font-mono">
+                      {Number((voucher as any).discount_amount) > 0
+                        ? `₹${Number((voucher as any).discount_amount).toFixed(2)}`
+                        : "-"}
+                    </TableCell>
                     <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                     {isAdmin && (
                       <TableCell>
