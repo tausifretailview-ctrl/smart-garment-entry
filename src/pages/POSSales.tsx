@@ -1852,7 +1852,10 @@ export default function POSSales() {
   const calculateNetAmount = (item: CartItem) => {
     const baseAmount = item.mrp * item.quantity;
     const percentDiscount = (baseAmount * item.discountPercent) / 100;
-    const totalDiscount = percentDiscount + item.discountAmount;
+    // Treat manual rate override (MRP > Unit Price) as an implicit line discount
+    // so Disc Rs, net amount, and totals stay aligned.
+    const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
+    const totalDiscount = percentDiscount + item.discountAmount + implicitRateDiscount;
     return baseAmount - totalDiscount;
   };
 
@@ -1939,7 +1942,8 @@ export default function POSSales() {
     discount: items.reduce((sum, item) => {
       const baseAmount = item.mrp * item.quantity;
       const percentDiscount = (baseAmount * item.discountPercent) / 100;
-      return sum + percentDiscount + item.discountAmount;
+      const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
+      return sum + percentDiscount + item.discountAmount + implicitRateDiscount;
     }, 0),
     subtotal: items.reduce((sum, item) => sum + item.netAmount, 0),
     // Calculate savings from MRP (originalMrp - unitCost) * quantity
@@ -4849,7 +4853,11 @@ export default function POSSales() {
                           <div>
                             <Input
                               type="number"
-                              value={item.discountAmount || ""}
+                              value={
+                                item.discountAmount > 0
+                                  ? item.discountAmount
+                                  : Math.max(0, (item.mrp - item.unitCost) * item.quantity) || ""
+                              }
                               onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
                               className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"

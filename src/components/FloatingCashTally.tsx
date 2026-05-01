@@ -258,19 +258,8 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       return s?.payment_status === "pending" && String(s?.sale_number || "").startsWith("Hold/");
     };
 
-    const getEffectiveNet = (s: any) => {
-      const discountTotal =
-        (Number(s?.discount_amount) || 0) +
-        (Number(s?.flat_discount_amount) || 0) +
-        (Number(s?.points_redeemed_amount) || 0);
-      return (
-        (Number(s?.gross_amount) || 0) -
-        discountTotal -
-        (Number(s?.sale_return_adjust) || 0) -
-        (Number(s?.refund_amount) || 0) -
-        (Number(s?.round_off) || 0)
-      );
-    };
+    /** Use saved bill total — manual rate edits don't populate discount_* columns. */
+    const getEffectiveNet = (s: any) => Number(s?.net_amount) || 0;
 
     (salesData || []).forEach((s: any) => {
       if (isHoldLikeSale(s)) return;
