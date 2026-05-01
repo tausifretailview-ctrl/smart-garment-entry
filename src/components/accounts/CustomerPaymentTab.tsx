@@ -458,35 +458,64 @@ export function CustomerPaymentTab({
       if (!referenceId) throw new Error("Please select a customer to record payment");
       const paymentAmount = roundToRupee(amount);
       const discountValue = roundToRupee(discountAmount);
-      const totalSettlement = paymentAmount + discountValue;
-      let remainingAmount = totalSettlement;
+      let remainingCash = paymentAmount;
+      let remainingDiscount = discountValue;
+      /** Apply settlement to invoices/OB: use cash first, then discount (matches “received + waived” mentally). */
+      const takeFromPool = (totalNeedRaw: number) => {
+        const t = roundToRupee(totalNeedRaw);
+        if (t <= 0) return { cash: 0, discount: 0 };
+        let c = Math.min(remainingCash, t);
+        let d = t - c;
+        if (d > remainingDiscount) {
+          d = remainingDiscount;
+          c = t - d;
+        }
+        remainingCash = roundToRupee(remainingCash - c);
+        remainingDiscount = roundToRupee(remainingDiscount - d);
+        return { cash: c, discount: d };
+      };
+
       const processedInvoices: any[] = [];
       // Treat as opening-balance-only when nothing real is selected and either OB row is selected,
       // or no invoices exist at all (legacy behaviour).
       const isOpeningBalancePayment = invoicesToProcess.length === 0;
       let openingBalanceApplied = 0;
+      let openingBalanceCash = 0;
+      let openingBalanceDiscount = 0;
 
       // If user selected the Opening Balance row alongside invoices, settle OB FIRST
       // up to its remaining amount, then apply the rest to invoices.
       if (includesOpeningBalance && invoicesToProcess.length > 0) {
-        const obRemaining = Number(openingBalanceRemaining || 0);
-        openingBalanceApplied = Math.min(remainingAmount, obRemaining);
-        remainingAmount -= openingBalanceApplied;
+        const obRemaining = roundToRupee(openingBalanceRemaining);
+        const pool = remainingCash + remainingDiscount;
+        openingBalanceApplied = Math.min(pool, obRemaining);
+        const split = takeFromPool(openingBalanceApplied);
+        openingBalanceCash = split.cash;
+        openingBalanceDiscount = split.discount;
       }
 
       if (invoicesToProcess.length > 0) {
         for (const invoiceId of invoicesToProcess) {
-          if (remainingAmount <= 0) break;
+          const pool = remainingCash + remainingDiscount;
+          if (pool <= 0) break;
           const invoice = customerInvoices?.find(inv => inv.id === invoiceId);
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
           const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoiceId) || 0);
           const allocatedForInvoice = getAllocatedAmount(invoiceId, outstanding);
-          const amountToApply = Math.min(remainingAmount, outstanding, allocatedForInvoice);
+          const amountToApply = Math.min(pool, outstanding, allocatedForInvoice);
           if (amountToApply <= 0) continue;
+          const { cash: cashApplied, discount: discountApplied } = takeFromPool(amountToApply);
           const projectedPaidAmount = currentPaid + amountToApply;
-          processedInvoices.push({ invoice, amountApplied: amountToApply, newPaidAmount: projectedPaidAmount, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
-          remainingAmount -= amountToApply;
+          processedInvoices.push({
+            invoice,
+            amountApplied: amountToApply,
+            cashApplied,
+            discountApplied,
+            newPaidAmount: projectedPaidAmount,
+            previousBalance: outstanding,
+            currentBalance: outstanding - amountToApply,
+          });
         }
       }
 
@@ -518,6 +547,10 @@ export function CustomerPaymentTab({
         // Optional Opening Balance leg, when mixed with invoices
         if (includesOpeningBalance && openingBalanceApplied > 0) {
           const obVoucherNumber = `${voucherNumber}-OB`;
+          const obDiscSuffix =
+            openingBalanceDiscount > 0
+              ? ` | Discount: ₹${openingBalanceDiscount.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+              : "";
           const { data: obVoucher, error: obErr } = await supabase.from("voucher_entries").insert({
             organization_id: organizationId,
             voucher_number: obVoucherNumber,
@@ -525,27 +558,47 @@ export function CustomerPaymentTab({
             voucher_date: format(voucherDate, "yyyy-MM-dd"),
             reference_type: 'customer',
             reference_id: referenceId,
-            description: `Opening Balance Payment${paymentDetails}`,
+            description: `Opening Balance Payment${paymentDetails}${obDiscSuffix}`,
             total_amount: openingBalanceApplied,
+            discount_amount: openingBalanceDiscount,
+            discount_reason: openingBalanceDiscount > 0 ? discountReason || null : null,
             payment_method: paymentMethod,
           }).select().single();
           if (obErr) throw obErr;
           createdVouchers.push(obVoucher);
-          insertLedgerCredit({
-            organizationId,
-            customerId: referenceId,
-            voucherType: 'RECEIPT',
-            voucherNo: obVoucherNumber,
-            particulars: 'Opening Balance Receipt',
-            transactionDate: format(voucherDate, "yyyy-MM-dd"),
-            amount: openingBalanceApplied,
-          });
+          if (referenceId) {
+            if (openingBalanceCash > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: obVoucherNumber,
+                particulars: "Opening Balance Receipt",
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: openingBalanceCash,
+              });
+            }
+            if (openingBalanceDiscount > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: obVoucherNumber,
+                particulars: `Opening Balance — settlement discount${discountReason ? ` (${discountReason})` : ""}`,
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: openingBalanceDiscount,
+              });
+            }
+          }
         }
         for (let i = 0; i < processedInvoices.length; i++) {
           const processed = processedInvoices[i];
           const invoiceVoucherNumber = processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
           const invoiceDescription = `Payment for ${processed.invoice.sale_number}${paymentDetails}`;
-          const invoiceDiscountSuffix = i === 0 && discountValue > 0 ? ` | Discount: ₹${discountValue.toFixed(2)}${discountReason ? ` (${discountReason})` : ''}` : '';
+          const invoiceDiscountSuffix =
+            processed.discountApplied > 0
+              ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+              : "";
           const { data: voucher, error: voucherError } = await supabase.from("voucher_entries").insert({
             organization_id: organizationId,
             voucher_number: invoiceVoucherNumber,
@@ -555,25 +608,39 @@ export function CustomerPaymentTab({
             reference_id: processed.invoice.id,
             description: invoiceDescription + invoiceDiscountSuffix,
             total_amount: processed.amountApplied,
-            discount_amount: i === 0 ? discountValue : 0,
-            discount_reason: i === 0 ? discountReason || null : null,
+            discount_amount: processed.discountApplied,
+            discount_reason: processed.discountApplied > 0 ? discountReason || null : null,
             payment_method: paymentMethod,
           }).select().single();
           if (voucherError) throw voucherError;
           createdVouchers.push(voucher);
           if (referenceId) {
-            insertLedgerCredit({
-              organizationId,
-              customerId: referenceId,
-              voucherType: 'RECEIPT',
-              voucherNo: invoiceVoucherNumber,
-              particulars: `Receipt for ${processed.invoice.sale_number}`,
-              transactionDate: format(voucherDate, "yyyy-MM-dd"),
-              amount: processed.amountApplied,
-            });
+            if (processed.cashApplied > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: invoiceVoucherNumber,
+                particulars: `Receipt for ${processed.invoice.sale_number}`,
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: processed.cashApplied,
+              });
+            }
+            if (processed.discountApplied > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: invoiceVoucherNumber,
+                particulars: `Settlement discount — ${processed.invoice.sale_number}${discountReason ? ` (${discountReason})` : ""}`,
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: processed.discountApplied,
+              });
+            }
           }
         }
       } else {
+        const fullSettlement = paymentAmount + discountValue;
         const { data: voucher, error: voucherError } = await supabase.from("voucher_entries").insert({
           organization_id: organizationId,
           voucher_number: voucherNumber,
@@ -582,7 +649,7 @@ export function CustomerPaymentTab({
           reference_type: isOpeningBalancePayment ? 'customer' : 'sale',
           reference_id: isOpeningBalancePayment ? referenceId : processedInvoices[0]?.invoice.id || referenceId,
           description: finalDescription + discountSuffix,
-          total_amount: paymentAmount,
+          total_amount: fullSettlement,
           discount_amount: discountValue,
           discount_reason: discountReason || null,
           payment_method: paymentMethod,
@@ -590,15 +657,53 @@ export function CustomerPaymentTab({
         if (voucherError) throw voucherError;
         createdVouchers.push(voucher);
         if (referenceId) {
-          insertLedgerCredit({
-            organizationId,
-            customerId: referenceId,
-            voucherType: 'RECEIPT',
-            voucherNo: voucherNumber,
-            particulars: isOpeningBalancePayment ? 'Opening Balance Receipt' : 'Receipt',
-            transactionDate: format(voucherDate, "yyyy-MM-dd"),
-            amount: paymentAmount,
-          });
+          if (isOpeningBalancePayment) {
+            if (paymentAmount > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: voucherNumber,
+                particulars: 'Opening Balance Receipt',
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: paymentAmount,
+              });
+            }
+            if (discountValue > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: voucherNumber,
+                particulars: `Opening Balance — settlement discount${discountReason ? ` (${discountReason})` : ""}`,
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: discountValue,
+              });
+            }
+          } else {
+            if (paymentAmount > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: voucherNumber,
+                particulars: 'Receipt',
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: paymentAmount,
+              });
+            }
+            if (discountValue > 0) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: voucherNumber,
+                particulars: `Settlement discount${discountReason ? ` (${discountReason})` : ""}`,
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: discountValue,
+              });
+            }
+          }
         }
       }
 
@@ -651,6 +756,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
 
       const totalPaid = roundToRupee(amount);
       const discountValue = data.discountAmount || 0;
@@ -730,9 +836,15 @@ export function CustomerPaymentTab({
     if (!referenceId) { toast.error("Please select a customer"); return; }
     if (selectedInvoiceIds.length > 0) {
       const selectedPayable = getSelectedPayableTotal();
-      if (roundToRupee(amount) > roundToRupee(selectedPayable)) {
+      const pay = roundToRupee(amount);
+      const disc = roundToRupee(discountAmount);
+      if (pay > roundToRupee(selectedPayable)) {
         toast.error(`Amount cannot exceed pending total of ₹${selectedPayable.toFixed(2)}`);
         setAmount(roundToRupee(selectedPayable).toFixed(2));
+        return;
+      }
+      if (pay + disc > roundToRupee(selectedPayable) + SETTLEMENT_TOLERANCE_RUPEE) {
+        toast.error(`Payment + discount cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
         return;
       }
     }
