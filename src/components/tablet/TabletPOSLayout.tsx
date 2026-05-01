@@ -275,7 +275,18 @@ export function TabletPOSLayout({
                     className="grid grid-cols-[1fr_80px_110px_85px_36px] gap-2 px-4 py-3 border-b border-border/40 items-center hover:bg-muted/20 transition-colors group"
                   >
                     <div className="min-w-0">
-                      <p className="font-medium text-[13px] truncate">{item.productName}</p>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <p className="font-medium text-[13px] truncate flex-1 min-w-0">{item.productName}</p>
+                        {(Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
+                          <Badge
+                            variant="outline"
+                            className="shrink-0 h-4 px-1 text-[9px] font-semibold border-sky-300 bg-sky-50 text-sky-800"
+                            title="Unit price below MRP — line discount applied"
+                          >
+                            Rate override
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-[11px] text-muted-foreground truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                         {item.barcode} · {item.size}{item.color ? ` · ${item.color}` : ""}
                       </p>
@@ -307,7 +318,7 @@ export function TabletPOSLayout({
                     </div>
 
                     <div className="text-right text-[13px] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                      ₹{fmtINR((item.mrp || 0) * item.quantity)}
+                      ₹{fmtINR(Number(item.netAmount) || 0)}
                     </div>
 
                     <button

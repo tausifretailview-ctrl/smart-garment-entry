@@ -4792,10 +4792,15 @@ export default function POSSales() {
                         <div key={index} className={`grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
                           <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
                           <div className="flex items-center text-sm font-mono text-foreground/80">{displayBarcode(item.barcode)}</div>
-                          <div className="flex items-center font-medium text-sm truncate gap-1">
-                            {item.productName}
+                          <div className="flex items-center font-medium text-sm min-w-0 gap-1">
+                            <span className="truncate">{item.productName}</span>
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
+                            )}
+                            {(Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
+                              <span className="px-1 py-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 rounded flex-shrink-0" title="Unit price is below MRP — counted as line discount">
+                                Rate override
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center justify-center text-sm font-medium">{item.size}</div>
