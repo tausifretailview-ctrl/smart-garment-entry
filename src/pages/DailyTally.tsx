@@ -30,6 +30,19 @@ import * as XLSX from "xlsx";
 import { useReactToPrint } from "react-to-print";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as RechartsTooltip,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 
 // ─── helpers ───────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -475,6 +488,36 @@ const DailyTally = () => {
     { title: "Credit Extended", value: totalIn.credit, icon: Clock, borderColor: "border-l-amber-500", iconBg: "bg-amber-100 dark:bg-amber-900/40", iconColor: "text-amber-600" },
   ];
 
+  const moneyInChartData = useMemo(() => ([
+    { name: "POS Sales", value: aggregated.posSales.total, color: "#3b82f6" },
+    { name: "Sales Invoice", value: aggregated.invoiceSales.total, color: "#10b981" },
+    { name: "Old Balance Received", value: aggregated.receipts.total, color: "#a855f7" },
+    { name: "Advance Received", value: aggregated.advances.total, color: "#f59e0b" },
+  ]), [aggregated]);
+  const hasMoneyInChartData = moneyInChartData.some((d) => d.value > 0);
+
+  const moneyOutChartData = useMemo(() => {
+    const data = [
+      { name: "Supplier Payments", value: aggregated.supplierPayments.total, color: "#ef4444" },
+      { name: "Shop Expenses", value: aggregated.expenses.total, color: "#ec4899" },
+      { name: "Employee Salary", value: aggregated.employeeSalary.total, color: "#eab308" },
+      { name: "Sale Return Refunds", value: aggregated.saleReturnRefunds.total, color: "#6b7280" },
+      // Present in some tally variants; keep screen-only chart resilient without touching data flow.
+      { name: "Advance Refunds", value: Number((aggregated as any)?.advanceRefunds?.total || 0), color: "#06b6d4" },
+    ];
+    return data.filter((d) => d.name !== "Advance Refunds" || d.value > 0);
+  }, [aggregated]);
+  const hasMoneyOutChartData = moneyOutChartData.some((d) => d.value > 0);
+
+  const paymentModeChartData = useMemo(() => ([
+    { name: "Money In", cash: totalIn.cash, upi: totalIn.upi, card: totalIn.card, bank: totalIn.bank },
+    { name: "Money Out", cash: totalOut.cash, upi: totalOut.upi, card: totalOut.card, bank: totalOut.bank },
+  ]), [totalIn, totalOut]);
+
+  const handleChartSliceClick = (entry: any) => {
+    toast.info(`${entry?.name || "Amount"}: ${fmt(Number(entry?.value || 0))}`);
+  };
+
   // ─── Render ────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-10">
@@ -572,6 +615,94 @@ const DailyTally = () => {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* ═══ Visual Summary (screen only) ═══ */}
+      <div className="print:hidden grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Money In by Source</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[280px]">
+            {!hasMoneyInChartData ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                No money in today
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={moneyInChartData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={88}
+                    onClick={handleChartSliceClick}
+                  >
+                    {moneyInChartData.map((entry) => (
+                      <Cell key={`in-${entry.name}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip formatter={(value: number, name: string) => [fmt(Number(value || 0)), name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Money Out by Source</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[280px]">
+            {!hasMoneyOutChartData ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                No money out today
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={moneyOutChartData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={88}
+                    onClick={handleChartSliceClick}
+                  >
+                    {moneyOutChartData.map((entry) => (
+                      <Cell key={`out-${entry.name}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip formatter={(value: number, name: string) => [fmt(Number(value || 0)), name]} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Payment Modes</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={paymentModeChartData} margin={{ top: 8, right: 12, left: 0, bottom: 12 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis tickFormatter={(v) => `${Math.round(Number(v) / 1000)}k`} />
+                <RechartsTooltip formatter={(value: number, name: string) => [fmt(Number(value || 0)), name]} />
+                <Legend verticalAlign="bottom" height={24} />
+                <Bar dataKey="cash" stackId="a" fill="#22c55e" name="Cash" />
+                <Bar dataKey="upi" stackId="a" fill="#3b82f6" name="UPI" />
+                <Bar dataKey="card" stackId="a" fill="#a855f7" name="Card" />
+                <Bar dataKey="bank" stackId="a" fill="#f59e0b" name="Bank" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ═══ Twin-Pillar: Money In / Money Out ═══ */}
