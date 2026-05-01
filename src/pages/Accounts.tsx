@@ -32,6 +32,7 @@ import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchAllCustomers, fetchAllSalesSummary, fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { recordPurchaseJournalEntry, recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -45,6 +46,7 @@ import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashbo
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const [searchParams] = useSearchParams();
@@ -1064,6 +1066,18 @@ export default function Accounts() {
                         {row.journal_error && (
                           <div className="text-xs text-red-600 dark:text-red-300">{row.journal_error}</div>
                         )}
+                        <Button
+                          size="sm"
+                          variant="link"
+                          className="h-auto p-0 text-xs"
+                          onClick={() => {
+                            const day = format(new Date(row.created_at), "yyyy-MM-dd");
+                            orgNavigate(`/journal-vouchers?from=${day}&to=${day}`);
+                            setShowFailedJournalsDialog(false);
+                          }}
+                        >
+                          Open Journal Vouchers
+                        </Button>
                       </div>
                       <Button
                         size="sm"

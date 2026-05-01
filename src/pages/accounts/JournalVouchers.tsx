@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, BookText, ChevronDown, ChevronUp } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -52,8 +53,11 @@ const toYmd = (date: Date) => format(date, "yyyy-MM-dd");
 
 export default function JournalVouchers() {
   const { currentOrganization } = useOrganization();
-  const [fromDate, setFromDate] = useState<Date>(new Date());
-  const [toDate, setToDate] = useState<Date>(new Date());
+  const [searchParams] = useSearchParams();
+  const initialFrom = searchParams.get("from");
+  const initialTo = searchParams.get("to");
+  const [fromDate, setFromDate] = useState<Date>(initialFrom ? new Date(initialFrom) : new Date());
+  const [toDate, setToDate] = useState<Date>(initialTo ? new Date(initialTo) : new Date());
   const [referenceType, setReferenceType] = useState<RefTypeFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
