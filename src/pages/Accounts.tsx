@@ -112,6 +112,35 @@ export default function Accounts() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: failedJournalCount = 0 } = useQuery({
+    queryKey: ["failed-journal-count", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    queryFn: async () => {
+      const [{ count: failedSales, error: salesErr }, { count: failedPurchases, error: purchaseErr }] =
+        await Promise.all([
+          supabase
+            .from("sales")
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", currentOrganization!.id)
+            .eq("journal_status", "failed")
+            .is("deleted_at", null),
+          supabase
+            .from("purchase_bills")
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", currentOrganization!.id)
+            .eq("journal_status", "failed")
+            .is("deleted_at", null),
+        ]);
+
+      if (salesErr) throw salesErr;
+      if (purchaseErr) throw purchaseErr;
+
+      return Number(failedSales || 0) + Number(failedPurchases || 0);
+    },
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
   // Fetch sales only when customer-payment or reconciliation tab is active
   const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
   const { data: sales } = useQuery({
@@ -562,6 +591,7 @@ export default function Accounts() {
         paymentStats={paymentStats}
         paymentCardFilter={paymentCardFilter}
         onCardClick={handleCardClick}
+        failedJournalCount={failedJournalCount}
       />
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">

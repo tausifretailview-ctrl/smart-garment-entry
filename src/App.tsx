@@ -75,6 +75,7 @@ const DailyTallyDashboard = lazyWithRetry(() => import("./pages/DailyTallyDashbo
 const AuditLog = lazyWithRetry(() => import("./pages/AuditLog"));
 const Accounts = lazyWithRetry(() => import("./pages/Accounts"));
 const ChartOfAccounts = lazyWithRetry(() => import("./pages/accounts/ChartOfAccounts"));
+const JournalVouchers = lazyWithRetry(() => import("./pages/accounts/JournalVouchers"));
 const DeliveryDashboard = lazyWithRetry(() => import("./pages/DeliveryDashboard"));
 const PaymentsDashboard = lazyWithRetry(() => import("./pages/PaymentsDashboard"));
 const UserRights = lazyWithRetry(() => import("./pages/UserRights"));
@@ -1169,6 +1170,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <ChartOfAccounts />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="journal-vouchers"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <JournalVouchers />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

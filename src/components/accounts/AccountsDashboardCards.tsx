@@ -27,6 +27,7 @@ interface AccountsDashboardCardsProps {
   paymentStats: PaymentStats;
   paymentCardFilter: string | null;
   onCardClick: (filter: string | null) => void;
+  failedJournalCount?: number;
 }
 
 export function AccountsDashboardCards({
@@ -34,9 +35,28 @@ export function AccountsDashboardCards({
   paymentStats,
   paymentCardFilter,
   onCardClick,
+  failedJournalCount = 0,
 }: AccountsDashboardCardsProps) {
   return (
     <div className="space-y-4">
+      {failedJournalCount > 0 && (
+        <Card className="border-l-4 border-l-red-600 bg-red-50/80 dark:bg-red-950/30">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                  {failedJournalCount} transactions failed to post to ledger
+                </p>
+                <p className="text-xs text-red-600/90 dark:text-red-300/90 mt-1">
+                  Please review failed auto-journals in sales and purchase bills.
+                </p>
+              </div>
+              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-300" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Payment Stats Cards - Clickable */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* Total Invoices */}
