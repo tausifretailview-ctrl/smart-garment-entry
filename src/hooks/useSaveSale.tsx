@@ -9,6 +9,7 @@ import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
+import { recordSaleJournalEntry } from "@/utils/accounting/journalService";
 
 interface CartItem {
   id: string;
@@ -452,6 +453,20 @@ export const useSaveSale = () => {
         .single();
 
       if (saleError) throw saleError;
+
+      // Accounting Phase 1.5: auto-post double-entry journal for completed sale
+      try {
+        await recordSaleJournalEntry(
+          sale.id,
+          currentOrganization.id,
+          Number(saleData.netAmount || 0),
+          Number(paidAmt || 0),
+          String(finalPaymentMethod || ""),
+          supabase
+        );
+      } catch (journalErr) {
+        console.error("Auto-journal (sale) failed:", journalErr);
+      }
 
       // Insert sale items with proportional bill discount + round-off distribution
       const subTotal = saleData.grossAmount;
@@ -994,6 +1009,20 @@ export const useSaveSale = () => {
         .single();
 
       if (saleError) throw saleError;
+
+      // Accounting Phase 1.5: re-post journal snapshot for resumed held sale completion
+      try {
+        await recordSaleJournalEntry(
+          sale.id,
+          currentOrganization.id,
+          Number(saleData.netAmount || 0),
+          Number(paidAmt || 0),
+          String(finalPaymentMethod || ""),
+          supabase
+        );
+      } catch (journalErr) {
+        console.error("Auto-journal (resumed held sale) failed:", journalErr);
+      }
 
       // Customer Account Statement — refresh ledger entries (delete + re-insert)
       if (sale?.sale_number && currentOrganization?.id) {

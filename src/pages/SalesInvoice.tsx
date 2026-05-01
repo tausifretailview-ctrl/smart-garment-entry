@@ -48,6 +48,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
+import { recordSaleJournalEntry } from "@/utils/accounting/journalService";
 import {
   Command,
   CommandEmpty,
@@ -2480,6 +2481,20 @@ Thank you for choosing us!`;
           .single();
 
         if (saleError) throw saleError;
+
+        // Accounting Phase 1.5: auto-post strict double-entry journal
+        try {
+          await recordSaleJournalEntry(
+            saleData.id,
+            currentOrganization!.id,
+            Number(netAmount || 0),
+            Number(paymentOverride?.totalPaid || 0),
+            String(paymentOverride?.method || "pay_later"),
+            supabase
+          );
+        } catch (journalErr) {
+          console.error("Auto-journal (sales invoice) failed:", journalErr);
+        }
 
         const saleItems = filledItems.map(item => ({
           sale_id: saleData.id,
