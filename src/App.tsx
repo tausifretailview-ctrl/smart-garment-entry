@@ -93,6 +93,7 @@ const GSTReports = lazyWithRetry(() => import("./pages/GSTReports"));
 const TallyExport = lazyWithRetry(() => import("./pages/TallyExport"));
 const SalesAnalyticsDashboard = lazyWithRetry(() => import("./pages/SalesAnalyticsDashboard"));
 const AccountingReports = lazyWithRetry(() => import("./pages/AccountingReports"));
+const ExpenseSalaryReport = lazyWithRetry(() => import("./pages/ExpenseSalaryReport"));
 const NetProfitAnalysis = lazyWithRetry(() => import("./pages/NetProfitAnalysis"));
 const HourlySalesAnalysis = lazyWithRetry(() => import("./pages/HourlySalesAnalysis"));
 const RecycleBin = lazyWithRetry(() => import("./pages/RecycleBin"));
@@ -1043,6 +1044,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <AccountingReports />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="expense-salary-report"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <ExpenseSalaryReport />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
