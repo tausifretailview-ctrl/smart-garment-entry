@@ -431,15 +431,15 @@ export default function SalesInvoiceDashboard() {
     const today = new Date();
     switch (periodFilter) {
       case 'daily':
-        return { start: format(startOfDay(today), 'yyyy-MM-dd'), end: format(endOfDay(today), 'yyyy-MM-dd\'T\'23:59:59') };
+        return { start: format(today, 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') };
       case 'monthly':
-        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd\'T\'23:59:59') };
+        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd') };
       case 'yearly':
-        return { start: format(startOfYear(today), 'yyyy-MM-dd'), end: format(endOfYear(today), 'yyyy-MM-dd\'T\'23:59:59') };
+        return { start: format(startOfYear(today), 'yyyy-MM-dd'), end: format(endOfYear(today), 'yyyy-MM-dd') };
       case 'custom':
         return { 
           start: startDate ? format(startOfDay(startDate), 'yyyy-MM-dd') : null, 
-          end: endDate ? format(endOfDay(endDate), 'yyyy-MM-dd\'T\'23:59:59') : null 
+          end: endDate ? format(endDate, 'yyyy-MM-dd') : null 
         };
       default:
         return { start: null, end: null };
