@@ -464,8 +464,19 @@ export const useSaveSale = () => {
           String(finalPaymentMethod || ""),
           supabase
         );
+        void (supabase as any)
+          .from("sales")
+          .update({ journal_status: "posted", journal_error: null })
+          .eq("id", sale.id);
       } catch (journalErr) {
         console.error("Auto-journal (sale) failed:", journalErr);
+        void (supabase as any)
+          .from("sales")
+          .update({
+            journal_status: "failed",
+            journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+          })
+          .eq("id", sale.id);
       }
 
       // Insert sale items with proportional bill discount + round-off distribution
@@ -1020,8 +1031,19 @@ export const useSaveSale = () => {
           String(finalPaymentMethod || ""),
           supabase
         );
+        void (supabase as any)
+          .from("sales")
+          .update({ journal_status: "posted", journal_error: null })
+          .eq("id", sale.id);
       } catch (journalErr) {
         console.error("Auto-journal (resumed held sale) failed:", journalErr);
+        void (supabase as any)
+          .from("sales")
+          .update({
+            journal_status: "failed",
+            journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+          })
+          .eq("id", sale.id);
       }
 
       // Customer Account Statement — refresh ledger entries (delete + re-insert)

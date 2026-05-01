@@ -2492,8 +2492,19 @@ Thank you for choosing us!`;
             String(paymentOverride?.method || "pay_later"),
             supabase
           );
+          void (supabase as any)
+            .from("sales")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", saleData.id);
         } catch (journalErr) {
           console.error("Auto-journal (sales invoice) failed:", journalErr);
+          void (supabase as any)
+            .from("sales")
+            .update({
+              journal_status: "failed",
+              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+            })
+            .eq("id", saleData.id);
         }
 
         const saleItems = filledItems.map(item => ({

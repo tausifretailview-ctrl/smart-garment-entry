@@ -60,6 +60,7 @@ import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
+import { recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 
 interface PriceChange {
   sku_id: string;
@@ -3117,6 +3118,31 @@ const PurchaseEntry = () => {
           const chunk = itemsToInsert.slice(ci, ci + INSERT_CHUNK_SIZE);
           const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
           if (itemsError) throw itemsError;
+        }
+
+        // Accounting reliability: auto-post purchase journal without blocking bill save
+        try {
+          await recordPurchaseJournalEntry(
+            billDataResult.id,
+            currentOrganization.id,
+            Number((billDataResult as any)?.net_amount ?? (isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet)),
+            Number((billDataResult as any)?.paid_amount ?? 0),
+            String((billDataResult as any)?.payment_method || "pay_later"),
+            supabase
+          );
+          void (supabase as any)
+            .from("purchase_bills")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", billDataResult.id);
+        } catch (journalErr) {
+          console.error("Auto-journal (purchase) failed:", journalErr);
+          void (supabase as any)
+            .from("purchase_bills")
+            .update({
+              journal_status: "failed",
+              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+            })
+            .eq("id", billDataResult.id);
         }
 
         // Flag product variants as DC products (or reset if non-DC purchase)
