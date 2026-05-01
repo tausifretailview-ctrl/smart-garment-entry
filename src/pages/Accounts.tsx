@@ -64,6 +64,7 @@ export default function Accounts() {
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
   const [showBalanceAdjustmentDialog, setShowBalanceAdjustmentDialog] = useState(false);
   const [showFailedJournalsDialog, setShowFailedJournalsDialog] = useState(false);
+  const [failedJournalSourceFilter, setFailedJournalSourceFilter] = useState<"all" | "sale" | "purchase">("all");
 
   // Edit payment dialog state
   const [showEditPaymentDialog, setShowEditPaymentDialog] = useState(false);
@@ -259,6 +260,84 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization?.id] });
     },
   });
+
+  const retryAllFailedJournals = useMutation({
+    mutationFn: async (rows: Array<{
+      source: "sale" | "purchase";
+      id: string;
+      net_amount: number;
+      paid_amount: number;
+      payment_method: string;
+    }>) => {
+      if (!rows.length) return { success: 0, failed: 0 };
+      let success = 0;
+      let failed = 0;
+      for (const row of rows) {
+        try {
+          if (row.source === "sale") {
+            await recordSaleJournalEntry(
+              row.id,
+              currentOrganization!.id,
+              Number(row.net_amount || 0),
+              Number(row.paid_amount || 0),
+              String(row.payment_method || "pay_later"),
+              supabase
+            );
+            await supabase
+              .from("sales")
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", row.id);
+          } else {
+            await recordPurchaseJournalEntry(
+              row.id,
+              currentOrganization!.id,
+              Number(row.net_amount || 0),
+              Number(row.paid_amount || 0),
+              String(row.payment_method || "pay_later"),
+              supabase
+            );
+            await supabase
+              .from("purchase_bills")
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", row.id);
+          }
+          success += 1;
+        } catch (error: any) {
+          const errorMessage = error?.message || "Retry failed";
+          if (row.source === "sale") {
+            await supabase
+              .from("sales")
+              .update({ journal_status: "failed", journal_error: errorMessage })
+              .eq("id", row.id);
+          } else {
+            await supabase
+              .from("purchase_bills")
+              .update({ journal_status: "failed", journal_error: errorMessage })
+              .eq("id", row.id);
+          }
+          failed += 1;
+        }
+      }
+      return { success, failed };
+    },
+    onSuccess: ({ success, failed }) => {
+      if (success > 0 && failed === 0) {
+        toast.success(`Retry complete: ${success} posted`);
+      } else if (success > 0 && failed > 0) {
+        toast.warning(`Retry complete: ${success} posted, ${failed} failed`);
+      } else {
+        toast.error("Retry complete: no transactions posted");
+      }
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers", currentOrganization?.id] });
+    },
+  });
+
+  const filteredFailedJournalRows = useMemo(() => {
+    if (failedJournalSourceFilter === "all") return failedJournalRows;
+    return failedJournalRows.filter((row) => row.source === failedJournalSourceFilter);
+  }, [failedJournalRows, failedJournalSourceFilter]);
 
   // Fetch sales only when customer-payment or reconciliation tab is active
   const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
@@ -923,12 +1002,54 @@ export default function Accounts() {
             <DialogDescription>Retry failed auto-journal transactions</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={failedJournalSourceFilter === "all" ? "default" : "outline"}
+                  onClick={() => setFailedJournalSourceFilter("all")}
+                >
+                  All
+                </Button>
+                <Button
+                  size="sm"
+                  variant={failedJournalSourceFilter === "sale" ? "default" : "outline"}
+                  onClick={() => setFailedJournalSourceFilter("sale")}
+                >
+                  Sale
+                </Button>
+                <Button
+                  size="sm"
+                  variant={failedJournalSourceFilter === "purchase" ? "default" : "outline"}
+                  onClick={() => setFailedJournalSourceFilter("purchase")}
+                >
+                  Purchase
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                disabled={retryAllFailedJournals.isPending || filteredFailedJournalRows.length === 0}
+                onClick={() =>
+                  retryAllFailedJournals.mutate(
+                    filteredFailedJournalRows.map((row) => ({
+                      source: row.source,
+                      id: row.id,
+                      net_amount: row.net_amount,
+                      paid_amount: row.paid_amount,
+                      payment_method: row.payment_method,
+                    }))
+                  )
+                }
+              >
+                {retryAllFailedJournals.isPending ? "Retrying..." : `Retry All (${filteredFailedJournalRows.length})`}
+              </Button>
+            </div>
             {failedRowsLoading ? (
               <p className="text-sm text-muted-foreground">Loading failed transactions...</p>
-            ) : failedJournalRows.length === 0 ? (
+            ) : filteredFailedJournalRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No failed transactions found.</p>
             ) : (
-              failedJournalRows.map((row) => (
+              filteredFailedJournalRows.map((row) => (
                 <Card key={`${row.source}-${row.id}`} className="border">
                   <CardContent className="p-3">
                     <div className="flex items-start justify-between gap-3">
@@ -946,7 +1067,7 @@ export default function Accounts() {
                       </div>
                       <Button
                         size="sm"
-                        disabled={retryJournal.isPending}
+                        disabled={retryJournal.isPending || retryAllFailedJournals.isPending}
                         onClick={() =>
                           retryJournal.mutate({
                             source: row.source,
