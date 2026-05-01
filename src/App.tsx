@@ -18,6 +18,7 @@ import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
+import InstallApp from "./pages/InstallApp";
 
 // Auto-retry lazy imports to handle chunk failures after deployments
 function lazyWithRetry(importFn: () => Promise<any>) {
@@ -80,7 +81,6 @@ const Auth = lazyWithRetry(() => import("./pages/Auth"));
 const ResetPassword = lazyWithRetry(() => import("./pages/ResetPassword"));
 const OrgAuth = lazyWithRetry(() => import("./pages/OrgAuth"));
 const FieldSalesAuth = lazyWithRetry(() => import("./pages/FieldSalesAuth"));
-const InstallApp = lazyWithRetry(() => import("./pages/InstallApp"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const PlatformAdmin = lazyWithRetry(() => import("./pages/PlatformAdmin"));
 const PublicInvoiceView = lazyWithRetry(() => import("./pages/PublicInvoiceView"));

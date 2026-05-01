@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
+import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 
 type Platform = "android" | "ios" | "desktop" | "other";
 
@@ -18,15 +19,98 @@ function detectPlatform(): Platform {
   return "desktop";
 }
 
+function isStandaloneDisplay(): boolean {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function buildOrgManifestJson(orgSlug: string, orgName: string): string {
+  const origin = window.location.origin;
+  const label = orgName || orgSlug;
+  return JSON.stringify({
+    name: `EzzyERP — ${label}`,
+    short_name: label.length > 16 ? `${label.slice(0, 14)}…` : label,
+    description: "EzzyERP - Easy Billing, Smart Business for garment & retail businesses",
+    theme_color: "#1e40af",
+    background_color: "#ffffff",
+    display: "standalone",
+    orientation: "portrait",
+    scope: `${origin}/`,
+    start_url: `${origin}/${orgSlug}`,
+    id: `${origin}/${orgSlug}`,
+    categories: ["business", "finance", "productivity"],
+    icons: [
+      {
+        src: `${origin}/icon-192.png`,
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any maskable",
+      },
+      {
+        src: `${origin}/icon-512.png`,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any maskable",
+      },
+    ],
+  });
+}
+
 export default function InstallApp() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const platform = detectPlatform();
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as any).standalone === true;
+  const isStandalone = isStandaloneDisplay();
+  const manifestRevokeRef = useRef<(() => void) | null>(null);
+
+  // iOS "Add to Home Screen" keeps the page URL; send standalone users straight to the org app.
+  useLayoutEffect(() => {
+    if (!orgSlug || !isValidOrgSlug(orgSlug)) return;
+    if (!isStandaloneDisplay()) return;
+    const p = window.location.pathname.replace(/\/$/, "");
+    if (p === `/${orgSlug}/install`) {
+      window.location.replace(`/${orgSlug}`);
+    }
+  }, [orgSlug]);
+
+  useLayoutEffect(() => {
+    if (!orgSlug || !isValidOrgSlug(orgSlug)) return;
+    storeOrgSlug(orgSlug);
+  }, [orgSlug]);
+
+  useEffect(() => {
+    if (!orgSlug || !isValidOrgSlug(orgSlug)) return;
+
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!link) return;
+
+    const apply = () => {
+      manifestRevokeRef.current?.();
+      manifestRevokeRef.current = null;
+      const json = buildOrgManifestJson(orgSlug, orgName);
+      const blob = new Blob([json], { type: "application/manifest+json" });
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      manifestRevokeRef.current = () => URL.revokeObjectURL(url);
+    };
+
+    apply();
+    return () => {
+      manifestRevokeRef.current?.();
+      manifestRevokeRef.current = null;
+      link.removeAttribute("href");
+      link.href = "/manifest.webmanifest";
+    };
+  }, [orgSlug, orgName]);
+
+  const linkOrigin =
+    window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? window.location.origin
+      : `https://${window.location.host}`;
 
   useEffect(() => {
     if (!orgSlug) {
@@ -39,12 +123,12 @@ export default function InstallApp() {
         .select("name")
         .eq("slug", orgSlug)
         .maybeSingle();
-      if (data) setOrgName((data as any).name || "");
+      if (data) setOrgName((data as { name?: string }).name || "");
       setLoading(false);
     })();
   }, [orgSlug]);
 
-  const installUrl = `${window.location.origin}/${orgSlug}/install`;
+  const installUrl = `${linkOrigin}/${orgSlug}/install`;
   const appStartUrl = `${window.location.origin}/${orgSlug}`;
 
   const handleInstall = async () => {
@@ -70,6 +154,20 @@ export default function InstallApp() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!orgSlug || !isValidOrgSlug(orgSlug)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <p className="text-sm text-muted-foreground text-center">
+          Invalid install link. Use <span className="font-mono text-foreground">/your-shop-slug/install</span> (example:{" "}
+          <a className="text-primary underline" href="https://app.inventoryshop.in/demo/install">
+            demo/install
+          </a>
+          ).
+        </p>
       </div>
     );
   }
@@ -119,8 +217,11 @@ export default function InstallApp() {
               Add to Home Screen
             </h2>
             <div className="ml-9 flex items-center gap-2 text-sm text-muted-foreground">
-              Scroll and tap <Plus className="h-4 w-4 text-primary" /> <strong>"Add to Home Screen"</strong>
+              Scroll and tap <Plus className="h-4 w-4 text-primary" /> <strong>&quot;Add to Home Screen&quot;</strong>
             </div>
+            <p className="text-xs text-muted-foreground ml-9 pt-1">
+              Tip: After it appears on your home screen, open the app from that icon — it will open your shop directly.
+            </p>
 
             <div className="pt-2 border-t">
               <Button asChild variant="outline" className="w-full" size="lg">
@@ -136,7 +237,7 @@ export default function InstallApp() {
             </Button>
             {!isInstallable && (
               <p className="text-xs text-center text-muted-foreground">
-                If install button doesn't trigger, open Chrome menu (⋮) and tap <strong>"Install app"</strong>
+                If install button doesn&apos;t trigger, open Chrome menu (⋮) and tap <strong>&quot;Install app&quot;</strong>
               </p>
             )}
             <div className="pt-2 border-t">
@@ -159,6 +260,9 @@ export default function InstallApp() {
         {/* Share section */}
         <Card className="p-4 space-y-3">
           <div className="text-sm font-semibold text-foreground">Share install link with team</div>
+          <p className="text-xs text-muted-foreground">
+            Share the <strong>https</strong> link (recommended). Plain <strong>http</strong> links redirect to HTTPS automatically.
+          </p>
           <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
             <span className="text-xs flex-1 truncate font-mono">{installUrl}</span>
           </div>
