@@ -54,6 +54,41 @@ const PAYMENT_METHODS = [
   { value: "Bank Transfer", label: "Bank Transfer" },
 ];
 
+/** April–March FY in Asia/Kolkata (matches receipt RPC fallback). */
+function getIndianCalendarFYYears(date = new Date()): { start: number; end: number } {
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    month: "numeric",
+    year: "numeric",
+  }).formatToParts(date);
+  const month = Number(parts.find((p) => p.type === "month")?.value ?? 1);
+  const year = Number(parts.find((p) => p.type === "year")?.value ?? date.getFullYear());
+  if (month >= 4) return { start: year, end: year + 1 };
+  return { start: year - 1, end: year };
+}
+
+/** Parse academic year label to FY bounds for receipt numbering (RPC params). */
+function parseAcademicYearNameToFYYears(yearName?: string | null): { start: number | null; end: number | null } {
+  if (!yearName?.trim()) return { start: null, end: null };
+  const s = yearName.trim();
+  const m4 = s.match(/(\d{4})\s*[-–]\s*(\d{2,4})/);
+  if (m4) {
+    const startYear = parseInt(m4[1], 10);
+    const endPart = m4[2];
+    const endYear =
+      endPart.length === 2 ? parseInt(String(startYear).slice(0, 2) + endPart, 10) : parseInt(endPart, 10);
+    return { start: startYear, end: endYear };
+  }
+  const m2 = s.match(/\b(\d{2})\s*[-–]\s*(\d{2})\b/);
+  if (m2) {
+    return {
+      start: 2000 + parseInt(m2[1], 10),
+      end: 2000 + parseInt(m2[2], 10),
+    };
+  }
+  return { start: null, end: null };
+}
+
 export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent, activeYearId }: FeeCollectionDialogProps) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
@@ -145,7 +180,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id,
   });
 
-  // Set default selected year to current year
+  // When dialog opens, reset academic year so we never reuse a stale year from a previous session.
+  // Prefer parent filter (Fee Collection page), else DB current year.
   const activeYear = allAcademicYears.find((y: any) => y.id === selectedYearId) || currentYear;
   useEffect(() => {
     if (!open) return;
@@ -153,10 +189,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       setSelectedYearId(activeYearId);
       return;
     }
-    if (!selectedYearId && currentYear?.id) {
-      setSelectedYearId(currentYear.id);
-    }
-  }, [open, activeYearId, currentYear?.id, selectedYearId]);
+    setSelectedYearId(currentYear?.id ?? "");
+  }, [open, activeYearId, currentYear?.id]);
 
   // Reset manual fee toggle when student or year changes
   useEffect(() => {
@@ -165,19 +199,13 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     setManualFeeName("Other Fees");
   }, [student?.id, selectedYearId]);
 
-  // Helper: extract FY start/end full years from academic year name like "2025-26" or "2025-2026"
-  const getFYYears = (yearName?: string) => {
-    if (!yearName) return { start: null, end: null };
-    const match = yearName.match(/(\d{4})\s*[-–]\s*(\d{2,4})/);
-    if (!match) return { start: null, end: null };
-    const startYear = parseInt(match[1]);
-    const endPart = match[2];
-    const endYear = endPart.length === 2 ? parseInt(match[1].substring(0, 2) + endPart) : parseInt(endPart);
-    return { start: startYear, end: endYear };
-  };
-
   const usedYearForReceipt = activeYear || currentYear;
-  const fyYears = getFYYears(usedYearForReceipt?.year_name);
+  const fyYears = parseAcademicYearNameToFYYears(usedYearForReceipt?.year_name);
+  const calendarFY = getIndianCalendarFYYears();
+  const receiptFyLooksStale =
+    fyYears.start != null &&
+    fyYears.end != null &&
+    fyYears.start < calendarFY.start;
 
   // Preview next receipt number — read-only, does NOT consume a sequence
   const { data: nextReceiptNo } = useQuery({
@@ -292,7 +320,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
       // Generate financial year based receipt number via DB function (with fallback)
       let receiptNumber: string;
-      const saveFY = getFYYears(usedYear?.year_name);
+      const saveFY = parseAcademicYearNameToFYYears(usedYear?.year_name);
       const rpcParams: any = { p_organization_id: currentOrganization.id };
       if (saveFY.start && saveFY.end) {
         rpcParams.p_fy_start_year = saveFY.start;
@@ -605,7 +633,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                 value={selectedYearId || currentYear?.id || ""}
                 onValueChange={(v) => setSelectedYearId(v)}
               >
-                <SelectTrigger className="w-[150px] h-8 text-sm">
+                <SelectTrigger className="w-[min(100%,220px)] h-8 text-sm">
                   <SelectValue placeholder="Select Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -616,6 +644,27 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+        )}
+
+        {student && receiptFyLooksStale && usedYearForReceipt?.year_name && (
+          <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">Receipt numbering is for an older financial year</p>
+              <p className="text-xs mt-1">
+                You selected <strong>{usedYearForReceipt.year_name}</strong>, so receipt numbers use FY{" "}
+                <strong className="font-mono">
+                  {fyYears.start}-{String(fyYears.end).slice(-2)}
+                </strong>
+                . Today&apos;s calendar FY is{" "}
+                <strong className="font-mono">
+                  {calendarFY.start}-{String(calendarFY.end).slice(-2)}
+                </strong>
+                . Switch <strong>Academic Year</strong> above to your new session (and mark it current in Academic Year Setup) if parents should see{" "}
+                <strong className="font-mono">RCT/{calendarFY.start}-{String(calendarFY.end).slice(-2)}/…</strong>.
+              </p>
             </div>
           </div>
         )}
