@@ -27,7 +27,7 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { computePendingAllSessionsBatch, computeYearWiseFeeBalances } from "@/lib/schoolFeeYearBalances";
+import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
 interface CustomerLedgerProps {
