@@ -269,7 +269,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           already_paid: paidForHead,
           balance: Math.max(0, balance),
           selected: balance > 0,
-          paying: Math.max(0, balance),
+          // Default to 0 — user MUST type the amount they're collecting.
+          // Prevents accidental full-amount collection when typing into wrong field.
+          paying: 0,
           fee_structure_id: s.id,
         };
       });
@@ -289,7 +291,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             already_paid: totalPaidInYear,
             balance: importedBalance,
             selected: true,
-            paying: importedBalance,
+            paying: 0,
             fee_structure_id: "__imported__",
           });
         }
@@ -372,7 +374,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             already_paid: alreadyOpening,
             balance: openingDue,
             selected: true,
-            paying: openingDue,
+            paying: 0,
             fee_structure_id: OPENING_CARRY_HEAD_ID,
           });
         }
