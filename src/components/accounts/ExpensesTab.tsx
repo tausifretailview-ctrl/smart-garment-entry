@@ -68,13 +68,13 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
   // Print ref
   const printRef = useRef<HTMLDivElement>(null);
 
-  // Fetch expense categories
+  // Fetch expense categories (optional ledger_account_id → chart Expense)
   const { data: categories } = useQuery({
     queryKey: ["expense-categories", organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("expense_categories")
-        .select("id, name")
+        .select("id, name, ledger_account_id")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .order("display_order");
@@ -82,6 +82,46 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
       return data || [];
     },
     enabled: !!organizationId,
+  });
+
+  const { data: expenseChartAccounts } = useQuery({
+    queryKey: ["chart-expense-accounts", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_code, account_name")
+        .eq("organization_id", organizationId)
+        .eq("account_type", "Expense")
+        .order("account_code");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!organizationId,
+  });
+
+  const mapCategoryLedger = useMutation({
+    mutationFn: async ({
+      categoryId,
+      ledgerAccountId,
+    }: {
+      categoryId: string;
+      ledgerAccountId: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("expense_categories")
+        .update({
+          ledger_account_id: ledgerAccountId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", categoryId)
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Category ledger mapping saved");
+      queryClient.invalidateQueries({ queryKey: ["expense-categories", organizationId] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Could not save mapping"),
   });
 
   // Fetch all expense vouchers
@@ -158,6 +198,9 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         .maybeSingle();
       const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
 
+      const categoryLedgerId =
+        categories?.find((c) => c.name === selectedCategory)?.ledger_account_id ?? null;
+
       if (postLedger && inserted?.id) {
         try {
           await recordExpenseVoucherJournalEntry(
@@ -167,7 +210,8 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
             paymentMethod,
             format(voucherDate, "yyyy-MM-dd"),
             narration || selectedCategory,
-            supabase
+            supabase,
+            categoryLedgerId
           );
         } catch (jErr) {
           await supabase.from("voucher_entries").delete().eq("id", inserted.id);
@@ -217,6 +261,9 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         .maybeSingle();
       const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
 
+      const editCategoryLedgerId =
+        categories?.find((c) => c.name === editCategory)?.ledger_account_id ?? null;
+
       if (postLedger) {
         await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", editingVoucher.id, supabase);
         await recordExpenseVoucherJournalEntry(
@@ -226,7 +273,8 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
           editPayment,
           format(editDate, "yyyy-MM-dd"),
           editNarration || editCategory,
-          supabase
+          supabase,
+          editCategoryLedgerId
         );
       }
     },
@@ -512,6 +560,70 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
               {createExpense.isPending ? "Recording..." : "Record Expense"}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Category → ledger (GL) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Category ledger accounts</CardTitle>
+          <CardDescription className="text-xs">
+            Map each expense category to a Chart of Accounts expense ledger. Unmapped categories use{" "}
+            <span className="font-medium">6000 General Expenses</span>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-auto max-h-[280px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Category</TableHead>
+                  <TableHead className="text-xs">Post debits to</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(categories || []).length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-xs text-muted-foreground py-6 text-center">
+                      No categories yet. Record an expense or use default categories.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  (categories || []).map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell className="text-xs font-medium">{row.name}</TableCell>
+                      <TableCell className="text-xs">
+                        <Select
+                          value={row.ledger_account_id ?? "__default__"}
+                          onValueChange={(v) =>
+                            mapCategoryLedger.mutate({
+                              categoryId: row.id,
+                              ledgerAccountId: v === "__default__" ? null : v,
+                            })
+                          }
+                          disabled={mapCategoryLedger.isPending}
+                        >
+                          <SelectTrigger className="h-8 text-xs w-full max-w-[280px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__default__" className="text-xs">
+                              Default (6000 General Expenses)
+                            </SelectItem>
+                            {(expenseChartAccounts || []).map((a) => (
+                              <SelectItem key={a.id} value={a.id} className="text-xs">
+                                {a.account_code} — {a.account_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 

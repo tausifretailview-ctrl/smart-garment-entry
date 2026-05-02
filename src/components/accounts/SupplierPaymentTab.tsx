@@ -18,6 +18,10 @@ import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  deleteJournalEntryByReference,
+  recordSupplierPaymentJournalEntry,
+} from "@/utils/accounting/journalService";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
@@ -269,6 +273,15 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       }
       savingRef.current = true;
       try {
+      const { data: acctSettingsGl } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean(
+        (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+
       if (!referenceId) throw new Error("Please select a supplier to record payment");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
       if (selectedSupplierBillIds.length > 0) {
@@ -287,6 +300,8 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           const bill = supplierBills?.find(b => b.id === billId);
           if (!bill) continue;
           const currentPaid = bill.paid_amount || 0;
+          const prevPaid = Number(currentPaid);
+          const prevStatus = (bill.payment_status || "unpaid") as string;
           const outstanding = (bill.net_amount || 0) - currentPaid;
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
@@ -294,7 +309,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
           const { error: updateError } = await supabase.from('purchase_bills').update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq('id', billId);
           if (updateError) throw updateError;
-          processedBills.push({ bill, amountApplied: amountToApply });
+          processedBills.push({ bill, amountApplied: amountToApply, prevPaid, prevStatus });
           remainingAmount -= amountToApply;
         }
       }
@@ -320,37 +335,92 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         finalDescription = description ? `${description}${paymentDetails}` : `Payment for Bills: ${billNumbers}${paymentDetails}`;
       }
 
+      const createdSupplierVoucherIds: string[] = [];
+
       if (processedBills.length > 0) {
         for (let i = 0; i < processedBills.length; i++) {
           const processed = processedBills[i];
           const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
           const billRef = processed.bill.supplier_invoice_no || processed.bill.software_bill_no || processed.bill.id.slice(0, 8);
-          const { error: voucherError } = await supabase.from("voucher_entries").insert({
+          const voucherDescription = `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`;
+          const { data: ins, error: voucherError } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: organizationId,
+              voucher_number: vNum,
+              voucher_type: "payment",
+              voucher_date: format(voucherDate, "yyyy-MM-dd"),
+              reference_type: "supplier",
+              reference_id: processed.bill.id,
+              description: voucherDescription,
+              total_amount: processed.amountApplied,
+              payment_method: paymentMethod,
+            })
+            .select("id")
+            .single();
+          if (voucherError) throw voucherError;
+          if (!ins?.id) throw new Error("Supplier payment voucher insert failed");
+          createdSupplierVoucherIds.push(ins.id);
+          if (postLedger) {
+            try {
+              await recordSupplierPaymentJournalEntry(
+                ins.id,
+                organizationId,
+                processed.amountApplied,
+                paymentMethod,
+                format(voucherDate, "yyyy-MM-dd"),
+                voucherDescription,
+                supabase
+              );
+            } catch (glErr) {
+              for (const vid of createdSupplierVoucherIds) {
+                await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
+                await supabase.from("voucher_entries").delete().eq("id", vid);
+              }
+              for (const p of processedBills) {
+                await supabase
+                  .from("purchase_bills")
+                  .update({ paid_amount: p.prevPaid, payment_status: p.prevStatus })
+                  .eq("id", p.bill.id);
+              }
+              throw glErr;
+            }
+          }
+        }
+      } else {
+        const { data: ins, error } = await supabase
+          .from("voucher_entries")
+          .insert({
             organization_id: organizationId,
-            voucher_number: vNum,
+            voucher_number: voucherNumber,
             voucher_type: "payment",
             voucher_date: format(voucherDate, "yyyy-MM-dd"),
             reference_type: "supplier",
-            reference_id: processed.bill.id,
-            description: `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`,
-            total_amount: processed.amountApplied,
+            reference_id: referenceId,
+            description: finalDescription,
+            total_amount: paymentAmount,
             payment_method: paymentMethod,
-          });
-          if (voucherError) throw voucherError;
-        }
-      } else {
-        const { error } = await supabase.from("voucher_entries").insert({
-          organization_id: organizationId,
-          voucher_number: voucherNumber,
-          voucher_type: "payment",
-          voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: "supplier",
-          reference_id: referenceId,
-          description: finalDescription,
-          total_amount: paymentAmount,
-          payment_method: paymentMethod,
-        });
+          })
+          .select("id")
+          .single();
         if (error) throw error;
+        if (postLedger && ins?.id) {
+          try {
+            await recordSupplierPaymentJournalEntry(
+              ins.id,
+              organizationId,
+              paymentAmount,
+              paymentMethod,
+              format(voucherDate, "yyyy-MM-dd"),
+              finalDescription,
+              supabase
+            );
+          } catch (glErr) {
+            await deleteJournalEntryByReference(organizationId, "SupplierPayment", ins.id, supabase);
+            await supabase.from("voucher_entries").delete().eq("id", ins.id);
+            throw glErr;
+          }
+        }
       }
       } finally {
         savingRef.current = false;
@@ -421,6 +491,15 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         }
       }
 
+      const { data: acctDel } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (Boolean((acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)) {
+        await deleteJournalEntryByReference(organizationId, "SupplierPayment", voucher.id, supabase);
+      }
+
       // Soft-delete the voucher
       const { error } = await supabase.from("voucher_entries").update({ deleted_at: new Date().toISOString() }).eq("id", voucher.id);
       if (error) throw error;
@@ -430,6 +509,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     },
     onError: (error: any) => toast.error(error.message),
   });

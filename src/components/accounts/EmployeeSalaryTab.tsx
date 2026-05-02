@@ -7,13 +7,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  deleteJournalEntryByReference,
+  recordSalaryVoucherJournalEntry,
+} from "@/utils/accounting/journalService";
 
 interface EmployeeSalaryTabProps {
   organizationId: string;
@@ -26,6 +40,10 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
   const [referenceId, setReferenceId] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [salaryDeleteTarget, setSalaryDeleteTarget] = useState<{ id: string; voucherNumber: string } | null>(
+    null
+  );
 
   const { data: employees } = useQuery({
     queryKey: ["employees", organizationId],
@@ -52,7 +70,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
       );
       if (numberError) throw numberError;
 
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from("voucher_entries")
         .insert({
           organization_id: organizationId,
@@ -63,27 +81,92 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
           reference_id: referenceId,
           description: description || `Salary Payment`,
           total_amount: parseFloat(amount),
-        });
+          payment_method: paymentMethod,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      const { data: acctSettings } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean(
+        (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+
+      if (postLedger && inserted?.id) {
+        try {
+          await recordSalaryVoucherJournalEntry(
+            inserted.id,
+            organizationId,
+            parseFloat(amount),
+            paymentMethod,
+            format(voucherDate, "yyyy-MM-dd"),
+            description || "Salary Payment",
+            supabase
+          );
+        } catch (jErr) {
+          await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+          throw jErr;
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Salary payment recorded successfully");
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setVoucherDate(new Date());
       setReferenceId("");
       setAmount("");
       setDescription("");
+      setPaymentMethod("cash");
     },
     onError: (error: any) => {
       toast.error(`Failed to record salary: ${error.message}`);
     },
   });
 
+  const deleteSalaryVoucher = useMutation({
+    mutationFn: async (voucherId: string) => {
+      const { data: acctSettings } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean(
+        (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+      if (postLedger) {
+        await deleteJournalEntryByReference(organizationId, "SalaryVoucher", voucherId, supabase);
+      }
+      const { error } = await supabase
+        .from("voucher_entries")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", voucherId)
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Salary voucher removed");
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      setSalaryDeleteTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Could not delete voucher"),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createSalaryVoucher.mutate();
   };
+
+  const salaryRows =
+    vouchers
+      ?.filter((v) => v.reference_type === "employee" && v.voucher_type === "payment" && !v.deleted_at)
+      .slice(0, 10) ?? [];
 
   return (
     <div className="space-y-6">
@@ -150,6 +233,22 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
               </div>
 
               <div className="space-y-2">
+                <Label>Payment method</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea
                   placeholder="Salary month/year"
@@ -180,27 +279,61 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
                 <TableHead>Employee</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead className="w-[56px] text-center"> </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {vouchers
-                ?.filter((v) => v.reference_type === "employee" && v.voucher_type === "payment")
-                .slice(0, 10)
-                .map((voucher) => (
-                  <TableRow key={voucher.id}>
-                    <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
-                    <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
-                    <TableCell>
-                      {employees?.find((e) => e.id === voucher.reference_id)?.employee_name || "-"}
-                    </TableCell>
-                    <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
-                    <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
-                  </TableRow>
-                ))}
+              {salaryRows.map((voucher) => (
+                <TableRow key={voucher.id}>
+                  <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
+                  <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                  <TableCell>
+                    {employees?.find((e) => e.id === voucher.reference_id)?.employee_name || "-"}
+                  </TableCell>
+                  <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
+                  <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
+                  <TableCell className="text-center">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive"
+                      onClick={() =>
+                        setSalaryDeleteTarget({ id: voucher.id, voucherNumber: voucher.voucher_number })
+                      }
+                      aria-label="Delete salary voucher"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!salaryDeleteTarget} onOpenChange={(open) => !open && setSalaryDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete salary voucher?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove voucher {salaryDeleteTarget?.voucherNumber ?? ""} and its general-ledger entry (if
+              any). This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteSalaryVoucher.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteSalaryVoucher.isPending}
+              onClick={() => salaryDeleteTarget && deleteSalaryVoucher.mutate(salaryDeleteTarget.id)}
+            >
+              {deleteSalaryVoucher.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

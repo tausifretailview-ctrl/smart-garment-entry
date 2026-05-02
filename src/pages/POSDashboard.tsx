@@ -39,7 +39,11 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerReceiptJournalEntry,
+} from "@/utils/accounting/journalService";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -126,6 +130,7 @@ const DEFAULT_POS_COLUMNS = {
 
 const POSDashboard = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
@@ -1113,6 +1118,24 @@ const POSDashboard = () => {
     }
 
     setIsRecordingPayment(true);
+
+    const prevPaid = currentPaid;
+    const prevStatus = selectedSaleForPayment.payment_status;
+    const prevPaymentDate = (selectedSaleForPayment as Sale & { payment_date?: string | null }).payment_date ?? null;
+    const prevPaymentMethod = selectedSaleForPayment.payment_method;
+
+    const { data: acctSettingsGl } = await supabase
+      .from("settings")
+      .select("accounting_engine_enabled")
+      .eq("organization_id", currentOrganization!.id)
+      .maybeSingle();
+    const postLedger = Boolean(
+      (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+    );
+
+    let saleUpdated = false;
+    let insertedVoucherId: string | null = null;
+
     try {
       const newPaidAmount = currentPaid + amount;
       const newStatus = (newPaidAmount + currentCNAdjust) >= selectedSaleForPayment.net_amount - 1
@@ -1130,6 +1153,7 @@ const POSDashboard = () => {
         .eq('id', selectedSaleForPayment.id);
 
       if (updateError) throw updateError;
+      saleUpdated = true;
 
       const { data: voucherData, error: voucherError } = await supabase.rpc(
         'generate_voucher_number',
@@ -1138,7 +1162,9 @@ const POSDashboard = () => {
 
       if (voucherError) throw voucherError;
 
-      const { error: voucherEntryError } = await supabase
+      const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`;
+
+      const { data: vrow, error: voucherEntryError } = await supabase
         .from('voucher_entries')
         .insert({
           organization_id: currentOrganization?.id,
@@ -1148,10 +1174,28 @@ const POSDashboard = () => {
           reference_type: 'sale',
           reference_id: selectedSaleForPayment.id,
           total_amount: amount,
-          description: `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`,
-        });
+          description: receiptDescription,
+          payment_method: paymentMode,
+        })
+        .select("id")
+        .single();
 
       if (voucherEntryError) throw voucherEntryError;
+      if (!vrow?.id) throw new Error("Receipt voucher insert failed");
+      insertedVoucherId = vrow.id as string;
+
+      if (postLedger) {
+        await recordCustomerReceiptJournalEntry(
+          insertedVoucherId,
+          currentOrganization!.id,
+          amount,
+          0,
+          paymentMode,
+          format(paymentDate, 'yyyy-MM-dd'),
+          receiptDescription,
+          supabase
+        );
+      }
 
       toast({
         title: "Payment Recorded",
@@ -1178,7 +1222,28 @@ const POSDashboard = () => {
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
       await fetchSales();
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
+      if (insertedVoucherId && currentOrganization?.id) {
+        await deleteJournalEntryByReference(
+          currentOrganization.id,
+          "CustomerReceipt",
+          insertedVoucherId,
+          supabase
+        );
+        await supabase.from("voucher_entries").delete().eq("id", insertedVoucherId);
+      }
+      if (saleUpdated) {
+        await supabase
+          .from("sales")
+          .update({
+            paid_amount: prevPaid,
+            payment_status: prevStatus,
+            payment_date: prevPaymentDate,
+            payment_method: prevPaymentMethod,
+          })
+          .eq("id", selectedSaleForPayment.id);
+      }
       toast({
         title: "Error",
         description: error.message || "Failed to record payment",

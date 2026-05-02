@@ -18,7 +18,11 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { recordExpenseVoucherJournalEntry } from "@/utils/accounting/journalService";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerReceiptJournalEntry,
+  recordExpenseVoucherJournalEntry,
+} from "@/utils/accounting/journalService";
 import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -231,9 +235,19 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
     mutationFn: async () => {
       if (!referenceId) throw new Error("Please select a customer");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Enter a valid amount");
+      const { data: acctSettingsGl } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean(
+        (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+
       const paymentAmount = parseFloat(amount);
       let remainingAmount = paymentAmount;
       const processedInvoices: any[] = [];
+      const saleRevert: Array<{ id: string; prevPaid: number; prevStatus: string }> = [];
       const isOpeningBalancePayment = selectedInvoiceIds.length === 0;
 
       if (selectedInvoiceIds.length > 0) {
@@ -242,11 +256,13 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
           const invoice = customerInvoices?.find(inv => inv.id === invoiceId);
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
+          const prevStatus = (invoice.payment_status || "pending") as string;
           const outstanding = invoice.net_amount - currentPaid;
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
           const newPaidAmount = currentPaid + amountToApply;
           const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 'partial';
+          saleRevert.push({ id: invoiceId, prevPaid: currentPaid, prevStatus });
           await supabase.from('sales').update({ paid_amount: newPaidAmount, payment_status: newStatus, payment_date: format(voucherDate, 'yyyy-MM-dd') }).eq('id', invoiceId);
           processedInvoices.push({ invoice, amountApplied: amountToApply, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
           remainingAmount -= amountToApply;
@@ -259,55 +275,117 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
       if (paymentMethod === 'cheque' && chequeNumber) paymentDetails = ` | Cheque No: ${chequeNumber}`;
       else if ((paymentMethod === 'upi' || paymentMethod === 'bank_transfer') && transactionId) paymentDetails = ` | Transaction ID: ${transactionId}`;
 
-      if (!isOpeningBalancePayment && processedInvoices.length > 0) {
-        for (let i = 0; i < processedInvoices.length; i++) {
-          const p = processedInvoices[i];
-          const vNum = processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
-          await supabase.from("voucher_entries").insert({
-            organization_id: organizationId,
-            voucher_number: vNum,
-            voucher_type: "receipt",
-            voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            reference_type: 'sale',
-            reference_id: p.invoice.id,
-            description: `Payment for ${p.invoice.sale_number}${paymentDetails}`,
-            total_amount: p.amountApplied,
-          });
+      const createdIds: string[] = [];
+
+      const rollbackFloatingReceipts = async () => {
+        for (const vid of [...createdIds].reverse()) {
+          await deleteJournalEntryByReference(organizationId, "CustomerReceipt", vid, supabase);
+          await supabase.from("voucher_entries").delete().eq("id", vid);
+        }
+        for (const r of saleRevert) {
+          await supabase
+            .from("sales")
+            .update({ paid_amount: r.prevPaid, payment_status: r.prevStatus })
+            .eq("id", r.id);
+        }
+      };
+
+      try {
+        if (!isOpeningBalancePayment && processedInvoices.length > 0) {
+          for (let i = 0; i < processedInvoices.length; i++) {
+            const p = processedInvoices[i];
+            const vNum = processedInvoices.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
+            const desc = `Payment for ${p.invoice.sale_number}${paymentDetails}`;
+            const { data: vrow, error: vInsErr } = await supabase
+              .from("voucher_entries")
+              .insert({
+                organization_id: organizationId,
+                voucher_number: vNum,
+                voucher_type: "receipt",
+                voucher_date: format(voucherDate, "yyyy-MM-dd"),
+                reference_type: 'sale',
+                reference_id: p.invoice.id,
+                description: desc,
+                total_amount: p.amountApplied,
+                payment_method: paymentMethod,
+              })
+              .select("id")
+              .single();
+            if (vInsErr) throw vInsErr;
+            if (!vrow?.id) throw new Error("Receipt voucher insert failed");
+            createdIds.push(vrow.id);
+            if (postLedger) {
+              await recordCustomerReceiptJournalEntry(
+                vrow.id,
+                organizationId,
+                p.amountApplied,
+                0,
+                paymentMethod,
+                format(voucherDate, "yyyy-MM-dd"),
+                desc,
+                supabase
+              );
+            }
+            if (referenceId) {
+              insertLedgerCredit({
+                organizationId,
+                customerId: referenceId,
+                voucherType: 'RECEIPT',
+                voucherNo: vNum,
+                particulars: `Receipt for ${p.invoice.sale_number}`,
+                transactionDate: format(voucherDate, "yyyy-MM-dd"),
+                amount: p.amountApplied,
+              });
+            }
+          }
+        } else {
+          const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
+          const desc = description || `Opening Balance Payment from ${customerName}${paymentDetails}`;
+          const { data: vrow, error: vInsErr } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: organizationId,
+              voucher_number: voucherNumber,
+              voucher_type: "receipt",
+              voucher_date: format(voucherDate, "yyyy-MM-dd"),
+              reference_type: isOpeningBalancePayment ? 'customer' : 'sale',
+              reference_id: isOpeningBalancePayment ? referenceId : processedInvoices[0]?.invoice?.id || referenceId,
+              description: desc,
+              total_amount: paymentAmount,
+              payment_method: paymentMethod,
+            })
+            .select("id")
+            .single();
+          if (vInsErr) throw vInsErr;
+          if (!vrow?.id) throw new Error("Receipt voucher insert failed");
+          createdIds.push(vrow.id);
+          if (postLedger) {
+            await recordCustomerReceiptJournalEntry(
+              vrow.id,
+              organizationId,
+              paymentAmount,
+              0,
+              paymentMethod,
+              format(voucherDate, "yyyy-MM-dd"),
+              desc,
+              supabase
+            );
+          }
           if (referenceId) {
             insertLedgerCredit({
               organizationId,
               customerId: referenceId,
               voucherType: 'RECEIPT',
-              voucherNo: vNum,
-              particulars: `Receipt for ${p.invoice.sale_number}`,
+              voucherNo: voucherNumber,
+              particulars: isOpeningBalancePayment ? 'Opening Balance Receipt' : 'Receipt',
               transactionDate: format(voucherDate, "yyyy-MM-dd"),
-              amount: p.amountApplied,
+              amount: paymentAmount,
             });
           }
         }
-      } else {
-        const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
-        await supabase.from("voucher_entries").insert({
-          organization_id: organizationId,
-          voucher_number: voucherNumber,
-          voucher_type: "receipt",
-          voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: isOpeningBalancePayment ? 'customer' : 'sale',
-          reference_id: referenceId,
-          description: description || `Opening Balance Payment from ${customerName}${paymentDetails}`,
-          total_amount: paymentAmount,
-        });
-        if (referenceId) {
-          insertLedgerCredit({
-            organizationId,
-            customerId: referenceId,
-            voucherType: 'RECEIPT',
-            voucherNo: voucherNumber,
-            particulars: isOpeningBalancePayment ? 'Opening Balance Receipt' : 'Receipt',
-            transactionDate: format(voucherDate, "yyyy-MM-dd"),
-            amount: paymentAmount,
-          });
-        }
+      } catch (e) {
+        await rollbackFloatingReceipts();
+        throw e;
       }
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod };
@@ -321,6 +399,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
 
       const totalPaid = parseFloat(amount);
       if (data.isOpeningBalancePayment) {
@@ -807,6 +886,13 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
         (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
       );
       if (postLedger && inserted?.id) {
+        const { data: catRow } = await supabase
+          .from("expense_categories")
+          .select("ledger_account_id")
+          .eq("organization_id", organizationId)
+          .eq("name", category)
+          .maybeSingle();
+        const categoryLedgerId = catRow?.ledger_account_id ?? null;
         try {
           await recordExpenseVoucherJournalEntry(
             inserted.id,
@@ -815,7 +901,8 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
             "cash",
             format(voucherDate, "yyyy-MM-dd"),
             category,
-            supabase
+            supabase,
+            categoryLedgerId
           );
         } catch (jErr) {
           await supabase.from("voucher_entries").delete().eq("id", inserted.id);

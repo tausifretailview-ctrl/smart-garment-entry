@@ -2053,6 +2053,7 @@ export type Database = {
           display_order: number | null
           id: string
           is_active: boolean | null
+          ledger_account_id: string | null
           name: string
           organization_id: string
           updated_at: string | null
@@ -2063,6 +2064,7 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_active?: boolean | null
+          ledger_account_id?: string | null
           name: string
           organization_id: string
           updated_at?: string | null
@@ -2073,11 +2075,19 @@ export type Database = {
           display_order?: number | null
           id?: string
           is_active?: boolean | null
+          ledger_account_id?: string | null
           name?: string
           organization_id?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "expense_categories_ledger_account_id_fkey"
+            columns: ["ledger_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expense_categories_organization_id_fkey"
             columns: ["organization_id"]

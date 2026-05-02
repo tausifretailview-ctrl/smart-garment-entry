@@ -23,6 +23,10 @@ import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerReceiptJournalEntry,
+} from "@/utils/accounting/journalService";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
@@ -47,6 +51,18 @@ const toNumberOrZero = (value: any) => {
 const MIN_PENDING_RUPEE = 1;
 const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
 const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
+
+async function rollbackCustomerReceiptVouchers(
+  organizationId: string,
+  created: Array<{ id: string }>,
+  client: typeof supabase
+) {
+  for (const v of [...created].reverse()) {
+    await deleteJournalEntryByReference(organizationId, "CustomerReceipt", v.id, client);
+    await client.from("voucher_entries").delete().eq("id", v.id);
+  }
+}
+
 interface CustomerPaymentTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
@@ -453,6 +469,15 @@ export function CustomerPaymentTab({
       }
       savingRef.current = true;
       try {
+      const { data: acctSettingsGl } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean(
+        (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
       const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
@@ -566,6 +591,27 @@ export function CustomerPaymentTab({
           }).select().single();
           if (obErr) throw obErr;
           createdVouchers.push(obVoucher);
+          if (
+            postLedger &&
+            obVoucher?.id &&
+            (paymentMethod || "").toLowerCase() !== "advance_adjustment"
+          ) {
+            try {
+              await recordCustomerReceiptJournalEntry(
+                obVoucher.id,
+                organizationId,
+                Number(obVoucher.total_amount || 0),
+                Number(obVoucher.discount_amount || 0),
+                paymentMethod,
+                obVoucher.voucher_date as string,
+                String(obVoucher.description || finalDescription),
+                supabase
+              );
+            } catch (glErr) {
+              await rollbackCustomerReceiptVouchers(organizationId, createdVouchers, supabase);
+              throw glErr;
+            }
+          }
           if (referenceId) {
             if (openingBalanceCash > 0) {
               insertLedgerCredit({
@@ -614,6 +660,27 @@ export function CustomerPaymentTab({
           }).select().single();
           if (voucherError) throw voucherError;
           createdVouchers.push(voucher);
+          if (
+            postLedger &&
+            voucher?.id &&
+            (paymentMethod || "").toLowerCase() !== "advance_adjustment"
+          ) {
+            try {
+              await recordCustomerReceiptJournalEntry(
+                voucher.id,
+                organizationId,
+                Number(voucher.total_amount || 0),
+                Number(voucher.discount_amount || 0),
+                paymentMethod,
+                voucher.voucher_date as string,
+                String(voucher.description || invoiceDescription + invoiceDiscountSuffix),
+                supabase
+              );
+            } catch (glErr) {
+              await rollbackCustomerReceiptVouchers(organizationId, createdVouchers, supabase);
+              throw glErr;
+            }
+          }
           if (referenceId) {
             if (processed.cashApplied > 0) {
               insertLedgerCredit({
@@ -656,6 +723,27 @@ export function CustomerPaymentTab({
         }).select().single();
         if (voucherError) throw voucherError;
         createdVouchers.push(voucher);
+        if (
+          postLedger &&
+          voucher?.id &&
+          (paymentMethod || "").toLowerCase() !== "advance_adjustment"
+        ) {
+          try {
+            await recordCustomerReceiptJournalEntry(
+              voucher.id,
+              organizationId,
+              Number(voucher.total_amount || 0),
+              Number(voucher.discount_amount || 0),
+              paymentMethod,
+              voucher.voucher_date as string,
+              String(voucher.description || finalDescription + discountSuffix),
+              supabase
+            );
+          } catch (glErr) {
+            await rollbackCustomerReceiptVouchers(organizationId, createdVouchers, supabase);
+            throw glErr;
+          }
+        }
         if (referenceId) {
           if (isOpeningBalancePayment) {
             if (paymentAmount > 0) {
@@ -757,6 +845,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
 
       const totalPaid = roundToRupee(amount);
       const discountValue = data.discountAmount || 0;
@@ -802,6 +891,14 @@ export function CustomerPaymentTab({
       const voucherId = payment.id;
       const invoiceId = payment.reference_id;
       const paymentAmount = Number(payment.total_amount);
+      const { data: acctDel } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (Boolean((acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)) {
+        await deleteJournalEntryByReference(organizationId, "CustomerReceipt", voucherId, supabase);
+      }
       if (invoiceId) {
         const { data: invoice } = await supabase.from("sales").select("paid_amount, net_amount, cash_amount, card_amount, upi_amount").eq("id", invoiceId).maybeSingle();
         if (invoice) {

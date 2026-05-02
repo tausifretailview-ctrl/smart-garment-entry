@@ -24,6 +24,8 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "4100", account_name: "School Fee Income", account_type: "Revenue" },
   { account_code: "5000", account_name: "Cost of Goods Sold", account_type: "Expense" },
   { account_code: "6000", account_name: "General Expenses", account_type: "Expense" },
+  { account_code: "6050", account_name: "Settlement Discounts Given", account_type: "Expense" },
+  { account_code: "6100", account_name: "Salaries & Wages", account_type: "Expense" },
 ];
 
 /**
