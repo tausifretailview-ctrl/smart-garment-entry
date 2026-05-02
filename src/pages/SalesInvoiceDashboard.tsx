@@ -5,6 +5,12 @@ import { useSettings } from "@/hooks/useSettings";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerAdvanceApplicationJournalEntry,
+  recordCustomerReceiptJournalEntry,
+} from "@/utils/accounting/journalService";
+import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
@@ -1979,7 +1985,29 @@ export default function SalesInvoiceDashboard() {
 
     setIsRecordingPayment(true);
     try {
+      const saleSnapshot = {
+        paid_amount: Number(selectedInvoiceForPayment.paid_amount || 0),
+        payment_status: selectedInvoiceForPayment.payment_status,
+        payment_method: selectedInvoiceForPayment.payment_method,
+        payment_date: (selectedInvoiceForPayment as { payment_date?: string | null }).payment_date ?? null,
+        sale_return_adjust: Number(selectedInvoiceForPayment.sale_return_adjust || 0),
+      };
+
+      const { data: acctGlRow } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      const postLedgerSi = Boolean(
+        (acctGlRow as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+
       const isCreditNoteMode = paymentMode === "credit_note";
+      const bookingDeductionForRollback =
+        !isCreditNoteMode && paymentMode === "advance" && selectedInvoiceForPayment.customer_id
+          ? Math.min(amount, advanceFromBookings)
+          : 0;
+
       let effectivePaidAmount = currentPaid;
       let effectiveCNAdjust = currentCNAdjust;
 
@@ -2059,6 +2087,13 @@ export default function SalesInvoiceDashboard() {
 
       if (voucherError) throw voucherError;
 
+      const voucherDescription =
+        paymentMode === "advance"
+          ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`
+          : paymentMode === "credit_note"
+            ? `Credit note adjusted against invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`
+            : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`;
+
       // Create voucher entry
       const { data: voucherEntry, error: voucherEntryError } = await supabase
         .from('voucher_entries')
@@ -2073,17 +2108,68 @@ export default function SalesInvoiceDashboard() {
           payment_method: paymentMode === "advance" ? "advance_adjustment"
             : paymentMode === "credit_note" ? "credit_note_adjustment"
             : paymentMode,
-          description: paymentMode === "advance" 
-            ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
-            : paymentMode === "credit_note"
-            ? `Credit note adjusted against invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
-            : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`,
+          description: voucherDescription,
           created_by: user?.id,
         })
         .select()
         .single();
 
       if (voucherEntryError) throw voucherEntryError;
+
+      const voucherRowId = voucherEntry?.id as string | undefined;
+      const payYmd = format(paymentDate, "yyyy-MM-dd");
+
+      if (postLedgerSi && voucherRowId && !isCreditNoteMode) {
+        try {
+          if (paymentMode === "advance") {
+            await recordCustomerAdvanceApplicationJournalEntry(
+              voucherRowId,
+              currentOrganization!.id,
+              amount,
+              payYmd,
+              voucherDescription,
+              supabase
+            );
+          } else {
+            await recordCustomerReceiptJournalEntry(
+              voucherRowId,
+              currentOrganization!.id,
+              amount,
+              0,
+              paymentMode,
+              payYmd,
+              voucherDescription,
+              supabase
+            );
+          }
+        } catch (glErr) {
+          await deleteJournalEntryByReference(
+            currentOrganization!.id,
+            paymentMode === "advance" ? "CustomerAdvanceApplication" : "CustomerReceipt",
+            voucherRowId,
+            supabase
+          );
+          await supabase.from("voucher_entries").delete().eq("id", voucherRowId);
+          if (bookingDeductionForRollback > 0 && selectedInvoiceForPayment.customer_id) {
+            await reverseCustomerAdvanceFifo(
+              supabase,
+              currentOrganization!.id,
+              selectedInvoiceForPayment.customer_id,
+              bookingDeductionForRollback
+            );
+          }
+          await supabase
+            .from("sales")
+            .update({
+              paid_amount: saleSnapshot.paid_amount,
+              payment_status: saleSnapshot.payment_status,
+              payment_method: saleSnapshot.payment_method,
+              payment_date: saleSnapshot.payment_date,
+            })
+            .eq("id", selectedInvoiceForPayment.id);
+          throw glErr;
+        }
+      }
 
       // Critical sync guard: after voucher creation, re-sync sales paid/status from persisted values.
       // This guarantees advance_adjustment vouchers and sales table stay aligned.
@@ -2158,6 +2244,7 @@ export default function SalesInvoiceDashboard() {
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
       refetch();
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
       toast({
         title: "Error",

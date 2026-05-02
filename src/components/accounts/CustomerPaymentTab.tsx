@@ -25,8 +25,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   deleteJournalEntryByReference,
+  recordCustomerAdvanceApplicationJournalEntry,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
+import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
@@ -402,44 +404,136 @@ export function CustomerPaymentTab({
       if (amountToApply <= 0) throw new Error("No advance balance to apply");
       
       // FIFO advance consumption
-      const { data: availableAdvances } = await supabase.from("customer_advances").select("*").eq("customer_id", referenceId).eq("organization_id", organizationId).in("status", ["active", "partially_used"]).order("advance_date", { ascending: true });
+      const { data: availableAdvances } = await supabase
+        .from("customer_advances")
+        .select("*")
+        .eq("customer_id", referenceId)
+        .eq("organization_id", organizationId)
+        .in("status", ["active", "partially_used"])
+        .order("advance_date", { ascending: true });
+      const advanceSnapshots = (availableAdvances || []).map((a: any) => ({
+        id: a.id as string,
+        used_amount: Number(a.used_amount || 0),
+        status: String(a.status || "active"),
+      }));
+
       let advRemaining = amountToApply;
       for (const adv of availableAdvances || []) {
         if (advRemaining <= 0) break;
         const available = adv.amount - adv.used_amount;
         const toUse = Math.min(available, advRemaining);
         const newUsed = adv.used_amount + toUse;
-        await supabase.from("customer_advances").update({ used_amount: newUsed, status: newUsed >= adv.amount ? "fully_used" : "partially_used" }).eq("id", adv.id);
+        await supabase
+          .from("customer_advances")
+          .update({
+            used_amount: newUsed,
+            status: newUsed >= adv.amount ? "fully_used" : "partially_used",
+          })
+          .eq("id", adv.id);
         advRemaining -= toUse;
       }
-      
-      // Apply to invoices + create voucher entries
+
+      const { data: acctAdv } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedgerAdv = Boolean(
+        (acctAdv as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+
+      const advYmd = format(new Date(), "yyyy-MM-dd");
       let remaining = amountToApply;
-      const { data: voucherNumber } = await supabase.rpc("generate_voucher_number", { p_type: "receipt", p_date: format(new Date(), "yyyy-MM-dd") });
-      let idx = 0;
-      for (const invoice of invoicesToProcess) {
-        if (remaining <= 0) break;
-        const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoice.id) || 0);
-        const applyAmt = Math.min(remaining, outstanding);
-        if (applyAmt <= 0) continue;
-        const newPaid = (invoice.paid_amount || 0) + applyAmt;
-        const newStatus = newPaid >= invoice.net_amount ? 'completed' : newPaid > 0 ? 'partial' : 'pending';
-        await supabase.from('sales').update({ paid_amount: newPaid, payment_status: newStatus }).eq('id', invoice.id);
-        const vNum = invoicesToProcess.length > 1 ? `${voucherNumber}-${idx + 1}` : voucherNumber;
-        await supabase.from("voucher_entries").insert({ organization_id: organizationId, voucher_number: vNum, voucher_type: "receipt", voucher_date: format(new Date(), "yyyy-MM-dd"), reference_type: 'sale', reference_id: invoice.id, description: `Adjusted from advance balance for ${invoice.sale_number}`, total_amount: applyAmt, payment_method: 'advance_adjustment' });
-        if (referenceId) {
-          insertLedgerCredit({
-            organizationId,
-            customerId: referenceId,
-            voucherType: 'RECEIPT',
-            voucherNo: vNum,
-            particulars: `Advance adjusted for ${invoice.sale_number}`,
-            transactionDate: format(new Date(), "yyyy-MM-dd"),
-            amount: applyAmt,
+      const { data: voucherNumber, error: advNumErr } = await supabase.rpc("generate_voucher_number", {
+        p_type: "receipt",
+        p_date: advYmd,
+      });
+      if (advNumErr) throw advNumErr;
+
+      const saleRevertAdv: Array<{ id: string; prevPaid: number; prevStatus: string }> = [];
+      const createdAdvanceVoucherIds: string[] = [];
+
+      try {
+        let idx = 0;
+        for (const invoice of invoicesToProcess) {
+          if (remaining <= 0) break;
+          const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoice.id) || 0);
+          const applyAmt = Math.min(remaining, outstanding);
+          if (applyAmt <= 0) continue;
+          saleRevertAdv.push({
+            id: invoice.id,
+            prevPaid: Number(invoice.paid_amount || 0),
+            prevStatus: String(invoice.payment_status || "pending"),
           });
+          const newPaid = (invoice.paid_amount || 0) + applyAmt;
+          const newStatus =
+            newPaid >= invoice.net_amount ? "completed" : newPaid > 0 ? "partial" : "pending";
+          await supabase
+            .from("sales")
+            .update({ paid_amount: newPaid, payment_status: newStatus })
+            .eq("id", invoice.id);
+          const vNum = invoicesToProcess.length > 1 ? `${voucherNumber}-${idx + 1}` : voucherNumber;
+          const advDesc = `Adjusted from advance balance for ${invoice.sale_number}`;
+          const { data: vrow, error: vInsErr } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: organizationId,
+              voucher_number: vNum,
+              voucher_type: "receipt",
+              voucher_date: advYmd,
+              reference_type: "sale",
+              reference_id: invoice.id,
+              description: advDesc,
+              total_amount: applyAmt,
+              payment_method: "advance_adjustment",
+            })
+            .select("id")
+            .single();
+          if (vInsErr) throw vInsErr;
+          if (!vrow?.id) throw new Error("Advance voucher insert failed");
+          createdAdvanceVoucherIds.push(vrow.id as string);
+          if (postLedgerAdv) {
+            await recordCustomerAdvanceApplicationJournalEntry(
+              vrow.id,
+              organizationId,
+              applyAmt,
+              advYmd,
+              advDesc,
+              supabase
+            );
+          }
+          if (referenceId) {
+            insertLedgerCredit({
+              organizationId,
+              customerId: referenceId,
+              voucherType: "RECEIPT",
+              voucherNo: vNum,
+              particulars: `Advance adjusted for ${invoice.sale_number}`,
+              transactionDate: advYmd,
+              amount: applyAmt,
+            });
+          }
+          remaining -= applyAmt;
+          idx++;
         }
-        remaining -= applyAmt;
-        idx++;
+      } catch (advErr) {
+        for (const vid of [...createdAdvanceVoucherIds].reverse()) {
+          await deleteJournalEntryByReference(organizationId, "CustomerAdvanceApplication", vid, supabase);
+          await supabase.from("voucher_entries").delete().eq("id", vid);
+        }
+        for (const s of saleRevertAdv) {
+          await supabase
+            .from("sales")
+            .update({ paid_amount: s.prevPaid, payment_status: s.prevStatus })
+            .eq("id", s.id);
+        }
+        for (const snap of advanceSnapshots) {
+          await supabase
+            .from("customer_advances")
+            .update({ used_amount: snap.used_amount, status: snap.status })
+            .eq("id", snap.id);
+        }
+        throw advErr;
       }
       return { applied: amountToApply - remaining };
       } finally {
@@ -455,6 +549,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setSelectedInvoiceIds([]);
       setAllocatedAmounts({});
     },
@@ -891,20 +986,42 @@ export function CustomerPaymentTab({
       const voucherId = payment.id;
       const invoiceId = payment.reference_id;
       const paymentAmount = Number(payment.total_amount);
+      const pm = String(payment.payment_method || "").toLowerCase();
+      const isAdvanceApplication = pm === "advance_adjustment";
       const { data: acctDel } = await supabase
         .from("settings")
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      if (Boolean((acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)) {
-        await deleteJournalEntryByReference(organizationId, "CustomerReceipt", voucherId, supabase);
+      const engineOn = Boolean(
+        (acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+      if (engineOn) {
+        await deleteJournalEntryByReference(
+          organizationId,
+          isAdvanceApplication ? "CustomerAdvanceApplication" : "CustomerReceipt",
+          voucherId,
+          supabase
+        );
       }
       if (invoiceId) {
-        const { data: invoice } = await supabase.from("sales").select("paid_amount, net_amount, cash_amount, card_amount, upi_amount").eq("id", invoiceId).maybeSingle();
+        const { data: invoice } = await supabase
+          .from("sales")
+          .select("paid_amount, net_amount, cash_amount, card_amount, upi_amount, customer_id")
+          .eq("id", invoiceId)
+          .maybeSingle();
         if (invoice) {
           const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) - paymentAmount);
           const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : newPaidAmount > 0 ? 'partial' : 'pending';
           await supabase.from("sales").update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq("id", invoiceId);
+          if (isAdvanceApplication && invoice.customer_id) {
+            await reverseCustomerAdvanceFifo(
+              supabase,
+              organizationId,
+              invoice.customer_id as string,
+              paymentAmount
+            );
+          }
         }
       }
       await supabase.from("voucher_items").delete().eq("voucher_id", voucherId);
@@ -920,6 +1037,9 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       toast.success(`Receipt deleted. ₹${Math.round(data.paymentAmount).toLocaleString('en-IN')} reversed.`);
     },
     onError: (error: Error) => {

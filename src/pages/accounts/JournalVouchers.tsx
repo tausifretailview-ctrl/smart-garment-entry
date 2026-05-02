@@ -24,7 +24,8 @@ type RefTypeFilter =
   | "ExpenseVoucher"
   | "SalaryVoucher"
   | "CustomerReceipt"
-  | "SupplierPayment";
+  | "SupplierPayment"
+  | "CustomerAdvanceApplication";
 
 interface JournalEntryRow {
   id: string;
@@ -185,6 +186,7 @@ export default function JournalVouchers() {
                   <SelectItem value="SalaryVoucher">Salary voucher</SelectItem>
                   <SelectItem value="CustomerReceipt">Customer receipt</SelectItem>
                   <SelectItem value="SupplierPayment">Supplier payment</SelectItem>
+                  <SelectItem value="CustomerAdvanceApplication">Customer advance application</SelectItem>
                 </SelectContent>
               </Select>
             </div>

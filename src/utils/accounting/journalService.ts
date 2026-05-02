@@ -20,7 +20,8 @@ export type JournalReferenceType =
   | "ExpenseVoucher"
   | "SalaryVoucher"
   | "CustomerReceipt"
-  | "SupplierPayment";
+  | "SupplierPayment"
+  | "CustomerAdvanceApplication";
 
 export type PostJournalLineInput = {
   accountId: string;
@@ -376,6 +377,49 @@ export async function recordSupplierPaymentJournalEntry(
     organizationId,
     date: entryDate,
     referenceType: "SupplierPayment",
+    referenceId: voucherEntryId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Advance applied to invoice (`payment_method` advance_adjustment on voucher): DR Customer Advances, CR AR.
+ */
+export async function recordCustomerAdvanceApplicationJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  amount: number,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const advancesAccount = getAccountByCode(systemAccounts, "2150");
+  const arAccount = getAccountByCode(systemAccounts, "1200");
+
+  if (!advancesAccount || !arAccount) {
+    throw new Error("Missing chart accounts for advance application (Customer Advances 2150 / AR 1200)");
+  }
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: advancesAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: arAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc = description.trim() || `Advance application ${voucherEntryId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "CustomerAdvanceApplication",
     referenceId: voucherEntryId,
     description: desc,
     lines,

@@ -20,6 +20,7 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "1000", account_name: "Cash in Hand", account_type: "Asset" },
   { account_code: "1200", account_name: "Accounts Receivable", account_type: "Asset" },
   { account_code: "2000", account_name: "Accounts Payable", account_type: "Liability" },
+  { account_code: "2150", account_name: "Customer Advances", account_type: "Liability" },
   { account_code: "4000", account_name: "Sales Revenue", account_type: "Revenue" },
   { account_code: "4100", account_name: "School Fee Income", account_type: "Revenue" },
   { account_code: "5000", account_name: "Cost of Goods Sold", account_type: "Expense" },
