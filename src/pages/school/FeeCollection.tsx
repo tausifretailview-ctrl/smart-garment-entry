@@ -287,7 +287,10 @@ const FeeCollection = () => {
               .select("student_id, adjustment_type, change_amount")
               .eq("organization_id", currentOrganization!.id)
               .eq("academic_year_id", activeYear.id)
-              .in("student_id", studentIdList),
+              .in("student_id", studentIdList)
+              // Exclude pure trace entries (e.g. receipt_deleted) — receipt
+              // deletions are already reflected via student_fees.status='deleted'.
+              .neq("reason_code", "receipt_deleted"),
           ])
         : [{ data: [] as any[] }, { data: [] as any[] }];
       const allPayments = paymentsRes?.data || [];
