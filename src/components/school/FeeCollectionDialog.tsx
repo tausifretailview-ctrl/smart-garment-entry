@@ -938,7 +938,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-right">Paid</TableHead>
                       <TableHead className="text-right">Balance</TableHead>
-                      <TableHead className="text-right w-32">Paying</TableHead>
+                      <TableHead className="text-right w-56">Paying ⚠ Type amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -963,15 +963,30 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                         </TableCell>
                         <TableCell className="text-right">
                           {item.balance > 0 && (
-                            <Input
-                              type="number"
-                              min="0"
-                              max={item.balance}
-                              value={item.paying || ""}
-                              onChange={e => updatePaying(idx, parseFloat(e.target.value) || 0)}
-                              className="w-28 text-right"
-                              disabled={!item.selected}
-                            />
+                            <div className="flex items-center justify-end gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                max={item.balance}
+                                value={item.paying || ""}
+                                onChange={e => updatePaying(idx, parseFloat(e.target.value) || 0)}
+                                className="w-32 text-right h-10 text-base font-semibold tabular-nums font-mono border-2 border-primary/40 focus-visible:border-primary"
+                                disabled={!item.selected}
+                                placeholder="0"
+                                autoFocus={idx === feeItems.findIndex(i => i.selected && i.balance > 0)}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-10 px-2 text-xs whitespace-nowrap"
+                                disabled={!item.selected}
+                                onClick={() => updatePaying(idx, item.balance)}
+                                title="Pay full balance for this fee head"
+                              >
+                                Full
+                              </Button>
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
