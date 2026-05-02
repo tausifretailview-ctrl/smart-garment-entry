@@ -22,7 +22,9 @@ export type JournalReferenceType =
   | "CustomerReceipt"
   | "SupplierPayment"
   | "CustomerAdvanceApplication"
-  | "CustomerCreditNoteApplication";
+  | "CustomerCreditNoteApplication"
+  | "CustomerAdvanceReceipt"
+  | "CustomerAdvanceRefund";
 
 export type PostJournalLineInput = {
   accountId: string;
@@ -422,6 +424,102 @@ export async function recordCustomerAdvanceApplicationJournalEntry(
     date: entryDate,
     referenceType: "CustomerAdvanceApplication",
     referenceId: voucherEntryId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Customer advance booking (`customer_advances` row): DR Cash/Bank, CR Customer Advances (2150).
+ */
+export async function recordCustomerAdvanceReceiptJournalEntry(
+  customerAdvanceId: string,
+  organizationId: string,
+  amount: number,
+  paymentMethod: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!customerAdvanceId) throw new Error("customerAdvanceId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const cashInHand = getAccountByCode(systemAccounts, "1000");
+  const advancesAccount = getAccountByCode(systemAccounts, "2150");
+
+  if (!cashInHand || !advancesAccount) {
+    throw new Error("Missing chart accounts for advance receipt (Cash / Customer Advances 2150)");
+  }
+
+  const pm = (paymentMethod || "").toLowerCase().trim();
+  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
+  const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: receiptAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: advancesAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc = description.trim() || `Advance receipt ${customerAdvanceId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "CustomerAdvanceReceipt",
+    referenceId: customerAdvanceId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Customer advance refund paid (`advance_refunds` row): DR Customer Advances (2150), CR Cash/Bank.
+ */
+export async function recordCustomerAdvanceRefundJournalEntry(
+  advanceRefundId: string,
+  organizationId: string,
+  amount: number,
+  paymentMethod: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!advanceRefundId) throw new Error("advanceRefundId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const cashInHand = getAccountByCode(systemAccounts, "1000");
+  const advancesAccount = getAccountByCode(systemAccounts, "2150");
+
+  if (!cashInHand || !advancesAccount) {
+    throw new Error("Missing chart accounts for advance refund (Cash / Customer Advances 2150)");
+  }
+
+  const pm = (paymentMethod || "").toLowerCase().trim();
+  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
+  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: advancesAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: paymentAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc = description.trim() || `Advance refund ${advanceRefundId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "CustomerAdvanceRefund",
+    referenceId: advanceRefundId,
     description: desc,
     lines,
     client,

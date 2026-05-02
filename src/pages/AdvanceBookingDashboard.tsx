@@ -23,6 +23,10 @@ import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
 import { useReactToPrint } from "react-to-print";
 import { useSettings } from "@/hooks/useSettings";
 import { useSearchParams } from "react-router-dom";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerAdvanceRefundJournalEntry,
+} from "@/utils/accounting/journalService";
 
 const PAGE_SIZE = 50;
 
@@ -193,10 +197,9 @@ export default function AdvanceBookingDashboard() {
   // Refund mutation
   const refundMutation = useMutation({
     mutationFn: async ({ advanceId, amount, method, reason }: { advanceId: string; amount: number; method: string; reason: string }) => {
-      // Get current advance
       const { data: adv, error: fetchErr } = await supabase
         .from("customer_advances")
-        .select("amount, used_amount")
+        .select("amount, used_amount, status")
         .eq("id", advanceId)
         .single();
       if (fetchErr) throw fetchErr;
@@ -204,32 +207,78 @@ export default function AdvanceBookingDashboard() {
       const available = (adv.amount || 0) - (adv.used_amount || 0);
       if (amount > available) throw new Error("Refund amount exceeds available balance");
 
-      const newUsed = (adv.used_amount || 0) + amount;
+      const snapUsed = Number(adv.used_amount || 0);
+      const snapStatus = String(adv.status || "active");
+      const newUsed = snapUsed + amount;
       const newStatus = amount >= available ? "refunded" : "partially_used";
 
-      // Insert refund record
-      const { error: refundErr } = await supabase.from("advance_refunds").insert({
-        organization_id: orgId!,
-        advance_id: advanceId,
-        refund_amount: amount,
-        payment_method: method,
-        reason: reason || null,
-        created_by: user?.id || null,
-      });
+      const refundYmd = format(new Date(), "yyyy-MM-dd");
+      const { data: refundRow, error: refundErr } = await supabase
+        .from("advance_refunds")
+        .insert({
+          organization_id: orgId!,
+          advance_id: advanceId,
+          refund_amount: amount,
+          payment_method: method,
+          reason: reason || null,
+          created_by: user?.id || null,
+          refund_date: refundYmd,
+        })
+        .select("id")
+        .single();
       if (refundErr) throw refundErr;
+      const refundId = refundRow?.id as string | undefined;
+      if (!refundId) throw new Error("Refund record not created");
 
-      // Update advance
       const { error: updateErr } = await supabase
         .from("customer_advances")
         .update({ used_amount: newUsed, status: newStatus })
         .eq("id", advanceId);
-      if (updateErr) throw updateErr;
+      if (updateErr) {
+        await supabase.from("advance_refunds").delete().eq("id", refundId);
+        throw updateErr;
+      }
+
+      const { data: acctRef } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", orgId!)
+        .maybeSingle();
+      if (
+        Boolean((acctRef as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+      ) {
+        try {
+          await recordCustomerAdvanceRefundJournalEntry(
+            refundId,
+            orgId!,
+            amount,
+            method,
+            refundYmd,
+            reason?.trim() || `Advance refund`,
+            supabase
+          );
+        } catch (glErr) {
+          await deleteJournalEntryByReference(
+            orgId!,
+            "CustomerAdvanceRefund",
+            refundId,
+            supabase
+          );
+          await supabase
+            .from("customer_advances")
+            .update({ used_amount: snapUsed, status: snapStatus })
+            .eq("id", advanceId);
+          await supabase.from("advance_refunds").delete().eq("id", refundId);
+          throw glErr;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       toast.success("Refund processed successfully");
       setRefundDialogOpen(false);
       setSelectedAdvance(null);
@@ -354,6 +403,19 @@ export default function AdvanceBookingDashboard() {
         );
       }
 
+      const { data: acctDel } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", orgId!)
+        .maybeSingle();
+      if (
+        Boolean((acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+      ) {
+        for (const id of ids) {
+          await deleteJournalEntryByReference(orgId!, "CustomerAdvanceReceipt", id, supabase);
+        }
+      }
+
       const { data: deleted, error } = await supabase
         .from("customer_advances")
         .delete()
@@ -372,6 +434,7 @@ export default function AdvanceBookingDashboard() {
       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       toast.success(`${selectedIds.size} advance(s) deleted`);
       setSelectedIds(new Set());
       setDeleteDialogOpen(false);

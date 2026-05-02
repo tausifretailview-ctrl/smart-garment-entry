@@ -2,6 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import {
+  recordCustomerAdvanceReceiptJournalEntry,
+} from "@/utils/accounting/journalService";
 
 interface CustomerAdvance {
   id: string;
@@ -107,12 +110,39 @@ export function useCustomerAdvances(organizationId: string | null) {
         .single();
 
       if (error) throw error;
+
+      const adv = advance as CustomerAdvance & { id: string; advance_number: string; advance_date: string };
+      const { data: acctAdv } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId!)
+        .maybeSingle();
+      if (
+        Boolean((acctAdv as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+      ) {
+        try {
+          await recordCustomerAdvanceReceiptJournalEntry(
+            adv.id,
+            organizationId!,
+            data.amount,
+            data.paymentMethod,
+            adv.advance_date || format(data.advanceDate, "yyyy-MM-dd"),
+            data.description?.trim() || `Advance ${adv.advance_number}`,
+            supabase
+          );
+        } catch (glErr) {
+          await supabase.from("customer_advances").delete().eq("id", adv.id);
+          throw glErr;
+        }
+      }
+
       return advance;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       toast.success("Advance booking recorded successfully");
     },
     onError: (error: Error) => {
