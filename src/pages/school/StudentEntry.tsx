@@ -210,11 +210,16 @@ const StudentEntry = () => {
         admission_date: formData.admission_date || null,
         status: formData.status,
         notes: formData.notes || null,
-        closing_fees_balance: formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null,
+        closing_fees_balance: formData.is_new_admission && formData.closing_fees_balance
+          ? parseFloat(formData.closing_fees_balance)
+          : null,
+        is_new_admission: formData.is_new_admission,
       };
 
       if (isEditing && existingStudent) {
-        const newClosing = formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null;
+        const newClosing = formData.is_new_admission && formData.closing_fees_balance
+          ? parseFloat(formData.closing_fees_balance)
+          : null;
         const oldClosing = existingStudent.closing_fees_balance;
         if (Number(newClosing ?? 0) !== Number(oldClosing ?? 0)) {
           studentData.fees_opening_is_net = false;
@@ -224,11 +229,11 @@ const StudentEntry = () => {
       if (isEditing) {
         const { error } = await supabase
           .from("students")
-          .update(studentData)
+          .update(studentData as any)
           .eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("students").insert({ ...studentData, is_new_admission: true } as any);
+        const { error } = await supabase.from("students").insert(studentData as any);
         if (error) throw error;
       }
     },
@@ -251,8 +256,8 @@ const StudentEntry = () => {
     saveMutation.mutate();
   };
 
-  const handleChange = (field: keyof StudentFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof StudentFormData, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value as never }));
   };
 
   if (isEditing && loadingStudent) {
