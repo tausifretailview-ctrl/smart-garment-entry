@@ -605,6 +605,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     }
   }, [preSelectedCustomerId, customers, selectedCustomer]);
 
+  // Keep detail header cards in sync when academic year (or list data) changes — opening/totalPaid/balance are year-scoped.
+  useEffect(() => {
+    if (!selectedCustomer?.id || !customers?.length) return;
+    const fresh = customers.find((c: Customer) => c.id === selectedCustomer.id);
+    if (fresh) setSelectedCustomer(fresh);
+  }, [customers, selectedCustomer?.id]);
+
   // Fetch detailed transactions for selected customer
   const { data: transactions } = useQuery({
     queryKey: ["customer-transactions", selectedCustomer?.id, startDate, endDate, isSchool, selectedAcademicYearId],
@@ -614,7 +621,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // --- School org: student fee-based transactions ---
       if (isSchool && selectedCustomer.studentId) {
         const studentId = selectedCustomer.studentId;
-        const hasStructures = (selectedCustomer as any).hasStructures;
 
         // Resolve target academic year from selected range (full FY resolution)
         const { data: allYears } = await supabase
@@ -771,33 +777,70 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           (allYears || []).find((y: any) => y.is_current) ||
           (allYears || [])[0];
 
-        // Fetch fee structures for the student's class (to show as debit entries)
-        let feeStructureDebits: Array<{ head_name: string; total: number }> = [];
-        if (hasStructures && selectedCustomer.className && targetYear?.id) {
-          // Get the class_id from the student record
-          const { data: studentRec } = await supabase
-            .from('students')
-            .select('class_id')
-            .eq('id', studentId)
-            .single();
-          
-          if (studentRec?.class_id) {
-            const { data: structures } = await supabase
-              .from('fee_structures')
-              .select('amount, frequency, fee_heads(head_name)')
-              .eq('organization_id', organizationId)
-              .eq('academic_year_id', targetYear.id)
-              .eq('class_id', studentRec.class_id);
+        // Opening + structures for the selected academic year (DB-derived — matches Fee Collection when user switches year)
+        const { data: stuRow } = await supabase
+          .from("students")
+          .select("closing_fees_balance, class_id, is_new_admission")
+          .eq("id", studentId)
+          .single();
 
-            feeStructureDebits = (structures || []).map((s: any) => {
-              const mult = s.frequency === 'monthly' ? 12 : s.frequency === 'quarterly' ? 4 : 1;
-              return {
-                head_name: s.fee_heads?.head_name || 'Fee',
-                total: s.amount * mult,
-              };
-            });
-          }
+        const yearsChrono = [...(allYears || [])].sort(
+          (a: any, b: any) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+        );
+        const previousYear = targetYear?.start_date
+          ? [...yearsChrono]
+              .filter((y: any) => y.end_date && new Date(y.end_date) < new Date(targetYear.start_date))
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+              )[0]
+          : null;
+
+        let latePrevPaid = 0;
+        if (previousYear?.id) {
+          const { data: lateFees } = await supabase
+            .from("student_fees")
+            .select("paid_amount, status")
+            .eq("organization_id", organizationId)
+            .eq("student_id", studentId)
+            .eq("academic_year_id", previousYear.id)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0);
+          latePrevPaid = (lateFees || []).reduce(
+            (s, f: any) => s + Number(f.paid_amount || 0),
+            0
+          );
         }
+
+        const importedOpening = Math.max(
+          0,
+          Number(stuRow?.closing_fees_balance || 0) - latePrevPaid
+        );
+
+        let feeStructureDebits: Array<{ head_name: string; total: number }> = [];
+        if (stuRow?.class_id && targetYear?.id) {
+          const { data: structures } = await supabase
+            .from("fee_structures")
+            .select("amount, frequency, fee_heads(head_name)")
+            .eq("organization_id", organizationId)
+            .eq("academic_year_id", targetYear.id)
+            .eq("class_id", stuRow.class_id);
+
+          feeStructureDebits = (structures || []).map((s: any) => {
+            const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
+            return {
+              head_name: s.fee_heads?.head_name || "Fee",
+              total: s.amount * mult,
+            };
+          });
+        }
+
+        const structureTotalComputed = feeStructureDebits.reduce((s, x) => s + x.total, 0);
+        // New admissions: liability is import-only (same as Fee Collection) — do not add class fee structure lines
+        const showStructureDebitRows =
+          structureTotalComputed > 0 && stuRow?.is_new_admission !== true;
+        const hasStructuresComputed = showStructureDebitRows;
+        const openingBalance = importedOpening;
 
         // Fetch student fees (payments)
         let feesQuery = supabase
@@ -820,11 +863,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         if (adjustmentsError) throw adjustmentsError;
 
         const allTransactions: Transaction[] = [];
-        const openingBalance = selectedCustomer.opening_balance || 0;
         let runningBalance = 0;
 
         // Opening balance entry - only when NO fee structures exist
-        if (!hasStructures && openingBalance !== 0) {
+        if (!hasStructuresComputed && openingBalance !== 0) {
           runningBalance = openingBalance;
         allTransactions.push({
             id: 'opening-balance',
@@ -839,7 +881,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           });
         }
 
-        if (hasStructures && feeStructureDebits.length > 0) {
+        if (hasStructuresComputed && feeStructureDebits.length > 0) {
           // Show fee structure totals as debit entries (the expected fees)
           if (openingBalance > 0) {
             runningBalance = openingBalance;
@@ -879,7 +921,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
         const combinedEntries = [
           ...sortedFees
-            .filter((fee: any) => (fee.paid_amount || 0) > 0)
+            .filter(
+              (fee: any) =>
+                (fee.paid_amount || 0) > 0 && fee.status !== "balance_adjustment"
+            )
             .map((fee: any) => ({
               kind: 'payment' as const,
               date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
@@ -899,13 +944,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             runningBalance -= paidAmount;
             const feeHeadName = fee.fee_heads?.head_name || 'Fee';
             const methodText = fee.payment_method ? ` - ${fee.payment_method.charAt(0).toUpperCase() + fee.payment_method.slice(1)}` : '';
+            const sessionName = (allYears || []).find((y: any) => y.id === fee.academic_year_id)?.year_name;
+            const sessionSuffix = sessionName ? ` (${sessionName})` : '';
             allTransactions.push({
               id: `${fee.id}-payment`,
               date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
               timestamp: fee.created_at || null,
               type: 'payment',
               reference: fee.payment_receipt_id || '-',
-              description: `Fee Payment${methodText} - ${feeHeadName}`,
+              description: `Fee Payment${methodText} - ${feeHeadName}${sessionSuffix}`,
               debit: 0,
               credit: paidAmount,
               balance: runningBalance,
