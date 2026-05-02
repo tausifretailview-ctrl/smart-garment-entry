@@ -22,6 +22,25 @@ import {
   formatWhatsAppPendingSummary,
   type YearFeeBalanceRow,
 } from "@/lib/schoolFeeYearBalances";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+
+const OPENING_CARRY_HEAD_ID = "__opening_carry__";
+
+/** Mirrors FeeCollection.tsx resolveLiability (same rules as fee grid). */
+function resolveFeeLiability(
+  student: { closing_fees_balance?: number | null; is_new_admission?: boolean | null },
+  structureTotal: number,
+  yearName?: string | null
+): number {
+  const importedBalance = Number(student?.closing_fees_balance) || 0;
+  const expected = Number(structureTotal) || 0;
+  const isNewAdmission = student?.is_new_admission === true;
+  const isLegacy2025 = yearName === "2025-26";
+  if (isNewAdmission) return importedBalance;
+  if (expected > 0) return expected + importedBalance;
+  if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
+  return importedBalance;
+}
 
 interface Student {
   id: string;
@@ -231,7 +250,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         .eq("student_id", student.id)
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", usedYear.id)
-        .in("status", ["paid", "partial"]);
+        .in("status", ["paid", "partial"])
+        .gt("paid_amount", 0);
 
       const items: FeeItem[] = (structures || []).map((s: any) => {
         const paidForHead = (payments || [])
@@ -271,6 +291,89 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             selected: true,
             paying: importedBalance,
             fee_structure_id: "__imported__",
+          });
+        }
+      }
+
+      // When fee structures exist, carried opening is still part of liability (Fee Collection grid).
+      // Add one row so the modal total matches Total Due (structure balances + opening remainder).
+      if (totalStructureAmount > 0 && student.is_new_admission !== true) {
+        const { data: allYears } = await supabase
+          .from("academic_years")
+          .select("id, start_date, end_date")
+          .eq("organization_id", currentOrganization!.id)
+          .order("start_date", { ascending: true });
+
+        const prevYear =
+          usedYear.start_date && allYears?.length
+            ? [...allYears]
+                .filter((y: any) => y.end_date && new Date(y.end_date) < new Date(usedYear.start_date as string))
+                .sort(
+                  (a: any, b: any) =>
+                    new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+                )[0]
+            : null;
+
+        let latePrevPaid = 0;
+        if (prevYear?.id) {
+          const { data: lateFees } = await supabase
+            .from("student_fees")
+            .select("paid_amount")
+            .eq("organization_id", currentOrganization!.id)
+            .eq("student_id", student.id)
+            .eq("academic_year_id", prevYear.id)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0);
+          latePrevPaid = (lateFees || []).reduce((s: number, f: any) => s + Number(f.paid_amount || 0), 0);
+        }
+
+        const importedEff = resolveImportedOpeningBalance(
+          Number(student.closing_fees_balance || 0),
+          latePrevPaid,
+          student.fees_opening_is_net === true
+        );
+
+        const { data: adjRows } = await (supabase.from("student_balance_audit" as any) as any)
+          .select("adjustment_type, change_amount")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("student_id", student.id)
+          .eq("academic_year_id", usedYear.id);
+
+        const adjustmentNet = (adjRows || []).reduce((sum: number, a: any) => {
+          if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);
+          if (a.adjustment_type === "debit") return sum - (a.change_amount || 0);
+          return sum;
+        }, 0);
+
+        const paidTotalYear = (payments || []).reduce((sum: number, p: any) => sum + Number(p.paid_amount || 0), 0);
+
+        const liability = resolveFeeLiability(
+          { ...student, closing_fees_balance: importedEff },
+          totalStructureAmount,
+          usedYear.year_name
+        );
+        const totalDue = Math.max(
+          0,
+          Math.round((liability + adjustmentNet - paidTotalYear) * 100) / 100
+        );
+        const sumStructureBalances = items.reduce((sum, i) => sum + i.balance, 0);
+        const openingDue = Math.max(
+          0,
+          Math.round((totalDue - sumStructureBalances) * 100) / 100
+        );
+
+        if (openingDue > 0.005) {
+          const openingBasis = importedEff > 0 ? importedEff : openingDue;
+          const alreadyOpening = Math.max(0, Math.round((openingBasis - openingDue) * 100) / 100);
+          items.push({
+            fee_head_id: OPENING_CARRY_HEAD_ID,
+            head_name: "Opening balance (carried forward)",
+            structure_amount: openingBasis,
+            already_paid: alreadyOpening,
+            balance: openingDue,
+            selected: true,
+            paying: openingDue,
+            fee_structure_id: OPENING_CARRY_HEAD_ID,
           });
         }
       }
@@ -376,7 +479,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
       for (const item of selectedItems) {
         const newStatus = item.paying >= item.balance ? "paid" : "partial";
-        const isImported = item.fee_head_id === "__imported_balance__";
+        const isImported =
+          item.fee_head_id === "__imported_balance__" || item.fee_head_id === OPENING_CARRY_HEAD_ID;
         const { error } = await supabase.from("student_fees").insert({
           organization_id: currentOrganization.id,
           student_id: student.id,
@@ -837,7 +941,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                   </TableHeader>
                   <TableBody>
                     {feeItems.map((item, idx) => (
-                      <TableRow key={item.fee_head_id} className={item.balance === 0 ? "opacity-50" : ""}>
+                      <TableRow key={`${item.fee_head_id}-${item.fee_structure_id}-${idx}`} className={item.balance === 0 ? "opacity-50" : ""}>
                         <TableCell>
                           <Checkbox
                             checked={item.selected}
