@@ -68,6 +68,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
   const [selectedYearId, setSelectedYearId] = useState<string>("");
+  const [manualFeeEnabled, setManualFeeEnabled] = useState(false);
+  const [manualFeeName, setManualFeeName] = useState("Other Fees");
+  const [manualFeeAmount, setManualFeeAmount] = useState<number>(0);
 
   // Fetch organization logo URL for WhatsApp messages
   const { data: orgLogoSettings } = useQuery({
@@ -154,6 +157,13 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       setSelectedYearId(currentYear.id);
     }
   }, [open, activeYearId, currentYear?.id, selectedYearId]);
+
+  // Reset manual fee toggle when student or year changes
+  useEffect(() => {
+    setManualFeeEnabled(false);
+    setManualFeeAmount(0);
+    setManualFeeName("Other Fees");
+  }, [student?.id, selectedYearId]);
 
   // Helper: extract FY start/end full years from academic year name like "2025-26" or "2025-2026"
   const getFYYears = (yearName?: string) => {
@@ -265,6 +275,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     .filter(i => i.selected && i.balance > 0)
     .reduce((sum, i) => sum + i.paying, 0);
 
+  const grandTotalPaying = totalPaying + (manualFeeEnabled ? Number(manualFeeAmount) || 0 : 0);
+
   const collectMutation = useMutation({
     mutationFn: async () => {
       if (!student || !currentOrganization) throw new Error("Student data missing");
@@ -273,7 +285,10 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       );
 
       const selectedItems = feeItems.filter(i => i.selected && i.paying > 0);
-      if (selectedItems.length === 0) throw new Error("No fees selected");
+      const manualAmt = manualFeeEnabled ? Number(manualFeeAmount) || 0 : 0;
+      if (selectedItems.length === 0 && manualAmt <= 0) {
+        throw new Error("No fees selected");
+      }
 
       // Generate financial year based receipt number via DB function (with fallback)
       let receiptNumber: string;
@@ -369,6 +384,28 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         if (error) throw error;
       }
 
+      // Insert manual / ad-hoc fee row if enabled
+      const manualRowItems: { head_name: string; paying: number }[] = [];
+      if (manualAmt > 0) {
+        const { error: manualErr } = await supabase.from("student_fees").insert({
+          organization_id: currentOrganization.id,
+          student_id: student.id,
+          fee_head_id: null,
+          fee_structure_id: null,
+          academic_year_id: usedYear!.id,
+          amount: manualAmt,
+          paid_amount: manualAmt,
+          paid_date: paidDate,
+          payment_method: paymentMethod,
+          transaction_id: transactionId || null,
+          payment_receipt_id: receiptNumber,
+          status: "paid",
+          remarks: manualFeeName || "Other Fees",
+        } as any);
+        if (manualErr) throw manualErr;
+        manualRowItems.push({ head_name: manualFeeName || "Other Fees", paying: manualAmt });
+      }
+
       // Create voucher entry in accounts ledger for this fee collection
       try {
         const voucherNumber = receiptNumber; // Use same receipt number as voucher
@@ -378,7 +415,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           : paymentMethodLower === 'bank transfer' ? 'bank_transfer'
           : 'cash';
         
-        const feeHeadNames = selectedItems.map(i => i.head_name).join(', ');
+        const allItemsForVoucher = [...selectedItems, ...manualRowItems];
+        const feeHeadNames = allItemsForVoucher.map((i: any) => i.head_name).join(', ');
         const description = `Fee Collection - ${student.student_name} (${student.admission_number}) | ${feeHeadNames} | ${paymentMethod}${transactionId ? ` | Txn: ${transactionId}` : ''}`;
 
         await supabase.from("voucher_entries").insert({
@@ -386,7 +424,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           voucher_type: "receipt",
           voucher_number: voucherNumber,
           voucher_date: format(new Date(), 'yyyy-MM-dd'),
-          total_amount: totalPaying,
+          total_amount: grandTotalPaying,
           description,
           reference_type: "student_fee",
           reference_id: student.id,
@@ -409,10 +447,10 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       return {
         receiptNumber,
         paidDate,
-        selectedItems,
+        selectedItems: [...selectedItems, ...manualRowItems],
         paymentMethod,
         transactionId,
-        totalPaying,
+        totalPaying: grandTotalPaying,
         remainingBalance,
         academicYear: usedYear?.year_name || "",
       };
@@ -634,7 +672,87 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             ) : feeItems.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No fee structure defined for this student's class. Set up fee structures first.</p>
+              <div className="space-y-4 py-4">
+                <div className="text-center text-sm text-muted-foreground">
+                  No fee structure defined for this student's class in <span className="font-semibold">{usedYear?.year_name || "selected year"}</span>.
+                  <br />You can still collect an ad-hoc fee below, or set up a fee structure first.
+                </div>
+                <div className="border rounded-md p-3 bg-muted/30 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={manualFeeEnabled}
+                      onCheckedChange={(v) => setManualFeeEnabled(!!v)}
+                      id="manual-fee-toggle-empty"
+                    />
+                    <label htmlFor="manual-fee-toggle-empty" className="text-sm font-medium cursor-pointer">
+                      Collect ad-hoc / manual fee
+                    </label>
+                  </div>
+                  {manualFeeEnabled && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Fee Description</label>
+                        <Input
+                          value={manualFeeName}
+                          onChange={(e) => setManualFeeName(e.target.value)}
+                          placeholder="e.g. Tuition Fee"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Amount</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={manualFeeAmount || ""}
+                          onChange={(e) => setManualFeeAmount(parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {manualFeeEnabled && manualFeeAmount > 0 && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Payment Method</label>
+                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PAYMENT_METHODS.map(m => (
+                              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Transaction ID (optional)</label>
+                        <Input
+                          value={transactionId}
+                          onChange={e => setTransactionId(e.target.value)}
+                          placeholder="e.g. UPI ref number"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="text-lg font-bold">
+                        Total: ₹{grandTotalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                      <Button
+                        onClick={() => collectMutation.mutate()}
+                        disabled={collectMutation.isPending || grandTotalPaying <= 0 || !usedYear}
+                      >
+                        {collectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
+                        Collect ₹{grandTotalPaying.toLocaleString("en-IN")}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
             ) : (
               <div className="space-y-4">
                 <Table>
@@ -712,14 +830,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
                 <div className="flex items-center justify-between pt-4 border-t">
                   <div className="text-lg font-bold">
-                    Total: ₹{totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    Total: ₹{grandTotalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                   <Button
                     onClick={() => collectMutation.mutate()}
-                    disabled={collectMutation.isPending || totalPaying <= 0 || !usedYear}
+                    disabled={collectMutation.isPending || grandTotalPaying <= 0 || !usedYear}
                   >
                     {collectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
-                    Collect ₹{totalPaying.toLocaleString("en-IN")}
+                    Collect ₹{grandTotalPaying.toLocaleString("en-IN")}
                   </Button>
                 </div>
               </div>
