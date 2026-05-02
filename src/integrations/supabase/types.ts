@@ -648,6 +648,64 @@ export type Database = {
           },
         ]
       }
+      chart_of_accounts: {
+        Row: {
+          account_code: string
+          account_name: string
+          account_type: string
+          created_at: string
+          id: string
+          is_system_account: boolean
+          organization_id: string
+          parent_account_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_code: string
+          account_name: string
+          account_type: string
+          created_at?: string
+          id?: string
+          is_system_account?: boolean
+          organization_id: string
+          parent_account_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_code?: string
+          account_name?: string
+          account_type?: string
+          created_at?: string
+          id?: string
+          is_system_account?: boolean
+          organization_id?: string
+          parent_account_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_parent_account_id_fkey"
+            columns: ["parent_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cheque_formats: {
         Row: {
           account_number: string | null
@@ -2455,6 +2513,99 @@ export type Database = {
           },
         ]
       }
+      journal_entries: {
+        Row: {
+          created_at: string
+          date: string
+          description: string | null
+          id: string
+          organization_id: string
+          reference_id: string | null
+          reference_type: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          description?: string | null
+          id?: string
+          organization_id: string
+          reference_id?: string | null
+          reference_type: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          description?: string | null
+          id?: string
+          organization_id?: string
+          reference_id?: string | null
+          reference_type?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      journal_lines: {
+        Row: {
+          account_id: string
+          created_at: string
+          credit_amount: number
+          debit_amount: number
+          id: string
+          journal_entry_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          credit_amount?: number
+          debit_amount?: number
+          id?: string
+          journal_entry_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          credit_amount?: number
+          debit_amount?: number
+          id?: string
+          journal_entry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legacy_invoices: {
         Row: {
           amount: number
@@ -3344,6 +3495,8 @@ export type Database = {
           is_cancelled: boolean
           is_dc_purchase: boolean | null
           is_locked: boolean
+          journal_error: string | null
+          journal_status: string
           net_amount: number
           notes: string | null
           organization_id: string
@@ -3374,6 +3527,8 @@ export type Database = {
           is_cancelled?: boolean
           is_dc_purchase?: boolean | null
           is_locked?: boolean
+          journal_error?: string | null
+          journal_status?: string
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -3404,6 +3559,8 @@ export type Database = {
           is_cancelled?: boolean
           is_dc_purchase?: boolean | null
           is_locked?: boolean
+          journal_error?: string | null
+          journal_status?: string
           net_amount?: number
           notes?: string | null
           organization_id?: string
@@ -4700,6 +4857,8 @@ export type Database = {
           invoice_type: string | null
           irn: string | null
           is_cancelled: boolean
+          journal_error: string | null
+          journal_status: string
           net_amount: number
           notes: string | null
           organization_id: string
@@ -4762,6 +4921,8 @@ export type Database = {
           invoice_type?: string | null
           irn?: string | null
           is_cancelled?: boolean
+          journal_error?: string | null
+          journal_status?: string
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -4824,6 +4985,8 @@ export type Database = {
           invoice_type?: string | null
           irn?: string | null
           is_cancelled?: boolean
+          journal_error?: string | null
+          journal_status?: string
           net_amount?: number
           notes?: string | null
           organization_id?: string
@@ -5043,6 +5206,7 @@ export type Database = {
       }
       settings: {
         Row: {
+          accounting_engine_enabled: boolean
           address: string | null
           auto_backup_enabled: boolean | null
           backup_email: string | null
@@ -5065,6 +5229,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          accounting_engine_enabled?: boolean
           address?: string | null
           auto_backup_enabled?: boolean | null
           backup_email?: string | null
@@ -5087,6 +5252,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          accounting_engine_enabled?: boolean
           address?: string | null
           auto_backup_enabled?: boolean | null
           backup_email?: string | null
