@@ -21,6 +21,80 @@ import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDial
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import {
+  buildFeeReceiptWhatsAppMessage,
+  computeYearWiseFeeBalances,
+  formatWhatsAppPendingSummary,
+  sumYearWisePending,
+  type YearFeeBalanceRow,
+} from "@/lib/schoolFeeYearBalances";
+
+/** Pending across all sessions for reminders (current + prior years). */
+async function getStudentPendingForReminder(
+  organizationId: string,
+  student: any
+): Promise<{ totalPending: number; pendingSummary: string } | null> {
+  try {
+    const rows = await computeYearWiseFeeBalances(supabase, organizationId, {
+      id: student.id,
+      class_id: student.class_id ?? null,
+      academic_year_id: student.academic_year_id ?? null,
+      closing_fees_balance: student.closing_fees_balance ?? null,
+      is_new_admission: student.is_new_admission ?? null,
+      fees_opening_is_net: student.fees_opening_is_net ?? null,
+    });
+    const totalPending = sumYearWisePending(rows);
+    if (totalPending <= 0) return null;
+    return { totalPending, pendingSummary: formatWhatsAppPendingSummary(rows) };
+  } catch (e) {
+    console.warn("Year-wise pending for reminder:", e);
+    const totalPending = Number(student.totalDue) || 0;
+    if (totalPending <= 0) return null;
+    return {
+      totalPending,
+      pendingSummary: `💰 Total pending (all sessions): Rs.${totalPending.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n\n(Session-wise detail unavailable.)`,
+    };
+  }
+}
+
+async function buildCollectedFeeReceiptWhatsAppMessage(organizationId: string, orgName: string, fee: any): Promise<string> {
+  const st = fee.students;
+  const studentName = st?.student_name || "-";
+  const admNo = st?.admission_number || "-";
+  const className = st?.school_classes?.class_name || "-";
+  const paidFmt = (fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+  const date = fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-";
+  const method = fee.payment_method || "Cash";
+  const headName = fee.fee_heads?.head_name || "Fee";
+  const feeLines = `• ${headName}: Rs.${paidFmt}`;
+  let yearWiseBalances: YearFeeBalanceRow[] = [];
+  try {
+    yearWiseBalances = await computeYearWiseFeeBalances(supabase, organizationId, {
+      id: fee.student_id,
+      class_id: st?.class_id ?? null,
+      academic_year_id: st?.academic_year_id ?? null,
+      closing_fees_balance: st?.closing_fees_balance ?? null,
+      is_new_admission: st?.is_new_admission ?? null,
+      fees_opening_is_net: st?.fees_opening_is_net ?? null,
+    });
+  } catch (e) {
+    console.warn("Year-wise balances for receipt WhatsApp:", e);
+  }
+  const remainingBalance = yearWiseBalances.length ? sumYearWisePending(yearWiseBalances) : 0;
+  return buildFeeReceiptWhatsAppMessage({
+    orgName,
+    receiptNumber: fee.payment_receipt_id,
+    paidDateLabel: date,
+    studentName,
+    admissionNo: admNo,
+    className,
+    totalPaying: fee.paid_amount || 0,
+    paymentMethod: method,
+    feeLines,
+    remainingBalance,
+    yearWiseBalances,
+  });
+}
 
 const FeeCollection = () => {
   const queryClient = useQueryClient();
@@ -467,7 +541,7 @@ const FeeCollection = () => {
 
       const query = supabase
         .from("student_fees")
-        .select("*, students!inner(student_name, admission_number, parent_phone, emergency_contact, parent_name, class_id, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
+        .select("*, students!inner(student_name, admission_number, parent_phone, emergency_contact, parent_name, class_id, academic_year_id, closing_fees_balance, is_new_admission, fees_opening_is_net, school_classes:class_id(class_name)), fee_heads(head_name), academic_years(year_name)")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .gte("paid_date", dateRange.from)
@@ -533,106 +607,104 @@ const FeeCollection = () => {
       toast.error("No phone number found for this student. Please add parent phone in student entry.");
       return;
     }
-    if (student.totalDue <= 0) {
-      toast.info("No pending dues for this student");
-      return;
-    }
 
     const templateName = (whatsAppSettings as any)?.fee_reminder_template_name;
     const upiId = gatewaySettings?.upi_id || "";
     const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
 
-    let paymentLink = "";
-    let upiDeepLink = "";
-    if (upiId) {
-      const cleanBusinessName = upiBusinessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50);
-      const txnNote = `Fee-${student.student_name}-${student.admission_number}`.replace(/\s+/g, "-").substring(0, 50);
-      const upiParams = new URLSearchParams({
-        pa: upiId,
-        pn: cleanBusinessName,
-        am: student.totalDue.toFixed(2),
-        cu: "INR",
-        tn: txnNote,
-      });
-      upiDeepLink = `upi://pay?${upiParams.toString()}`;
-      // Web payment page link (clickable in WhatsApp)
-      const baseUrl = window.location.origin;
-      paymentLink = `${baseUrl}/pay?${upiParams.toString()}`;
-    }
+    setSendingReminder(student.id);
+    try {
+      const pending = await getStudentPendingForReminder(currentOrganization!.id, student);
+      if (!pending) {
+        toast.info("No pending dues for this student");
+        return;
+      }
+      const { totalPending, pendingSummary } = pending;
+      let paymentLink = "";
+      let upiDeepLink = "";
+      if (upiId) {
+        const cleanBusinessName = upiBusinessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50);
+        const txnNote = `Fee-${student.student_name}-${student.admission_number}`.replace(/\s+/g, "-").substring(0, 50);
+        const upiParams = new URLSearchParams({
+          pa: upiId,
+          pn: cleanBusinessName,
+          am: totalPending.toFixed(2),
+          cu: "INR",
+          tn: txnNote,
+        });
+        upiDeepLink = `upi://pay?${upiParams.toString()}`;
+        paymentLink = `${window.location.origin}/pay?${upiParams.toString()}`;
+      }
 
-    const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-    const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
+      const orgName = currentOrganization?.name || "School";
+      const reminderMsg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${orgName}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n${pendingSummary}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${orgName}`;
 
-    const emergencyPhone = student.emergency_contact || "";
-    const sendToEmergency = emergencyPhone && emergencyPhone !== phone;
+      const emergencyPhone = student.emergency_contact || "";
+      const sendToEmergency = emergencyPhone && emergencyPhone !== phone;
 
-    if (whatsAppSettings?.is_active) {
-      setSendingReminder(student.id);
-      try {
-        if (templateName) {
-          await sendMessageAsync({
-            phone,
-            message: reminderMsg,
-            templateType: "fee_reminder",
-            templateName,
-            imageUrl: logoUrl || undefined,
-            imageCaption: currentOrganization?.name || "",
-            saleData: {
-              student_name: student.student_name,
-              admission_number: student.admission_number,
-              class_name: student.school_classes?.class_name || "",
-              amount: student.totalDue,
-              organization_name: currentOrganization?.name || "",
-              payment_link: paymentLink || "Please pay at the school office",
-              upi_id: upiId,
-              upi_deep_link: upiDeepLink,
-            },
-          });
-          // Also send to emergency contact
-          if (sendToEmergency) {
+      const saleDataBase = {
+        student_name: student.student_name,
+        admission_number: student.admission_number,
+        class_name: student.school_classes?.class_name || "",
+        amount: totalPending,
+        organization_name: orgName,
+        payment_link: paymentLink || "Please pay at the school office",
+        upi_id: upiId,
+        upi_deep_link: upiDeepLink,
+        year_wise_balances: pendingSummary,
+      };
+
+      if (whatsAppSettings?.is_active) {
+        try {
+          if (templateName) {
             await sendMessageAsync({
-              phone: emergencyPhone,
+              phone,
               message: reminderMsg,
               templateType: "fee_reminder",
               templateName,
               imageUrl: logoUrl || undefined,
-              imageCaption: currentOrganization?.name || "",
-              saleData: {
-                student_name: student.student_name,
-                admission_number: student.admission_number,
-                class_name: student.school_classes?.class_name || "",
-                amount: student.totalDue,
-                organization_name: currentOrganization?.name || "",
-                payment_link: paymentLink || "Please pay at the school office",
-                upi_id: upiId,
-                upi_deep_link: upiDeepLink,
-              },
+              imageCaption: orgName,
+              saleData: saleDataBase,
             });
-          }
-        } else {
-          await sendMessageAsync({
-            phone,
-            message: reminderMsg,
-            templateType: "fee_reminder",
-          } as any);
-          if (sendToEmergency) {
+            if (sendToEmergency) {
+              await sendMessageAsync({
+                phone: emergencyPhone,
+                message: reminderMsg,
+                templateType: "fee_reminder",
+                templateName,
+                imageUrl: logoUrl || undefined,
+                imageCaption: orgName,
+                saleData: { ...saleDataBase },
+              });
+            }
+          } else {
             await sendMessageAsync({
-              phone: emergencyPhone,
+              phone,
               message: reminderMsg,
               templateType: "fee_reminder",
             } as any);
+            if (sendToEmergency) {
+              await sendMessageAsync({
+                phone: emergencyPhone,
+                message: reminderMsg,
+                templateType: "fee_reminder",
+              } as any);
+            }
           }
+          toast.success(`Fee reminder sent via WhatsApp!${sendToEmergency ? " (sent to emergency contact too)" : ""}`);
+        } catch (err: any) {
+          console.error("WhatsApp reminder error:", err);
+          toast.error("WhatsApp API failed: " + (err.message || "Unknown error") + ". Check WhatsApp settings.");
+          sendWhatsApp(phone, reminderMsg);
         }
-        toast.success(`Fee reminder sent via WhatsApp!${sendToEmergency ? " (sent to emergency contact too)" : ""}`);
-      } catch (err: any) {
-        console.error("WhatsApp reminder error:", err);
-        toast.error("WhatsApp API failed: " + (err.message || "Unknown error") + ". Check WhatsApp settings.");
+      } else {
         sendWhatsApp(phone, reminderMsg);
-      } finally {
-        setSendingReminder(null);
       }
-    } else {
-      sendWhatsApp(phone, reminderMsg);
+    } catch (e) {
+      console.error(e);
+      toast.error("Could not build fee reminder.");
+    } finally {
+      setSendingReminder(null);
     }
   };
 
@@ -900,18 +972,30 @@ const FeeCollection = () => {
                                   size="sm"
                                   variant="outline"
                                   className="text-green-600 border-green-600 hover:bg-green-50 h-8 w-8 p-0"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     const phone = student.parent_phone;
                                     if (!phone) return;
+                                    const orgName = currentOrganization?.name || "School";
+                                    const pending = await getStudentPendingForReminder(currentOrganization!.id, student);
+                                    if (!pending) {
+                                      toast.info("No pending dues for this student");
+                                      return;
+                                    }
+                                    const { totalPending, pendingSummary } = pending;
                                     const upiId = gatewaySettings?.upi_id || "";
-                                    const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
+                                    const upiBusinessName = gatewaySettings?.upi_business_name || orgName;
                                     let paymentLink = "";
-                                    if (upiId && student.totalDue > 0) {
-                                      const upiParams = new URLSearchParams({ pa: upiId, pn: upiBusinessName, am: String(student.totalDue), cu: "INR", tn: `Fees-${student.admission_number}` });
+                                    if (upiId && totalPending > 0) {
+                                      const upiParams = new URLSearchParams({
+                                        pa: upiId,
+                                        pn: upiBusinessName,
+                                        am: totalPending.toFixed(2),
+                                        cu: "INR",
+                                        tn: `Fees-${student.admission_number}`,
+                                      });
                                       paymentLink = `${window.location.origin}/pay?${upiParams.toString()}`;
                                     }
-                                    const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-                                    const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
+                                    const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${orgName}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n${pendingSummary}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${orgName}`;
                                     sendWhatsApp(phone, msg);
                                   }}
                                   title={`Manual WhatsApp to Parent: ${student.parent_phone}`}
@@ -924,16 +1008,28 @@ const FeeCollection = () => {
                                     size="sm"
                                     variant="outline"
                                     className="text-orange-600 border-orange-600 hover:bg-orange-50 h-8 w-8 p-0"
-                                    onClick={() => {
+                                    onClick={async () => {
+                                      const orgName = currentOrganization?.name || "School";
+                                      const pending = await getStudentPendingForReminder(currentOrganization!.id, student);
+                                      if (!pending) {
+                                        toast.info("No pending dues for this student");
+                                        return;
+                                      }
+                                      const { totalPending, pendingSummary } = pending;
                                       const upiId = gatewaySettings?.upi_id || "";
-                                      const upiBusinessName = gatewaySettings?.upi_business_name || currentOrganization?.name || "School";
+                                      const upiBusinessName = gatewaySettings?.upi_business_name || orgName;
                                       let paymentLink = "";
-                                      if (upiId && student.totalDue > 0) {
-                                        const upiParams = new URLSearchParams({ pa: upiId, pn: upiBusinessName, am: String(student.totalDue), cu: "INR", tn: `Fees-${student.admission_number}` });
+                                      if (upiId && totalPending > 0) {
+                                        const upiParams = new URLSearchParams({
+                                          pa: upiId,
+                                          pn: upiBusinessName,
+                                          am: totalPending.toFixed(2),
+                                          cu: "INR",
+                                          tn: `Fees-${student.admission_number}`,
+                                        });
                                         paymentLink = `${window.location.origin}/pay?${upiParams.toString()}`;
                                       }
-                                      const amountStr = `Rs.${student.totalDue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-                                      const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n💰 Pending Fees: ${amountStr}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${currentOrganization?.name || "School"}`;
+                                      const msg = `Fees Reminder\n\nRespected Sir/Madam,\n\n${orgName}\n\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\n${pendingSummary}\n\nPlease pay before the due date to avoid late fees.${upiId ? `\n\n💳 *Pay Online via UPI:*\n${paymentLink}\n_(Opens GPay, PhonePe, Paytm or any UPI app. Amount is pre-filled but you may edit if paying a different amount.)_` : ""}\n\nOr pay at the school office.\n\nThank you 🙏\n${orgName}`;
                                       sendWhatsApp(student.emergency_contact, msg);
                                     }}
                                     title={`Manual WhatsApp to Emergency: ${student.emergency_contact}`}
@@ -1163,17 +1259,9 @@ const FeeCollection = () => {
                           {fee.students?.parent_phone && fee.payment_receipt_id && (() => {
                             const phone = fee.students.parent_phone;
                             const emergencyPhone = fee.students.emergency_contact || "";
-                            const studentName = fee.students?.student_name || "-";
-                            const admNo = fee.students?.admission_number || "-";
-                            const className = fee.students?.school_classes?.class_name || "-";
-                            const amount = (fee.paid_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
-                            const date = fee.paid_date ? format(new Date(fee.paid_date), "dd/MM/yyyy") : "-";
-                            const method = fee.payment_method || "Cash";
-                            const headName = fee.fee_heads?.head_name || "Yearly Fees 2025-26";
-                            const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${fee.payment_receipt_id}\nDate: ${date}\nStudent: ${studentName}\nAdmission No: ${admNo}\nClass: ${className}\n\nAmount Paid: Rs.${amount}\nPayment Mode: ${method}\n\n• ${headName}: Rs.${amount}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
+                            const orgName = currentOrganization?.name || "School";
                             return (
                               <div className="flex items-center justify-center gap-0.5">
-                                {/* API WhatsApp button - sends to both parent + emergency */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -1183,12 +1271,16 @@ const FeeCollection = () => {
                                   onClick={async () => {
                                     setSendingReceiptWA(fee.id);
                                     try {
+                                      const msg = await buildCollectedFeeReceiptWhatsAppMessage(
+                                        currentOrganization!.id,
+                                        orgName,
+                                        fee
+                                      );
                                       await sendMessageAsync({
                                         phone,
                                         message: msg,
                                         templateType: "fee_receipt",
                                       } as any);
-                                      // Also send to emergency contact if available
                                       if (emergencyPhone && emergencyPhone !== phone) {
                                         await sendMessageAsync({
                                           phone: emergencyPhone,
@@ -1210,24 +1302,36 @@ const FeeCollection = () => {
                                     <Send className="h-4 w-4" />
                                   )}
                                 </Button>
-                                {/* Manual WhatsApp - parent */}
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
                                   title={`Manual WhatsApp to Parent: ${phone}`}
-                                  onClick={() => sendWhatsApp(phone, msg)}
+                                  onClick={async () => {
+                                    const msg = await buildCollectedFeeReceiptWhatsAppMessage(
+                                      currentOrganization!.id,
+                                      orgName,
+                                      fee
+                                    );
+                                    sendWhatsApp(phone, msg);
+                                  }}
                                 >
                                   <MessageCircle className="h-4 w-4" />
                                 </Button>
-                                {/* Manual WhatsApp - emergency contact */}
                                 {emergencyPhone && emergencyPhone !== phone && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                                     title={`Manual WhatsApp to Emergency: ${emergencyPhone}`}
-                                    onClick={() => sendWhatsApp(emergencyPhone, msg)}
+                                    onClick={async () => {
+                                      const msg = await buildCollectedFeeReceiptWhatsAppMessage(
+                                        currentOrganization!.id,
+                                        orgName,
+                                        fee
+                                      );
+                                      sendWhatsApp(emergencyPhone, msg);
+                                    }}
                                   >
                                     <MessageCircle className="h-4 w-4" />
                                   </Button>

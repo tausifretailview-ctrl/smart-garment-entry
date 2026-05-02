@@ -27,7 +27,7 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { computeYearWiseFeeBalances } from "@/lib/schoolFeeYearBalances";
+import { computePendingAllSessionsBatch, computeYearWiseFeeBalances } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
 interface CustomerLedgerProps {
@@ -197,7 +197,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (isSchool) {
         const { data: students } = await supabase
           .from('students')
-          .select('id, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, school_classes(class_name)')
+          .select('id, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, is_new_admission, school_classes(class_name)')
           .eq('organization_id', organizationId)
           .is('deleted_at', null);
         
@@ -219,7 +219,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const probeDate = selectedYearObj?.start_date
           ? new Date(selectedYearObj.start_date)
           : (startDate || endDate);
-        const targetYear =
+        let targetYear =
           (selectedYearObj || (probeDate
             ? (allYears || []).find((y: any) => {
                 const start = new Date(y.start_date);
@@ -228,22 +228,33 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               })
             : null)) ||
           (allYears || []).find((y: any) => y.is_current) ||
-          (allYears || [])[0];
+          (allYears || [])[0] ||
+          null;
 
-        const previousYear = targetYear?.start_date
+        // Avoid undefined year when academic_years exist but is_current / ordering gaps — fee queries need a concrete session.
+        const effectiveTargetYear =
+          targetYear ||
+          (Array.isArray(allYears) && (allYears || []).length > 0
+            ? [...(allYears || [])].sort(
+                (a: any, b: any) =>
+                  new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+              )[0]
+            : null);
+
+        const previousYear = effectiveTargetYear?.start_date
           ? (allYears || [])
-              .filter((y: any) => new Date(y.end_date) < new Date(targetYear.start_date))
+              .filter((y: any) => new Date(y.end_date) < new Date(effectiveTargetYear!.start_date))
               .sort((a: any, b: any) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())[0]
           : null;
 
         // Fetch fee structures for current year to determine expected totals per class
         let classExpectedMap = new Map<string, number>();
-        if (targetYear?.id) {
+        if (effectiveTargetYear?.id) {
           const { data: feeStructures } = await supabase
             .from('fee_structures')
             .select('class_id, amount, frequency')
             .eq('organization_id', organizationId)
-            .eq('academic_year_id', targetYear.id);
+            .eq('academic_year_id', effectiveTargetYear.id);
 
           feeStructures?.forEach((s: any) => {
             const mult = s.frequency === 'monthly' ? 12 : s.frequency === 'quarterly' ? 4 : 1;
@@ -253,15 +264,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
 
         // Year-scoped receipts (for balance math vs structures / opening)
-        const { data: feeTotalsYear } = await supabase
-          .from('student_fees')
-          .select('student_id, paid_amount, status')
-          .eq('organization_id', organizationId)
-          .eq('academic_year_id', targetYear?.id)
-          .neq('status', 'deleted');
+        let feeTotalsYear: any[] = [];
+        if (effectiveTargetYear?.id) {
+          const { data } = await supabase
+            .from('student_fees')
+            .select('student_id, paid_amount, status')
+            .eq('organization_id', organizationId)
+            .eq('academic_year_id', effectiveTargetYear.id)
+            .neq('status', 'deleted');
+          feeTotalsYear = data || [];
+        }
 
         const studentPaidInYear = new Map<string, number>();
-        feeTotalsYear?.forEach((f: any) => {
+        feeTotalsYear.forEach((f: any) => {
           if (f.status === 'balance_adjustment') return; // exclude manual adjustments
           const amt = f.paid_amount || 0;
           studentPaidInYear.set(f.student_id, (studentPaidInYear.get(f.student_id) || 0) + amt);
@@ -287,7 +302,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // if receipts are posted into previous academic year AFTER promotion,
         // reduce carried opening for target year by those late entries only.
         const latePrevYearPaidByStudent = new Map<string, number>();
-        if (previousYear?.id && targetYear?.id) {
+        if (previousYear?.id && effectiveTargetYear?.id) {
           // Subtract ALL prev-year receipts from carried closing_fees_balance —
           // a payment received in the previous year (whenever) reduces what carries forward.
           const { data: latePrevYearFees } = await supabase
@@ -304,6 +319,23 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               (latePrevYearPaidByStudent.get(f.student_id) || 0) + amt
             );
           });
+        }
+
+        let pendingAllSessionsByStudent = new Map<string, number>();
+        if (selectedAcademicYearId === "all" && studentMap.size > 0) {
+          const batchPayload = Array.from(studentMap.values()).map((s: any) => ({
+            id: s.id,
+            class_id: s.class_id ?? null,
+            academic_year_id: s.academic_year_id ?? null,
+            closing_fees_balance: s.closing_fees_balance ?? null,
+            is_new_admission: s.is_new_admission ?? null,
+            fees_opening_is_net: s.fees_opening_is_net ?? null,
+          }));
+          pendingAllSessionsByStudent = await computePendingAllSessionsBatch(
+            supabase,
+            organizationId,
+            batchPayload
+          );
         }
 
         // Build school customer totals — mirror fee collection logic:
@@ -328,8 +360,27 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             const openingBalance = resolveImportedOpeningBalance(
               importedBalance,
               latePrevYearPaid,
-              student.fees_opening_is_net === true && student.academic_year_id === targetYear?.id
+              student.fees_opening_is_net === true && student.academic_year_id === effectiveTargetYear?.id
             );
+
+            if (selectedAcademicYearId === "all") {
+              const pendingSum = pendingAllSessionsByStudent.get(student.id) ?? 0;
+              const balance = Math.round(pendingSum);
+              const totalSales = Math.round(totalPaidDisplay + pendingSum);
+              return {
+                ...customer,
+                opening_balance: Math.round(openingBalance),
+                totalSales,
+                totalPaid: Math.round(totalPaidDisplay),
+                balance,
+                studentId: student.id,
+                admissionNumber: student.admission_number,
+                className: (student as any).school_classes?.class_name || '',
+                division: student.division || '',
+                hasStructures,
+              };
+            }
+
             const expectedTotal = openingBalance + (hasStructures ? structureTotal : 0);
             const balance = Math.round(expectedTotal - paidForBalance);
 

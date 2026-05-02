@@ -17,8 +17,9 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useReactToPrint } from "react-to-print";
 import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
 import {
+  buildFeeReceiptWhatsAppMessage,
   computeYearWiseFeeBalances,
-  formatYearWiseBalanceLines,
+  formatWhatsAppPendingSummary,
   type YearFeeBalanceRow,
 } from "@/lib/schoolFeeYearBalances";
 
@@ -94,27 +95,6 @@ function parseAcademicYearNameToFYYears(yearName?: string | null): { start: numb
     };
   }
   return { start: null, end: null };
-}
-
-function buildFeeReceiptWhatsAppMessage(opts: {
-  orgName: string;
-  receiptNumber: string;
-  paidDateLabel: string;
-  studentName: string;
-  admissionNo: string;
-  className: string;
-  totalPaying: number;
-  paymentMethod: string;
-  feeLines: string;
-  remainingBalance: number;
-  yearWiseBalances?: YearFeeBalanceRow[];
-}) {
-  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
-  const yearBlock = formatYearWiseBalanceLines(opts.yearWiseBalances ?? []);
-  const balanceSection = yearBlock
-    ? `\n\nPending by academic session:\n${yearBlock}\n`
-    : `\nBalance (this session): Rs.${fmt(opts.remainingBalance)}\n`;
-  return `Fee Receipt\n\nRespected Sir/Madam,\n\n${opts.orgName}\n\nReceipt No: ${opts.receiptNumber}\nDate: ${opts.paidDateLabel}\nStudent: ${opts.studentName}\nAdmission No: ${opts.admissionNo}\nClass: ${opts.className}\n\nAmount Paid: Rs.${fmt(opts.totalPaying)}\nPayment Mode: ${opts.paymentMethod}${balanceSection}\n${opts.feeLines}\n\nThank you for your payment.\n\n${opts.orgName}`;
 }
 
 export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent }: FeeCollectionDialogProps) {
@@ -555,7 +535,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
               organization_name: currentOrganization?.name || "",
               date: format(new Date(data.paidDate), "dd/MM/yyyy"),
               balance: data.remainingBalance ?? 0,
-              year_wise_balances: formatYearWiseBalanceLines(data.yearWiseBalances ?? []),
+              year_wise_balances: formatWhatsAppPendingSummary(data.yearWiseBalances ?? []),
             },
           });
           toast.success("WhatsApp receipt sent!");
