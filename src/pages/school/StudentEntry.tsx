@@ -39,6 +39,7 @@ interface StudentFormData {
   status: string;
   notes: string;
   closing_fees_balance: string;
+  is_new_admission: boolean;
 }
 
 const initialFormData: StudentFormData = {
@@ -60,6 +61,7 @@ const initialFormData: StudentFormData = {
   status: "active",
   notes: "",
   closing_fees_balance: "",
+  is_new_admission: true,
 };
 
 const StudentEntry = () => {
