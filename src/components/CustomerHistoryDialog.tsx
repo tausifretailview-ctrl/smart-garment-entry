@@ -297,58 +297,136 @@ export function CustomerHistoryDialog({
     organizationId
   );
 
-  // School: fetch student linked to this customer and their fee data
+  // School: same liability math as Fee Collection / ledger (session opening + structures; payments scoped to current year)
   const { data: schoolFeeData } = useQuery({
-    queryKey: ['school-customer-fees', customerId, organizationId],
+    queryKey: ["school-customer-fees", customerId, organizationId],
     queryFn: async () => {
       if (!customerId || !organizationId) return null;
-      // Find student linked to this customer
       const { data: student } = await supabase
-        .from('students')
-        .select('id, closing_fees_balance, class_id')
-        .eq('customer_id', customerId)
-        .eq('organization_id', organizationId)
+        .from("students")
+        .select("id, closing_fees_balance, class_id, is_new_admission")
+        .eq("customer_id", customerId)
+        .eq("organization_id", organizationId)
         .maybeSingle();
       if (!student) return null;
 
-      // Get current academic year
+      const { data: allYears } = await supabase
+        .from("academic_years")
+        .select("id, year_name, start_date, end_date")
+        .eq("organization_id", organizationId)
+        .order("start_date", { ascending: true });
+
       const { data: currentYear } = await supabase
-        .from('academic_years')
-        .select('id')
-        .eq('organization_id', organizationId)
-        .eq('is_current', true)
+        .from("academic_years")
+        .select("id, year_name, start_date, end_date")
+        .eq("organization_id", organizationId)
+        .eq("is_current", true)
         .maybeSingle();
 
-      // Get fee structures for the class
+      if (!currentYear?.id) {
+        return {
+          feesExpected: 0,
+          feesPaid: 0,
+          feesDue: 0,
+          hasStructures: false,
+          importedBalance: 0,
+        };
+      }
+
+      const yearsChrono = [...(allYears || [])];
+      const previousYear = currentYear.start_date
+        ? yearsChrono
+            .filter((y: any) => y.end_date && new Date(y.end_date) < new Date(currentYear.start_date as string))
+            .sort(
+              (a: any, b: any) =>
+                new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+            )[0]
+        : null;
+
+      let latePrevPaid = 0;
+      if (previousYear?.id) {
+        const { data: lateFees } = await supabase
+          .from("student_fees")
+          .select("paid_amount, status")
+          .eq("organization_id", organizationId)
+          .eq("student_id", student.id)
+          .eq("academic_year_id", previousYear.id)
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0);
+        latePrevPaid = (lateFees || []).reduce(
+          (s, f: any) => s + Number(f.paid_amount || 0),
+          0
+        );
+      }
+
+      const importedOpening = Math.max(
+        0,
+        Number(student.closing_fees_balance || 0) - latePrevPaid
+      );
+
       let structureTotal = 0;
-      if (student.class_id && currentYear?.id) {
+      if (student.class_id) {
         const { data: structures } = await supabase
-          .from('fee_structures')
-          .select('amount, frequency')
-          .eq('organization_id', organizationId)
-          .eq('academic_year_id', currentYear.id)
-          .eq('class_id', student.class_id);
-        structureTotal = (structures || []).reduce((sum, fs) => {
-          const mult = fs.frequency === 'monthly' ? 12 : fs.frequency === 'quarterly' ? 4 : 1;
+          .from("fee_structures")
+          .select("amount, frequency")
+          .eq("organization_id", organizationId)
+          .eq("academic_year_id", currentYear.id)
+          .eq("class_id", student.class_id);
+        structureTotal = (structures || []).reduce((sum, fs: any) => {
+          const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
           return sum + fs.amount * mult;
         }, 0);
       }
 
-      // Get all fee payments
-      const { data: payments } = await supabase
-        .from('student_fees')
-        .select('paid_amount')
-        .eq('student_id', student.id)
-        .eq('organization_id', organizationId)
-        .neq('status', 'deleted');
-      const feesPaid = (payments || []).reduce((sum, p) => sum + (p.paid_amount || 0), 0);
+      const yearName = currentYear.year_name as string | null;
+      let liabilityGross: number;
+      if (student.is_new_admission === true) {
+        liabilityGross = importedOpening;
+      } else if (structureTotal > 0) {
+        liabilityGross = structureTotal + importedOpening;
+      } else if (yearName === "2025-26" && importedOpening > 0) {
+        liabilityGross = importedOpening;
+      } else {
+        liabilityGross = importedOpening;
+      }
 
-      const hasStructures = structureTotal > 0;
-      const importedBalance = student.closing_fees_balance || 0;
-      const feesExpected = hasStructures ? structureTotal : importedBalance;
+      const { data: adjustments } = await (supabase.from("student_balance_audit" as any) as any)
+        .select("adjustment_type, change_amount")
+        .eq("organization_id", organizationId)
+        .eq("student_id", student.id)
+        .eq("academic_year_id", currentYear.id);
+
+      const adjustmentNet = (adjustments || []).reduce((sum: number, a: any) => {
+        if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);
+        if (a.adjustment_type === "debit") return sum - (a.change_amount || 0);
+        return sum;
+      }, 0);
+
+      const feesExpected = liabilityGross + adjustmentNet;
+
+      const { data: paymentsCur } = await supabase
+        .from("student_fees")
+        .select("paid_amount, status")
+        .eq("student_id", student.id)
+        .eq("organization_id", organizationId)
+        .eq("academic_year_id", currentYear.id)
+        .neq("status", "deleted");
+
+      const feesPaid = (paymentsCur || []).reduce((sum, p: any) => {
+        if (p.status === "balance_adjustment") return sum;
+        return sum + (p.paid_amount || 0);
+      }, 0);
+
       const feesDue = Math.max(0, feesExpected - feesPaid);
+      const hasStructures = structureTotal > 0;
 
-      return { feesExpected, feesPaid, feesDue, hasStructures, importedBalance };
+      return {
+        feesExpected,
+        feesPaid,
+        feesDue,
+        hasStructures,
+        importedBalance: importedOpening,
+      };
     },
     enabled: open && isSchool && !!customerId && !!organizationId,
   });
