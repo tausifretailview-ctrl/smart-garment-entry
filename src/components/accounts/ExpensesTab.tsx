@@ -17,6 +17,7 @@ import {
   deleteJournalEntryByReference,
   recordExpenseVoucherJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -196,7 +197,9 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+      const postLedger = isAccountingEngineEnabled(
+        acctSettings as { accounting_engine_enabled?: boolean } | null
+      );
 
       const categoryLedgerId =
         categories?.find((c) => c.name === selectedCategory)?.ledger_account_id ?? null;
@@ -259,7 +262,9 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+      const postLedger = isAccountingEngineEnabled(
+        acctSettings as { accounting_engine_enabled?: boolean } | null
+      );
 
       const editCategoryLedgerId =
         categories?.find((c) => c.name === editCategory)?.ledger_account_id ?? null;
@@ -296,7 +301,9 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+      const postLedger = isAccountingEngineEnabled(
+        acctSettings as { accounting_engine_enabled?: boolean } | null
+      );
       if (postLedger) {
         await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", id, supabase);
       }

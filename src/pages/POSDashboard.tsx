@@ -44,6 +44,7 @@ import {
   deleteJournalEntryByReference,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -1129,8 +1130,8 @@ const POSDashboard = () => {
       .select("accounting_engine_enabled")
       .eq("organization_id", currentOrganization!.id)
       .maybeSingle();
-    const postLedger = Boolean(
-      (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+    const postLedger = isAccountingEngineEnabled(
+      acctSettingsGl as { accounting_engine_enabled?: boolean } | null
     );
 
     let saleUpdated = false;

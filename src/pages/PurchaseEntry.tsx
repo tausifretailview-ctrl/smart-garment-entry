@@ -61,6 +61,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface PriceChange {
   sku_id: string;
@@ -582,7 +583,7 @@ const PurchaseEntry = () => {
   });
 
   const showMrp = ((settings?.purchase_settings as any)?.show_mrp || false) && showPurCol.mrp;
-  const isAccountingEngineEnabled = Boolean((settings as any)?.accounting_engine_enabled);
+  const accountingEngineOn = isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null);
   
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
   const barcodeMode = (settings?.purchase_settings as any)?.barcode_mode || 'auto';
@@ -3122,7 +3123,7 @@ const PurchaseEntry = () => {
         }
 
         // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
-        if (isAccountingEngineEnabled) {
+        if (accountingEngineOn) {
           try {
             await recordPurchaseJournalEntry(
               billDataResult.id,

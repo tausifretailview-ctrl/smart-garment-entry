@@ -28,6 +28,7 @@ import {
   recordCustomerAdvanceApplicationJournalEntry,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -438,8 +439,8 @@ export function CustomerPaymentTab({
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedgerAdv = Boolean(
-        (acctAdv as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedgerAdv = isAccountingEngineEnabled(
+        acctAdv as { accounting_engine_enabled?: boolean } | null
       );
 
       const advYmd = format(new Date(), "yyyy-MM-dd");
@@ -569,8 +570,8 @@ export function CustomerPaymentTab({
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean(
-        (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedger = isAccountingEngineEnabled(
+        acctSettingsGl as { accounting_engine_enabled?: boolean } | null
       );
 
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
@@ -994,8 +995,8 @@ export function CustomerPaymentTab({
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const engineOn = Boolean(
-        (acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const engineOn = isAccountingEngineEnabled(
+        acctDel as { accounting_engine_enabled?: boolean } | null
       );
       if (engineOn) {
         const journalRef = isAdvanceApplication

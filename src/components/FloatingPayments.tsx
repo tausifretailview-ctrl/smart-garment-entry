@@ -23,6 +23,7 @@ import {
   recordCustomerReceiptJournalEntry,
   recordExpenseVoucherJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -240,8 +241,8 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean(
-        (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedger = isAccountingEngineEnabled(
+        acctSettingsGl as { accounting_engine_enabled?: boolean } | null
       );
 
       const paymentAmount = parseFloat(amount);
@@ -882,8 +883,8 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean(
-        (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedger = isAccountingEngineEnabled(
+        acctSettings as { accounting_engine_enabled?: boolean } | null
       );
       if (postLedger && inserted?.id) {
         const { data: catRow } = await supabase

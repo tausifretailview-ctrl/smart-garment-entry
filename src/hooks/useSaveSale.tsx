@@ -10,6 +10,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface CartItem {
   id: string;
@@ -58,7 +59,7 @@ export const useSaveSale = () => {
   const shopName = useShopName();
   // Centralized cached org settings (5 min) — used by save handlers below
   const { data: orgSettings } = useSettings();
-  const isAccountingEngineEnabled = Boolean((orgSettings as any)?.accounting_engine_enabled);
+  const accountingEngineOn = isAccountingEngineEnabled(orgSettings as { accounting_engine_enabled?: boolean } | null);
 
   /**
    * Auto-correct FY year in literal formats like "INV/25-26/1" → "INV/26-27/1"
@@ -456,7 +457,7 @@ export const useSaveSale = () => {
       if (saleError) throw saleError;
 
       // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
-      if (isAccountingEngineEnabled) {
+      if (accountingEngineOn) {
         try {
           await recordSaleJournalEntry(
             sale.id,
@@ -1025,7 +1026,7 @@ export const useSaveSale = () => {
       if (saleError) throw saleError;
 
       // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
-      if (isAccountingEngineEnabled) {
+      if (accountingEngineOn) {
         try {
           await recordSaleJournalEntry(
             sale.id,

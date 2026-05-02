@@ -15,6 +15,7 @@ import {
   deleteJournalEntryByReference,
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -296,9 +297,7 @@ export function AdjustCustomerCreditNoteDialog({
               .maybeSingle();
             if (
               outVoucherId &&
-              Boolean(
-                (acctOut as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
-              )
+              isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null)
             ) {
               try {
                 await recordCustomerCreditNoteApplicationJournalEntry(

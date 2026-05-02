@@ -11,6 +11,7 @@ import {
   recordCustomerCreditNoteApplicationJournalEntry,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1999,8 +2000,8 @@ export default function SalesInvoiceDashboard() {
         .select("accounting_engine_enabled")
         .eq("organization_id", currentOrganization!.id)
         .maybeSingle();
-      const postLedgerSi = Boolean(
-        (acctGlRow as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedgerSi = isAccountingEngineEnabled(
+        acctGlRow as { accounting_engine_enabled?: boolean } | null
       );
 
       const isCreditNoteMode = paymentMode === "credit_note";

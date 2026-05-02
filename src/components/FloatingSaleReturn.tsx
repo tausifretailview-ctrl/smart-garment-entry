@@ -15,6 +15,7 @@ import {
   deleteJournalEntryByReference,
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -603,7 +604,7 @@ export const FloatingSaleReturn = ({
           .maybeSingle();
         if (
           cnVoucherId &&
-          Boolean((acctPos as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+          isAccountingEngineEnabled(acctPos as { accounting_engine_enabled?: boolean } | null)
         ) {
           try {
             await recordCustomerCreditNoteApplicationJournalEntry(

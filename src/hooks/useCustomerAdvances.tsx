@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import {
   recordCustomerAdvanceReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface CustomerAdvance {
   id: string;
@@ -117,9 +118,7 @@ export function useCustomerAdvances(organizationId: string | null) {
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId!)
         .maybeSingle();
-      if (
-        Boolean((acctAdv as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
-      ) {
+      if (isAccountingEngineEnabled(acctAdv as { accounting_engine_enabled?: boolean } | null)) {
         try {
           await recordCustomerAdvanceReceiptJournalEntry(
             adv.id,

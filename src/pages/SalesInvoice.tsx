@@ -49,6 +49,7 @@ import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
 import { recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
   Command,
   CommandEmpty,
@@ -520,7 +521,7 @@ export default function SalesInvoice() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
-  const isAccountingEngineEnabled = Boolean((settingsData as any)?.accounting_engine_enabled);
+  const accountingEngineOn = isAccountingEngineEnabled(settingsData as { accounting_engine_enabled?: boolean } | null);
 
   // Garment / Footwear GST auto-bump rule (from purchase_settings)
   const garmentGstSettings = {
@@ -2484,7 +2485,7 @@ Thank you for choosing us!`;
         if (saleError) throw saleError;
 
         // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
-        if (isAccountingEngineEnabled) {
+        if (accountingEngineOn) {
           try {
             await recordSaleJournalEntry(
               saleData.id,

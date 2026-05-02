@@ -90,7 +90,7 @@ export default function JournalVouchers() {
     },
   });
 
-  const engineOn = Boolean(accountingSettings?.accounting_engine_enabled);
+  const engineExplicitlyOff = accountingSettings?.accounting_engine_enabled === false;
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: [
@@ -159,15 +159,14 @@ export default function JournalVouchers() {
         </div>
       </div>
 
-      {!engineOn && (
+      {engineExplicitlyOff && (
         <Alert>
           <Info className="h-4 w-4" />
-          <AlertTitle>Accounting engine is off for this organization</AlertTitle>
+          <AlertTitle>Accounting engine disabled for this organization</AlertTitle>
           <AlertDescription>
-            New sales, purchases, receipts, and vouchers will not post to the day book until{" "}
-            <strong>settings.accounting_engine_enabled</strong> is <strong>true</strong> for this organization (update
-            via Supabase or your admin runbook). Existing journals in the selected date range still appear below.
-            Standard chart heads are created when you open Chart of Accounts or when this org is selected in the app.
+            Posting to the day book is turned off because <strong>accounting_engine_enabled</strong> is set to{" "}
+            <strong>false</strong> in settings. Set it to <strong>true</strong> to resume automatic journals. Existing
+            entries in the selected date range still appear below.
           </AlertDescription>
         </Alert>
       )}

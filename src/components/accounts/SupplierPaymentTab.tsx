@@ -22,6 +22,7 @@ import {
   deleteJournalEntryByReference,
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
@@ -278,8 +279,8 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean(
-        (acctSettingsGl as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedger = isAccountingEngineEnabled(
+        acctSettingsGl as { accounting_engine_enabled?: boolean } | null
       );
 
       if (!referenceId) throw new Error("Please select a supplier to record payment");
@@ -496,7 +497,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      if (Boolean((acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)) {
+      if (isAccountingEngineEnabled(acctDel as { accounting_engine_enabled?: boolean } | null)) {
         await deleteJournalEntryByReference(organizationId, "SupplierPayment", voucher.id, supabase);
       }
 

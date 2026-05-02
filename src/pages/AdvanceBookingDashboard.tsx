@@ -27,6 +27,7 @@ import {
   deleteJournalEntryByReference,
   recordCustomerAdvanceRefundJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 const PAGE_SIZE = 50;
 
@@ -245,7 +246,7 @@ export default function AdvanceBookingDashboard() {
         .eq("organization_id", orgId!)
         .maybeSingle();
       if (
-        Boolean((acctRef as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+        isAccountingEngineEnabled(acctRef as { accounting_engine_enabled?: boolean } | null)
       ) {
         try {
           await recordCustomerAdvanceRefundJournalEntry(
@@ -409,7 +410,7 @@ export default function AdvanceBookingDashboard() {
         .eq("organization_id", orgId!)
         .maybeSingle();
       if (
-        Boolean((acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+        isAccountingEngineEnabled(acctDel as { accounting_engine_enabled?: boolean } | null)
       ) {
         for (const id of ids) {
           await deleteJournalEntryByReference(orgId!, "CustomerAdvanceReceipt", id, supabase);

@@ -23,6 +23,7 @@ import {
   type YearFeeBalanceRow,
 } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { resolveLiability } from "@/lib/schoolFeeLiability";
 import { postSchoolFeeReceiptAccounting } from "@/lib/schoolFeeAccounting";
 
@@ -147,7 +148,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id && open,
     staleTime: 60_000,
   });
-  const postChartJournal = Boolean((orgAccountingSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+  const postChartJournal = isAccountingEngineEnabled(
+    orgAccountingSettings as { accounting_engine_enabled?: boolean } | null
+  );
 
   const student = initialStudent || selectedStudent;
 

@@ -28,6 +28,7 @@ import {
   deleteJournalEntryByReference,
   recordSalaryVoucherJournalEntry,
 } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface EmployeeSalaryTabProps {
   organizationId: string;
@@ -93,8 +94,8 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean(
-        (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedger = isAccountingEngineEnabled(
+        acctSettings as { accounting_engine_enabled?: boolean } | null
       );
 
       if (postLedger && inserted?.id) {
@@ -136,8 +137,8 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
         .select("accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const postLedger = Boolean(
-        (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      const postLedger = isAccountingEngineEnabled(
+        acctSettings as { accounting_engine_enabled?: boolean } | null
       );
       if (postLedger) {
         await deleteJournalEntryByReference(organizationId, "SalaryVoucher", voucherId, supabase);
