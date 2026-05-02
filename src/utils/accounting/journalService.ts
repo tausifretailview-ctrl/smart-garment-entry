@@ -21,7 +21,8 @@ export type JournalReferenceType =
   | "SalaryVoucher"
   | "CustomerReceipt"
   | "SupplierPayment"
-  | "CustomerAdvanceApplication";
+  | "CustomerAdvanceApplication"
+  | "CustomerCreditNoteApplication";
 
 export type PostJournalLineInput = {
   accountId: string;
@@ -420,6 +421,49 @@ export async function recordCustomerAdvanceApplicationJournalEntry(
     organizationId,
     date: entryDate,
     referenceType: "CustomerAdvanceApplication",
+    referenceId: voucherEntryId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Credit note applied to reduce invoice/customer balance (`payment_method` credit_note_adjustment): DR Sales Returns, CR AR.
+ */
+export async function recordCustomerCreditNoteApplicationJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  amount: number,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const returnsAccount = getAccountByCode(systemAccounts, "4050");
+  const arAccount = getAccountByCode(systemAccounts, "1200");
+
+  if (!returnsAccount || !arAccount) {
+    throw new Error("Missing chart accounts for credit note application (Sales Returns 4050 / AR 1200)");
+  }
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: returnsAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: arAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc = description.trim() || `Credit note application ${voucherEntryId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "CustomerCreditNoteApplication",
     referenceId: voucherEntryId,
     description: desc,
     lines,

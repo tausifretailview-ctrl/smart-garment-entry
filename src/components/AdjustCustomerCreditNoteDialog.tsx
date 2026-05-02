@@ -11,6 +11,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerCreditNoteApplicationJournalEntry,
+} from "@/utils/accounting/journalService";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -207,6 +211,7 @@ export function AdjustCustomerCreditNoteDialog({
           description: `Refund marked as paid. Payment voucher created.`,
         });
       } else if (adjustmentType === "outstanding") {
+        const prevReturnCreditStatus = String((currentReturn as any)?.credit_status || "pending");
         // Adjust in Outstanding Balance - mark return + apply credit against linked invoice
         const { error: returnError } = await supabase
           .from("sale_returns")
@@ -228,7 +233,7 @@ export function AdjustCustomerCreditNoteDialog({
         if (linkedSaleId && creditAmount > 0) {
           const { data: linkedSale } = await supabase
             .from("sales")
-            .select("paid_amount, net_amount, sale_return_adjust")
+            .select("paid_amount, net_amount, sale_return_adjust, payment_status")
             .eq("id", linkedSaleId)
             .single();
 
@@ -237,21 +242,22 @@ export function AdjustCustomerCreditNoteDialog({
               creditAmount,
               Math.max(0, (linkedSale.net_amount || 0) - (linkedSale.paid_amount || 0))
             );
-            const newPaidAmount = (linkedSale.paid_amount || 0) + adjustAmount;
+            const snapPaid = Number(linkedSale.paid_amount || 0);
+            const snapSr = Number((linkedSale as any).sale_return_adjust || 0);
+            const snapStatus = String(linkedSale.payment_status || "pending");
+            const newPaidAmount = snapPaid + adjustAmount;
             const newStatus =
               newPaidAmount >= (linkedSale.net_amount || 0) ? "completed" : "partial";
-            const existingAdjust = (linkedSale as any).sale_return_adjust || 0;
 
             await supabase
               .from("sales")
               .update({
                 paid_amount: newPaidAmount,
                 payment_status: newStatus,
-                sale_return_adjust: existingAdjust + adjustAmount,
+                sale_return_adjust: snapSr + adjustAmount,
               })
               .eq("id", linkedSaleId);
 
-            // Receipt voucher so ledger shows CN-applied payment against the invoice
             const today = format(new Date(), "yyyy-MM-dd");
             const { data: lastRcp } = await supabase
               .from("voucher_entries")
@@ -263,18 +269,69 @@ export function AdjustCustomerCreditNoteDialog({
             const lastNum =
               lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
             const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+            const cnApplyDesc = `Credit note adjusted against invoice (Return ${returnNumber})`;
 
-            await supabase.from("voucher_entries").insert({
-              organization_id: currentOrganization?.id,
-              voucher_number: newVoucherNumber,
-              voucher_type: "receipt",
-              voucher_date: today,
-              reference_type: "sale",
-              reference_id: linkedSaleId,
-              total_amount: adjustAmount,
-              payment_method: "credit_note_adjustment",
-              description: `Credit note adjusted against invoice (Return ${returnNumber})`,
-            });
+            const { data: outVoucherRow, error: outVoucherErr } = await supabase
+              .from("voucher_entries")
+              .insert({
+                organization_id: currentOrganization?.id,
+                voucher_number: newVoucherNumber,
+                voucher_type: "receipt",
+                voucher_date: today,
+                reference_type: "sale",
+                reference_id: linkedSaleId,
+                total_amount: adjustAmount,
+                payment_method: "credit_note_adjustment",
+                description: cnApplyDesc,
+              })
+              .select("id")
+              .single();
+            if (outVoucherErr) throw outVoucherErr;
+            const outVoucherId = outVoucherRow?.id as string | undefined;
+
+            const { data: acctOut } = await supabase
+              .from("settings")
+              .select("accounting_engine_enabled")
+              .eq("organization_id", currentOrganization?.id)
+              .maybeSingle();
+            if (
+              outVoucherId &&
+              Boolean(
+                (acctOut as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+              )
+            ) {
+              try {
+                await recordCustomerCreditNoteApplicationJournalEntry(
+                  outVoucherId,
+                  currentOrganization!.id,
+                  adjustAmount,
+                  today,
+                  cnApplyDesc,
+                  supabase
+                );
+              } catch (glErr) {
+                await deleteJournalEntryByReference(
+                  currentOrganization!.id,
+                  "CustomerCreditNoteApplication",
+                  outVoucherId,
+                  supabase
+                );
+                await supabase.from("voucher_entries").delete().eq("id", outVoucherId);
+                await supabase
+                  .from("sales")
+                  .update({
+                    paid_amount: snapPaid,
+                    payment_status: snapStatus as "pending" | "partial" | "completed",
+                    sale_return_adjust: snapSr,
+                  })
+                  .eq("id", linkedSaleId);
+                await supabase
+                  .from("sale_returns")
+                  .update({ credit_status: prevReturnCreditStatus })
+                  .eq("id", saleReturnId);
+                throw glErr;
+              }
+            }
           }
         }
 

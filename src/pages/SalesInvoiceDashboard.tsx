@@ -8,6 +8,7 @@ import { deleteLedgerEntries } from "@/lib/customerLedger";
 import {
   deleteJournalEntryByReference,
   recordCustomerAdvanceApplicationJournalEntry,
+  recordCustomerCreditNoteApplicationJournalEntry,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
@@ -2008,6 +2009,26 @@ export default function SalesInvoiceDashboard() {
           ? Math.min(amount, advanceFromBookings)
           : 0;
 
+      let saleReturnSnapshot: {
+        id: string;
+        credit_status: string;
+        linked_sale_id: string | null;
+      } | null = null;
+      if (isCreditNoteMode && selectedCNReturnId) {
+        const { data: srPre } = await supabase
+          .from("sale_returns")
+          .select("credit_status, linked_sale_id")
+          .eq("id", selectedCNReturnId)
+          .maybeSingle();
+        if (srPre) {
+          saleReturnSnapshot = {
+            id: selectedCNReturnId,
+            credit_status: String((srPre as { credit_status?: string }).credit_status || "pending"),
+            linked_sale_id: (srPre as { linked_sale_id?: string | null }).linked_sale_id ?? null,
+          };
+        }
+      }
+
       let effectivePaidAmount = currentPaid;
       let effectiveCNAdjust = currentCNAdjust;
 
@@ -2119,9 +2140,18 @@ export default function SalesInvoiceDashboard() {
       const voucherRowId = voucherEntry?.id as string | undefined;
       const payYmd = format(paymentDate, "yyyy-MM-dd");
 
-      if (postLedgerSi && voucherRowId && !isCreditNoteMode) {
+      if (postLedgerSi && voucherRowId) {
         try {
-          if (paymentMode === "advance") {
+          if (isCreditNoteMode) {
+            await recordCustomerCreditNoteApplicationJournalEntry(
+              voucherRowId,
+              currentOrganization!.id,
+              amount,
+              payYmd,
+              voucherDescription,
+              supabase
+            );
+          } else if (paymentMode === "advance") {
             await recordCustomerAdvanceApplicationJournalEntry(
               voucherRowId,
               currentOrganization!.id,
@@ -2143,9 +2173,15 @@ export default function SalesInvoiceDashboard() {
             );
           }
         } catch (glErr) {
+          const glRefType =
+            isCreditNoteMode
+              ? "CustomerCreditNoteApplication"
+              : paymentMode === "advance"
+                ? "CustomerAdvanceApplication"
+                : "CustomerReceipt";
           await deleteJournalEntryByReference(
             currentOrganization!.id,
-            paymentMode === "advance" ? "CustomerAdvanceApplication" : "CustomerReceipt",
+            glRefType,
             voucherRowId,
             supabase
           );
@@ -2165,8 +2201,18 @@ export default function SalesInvoiceDashboard() {
               payment_status: saleSnapshot.payment_status,
               payment_method: saleSnapshot.payment_method,
               payment_date: saleSnapshot.payment_date,
+              sale_return_adjust: saleSnapshot.sale_return_adjust,
             })
             .eq("id", selectedInvoiceForPayment.id);
+          if (saleReturnSnapshot) {
+            await supabase
+              .from("sale_returns")
+              .update({
+                credit_status: saleReturnSnapshot.credit_status,
+                linked_sale_id: saleReturnSnapshot.linked_sale_id,
+              })
+              .eq("id", saleReturnSnapshot.id);
+          }
           throw glErr;
         }
       }

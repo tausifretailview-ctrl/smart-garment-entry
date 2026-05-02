@@ -11,6 +11,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { insertLedgerCredit } from "@/lib/customerLedger";
+import {
+  deleteJournalEntryByReference,
+  recordCustomerCreditNoteApplicationJournalEntry,
+} from "@/utils/accounting/journalService";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -571,19 +575,64 @@ export const FloatingSaleReturn = ({
           .order("created_at", { ascending: false })
           .limit(1);
         const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-        await supabase.from("voucher_entries").insert({
-          organization_id: organizationId,
-          voucher_number: `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-          voucher_type: "receipt",
-          voucher_date: new Date().toISOString().split("T")[0],
-          reference_type: "customer",
-          reference_id: effectiveCustomerId,
-          description: isPartial
-            ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
-            : `Credit note ${cn.returnNumber} applied via POS`,
-          total_amount: redeemAmount,
-          payment_method: "credit_note_adjustment",
-        });
+        const cnVoucherDate = new Date().toISOString().split("T")[0];
+        const cnDescription = isPartial
+          ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
+          : `Credit note ${cn.returnNumber} applied via POS`;
+        const { data: cnVoucherRow, error: cnVoucherErr } = await supabase
+          .from("voucher_entries")
+          .insert({
+            organization_id: organizationId,
+            voucher_number: `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
+            voucher_type: "receipt",
+            voucher_date: cnVoucherDate,
+            reference_type: "customer",
+            reference_id: effectiveCustomerId,
+            description: cnDescription,
+            total_amount: redeemAmount,
+            payment_method: "credit_note_adjustment",
+          })
+          .select("id")
+          .single();
+        if (cnVoucherErr) throw cnVoucherErr;
+        const cnVoucherId = cnVoucherRow?.id as string | undefined;
+        const { data: acctPos } = await supabase
+          .from("settings")
+          .select("accounting_engine_enabled")
+          .eq("organization_id", organizationId)
+          .maybeSingle();
+        if (
+          cnVoucherId &&
+          Boolean((acctPos as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled)
+        ) {
+          try {
+            await recordCustomerCreditNoteApplicationJournalEntry(
+              cnVoucherId,
+              organizationId,
+              redeemAmount,
+              cnVoucherDate,
+              cnDescription,
+              supabase
+            );
+          } catch (glErr) {
+            await deleteJournalEntryByReference(
+              organizationId,
+              "CustomerCreditNoteApplication",
+              cnVoucherId,
+              supabase
+            );
+            await supabase.from("voucher_entries").delete().eq("id", cnVoucherId);
+            if (isPartial) {
+              await supabase
+                .from("sale_returns")
+                .update({ net_amount: cn.creditAmount } as any)
+                .eq("id", cn.id);
+            } else {
+              await supabase.from("sale_returns").update({ credit_status: "pending" }).eq("id", cn.id);
+            }
+            throw glErr;
+          }
+        }
 
         toast({
           title: "Credit Note Applied",

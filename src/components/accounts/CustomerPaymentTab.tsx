@@ -984,10 +984,11 @@ export function CustomerPaymentTab({
   const deleteReceipt = useMutation({
     mutationFn: async (payment: any) => {
       const voucherId = payment.id;
-      const invoiceId = payment.reference_id;
+      const saleId = payment.reference_type === "sale" ? payment.reference_id : null;
       const paymentAmount = Number(payment.total_amount);
       const pm = String(payment.payment_method || "").toLowerCase();
       const isAdvanceApplication = pm === "advance_adjustment";
+      const isCreditNoteApplication = pm === "credit_note_adjustment";
       const { data: acctDel } = await supabase
         .from("settings")
         .select("accounting_engine_enabled")
@@ -997,30 +998,61 @@ export function CustomerPaymentTab({
         (acctDel as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
       );
       if (engineOn) {
-        await deleteJournalEntryByReference(
-          organizationId,
-          isAdvanceApplication ? "CustomerAdvanceApplication" : "CustomerReceipt",
-          voucherId,
-          supabase
-        );
+        const journalRef = isAdvanceApplication
+          ? "CustomerAdvanceApplication"
+          : isCreditNoteApplication
+            ? "CustomerCreditNoteApplication"
+            : "CustomerReceipt";
+        await deleteJournalEntryByReference(organizationId, journalRef, voucherId, supabase);
       }
-      if (invoiceId) {
+      if (saleId) {
         const { data: invoice } = await supabase
           .from("sales")
-          .select("paid_amount, net_amount, cash_amount, card_amount, upi_amount, customer_id")
-          .eq("id", invoiceId)
+          .select("paid_amount, net_amount, cash_amount, card_amount, upi_amount, customer_id, sale_return_adjust")
+          .eq("id", saleId)
           .maybeSingle();
         if (invoice) {
-          const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) - paymentAmount);
-          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : newPaidAmount > 0 ? 'partial' : 'pending';
-          await supabase.from("sales").update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq("id", invoiceId);
-          if (isAdvanceApplication && invoice.customer_id) {
-            await reverseCustomerAdvanceFifo(
-              supabase,
-              organizationId,
-              invoice.customer_id as string,
-              paymentAmount
-            );
+          const netAmount = Number(invoice.net_amount || 0);
+          const srAdjust = Number((invoice as { sale_return_adjust?: number }).sale_return_adjust || 0);
+          if (isCreditNoteApplication) {
+            const dualPaidAndSr = String(payment.description || "").includes("(Return");
+            const newSr = Math.max(0, srAdjust - paymentAmount);
+            let newPaid = Number(invoice.paid_amount || 0);
+            if (dualPaidAndSr) newPaid = Math.max(0, newPaid - paymentAmount);
+            const newStatus =
+              newPaid + newSr >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
+                ? "completed"
+                : newPaid > 0 || newSr > 0
+                  ? "partial"
+                  : "pending";
+            await supabase
+              .from("sales")
+              .update({
+                paid_amount: newPaid,
+                payment_status: newStatus,
+                sale_return_adjust: newSr,
+              })
+              .eq("id", saleId);
+          } else {
+            const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) - paymentAmount);
+            const newStatus =
+              newPaidAmount + srAdjust >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
+                ? "completed"
+                : newPaidAmount > 0 || srAdjust > 0
+                  ? "partial"
+                  : "pending";
+            await supabase
+              .from("sales")
+              .update({ paid_amount: newPaidAmount, payment_status: newStatus })
+              .eq("id", saleId);
+            if (isAdvanceApplication && invoice.customer_id) {
+              await reverseCustomerAdvanceFifo(
+                supabase,
+                organizationId,
+                invoice.customer_id as string,
+                paymentAmount
+              );
+            }
           }
         }
       }
@@ -1546,7 +1578,7 @@ export function CustomerPaymentTab({
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>Filter by Method</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {["cash", "cheque", "upi", "bank_transfer", "advance_adjustment", "other"].map((m) => (
+                {["cash", "cheque", "upi", "bank_transfer", "advance_adjustment", "credit_note_adjustment", "other"].map((m) => (
                   <DropdownMenuCheckboxItem
                     key={m}
                     checked={paymentMethodFilter.includes(m)}
