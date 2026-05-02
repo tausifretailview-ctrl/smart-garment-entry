@@ -41,7 +41,6 @@ interface FeeCollectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   student: Student | null;
-  activeYearId?: string | null;
 }
 
 interface FeeItem {
@@ -118,7 +117,7 @@ function buildFeeReceiptWhatsAppMessage(opts: {
   return `Fee Receipt\n\nRespected Sir/Madam,\n\n${opts.orgName}\n\nReceipt No: ${opts.receiptNumber}\nDate: ${opts.paidDateLabel}\nStudent: ${opts.studentName}\nAdmission No: ${opts.admissionNo}\nClass: ${opts.className}\n\nAmount Paid: Rs.${fmt(opts.totalPaying)}\nPayment Mode: ${opts.paymentMethod}${balanceSection}\n${opts.feeLines}\n\nThank you for your payment.\n\n${opts.orgName}`;
 }
 
-export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent, activeYearId }: FeeCollectionDialogProps) {
+export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent }: FeeCollectionDialogProps) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [paymentMethod, setPaymentMethod] = useState("Cash");
@@ -131,12 +130,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const { settings: whatsAppSettings, sendMessageAsync } = useWhatsAppAPI();
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
-  const [selectedYearId, setSelectedYearId] = useState<string>("");
   const [manualFeeEnabled, setManualFeeEnabled] = useState(false);
   const [manualFeeName, setManualFeeName] = useState("Other Fees");
   const [manualFeeAmount, setManualFeeAmount] = useState<number>(0);
-  /** True after initial academic-year sync for this dialog open — avoids resetting user dropdown when queries refetch. */
-  const academicYearInitializedRef = useRef(false);
 
   // Fetch organization logo URL for WhatsApp messages
   const { data: orgLogoSettings } = useQuery({
@@ -182,20 +178,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     contentRef: receiptRef,
   });
 
-  // Get all academic years for selection
-  const { data: allAcademicYears = [] } = useQuery({
-    queryKey: ["all-academic-years", currentOrganization?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("academic_years")
-        .select("*")
-        .eq("organization_id", currentOrganization!.id)
-        .order("start_date", { ascending: false });
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
-  });
-
+  // Current session only — receipts and student_fees post here (prior-year dues via carry-forward opening).
   // Get current academic year
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
@@ -211,30 +194,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id,
   });
 
-  // Initialize academic year once when the dialog opens. Do not overwrite the dropdown when
-  // currentYear (or other deps) refetches while the user has already chosen a different year.
-  const activeYear = allAcademicYears.find((y: any) => y.id === selectedYearId) || currentYear;
-  useEffect(() => {
-    if (!open) {
-      academicYearInitializedRef.current = false;
-      return;
-    }
-    if (!academicYearInitializedRef.current) {
-      academicYearInitializedRef.current = true;
-      setSelectedYearId(activeYearId ?? currentYear?.id ?? "");
-      return;
-    }
-    setSelectedYearId((prev) => prev || activeYearId || currentYear?.id || "");
-  }, [open, activeYearId, currentYear?.id]);
-
-  // Reset manual fee toggle when student or year changes
+  // Reset manual fee toggle when student or session changes
   useEffect(() => {
     setManualFeeEnabled(false);
     setManualFeeAmount(0);
     setManualFeeName("Other Fees");
-  }, [student?.id, selectedYearId]);
+  }, [student?.id, currentYear?.id]);
 
-  const usedYearForReceipt = activeYear || currentYear;
+  const usedYearForReceipt = currentYear;
   const fyYears = parseAcademicYearNameToFYYears(usedYearForReceipt?.year_name);
   const calendarFY = getIndianCalendarFYYears();
   const receiptFyLooksStale =
@@ -257,7 +224,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id && open,
   });
 
-  const usedYear = activeYear || currentYear;
+  const usedYear = currentYear;
 
   // Fetch fee structures for this student's class + existing payments
   const { isLoading } = useQuery({
@@ -711,23 +678,11 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                 {nextReceiptNo || "Loading..."}
               </Badge>
             </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-sm font-medium">Academic Year:</span>
-              <Select
-                value={selectedYearId || currentYear?.id || ""}
-                onValueChange={(v) => setSelectedYearId(v)}
-              >
-                <SelectTrigger className="w-[min(100%,220px)] h-8 text-sm">
-                  <SelectValue placeholder="Select Year" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allAcademicYears.map((y: any) => (
-                    <SelectItem key={y.id} value={y.id}>
-                      {y.year_name} {y.is_current ? "(Current)" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center gap-2 ml-auto flex-wrap justify-end">
+              <span className="text-sm font-medium text-muted-foreground">Session:</span>
+              <Badge variant="secondary" className="font-normal text-sm">
+                {currentYear?.year_name ? `${currentYear.year_name} (Current)` : "—"}
+              </Badge>
             </div>
           </div>
         )}
@@ -738,7 +693,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             <div>
               <p className="font-semibold">Receipt numbering is for an older financial year</p>
               <p className="text-xs mt-1">
-                You selected <strong>{usedYearForReceipt.year_name}</strong>, so receipt numbers use FY{" "}
+                The year marked <strong>current</strong> in School Settings is <strong>{usedYearForReceipt.year_name}</strong>, so receipt numbers use FY{" "}
                 <strong className="font-mono">
                   {fyYears.start}-{String(fyYears.end).slice(-2)}
                 </strong>
@@ -746,8 +701,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                 <strong className="font-mono">
                   {calendarFY.start}-{String(calendarFY.end).slice(-2)}
                 </strong>
-                . Switch <strong>Academic Year</strong> above to your new session (and mark it current in Academic Year Setup) if parents should see{" "}
-                <strong className="font-mono">RCT/{calendarFY.start}-{String(calendarFY.end).slice(-2)}/…</strong>.
+                . Update <strong>Academic Year Setup</strong> so the active session matches the FY you want on receipts (e.g.{" "}
+                <strong className="font-mono">RCT/{calendarFY.start}-{String(calendarFY.end).slice(-2)}/…</strong>
+                ).
               </p>
             </div>
           </div>
