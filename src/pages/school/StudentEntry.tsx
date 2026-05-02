@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,7 @@ interface StudentFormData {
   status: string;
   notes: string;
   closing_fees_balance: string;
+  is_new_admission: boolean;
 }
 
 const initialFormData: StudentFormData = {
@@ -59,6 +61,7 @@ const initialFormData: StudentFormData = {
   status: "active",
   notes: "",
   closing_fees_balance: "",
+  is_new_admission: true,
 };
 
 const StudentEntry = () => {
@@ -162,6 +165,7 @@ const StudentEntry = () => {
         status: existingStudent.status || "active",
         notes: existingStudent.notes || "",
         closing_fees_balance: existingStudent.closing_fees_balance != null ? String(existingStudent.closing_fees_balance) : "",
+        is_new_admission: (existingStudent as any).is_new_admission === true,
       });
     }
   }, [existingStudent]);
@@ -206,11 +210,16 @@ const StudentEntry = () => {
         admission_date: formData.admission_date || null,
         status: formData.status,
         notes: formData.notes || null,
-        closing_fees_balance: formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null,
+        closing_fees_balance: formData.is_new_admission && formData.closing_fees_balance
+          ? parseFloat(formData.closing_fees_balance)
+          : null,
+        is_new_admission: formData.is_new_admission,
       };
 
       if (isEditing && existingStudent) {
-        const newClosing = formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null;
+        const newClosing = formData.is_new_admission && formData.closing_fees_balance
+          ? parseFloat(formData.closing_fees_balance)
+          : null;
         const oldClosing = existingStudent.closing_fees_balance;
         if (Number(newClosing ?? 0) !== Number(oldClosing ?? 0)) {
           studentData.fees_opening_is_net = false;
@@ -220,11 +229,11 @@ const StudentEntry = () => {
       if (isEditing) {
         const { error } = await supabase
           .from("students")
-          .update(studentData)
+          .update(studentData as any)
           .eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("students").insert({ ...studentData, is_new_admission: true } as any);
+        const { error } = await supabase.from("students").insert(studentData as any);
         if (error) throw error;
       }
     },
@@ -247,8 +256,8 @@ const StudentEntry = () => {
     saveMutation.mutate();
   };
 
-  const handleChange = (field: keyof StudentFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleChange = (field: keyof StudentFormData, value: string | boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: value as never }));
   };
 
   if (isEditing && loadingStudent) {
@@ -502,20 +511,43 @@ const StudentEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="closing_fees_balance">Closing Fees Balance (₹)</Label>
-                <Input
-                  id="closing_fees_balance"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.closing_fees_balance}
-                  onChange={(e) => handleChange("closing_fees_balance", e.target.value)}
-                  placeholder="Enter pending fees balance"
-                />
+              <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="is_new_admission"
+                    checked={formData.is_new_admission}
+                    onCheckedChange={(checked) => {
+                      const isNew = checked === true;
+                      handleChange("is_new_admission", isNew);
+                      if (!isNew) handleChange("closing_fees_balance", "");
+                    }}
+                  />
+                  <Label htmlFor="is_new_admission" className="cursor-pointer">
+                    New Admission
+                  </Label>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Used as fallback when no fee structure is defined for this student's class.
+                  Tick only for fresh admissions. Promoted students must NOT have an opening
+                  fees balance entered here — their balance carries forward automatically.
                 </p>
+
+                {formData.is_new_admission && (
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="closing_fees_balance">Opening Fees Balance (₹)</Label>
+                    <Input
+                      id="closing_fees_balance"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.closing_fees_balance}
+                      onChange={(e) => handleChange("closing_fees_balance", e.target.value)}
+                      placeholder="Enter previous school pending fees (if any)"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Pending fees brought from the previous school for this new admission.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
