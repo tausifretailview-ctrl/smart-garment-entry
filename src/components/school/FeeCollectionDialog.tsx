@@ -1030,28 +1030,18 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold mb-1 block">Payment Method</label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_METHODS.map(m => (
-                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold mb-1 block">Transaction ID (optional)</label>
-                    <Input
-                      value={transactionId}
-                      onChange={e => setTransactionId(e.target.value)}
-                      placeholder="e.g. UPI ref number"
-                    />
-                  </div>
+                <div>
+                  <label className="text-xs font-semibold mb-1 block">Payment Method</label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t">
@@ -1059,12 +1049,24 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                     Total: ₹{grandTotalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                   <Button
-                    onClick={() => collectMutation.mutate()}
+                    onClick={() => handleCollectClick()}
                     disabled={collectMutation.isPending || grandTotalPaying <= 0 || !usedYear}
                   >
                     {collectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
                     Collect ₹{grandTotalPaying.toLocaleString("en-IN")}
                   </Button>
+                </div>
+
+                {/* Transaction ID moved BELOW Collect button to avoid accidental focus
+                    confusion with the per-row "Paying" amount fields. */}
+                <div className="pt-2">
+                  <label className="text-xs font-semibold mb-1 block text-muted-foreground">Transaction ID (optional — UPI / cheque ref)</label>
+                  <Input
+                    value={transactionId}
+                    onChange={e => setTransactionId(e.target.value)}
+                    placeholder="e.g. UPI ref number"
+                    className="text-sm"
+                  />
                 </div>
               </div>
             )}
