@@ -29,7 +29,6 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 
 interface CustomerLedgerProps {
   organizationId: string;
