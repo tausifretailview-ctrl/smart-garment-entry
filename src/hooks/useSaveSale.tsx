@@ -466,13 +466,13 @@ export const useSaveSale = () => {
             String(finalPaymentMethod || ""),
             supabase
           );
-          void (supabase as any)
+          await (supabase as any)
             .from("sales")
             .update({ journal_status: "posted", journal_error: null })
             .eq("id", sale.id);
         } catch (journalErr) {
           console.error("Auto-journal (sale) failed:", journalErr);
-          void (supabase as any)
+          await (supabase as any)
             .from("sales")
             .update({
               journal_status: "failed",
@@ -1035,13 +1035,13 @@ export const useSaveSale = () => {
             String(finalPaymentMethod || ""),
             supabase
           );
-          void (supabase as any)
+          await (supabase as any)
             .from("sales")
             .update({ journal_status: "posted", journal_error: null })
             .eq("id", sale.id);
         } catch (journalErr) {
           console.error("Auto-journal (resumed held sale) failed:", journalErr);
-          void (supabase as any)
+          await (supabase as any)
             .from("sales")
             .update({
               journal_status: "failed",

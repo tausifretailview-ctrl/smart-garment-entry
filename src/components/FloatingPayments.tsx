@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { recordExpenseVoucherJournalEntry } from "@/utils/accounting/journalService";
 import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -776,16 +777,51 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
     mutationFn: async () => {
       if (!category) throw new Error("Enter expense category");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Enter valid amount");
-      const { data: voucherNumber } = await supabase.rpc("generate_voucher_number", { p_type: "expense", p_date: format(voucherDate, "yyyy-MM-dd") });
-      await supabase.from("voucher_entries").insert({
-        organization_id: organizationId,
-        voucher_number: voucherNumber,
-        voucher_type: "expense",
-        voucher_date: format(voucherDate, "yyyy-MM-dd"),
-        reference_type: "expense",
-        description: category,
-        total_amount: parseFloat(amount),
+      const { data: voucherNumber, error: numErr } = await supabase.rpc("generate_voucher_number", {
+        p_type: "expense",
+        p_date: format(voucherDate, "yyyy-MM-dd"),
       });
+      if (numErr) throw numErr;
+      const { data: inserted, error: insErr } = await supabase
+        .from("voucher_entries")
+        .insert({
+          organization_id: organizationId,
+          voucher_number: voucherNumber,
+          voucher_type: "expense",
+          voucher_date: format(voucherDate, "yyyy-MM-dd"),
+          reference_type: "expense",
+          description: category,
+          total_amount: parseFloat(amount),
+          payment_method: "cash",
+        })
+        .select("id")
+        .single();
+      if (insErr) throw insErr;
+
+      const { data: acctSettings } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean(
+        (acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled
+      );
+      if (postLedger && inserted?.id) {
+        try {
+          await recordExpenseVoucherJournalEntry(
+            inserted.id,
+            organizationId,
+            parseFloat(amount),
+            "cash",
+            format(voucherDate, "yyyy-MM-dd"),
+            category,
+            supabase
+          );
+        } catch (jErr) {
+          await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+          throw jErr;
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Expense recorded");
@@ -793,6 +829,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
       setTimeout(() => setShowSaved(false), 3000);
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["recent-expenses"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setVoucherDate(new Date());
       setCategory("");
       setAmount("");

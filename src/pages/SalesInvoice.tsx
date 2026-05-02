@@ -2494,13 +2494,13 @@ Thank you for choosing us!`;
               String(paymentOverride?.method || "pay_later"),
               supabase
             );
-            void (supabase as any)
+            await (supabase as any)
               .from("sales")
               .update({ journal_status: "posted", journal_error: null })
               .eq("id", saleData.id);
           } catch (journalErr) {
             console.error("Auto-journal (sales invoice) failed:", journalErr);
-            void (supabase as any)
+            await (supabase as any)
               .from("sales")
               .update({
                 journal_status: "failed",

@@ -134,6 +134,21 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   });
   const logoUrl = (orgLogoSettings?.bill_barcode_settings as any)?.logo_url || "";
 
+  const { data: orgAccountingSettings } = useQuery({
+    queryKey: ["settings-accounting-engine", currentOrganization?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!currentOrganization?.id && open,
+    staleTime: 60_000,
+  });
+  const postChartJournal = Boolean((orgAccountingSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+
   const student = initialStudent || selectedStudent;
 
   useEffect(() => {
@@ -548,6 +563,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           paymentMethodRaw: paymentMethod,
           grandTotal: grandTotalPaying,
           transactionId: transactionId || null,
+          postChartJournal,
           lines: allItemsForVoucher.map((i: any) => ({
             head_name: i.head_name,
             paying: i.paying,

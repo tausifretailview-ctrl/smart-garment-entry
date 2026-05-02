@@ -11,6 +11,200 @@ const findBankLikeAccount = (accounts: SeededAccount[]) => {
   return accounts.find((a) => a.account_type === "Asset" && bankRegex.test(a.account_name));
 };
 
+/** Matches `journal_entries.reference_type` CHECK constraint. */
+export type JournalReferenceType =
+  | "Sale"
+  | "Purchase"
+  | "Payment"
+  | "StudentFeeReceipt"
+  | "ExpenseVoucher";
+
+export type PostJournalLineInput = {
+  accountId: string;
+  debitAmount: number;
+  creditAmount: number;
+};
+
+export type PostJournalEntryInput = {
+  organizationId: string;
+  date: string;
+  referenceType: JournalReferenceType;
+  referenceId: string;
+  description: string;
+  lines: PostJournalLineInput[];
+  client?: any;
+};
+
+export type PostJournalEntryResult =
+  | { status: "created"; journalEntryId: string }
+  | { status: "already_exists"; journalEntryId: string };
+
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string };
+  return e?.code === "23505";
+}
+
+/**
+ * Single entry point for chart postings: balance check, idempotency by (org, reference_type, reference_id),
+ * insert header + lines (rolls back header if line insert fails).
+ */
+export async function postJournalEntry(params: PostJournalEntryInput): Promise<PostJournalEntryResult> {
+  const { organizationId, date, referenceType, referenceId, description, lines } = params;
+  const client = params.client ?? supabase;
+
+  if (!organizationId) throw new Error("organizationId is required");
+  if (!referenceId) throw new Error("referenceId is required");
+  if (!lines?.length) throw new Error("Journal must have at least one line");
+
+  const normalized: Array<{ account_id: string; debit_amount: number; credit_amount: number }> = [];
+  for (const line of lines) {
+    const dr = round2(line.debitAmount);
+    const cr = round2(line.creditAmount);
+    if (dr < 0 || cr < 0) throw new Error("Journal line amounts cannot be negative");
+    if ((dr > 0 && cr > 0) || (dr === 0 && cr === 0)) {
+      throw new Error("Each journal line must have either debit or credit (not both, not neither)");
+    }
+    normalized.push({
+      account_id: line.accountId,
+      debit_amount: dr,
+      credit_amount: cr,
+    });
+  }
+
+  const totalDebit = round2(normalized.reduce((s, l) => s + l.debit_amount, 0));
+  const totalCredit = round2(normalized.reduce((s, l) => s + l.credit_amount, 0));
+  if (totalDebit !== totalCredit) {
+    throw new Error(`Journal imbalance: DR ${totalDebit} != CR ${totalCredit}`);
+  }
+  if (totalDebit <= 0) {
+    throw new Error("Journal total must be positive");
+  }
+
+  const desc = description.length > 500 ? description.slice(0, 497) + "…" : description;
+
+  const { data: existing } = await client
+    .from("journal_entries")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("reference_type", referenceType)
+    .eq("reference_id", referenceId)
+    .maybeSingle();
+
+  if (existing?.id) {
+    return { status: "already_exists", journalEntryId: existing.id as string };
+  }
+
+  const { data: entry, error: entryErr } = await client
+    .from("journal_entries")
+    .insert({
+      organization_id: organizationId,
+      date,
+      reference_type: referenceType,
+      reference_id: referenceId,
+      description: desc,
+      total_amount: totalDebit,
+    })
+    .select("id")
+    .single();
+
+  if (entryErr) {
+    if (isUniqueViolation(entryErr)) {
+      const { data: row } = await client
+        .from("journal_entries")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("reference_type", referenceType)
+        .eq("reference_id", referenceId)
+        .single();
+      if (row?.id) {
+        return { status: "already_exists", journalEntryId: row.id as string };
+      }
+    }
+    throw entryErr;
+  }
+
+  const payload = normalized.map((line) => ({
+    journal_entry_id: entry.id,
+    account_id: line.account_id,
+    debit_amount: line.debit_amount,
+    credit_amount: line.credit_amount,
+  }));
+
+  const { error: lineErr } = await client.from("journal_lines").insert(payload);
+  if (lineErr) {
+    await client.from("journal_entries").delete().eq("id", entry.id);
+    throw lineErr;
+  }
+
+  return { status: "created", journalEntryId: entry.id as string };
+}
+
+/** Removes a posted journal by business reference (journal_lines cascade). */
+export async function deleteJournalEntryByReference(
+  organizationId: string,
+  referenceType: JournalReferenceType,
+  referenceId: string,
+  client: any = supabase
+): Promise<void> {
+  if (!organizationId || !referenceId) return;
+  const { error } = await client
+    .from("journal_entries")
+    .delete()
+    .eq("organization_id", organizationId)
+    .eq("reference_type", referenceType)
+    .eq("reference_id", referenceId);
+  if (error) throw error;
+}
+
+/**
+ * Expense voucher (voucher_entries.id): DR General Expenses, CR Cash/Bank.
+ */
+export async function recordExpenseVoucherJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  amount: number,
+  paymentMethod: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const cashInHand = getAccountByCode(systemAccounts, "1000");
+  const expenseAccount = getAccountByCode(systemAccounts, "6000");
+
+  if (!cashInHand || !expenseAccount) {
+    throw new Error("Missing chart accounts for expense journal (Cash / General Expenses)");
+  }
+
+  const pm = (paymentMethod || "").toLowerCase().trim();
+  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
+  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: expenseAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: paymentAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc =
+    description.trim() || `Expense voucher ${voucherEntryId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "ExpenseVoucher",
+    referenceId: voucherEntryId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
 /**
  * Records strict double-entry journal lines for a sale:
  *   CR Sales Revenue = netAmount
@@ -46,66 +240,27 @@ export async function recordSaleJournalEntry(
   const useBankAccount = !["cash", "pay_later", ""].includes((paymentMethod || "").toLowerCase().trim());
   const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
 
-  const lines: Array<{ account_id: string; debit_amount: number; credit_amount: number }> = [];
-
-  // Credit Sales Revenue for full value
-  lines.push({
-    account_id: salesRevenue.id,
-    debit_amount: 0,
-    credit_amount: net,
-  });
-
-  // Debit Cash/Bank for collected amount
+  const lines: PostJournalLineInput[] = [
+    { accountId: salesRevenue.id, debitAmount: 0, creditAmount: net },
+  ];
   if (paid > 0) {
-    lines.push({
-      account_id: receiptAccount.id,
-      debit_amount: paid,
-      credit_amount: 0,
-    });
+    lines.push({ accountId: receiptAccount.id, debitAmount: paid, creditAmount: 0 });
   }
-
-  // Debit AR for unpaid balance
   if (receivable > 0) {
-    lines.push({
-      account_id: arAccount.id,
-      debit_amount: receivable,
-      credit_amount: 0,
-    });
-  }
-
-  const totalDebit = round2(lines.reduce((sum, l) => sum + l.debit_amount, 0));
-  const totalCredit = round2(lines.reduce((sum, l) => sum + l.credit_amount, 0));
-  if (totalDebit !== totalCredit) {
-    throw new Error(`Journal imbalance for sale ${saleId}: DR ${totalDebit} != CR ${totalCredit}`);
+    lines.push({ accountId: arAccount.id, debitAmount: receivable, creditAmount: 0 });
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: entry, error: entryErr } = await (client as any)
-    .from("journal_entries")
-    .insert({
-      organization_id: organizationId,
-      date: today,
-      reference_type: "Sale",
-      reference_id: saleId,
-      description: `Auto journal for sale ${saleId}`,
-      total_amount: net,
-    })
-    .select("id")
-    .single();
-
-  if (entryErr) throw entryErr;
-
-  const payload = lines.map((line) => ({
-    journal_entry_id: entry.id,
-    account_id: line.account_id,
-    debit_amount: line.debit_amount,
-    credit_amount: line.credit_amount,
-  }));
-
-  const { error: lineErr } = await (client as any).from("journal_lines").insert(payload);
-  if (lineErr) throw lineErr;
-
-  return entry.id as string;
+  const result = await postJournalEntry({
+    organizationId,
+    date: today,
+    referenceType: "Sale",
+    referenceId: saleId,
+    description: `Auto journal for sale ${saleId}`,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
 }
 
 /**
@@ -143,65 +298,73 @@ export async function recordPurchaseJournalEntry(
   const useBankAccount = !["cash", "pay_later", ""].includes((paymentMethod || "").toLowerCase().trim());
   const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
 
-  const lines: Array<{ account_id: string; debit_amount: number; credit_amount: number }> = [];
-
-  // Debit COGS for full bill value
-  lines.push({
-    account_id: cogsAccount.id,
-    debit_amount: net,
-    credit_amount: 0,
-  });
-
-  // Credit Cash/Bank for paid amount
+  const lines: PostJournalLineInput[] = [
+    { accountId: cogsAccount.id, debitAmount: net, creditAmount: 0 },
+  ];
   if (paid > 0) {
-    lines.push({
-      account_id: paymentAccount.id,
-      debit_amount: 0,
-      credit_amount: paid,
-    });
+    lines.push({ accountId: paymentAccount.id, debitAmount: 0, creditAmount: paid });
   }
-
-  // Credit AP for unpaid amount
   if (payable > 0) {
-    lines.push({
-      account_id: apAccount.id,
-      debit_amount: 0,
-      credit_amount: payable,
-    });
-  }
-
-  const totalDebit = round2(lines.reduce((sum, l) => sum + l.debit_amount, 0));
-  const totalCredit = round2(lines.reduce((sum, l) => sum + l.credit_amount, 0));
-  if (totalDebit !== totalCredit) {
-    throw new Error(`Journal imbalance for purchase ${purchaseId}: DR ${totalDebit} != CR ${totalCredit}`);
+    lines.push({ accountId: apAccount.id, debitAmount: 0, creditAmount: payable });
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: entry, error: entryErr } = await (client as any)
-    .from("journal_entries")
-    .insert({
-      organization_id: organizationId,
-      date: today,
-      reference_type: "Purchase",
-      reference_id: purchaseId,
-      description: `Auto journal for purchase ${purchaseId}`,
-      total_amount: net,
-    })
-    .select("id")
-    .single();
-
-  if (entryErr) throw entryErr;
-
-  const payload = lines.map((line) => ({
-    journal_entry_id: entry.id,
-    account_id: line.account_id,
-    debit_amount: line.debit_amount,
-    credit_amount: line.credit_amount,
-  }));
-
-  const { error: lineErr } = await (client as any).from("journal_lines").insert(payload);
-  if (lineErr) throw lineErr;
-
-  return entry.id as string;
+  const result = await postJournalEntry({
+    organizationId,
+    date: today,
+    referenceType: "Purchase",
+    referenceId: purchaseId,
+    description: `Auto journal for purchase ${purchaseId}`,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
 }
 
+/**
+ * Cash-basis school fee receipt: DR Cash/Bank, CR School Fee Income (4100 or 4000).
+ * `reference_id` = voucher_entries.id for reversal via delete_fee_receipt.
+ */
+export async function recordSchoolFeeReceiptJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  grandTotal: number,
+  paymentMethod: string,
+  entryDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(grandTotal);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const cashInHand = getAccountByCode(systemAccounts, "1000");
+  const feeIncome = getAccountByCode(systemAccounts, "4100") || getAccountByCode(systemAccounts, "4000");
+
+  if (!cashInHand || !feeIncome) {
+    throw new Error("Missing chart accounts for fee journal (Cash / School Fee Income)");
+  }
+
+  const pm = (paymentMethod || "").toLowerCase().trim();
+  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
+  const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: feeIncome.id, debitAmount: 0, creditAmount: net },
+    { accountId: receiptAccount.id, debitAmount: net, creditAmount: 0 },
+  ];
+
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "StudentFeeReceipt",
+    referenceId: voucherEntryId,
+    description,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}

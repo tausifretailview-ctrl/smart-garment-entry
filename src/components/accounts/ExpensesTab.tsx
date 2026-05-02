@@ -13,6 +13,10 @@ import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  deleteJournalEntryByReference,
+  recordExpenseVoucherJournalEntry,
+} from "@/utils/accounting/journalService";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -103,7 +107,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("settings")
-        .select("business_name, address, mobile_number")
+        .select("business_name, address, mobile_number, accounting_engine_enabled")
         .eq("organization_id", organizationId)
         .maybeSingle();
       if (error) throw error;
@@ -127,21 +131,49 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
 
       const notesField = [paidBy && `Paid by: ${paidBy}`, billNo && `Bill#: ${billNo}`].filter(Boolean).join(" | ");
 
-      const { error } = await supabase.from("voucher_entries").insert({
-        organization_id: organizationId,
-        voucher_number: voucherNumber,
-        voucher_type: "expense",
-        voucher_date: format(voucherDate, "yyyy-MM-dd"),
-        reference_type: "expense",
-        category: selectedCategory,
-        description: narration || selectedCategory,
-        payment_method: paymentMethod,
-        total_amount: parseFloat(amount),
-        notes: notesField || null,
-        paid_by: paidBy || null,
-        receipt_number: billNo || null,
-      });
+      const { data: inserted, error } = await supabase
+        .from("voucher_entries")
+        .insert({
+          organization_id: organizationId,
+          voucher_number: voucherNumber,
+          voucher_type: "expense",
+          voucher_date: format(voucherDate, "yyyy-MM-dd"),
+          reference_type: "expense",
+          category: selectedCategory,
+          description: narration || selectedCategory,
+          payment_method: paymentMethod,
+          total_amount: parseFloat(amount),
+          notes: notesField || null,
+          paid_by: paidBy || null,
+          receipt_number: billNo || null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+
+      const { data: acctSettings } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+
+      if (postLedger && inserted?.id) {
+        try {
+          await recordExpenseVoucherJournalEntry(
+            inserted.id,
+            organizationId,
+            parseFloat(amount),
+            paymentMethod,
+            format(voucherDate, "yyyy-MM-dd"),
+            narration || selectedCategory,
+            supabase
+          );
+        } catch (jErr) {
+          await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+          throw jErr;
+        }
+      }
 
       // If custom category, add to expense_categories
       if (category === "__custom__" && customCategory) {
@@ -156,6 +188,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       resetForm();
     },
     onError: (error: any) => toast.error(error.message),
@@ -176,11 +209,32 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         })
         .eq("id", editingVoucher.id);
       if (error) throw error;
+
+      const { data: acctSettings } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+
+      if (postLedger) {
+        await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", editingVoucher.id, supabase);
+        await recordExpenseVoucherJournalEntry(
+          editingVoucher.id,
+          organizationId,
+          parseFloat(editAmount),
+          editPayment,
+          format(editDate, "yyyy-MM-dd"),
+          editNarration || editCategory,
+          supabase
+        );
+      }
     },
     onSuccess: () => {
       toast.success("Expense updated");
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setEditDialogOpen(false);
     },
     onError: (error: any) => toast.error(error.message),
@@ -189,6 +243,15 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
   // Delete expense (soft)
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
+      const { data: acctSettings } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = Boolean((acctSettings as { accounting_engine_enabled?: boolean } | null)?.accounting_engine_enabled);
+      if (postLedger) {
+        await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", id, supabase);
+      }
       const { error } = await supabase
         .from("voucher_entries")
         .update({ deleted_at: new Date().toISOString() })
@@ -199,6 +262,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
       toast.success("Expense deleted");
       queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       setDeleteId(null);
     },
     onError: (error: any) => toast.error(error.message),

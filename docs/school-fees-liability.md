@@ -74,6 +74,16 @@ On successful fee collection, `postSchoolFeeReceiptAccounting` in `src/lib/schoo
 
 `public.delete_fee_receipt` removes **`student_ledger_entries`** and **`voucher_items`** for that receipt, then soft-deletes the **`voucher_entries`** row (existing `student_fees` soft-delete unchanged).
 
+### Phase 2 — Chart journal (with accounting engine)
+
+When **Settings → `accounting_engine_enabled`** is **true** for the org (same flag as sale/purchase auto-journals), fee collection also posts **`journal_entries` / `journal_lines`** on **`chart_of_accounts`**:
+
+- **DR** Cash in Hand (1000) or a bank/UPI/card-like asset account.  
+- **CR** **School Fee Income** (4100), falling back to Sales Revenue (4000) if 4100 is missing.  
+- `reference_type = StudentFeeReceipt`, `reference_id = voucher_entries.id`.
+
+Seeding adds account code **4100** if absent. **`delete_fee_receipt`** deletes those journal rows (lines cascade) before clearing vouchers.
+
 ## Maintenance after external merges (e.g. Lovable)
 
 When fee logic changes, diff together:
@@ -82,6 +92,6 @@ When fee logic changes, diff together:
 - `FeeCollectionDialog.tsx`
 - `schoolFeeYearBalances.ts`
 - `schoolFeeLiability.ts` / `schoolFeeOpening.ts`
-- `schoolFeeAccounting.ts` / `studentLedger.ts` / `delete_fee_receipt` migration
+- `schoolFeeAccounting.ts` / `studentLedger.ts` / `journalService.ts` (`recordSchoolFeeReceiptJournalEntry`) / `delete_fee_receipt` + journal `reference_type` migrations
 
 Avoid reintroducing duplicate `resolveLiability` bodies; extend the shared module and this doc if rules change.

@@ -3132,13 +3132,13 @@ const PurchaseEntry = () => {
               String((billDataResult as any)?.payment_method || "pay_later"),
               supabase
             );
-            void (supabase as any)
+            await (supabase as any)
               .from("purchase_bills")
               .update({ journal_status: "posted", journal_error: null })
               .eq("id", billDataResult.id);
           } catch (journalErr) {
             console.error("Auto-journal (purchase) failed:", journalErr);
-            void (supabase as any)
+            await (supabase as any)
               .from("purchase_bills")
               .update({
                 journal_status: "failed",

@@ -15,7 +15,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-type RefTypeFilter = "all" | "Sale" | "Purchase" | "Payment";
+type RefTypeFilter =
+  | "all"
+  | "Sale"
+  | "Purchase"
+  | "Payment"
+  | "StudentFeeReceipt"
+  | "ExpenseVoucher";
 
 interface JournalEntryRow {
   id: string;
@@ -171,6 +177,8 @@ export default function JournalVouchers() {
                   <SelectItem value="Sale">Sale</SelectItem>
                   <SelectItem value="Purchase">Purchase</SelectItem>
                   <SelectItem value="Payment">Payment</SelectItem>
+                  <SelectItem value="StudentFeeReceipt">Student fee receipt</SelectItem>
+                  <SelectItem value="ExpenseVoucher">Expense voucher</SelectItem>
                 </SelectContent>
               </Select>
             </div>

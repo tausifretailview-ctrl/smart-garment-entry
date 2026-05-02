@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { insertStudentLedgerCredit } from "@/lib/studentLedger";
+import { recordSchoolFeeReceiptJournalEntry } from "@/utils/accounting/journalService";
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -126,6 +127,8 @@ export async function postSchoolFeeReceiptAccounting(
     grandTotal: number;
     lines: FeeReceiptAccountingLine[];
     transactionId?: string | null;
+    /** When true (org Settings → accounting engine), posts chart_of_accounts journal (Phase 2). */
+    postChartJournal?: boolean;
   }
 ): Promise<{ voucherId: string }> {
   const {
@@ -231,6 +234,24 @@ export async function postSchoolFeeReceiptAccounting(
   if (viErr) {
     await client.from("voucher_entries").delete().eq("id", voucherId);
     throw viErr;
+  }
+
+  if (params.postChartJournal) {
+    try {
+      await recordSchoolFeeReceiptJournalEntry(
+        voucherId,
+        organizationId,
+        grandTotal,
+        paymentMethodRaw,
+        voucherDate,
+        description,
+        client as any
+      );
+    } catch (jErr) {
+      await client.from("voucher_items").delete().eq("voucher_id", voucherId);
+      await client.from("voucher_entries").delete().eq("id", voucherId);
+      throw jErr;
+    }
   }
 
   for (const line of lines) {
