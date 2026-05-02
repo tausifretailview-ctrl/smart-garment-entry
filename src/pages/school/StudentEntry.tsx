@@ -511,20 +511,43 @@ const StudentEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="closing_fees_balance">Closing Fees Balance (₹)</Label>
-                <Input
-                  id="closing_fees_balance"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formData.closing_fees_balance}
-                  onChange={(e) => handleChange("closing_fees_balance", e.target.value)}
-                  placeholder="Enter pending fees balance"
-                />
+              <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="is_new_admission"
+                    checked={formData.is_new_admission}
+                    onCheckedChange={(checked) => {
+                      const isNew = checked === true;
+                      handleChange("is_new_admission", isNew);
+                      if (!isNew) handleChange("closing_fees_balance", "");
+                    }}
+                  />
+                  <Label htmlFor="is_new_admission" className="cursor-pointer">
+                    New Admission
+                  </Label>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Used as fallback when no fee structure is defined for this student's class.
+                  Tick only for fresh admissions. Promoted students must NOT have an opening
+                  fees balance entered here — their balance carries forward automatically.
                 </p>
+
+                {formData.is_new_admission && (
+                  <div className="space-y-2 pt-2">
+                    <Label htmlFor="closing_fees_balance">Opening Fees Balance (₹)</Label>
+                    <Input
+                      id="closing_fees_balance"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.closing_fees_balance}
+                      onChange={(e) => handleChange("closing_fees_balance", e.target.value)}
+                      placeholder="Enter previous school pending fees (if any)"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Pending fees brought from the previous school for this new admission.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
