@@ -348,3 +348,53 @@ export function buildFeeReceiptWhatsAppMessage(opts: {
       : `\nBalance (this session): Rs.${fmt(opts.remainingBalance)}\n`;
   return `Fee Receipt\n\nRespected Sir/Madam,\n\n${opts.orgName}\n\nReceipt No: ${opts.receiptNumber}\nDate: ${opts.paidDateLabel}\nStudent: ${opts.studentName}\nAdmission No: ${opts.admissionNo}\nClass: ${opts.className}\n\nAmount Paid: Rs.${fmt(opts.totalPaying)}\nPayment Mode: ${opts.paymentMethod}${balanceSection}\n${opts.feeLines}\n\nThank you for your payment.\n\n${opts.orgName}`;
 }
+
+/**
+ * Cumulative carry-forward (= sum of closing balances of all academic years strictly
+ * BEFORE `targetYearId`) for a single student. Used as the "Opening Balance" on the
+ * student ledger when viewing a non-earliest year.
+ *
+ * Carry-forward for a prior year =
+ *   liability(opening + structure) + adjustments − payments(in that year)
+ * (clamped at 0 per year, then summed).
+ */
+export async function computePriorYearsCarryForward(
+  supabase: SupabaseClient,
+  organizationId: string,
+  student: {
+    id: string;
+    class_id: string | null;
+    academic_year_id?: string | null;
+    closing_fees_balance: number | null;
+    is_new_admission: boolean | null;
+    fees_opening_is_net?: boolean | null;
+  },
+  targetYearId: string
+): Promise<number> {
+  const rows = await computeYearWiseFeeBalances(
+    supabase,
+    organizationId,
+    student,
+    { maxYearsDisplay: 100 } // include all sessions for accurate carry-forward
+  );
+
+  // Need chronological order to know which years are "before" target.
+  const { data: allYears } = await supabase
+    .from("academic_years")
+    .select("id, start_date")
+    .eq("organization_id", organizationId)
+    .order("start_date", { ascending: true });
+
+  const order = new Map<string, number>();
+  (allYears || []).forEach((y: any, idx: number) => order.set(y.id, idx));
+  const targetIdx = order.get(targetYearId);
+  if (targetIdx === undefined) return 0;
+
+  let carry = 0;
+  for (const r of rows) {
+    const idx = order.get(r.yearId);
+    if (idx === undefined) continue;
+    if (idx < targetIdx) carry += r.balance || 0;
+  }
+  return Math.max(0, Math.round(carry * 100) / 100);
+}
