@@ -64,6 +64,16 @@ Pending summary aggregation uses the same components per student.
 
 The dialog builds **line items** from `fee_structures` and allocates **remaining due** to an **“Opening balance (carried forward)”** row when `totalDue` exceeds the sum of structure line balances, so the **collect total** matches **`totalDue`** on the grid for the current session. Opening/import lines post to `student_fees` with `fee_head_id` / `fee_structure_id` null where applicable.
 
+## Accounting (vouchers, chart, student sub-ledger)
+
+On successful fee collection, `postSchoolFeeReceiptAccounting` in `src/lib/schoolFeeAccounting.ts`:
+
+1. Inserts **`voucher_entries`** (`reference_type = student_fee`, `voucher_number` = fee receipt no.).
+2. Inserts **`voucher_items`**: **Dr** cash/bank asset (`account_ledgers`), **Cr** income — per fee head if `fee_heads.income_account_id` is set, otherwise **School Fee Income** (created under `account_ledgers` if missing).
+3. Inserts **`student_ledger_entries`** credits (`voucher_type = FEE_RECEIPT`) — one line per collected component, analogous to customer receipt credits.
+
+`public.delete_fee_receipt` removes **`student_ledger_entries`** and **`voucher_items`** for that receipt, then soft-deletes the **`voucher_entries`** row (existing `student_fees` soft-delete unchanged).
+
 ## Maintenance after external merges (e.g. Lovable)
 
 When fee logic changes, diff together:
@@ -72,5 +82,6 @@ When fee logic changes, diff together:
 - `FeeCollectionDialog.tsx`
 - `schoolFeeYearBalances.ts`
 - `schoolFeeLiability.ts` / `schoolFeeOpening.ts`
+- `schoolFeeAccounting.ts` / `studentLedger.ts` / `delete_fee_receipt` migration
 
 Avoid reintroducing duplicate `resolveLiability` bodies; extend the shared module and this doc if rules change.

@@ -1199,6 +1199,63 @@ export type Database = {
         }
         Relationships: []
       }
+      student_ledger_entries: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          credit: number
+          debit: number
+          id: string
+          organization_id: string
+          particulars: string | null
+          student_id: string
+          transaction_date: string | null
+          voucher_no: string | null
+          voucher_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          credit?: number
+          debit?: number
+          id?: string
+          organization_id: string
+          particulars?: string | null
+          student_id: string
+          transaction_date?: string | null
+          voucher_no?: string | null
+          voucher_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          credit?: number
+          debit?: number
+          id?: string
+          organization_id?: string
+          particulars?: string | null
+          student_id?: string
+          transaction_date?: string | null
+          voucher_no?: string | null
+          voucher_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_ledger_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_ledger_entries_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_points_history: {
         Row: {
           created_at: string | null
@@ -2044,6 +2101,7 @@ export type Database = {
           display_order: number | null
           head_name: string
           id: string
+          income_account_id: string | null
           is_active: boolean | null
           is_refundable: boolean | null
           organization_id: string
@@ -2054,6 +2112,7 @@ export type Database = {
           display_order?: number | null
           head_name: string
           id?: string
+          income_account_id?: string | null
           is_active?: boolean | null
           is_refundable?: boolean | null
           organization_id: string
@@ -2064,11 +2123,19 @@ export type Database = {
           display_order?: number | null
           head_name?: string
           id?: string
+          income_account_id?: string | null
           is_active?: boolean | null
           is_refundable?: boolean | null
           organization_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fee_heads_income_account_id_fkey"
+            columns: ["income_account_id"]
+            isOneToOne: false
+            referencedRelation: "account_ledgers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fee_heads_organization_id_fkey"
             columns: ["organization_id"]

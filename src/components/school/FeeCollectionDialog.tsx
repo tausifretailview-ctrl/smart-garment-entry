@@ -24,6 +24,7 @@ import {
 } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { resolveLiability } from "@/lib/schoolFeeLiability";
+import { postSchoolFeeReceiptAccounting } from "@/lib/schoolFeeAccounting";
 
 const OPENING_CARRY_HEAD_ID = "__opening_carry__";
 
@@ -534,32 +535,27 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         manualRowItems.push({ head_name: manualFeeName || "Other Fees", paying: manualAmt });
       }
 
-      // Create voucher entry in accounts ledger for this fee collection
+      // Voucher header + double-entry lines (account_ledgers) + student sub-ledger credits
       try {
-        const voucherNumber = receiptNumber; // Use same receipt number as voucher
-        const paymentMethodLower = paymentMethod.toLowerCase();
-        const mappedMethod = paymentMethodLower === 'upi' ? 'upi' 
-          : paymentMethodLower === 'card' ? 'card'
-          : paymentMethodLower === 'bank transfer' ? 'bank_transfer'
-          : 'cash';
-        
         const allItemsForVoucher = [...selectedItems, ...manualRowItems];
-        const feeHeadNames = allItemsForVoucher.map((i: any) => i.head_name).join(', ');
-        const description = `Fee Collection - ${student.student_name} (${student.admission_number}) | ${feeHeadNames} | ${paymentMethod}${transactionId ? ` | Txn: ${transactionId}` : ''}`;
-
-        await supabase.from("voucher_entries").insert({
-          organization_id: currentOrganization.id,
-          voucher_type: "receipt",
-          voucher_number: voucherNumber,
-          voucher_date: format(new Date(), 'yyyy-MM-dd'),
-          total_amount: grandTotalPaying,
-          description,
-          reference_type: "student_fee",
-          reference_id: student.id,
-          payment_method: mappedMethod,
+        await postSchoolFeeReceiptAccounting(supabase, {
+          organizationId: currentOrganization.id,
+          studentId: student.id,
+          studentName: student.student_name,
+          admissionNumber: student.admission_number,
+          receiptNumber,
+          voucherDate: format(new Date(), "yyyy-MM-dd"),
+          paymentMethodRaw: paymentMethod,
+          grandTotal: grandTotalPaying,
+          transactionId: transactionId || null,
+          lines: allItemsForVoucher.map((i: any) => ({
+            head_name: i.head_name,
+            paying: i.paying,
+            fee_head_id: typeof i.fee_head_id === "string" ? i.fee_head_id : null,
+          })),
         });
       } catch (voucherErr: any) {
-        console.error("Voucher entry creation failed:", voucherErr);
+        console.error("Fee accounting (voucher / ledger) failed:", voucherErr);
         toast.error("Warning: Fee collected but accounting entry failed. Please contact admin.");
       }
 
