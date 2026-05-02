@@ -392,6 +392,33 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
   const grandTotalPaying = totalPaying + (manualFeeEnabled ? Number(manualFeeAmount) || 0 : 0);
 
+  /**
+   * Total balance across all selected fee heads (what "Pay full" everywhere would charge).
+   * Used to detect when user is collecting the entire outstanding amount.
+   */
+  const grandTotalBalance = feeItems
+    .filter(i => i.selected && i.balance > 0)
+    .reduce((sum, i) => sum + i.balance, 0);
+
+  /**
+   * Confirmation guard: if user is collecting the FULL outstanding balance,
+   * show a confirm() prompt before submitting. Prevents accidental full-amount
+   * collection (e.g. when user typed amount into Transaction ID by mistake).
+   */
+  const handleCollectClick = () => {
+    const isFullCollection =
+      grandTotalBalance > 0 &&
+      Math.abs(grandTotalPaying - grandTotalBalance) < 0.01 &&
+      !manualFeeEnabled;
+    if (isFullCollection) {
+      const ok = window.confirm(
+        `You are about to collect the FULL outstanding balance of ₹${grandTotalBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })} for ${student?.student_name || "this student"}.\n\nIs this correct?\n\nPress OK to collect the full amount, or Cancel to enter a partial amount.`
+      );
+      if (!ok) return;
+    }
+    collectMutation.mutate();
+  };
+
   const collectMutation = useMutation({
     mutationFn: async () => {
       if (!student || !currentOrganization) throw new Error("Student data missing");
