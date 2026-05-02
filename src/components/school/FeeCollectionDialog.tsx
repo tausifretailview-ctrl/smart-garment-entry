@@ -23,24 +23,9 @@ import {
   type YearFeeBalanceRow,
 } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { resolveLiability } from "@/lib/schoolFeeLiability";
 
 const OPENING_CARRY_HEAD_ID = "__opening_carry__";
-
-/** Mirrors FeeCollection.tsx resolveLiability (same rules as fee grid). */
-function resolveFeeLiability(
-  student: { closing_fees_balance?: number | null; is_new_admission?: boolean | null },
-  structureTotal: number,
-  yearName?: string | null
-): number {
-  const importedBalance = Number(student?.closing_fees_balance) || 0;
-  const expected = Number(structureTotal) || 0;
-  const isNewAdmission = student?.is_new_admission === true;
-  const isLegacy2025 = yearName === "2025-26";
-  if (isNewAdmission) return importedBalance;
-  if (expected > 0) return expected + importedBalance;
-  if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
-  return importedBalance;
-}
 
 interface Student {
   id: string;
@@ -349,7 +334,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
         const paidTotalYear = (payments || []).reduce((sum: number, p: any) => sum + Number(p.paid_amount || 0), 0);
 
-        const liability = resolveFeeLiability(
+        const liability = resolveLiability(
           { ...student, closing_fees_balance: importedEff },
           totalStructureAmount,
           usedYear.year_name

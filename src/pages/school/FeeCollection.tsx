@@ -21,6 +21,7 @@ import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDial
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { resolveLiability } from "@/lib/schoolFeeLiability";
 import {
   buildFeeReceiptWhatsAppMessage,
   computeYearWiseFeeBalances,
@@ -202,20 +203,6 @@ const FeeCollection = () => {
 
   // The active year used for all queries
   const activeYear = (academicYears || []).find((y: any) => y.id === selectedYearId) || currentYear;
-
-  const resolveLiability = (student: any, structureTotal: number, yearName?: string | null) => {
-    const importedBalance = Number(student?.closing_fees_balance) || 0;
-    const expected = Number(structureTotal) || 0;
-    const isNewAdmission = student?.is_new_admission === true;
-    const isLegacy2025 = yearName === "2025-26";
-
-    if (isNewAdmission) return importedBalance;
-    if (expected > 0) return expected + importedBalance;
-    // Legacy safety fallback: for 2025-26, preserve imported closing balance
-    // when structure is absent/zero to avoid showing false zero dues.
-    if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
-    return importedBalance;
-  };
 
   const resolveFeeStatus = (totalDue: number, totalPaid: number, liabilityGross: number) => {
     if (liabilityGross <= 0 && totalPaid <= 0) return "no-structure";
