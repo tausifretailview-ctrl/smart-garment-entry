@@ -741,6 +741,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             .select("*")
             .eq("organization_id", organizationId)
             .eq("student_id", studentId)
+            // Skip trace-only entries (e.g. receipt_deleted) — the original
+            // receipt is already removed via voucher_entries.deleted_at, so
+            // including these would phantom-double the ledger balance.
+            .neq("reason_code", "receipt_deleted")
             .order("created_at", { ascending: true });
           if (adjAllErr) throw adjAllErr;
 
@@ -966,6 +970,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .eq('organization_id', organizationId)
           .eq('student_id', studentId)
           .eq('academic_year_id', targetYear?.id)
+          .neq('reason_code', 'receipt_deleted')
           .order('created_at', { ascending: true });
         if (adjustmentsError) throw adjustmentsError;
 

@@ -82,7 +82,9 @@ export async function computeYearWiseFeeBalances(
   const { data: allAdjustments } = await (supabase.from("student_balance_audit" as any) as any)
     .select("academic_year_id, adjustment_type, change_amount")
     .eq("organization_id", organizationId)
-    .eq("student_id", student.id);
+    .eq("student_id", student.id)
+    // Trace-only — receipt deletions are reflected via student_fees.status='deleted'.
+    .neq("reason_code", "receipt_deleted");
 
   const adjByYear = new Map<string, number>();
   (allAdjustments || []).forEach((a: any) => {
@@ -217,7 +219,8 @@ export async function computePendingAllSessionsBatch(
   const { data: allAdj } = await (supabase.from("student_balance_audit" as any) as any)
     .select("student_id, academic_year_id, adjustment_type, change_amount")
     .eq("organization_id", organizationId)
-    .in("student_id", studentIds);
+    .in("student_id", studentIds)
+    .neq("reason_code", "receipt_deleted");
 
   const adjByStudent = new Map<string, Map<string, number>>();
   (allAdj || []).forEach((a: any) => {
