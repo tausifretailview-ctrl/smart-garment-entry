@@ -269,7 +269,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           already_paid: paidForHead,
           balance: Math.max(0, balance),
           selected: balance > 0,
-          paying: Math.max(0, balance),
+          // Default to 0 — user MUST type the amount they're collecting.
+          // Prevents accidental full-amount collection when typing into wrong field.
+          paying: 0,
           fee_structure_id: s.id,
         };
       });
@@ -289,7 +291,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             already_paid: totalPaidInYear,
             balance: importedBalance,
             selected: true,
-            paying: importedBalance,
+            paying: 0,
             fee_structure_id: "__imported__",
           });
         }
@@ -372,7 +374,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             already_paid: alreadyOpening,
             balance: openingDue,
             selected: true,
-            paying: openingDue,
+            paying: 0,
             fee_structure_id: OPENING_CARRY_HEAD_ID,
           });
         }
@@ -389,6 +391,33 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     .reduce((sum, i) => sum + i.paying, 0);
 
   const grandTotalPaying = totalPaying + (manualFeeEnabled ? Number(manualFeeAmount) || 0 : 0);
+
+  /**
+   * Total balance across all selected fee heads (what "Pay full" everywhere would charge).
+   * Used to detect when user is collecting the entire outstanding amount.
+   */
+  const grandTotalBalance = feeItems
+    .filter(i => i.selected && i.balance > 0)
+    .reduce((sum, i) => sum + i.balance, 0);
+
+  /**
+   * Confirmation guard: if user is collecting the FULL outstanding balance,
+   * show a confirm() prompt before submitting. Prevents accidental full-amount
+   * collection (e.g. when user typed amount into Transaction ID by mistake).
+   */
+  const handleCollectClick = () => {
+    const isFullCollection =
+      grandTotalBalance > 0 &&
+      Math.abs(grandTotalPaying - grandTotalBalance) < 0.01 &&
+      !manualFeeEnabled;
+    if (isFullCollection) {
+      const ok = window.confirm(
+        `You are about to collect the FULL outstanding balance of ₹${grandTotalBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })} for ${student?.student_name || "this student"}.\n\nIs this correct?\n\nPress OK to collect the full amount, or Cancel to enter a partial amount.`
+      );
+      if (!ok) return;
+    }
+    collectMutation.mutate();
+  };
 
   const collectMutation = useMutation({
     mutationFn: async () => {
@@ -936,7 +965,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead className="text-right">Paid</TableHead>
                       <TableHead className="text-right">Balance</TableHead>
-                      <TableHead className="text-right w-32">Paying</TableHead>
+                      <TableHead className="text-right w-56">Paying ⚠ Type amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -961,15 +990,30 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                         </TableCell>
                         <TableCell className="text-right">
                           {item.balance > 0 && (
-                            <Input
-                              type="number"
-                              min="0"
-                              max={item.balance}
-                              value={item.paying || ""}
-                              onChange={e => updatePaying(idx, parseFloat(e.target.value) || 0)}
-                              className="w-28 text-right"
-                              disabled={!item.selected}
-                            />
+                            <div className="flex items-center justify-end gap-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                max={item.balance}
+                                value={item.paying || ""}
+                                onChange={e => updatePaying(idx, parseFloat(e.target.value) || 0)}
+                                className="w-32 text-right h-10 text-base font-semibold tabular-nums font-mono border-2 border-primary/40 focus-visible:border-primary"
+                                disabled={!item.selected}
+                                placeholder="0"
+                                autoFocus={idx === feeItems.findIndex(i => i.selected && i.balance > 0)}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-10 px-2 text-xs whitespace-nowrap"
+                                disabled={!item.selected}
+                                onClick={() => updatePaying(idx, item.balance)}
+                                title="Pay full balance for this fee head"
+                              >
+                                Full
+                              </Button>
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1013,28 +1057,18 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-semibold mb-1 block">Payment Method</label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_METHODS.map(m => (
-                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold mb-1 block">Transaction ID (optional)</label>
-                    <Input
-                      value={transactionId}
-                      onChange={e => setTransactionId(e.target.value)}
-                      placeholder="e.g. UPI ref number"
-                    />
-                  </div>
+                <div>
+                  <label className="text-xs font-semibold mb-1 block">Payment Method</label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map(m => (
+                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t">
@@ -1042,12 +1076,24 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                     Total: ₹{grandTotalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                   <Button
-                    onClick={() => collectMutation.mutate()}
+                    onClick={() => handleCollectClick()}
                     disabled={collectMutation.isPending || grandTotalPaying <= 0 || !usedYear}
                   >
                     {collectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
                     Collect ₹{grandTotalPaying.toLocaleString("en-IN")}
                   </Button>
+                </div>
+
+                {/* Transaction ID moved BELOW Collect button to avoid accidental focus
+                    confusion with the per-row "Paying" amount fields. */}
+                <div className="pt-2">
+                  <label className="text-xs font-semibold mb-1 block text-muted-foreground">Transaction ID (optional — UPI / cheque ref)</label>
+                  <Input
+                    value={transactionId}
+                    onChange={e => setTransactionId(e.target.value)}
+                    placeholder="e.g. UPI ref number"
+                    className="text-sm"
+                  />
                 </div>
               </div>
             )}
