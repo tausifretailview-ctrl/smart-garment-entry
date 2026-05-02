@@ -133,8 +133,13 @@ export async function computeYearWiseFeeBalances(
       openingIsNet
     );
     const totalExpected = structureByYear.get(Y.id) || 0;
+    // For new-admission students, opening (imported) balance applies only to their joining year.
+    // Prior years should have zero imported liability.
+    const isNewAdmission = student.is_new_admission === true;
+    const isJoiningYear = !!student.academic_year_id && student.academic_year_id === Y.id;
+    const effectiveImported = isNewAdmission && !isJoiningYear ? 0 : importedBalance;
     const liability = resolveLiability(
-      { ...student, closing_fees_balance: importedBalance },
+      { ...student, closing_fees_balance: effectiveImported },
       totalExpected,
       Y.year_name
     );
@@ -274,8 +279,11 @@ export async function computePendingAllSessionsBatch(
         openingIsNet
       );
       const totalExpected = structForClass.get(Y.id) || 0;
+      const isNewAdmission = student.is_new_admission === true;
+      const isJoiningYear = !!student.academic_year_id && student.academic_year_id === Y.id;
+      const effectiveImported = isNewAdmission && !isJoiningYear ? 0 : importedBalance;
       const liability = resolveLiability(
-        { ...student, closing_fees_balance: importedBalance },
+        { ...student, closing_fees_balance: effectiveImported },
         totalExpected,
         Y.year_name
       );
