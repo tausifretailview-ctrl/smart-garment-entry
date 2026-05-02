@@ -804,6 +804,42 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                   </TableBody>
                 </Table>
 
+                {/* Ad-hoc / manual fee toggle (always available) */}
+                <div className="border rounded-md p-3 bg-muted/30 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={manualFeeEnabled}
+                      onCheckedChange={(v) => setManualFeeEnabled(!!v)}
+                      id="manual-fee-toggle"
+                    />
+                    <label htmlFor="manual-fee-toggle" className="text-sm font-medium cursor-pointer">
+                      Add ad-hoc / extra fee
+                    </label>
+                  </div>
+                  {manualFeeEnabled && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Fee Description</label>
+                        <Input
+                          value={manualFeeName}
+                          onChange={(e) => setManualFeeName(e.target.value)}
+                          placeholder="e.g. Late Fee, Books"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold mb-1 block">Amount</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={manualFeeAmount || ""}
+                          onChange={(e) => setManualFeeAmount(parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold mb-1 block">Payment Method</label>
