@@ -165,6 +165,7 @@ const StudentEntry = () => {
         status: existingStudent.status || "active",
         notes: existingStudent.notes || "",
         closing_fees_balance: existingStudent.closing_fees_balance != null ? String(existingStudent.closing_fees_balance) : "",
+        is_new_admission: (existingStudent as any).is_new_admission === true,
       });
     }
   }, [existingStudent]);
