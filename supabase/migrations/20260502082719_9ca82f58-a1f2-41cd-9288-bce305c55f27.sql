@@ -1,0 +1,2 @@
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS fees_opening_is_net boolean NOT NULL DEFAULT false;
+COMMENT ON COLUMN public.students.fees_opening_is_net IS 'When true, closing_fees_balance is treated as the NET unpaid carry-forward (do not subtract previous-year receipts again).';
