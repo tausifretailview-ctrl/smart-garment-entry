@@ -895,6 +895,35 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           stuRow?.fees_opening_is_net === true && stuRow?.academic_year_id === targetYear?.id
         );
 
+        // Opening Balance Rule:
+        // For any academic year that has a PREVIOUS year in the system,
+        // opening = previous year's CLOSING balance (cumulative carry-forward
+        // across all prior sessions). This way, new receipts collected in the
+        // current year correctly reduce the carried-forward balance.
+        // For the earliest year on file, fall back to the legacy imported
+        // opening (closing_fees_balance − latePrevPaid).
+        let carryForwardOpening = importedOpening;
+        if (previousYear?.id && targetYear?.id && stuRow) {
+          try {
+            carryForwardOpening = await computePriorYearsCarryForward(
+              supabase,
+              organizationId,
+              {
+                id: studentId,
+                class_id: stuRow.class_id,
+                academic_year_id: stuRow.academic_year_id,
+                closing_fees_balance: stuRow.closing_fees_balance,
+                is_new_admission: stuRow.is_new_admission,
+                fees_opening_is_net: stuRow.fees_opening_is_net,
+              },
+              targetYear.id
+            );
+          } catch (e) {
+            console.warn("Carry-forward computation failed, falling back:", e);
+            carryForwardOpening = importedOpening;
+          }
+        }
+
         let feeStructureDebits: Array<{ head_name: string; total: number }> = [];
         if (stuRow?.class_id && targetYear?.id) {
           const { data: structures } = await supabase
@@ -918,7 +947,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         const showStructureDebitRows =
           structureTotalComputed > 0 && stuRow?.is_new_admission !== true;
         const hasStructuresComputed = showStructureDebitRows;
-        const openingBalance = importedOpening;
+        const openingBalance = carryForwardOpening;
 
         // Fetch student fees (payments)
         let feesQuery = supabase
