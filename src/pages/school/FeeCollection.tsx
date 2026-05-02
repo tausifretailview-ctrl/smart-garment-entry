@@ -419,7 +419,11 @@ const FeeCollection = () => {
           .select("student_id, adjustment_type, change_amount, academic_year_id")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", activeYear.id)
-          .in("student_id", studentIds),
+          .in("student_id", studentIds)
+          // Exclude pure trace entries (e.g. receipt_deleted) — they must NOT
+          // affect Total Due. Receipt deletions are already reflected via
+          // student_fees.status = 'deleted' (excluded from paidTotal).
+          .neq("reason_code", "receipt_deleted"),
       ]);
 
       const structures = structuresRes.data || [];
