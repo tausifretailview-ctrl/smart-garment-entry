@@ -981,7 +981,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             timestamp: null,
             type: 'fee',
             reference: 'Opening',
-            description: 'Opening Fees Balance (Carried Forward)',
+            description: previousYear?.year_name
+              ? `Opening Balance (Closing of ${previousYear.year_name})`
+              : 'Opening Fees Balance (Carried Forward)',
             debit: openingBalance > 0 ? openingBalance : 0,
             credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
             balance: runningBalance,
@@ -998,7 +1000,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               timestamp: null,
               type: 'fee',
               reference: 'Opening',
-              description: 'Opening Fees Balance (Carried Forward)',
+              description: previousYear?.year_name
+                ? `Opening Balance (Closing of ${previousYear.year_name})`
+                : 'Opening Fees Balance (Carried Forward)',
               debit: openingBalance,
               credit: 0,
               balance: runningBalance,
