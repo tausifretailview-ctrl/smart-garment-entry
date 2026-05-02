@@ -239,6 +239,8 @@ const StudentPromotion = () => {
           const updateData: any = {
             academic_year_id: toYearId,
             closing_fees_balance: newClosingBalance,
+            // Carry-forward balance is already net of prior-year collections — ledger must not subtract again.
+            fees_opening_is_net: carryForward,
             // Once a student is promoted, dues should follow fee structure rules.
             is_new_admission: false,
           };

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
 type AcademicYearRow = {
   id: string;
@@ -45,8 +46,10 @@ export async function computeYearWiseFeeBalances(
   student: {
     id: string;
     class_id: string | null;
+    academic_year_id?: string | null;
     closing_fees_balance: number | null;
     is_new_admission: boolean | null;
+    fees_opening_is_net?: boolean | null;
   },
   options?: { maxYearsDisplay?: number }
 ): Promise<YearFeeBalanceRow[]> {
@@ -120,7 +123,15 @@ export async function computeYearWiseFeeBalances(
       latePrevPaid = paymentsByYear.get(previousYear.id) || 0;
     }
 
-    const importedBalance = Math.max(0, Number(student.closing_fees_balance || 0) - latePrevPaid);
+    const openingIsNet =
+      student.fees_opening_is_net === true &&
+      !!student.academic_year_id &&
+      student.academic_year_id === Y.id;
+    const importedBalance = resolveImportedOpeningBalance(
+      Number(student.closing_fees_balance || 0),
+      latePrevPaid,
+      openingIsNet
+    );
     const totalExpected = structureByYear.get(Y.id) || 0;
     const liability = resolveLiability(
       { ...student, closing_fees_balance: importedBalance },

@@ -16,6 +16,7 @@ import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
 interface SaleItem {
   id: string;
@@ -304,7 +305,7 @@ export function CustomerHistoryDialog({
       if (!customerId || !organizationId) return null;
       const { data: student } = await supabase
         .from("students")
-        .select("id, closing_fees_balance, class_id, is_new_admission")
+        .select("id, closing_fees_balance, class_id, is_new_admission, academic_year_id, fees_opening_is_net")
         .eq("customer_id", customerId)
         .eq("organization_id", organizationId)
         .maybeSingle();
@@ -359,9 +360,10 @@ export function CustomerHistoryDialog({
         );
       }
 
-      const importedOpening = Math.max(
-        0,
-        Number(student.closing_fees_balance || 0) - latePrevPaid
+      const importedOpening = resolveImportedOpeningBalance(
+        Number(student.closing_fees_balance || 0),
+        latePrevPaid,
+        student.fees_opening_is_net === true && student.academic_year_id === currentYear.id
       );
 
       let structureTotal = 0;

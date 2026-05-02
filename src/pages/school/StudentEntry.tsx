@@ -187,7 +187,7 @@ const StudentEntry = () => {
     mutationFn: async () => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
 
-      const studentData = {
+      const studentData: Record<string, unknown> = {
         organization_id: currentOrganization.id,
         admission_number: formData.admission_number,
         student_name: formData.student_name,
@@ -208,6 +208,14 @@ const StudentEntry = () => {
         notes: formData.notes || null,
         closing_fees_balance: formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null,
       };
+
+      if (isEditing && existingStudent) {
+        const newClosing = formData.closing_fees_balance ? parseFloat(formData.closing_fees_balance) : null;
+        const oldClosing = existingStudent.closing_fees_balance;
+        if (Number(newClosing ?? 0) !== Number(oldClosing ?? 0)) {
+          studentData.fees_opening_is_net = false;
+        }
+      }
 
       if (isEditing) {
         const { error } = await supabase

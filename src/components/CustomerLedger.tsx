@@ -28,6 +28,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { computeYearWiseFeeBalances } from "@/lib/schoolFeeYearBalances";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -196,7 +197,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (isSchool) {
         const { data: students } = await supabase
           .from('students')
-          .select('id, customer_id, admission_number, closing_fees_balance, class_id, division, school_classes(class_name)')
+          .select('id, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, school_classes(class_name)')
           .eq('organization_id', organizationId)
           .is('deleted_at', null);
         
@@ -324,7 +325,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
             // Carry forward opening should remain visible even when current year has structures.
             const latePrevYearPaid = latePrevYearPaidByStudent.get(student.id) || 0;
-            const openingBalance = Math.max(0, importedBalance - latePrevYearPaid);
+            const openingBalance = resolveImportedOpeningBalance(
+              importedBalance,
+              latePrevYearPaid,
+              student.fees_opening_is_net === true && student.academic_year_id === targetYear?.id
+            );
             const expectedTotal = openingBalance + (hasStructures ? structureTotal : 0);
             const balance = Math.round(expectedTotal - paidForBalance);
 
@@ -637,7 +642,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
           const { data: stuRow } = await supabase
             .from("students")
-            .select("id, class_id, closing_fees_balance, is_new_admission")
+            .select("id, class_id, academic_year_id, closing_fees_balance, is_new_admission, fees_opening_is_net")
             .eq("id", studentId)
             .single();
 
@@ -645,8 +650,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             ? await computeYearWiseFeeBalances(supabase, organizationId, {
                 id: stuRow.id,
                 class_id: stuRow.class_id,
+                academic_year_id: stuRow.academic_year_id,
                 closing_fees_balance: stuRow.closing_fees_balance,
                 is_new_admission: stuRow.is_new_admission,
+                fees_opening_is_net: stuRow.fees_opening_is_net,
               }, { maxYearsDisplay: 12 })
             : [];
           const totalPendingNow = pendingRows.reduce((s, r) => s + r.balance, 0);
@@ -780,7 +787,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         // Opening + structures for the selected academic year (DB-derived — matches Fee Collection when user switches year)
         const { data: stuRow } = await supabase
           .from("students")
-          .select("closing_fees_balance, class_id, is_new_admission")
+          .select("closing_fees_balance, class_id, is_new_admission, academic_year_id, fees_opening_is_net")
           .eq("id", studentId)
           .single();
 
@@ -812,9 +819,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           );
         }
 
-        const importedOpening = Math.max(
-          0,
-          Number(stuRow?.closing_fees_balance || 0) - latePrevPaid
+        const importedOpening = resolveImportedOpeningBalance(
+          Number(stuRow?.closing_fees_balance || 0),
+          latePrevPaid,
+          stuRow?.fees_opening_is_net === true && stuRow?.academic_year_id === targetYear?.id
         );
 
         let feeStructureDebits: Array<{ head_name: string; total: number }> = [];

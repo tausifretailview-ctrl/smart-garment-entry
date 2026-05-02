@@ -20,6 +20,7 @@ import { FeeReceiptReprintDialog } from "@/components/school/FeeReceiptReprintDi
 import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDialog";
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
 const FeeCollection = () => {
   const queryClient = useQueryClient();
@@ -189,7 +190,7 @@ const FeeCollection = () => {
 
       const { data: allStudents } = await supabase
         .from("students")
-        .select("id, class_id, closing_fees_balance, is_new_admission")
+        .select("id, class_id, closing_fees_balance, is_new_admission, fees_opening_is_net")
         .eq("organization_id", currentOrganization!.id)
         .eq("academic_year_id", activeYear.id)
         .is("deleted_at", null);
@@ -278,7 +279,11 @@ const FeeCollection = () => {
         const latePrevPaid = latePrevPaidByStudent.get(st.id) || 0;
         const effectiveStudent = {
           ...st,
-          closing_fees_balance: Math.max(0, Number(st.closing_fees_balance || 0) - latePrevPaid),
+          closing_fees_balance: resolveImportedOpeningBalance(
+            Number(st.closing_fees_balance || 0),
+            latePrevPaid,
+            st.fees_opening_is_net === true
+          ),
         };
         const liability = resolveLiability(effectiveStudent, struct, activeYear?.year_name);
         pending += Math.max(0, liability + adjustment - paid);
@@ -381,9 +386,10 @@ const FeeCollection = () => {
         // Already filtered to active year + paid/partial with paid_amount > 0 in the query
         const paidTotal = studentPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
-        const importedBalance = Math.max(
-          0,
-          Number(student.closing_fees_balance || 0) - (latePrevPaidByStudent.get(student.id) || 0)
+        const importedBalance = resolveImportedOpeningBalance(
+          Number(student.closing_fees_balance || 0),
+          latePrevPaidByStudent.get(student.id) || 0,
+          student.fees_opening_is_net === true
         );
         // Apply balance adjustments from audit log:
         //  - 'credit' increases due, 'debit' reduces due

@@ -5853,6 +5853,7 @@ export type Database = {
           deleted_by: string | null
           division: string | null
           emergency_contact: string | null
+          fees_opening_is_net: boolean
           gender: string | null
           id: string
           is_new_admission: boolean
@@ -5883,6 +5884,7 @@ export type Database = {
           deleted_by?: string | null
           division?: string | null
           emergency_contact?: string | null
+          fees_opening_is_net?: boolean
           gender?: string | null
           id?: string
           is_new_admission?: boolean
@@ -5913,6 +5915,7 @@ export type Database = {
           deleted_by?: string | null
           division?: string | null
           emergency_contact?: string | null
+          fees_opening_is_net?: boolean
           gender?: string | null
           id?: string
           is_new_admission?: boolean

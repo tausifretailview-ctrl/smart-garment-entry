@@ -183,7 +183,7 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         // Imported balance mode: update closing_fees_balance
         const { error } = await supabase
           .from("students")
-          .update({ closing_fees_balance: newBalance })
+          .update({ closing_fees_balance: newBalance, fees_opening_is_net: false })
           .eq("id", student.id);
         if (error) throw error;
       }

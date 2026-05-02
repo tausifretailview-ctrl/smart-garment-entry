@@ -27,10 +27,12 @@ interface Student {
   student_name: string;
   admission_number: string;
   class_id: string | null;
+  academic_year_id?: string | null;
   parent_phone: string | null;
   parent_name: string | null;
   closing_fees_balance?: number | null;
   is_new_admission?: boolean | null;
+  fees_opening_is_net?: boolean | null;
   school_classes?: { class_name: string } | null;
   school_sections?: { section_name: string } | null;
 }
@@ -509,15 +511,17 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       try {
         const { data: freshSt } = await supabase
           .from("students")
-          .select("id, class_id, closing_fees_balance, is_new_admission")
+          .select("id, class_id, academic_year_id, closing_fees_balance, is_new_admission, fees_opening_is_net")
           .eq("id", student.id)
           .single();
         if (freshSt) {
           yearWiseBalances = await computeYearWiseFeeBalances(supabase, currentOrganization.id, {
             id: freshSt.id,
             class_id: freshSt.class_id,
+            academic_year_id: freshSt.academic_year_id,
             closing_fees_balance: freshSt.closing_fees_balance,
             is_new_admission: freshSt.is_new_admission,
+            fees_opening_is_net: freshSt.fees_opening_is_net,
           });
         }
       } catch (e) {

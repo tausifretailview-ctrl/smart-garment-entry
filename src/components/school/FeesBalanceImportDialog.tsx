@@ -243,7 +243,7 @@ export function FeesBalanceImportDialog({ open, onOpenChange }: FeesBalanceImpor
       const promises = batch.map(row =>
         supabase
           .from("students")
-          .update({ closing_fees_balance: row.balance } as any)
+          .update({ closing_fees_balance: row.balance, fees_opening_is_net: false } as any)
           .eq("id", row.matchedStudentId!)
       );
       const results = await Promise.all(promises);
