@@ -4,6 +4,11 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface YearWiseBalanceLine {
+  year_name: string;
+  balance: number;
+}
+
 interface SchoolFeeReceiptProps {
   receiptNumber: string;
   paidDate: string;
@@ -19,10 +24,12 @@ interface SchoolFeeReceiptProps {
   items: { head_name: string; paying: number }[];
   totalPaying: number;
   remainingBalance: number;
+  /** When set, printed receipt shows pending per academic session (matches WhatsApp). */
+  yearWiseBalances?: YearWiseBalanceLine[];
 }
 
 export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps>(
-  ({ receiptNumber, paidDate, paymentMethod, transactionId, academicYear, student, items, totalPaying, remainingBalance }, ref) => {
+  ({ receiptNumber, paidDate, paymentMethod, transactionId, academicYear, student, items, totalPaying, remainingBalance, yearWiseBalances }, ref) => {
     const { currentOrganization } = useOrganization();
     const orgName = currentOrganization?.name || "School";
     const orgAddress = (currentOrganization as any)?.address || "";
@@ -212,16 +219,33 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
           </table>
 
           {/* Payment Info & Balance */}
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10pt", marginBottom: "5mm", position: "relative", zIndex: 1 }}>
-            <div>
-              <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {paymentMethod}</p>
-              {transactionId && <p style={{ margin: "2px 0" }}><strong>Transaction ID:</strong> {transactionId}</p>}
+          <div style={{ fontSize: "10pt", marginBottom: "5mm", position: "relative", zIndex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ margin: "2px 0" }}><strong>Payment Mode:</strong> {paymentMethod}</p>
+                {transactionId && <p style={{ margin: "2px 0" }}><strong>Transaction ID:</strong> {transactionId}</p>}
+              </div>
+              {!yearWiseBalances?.length && (
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ margin: "2px 0", fontSize: "11pt", fontWeight: 700 }}>
+                    Balance Due: ₹{remainingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
             </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ margin: "2px 0", fontSize: "11pt", fontWeight: 700 }}>
-                Balance Due: ₹{remainingBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </p>
-            </div>
+            {yearWiseBalances && yearWiseBalances.length > 0 && (
+              <div style={{ marginTop: "3mm", padding: "3mm", border: "1px solid #ccc", borderRadius: "2mm", background: "#fafafa" }}>
+                <p style={{ margin: "0 0 2mm", fontWeight: 700 }}>Pending by academic session</p>
+                {yearWiseBalances.map((row, idx) => (
+                  <p key={idx} style={{ margin: "2px 0", display: "flex", justifyContent: "space-between", gap: "8mm" }}>
+                    <span>{row.year_name} fees balance</span>
+                    <span style={{ fontWeight: 600 }}>
+                      ₹{row.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </span>
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Signature */}

@@ -1,0 +1,152 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type AcademicYearRow = {
+  id: string;
+  year_name: string | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+/** Matches FeeCollection.tsx resolveLiability */
+function resolveLiability(
+  student: { closing_fees_balance?: number | null; is_new_admission?: boolean | null },
+  structureTotal: number,
+  yearName?: string | null
+): number {
+  const importedBalance = Number(student?.closing_fees_balance) || 0;
+  const expected = Number(structureTotal) || 0;
+  const isNewAdmission = student?.is_new_admission === true;
+  const isLegacy2025 = yearName === "2025-26";
+
+  if (isNewAdmission) return importedBalance;
+  if (expected > 0) return expected + importedBalance;
+  if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
+  return importedBalance;
+}
+
+function getPreviousAcademicYear(target: AcademicYearRow, allChrono: AcademicYearRow[]): AcademicYearRow | null {
+  if (!target.start_date) return null;
+  const tStart = new Date(target.start_date);
+  const candidates = allChrono.filter((y) => y.end_date && new Date(y.end_date) < tStart);
+  if (!candidates.length) return null;
+  return candidates.sort(
+    (a, b) => new Date(b.end_date!).getTime() - new Date(a.end_date!).getTime()
+  )[0];
+}
+
+export type YearFeeBalanceRow = { yearId: string; year_name: string; balance: number };
+
+/**
+ * Pending fee balance per academic year for one student, using the same rules as Fee Collection.
+ */
+export async function computeYearWiseFeeBalances(
+  supabase: SupabaseClient,
+  organizationId: string,
+  student: {
+    id: string;
+    class_id: string | null;
+    closing_fees_balance: number | null;
+    is_new_admission: boolean | null;
+  },
+  options?: { maxYearsDisplay?: number }
+): Promise<YearFeeBalanceRow[]> {
+  const maxYears = options?.maxYearsDisplay ?? 6;
+
+  const { data: allYears, error: yErr } = await supabase
+    .from("academic_years")
+    .select("id, year_name, start_date, end_date")
+    .eq("organization_id", organizationId)
+    .order("start_date", { ascending: true });
+
+  if (yErr) throw yErr;
+  const yearsChrono: AcademicYearRow[] = allYears || [];
+
+  const { data: allFees } = await supabase
+    .from("student_fees")
+    .select("academic_year_id, paid_amount, status")
+    .eq("organization_id", organizationId)
+    .eq("student_id", student.id)
+    .in("status", ["paid", "partial"])
+    .gt("paid_amount", 0);
+
+  const paymentsByYear = new Map<string, number>();
+  (allFees || []).forEach((f: any) => {
+    if (f.status === "balance_adjustment") return;
+    const y = f.academic_year_id as string;
+    paymentsByYear.set(y, (paymentsByYear.get(y) || 0) + Number(f.paid_amount || 0));
+  });
+
+  const { data: allAdjustments } = await (supabase.from("student_balance_audit" as any) as any)
+    .select("academic_year_id, adjustment_type, change_amount")
+    .eq("organization_id", organizationId)
+    .eq("student_id", student.id);
+
+  const adjByYear = new Map<string, number>();
+  (allAdjustments || []).forEach((a: any) => {
+    const y = a.academic_year_id as string | undefined;
+    if (!y) return;
+    const delta =
+      a.adjustment_type === "credit"
+        ? (a.change_amount || 0)
+        : a.adjustment_type === "debit"
+          ? -(a.change_amount || 0)
+          : 0;
+    adjByYear.set(y, (adjByYear.get(y) || 0) + delta);
+  });
+
+  const yearIds = yearsChrono.map((y) => y.id);
+  let structureByYear = new Map<string, number>();
+  if (student.class_id && yearIds.length) {
+    const { data: structures } = await supabase
+      .from("fee_structures")
+      .select("academic_year_id, amount, frequency")
+      .eq("organization_id", organizationId)
+      .eq("class_id", student.class_id)
+      .in("academic_year_id", yearIds);
+
+    (structures || []).forEach((s: any) => {
+      const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
+      const y = s.academic_year_id as string;
+      structureByYear.set(y, (structureByYear.get(y) || 0) + (s.amount || 0) * mult);
+    });
+  }
+
+  const results: YearFeeBalanceRow[] = [];
+
+  for (const Y of yearsChrono) {
+    const previousYear = getPreviousAcademicYear(Y, yearsChrono);
+    let latePrevPaid = 0;
+    if (previousYear?.id) {
+      latePrevPaid = paymentsByYear.get(previousYear.id) || 0;
+    }
+
+    const importedBalance = Math.max(0, Number(student.closing_fees_balance || 0) - latePrevPaid);
+    const totalExpected = structureByYear.get(Y.id) || 0;
+    const liability = resolveLiability(
+      { ...student, closing_fees_balance: importedBalance },
+      totalExpected,
+      Y.year_name
+    );
+    const adjustmentNet = adjByYear.get(Y.id) || 0;
+    const totalDueGross = liability + adjustmentNet;
+    const paid = paymentsByYear.get(Y.id) || 0;
+    const totalDue = Math.max(0, Math.round((totalDueGross - paid) * 100) / 100);
+
+    results.push({
+      yearId: Y.id,
+      year_name: Y.year_name || "",
+      balance: totalDue,
+    });
+  }
+
+  const newestFirst = [...results].reverse();
+  return newestFirst.slice(0, maxYears);
+}
+
+export function formatYearWiseBalanceLines(rows: YearFeeBalanceRow[]): string {
+  if (!rows.length) return "";
+  return rows
+    .filter((r) => r.year_name)
+    .map((r) => `• ${r.year_name} fees balance: Rs.${r.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`)
+    .join("\n");
+}

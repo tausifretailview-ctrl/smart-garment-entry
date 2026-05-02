@@ -16,6 +16,11 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useReactToPrint } from "react-to-print";
 import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
+import {
+  computeYearWiseFeeBalances,
+  formatYearWiseBalanceLines,
+  type YearFeeBalanceRow,
+} from "@/lib/schoolFeeYearBalances";
 
 interface Student {
   id: string;
@@ -25,6 +30,7 @@ interface Student {
   parent_phone: string | null;
   parent_name: string | null;
   closing_fees_balance?: number | null;
+  is_new_admission?: boolean | null;
   school_classes?: { class_name: string } | null;
   school_sections?: { section_name: string } | null;
 }
@@ -87,6 +93,27 @@ function parseAcademicYearNameToFYYears(yearName?: string | null): { start: numb
     };
   }
   return { start: null, end: null };
+}
+
+function buildFeeReceiptWhatsAppMessage(opts: {
+  orgName: string;
+  receiptNumber: string;
+  paidDateLabel: string;
+  studentName: string;
+  admissionNo: string;
+  className: string;
+  totalPaying: number;
+  paymentMethod: string;
+  feeLines: string;
+  remainingBalance: number;
+  yearWiseBalances?: YearFeeBalanceRow[];
+}) {
+  const fmt = (n: number) => n.toLocaleString("en-IN", { minimumFractionDigits: 2 });
+  const yearBlock = formatYearWiseBalanceLines(opts.yearWiseBalances ?? []);
+  const balanceSection = yearBlock
+    ? `\n\nPending by academic session:\n${yearBlock}\n`
+    : `\nBalance (this session): Rs.${fmt(opts.remainingBalance)}\n`;
+  return `Fee Receipt\n\nRespected Sir/Madam,\n\n${opts.orgName}\n\nReceipt No: ${opts.receiptNumber}\nDate: ${opts.paidDateLabel}\nStudent: ${opts.studentName}\nAdmission No: ${opts.admissionNo}\nClass: ${opts.className}\n\nAmount Paid: Rs.${fmt(opts.totalPaying)}\nPayment Mode: ${opts.paymentMethod}${balanceSection}\n${opts.feeLines}\n\nThank you for your payment.\n\n${opts.orgName}`;
 }
 
 export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent, activeYearId }: FeeCollectionDialogProps) {
@@ -478,6 +505,25 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         return sum + i.balance;
       }, 0);
 
+      let yearWiseBalances: YearFeeBalanceRow[] = [];
+      try {
+        const { data: freshSt } = await supabase
+          .from("students")
+          .select("id, class_id, closing_fees_balance, is_new_admission")
+          .eq("id", student.id)
+          .single();
+        if (freshSt) {
+          yearWiseBalances = await computeYearWiseFeeBalances(supabase, currentOrganization.id, {
+            id: freshSt.id,
+            class_id: freshSt.class_id,
+            closing_fees_balance: freshSt.closing_fees_balance,
+            is_new_admission: freshSt.is_new_admission,
+          });
+        }
+      } catch (e) {
+        console.warn("Year-wise fee balances for receipt:", e);
+      }
+
       return {
         receiptNumber,
         paidDate,
@@ -487,6 +533,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         totalPaying: grandTotalPaying,
         remainingBalance,
         academicYear: usedYear?.year_name || "",
+        yearWiseBalances,
       };
     },
     onSuccess: async (data) => {
@@ -506,9 +553,22 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       if (autoSend && templateName && phone && whatsAppSettings?.is_active) {
         try {
           const feeLines = data.selectedItems.map((item: any) => `• ${item.head_name}: Rs.${item.paying.toLocaleString("en-IN")}`).join("\n");
+          const waMessage = buildFeeReceiptWhatsAppMessage({
+            orgName: currentOrganization?.name || "School",
+            receiptNumber: data.receiptNumber,
+            paidDateLabel: format(new Date(data.paidDate), "dd/MM/yyyy"),
+            studentName: student?.student_name || "-",
+            admissionNo: student?.admission_number || "",
+            className: student?.school_classes?.class_name || "-",
+            totalPaying: data.totalPaying,
+            paymentMethod: data.paymentMethod,
+            feeLines,
+            remainingBalance: data.remainingBalance ?? 0,
+            yearWiseBalances: data.yearWiseBalances,
+          });
           await sendMessageAsync({
             phone,
-            message: `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${data.receiptNumber}\nDate: ${format(new Date(data.paidDate), "dd/MM/yyyy")}\nStudent: ${student?.student_name || "-"}\nAdmission No: ${student?.admission_number}\nClass: ${student?.school_classes?.class_name || "-"}\n\nAmount Paid: Rs.${data.totalPaying.toLocaleString("en-IN")}\nPayment Mode: ${data.paymentMethod}\n\n${feeLines}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`,
+            message: waMessage,
             templateType: "fee_receipt",
             templateName,
             imageUrl: logoUrl || undefined,
@@ -524,6 +584,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
               organization_name: currentOrganization?.name || "",
               date: format(new Date(data.paidDate), "dd/MM/yyyy"),
               balance: data.remainingBalance ?? 0,
+              year_wise_balances: formatYearWiseBalanceLines(data.yearWiseBalances ?? []),
             },
           });
           toast.success("WhatsApp receipt sent!");
@@ -589,6 +650,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             }))}
             totalPaying={receiptData.totalPaying}
             remainingBalance={receiptData.remainingBalance ?? 0}
+            yearWiseBalances={receiptData.yearWiseBalances}
           />
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => { setShowReceipt(false); setReceiptData(null); onOpenChange(false); }}>Close</Button>
@@ -599,7 +661,19 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
                 const phone = student.parent_phone;
                 if (!phone) { toast.error("No phone number found for this student"); return; }
                 const feeLines = receiptData.selectedItems.map((item: any) => `• ${item.head_name}: Rs.${item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`).join("\n");
-                const msg = `Fee Receipt\n\nRespected Sir/Madam,\n\n${currentOrganization?.name || "School"}\n\nReceipt No: ${receiptData.receiptNumber}\nDate: ${format(new Date(receiptData.paidDate), "dd/MM/yyyy")}\nStudent: ${student.student_name || "-"}\nAdmission No: ${student.admission_number}\nClass: ${student.school_classes?.class_name || "-"}\n\nAmount Paid: Rs.${receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nPayment Mode: ${receiptData.paymentMethod}\nBalance: Rs.${(receiptData.remainingBalance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n\n${feeLines}\n\nThank you for your payment.\n\n${currentOrganization?.name || "School"}`;
+                const msg = buildFeeReceiptWhatsAppMessage({
+                  orgName: currentOrganization?.name || "School",
+                  receiptNumber: receiptData.receiptNumber,
+                  paidDateLabel: format(new Date(receiptData.paidDate), "dd/MM/yyyy"),
+                  studentName: student.student_name || "-",
+                  admissionNo: student.admission_number || "",
+                  className: student.school_classes?.class_name || "-",
+                  totalPaying: receiptData.totalPaying,
+                  paymentMethod: receiptData.paymentMethod,
+                  feeLines,
+                  remainingBalance: receiptData.remainingBalance ?? 0,
+                  yearWiseBalances: receiptData.yearWiseBalances,
+                });
                 sendWhatsApp(phone, msg);
               }}
             >
