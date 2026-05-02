@@ -106,6 +106,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
   const [manualFeeEnabled, setManualFeeEnabled] = useState(false);
   const [manualFeeName, setManualFeeName] = useState("Other Fees");
   const [manualFeeAmount, setManualFeeAmount] = useState<number>(0);
+  /** True after initial academic-year sync for this dialog open — avoids resetting user dropdown when queries refetch. */
+  const academicYearInitializedRef = useRef(false);
 
   // Fetch organization logo URL for WhatsApp messages
   const { data: orgLogoSettings } = useQuery({
@@ -180,16 +182,20 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     enabled: !!currentOrganization?.id,
   });
 
-  // When dialog opens, reset academic year so we never reuse a stale year from a previous session.
-  // Prefer parent filter (Fee Collection page), else DB current year.
+  // Initialize academic year once when the dialog opens. Do not overwrite the dropdown when
+  // currentYear (or other deps) refetches while the user has already chosen a different year.
   const activeYear = allAcademicYears.find((y: any) => y.id === selectedYearId) || currentYear;
   useEffect(() => {
-    if (!open) return;
-    if (activeYearId) {
-      setSelectedYearId(activeYearId);
+    if (!open) {
+      academicYearInitializedRef.current = false;
       return;
     }
-    setSelectedYearId(currentYear?.id ?? "");
+    if (!academicYearInitializedRef.current) {
+      academicYearInitializedRef.current = true;
+      setSelectedYearId(activeYearId ?? currentYear?.id ?? "");
+      return;
+    }
+    setSelectedYearId((prev) => prev || activeYearId || currentYear?.id || "");
   }, [open, activeYearId, currentYear?.id]);
 
   // Reset manual fee toggle when student or year changes
