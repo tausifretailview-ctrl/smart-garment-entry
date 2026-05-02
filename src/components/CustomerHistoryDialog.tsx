@@ -303,12 +303,25 @@ export function CustomerHistoryDialog({
     queryKey: ["school-customer-fees", customerId, organizationId],
     queryFn: async () => {
       if (!customerId || !organizationId) return null;
-      const { data: student } = await supabase
+      const sel =
+        "id, closing_fees_balance, class_id, is_new_admission, academic_year_id, fees_opening_is_net";
+      let student: any = null;
+      const { data: byCustomer } = await supabase
         .from("students")
-        .select("id, closing_fees_balance, class_id, is_new_admission, academic_year_id, fees_opening_is_net")
+        .select(sel)
         .eq("customer_id", customerId)
         .eq("organization_id", organizationId)
         .maybeSingle();
+      if (byCustomer) student = byCustomer;
+      else {
+        const { data: byStudentId } = await supabase
+          .from("students")
+          .select(sel)
+          .eq("id", customerId)
+          .eq("organization_id", organizationId)
+          .maybeSingle();
+        student = byStudentId;
+      }
       if (!student) return null;
 
       const { data: allYears } = await supabase

@@ -52,6 +52,8 @@ interface Customer {
   admissionNumber?: string;
   className?: string;
   division?: string;
+  /** When fees are shown per student, this is the linked `customers.id` (if any). */
+  customerRecordId?: string | null;
 }
 
 interface Transaction {
@@ -135,7 +137,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const queryClient = useQueryClient();
   const { balance: authoritativeBalance } = useCustomerBalance(
-    selectedCustomer?.id || null,
+    isSchool ? null : selectedCustomer?.id || null,
     organizationId || null
   );
 
@@ -192,20 +194,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL customers using range pagination (bypasses 1000-row limit)
       const customersData = await fetchAllCustomers(organizationId);
 
-      // For school orgs, fetch linked student data
-      let studentMap = new Map<string, any>(); // customer_id -> student record
+      // For school orgs: one ledger row per student (fee data lives on students).
+      // `student.customer_id` is often unset — do not require it to match a customer row.
       if (isSchool) {
-        const { data: students } = await supabase
+        const { data: studentsRows } = await supabase
           .from('students')
-          .select('id, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, is_new_admission, school_classes(class_name)')
+          .select('id, student_name, parent_phone, parent_email, customer_id, admission_number, closing_fees_balance, class_id, division, academic_year_id, fees_opening_is_net, is_new_admission, school_classes(class_name)')
           .eq('organization_id', organizationId)
           .is('deleted_at', null);
-        
-        students?.forEach((s: any) => {
-          if (s.customer_id) {
-            studentMap.set(s.customer_id, s);
-          }
-        });
+
+        const studentsList = studentsRows || [];
+        const customerById = new Map<string, any>(customersData.map((c: any) => [c.id, c]));
 
         // Resolve target academic year from selected range (full FY resolution)
         const { data: allYears } = await supabase
@@ -322,8 +321,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
 
         let pendingAllSessionsByStudent = new Map<string, number>();
-        if (selectedAcademicYearId === "all" && studentMap.size > 0) {
-          const batchPayload = Array.from(studentMap.values()).map((s: any) => ({
+        if (selectedAcademicYearId === "all" && studentsList.length > 0) {
+          const batchPayload = studentsList.map((s: any) => ({
             id: s.id,
             class_id: s.class_id ?? null,
             academic_year_id: s.academic_year_id ?? null,
@@ -338,74 +337,85 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           );
         }
 
-        // Build school customer totals — mirror fee collection logic:
-        // If fee structures exist for student's class, use structure total as expected
-        // Otherwise fall back to closing_fees_balance
-        const customerTotals = customersData.map((customer: any) => {
-          const student = studentMap.get(customer.id);
-          if (student) {
-            const structureTotal = classExpectedMap.get(student.class_id) || 0;
-            const hasStructures = structureTotal > 0;
-            const importedBalance = Number(student.closing_fees_balance || 0);
-            // Mamta Footwear customer balance reconciliation - Apr 2026:
-            // both structure and opening-balance students must use the resolved target year's receipts only.
-            const paidForBalance = studentPaidInYear.get(student.id) || 0;
-            const totalPaidDisplay =
-              selectedAcademicYearId === 'all'
-                ? studentPaidAllYears.get(student.id) || 0
-                : paidForBalance;
+        const studentLinkedCustomerIds = new Set(
+          studentsList.map((s: any) => s.customer_id).filter(Boolean) as string[]
+        );
 
-            // Carry forward opening should remain visible even when current year has structures.
-            const latePrevYearPaid = latePrevYearPaidByStudent.get(student.id) || 0;
-            const openingBalance = resolveImportedOpeningBalance(
-              importedBalance,
-              latePrevYearPaid,
-              student.fees_opening_is_net === true && student.academic_year_id === effectiveTargetYear?.id
-            );
-
-            if (selectedAcademicYearId === "all") {
-              const pendingSum = pendingAllSessionsByStudent.get(student.id) ?? 0;
-              const balance = Math.round(pendingSum);
-              const totalSales = Math.round(totalPaidDisplay + pendingSum);
-              return {
-                ...customer,
-                opening_balance: Math.round(openingBalance),
-                totalSales,
-                totalPaid: Math.round(totalPaidDisplay),
-                balance,
-                studentId: student.id,
-                admissionNumber: student.admission_number,
-                className: (student as any).school_classes?.class_name || '',
-                division: student.division || '',
-                hasStructures,
+        // Build school ledger rows — one row per student; merge `customers` when linked.
+        const customerTotals = studentsList.map((student: any) => {
+          const linked = student.customer_id ? customerById.get(student.customer_id) : undefined;
+          const base: any = linked
+            ? { ...linked }
+            : {
+                id: student.id,
+                customer_name: student.student_name || "",
+                phone: student.parent_phone ?? null,
+                email: student.parent_email ?? null,
+                address: null as string | null,
+                gst_number: null as string | null,
+                points_balance: null as number | null,
+                discount_percent: null as number | null,
+                opening_balance: 0,
               };
-            }
 
+          const structureTotal = classExpectedMap.get(student.class_id) || 0;
+          const hasStructures = structureTotal > 0;
+          const importedBalance = Number(student.closing_fees_balance || 0);
+          const paidForBalance = studentPaidInYear.get(student.id) || 0;
+          const totalPaidDisplay =
+            selectedAcademicYearId === "all"
+              ? studentPaidAllYears.get(student.id) || 0
+              : paidForBalance;
+
+          const latePrevYearPaid = latePrevYearPaidByStudent.get(student.id) || 0;
+          const openingBalance = resolveImportedOpeningBalance(
+            importedBalance,
+            latePrevYearPaid,
+            student.fees_opening_is_net === true && student.academic_year_id === effectiveTargetYear?.id
+          );
+
+          let totalSales: number;
+          let balance: number;
+
+          if (selectedAcademicYearId === "all") {
+            const pendingSum = pendingAllSessionsByStudent.get(student.id) ?? 0;
+            balance = Math.round(pendingSum);
+            totalSales = Math.round(totalPaidDisplay + pendingSum);
+          } else {
             const expectedTotal = openingBalance + (hasStructures ? structureTotal : 0);
-            const balance = Math.round(expectedTotal - paidForBalance);
-
-            return {
-              ...customer,
-              opening_balance: Math.round(openingBalance),
-              totalSales: Math.round(expectedTotal),
-              totalPaid: Math.round(totalPaidDisplay),
-              balance,
-              studentId: student.id,
-              admissionNumber: student.admission_number,
-              className: (student as any).school_classes?.class_name || '',
-              division: student.division || '',
-              hasStructures,
-            };
+            balance = Math.round(expectedTotal - paidForBalance);
+            totalSales = Math.round(expectedTotal);
           }
-          // Non-student customer in school org - show with zero balance
+
           return {
+            ...base,
+            id: student.id,
+            customerRecordId: student.customer_id ?? null,
+            customer_name: student.student_name || base.customer_name || "",
+            phone: student.parent_phone ?? base.phone,
+            email: student.parent_email ?? base.email,
+            opening_balance: Math.round(openingBalance),
+            totalSales,
+            totalPaid: Math.round(totalPaidDisplay),
+            balance,
+            studentId: student.id,
+            admissionNumber: student.admission_number,
+            className: student.school_classes?.class_name || "",
+            division: student.division || "",
+            hasStructures,
+          };
+        });
+
+        const orphanCustomers = customersData.filter((c: any) => !studentLinkedCustomerIds.has(c.id));
+        for (const customer of orphanCustomers) {
+          customerTotals.push({
             ...customer,
             opening_balance: Math.round(customer.opening_balance || 0),
             totalSales: 0,
             totalPaid: 0,
             balance: Math.round(customer.opening_balance || 0),
-          };
-        });
+          });
+        }
 
         return customerTotals;
       }
@@ -654,19 +664,28 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   // Auto-select customer when preSelectedCustomerId is provided and data is loaded
   useEffect(() => {
     if (preSelectedCustomerId && customers && customers.length > 0 && !selectedCustomer) {
-      const found = customers.find((c: Customer) => c.id === preSelectedCustomerId);
+      const found = customers.find(
+        (c: any) =>
+          c.id === preSelectedCustomerId ||
+          c.customerRecordId === preSelectedCustomerId ||
+          (isSchool && c.studentId === preSelectedCustomerId)
+      );
       if (found) {
         setSelectedCustomer(found);
       }
     }
-  }, [preSelectedCustomerId, customers, selectedCustomer]);
+  }, [preSelectedCustomerId, customers, selectedCustomer, isSchool]);
 
   // Keep detail header cards in sync when academic year (or list data) changes — opening/totalPaid/balance are year-scoped.
   useEffect(() => {
     if (!selectedCustomer?.id || !customers?.length) return;
-    const fresh = customers.find((c: Customer) => c.id === selectedCustomer.id);
+    const fresh = customers.find((c: any) =>
+      selectedCustomer.studentId
+        ? c.studentId === selectedCustomer.studentId
+        : c.id === selectedCustomer.id
+    );
     if (fresh) setSelectedCustomer(fresh);
-  }, [customers, selectedCustomer?.id]);
+  }, [customers, selectedCustomer?.id, selectedCustomer?.studentId]);
 
   // Fetch detailed transactions for selected customer
   const { data: transactions } = useQuery({
