@@ -400,7 +400,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           transaction_id: transactionId || null,
           payment_receipt_id: receiptNumber,
           status: "paid",
-          remarks: manualFeeName || "Other Fees",
+          notes: manualFeeName || "Other Fees",
         } as any);
         if (manualErr) throw manualErr;
         manualRowItems.push({ head_name: manualFeeName || "Other Fees", paying: manualAmt });
