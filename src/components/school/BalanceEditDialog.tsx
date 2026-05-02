@@ -215,6 +215,9 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
       queryClient.invalidateQueries({ queryKey: ["students-fee-collection"] });
       queryClient.invalidateQueries({ queryKey: ["fee-collection-summary"] });
       queryClient.invalidateQueries({ queryKey: ["student-fee-payments-history"] });
+      queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
+      queryClient.invalidateQueries({ queryKey: ["student-balance-audit"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       toast.success("Balance adjusted successfully");
       setSavedVoucher(data);
       setConfirming(false);
