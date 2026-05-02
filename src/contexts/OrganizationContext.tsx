@@ -218,6 +218,24 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!currentOrganization?.id || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { seedDefaultAccounts } = await import("@/utils/accounting/seedDefaultAccounts");
+        await seedDefaultAccounts(currentOrganization.id, supabase);
+      } catch (e) {
+        if (!cancelled && import.meta.env.DEV) {
+          console.warn("Default chart of accounts seed:", e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentOrganization?.id, user?.id]);
+
   const switchOrganization = async (orgId: string) => {
     if (!user) return;
     const org = organizations.find((o) => o.id === orgId);

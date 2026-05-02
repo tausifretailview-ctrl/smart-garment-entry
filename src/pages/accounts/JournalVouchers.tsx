@@ -1,7 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, BookText, ChevronDown, ChevronUp } from "lucide-react";
+import { CalendarIcon, BookText, ChevronDown, ChevronUp, Info } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -14,6 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { seedDefaultAccounts } from "@/utils/accounting/seedDefaultAccounts";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type RefTypeFilter =
   | "all"
@@ -74,6 +76,22 @@ export default function JournalVouchers() {
   const [referenceType, setReferenceType] = useState<RefTypeFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const { data: accountingSettings } = useQuery({
+    queryKey: ["settings-accounting-flag", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { accounting_engine_enabled?: boolean } | null;
+    },
+  });
+
+  const engineOn = Boolean(accountingSettings?.accounting_engine_enabled);
+
   const { data: entries = [], isLoading } = useQuery({
     queryKey: [
       "journal-vouchers",
@@ -84,6 +102,7 @@ export default function JournalVouchers() {
     ],
     enabled: !!currentOrganization?.id,
     queryFn: async (): Promise<JournalEntryRow[]> => {
+      await seedDefaultAccounts(currentOrganization!.id, supabase);
       let query = (supabase as any)
         .from("journal_entries")
         .select("id, date, reference_type, reference_id, description, total_amount")
@@ -139,6 +158,19 @@ export default function JournalVouchers() {
           </div>
         </div>
       </div>
+
+      {!engineOn && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>Accounting engine is off for this organization</AlertTitle>
+          <AlertDescription>
+            New sales, purchases, receipts, and vouchers will not post to the day book until{" "}
+            <strong>settings.accounting_engine_enabled</strong> is <strong>true</strong> for this organization (update
+            via Supabase or your admin runbook). Existing journals in the selected date range still appear below.
+            Standard chart heads are created when you open Chart of Accounts or when this org is selected in the app.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardContent className="pt-6">

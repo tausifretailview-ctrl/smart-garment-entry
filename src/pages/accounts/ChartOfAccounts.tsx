@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { seedDefaultAccounts } from "@/utils/accounting/seedDefaultAccounts";
 
 type AccountType = "Asset" | "Liability" | "Equity" | "Revenue" | "Expense";
 
@@ -41,6 +42,7 @@ export default function ChartOfAccounts() {
     queryKey: ["chart-of-accounts", currentOrganization?.id],
     enabled: !!currentOrganization?.id,
     queryFn: async (): Promise<AccountRow[]> => {
+      await seedDefaultAccounts(currentOrganization!.id, supabase);
       const { data, error } = await (supabase as any)
         .from("chart_of_accounts")
         .select("id, account_code, account_name, account_type, parent_account_id, is_system_account")

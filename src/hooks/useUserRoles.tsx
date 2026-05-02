@@ -40,7 +40,10 @@ export const useUserRoles = (organizationId?: string) => {
         const allRoles: AppRole[] = globalRoles?.map((r: any) => r.role as AppRole) || [];
 
         // Also fetch organization-specific role if organization is available
-        const orgId = organizationId || localStorage.getItem("selectedOrgId");
+        const orgId =
+          organizationId ||
+          (user.id ? localStorage.getItem(`currentOrgId_${user.id}`) : null) ||
+          localStorage.getItem("selectedOrgId");
         if (orgId) {
           const { data: orgMember, error: orgError } = await supabase
             .from("organization_members")
