@@ -577,6 +577,7 @@ export async function recordCustomerCreditNoteApplicationJournalEntry(
  *   CR Sales Revenue = netAmount
  *   DR Cash/Bank = paidAmount
  *   DR Accounts Receivable = balance
+ * @param entryDate Optional `YYYY-MM-DD` for the journal header (defaults to today).
  */
 export async function recordSaleJournalEntry(
   saleId: string,
@@ -584,7 +585,8 @@ export async function recordSaleJournalEntry(
   netAmount: number,
   paidAmount: number,
   paymentMethod: string,
-  client: any = supabase
+  client: any = supabase,
+  entryDate?: string
 ) {
   if (!saleId) throw new Error("saleId is required");
   if (!organizationId) throw new Error("organizationId is required");
@@ -617,10 +619,13 @@ export async function recordSaleJournalEntry(
     lines.push({ accountId: arAccount.id, debitAmount: receivable, creditAmount: 0 });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const journalDate =
+    entryDate && /^\d{4}-\d{2}-\d{2}/.test(entryDate)
+      ? entryDate.slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
   const result = await postJournalEntry({
     organizationId,
-    date: today,
+    date: journalDate,
     referenceType: "Sale",
     referenceId: saleId,
     description: `Auto journal for sale ${saleId}`,
@@ -635,6 +640,7 @@ export async function recordSaleJournalEntry(
  *   DR Cost of Goods Sold = netAmount
  *   CR Cash/Bank = paidAmount
  *   CR Accounts Payable = balance
+ * @param entryDate Optional `YYYY-MM-DD` for the journal header (defaults to today).
  */
 export async function recordPurchaseJournalEntry(
   purchaseId: string,
@@ -642,7 +648,8 @@ export async function recordPurchaseJournalEntry(
   netAmount: number,
   paidAmount: number,
   paymentMethod: string,
-  client: any = supabase
+  client: any = supabase,
+  entryDate?: string
 ) {
   if (!purchaseId) throw new Error("purchaseId is required");
   if (!organizationId) throw new Error("organizationId is required");
@@ -675,10 +682,13 @@ export async function recordPurchaseJournalEntry(
     lines.push({ accountId: apAccount.id, debitAmount: 0, creditAmount: payable });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const journalDate =
+    entryDate && /^\d{4}-\d{2}-\d{2}/.test(entryDate)
+      ? entryDate.slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
   const result = await postJournalEntry({
     organizationId,
-    date: today,
+    date: journalDate,
     referenceType: "Purchase",
     referenceId: purchaseId,
     description: `Auto journal for purchase ${purchaseId}`,

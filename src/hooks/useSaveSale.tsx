@@ -9,7 +9,7 @@ import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
-import { recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import { deleteJournalEntryByReference, recordSaleJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface CartItem {
@@ -459,13 +459,18 @@ export const useSaveSale = () => {
       // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
       if (accountingEngineOn) {
         try {
+          const saleJournalDate =
+            sale.sale_date != null
+              ? String(sale.sale_date).slice(0, 10)
+              : new Date().toISOString().slice(0, 10);
           await recordSaleJournalEntry(
             sale.id,
             currentOrganization.id,
             Number(saleData.netAmount || 0),
             Number(paidAmt || 0),
             String(finalPaymentMethod || ""),
-            supabase
+            supabase,
+            saleJournalDate
           );
           await (supabase as any)
             .from("sales")
@@ -1028,20 +1033,26 @@ export const useSaveSale = () => {
       // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
       if (accountingEngineOn) {
         try {
+          await deleteJournalEntryByReference(currentOrganization.id, "Sale", saleId, supabase);
+          const saleJournalDate =
+            sale.sale_date != null
+              ? String(sale.sale_date).slice(0, 10)
+              : new Date().toISOString().slice(0, 10);
           await recordSaleJournalEntry(
             sale.id,
             currentOrganization.id,
             Number(saleData.netAmount || 0),
             Number(paidAmt || 0),
             String(finalPaymentMethod || ""),
-            supabase
+            supabase,
+            saleJournalDate
           );
           await (supabase as any)
             .from("sales")
             .update({ journal_status: "posted", journal_error: null })
             .eq("id", sale.id);
         } catch (journalErr) {
-          console.error("Auto-journal (resumed held sale) failed:", journalErr);
+          console.error("Auto-journal (sale update) failed:", journalErr);
           await (supabase as any)
             .from("sales")
             .update({

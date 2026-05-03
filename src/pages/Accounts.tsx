@@ -31,7 +31,11 @@ import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdj
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchAllCustomers, fetchAllSalesSummary, fetchAllSuppliers } from "@/utils/fetchAllRows";
-import { recordPurchaseJournalEntry, recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import {
+  deleteJournalEntryByReference,
+  recordPurchaseJournalEntry,
+  recordSaleJournalEntry,
+} from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 // Extracted tab components
@@ -153,7 +157,7 @@ export default function Accounts() {
       const [{ data: failedSales, error: salesErr }, { data: failedPurchases, error: purchaseErr }] = await Promise.all([
         supabase
           .from("sales")
-          .select("id, created_at, net_amount, paid_amount, payment_method, journal_error")
+          .select("id, created_at, sale_date, net_amount, paid_amount, payment_method, journal_error")
           .eq("organization_id", currentOrganization!.id)
           .eq("journal_status", "failed")
           .is("deleted_at", null)
@@ -161,7 +165,7 @@ export default function Accounts() {
           .limit(100),
         supabase
           .from("purchase_bills")
-          .select("id, created_at, software_bill_no, net_amount, paid_amount, journal_error")
+          .select("id, created_at, bill_date, software_bill_no, net_amount, paid_amount, journal_error")
           .eq("organization_id", currentOrganization!.id)
           .eq("journal_status", "failed")
           .is("deleted_at", null)
@@ -181,6 +185,7 @@ export default function Accounts() {
         paid_amount: Number(s.paid_amount || 0),
         payment_method: String(s.payment_method || "pay_later"),
         journal_error: s.journal_error as string | null,
+        entry_date: s.sale_date != null ? String(s.sale_date).slice(0, 10) : undefined,
       }));
 
       const purchaseRows = (failedPurchases || []).map((p: any) => ({
@@ -192,6 +197,7 @@ export default function Accounts() {
         paid_amount: Number(p.paid_amount || 0),
         payment_method: "pay_later",
         journal_error: p.journal_error as string | null,
+        entry_date: p.bill_date != null ? String(p.bill_date).slice(0, 10) : undefined,
       }));
 
       return [...salesRows, ...purchaseRows].sort(
@@ -207,30 +213,35 @@ export default function Accounts() {
       net_amount: number;
       paid_amount: number;
       payment_method: string;
+      entry_date?: string;
     }) => {
       if (!currentOrganization?.id) throw new Error("Organization is required");
 
       if (row.source === "sale") {
+        await deleteJournalEntryByReference(currentOrganization.id, "Sale", row.id, supabase);
         await recordSaleJournalEntry(
           row.id,
           currentOrganization.id,
           Number(row.net_amount || 0),
           Number(row.paid_amount || 0),
           String(row.payment_method || "pay_later"),
-          supabase
+          supabase,
+          row.entry_date
         );
         await supabase
           .from("sales")
           .update({ journal_status: "posted", journal_error: null })
           .eq("id", row.id);
       } else {
+        await deleteJournalEntryByReference(currentOrganization.id, "Purchase", row.id, supabase);
         await recordPurchaseJournalEntry(
           row.id,
           currentOrganization.id,
           Number(row.net_amount || 0),
           Number(row.paid_amount || 0),
           String(row.payment_method || "pay_later"),
-          supabase
+          supabase,
+          row.entry_date
         );
         await supabase
           .from("purchase_bills")
@@ -270,6 +281,7 @@ export default function Accounts() {
       net_amount: number;
       paid_amount: number;
       payment_method: string;
+      entry_date?: string;
     }>) => {
       if (!rows.length) return { success: 0, failed: 0 };
       let success = 0;
@@ -277,26 +289,30 @@ export default function Accounts() {
       for (const row of rows) {
         try {
           if (row.source === "sale") {
+            await deleteJournalEntryByReference(currentOrganization!.id, "Sale", row.id, supabase);
             await recordSaleJournalEntry(
               row.id,
               currentOrganization!.id,
               Number(row.net_amount || 0),
               Number(row.paid_amount || 0),
               String(row.payment_method || "pay_later"),
-              supabase
+              supabase,
+              row.entry_date
             );
             await supabase
               .from("sales")
               .update({ journal_status: "posted", journal_error: null })
               .eq("id", row.id);
           } else {
+            await deleteJournalEntryByReference(currentOrganization!.id, "Purchase", row.id, supabase);
             await recordPurchaseJournalEntry(
               row.id,
               currentOrganization!.id,
               Number(row.net_amount || 0),
               Number(row.paid_amount || 0),
               String(row.payment_method || "pay_later"),
-              supabase
+              supabase,
+              row.entry_date
             );
             await supabase
               .from("purchase_bills")

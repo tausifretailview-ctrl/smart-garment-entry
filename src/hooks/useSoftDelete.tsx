@@ -156,7 +156,7 @@ export function useSoftDelete() {
           if (pbError) throw pbError;
           const { data: billRow } = await supabase
             .from("purchase_bills")
-            .select("organization_id, net_amount, paid_amount")
+            .select("organization_id, net_amount, paid_amount, bill_date")
             .eq("id", id)
             .maybeSingle();
           if (billRow?.organization_id) {
@@ -167,13 +167,16 @@ export function useSoftDelete() {
               .maybeSingle();
             if (isAccountingEngineEnabled(setB as { accounting_engine_enabled?: boolean } | null)) {
               try {
+                const billYmd =
+                  billRow.bill_date != null ? String(billRow.bill_date).slice(0, 10) : undefined;
                 await recordPurchaseJournalEntry(
                   id,
                   billRow.organization_id,
                   Number(billRow.net_amount) || 0,
                   Number(billRow.paid_amount ?? 0),
                   "pay_later",
-                  supabase
+                  supabase,
+                  billYmd
                 );
               } catch (glErr) {
                 console.error("Repost Purchase journal after restore:", glErr);
@@ -194,7 +197,7 @@ export function useSoftDelete() {
           if (saleRestErr) throw saleRestErr;
           const { data: saleRow } = await supabase
             .from("sales")
-            .select("organization_id, net_amount, paid_amount, payment_method")
+            .select("organization_id, net_amount, paid_amount, payment_method, sale_date")
             .eq("id", id)
             .maybeSingle();
           if (saleRow?.organization_id) {
@@ -205,13 +208,16 @@ export function useSoftDelete() {
               .maybeSingle();
             if (isAccountingEngineEnabled(setS as { accounting_engine_enabled?: boolean } | null)) {
               try {
+                const saleYmd =
+                  saleRow.sale_date != null ? String(saleRow.sale_date).slice(0, 10) : undefined;
                 await recordSaleJournalEntry(
                   id,
                   saleRow.organization_id,
                   Number(saleRow.net_amount) || 0,
                   Number(saleRow.paid_amount ?? 0),
                   String(saleRow.payment_method || "cash"),
-                  supabase
+                  supabase,
+                  saleYmd
                 );
               } catch (glErr) {
                 console.error("Repost Sale journal after restore:", glErr);

@@ -60,7 +60,7 @@ import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
-import { recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
+import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface PriceChange {
@@ -2983,6 +2983,48 @@ const PurchaseEntry = () => {
           }
         }
 
+        if (accountingEngineOn && editingBillId) {
+          const editNet = isDcPurchase
+            ? calculatedGrossAfterDiscount + otherCharges + roundOff
+            : calculatedNet;
+          const editBillId = editingBillId;
+          const { data: billAfter } = await supabase
+            .from("purchase_bills")
+            .select("paid_amount")
+            .eq("id", editBillId)
+            .single();
+          try {
+            await deleteJournalEntryByReference(
+              currentOrganization!.id,
+              "Purchase",
+              editBillId,
+              supabase
+            );
+            await recordPurchaseJournalEntry(
+              editBillId,
+              currentOrganization!.id,
+              editNet,
+              Number(billAfter?.paid_amount ?? 0),
+              "pay_later",
+              supabase,
+              format(billDate, "yyyy-MM-dd")
+            );
+            await (supabase as any)
+              .from("purchase_bills")
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", editBillId);
+          } catch (journalErr) {
+            console.error("Auto-journal (purchase edit) failed:", journalErr);
+            await (supabase as any)
+              .from("purchase_bills")
+              .update({
+                journal_status: "failed",
+                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+              })
+              .eq("id", editBillId);
+          }
+        }
+
         // Check for price changes and show dialog if any
         const priceChanges = await detectPriceChanges(lineItems);
         if (priceChanges.length > 0) {
@@ -3131,7 +3173,8 @@ const PurchaseEntry = () => {
               Number((billDataResult as any)?.net_amount ?? (isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet)),
               Number((billDataResult as any)?.paid_amount ?? 0),
               String((billDataResult as any)?.payment_method || "pay_later"),
-              supabase
+              supabase,
+              format(billDate, "yyyy-MM-dd")
             );
             await (supabase as any)
               .from("purchase_bills")

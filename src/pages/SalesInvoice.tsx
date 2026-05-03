@@ -2493,7 +2493,8 @@ Thank you for choosing us!`;
               Number(netAmount || 0),
               Number(paymentOverride?.totalPaid || 0),
               String(paymentOverride?.method || "pay_later"),
-              supabase
+              supabase,
+              format(invoiceDate, "yyyy-MM-dd")
             );
             await (supabase as any)
               .from("sales")
