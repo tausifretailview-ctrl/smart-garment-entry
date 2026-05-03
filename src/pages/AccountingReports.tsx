@@ -32,7 +32,7 @@ import {
   calculateGlAccountLedger,
   GL_CUMULATIVE_FROM_DATE,
   fetchProfitAndLoss,
-  buildGlBalanceSheetFromTrial,
+  fetchGlBalanceSheet as loadGlBalanceSheetReport,
   calculateProfitLoss,
   calculateBalanceSheet,
   calculateNetProfitSummary,
@@ -41,6 +41,7 @@ import {
   TrialBalanceEntry,
   GlTrialBalanceEntry,
   GlProfitAndLossReport,
+  GlBalanceSheetReport,
   GlAccountLedgerRow,
   ProfitLossData,
   BalanceSheetData,
@@ -234,7 +235,7 @@ export default function AccountingReports() {
   const [glTrialBalance, setGlTrialBalance] = useState<GlTrialBalanceEntry[]>([]);
   const [glTrialMode, setGlTrialMode] = useState<"cumulative" | "period">("cumulative");
   const [glPnlReport, setGlPnlReport] = useState<GlProfitAndLossReport | null>(null);
-  const [glBsRows, setGlBsRows] = useState<GlTrialBalanceEntry[]>([]);
+  const [glBsReport, setGlBsReport] = useState<GlBalanceSheetReport | null>(null);
   const [glLedgerOpen, setGlLedgerOpen] = useState(false);
   const [glLedgerAccount, setGlLedgerAccount] = useState<GlTrialBalanceEntry | null>(null);
   const [glLedgerRows, setGlLedgerRows] = useState<GlAccountLedgerRow[]>([]);
@@ -340,11 +341,12 @@ export default function AccountingReports() {
     if (!currentOrganization?.id) return;
     setLoading(true);
     try {
-      const data = await calculateGlTrialBalance(currentOrganization.id, asOfDate);
-      setGlBsRows(data);
+      const data = await loadGlBalanceSheetReport(currentOrganization.id, asOfDate, supabase);
+      setGlBsReport(data);
     } catch (error) {
       toast.error("Failed to load GL balance sheet");
       console.error(error);
+      setGlBsReport(null);
     }
     setLoading(false);
   };
@@ -495,21 +497,29 @@ export default function AccountingReports() {
       ];
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, "GL P&L");
-    } else if (
-      activeTab === "gl-balance-sheet" &&
-      glBsSummary &&
-      glBsSummary.assetLines.length + glBsSummary.liabilityLines.length + glBsSummary.equityLines.length > 0
-    ) {
+    } else if (activeTab === "gl-balance-sheet" && glBsReport) {
+      const eqRows = [
+        ...glBsReport.equityLinesPosted.map((l) => ({
+          Section: "",
+          Particulars: `${l.accountCode} ${l.accountName}`,
+          Amount: l.amount,
+        })),
+        {
+          Section: "",
+          Particulars: `${glBsReport.retainedEarningsLine.accountCode} ${glBsReport.retainedEarningsLine.accountName}`,
+          Amount: glBsReport.retainedEarningsLine.amount,
+        },
+      ];
       const rows = [
         { Section: "ASSETS", Particulars: "", Amount: "" as number | string },
-        ...glBsSummary.assetLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
-        { Section: "", Particulars: "Total assets", Amount: glBsSummary.totalAssets },
+        ...glBsReport.assetLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Section: "", Particulars: "Total assets", Amount: glBsReport.totalAssets },
         { Section: "LIABILITIES", Particulars: "", Amount: "" },
-        ...glBsSummary.liabilityLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
-        { Section: "", Particulars: "Total liabilities", Amount: glBsSummary.totalLiabilities },
+        ...glBsReport.liabilityLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Section: "", Particulars: "Total liabilities", Amount: glBsReport.totalLiabilities },
         { Section: "EQUITY", Particulars: "", Amount: "" },
-        ...glBsSummary.equityLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
-        { Section: "", Particulars: "Total equity", Amount: glBsSummary.totalEquity },
+        ...eqRows,
+        { Section: "", Particulars: "Total equity", Amount: glBsReport.totalEquity },
       ];
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, "GL Balance Sheet");
@@ -543,11 +553,6 @@ export default function AccountingReports() {
   );
   const glCashBankNet =
     glCashBankRows.reduce((s, e) => s + e.debit - e.credit, 0);
-
-  const glBsSummary = useMemo(() => {
-    if (!glBsRows.length) return null;
-    return buildGlBalanceSheetFromTrial(glBsRows, asOfDate);
-  }, [glBsRows, asOfDate]);
 
   const glTrialSubtitle =
     glTrialMode === "period"
@@ -1135,7 +1140,7 @@ export default function AccountingReports() {
           </Card>
         </TabsContent>
 
-        {/* GL Balance sheet — permanent accounts cumulative through as-of */}
+        {/* GL Balance sheet — cumulative A/L/E from journal_lines + P&amp;L equity plug */}
         <TabsContent value="gl-balance-sheet" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
@@ -1151,8 +1156,10 @@ export default function AccountingReports() {
               <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               <Alert className="print:hidden">
                 <AlertDescription className="text-sm">
-                  Uses cumulative posted journals through as-of. <strong>Revenue and Expense</strong> accounts are omitted here; until closing
-                  entries exist, totals may not match the accounting equation.
+                  <strong>Cumulative</strong> through as-of: all posted lines on Asset, Liability, and Equity accounts from the
+                  earliest journals through the date above. Revenue and Expense are rolled into equity as{" "}
+                  <strong>Retained earnings / current year profit</strong> (cumulative unclosed P&amp;L through as-of;{" "}
+                  {glBsReport?.currentYearFyLabel ?? "FY"} profit is shown for reference).
                 </AlertDescription>
               </Alert>
               <div className="hidden print:block">
@@ -1160,7 +1167,7 @@ export default function AccountingReports() {
                   title="GL Balance Sheet"
                   subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
                   organization={currentOrganization || undefined}
-                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+                  generatedAt={glBsReport?.generatedAt || format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
             </CardHeader>
@@ -1169,90 +1176,124 @@ export default function AccountingReports() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : glBsSummary &&
-                glBsSummary.assetLines.length + glBsSummary.liabilityLines.length + glBsSummary.equityLines.length >
-                  0 ? (
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="border rounded-lg p-4 space-y-3">
-                    <h3 className="font-semibold text-lg text-primary">Assets</h3>
-                    {glBsSummary.assetLines.map((l) => (
-                      <div key={l.accountCode} className="flex justify-between text-sm">
-                        <span>
-                          <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
-                          {l.accountName}
+              ) : glBsReport ? (
+                <div className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="border rounded-lg p-4 space-y-3 md:order-1">
+                      <h3 className="font-semibold text-lg text-primary">Assets</h3>
+                      {glBsReport.assetLines.map((l) => (
+                        <div key={l.accountCode} className="flex justify-between text-sm">
+                          <span>
+                            <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
+                            {l.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(l.amount)}</span>
+                        </div>
+                      ))}
+                      {glBsReport.assetLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No asset balances.</p>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>Total assets</span>
+                        <span className="font-mono text-primary">{formatCurrency(glBsReport.totalAssets)}</span>
+                      </div>
+                    </div>
+                    <div className="space-y-4 md:order-2">
+                      <div className="border rounded-lg p-4 space-y-3">
+                        <h3 className="font-semibold text-lg text-destructive">Liabilities</h3>
+                        {glBsReport.liabilityLines.map((l) => (
+                          <div key={l.accountCode} className="flex justify-between text-sm">
+                            <span>
+                              <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
+                              {l.accountName}
+                            </span>
+                            <span className="font-mono">{formatCurrency(l.amount)}</span>
+                          </div>
+                        ))}
+                        {glBsReport.liabilityLines.length === 0 && (
+                          <p className="text-sm text-muted-foreground">No liability balances.</p>
+                        )}
+                        <Separator />
+                        <div className="flex justify-between font-bold">
+                          <span>Total liabilities</span>
+                          <span className="font-mono">{formatCurrency(glBsReport.totalLiabilities)}</span>
+                        </div>
+                      </div>
+                      <div className="border rounded-lg p-4 space-y-3">
+                        <h3 className="font-semibold text-lg text-green-700 dark:text-green-400">Equity</h3>
+                        {glBsReport.equityLinesPosted.map((l) => (
+                          <div key={l.accountCode} className="flex justify-between text-sm">
+                            <span>
+                              <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
+                              {l.accountName}
+                            </span>
+                            <span className="font-mono">{formatCurrency(l.amount)}</span>
+                          </div>
+                        ))}
+                        <Separator className="my-2" />
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground italic">
+                            <span className="font-mono mr-2">{glBsReport.retainedEarningsLine.accountCode}</span>
+                            {glBsReport.retainedEarningsLine.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(glBsReport.retainedEarningsLine.amount)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {glBsReport.currentYearFyLabel} profit (FY start → as-of):{" "}
+                          <span className="font-mono">{formatCurrency(glBsReport.currentYearProfit)}</span>
+                        </p>
+                        {glBsReport.equityLinesPosted.length === 0 &&
+                          Math.abs(glBsReport.retainedEarningsLine.amount) < 0.0001 && (
+                            <p className="text-sm text-muted-foreground">No posted equity accounts.</p>
+                          )}
+                        <Separator />
+                        <div className="flex justify-between font-bold">
+                          <span>Total equity</span>
+                          <span className="font-mono">{formatCurrency(glBsReport.totalEquity)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border bg-muted/20 px-4 py-3">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Accounting equation: </span>
+                      <span className="font-mono font-medium">Assets</span>
+                      <span className="text-muted-foreground"> = </span>
+                      <span className="font-mono font-medium">Liabilities + Equity</span>
+                      <span className="text-muted-foreground"> → </span>
+                      <span className="font-mono">{formatCurrency(glBsReport.totalAssets)}</span>
+                      <span className="text-muted-foreground"> vs </span>
+                      <span className="font-mono">
+                        {formatCurrency(glBsReport.totalLiabilities + glBsReport.totalEquity)}
+                      </span>
+                    </div>
+                    {glBsReport.isBalanced ? (
+                      <Badge className="bg-green-600 hover:bg-green-600 text-white w-fit shrink-0">Balanced</Badge>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="destructive" className="w-fit shrink-0">
+                          Not balanced
+                        </Badge>
+                        <span className="text-xs text-destructive">
+                          Difference {formatCurrency(Math.abs(glBsReport.balanceDifference))}
                         </span>
-                        <span className="font-mono">{formatCurrency(l.amount)}</span>
                       </div>
-                    ))}
-                    {glBsSummary.assetLines.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No asset balances.</p>
                     )}
-                    <Separator />
-                    <div className="flex justify-between font-bold">
-                      <span>Total assets</span>
-                      <span className="font-mono text-primary">{formatCurrency(glBsSummary.totalAssets)}</span>
-                    </div>
                   </div>
-                  <div className="space-y-4">
-                    <div className="border rounded-lg p-4 space-y-3">
-                      <h3 className="font-semibold text-lg text-destructive">Liabilities</h3>
-                      {glBsSummary.liabilityLines.map((l) => (
-                        <div key={l.accountCode} className="flex justify-between text-sm">
-                          <span>
-                            <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
-                            {l.accountName}
-                          </span>
-                          <span className="font-mono">{formatCurrency(l.amount)}</span>
-                        </div>
-                      ))}
-                      {glBsSummary.liabilityLines.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No liability balances.</p>
-                      )}
-                      <Separator />
-                      <div className="flex justify-between font-bold">
-                        <span>Total liabilities</span>
-                        <span className="font-mono">{formatCurrency(glBsSummary.totalLiabilities)}</span>
-                      </div>
-                    </div>
-                    <div className="border rounded-lg p-4 space-y-3">
-                      <h3 className="font-semibold text-lg text-green-700 dark:text-green-400">Equity</h3>
-                      {glBsSummary.equityLines.map((l) => (
-                        <div key={l.accountCode} className="flex justify-between text-sm">
-                          <span>
-                            <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
-                            {l.accountName}
-                          </span>
-                          <span className="font-mono">{formatCurrency(l.amount)}</span>
-                        </div>
-                      ))}
-                      {glBsSummary.equityLines.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No equity balances.</p>
-                      )}
-                      <Separator />
-                      <div className="flex justify-between font-bold">
-                        <span>Total equity</span>
-                        <span className="font-mono">{formatCurrency(glBsSummary.totalEquity)}</span>
-                      </div>
-                    </div>
-                    {(() => {
-                      const rhs = glBsSummary.totalLiabilities + glBsSummary.totalEquity;
-                      const diff = glBsSummary.totalAssets - rhs;
-                      if (Math.abs(diff) <= 0.01) return null;
-                      return (
-                        <Alert>
-                          <AlertTriangle className="h-4 w-4" />
-                          <AlertDescription className="text-sm">
-                            Assets ({formatCurrency(glBsSummary.totalAssets)}) vs liabilities + equity ({formatCurrency(rhs)}) differ by{" "}
-                            {formatCurrency(Math.abs(diff))}. This is expected if P&amp;L is not yet closed into equity.
-                          </AlertDescription>
-                        </Alert>
-                      );
-                    })()}
-                  </div>
+                  {!glBsReport.isBalanced && (
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-sm">
+                        Totals differ — check for manual journals, opening balances not mirrored in the GL, or mixed sign
+                        conventions. Plug line uses cumulative Revenue − Expense through as-of.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  No posted GL balances for permanent accounts through this date.
+                  Could not load GL balance sheet. Check your connection and try again.
                 </div>
               )}
             </CardContent>

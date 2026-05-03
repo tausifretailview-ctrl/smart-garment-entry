@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllSaleItems, fetchVariantsByIds } from "@/utils/fetchAllRows";
-import { format, subDays } from "date-fns";
+import { format, parseISO, subDays } from "date-fns";
 
 export interface TrialBalanceEntry {
   accountName: string;
@@ -331,6 +331,189 @@ export async function fetchProfitAndLoss(
     generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
   };
 }
+
+export interface GlBalanceSheetReport {
+  assetLines: GlBsLine[];
+  liabilityLines: GlBsLine[];
+  /** Equity from chart accounts only (posted journals). */
+  equityLinesPosted: GlBsLine[];
+  /**
+   * Cumulative unclosed P&amp;L (same as fetchProfitAndLoss from GL_CUMULATIVE_FROM_DATE through as-of)
+   * shown under equity so Assets = Liabilities + Equity.
+   */
+  retainedEarningsLine: GlBsLine;
+  /** FY-to-as-of net profit (P&amp;L logic) for the financial year containing as-of. */
+  currentYearProfit: number;
+  currentYearFyLabel: string;
+  totalAssets: number;
+  totalLiabilities: number;
+  /** Posted equity + retained earnings line. */
+  totalEquity: number;
+  totalEquityPosted: number;
+  isBalanced: boolean;
+  balanceDifference: number;
+  asOfLabel: string;
+  generatedAt: string;
+}
+
+/**
+ * GL cumulative balance sheet through as-of: sums journal_lines for Asset, Liability, and Equity from
+ * {@link GL_CUMULATIVE_FROM_DATE} through {@code asOfDate} (inclusive), then adds a synthetic equity line
+ * &quot;Retained earnings / current year profit&quot; equal to cumulative unclosed P&amp;L so the sheet balances.
+ * Current-year profit (FY containing as-of) is exposed separately for disclosure.
+ *
+ * (Operational balance sheet uses {@link calculateBalanceSheet}.)
+ */
+export async function fetchGlBalanceSheet(
+  organizationId: string,
+  asOfDate: string,
+  client: SupabaseClient<Database>
+): Promise<GlBalanceSheetReport> {
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+  const BAL_TOL = 0.02;
+
+  type Coa = {
+    id: string;
+    account_type: string;
+    account_code: string;
+    account_name: string;
+    organization_id: string;
+  };
+  type JlRow = {
+    debit_amount: number | null;
+    credit_amount: number | null;
+    journal_entries: { date: string; organization_id: string };
+    chart_of_accounts: Coa;
+  };
+
+  const all: JlRow[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from("journal_lines")
+      .select(
+        `
+        debit_amount,
+        credit_amount,
+        journal_entries!inner (
+          date,
+          organization_id
+        ),
+        chart_of_accounts!inner (
+          id,
+          account_type,
+          account_code,
+          account_name,
+          organization_id
+        )
+      `
+      )
+      .eq("journal_entries.organization_id", organizationId)
+      .gte("journal_entries.date", GL_CUMULATIVE_FROM_DATE)
+      .lte("journal_entries.date", asOfDate)
+      .eq("chart_of_accounts.organization_id", organizationId)
+      .in("chart_of_accounts.account_type", ["Asset", "Liability", "Equity"])
+      .order("id", { ascending: true })
+      .range(offset, offset + GL_PNL_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const batch = (data ?? []) as unknown as JlRow[];
+    all.push(...batch);
+    if (batch.length < GL_PNL_PAGE_SIZE) break;
+    offset += GL_PNL_PAGE_SIZE;
+  }
+
+  const assetById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
+  const liabById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
+  const eqById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
+
+  for (const row of all) {
+    const coa = row.chart_of_accounts;
+    const dr = Number(row.debit_amount ?? 0);
+    const cr = Number(row.credit_amount ?? 0);
+
+    if (coa.account_type === "Asset") {
+      const delta = round2(dr - cr);
+      const cur = assetById.get(coa.id) ?? {
+        accountCode: coa.account_code,
+        accountName: coa.account_name,
+        amount: 0,
+      };
+      cur.amount = round2(cur.amount + delta);
+      assetById.set(coa.id, cur);
+    } else if (coa.account_type === "Liability") {
+      const delta = round2(cr - dr);
+      const cur = liabById.get(coa.id) ?? {
+        accountCode: coa.account_code,
+        accountName: coa.account_name,
+        amount: 0,
+      };
+      cur.amount = round2(cur.amount + delta);
+      liabById.set(coa.id, cur);
+    } else if (coa.account_type === "Equity") {
+      const delta = round2(cr - dr);
+      const cur = eqById.get(coa.id) ?? {
+        accountCode: coa.account_code,
+        accountName: coa.account_name,
+        amount: 0,
+      };
+      cur.amount = round2(cur.amount + delta);
+      eqById.set(coa.id, cur);
+    }
+  }
+
+  const toSortedLines = (m: Map<string, { accountCode: string; accountName: string; amount: number }>) =>
+    [...m.values()]
+      .filter((l) => Math.abs(l.amount) > 0.0001)
+      .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+      .map((l) => ({ accountCode: l.accountCode, accountName: l.accountName, amount: l.amount }));
+
+  const assetLines = toSortedLines(assetById);
+  const liabilityLines = toSortedLines(liabById);
+  const equityLinesPosted = toSortedLines(eqById);
+
+  const sumAmt = (lines: GlBsLine[]) => round2(lines.reduce((s, l) => s + l.amount, 0));
+  const totalAssets = sumAmt(assetLines);
+  const totalLiabilities = sumAmt(liabilityLines);
+  const totalEquityPosted = sumAmt(equityLinesPosted);
+
+  const fy = getIndiaFinancialYearContainingDate(asOfDate);
+  const [plLife, plCy] = await Promise.all([
+    fetchProfitAndLoss(organizationId, GL_CUMULATIVE_FROM_DATE, asOfDate, client),
+    fetchProfitAndLoss(organizationId, fy.fromDate, asOfDate, client),
+  ]);
+
+  const retainedAmount = round2(plLife.netProfit);
+  const retainedEarningsLine: GlBsLine = {
+    accountCode: "—",
+    accountName: "Retained earnings / current year profit",
+    amount: retainedAmount,
+  };
+
+  const totalEquity = round2(totalEquityPosted + retainedAmount);
+  const balanceDifference = round2(totalAssets - totalLiabilities - totalEquity);
+  const isBalanced = Math.abs(balanceDifference) <= BAL_TOL;
+
+  return {
+    assetLines,
+    liabilityLines,
+    equityLinesPosted,
+    retainedEarningsLine,
+    currentYearProfit: round2(plCy.netProfit),
+    currentYearFyLabel: fy.label,
+    totalAssets,
+    totalLiabilities,
+    totalEquity,
+    totalEquityPosted,
+    isBalanced,
+    balanceDifference,
+    asOfLabel: asOfDate,
+    generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
+  };
+}
+
+/** Alias for spec / callers expecting the name `fetchBalanceSheet` (GL only; operational BS uses {@link calculateBalanceSheet}). */
+export const fetchBalanceSheet = fetchGlBalanceSheet;
 
 export interface GlPnlSummary {
   revenueLines: GlPnlLine[];
@@ -898,6 +1081,22 @@ export function getIndiaFinancialYear(offset: number = 0): { fromDate: string; t
   const toDate = format(new Date(fyStartYear + 1, 2, 31), "yyyy-MM-dd"); // March 31
   const label = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
   
+  return { fromDate, toDate, label };
+}
+
+/** India FY (Apr–Mar) that contains the given ISO date (yyyy-MM-dd). */
+export function getIndiaFinancialYearContainingDate(isoDate: string): { fromDate: string; toDate: string; label: string } {
+  const raw = isoDate.length >= 10 ? isoDate.slice(0, 10) : isoDate;
+  const d = parseISO(raw);
+  if (Number.isNaN(d.getTime())) {
+    return getIndiaFinancialYear(0);
+  }
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const fyStartYear = m >= 3 ? y : y - 1;
+  const fromDate = format(new Date(fyStartYear, 3, 1), "yyyy-MM-dd");
+  const toDate = format(new Date(fyStartYear + 1, 2, 31), "yyyy-MM-dd");
+  const label = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
   return { fromDate, toDate, label };
 }
 
