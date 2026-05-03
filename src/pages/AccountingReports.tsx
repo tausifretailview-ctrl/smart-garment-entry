@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -18,7 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Wallet
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -213,7 +214,7 @@ const AsOfDatePresets = ({ asOfDate, setAsOfDate }: { asOfDate: string; setAsOfD
 
 export default function AccountingReports() {
   const { currentOrganization } = useOrganization();
-  const { orgNavigate } = useOrgNavigation();
+  const { orgNavigate, getOrgPath } = useOrgNavigation();
   const [activeTab, setActiveTab] = useState("trial-balance");
   const [loading, setLoading] = useState(false);
   const [periodType, setPeriodType] = useState<"monthly" | "quarterly" | "yearly" | "custom">("monthly");
@@ -560,6 +561,8 @@ export default function AccountingReports() {
       ? `Period: ${format(new Date(fromDate), "dd MMM yyyy")} – ${format(new Date(toDate), "dd MMM yyyy")}`
       : `Cumulative through ${format(new Date(asOfDate), "dd MMM yyyy")}`;
 
+  const journalVouchersHref = `${getOrgPath("/journal-vouchers")}?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`;
+
   return (
     <div className="space-y-6 p-6 print:p-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
@@ -586,6 +589,79 @@ export default function AccountingReports() {
           </Button>
         </div>
       </div>
+
+      <Card className="print:hidden border-primary/20 bg-muted/30">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Table2 className="h-5 w-5 text-primary" />
+            Tally and reconcile your accounts
+          </CardTitle>
+          <CardDescription>
+            Operational tabs (Trial Balance, P&L, Balance Sheet) summarise transactions and stock. GL tabs follow posted
+            journals when the accounting engine is on. Use the links below with your reports to match Tally ledgers, the day
+            book, and customer balances.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/tally-export")} className="gap-1.5 inline-flex items-center">
+                <FileSpreadsheet className="h-4 w-4" />
+                Tally export (Excel)
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={journalVouchersHref} className="gap-1.5 inline-flex items-center">
+                <BookText className="h-4 w-4" />
+                Journal vouchers
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/chart-of-accounts")} className="gap-1.5 inline-flex items-center">
+                <Landmark className="h-4 w-4" />
+                Chart of accounts
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/daily-tally")} className="gap-1.5 inline-flex items-center">
+                <Wallet className="h-4 w-4" />
+                Daily cash tally
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/customer-account-statement")} className="gap-1.5 inline-flex items-center">
+                <Users className="h-4 w-4" />
+                Customer account statement
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/gst-reports")} className="gap-1.5 inline-flex items-center">
+                <Calculator className="h-4 w-4" />
+                GST reports
+              </Link>
+            </Button>
+          </div>
+          <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1.5 max-w-3xl">
+            <li>
+              <span className="font-medium text-foreground">Tally export</span> builds ledger masters and voucher-style
+              worksheets (sales, purchases, receipts, payments) for the period you choose there—ideal for import or manual
+              posting in Tally.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Journal vouchers</span> lists every auto-posted double entry;
+              open an account from the GL Trial tab (Lines) to trace balances, then cross-check here for the same dates.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Customer account statement</span> ties receivables to invoices
+              and receipts—use it when operational AR does not match a debtor ledger in Tally.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Daily cash tally</span> records physical cash vs expected drawer
+              cash; pair it with the GL cash/bank bucket (codes 1000–1099) on the GL Trial tab.
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex w-full flex-wrap gap-1 h-auto print:hidden justify-start">

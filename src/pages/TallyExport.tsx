@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { 
@@ -43,6 +45,7 @@ type ExportType = "masters" | "transactions" | "complete";
 const TallyExport = () => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { getOrgPath } = useOrgNavigation();
   const [isExporting, setIsExporting] = useState(false);
   const [periodType, setPeriodType] = useState<PeriodType>("this-month");
   const [exportType, setExportType] = useState<ExportType>("complete");
@@ -431,6 +434,13 @@ const TallyExport = () => {
         <h1 className="text-3xl font-bold">Tally Export</h1>
         <p className="text-muted-foreground mt-1">
           Export your data in TallyPrime-compatible format for accounting integration
+        </p>
+        <p className="text-sm text-muted-foreground mt-2">
+          After export, reconcile totals with{" "}
+          <Link to={getOrgPath("/accounting-reports")} className="text-primary underline-offset-4 hover:underline">
+            Accounting reports
+          </Link>{" "}
+          (trial balance, GL, and journal vouchers).
         </p>
       </div>
 
