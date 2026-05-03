@@ -113,6 +113,11 @@ export interface GlTrialBalanceEntry {
 /** Earliest date used for cumulative GL reports (inclusive). */
 export const GL_CUMULATIVE_FROM_DATE = "1900-01-01";
 
+/** Normalize to yyyy-MM-dd for journal_entries.date filters and RPC args. */
+export function normalizeGlDate(isoOrDate: string): string {
+  return isoOrDate.length >= 10 ? isoOrDate.slice(0, 10) : isoOrDate;
+}
+
 function mapGlTrialRow(r: Record<string, unknown>): GlTrialBalanceEntry {
   return {
     accountId: String(r.account_id ?? ""),
@@ -134,8 +139,8 @@ export async function calculateGlTrialBalanceForRange(
 ): Promise<GlTrialBalanceEntry[]> {
   const { data, error } = await supabase.rpc("get_gl_trial_balance", {
     p_org_id: organizationId,
-    p_from_date: fromDate,
-    p_to_date: toDate,
+    p_from_date: normalizeGlDate(fromDate),
+    p_to_date: normalizeGlDate(toDate),
   });
   if (error) throw error;
   const rows = (data ?? []) as Record<string, unknown>[];
@@ -147,7 +152,7 @@ export async function calculateGlTrialBalance(
   organizationId: string,
   asOfDate: string
 ): Promise<GlTrialBalanceEntry[]> {
-  return calculateGlTrialBalanceForRange(organizationId, GL_CUMULATIVE_FROM_DATE, asOfDate);
+  return calculateGlTrialBalanceForRange(organizationId, GL_CUMULATIVE_FROM_DATE, normalizeGlDate(asOfDate));
 }
 
 export interface GlAccountLedgerRow {
@@ -174,8 +179,8 @@ export async function calculateGlAccountLedger(
   const { data, error } = await supabase.rpc("get_gl_account_ledger", {
     p_org_id: organizationId,
     p_account_id: accountId,
-    p_from_date: fromDate,
-    p_to_date: toDate,
+    p_from_date: normalizeGlDate(fromDate),
+    p_to_date: normalizeGlDate(toDate),
   });
   if (error) throw error;
   const rows = (data ?? []) as Record<string, unknown>[];
@@ -212,7 +217,83 @@ export interface GlProfitAndLossReport {
   generatedAt: string;
 }
 
-const GL_PNL_PAGE_SIZE = 1000;
+const GL_JE_PAGE_SIZE = 1000;
+const GL_JL_IN_CHUNK = 150;
+
+type CoaJoin = {
+  id: string;
+  account_type: string;
+  account_code: string;
+  account_name: string;
+  organization_id: string;
+};
+
+type JournalLineWithCoa = {
+  debit_amount: number | null;
+  credit_amount: number | null;
+  chart_of_accounts: CoaJoin;
+};
+
+/**
+ * Load journal lines by scanning journal_entries in the date window (org-scoped on the entry table),
+ * then batching lines. Avoids PostgREST nested filters on embedded relations that can ignore date bounds.
+ */
+async function loadJournalLinesForOrgEntryDateRange(
+  client: SupabaseClient<Database>,
+  organizationId: string,
+  range: { fromDateInclusive?: string; toDateInclusive: string },
+  accountTypes: readonly string[]
+): Promise<JournalLineWithCoa[]> {
+  const fromNorm = range.fromDateInclusive ? normalizeGlDate(range.fromDateInclusive) : undefined;
+  const toNorm = normalizeGlDate(range.toDateInclusive);
+  const types = [...accountTypes];
+  const out: JournalLineWithCoa[] = [];
+  let offset = 0;
+
+  for (;;) {
+    let q = client
+      .from("journal_entries")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .lte("date", toNorm)
+      .order("id", { ascending: true })
+      .range(offset, offset + GL_JE_PAGE_SIZE - 1);
+    if (fromNorm) q = q.gte("date", fromNorm);
+    const { data: entries, error: e1 } = await q;
+    if (e1) throw e1;
+    const ids = (entries ?? []).map((e) => e.id as string);
+    if (ids.length === 0) break;
+
+    for (let i = 0; i < ids.length; i += GL_JL_IN_CHUNK) {
+      const chunk = ids.slice(i, i + GL_JL_IN_CHUNK);
+      const { data: lines, error: e2 } = await client
+        .from("journal_lines")
+        .select(
+          `
+          debit_amount,
+          credit_amount,
+          chart_of_accounts!inner(
+            id,
+            account_type,
+            account_code,
+            account_name,
+            organization_id
+          )
+        `
+        )
+        .in("journal_entry_id", chunk)
+        .eq("chart_of_accounts.organization_id", organizationId)
+        .in("chart_of_accounts.account_type", types);
+      if (e2) throw e2;
+      out.push(...((lines ?? []) as unknown as JournalLineWithCoa[]));
+    }
+
+    if (ids.length < GL_JE_PAGE_SIZE) break;
+    offset += GL_JE_PAGE_SIZE;
+  }
+
+  return out;
+}
 
 /**
  * Period-only P&amp;L: sums posted journal lines between fromDate and toDate (inclusive on journal_entries.date).
@@ -225,57 +306,15 @@ export async function fetchProfitAndLoss(
   client: SupabaseClient<Database>
 ): Promise<GlProfitAndLossReport> {
   const round2 = (x: number) => Math.round(x * 100) / 100;
+  const from = normalizeGlDate(fromDate);
+  const to = normalizeGlDate(toDate);
 
-  type Coa = {
-    id: string;
-    account_type: string;
-    account_code: string;
-    account_name: string;
-    organization_id: string;
-  };
-  type JlRow = {
-    debit_amount: number | null;
-    credit_amount: number | null;
-    journal_entries: { date: string; organization_id: string };
-    chart_of_accounts: Coa;
-  };
-
-  const all: JlRow[] = [];
-  let offset = 0;
-  for (;;) {
-    const { data, error } = await client
-      .from("journal_lines")
-      .select(
-        `
-        debit_amount,
-        credit_amount,
-        journal_entries!inner (
-          date,
-          organization_id
-        ),
-        chart_of_accounts!inner (
-          id,
-          account_type,
-          account_code,
-          account_name,
-          organization_id
-        )
-      `
-      )
-      .eq("journal_entries.organization_id", organizationId)
-      .gte("journal_entries.date", fromDate)
-      .lte("journal_entries.date", toDate)
-      .eq("chart_of_accounts.organization_id", organizationId)
-      .in("chart_of_accounts.account_type", ["Revenue", "Expense"])
-      .order("id", { ascending: true })
-      .range(offset, offset + GL_PNL_PAGE_SIZE - 1);
-
-    if (error) throw error;
-    const batch = (data ?? []) as unknown as JlRow[];
-    all.push(...batch);
-    if (batch.length < GL_PNL_PAGE_SIZE) break;
-    offset += GL_PNL_PAGE_SIZE;
-  }
+  const all = await loadJournalLinesForOrgEntryDateRange(
+    client,
+    organizationId,
+    { fromDateInclusive: from, toDateInclusive: to },
+    ["Revenue", "Expense"]
+  );
 
   const revById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
   const expById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
@@ -327,7 +366,7 @@ export async function fetchProfitAndLoss(
     totalExpenses,
     netProfit,
     isNetLoss: netProfit < 0,
-    periodLabel: `${fromDate} → ${toDate}`,
+    periodLabel: `${from} → ${to}`,
     generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
   };
 }
@@ -371,57 +410,14 @@ export async function fetchGlBalanceSheet(
 ): Promise<GlBalanceSheetReport> {
   const round2 = (x: number) => Math.round(x * 100) / 100;
   const BAL_TOL = 0.02;
+  const asOf = normalizeGlDate(asOfDate);
 
-  type Coa = {
-    id: string;
-    account_type: string;
-    account_code: string;
-    account_name: string;
-    organization_id: string;
-  };
-  type JlRow = {
-    debit_amount: number | null;
-    credit_amount: number | null;
-    journal_entries: { date: string; organization_id: string };
-    chart_of_accounts: Coa;
-  };
-
-  const all: JlRow[] = [];
-  let offset = 0;
-  for (;;) {
-    const { data, error } = await client
-      .from("journal_lines")
-      .select(
-        `
-        debit_amount,
-        credit_amount,
-        journal_entries!inner (
-          date,
-          organization_id
-        ),
-        chart_of_accounts!inner (
-          id,
-          account_type,
-          account_code,
-          account_name,
-          organization_id
-        )
-      `
-      )
-      .eq("journal_entries.organization_id", organizationId)
-      .gte("journal_entries.date", GL_CUMULATIVE_FROM_DATE)
-      .lte("journal_entries.date", asOfDate)
-      .eq("chart_of_accounts.organization_id", organizationId)
-      .in("chart_of_accounts.account_type", ["Asset", "Liability", "Equity"])
-      .order("id", { ascending: true })
-      .range(offset, offset + GL_PNL_PAGE_SIZE - 1);
-
-    if (error) throw error;
-    const batch = (data ?? []) as unknown as JlRow[];
-    all.push(...batch);
-    if (batch.length < GL_PNL_PAGE_SIZE) break;
-    offset += GL_PNL_PAGE_SIZE;
-  }
+  const all = await loadJournalLinesForOrgEntryDateRange(
+    client,
+    organizationId,
+    { fromDateInclusive: GL_CUMULATIVE_FROM_DATE, toDateInclusive: asOf },
+    ["Asset", "Liability", "Equity"]
+  );
 
   const assetById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
   const liabById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
@@ -477,10 +473,10 @@ export async function fetchGlBalanceSheet(
   const totalLiabilities = sumAmt(liabilityLines);
   const totalEquityPosted = sumAmt(equityLinesPosted);
 
-  const fy = getIndiaFinancialYearContainingDate(asOfDate);
+  const fy = getIndiaFinancialYearContainingDate(asOf);
   const [plLife, plCy] = await Promise.all([
-    fetchProfitAndLoss(organizationId, GL_CUMULATIVE_FROM_DATE, asOfDate, client),
-    fetchProfitAndLoss(organizationId, fy.fromDate, asOfDate, client),
+    fetchProfitAndLoss(organizationId, GL_CUMULATIVE_FROM_DATE, asOf, client),
+    fetchProfitAndLoss(organizationId, fy.fromDate, asOf, client),
   ]);
 
   const retainedAmount = round2(plLife.netProfit);
@@ -507,7 +503,7 @@ export async function fetchGlBalanceSheet(
     totalEquityPosted,
     isBalanced,
     balanceDifference,
-    asOfLabel: asOfDate,
+    asOfLabel: asOf,
     generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
   };
 }

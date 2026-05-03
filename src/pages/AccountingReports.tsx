@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -232,10 +233,7 @@ export default function AccountingReports() {
   const [profitLoss, setProfitLoss] = useState<ProfitLossData | null>(null);
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetData | null>(null);
   const [netProfitSummary, setNetProfitSummary] = useState<NetProfitSummary | null>(null);
-  const [glTrialBalance, setGlTrialBalance] = useState<GlTrialBalanceEntry[]>([]);
   const [glTrialMode, setGlTrialMode] = useState<"cumulative" | "period">("cumulative");
-  const [glPnlReport, setGlPnlReport] = useState<GlProfitAndLossReport | null>(null);
-  const [glBsReport, setGlBsReport] = useState<GlBalanceSheetReport | null>(null);
   const [glLedgerOpen, setGlLedgerOpen] = useState(false);
   const [glLedgerAccount, setGlLedgerAccount] = useState<GlTrialBalanceEntry | null>(null);
   const [glLedgerRows, setGlLedgerRows] = useState<GlAccountLedgerRow[]>([]);
@@ -293,81 +291,78 @@ export default function AccountingReports() {
     setLoading(false);
   };
 
-  const fetchGlTrialBalance = async () => {
-    if (!currentOrganization?.id) return;
-    setLoading(true);
-    try {
-      if (glTrialMode === "period") {
-        if (fromDate > toDate) {
-          toast.error("From date must be on or before To date.");
-          setGlTrialBalance([]);
-          setLoading(false);
-          return;
+  const orgId = currentOrganization?.id;
+
+  const glTrialQuery = useQuery({
+    queryKey: ["accounting-reports", "gl-trial-balance", orgId, glTrialMode, fromDate, toDate, asOfDate] as const,
+    enabled: Boolean(orgId && activeTab === "gl-trial-balance"),
+    retry: false,
+    queryFn: async () => {
+      if (!orgId) return [];
+      try {
+        if (glTrialMode === "period") {
+          if (fromDate > toDate) return [];
+          return await calculateGlTrialBalanceForRange(orgId, fromDate, toDate);
         }
-        const data = await calculateGlTrialBalanceForRange(currentOrganization.id, fromDate, toDate);
-        setGlTrialBalance(data);
-      } else {
-        const data = await calculateGlTrialBalance(currentOrganization.id, asOfDate);
-        setGlTrialBalance(data);
+        return await calculateGlTrialBalance(orgId, asOfDate);
+      } catch (e) {
+        console.error(e);
+        toast.error("Failed to load GL trial balance");
+        throw e;
       }
-    } catch (error) {
-      toast.error("Failed to load GL trial balance");
-      console.error(error);
-    }
-    setLoading(false);
-  };
+    },
+  });
 
-  const fetchGlPnl = async () => {
-    if (!currentOrganization?.id) return;
-    setLoading(true);
-    try {
-      if (fromDate > toDate) {
-        toast.error("Invalid period.");
-        setGlPnlReport(null);
-        setLoading(false);
-        return;
+  const glPnlQuery = useQuery({
+    queryKey: ["accounting-reports", "gl-profit-loss", orgId, fromDate, toDate] as const,
+    enabled: Boolean(orgId && activeTab === "gl-profit-loss"),
+    retry: false,
+    queryFn: async () => {
+      if (!orgId) return null;
+      if (fromDate > toDate) return null;
+      try {
+        return await fetchProfitAndLoss(orgId, fromDate, toDate, supabase);
+      } catch (e) {
+        console.error(e);
+        toast.error("Failed to load GL P&L");
+        throw e;
       }
-      const data = await fetchProfitAndLoss(currentOrganization.id, fromDate, toDate, supabase);
-      setGlPnlReport(data);
-    } catch (error) {
-      toast.error("Failed to load GL P&L");
-      console.error(error);
-      setGlPnlReport(null);
-    }
-    setLoading(false);
-  };
+    },
+  });
 
-  const fetchGlBalanceSheet = async () => {
-    if (!currentOrganization?.id) return;
-    setLoading(true);
-    try {
-      const data = await loadGlBalanceSheetReport(currentOrganization.id, asOfDate, supabase);
-      setGlBsReport(data);
-    } catch (error) {
-      toast.error("Failed to load GL balance sheet");
-      console.error(error);
-      setGlBsReport(null);
-    }
-    setLoading(false);
-  };
+  const glBsQuery = useQuery({
+    queryKey: ["accounting-reports", "gl-balance-sheet", orgId, asOfDate] as const,
+    enabled: Boolean(orgId && activeTab === "gl-balance-sheet"),
+    retry: false,
+    queryFn: async () => {
+      if (!orgId) return null;
+      try {
+        return await loadGlBalanceSheetReport(orgId, asOfDate, supabase);
+      } catch (e) {
+        console.error(e);
+        toast.error("Failed to load GL balance sheet");
+        throw e;
+      }
+    },
+  });
 
-  // Auto-load reports when tab, dates, or org changes
+  const glTrialBalance = glTrialQuery.data ?? [];
+  const glPnlReport = glPnlQuery.data ?? null;
+  const glBsReport = glBsQuery.data ?? null;
+
+  const glTabFetching =
+    (activeTab === "gl-trial-balance" && glTrialQuery.isFetching) ||
+    (activeTab === "gl-profit-loss" && glPnlQuery.isFetching) ||
+    (activeTab === "gl-balance-sheet" && glBsQuery.isFetching);
+
+  // Auto-load operational reports when tab, dates, or org changes (GL tabs use useQuery keys above)
   useEffect(() => {
     if (!currentOrganization?.id) return;
-    if (activeTab === "trial-balance" || activeTab === "balance-sheet") {
-      if (activeTab === "trial-balance") fetchTrialBalance();
-      else fetchBalanceSheet();
-    } else if (activeTab === "gl-trial-balance") {
-      fetchGlTrialBalance();
-    } else if (activeTab === "gl-profit-loss") {
-      fetchGlPnl();
-    } else if (activeTab === "gl-balance-sheet") {
-      fetchGlBalanceSheet();
-    } else {
-      if (activeTab === "profit-loss") fetchProfitLoss();
-      else if (activeTab === "net-profit") fetchNetProfitSummary();
-    }
-  }, [activeTab, currentOrganization?.id, fromDate, toDate, asOfDate, glTrialMode]);
+    if (activeTab === "trial-balance") fetchTrialBalance();
+    else if (activeTab === "balance-sheet") fetchBalanceSheet();
+    else if (activeTab === "profit-loss") fetchProfitLoss();
+    else if (activeTab === "net-profit") fetchNetProfitSummary();
+  }, [activeTab, currentOrganization?.id, fromDate, toDate, asOfDate]);
 
   const glLedgerDateRange = useMemo(() => {
     if (!glLedgerAccount) return null;
@@ -411,9 +406,9 @@ export default function AccountingReports() {
     else if (activeTab === "profit-loss") fetchProfitLoss();
     else if (activeTab === "balance-sheet") fetchBalanceSheet();
     else if (activeTab === "net-profit") fetchNetProfitSummary();
-    else if (activeTab === "gl-trial-balance") fetchGlTrialBalance();
-    else if (activeTab === "gl-profit-loss") fetchGlPnl();
-    else if (activeTab === "gl-balance-sheet") fetchGlBalanceSheet();
+    else if (activeTab === "gl-trial-balance") void glTrialQuery.refetch();
+    else if (activeTab === "gl-profit-loss") void glPnlQuery.refetch();
+    else if (activeTab === "gl-balance-sheet") void glBsQuery.refetch();
   };
 
   const exportToExcel = () => {
@@ -576,8 +571,14 @@ export default function AccountingReports() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={loading} title="Refresh">
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={loading || glTabFetching}
+            title="Refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading || glTabFetching ? "animate-spin" : ""}`} />
           </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
@@ -936,9 +937,13 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {glTrialQuery.isFetching ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : glTrialQuery.isError ? (
+                <div className="text-center py-8 text-destructive text-sm">
+                  Could not load GL trial balance. Check that the three-argument GL trial RPC migration is applied, then retry.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1059,10 +1064,12 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {glPnlQuery.isFetching ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
+              ) : glPnlQuery.isError ? (
+                <div className="text-center py-8 text-destructive text-sm">Could not load GL P&amp;L. Try again or check the console.</div>
               ) : glPnlReport ? (
                 <div className="max-w-2xl mx-auto space-y-4">
                   <div className="border rounded-lg p-4">
@@ -1172,9 +1179,13 @@ export default function AccountingReports() {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {glBsQuery.isFetching ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : glBsQuery.isError ? (
+                <div className="text-center py-8 text-destructive text-sm">
+                  Could not load GL balance sheet. Try again or check the console.
                 </div>
               ) : glBsReport ? (
                 <div className="space-y-6">
