@@ -108,18 +108,11 @@ export interface GlTrialBalanceEntry {
   credit: number;
 }
 
-/** Cumulative GL trial balance from journal_lines through as-of date (posted journals only). */
-export async function calculateGlTrialBalance(
-  organizationId: string,
-  asOfDate: string
-): Promise<GlTrialBalanceEntry[]> {
-  const { data, error } = await supabase.rpc("get_gl_trial_balance", {
-    p_org_id: organizationId,
-    p_as_of_date: asOfDate,
-  });
-  if (error) throw error;
-  const rows = (data ?? []) as Record<string, unknown>[];
-  return rows.map((r) => ({
+/** Earliest date used for cumulative GL reports (inclusive). */
+export const GL_CUMULATIVE_FROM_DATE = "1900-01-01";
+
+function mapGlTrialRow(r: Record<string, unknown>): GlTrialBalanceEntry {
+  return {
     accountId: String(r.account_id ?? ""),
     accountCode: String(r.account_code ?? ""),
     accountName: String(r.account_name ?? ""),
@@ -128,7 +121,177 @@ export async function calculateGlTrialBalance(
     movementCredit: Number(r.movement_credit ?? 0),
     debit: Number(r.trial_debit ?? 0),
     credit: Number(r.trial_credit ?? 0),
-  }));
+  };
+}
+
+/** Inclusive journal date range on the GL. */
+export async function calculateGlTrialBalanceForRange(
+  organizationId: string,
+  fromDate: string,
+  toDate: string
+): Promise<GlTrialBalanceEntry[]> {
+  const { data, error } = await supabase.rpc("get_gl_trial_balance", {
+    p_org_id: organizationId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return rows.map(mapGlTrialRow);
+}
+
+/** Cumulative GL trial balance from journal_lines through as-of date (posted journals only). */
+export async function calculateGlTrialBalance(
+  organizationId: string,
+  asOfDate: string
+): Promise<GlTrialBalanceEntry[]> {
+  return calculateGlTrialBalanceForRange(organizationId, GL_CUMULATIVE_FROM_DATE, asOfDate);
+}
+
+export interface GlPnlLine {
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+
+export interface GlPnlSummary {
+  revenueLines: GlPnlLine[];
+  cogsLines: GlPnlLine[];
+  opexLines: GlPnlLine[];
+  totalRevenue: number;
+  totalCogs: number;
+  totalOpex: number;
+  grossProfit: number;
+  netProfit: number;
+  isNetLoss: boolean;
+  periodLabel: string;
+  generatedAt: string;
+}
+
+function leadingAccountCodeNumber(code: string): number | null {
+  const m = /^(\d+)/.exec(String(code).trim());
+  if (!m) return null;
+  return parseInt(m[1], 10);
+}
+
+/** COGS-style expense accounts (5xxx) vs other operating expenses (6xxx+). */
+export function isGlCogsAccountCode(accountCode: string): boolean {
+  const n = leadingAccountCodeNumber(accountCode);
+  return n !== null && n >= 5000 && n < 6000;
+}
+
+/** Period P&L from GL trial rows (Revenue / Expense movement only). */
+export function buildGlPnlSummaryFromTrial(
+  rows: GlTrialBalanceEntry[],
+  fromDate: string,
+  toDate: string
+): GlPnlSummary {
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+  const revAmt = (r: GlTrialBalanceEntry) => round2(r.movementCredit - r.movementDebit);
+  const expAmt = (r: GlTrialBalanceEntry) => round2(r.movementDebit - r.movementCredit);
+
+  const revenueLines: GlPnlLine[] = [];
+  const cogsLines: GlPnlLine[] = [];
+  const opexLines: GlPnlLine[] = [];
+
+  for (const r of rows) {
+    if (r.accountType === "Revenue") {
+      const amount = revAmt(r);
+      if (Math.abs(amount) > 0.0001) {
+        revenueLines.push({ accountCode: r.accountCode, accountName: r.accountName, amount });
+      }
+    } else if (r.accountType === "Expense") {
+      const amount = expAmt(r);
+      if (Math.abs(amount) <= 0.0001) continue;
+      const line = { accountCode: r.accountCode, accountName: r.accountName, amount };
+      if (isGlCogsAccountCode(r.accountCode)) cogsLines.push(line);
+      else opexLines.push(line);
+    }
+  }
+
+  const sumLines = (lines: GlPnlLine[]) => round2(lines.reduce((s, l) => s + l.amount, 0));
+  const totalRevenue = sumLines(revenueLines);
+  const totalCogs = sumLines(cogsLines);
+  const totalOpex = sumLines(opexLines);
+  const grossProfit = round2(totalRevenue - totalCogs);
+  const netProfit = round2(grossProfit - totalOpex);
+
+  revenueLines.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+  cogsLines.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+  opexLines.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
+  return {
+    revenueLines,
+    cogsLines,
+    opexLines,
+    totalRevenue,
+    totalCogs,
+    totalOpex,
+    grossProfit,
+    netProfit,
+    isNetLoss: netProfit < 0,
+    periodLabel: `${fromDate} → ${toDate}`,
+    generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
+  };
+}
+
+export interface GlBsLine {
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+
+export interface GlBalanceSheetFromTrial {
+  assetLines: GlBsLine[];
+  liabilityLines: GlBsLine[];
+  equityLines: GlBsLine[];
+  totalAssets: number;
+  totalLiabilities: number;
+  totalEquity: number;
+  asOfLabel: string;
+}
+
+/** BS snapshot from cumulative GL rows (permanent accounts only). */
+export function buildGlBalanceSheetFromTrial(
+  rows: GlTrialBalanceEntry[],
+  asOfDate: string
+): GlBalanceSheetFromTrial {
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+  const netForBs = (r: GlTrialBalanceEntry): number => {
+    if (r.accountType === "Asset") return round2(r.movementDebit - r.movementCredit);
+    if (r.accountType === "Liability" || r.accountType === "Equity") {
+      return round2(r.movementCredit - r.movementDebit);
+    }
+    return 0;
+  };
+
+  const assetLines: GlBsLine[] = [];
+  const liabilityLines: GlBsLine[] = [];
+  const equityLines: GlBsLine[] = [];
+
+  for (const r of rows) {
+    const amount = netForBs(r);
+    if (Math.abs(amount) <= 0.0001) continue;
+    const line = { accountCode: r.accountCode, accountName: r.accountName, amount };
+    if (r.accountType === "Asset") assetLines.push(line);
+    else if (r.accountType === "Liability") liabilityLines.push(line);
+    else if (r.accountType === "Equity") equityLines.push(line);
+  }
+
+  const sumAmt = (lines: GlBsLine[]) => round2(lines.reduce((s, l) => s + l.amount, 0));
+  assetLines.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+  liabilityLines.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+  equityLines.sort((a, b) => a.accountCode.localeCompare(b.accountCode));
+
+  return {
+    assetLines,
+    liabilityLines,
+    equityLines,
+    totalAssets: sumAmt(assetLines),
+    totalLiabilities: sumAmt(liabilityLines),
+    totalEquity: sumAmt(equityLines),
+    asOfLabel: asOfDate,
+  };
 }
 
 // Calculate Trial Balance — uses server-side RPC

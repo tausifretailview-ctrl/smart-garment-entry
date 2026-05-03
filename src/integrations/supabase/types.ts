@@ -7495,7 +7495,7 @@ export type Database = {
         Returns: Json
       }
       get_gl_trial_balance: {
-        Args: { p_as_of_date: string; p_org_id: string }
+        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: {
           account_code: string
           account_id: string

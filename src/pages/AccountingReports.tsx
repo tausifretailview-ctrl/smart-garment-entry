@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -19,6 +19,9 @@ import * as XLSX from "xlsx";
 import {
   calculateTrialBalance,
   calculateGlTrialBalance,
+  calculateGlTrialBalanceForRange,
+  buildGlPnlSummaryFromTrial,
+  buildGlBalanceSheetFromTrial,
   calculateProfitLoss,
   calculateBalanceSheet,
   calculateNetProfitSummary,
@@ -216,6 +219,9 @@ export default function AccountingReports() {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetData | null>(null);
   const [netProfitSummary, setNetProfitSummary] = useState<NetProfitSummary | null>(null);
   const [glTrialBalance, setGlTrialBalance] = useState<GlTrialBalanceEntry[]>([]);
+  const [glTrialMode, setGlTrialMode] = useState<"cumulative" | "period">("cumulative");
+  const [glPnlRows, setGlPnlRows] = useState<GlTrialBalanceEntry[]>([]);
+  const [glBsRows, setGlBsRows] = useState<GlTrialBalanceEntry[]>([]);
 
   const fetchTrialBalance = async () => {
     if (!currentOrganization?.id) return;
@@ -273,10 +279,53 @@ export default function AccountingReports() {
     if (!currentOrganization?.id) return;
     setLoading(true);
     try {
-      const data = await calculateGlTrialBalance(currentOrganization.id, asOfDate);
-      setGlTrialBalance(data);
+      if (glTrialMode === "period") {
+        if (fromDate > toDate) {
+          toast.error("From date must be on or before To date.");
+          setGlTrialBalance([]);
+          setLoading(false);
+          return;
+        }
+        const data = await calculateGlTrialBalanceForRange(currentOrganization.id, fromDate, toDate);
+        setGlTrialBalance(data);
+      } else {
+        const data = await calculateGlTrialBalance(currentOrganization.id, asOfDate);
+        setGlTrialBalance(data);
+      }
     } catch (error) {
       toast.error("Failed to load GL trial balance");
+      console.error(error);
+    }
+    setLoading(false);
+  };
+
+  const fetchGlPnl = async () => {
+    if (!currentOrganization?.id) return;
+    setLoading(true);
+    try {
+      if (fromDate > toDate) {
+        toast.error("Invalid period.");
+        setGlPnlRows([]);
+        setLoading(false);
+        return;
+      }
+      const data = await calculateGlTrialBalanceForRange(currentOrganization.id, fromDate, toDate);
+      setGlPnlRows(data);
+    } catch (error) {
+      toast.error("Failed to load GL P&L");
+      console.error(error);
+    }
+    setLoading(false);
+  };
+
+  const fetchGlBalanceSheet = async () => {
+    if (!currentOrganization?.id) return;
+    setLoading(true);
+    try {
+      const data = await calculateGlTrialBalance(currentOrganization.id, asOfDate);
+      setGlBsRows(data);
+    } catch (error) {
+      toast.error("Failed to load GL balance sheet");
       console.error(error);
     }
     setLoading(false);
@@ -290,11 +339,15 @@ export default function AccountingReports() {
       else fetchBalanceSheet();
     } else if (activeTab === "gl-trial-balance") {
       fetchGlTrialBalance();
+    } else if (activeTab === "gl-profit-loss") {
+      fetchGlPnl();
+    } else if (activeTab === "gl-balance-sheet") {
+      fetchGlBalanceSheet();
     } else {
       if (activeTab === "profit-loss") fetchProfitLoss();
       else if (activeTab === "net-profit") fetchNetProfitSummary();
     }
-  }, [activeTab, currentOrganization?.id, fromDate, toDate, asOfDate]);
+  }, [activeTab, currentOrganization?.id, fromDate, toDate, asOfDate, glTrialMode]);
 
   const handleRefresh = () => {
     if (activeTab === "trial-balance") fetchTrialBalance();
@@ -302,6 +355,8 @@ export default function AccountingReports() {
     else if (activeTab === "balance-sheet") fetchBalanceSheet();
     else if (activeTab === "net-profit") fetchNetProfitSummary();
     else if (activeTab === "gl-trial-balance") fetchGlTrialBalance();
+    else if (activeTab === "gl-profit-loss") fetchGlPnl();
+    else if (activeTab === "gl-balance-sheet") fetchGlBalanceSheet();
   };
 
   const exportToExcel = () => {
@@ -371,6 +426,43 @@ export default function AccountingReports() {
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, "GL Trial Balance");
+    } else if (activeTab === "gl-profit-loss" && glPnlSummary && glPnlRows.length > 0) {
+      const rows: { Particulars: string; Amount: number | string }[] = [
+        { Particulars: "REVENUE (GL)", Amount: "" },
+        ...glPnlSummary.revenueLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Particulars: "Total revenue", Amount: glPnlSummary.totalRevenue },
+        { Particulars: "", Amount: "" },
+        { Particulars: "COGS (5xxx)", Amount: "" },
+        ...glPnlSummary.cogsLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Particulars: "Total COGS", Amount: glPnlSummary.totalCogs },
+        { Particulars: "", Amount: "" },
+        { Particulars: "Operating expenses (other)", Amount: "" },
+        ...glPnlSummary.opexLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Particulars: "Total opex", Amount: glPnlSummary.totalOpex },
+        { Particulars: "", Amount: "" },
+        { Particulars: "Gross profit", Amount: glPnlSummary.grossProfit },
+        { Particulars: glPnlSummary.isNetLoss ? "NET LOSS" : "NET PROFIT", Amount: Math.abs(glPnlSummary.netProfit) },
+      ];
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "GL P&L");
+    } else if (
+      activeTab === "gl-balance-sheet" &&
+      glBsSummary &&
+      glBsSummary.assetLines.length + glBsSummary.liabilityLines.length + glBsSummary.equityLines.length > 0
+    ) {
+      const rows = [
+        { Section: "ASSETS", Particulars: "", Amount: "" as number | string },
+        ...glBsSummary.assetLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Section: "", Particulars: "Total assets", Amount: glBsSummary.totalAssets },
+        { Section: "LIABILITIES", Particulars: "", Amount: "" },
+        ...glBsSummary.liabilityLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Section: "", Particulars: "Total liabilities", Amount: glBsSummary.totalLiabilities },
+        { Section: "EQUITY", Particulars: "", Amount: "" },
+        ...glBsSummary.equityLines.map((l) => ({ Section: "", Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Section: "", Particulars: "Total equity", Amount: glBsSummary.totalEquity },
+      ];
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "GL Balance Sheet");
     }
 
     if (!wb.SheetNames?.length) {
@@ -402,6 +494,21 @@ export default function AccountingReports() {
   const glCashBankNet =
     glCashBankRows.reduce((s, e) => s + e.debit - e.credit, 0);
 
+  const glPnlSummary = useMemo(() => {
+    if (!glPnlRows.length) return null;
+    return buildGlPnlSummaryFromTrial(glPnlRows, fromDate, toDate);
+  }, [glPnlRows, fromDate, toDate]);
+
+  const glBsSummary = useMemo(() => {
+    if (!glBsRows.length) return null;
+    return buildGlBalanceSheetFromTrial(glBsRows, asOfDate);
+  }, [glBsRows, asOfDate]);
+
+  const glTrialSubtitle =
+    glTrialMode === "period"
+      ? `Period: ${format(new Date(fromDate), "dd MMM yyyy")} – ${format(new Date(toDate), "dd MMM yyyy")}`
+      : `Cumulative through ${format(new Date(asOfDate), "dd MMM yyyy")}`;
+
   return (
     <div className="space-y-6 p-6 print:p-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
@@ -430,24 +537,32 @@ export default function AccountingReports() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 h-auto print:hidden">
-          <TabsTrigger value="trial-balance" className="flex items-center gap-2">
+        <TabsList className="flex w-full flex-wrap gap-1 h-auto print:hidden justify-start">
+          <TabsTrigger value="trial-balance" className="flex items-center gap-2 shrink-0">
             <Scale className="h-4 w-4" />
             Trial Balance
           </TabsTrigger>
-          <TabsTrigger value="gl-trial-balance" className="flex items-center gap-2">
+          <TabsTrigger value="gl-trial-balance" className="flex items-center gap-2 shrink-0">
             <BookText className="h-4 w-4" />
             GL Trial
           </TabsTrigger>
-          <TabsTrigger value="profit-loss" className="flex items-center gap-2">
+          <TabsTrigger value="gl-profit-loss" className="flex items-center gap-2 shrink-0">
+            <BarChart3 className="h-4 w-4" />
+            GL P&L
+          </TabsTrigger>
+          <TabsTrigger value="gl-balance-sheet" className="flex items-center gap-2 shrink-0">
+            <Landmark className="h-4 w-4" />
+            GL Balance
+          </TabsTrigger>
+          <TabsTrigger value="profit-loss" className="flex items-center gap-2 shrink-0">
             <TrendingUp className="h-4 w-4" />
             Profit & Loss
           </TabsTrigger>
-          <TabsTrigger value="balance-sheet" className="flex items-center gap-2">
+          <TabsTrigger value="balance-sheet" className="flex items-center gap-2 shrink-0">
             <FileSpreadsheet className="h-4 w-4" />
             Balance Sheet
           </TabsTrigger>
-          <TabsTrigger value="net-profit" className="flex items-center gap-2">
+          <TabsTrigger value="net-profit" className="flex items-center gap-2 shrink-0">
             <PieChart className="h-4 w-4" />
             Net Profit
           </TabsTrigger>
@@ -551,17 +666,48 @@ export default function AccountingReports() {
                   </Badge>
                 </CardTitle>
               </div>
-              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+              <div className="flex flex-wrap gap-2 print:hidden">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={glTrialMode === "cumulative" ? "default" : "outline"}
+                  className="h-8"
+                  onClick={() => setGlTrialMode("cumulative")}
+                >
+                  Cumulative
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={glTrialMode === "period" ? "default" : "outline"}
+                  className="h-8"
+                  onClick={() => setGlTrialMode("period")}
+                >
+                  Period only
+                </Button>
+              </div>
+              {glTrialMode === "cumulative" ? (
+                <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+              ) : (
+                <PeriodSelector
+                  periodType={periodType}
+                  setPeriodType={setPeriodType}
+                  fromDate={fromDate}
+                  toDate={toDate}
+                  setFromDate={setFromDate}
+                  setToDate={setToDate}
+                />
+              )}
               <Alert className="print:hidden">
                 <AlertDescription className="text-sm">
-                  Built from <strong>journal_entries</strong> through the as-of date. Use the first tab for the operational
-                  (transaction-based) trial balance. Codes <strong>1000–1099</strong> are summarized below as cash / bank style liquidity.
+                  Built from <strong>journal_entries</strong> ({glTrialMode === "cumulative" ? "all history through as-of" : "inclusive period"}).
+                  Operational totals stay on the first tab. Codes <strong>1000–1099</strong> are summarized as cash / bank style liquidity.
                 </AlertDescription>
               </Alert>
               <div className="hidden print:block">
                 <ReportHeader
                   title="GL Trial Balance"
-                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+                  subtitle={glTrialSubtitle}
                   organization={currentOrganization || undefined}
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
@@ -609,7 +755,7 @@ export default function AccountingReports() {
                       {glTrialBalance.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                            No posted journal lines through this date. Enable the accounting engine and record transactions, or pick a later as-of date.
+                            No posted journal lines for this view. Enable the accounting engine, widen the period, or pick a later as-of date.
                           </TableCell>
                         </TableRow>
                       )}
@@ -631,6 +777,276 @@ export default function AccountingReports() {
                       </TableFooter>
                     )}
                   </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* GL P&L — Revenue / COGS (5xxx) / Opex from posted journals */}
+        <TabsContent value="gl-profit-loss" className="space-y-4">
+          <Card className="print:shadow-none print:border-0">
+            <CardHeader className="print:pb-2">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 print:hidden">
+                  <BarChart3 className="h-5 w-5" />
+                  GL Profit & Loss
+                  <Badge variant="secondary" className="ml-1 font-normal">
+                    Posted journals
+                  </Badge>
+                </CardTitle>
+              </div>
+              <PeriodSelector
+                periodType={periodType}
+                setPeriodType={setPeriodType}
+                fromDate={fromDate}
+                toDate={toDate}
+                setFromDate={setFromDate}
+                setToDate={setToDate}
+              />
+              <Alert className="print:hidden">
+                <AlertDescription className="text-sm">
+                  COGS uses expense accounts with codes <strong>5000–5999</strong>; other expenses use <strong>6000+</strong>. Amounts follow posted journal lines only (not GST operational P&amp;L).
+                </AlertDescription>
+              </Alert>
+              <div className="hidden print:block">
+                <ReportHeader
+                  title="GL Profit & Loss"
+                  subtitle={glPnlSummary?.periodLabel || `${format(new Date(fromDate), "dd MMM yyyy")} – ${format(new Date(toDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={glPnlSummary?.generatedAt || format(new Date(), "dd MMM yyyy, hh:mm a")}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : glPnlSummary && glPnlRows.length > 0 ? (
+                <div className="max-w-2xl mx-auto space-y-4">
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 text-primary flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" />
+                      Revenue
+                    </h3>
+                    <div className="space-y-2">
+                      {glPnlSummary.revenueLines.map((l) => (
+                        <div key={l.accountCode} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            <span className="font-mono mr-2">{l.accountCode}</span>
+                            {l.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(l.amount)}</span>
+                        </div>
+                      ))}
+                      {glPnlSummary.revenueLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No revenue accounts with movement.</p>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-semibold">
+                        <span>Total revenue</span>
+                        <span className="font-mono">{formatCurrency(glPnlSummary.totalRevenue)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 text-amber-700 dark:text-amber-400">Cost of goods sold (5xxx)</h3>
+                    <div className="space-y-2">
+                      {glPnlSummary.cogsLines.map((l) => (
+                        <div key={l.accountCode} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            <span className="font-mono mr-2">{l.accountCode}</span>
+                            {l.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(l.amount)}</span>
+                        </div>
+                      ))}
+                      {glPnlSummary.cogsLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No COGS movement in period.</p>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-semibold">
+                        <span>Total COGS</span>
+                        <span className="font-mono">{formatCurrency(glPnlSummary.totalCogs)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3">Operating expenses</h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                      {glPnlSummary.opexLines.map((l) => (
+                        <div key={l.accountCode} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            <span className="font-mono mr-2">{l.accountCode}</span>
+                            {l.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(l.amount)}</span>
+                        </div>
+                      ))}
+                      {glPnlSummary.opexLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No other expense movement.</p>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-semibold">
+                        <span>Total operating expenses</span>
+                        <span className="font-mono">{formatCurrency(glPnlSummary.totalOpex)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-lg p-4 bg-muted/30">
+                    <div className="flex justify-between text-lg font-semibold">
+                      <span>Gross profit</span>
+                      <span className={`font-mono ${glPnlSummary.grossProfit < 0 ? "text-destructive" : "text-green-600"}`}>
+                        {formatCurrency(glPnlSummary.grossProfit)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`border-2 rounded-lg p-6 ${
+                      glPnlSummary.isNetLoss ? "border-destructive bg-destructive/10" : "border-green-600 bg-green-50 dark:bg-green-950/30"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <h2 className="text-xl font-bold">{glPnlSummary.isNetLoss ? "Net loss" : "Net profit"}</h2>
+                      <span className={`text-2xl font-mono font-bold ${glPnlSummary.isNetLoss ? "text-destructive" : "text-green-600"}`}>
+                        {glPnlSummary.isNetLoss && "−"}
+                        {formatCurrency(Math.abs(glPnlSummary.netProfit))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No GL movement in this period. Post journals (accounting engine) or widen the date range.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* GL Balance sheet — permanent accounts cumulative through as-of */}
+        <TabsContent value="gl-balance-sheet" className="space-y-4">
+          <Card className="print:shadow-none print:border-0">
+            <CardHeader className="print:pb-2">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 print:hidden">
+                  <Landmark className="h-5 w-5" />
+                  GL Balance Sheet
+                  <Badge variant="secondary" className="ml-1 font-normal">
+                    Asset / Liability / Equity
+                  </Badge>
+                </CardTitle>
+              </div>
+              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+              <Alert className="print:hidden">
+                <AlertDescription className="text-sm">
+                  Uses cumulative posted journals through as-of. <strong>Revenue and Expense</strong> accounts are omitted here; until closing
+                  entries exist, totals may not match the accounting equation.
+                </AlertDescription>
+              </Alert>
+              <div className="hidden print:block">
+                <ReportHeader
+                  title="GL Balance Sheet"
+                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : glBsSummary &&
+                glBsSummary.assetLines.length + glBsSummary.liabilityLines.length + glBsSummary.equityLines.length >
+                  0 ? (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <h3 className="font-semibold text-lg text-primary">Assets</h3>
+                    {glBsSummary.assetLines.map((l) => (
+                      <div key={l.accountCode} className="flex justify-between text-sm">
+                        <span>
+                          <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
+                          {l.accountName}
+                        </span>
+                        <span className="font-mono">{formatCurrency(l.amount)}</span>
+                      </div>
+                    ))}
+                    {glBsSummary.assetLines.length === 0 && (
+                      <p className="text-sm text-muted-foreground">No asset balances.</p>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between font-bold">
+                      <span>Total assets</span>
+                      <span className="font-mono text-primary">{formatCurrency(glBsSummary.totalAssets)}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <h3 className="font-semibold text-lg text-destructive">Liabilities</h3>
+                      {glBsSummary.liabilityLines.map((l) => (
+                        <div key={l.accountCode} className="flex justify-between text-sm">
+                          <span>
+                            <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
+                            {l.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(l.amount)}</span>
+                        </div>
+                      ))}
+                      {glBsSummary.liabilityLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No liability balances.</p>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>Total liabilities</span>
+                        <span className="font-mono">{formatCurrency(glBsSummary.totalLiabilities)}</span>
+                      </div>
+                    </div>
+                    <div className="border rounded-lg p-4 space-y-3">
+                      <h3 className="font-semibold text-lg text-green-700 dark:text-green-400">Equity</h3>
+                      {glBsSummary.equityLines.map((l) => (
+                        <div key={l.accountCode} className="flex justify-between text-sm">
+                          <span>
+                            <span className="font-mono text-muted-foreground mr-2">{l.accountCode}</span>
+                            {l.accountName}
+                          </span>
+                          <span className="font-mono">{formatCurrency(l.amount)}</span>
+                        </div>
+                      ))}
+                      {glBsSummary.equityLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No equity balances.</p>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>Total equity</span>
+                        <span className="font-mono">{formatCurrency(glBsSummary.totalEquity)}</span>
+                      </div>
+                    </div>
+                    {(() => {
+                      const rhs = glBsSummary.totalLiabilities + glBsSummary.totalEquity;
+                      const diff = glBsSummary.totalAssets - rhs;
+                      if (Math.abs(diff) <= 0.01) return null;
+                      return (
+                        <Alert>
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertDescription className="text-sm">
+                            Assets ({formatCurrency(glBsSummary.totalAssets)}) vs liabilities + equity ({formatCurrency(rhs)}) differ by{" "}
+                            {formatCurrency(Math.abs(diff))}. This is expected if P&amp;L is not yet closed into equity.
+                          </AlertDescription>
+                        </Alert>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No posted GL balances for permanent accounts through this date.
                 </div>
               )}
             </CardContent>

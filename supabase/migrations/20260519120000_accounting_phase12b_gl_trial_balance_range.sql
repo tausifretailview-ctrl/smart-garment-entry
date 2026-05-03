@@ -1,7 +1,8 @@
--- Phase 12: General-ledger trial balance from journal_lines (cumulative through as-of date).
--- Superseded signature: migration 20260519120000_accounting_phase12b_gl_trial_balance_range.sql replaces this with (org, from, to).
+-- Phase 12b: GL trial balance over an inclusive journal date range (cumulative = from 1900-01-01 through as-of).
 
-CREATE OR REPLACE FUNCTION public.get_gl_trial_balance(p_org_id uuid, p_as_of_date date)
+DROP FUNCTION IF EXISTS public.get_gl_trial_balance(uuid, date);
+
+CREATE OR REPLACE FUNCTION public.get_gl_trial_balance(p_org_id uuid, p_from_date date, p_to_date date)
 RETURNS TABLE (
   account_id uuid,
   account_code text,
@@ -24,6 +25,10 @@ BEGIN
     END IF;
   END IF;
 
+  IF p_to_date < p_from_date THEN
+    RAISE EXCEPTION 'p_to_date must be >= p_from_date' USING ERRCODE = '22023';
+  END IF;
+
   RETURN QUERY
   WITH agg AS (
     SELECT
@@ -37,7 +42,8 @@ BEGIN
     INNER JOIN public.journal_lines jl ON jl.account_id = ca.id
     INNER JOIN public.journal_entries je ON je.id = jl.journal_entry_id
       AND je.organization_id = p_org_id
-      AND je.date <= p_as_of_date
+      AND je.date >= p_from_date
+      AND je.date <= p_to_date
     WHERE ca.organization_id = p_org_id
     GROUP BY ca.id, ca.account_code, ca.account_name, ca.account_type
     HAVING COALESCE(SUM(jl.debit_amount), 0) <> 0 OR COALESCE(SUM(jl.credit_amount), 0) <> 0
@@ -62,4 +68,4 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.get_gl_trial_balance(uuid, date) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_gl_trial_balance(uuid, date, date) TO authenticated;
