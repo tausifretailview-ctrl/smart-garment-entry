@@ -24,13 +24,14 @@ import {
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { supabase } from "@/integrations/supabase/client";
 import {
   calculateTrialBalance,
   calculateGlTrialBalance,
   calculateGlTrialBalanceForRange,
   calculateGlAccountLedger,
   GL_CUMULATIVE_FROM_DATE,
-  buildGlPnlSummaryFromTrial,
+  fetchProfitAndLoss,
   buildGlBalanceSheetFromTrial,
   calculateProfitLoss,
   calculateBalanceSheet,
@@ -39,6 +40,7 @@ import {
   getAllIndiaFYQuarters,
   TrialBalanceEntry,
   GlTrialBalanceEntry,
+  GlProfitAndLossReport,
   GlAccountLedgerRow,
   ProfitLossData,
   BalanceSheetData,
@@ -231,7 +233,7 @@ export default function AccountingReports() {
   const [netProfitSummary, setNetProfitSummary] = useState<NetProfitSummary | null>(null);
   const [glTrialBalance, setGlTrialBalance] = useState<GlTrialBalanceEntry[]>([]);
   const [glTrialMode, setGlTrialMode] = useState<"cumulative" | "period">("cumulative");
-  const [glPnlRows, setGlPnlRows] = useState<GlTrialBalanceEntry[]>([]);
+  const [glPnlReport, setGlPnlReport] = useState<GlProfitAndLossReport | null>(null);
   const [glBsRows, setGlBsRows] = useState<GlTrialBalanceEntry[]>([]);
   const [glLedgerOpen, setGlLedgerOpen] = useState(false);
   const [glLedgerAccount, setGlLedgerAccount] = useState<GlTrialBalanceEntry | null>(null);
@@ -320,15 +322,16 @@ export default function AccountingReports() {
     try {
       if (fromDate > toDate) {
         toast.error("Invalid period.");
-        setGlPnlRows([]);
+        setGlPnlReport(null);
         setLoading(false);
         return;
       }
-      const data = await calculateGlTrialBalanceForRange(currentOrganization.id, fromDate, toDate);
-      setGlPnlRows(data);
+      const data = await fetchProfitAndLoss(currentOrganization.id, fromDate, toDate, supabase);
+      setGlPnlReport(data);
     } catch (error) {
       toast.error("Failed to load GL P&L");
       console.error(error);
+      setGlPnlReport(null);
     }
     setLoading(false);
   };
@@ -478,22 +481,17 @@ export default function AccountingReports() {
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, "GL Trial Balance");
-    } else if (activeTab === "gl-profit-loss" && glPnlSummary && glPnlRows.length > 0) {
+    } else if (activeTab === "gl-profit-loss" && glPnlReport) {
       const rows: { Particulars: string; Amount: number | string }[] = [
         { Particulars: "REVENUE (GL)", Amount: "" },
-        ...glPnlSummary.revenueLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
-        { Particulars: "Total revenue", Amount: glPnlSummary.totalRevenue },
+        ...glPnlReport.revenueLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Particulars: "Total revenue", Amount: glPnlReport.totalRevenue },
         { Particulars: "", Amount: "" },
-        { Particulars: "COGS (5xxx)", Amount: "" },
-        ...glPnlSummary.cogsLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
-        { Particulars: "Total COGS", Amount: glPnlSummary.totalCogs },
+        { Particulars: "EXPENSES (GL)", Amount: "" },
+        ...glPnlReport.expenseLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
+        { Particulars: "Total expenses", Amount: glPnlReport.totalExpenses },
         { Particulars: "", Amount: "" },
-        { Particulars: "Operating expenses (other)", Amount: "" },
-        ...glPnlSummary.opexLines.map((l) => ({ Particulars: `${l.accountCode} ${l.accountName}`, Amount: l.amount })),
-        { Particulars: "Total opex", Amount: glPnlSummary.totalOpex },
-        { Particulars: "", Amount: "" },
-        { Particulars: "Gross profit", Amount: glPnlSummary.grossProfit },
-        { Particulars: glPnlSummary.isNetLoss ? "NET LOSS" : "NET PROFIT", Amount: Math.abs(glPnlSummary.netProfit) },
+        { Particulars: glPnlReport.isNetLoss ? "NET LOSS" : "NET PROFIT", Amount: Math.abs(glPnlReport.netProfit) },
       ];
       const ws = XLSX.utils.json_to_sheet(rows);
       XLSX.utils.book_append_sheet(wb, ws, "GL P&L");
@@ -545,11 +543,6 @@ export default function AccountingReports() {
   );
   const glCashBankNet =
     glCashBankRows.reduce((s, e) => s + e.debit - e.credit, 0);
-
-  const glPnlSummary = useMemo(() => {
-    if (!glPnlRows.length) return null;
-    return buildGlPnlSummaryFromTrial(glPnlRows, fromDate, toDate);
-  }, [glPnlRows, fromDate, toDate]);
 
   const glBsSummary = useMemo(() => {
     if (!glBsRows.length) return null;
@@ -1023,7 +1016,7 @@ export default function AccountingReports() {
           </Card>
         </TabsContent>
 
-        {/* GL P&L — Revenue / COGS (5xxx) / Opex from posted journals */}
+        {/* GL P&L — period-only Revenue & Expense from journal_lines */}
         <TabsContent value="gl-profit-loss" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
@@ -1046,15 +1039,17 @@ export default function AccountingReports() {
               />
               <Alert className="print:hidden">
                 <AlertDescription className="text-sm">
-                  COGS uses expense accounts with codes <strong>5000–5999</strong>; other expenses use <strong>6000+</strong>. Amounts follow posted journal lines only (not GST operational P&amp;L).
+                  <strong>Period only</strong> — includes journal lines whose voucher date falls between the selected dates
+                  (inclusive). Revenue: credits minus debits per account. Expenses: debits minus credits. Net profit is revenue minus
+                  total expenses (operational GST P&amp;L stays on other tabs).
                 </AlertDescription>
               </Alert>
               <div className="hidden print:block">
                 <ReportHeader
                   title="GL Profit & Loss"
-                  subtitle={glPnlSummary?.periodLabel || `${format(new Date(fromDate), "dd MMM yyyy")} – ${format(new Date(toDate), "dd MMM yyyy")}`}
+                  subtitle={glPnlReport?.periodLabel || `${format(new Date(fromDate), "dd MMM yyyy")} – ${format(new Date(toDate), "dd MMM yyyy")}`}
                   organization={currentOrganization || undefined}
-                  generatedAt={glPnlSummary?.generatedAt || format(new Date(), "dd MMM yyyy, hh:mm a")}
+                  generatedAt={glPnlReport?.generatedAt || format(new Date(), "dd MMM yyyy, hh:mm a")}
                 />
               </div>
             </CardHeader>
@@ -1063,7 +1058,7 @@ export default function AccountingReports() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : glPnlSummary && glPnlRows.length > 0 ? (
+              ) : glPnlReport ? (
                 <div className="max-w-2xl mx-auto space-y-4">
                   <div className="border rounded-lg p-4">
                     <h3 className="font-semibold text-lg mb-3 text-primary flex items-center gap-2">
@@ -1071,7 +1066,7 @@ export default function AccountingReports() {
                       Revenue
                     </h3>
                     <div className="space-y-2">
-                      {glPnlSummary.revenueLines.map((l) => (
+                      {glPnlReport.revenueLines.map((l) => (
                         <div key={l.accountCode} className="flex justify-between text-sm">
                           <span className="text-muted-foreground">
                             <span className="font-mono mr-2">{l.accountCode}</span>
@@ -1080,21 +1075,24 @@ export default function AccountingReports() {
                           <span className="font-mono">{formatCurrency(l.amount)}</span>
                         </div>
                       ))}
-                      {glPnlSummary.revenueLines.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No revenue accounts with movement.</p>
+                      {glPnlReport.revenueLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No revenue accounts with movement in this period.</p>
                       )}
                       <Separator />
                       <div className="flex justify-between font-semibold">
                         <span>Total revenue</span>
-                        <span className="font-mono">{formatCurrency(glPnlSummary.totalRevenue)}</span>
+                        <span className="font-mono">{formatCurrency(glPnlReport.totalRevenue)}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-lg mb-3 text-amber-700 dark:text-amber-400">Cost of goods sold (5xxx)</h3>
-                    <div className="space-y-2">
-                      {glPnlSummary.cogsLines.map((l) => (
+                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2 text-destructive">
+                      <TrendingDown className="h-5 w-5" />
+                      Expenses
+                    </h3>
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                      {glPnlReport.expenseLines.map((l) => (
                         <div key={l.accountCode} className="flex justify-between text-sm">
                           <span className="text-muted-foreground">
                             <span className="font-mono mr-2">{l.accountCode}</span>
@@ -1103,66 +1101,34 @@ export default function AccountingReports() {
                           <span className="font-mono">{formatCurrency(l.amount)}</span>
                         </div>
                       ))}
-                      {glPnlSummary.cogsLines.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No COGS movement in period.</p>
+                      {glPnlReport.expenseLines.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No expense accounts with movement in this period.</p>
                       )}
                       <Separator />
                       <div className="flex justify-between font-semibold">
-                        <span>Total COGS</span>
-                        <span className="font-mono">{formatCurrency(glPnlSummary.totalCogs)}</span>
+                        <span>Total expenses</span>
+                        <span className="font-mono">{formatCurrency(glPnlReport.totalExpenses)}</span>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-lg mb-3">Operating expenses</h3>
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {glPnlSummary.opexLines.map((l) => (
-                        <div key={l.accountCode} className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">
-                            <span className="font-mono mr-2">{l.accountCode}</span>
-                            {l.accountName}
-                          </span>
-                          <span className="font-mono">{formatCurrency(l.amount)}</span>
-                        </div>
-                      ))}
-                      {glPnlSummary.opexLines.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No other expense movement.</p>
-                      )}
-                      <Separator />
-                      <div className="flex justify-between font-semibold">
-                        <span>Total operating expenses</span>
-                        <span className="font-mono">{formatCurrency(glPnlSummary.totalOpex)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border rounded-lg p-4 bg-muted/30">
-                    <div className="flex justify-between text-lg font-semibold">
-                      <span>Gross profit</span>
-                      <span className={`font-mono ${glPnlSummary.grossProfit < 0 ? "text-destructive" : "text-green-600"}`}>
-                        {formatCurrency(glPnlSummary.grossProfit)}
-                      </span>
                     </div>
                   </div>
 
                   <div
-                    className={`border-2 rounded-lg p-6 ${
-                      glPnlSummary.isNetLoss ? "border-destructive bg-destructive/10" : "border-green-600 bg-green-50 dark:bg-green-950/30"
+                    className={`rounded-lg border-2 p-5 ${
+                      glPnlReport.isNetLoss ? "border-destructive bg-destructive/10" : "border-green-600 bg-green-50 dark:bg-green-950/30"
                     }`}
                   >
-                    <div className="flex justify-between items-center">
-                      <h2 className="text-xl font-bold">{glPnlSummary.isNetLoss ? "Net loss" : "Net profit"}</h2>
-                      <span className={`text-2xl font-mono font-bold ${glPnlSummary.isNetLoss ? "text-destructive" : "text-green-600"}`}>
-                        {glPnlSummary.isNetLoss && "−"}
-                        {formatCurrency(Math.abs(glPnlSummary.netProfit))}
+                    <div className="flex justify-between items-center gap-4">
+                      <span className="text-lg font-bold">{glPnlReport.isNetLoss ? "Net loss" : "Net profit"}</span>
+                      <span className={`text-xl font-mono font-bold tabular-nums ${glPnlReport.isNetLoss ? "text-destructive" : "text-green-600"}`}>
+                        {glPnlReport.isNetLoss ? "−" : ""}
+                        {formatCurrency(Math.abs(glPnlReport.netProfit))}
                       </span>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  No GL movement in this period. Post journals (accounting engine) or widen the date range.
+                  Choose a period and load the report. If nothing appears, post journals for that range or widen the dates.
                 </div>
               )}
             </CardContent>

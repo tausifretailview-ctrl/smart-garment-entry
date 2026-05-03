@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllSaleItems, fetchVariantsByIds } from "@/utils/fetchAllRows";
 import { format, subDays } from "date-fns";
@@ -196,6 +198,138 @@ export interface GlPnlLine {
   accountCode: string;
   accountName: string;
   amount: number;
+}
+
+/** GL P&amp;L from journal lines only (strict period, Revenue + Expense). */
+export interface GlProfitAndLossReport {
+  revenueLines: GlPnlLine[];
+  expenseLines: GlPnlLine[];
+  totalRevenue: number;
+  totalExpenses: number;
+  netProfit: number;
+  isNetLoss: boolean;
+  periodLabel: string;
+  generatedAt: string;
+}
+
+const GL_PNL_PAGE_SIZE = 1000;
+
+/**
+ * Period-only P&amp;L: sums posted journal lines between fromDate and toDate (inclusive on journal_entries.date).
+ * Revenue: Σ credits − Σ debits per account. Expenses: Σ debits − Σ credits per account. Net profit = total revenue − total expenses.
+ */
+export async function fetchProfitAndLoss(
+  organizationId: string,
+  fromDate: string,
+  toDate: string,
+  client: SupabaseClient<Database>
+): Promise<GlProfitAndLossReport> {
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+
+  type Coa = {
+    id: string;
+    account_type: string;
+    account_code: string;
+    account_name: string;
+    organization_id: string;
+  };
+  type JlRow = {
+    debit_amount: number | null;
+    credit_amount: number | null;
+    journal_entries: { date: string; organization_id: string };
+    chart_of_accounts: Coa;
+  };
+
+  const all: JlRow[] = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await client
+      .from("journal_lines")
+      .select(
+        `
+        debit_amount,
+        credit_amount,
+        journal_entries!inner (
+          date,
+          organization_id
+        ),
+        chart_of_accounts!inner (
+          id,
+          account_type,
+          account_code,
+          account_name,
+          organization_id
+        )
+      `
+      )
+      .eq("journal_entries.organization_id", organizationId)
+      .gte("journal_entries.date", fromDate)
+      .lte("journal_entries.date", toDate)
+      .eq("chart_of_accounts.organization_id", organizationId)
+      .in("chart_of_accounts.account_type", ["Revenue", "Expense"])
+      .order("id", { ascending: true })
+      .range(offset, offset + GL_PNL_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    const batch = (data ?? []) as unknown as JlRow[];
+    all.push(...batch);
+    if (batch.length < GL_PNL_PAGE_SIZE) break;
+    offset += GL_PNL_PAGE_SIZE;
+  }
+
+  const revById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
+  const expById = new Map<string, { accountCode: string; accountName: string; amount: number }>();
+
+  for (const row of all) {
+    const coa = row.chart_of_accounts;
+    const dr = Number(row.debit_amount ?? 0);
+    const cr = Number(row.credit_amount ?? 0);
+
+    if (coa.account_type === "Revenue") {
+      const delta = round2(cr - dr);
+      const cur = revById.get(coa.id) ?? {
+        accountCode: coa.account_code,
+        accountName: coa.account_name,
+        amount: 0,
+      };
+      cur.amount = round2(cur.amount + delta);
+      revById.set(coa.id, cur);
+    } else if (coa.account_type === "Expense") {
+      const delta = round2(dr - cr);
+      const cur = expById.get(coa.id) ?? {
+        accountCode: coa.account_code,
+        accountName: coa.account_name,
+        amount: 0,
+      };
+      cur.amount = round2(cur.amount + delta);
+      expById.set(coa.id, cur);
+    }
+  }
+
+  const revenueLines = [...revById.values()]
+    .filter((l) => Math.abs(l.amount) > 0.0001)
+    .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+    .map((l) => ({ accountCode: l.accountCode, accountName: l.accountName, amount: l.amount }));
+
+  const expenseLines = [...expById.values()]
+    .filter((l) => Math.abs(l.amount) > 0.0001)
+    .sort((a, b) => a.accountCode.localeCompare(b.accountCode))
+    .map((l) => ({ accountCode: l.accountCode, accountName: l.accountName, amount: l.amount }));
+
+  const totalRevenue = round2(revenueLines.reduce((s, l) => s + l.amount, 0));
+  const totalExpenses = round2(expenseLines.reduce((s, l) => s + l.amount, 0));
+  const netProfit = round2(totalRevenue - totalExpenses);
+
+  return {
+    revenueLines,
+    expenseLines,
+    totalRevenue,
+    totalExpenses,
+    netProfit,
+    isNetLoss: netProfit < 0,
+    periodLabel: `${fromDate} → ${toDate}`,
+    generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
+  };
 }
 
 export interface GlPnlSummary {
