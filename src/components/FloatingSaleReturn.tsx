@@ -673,6 +673,8 @@ export const FloatingSaleReturn = ({
         refundType === "exchange" ? "adjusted" :
         "pending";
 
+      const paymentMethodForReturn = refundType === "cash_refund" ? "cash" : null;
+
       const { data: returnData, error: returnError } = await supabase
         .from("sale_returns")
         .insert({
@@ -685,6 +687,7 @@ export const FloatingSaleReturn = ({
           gst_amount: gstAmount,
           net_amount: grossAmount,
           refund_type: refundType,
+          payment_method: paymentMethodForReturn,
           credit_status: creditStatus,
           // Do not bind to the original bill id. For exchange flow this is
           // linked later to the newly created sale via consumeSaleReturnAdjustments.
@@ -735,8 +738,13 @@ export const FloatingSaleReturn = ({
             refundType,
             returnDateYmd,
             `Sale return ${returnNumber}`,
-            supabase
+            supabase,
+            paymentMethodForReturn
           );
+          await supabase
+            .from("sale_returns")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", returnData.id);
         } catch (glErr) {
           await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
           await supabase.from("sale_returns").delete().eq("id", returnData.id);

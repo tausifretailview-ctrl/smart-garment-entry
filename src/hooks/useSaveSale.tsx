@@ -246,6 +246,7 @@ export const useSaveSale = () => {
           customer_id: sr.customer_id,
           customer_name: sr.customer_name,
           refund_type: sr.refund_type || 'credit_note',
+          payment_method: (sr as { payment_method?: string | null }).payment_method ?? null,
           return_date: sr.return_date,
           return_number: null,
           original_sale_number: sr.original_sale_number || null,

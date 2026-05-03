@@ -932,16 +932,35 @@ const PurchaseReturnEntry = () => {
           .maybeSingle();
         if (isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
+            const { data: prMeta } = await supabase
+              .from("purchase_returns")
+              .select("payment_method")
+              .eq("id", editId)
+              .maybeSingle();
             await deleteJournalEntryByReference(currentOrganization!.id, "PurchaseReturn", editId, supabase);
+            await supabase
+              .from("purchase_returns" as any)
+              .update({ journal_status: "pending", journal_error: null })
+              .eq("id", editId);
             await recordPurchaseReturnJournalEntry(
               editId,
               currentOrganization!.id,
               netAmount,
               format(returnDate, "yyyy-MM-dd"),
               `Purchase return ${returnNumber}`,
-              supabase
+              supabase,
+              prMeta?.payment_method ?? null
             );
+            await supabase
+              .from("purchase_returns" as any)
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", editId);
           } catch (glErr) {
+            const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
+            await supabase
+              .from("purchase_returns" as any)
+              .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+              .eq("id", editId);
             console.error("Purchase return edit journal:", glErr);
             toast({
               title: "Ledger warning",
@@ -1023,9 +1042,21 @@ const PurchaseReturnEntry = () => {
               netAmount,
               format(returnDate, "yyyy-MM-dd"),
               `Purchase return ${freshReturnNumber}`,
-              supabase
+              supabase,
+              null
             );
+            await supabase
+              .from("purchase_returns" as any)
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", prId);
           } catch (glErr) {
+            await supabase
+              .from("purchase_returns" as any)
+              .update({
+                journal_status: "failed",
+                journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
+              })
+              .eq("id", prId);
             await supabase.from("purchase_return_items" as any).delete().eq("return_id", prId);
             await supabase.from("purchase_returns" as any).delete().eq("id", prId);
             throw glErr;

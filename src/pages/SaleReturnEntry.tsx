@@ -778,7 +778,7 @@ export default function SaleReturnEntry() {
 
         const { data: srRefundMeta } = await supabase
           .from("sale_returns")
-          .select("refund_type")
+          .select("refund_type, payment_method")
           .eq("id", editId)
           .maybeSingle();
         const { data: acctEditSr } = await supabase
@@ -789,16 +789,30 @@ export default function SaleReturnEntry() {
         if (isAccountingEngineEnabled(acctEditSr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await deleteJournalEntryByReference(currentOrganization!.id, "SaleReturn", editId, supabase);
+            await supabase
+              .from("sale_returns")
+              .update({ journal_status: "pending", journal_error: null })
+              .eq("id", editId);
             await recordSaleReturnJournalEntry(
               editId,
               currentOrganization!.id,
               totals.netAmount,
-              (srRefundMeta as { refund_type?: string } | null)?.refund_type || "credit_note",
+              srRefundMeta?.refund_type || "credit_note",
               returnDate,
               `Sale return ${nextReturnNumber}`,
-              supabase
+              supabase,
+              srRefundMeta?.payment_method ?? null
             );
+            await supabase
+              .from("sale_returns")
+              .update({ journal_status: "posted", journal_error: null })
+              .eq("id", editId);
           } catch (glErr) {
+            const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
+            await supabase
+              .from("sale_returns")
+              .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+              .eq("id", editId);
             console.error("Sale return edit journal:", glErr);
             toast({
               title: "Ledger warning",
@@ -850,6 +864,8 @@ export default function SaleReturnEntry() {
               gst_amount: totals.gstAmount,
               net_amount: totals.netAmount,
               notes,
+              refund_type: "credit_note",
+              payment_method: null,
             })
             .select()
             .single();
@@ -892,9 +908,21 @@ export default function SaleReturnEntry() {
                 "credit_note",
                 returnDate,
                 `Sale return ${returnData.return_number}`,
-                supabase
+                supabase,
+                null
               );
+              await supabase
+                .from("sale_returns")
+                .update({ journal_status: "posted", journal_error: null })
+                .eq("id", returnData.id);
             } catch (glErr) {
+              await supabase
+                .from("sale_returns")
+                .update({
+                  journal_status: "failed",
+                  journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
+                })
+                .eq("id", returnData.id);
               await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
               await supabase.from("sale_returns").delete().eq("id", returnData.id);
               throw glErr;

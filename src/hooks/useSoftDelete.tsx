@@ -240,7 +240,7 @@ export function useSoftDelete() {
           {
             const { data: srRow } = await supabase
               .from("sale_returns")
-              .select("organization_id, net_amount, refund_type, return_date, return_number")
+              .select("organization_id, net_amount, refund_type, return_date, return_number, payment_method")
               .eq("id", id)
               .maybeSingle();
             if (srRow?.organization_id) {
@@ -258,9 +258,19 @@ export function useSoftDelete() {
                     srRow.refund_type || "credit_note",
                     srRow.return_date || new Date().toISOString().slice(0, 10),
                     `Sale return ${srRow.return_number || id.slice(0, 8)}`,
-                    supabase
+                    supabase,
+                    srRow.payment_method ?? null
                   );
+                  await supabase
+                    .from("sale_returns")
+                    .update({ journal_status: "posted", journal_error: null })
+                    .eq("id", id);
                 } catch (glErr) {
+                  const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
+                  await supabase
+                    .from("sale_returns")
+                    .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+                    .eq("id", id);
                   console.error("Repost SaleReturn journal after restore:", glErr);
                   toast({
                     title: "Ledger warning",
@@ -280,7 +290,7 @@ export function useSoftDelete() {
           {
             const { data: prRow } = await supabase
               .from("purchase_returns")
-              .select("organization_id, net_amount, return_date, return_number")
+              .select("organization_id, net_amount, return_date, return_number, payment_method")
               .eq("id", id)
               .maybeSingle();
             if (prRow?.organization_id) {
@@ -297,9 +307,19 @@ export function useSoftDelete() {
                     Number(prRow.net_amount) || 0,
                     prRow.return_date || new Date().toISOString().slice(0, 10),
                     `Purchase return ${prRow.return_number || id.slice(0, 8)}`,
-                    supabase
+                    supabase,
+                    prRow.payment_method ?? null
                   );
+                  await supabase
+                    .from("purchase_returns")
+                    .update({ journal_status: "posted", journal_error: null })
+                    .eq("id", id);
                 } catch (glErr) {
+                  const errMsg = glErr instanceof Error ? glErr.message : String(glErr);
+                  await supabase
+                    .from("purchase_returns")
+                    .update({ journal_status: "failed", journal_error: errMsg.slice(0, 2000) })
+                    .eq("id", id);
                   console.error("Repost PurchaseReturn journal after restore:", glErr);
                   toast({
                     title: "Ledger warning",

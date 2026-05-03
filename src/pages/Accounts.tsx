@@ -378,7 +378,7 @@ export default function Accounts() {
     try {
       const summary = await runHistoricalAccountingBackfill(currentOrganization.id, supabase);
       toast.success(
-        `Historical ledger backfill finished. Sales: ${summary.sales.ok} ok, ${summary.sales.err} errors · Purchases: ${summary.purchases.ok} ok, ${summary.purchases.err} errors · Expenses: ${summary.expenses.ok} ok, ${summary.expenses.err} errors.`
+        `Historical ledger backfill finished. Sales: ${summary.sales.ok} ok, ${summary.sales.err} errors · Purchases: ${summary.purchases.ok} ok, ${summary.purchases.err} errors · Sale returns: ${summary.saleReturns.ok} ok, ${summary.saleReturns.err} errors · Purchase returns: ${summary.purchaseReturns.ok} ok, ${summary.purchaseReturns.err} errors · Expenses: ${summary.expenses.ok} ok, ${summary.expenses.err} errors.`
       );
       queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization.id] });
       queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization.id] });

@@ -3,20 +3,29 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   recordExpenseVoucherJournalEntry,
   recordPurchaseJournalEntry,
+  recordPurchaseReturnJournalEntry,
   recordSaleJournalEntry,
+  recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 
 export type HistoricalBackfillSummary = {
   sales: { ok: number; err: number };
   purchases: { ok: number; err: number };
   expenses: { ok: number; err: number };
+  saleReturns: { ok: number; err: number };
+  purchaseReturns: { ok: number; err: number };
 };
+
+function journalErrorMessage(e: unknown, maxLen = 2000): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.length > maxLen ? msg.slice(0, maxLen) : msg;
+}
 
 const PAGE_SIZE = 500;
 
 /**
- * Post journals for legacy rows that never left `pending` (sales, purchase_bills) and expense vouchers
- * that have no `journal_entries` row yet. Per-row try/catch so one bad row does not stop the batch.
+ * Post journals for legacy rows that never left `pending` (sales, purchase_bills, sale_returns, purchase_returns)
+ * and expense vouchers that have no `journal_entries` row yet. Per-row try/catch so one bad row does not stop the batch.
  */
 export async function runHistoricalAccountingBackfill(
   organizationId: string,
@@ -26,6 +35,8 @@ export async function runHistoricalAccountingBackfill(
     sales: { ok: 0, err: 0 },
     purchases: { ok: 0, err: 0 },
     expenses: { ok: 0, err: 0 },
+    saleReturns: { ok: 0, err: 0 },
+    purchaseReturns: { ok: 0, err: 0 },
   };
 
   if (!organizationId) return summary;
@@ -129,6 +140,116 @@ export async function runHistoricalAccountingBackfill(
 
     if (purchaseRows.length < PAGE_SIZE) break;
     purchaseOffset += PAGE_SIZE;
+  }
+
+  // —— Sale returns ——
+  let saleReturnOffset = 0;
+  for (;;) {
+    const { data: srRows, error: srErr } = await client
+      .from("sale_returns")
+      .select("id, net_amount, refund_type, return_date, payment_method")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .eq("journal_status", "pending")
+      .order("id", { ascending: true })
+      .range(saleReturnOffset, saleReturnOffset + PAGE_SIZE - 1);
+
+    if (srErr) throw srErr;
+    if (!srRows?.length) break;
+
+    for (const row of srRows) {
+      const id = row.id as string;
+      try {
+        const net = Number(row.net_amount ?? 0);
+        const refundType = String(row.refund_type ?? "credit_note");
+        if (net <= 0 || refundType.toLowerCase().trim() === "exchange") {
+          await client
+            .from("sale_returns")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", id);
+          summary.saleReturns.ok++;
+          continue;
+        }
+        const dateStr =
+          row.return_date != null ? String(row.return_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+        await recordSaleReturnJournalEntry(
+          id,
+          organizationId,
+          net,
+          refundType,
+          dateStr,
+          `Historical backfill sale return`,
+          client,
+          (row as { payment_method?: string | null }).payment_method ?? null
+        );
+        await client.from("sale_returns").update({ journal_status: "posted", journal_error: null }).eq("id", id);
+        summary.saleReturns.ok++;
+      } catch (e) {
+        console.error("[historical backfill] sale_return", id, e);
+        await client
+          .from("sale_returns")
+          .update({ journal_status: "failed", journal_error: journalErrorMessage(e) })
+          .eq("id", id);
+        summary.saleReturns.err++;
+      }
+    }
+
+    if (srRows.length < PAGE_SIZE) break;
+    saleReturnOffset += PAGE_SIZE;
+  }
+
+  // —— Purchase returns ——
+  let purchaseReturnOffset = 0;
+  for (;;) {
+    const { data: prRows, error: prErr } = await client
+      .from("purchase_returns")
+      .select("id, net_amount, return_date, payment_method")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .eq("journal_status", "pending")
+      .order("id", { ascending: true })
+      .range(purchaseReturnOffset, purchaseReturnOffset + PAGE_SIZE - 1);
+
+    if (prErr) throw prErr;
+    if (!prRows?.length) break;
+
+    for (const row of prRows) {
+      const id = row.id as string;
+      try {
+        const net = Number(row.net_amount ?? 0);
+        if (net <= 0) {
+          await client
+            .from("purchase_returns")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", id);
+          summary.purchaseReturns.ok++;
+          continue;
+        }
+        const dateStr =
+          row.return_date != null ? String(row.return_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+        await recordPurchaseReturnJournalEntry(
+          id,
+          organizationId,
+          net,
+          dateStr,
+          `Historical backfill purchase return`,
+          client,
+          (row as { payment_method?: string | null }).payment_method ?? null
+        );
+        await client.from("purchase_returns").update({ journal_status: "posted", journal_error: null }).eq("id", id);
+        summary.purchaseReturns.ok++;
+      } catch (e) {
+        console.error("[historical backfill] purchase_return", id, e);
+        await client
+          .from("purchase_returns")
+          .update({ journal_status: "failed", journal_error: journalErrorMessage(e) })
+          .eq("id", id);
+        summary.purchaseReturns.err++;
+      }
+    }
+
+    if (prRows.length < PAGE_SIZE) break;
+    purchaseReturnOffset += PAGE_SIZE;
   }
 
   // —— Expense vouchers (no journal_status on voucher_entries; skip if journal already exists) ——

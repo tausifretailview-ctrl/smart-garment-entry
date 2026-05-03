@@ -28,6 +28,39 @@ function resolveCashOrBankLedgerAccount(
   return findBankLikeAccount(accounts) || cashInHand;
 }
 
+/**
+ * Return refund routing: `cash` → 1000; upi/card/bank_transfer/cheque/other or name containing "bank" → 1010;
+ * empty / on-account → AR (credit to customer) or AP (debit supplier / reduce payable).
+ */
+function resolveReturnSettlementAccount(
+  accounts: SeededAccount[],
+  paymentMethod: string | null | undefined,
+  side: "credit_customer" | "debit_supplier"
+): SeededAccount {
+  const cash = getAccountByCode(accounts, "1000");
+  if (!cash) throw new Error("Missing chart account Cash in Hand (1000)");
+  const pmRaw = (paymentMethod || "").toLowerCase().trim();
+  const pm = pmRaw === "cash_refund" ? "cash" : pmRaw;
+  if (pm === "cash") return cash;
+  const bankElectronic =
+    ["upi", "card", "bank_transfer", "cheque", "other", "bank"].includes(pm) || pm.includes("bank");
+  if (bankElectronic) {
+    const bank1010 = getAccountByCode(accounts, "1010");
+    if (bank1010) return bank1010;
+    const found = findBankLikeAccount(accounts);
+    if (found) return found;
+    return cash;
+  }
+  if (side === "credit_customer") {
+    const ar = getAccountByCode(accounts, "1200");
+    if (!ar) throw new Error("Missing chart account Accounts Receivable (1200)");
+    return ar;
+  }
+  const ap = getAccountByCode(accounts, "2000");
+  if (!ap) throw new Error("Missing chart account Accounts Payable (2000)");
+  return ap;
+}
+
 /** Matches `journal_entries.reference_type` CHECK constraint. */
 export type JournalReferenceType =
   | "Sale"
@@ -782,8 +815,8 @@ export async function recordPurchaseJournalEntry(
 }
 
 /**
- * Sale return (`sale_returns.id`): DR Sales Returns (4050); CR Cash for cash refund or AR for credit note.
- * Exchange-only returns skip posting (inventory / invoice linkage handled elsewhere).
+ * Sale return (`sale_returns.id`): DR 4050 Sales Returns & Allowances; CR 1000/1010 per `paymentMethod`, else CR 1200 AR.
+ * `paymentMethod` null/empty with `refund_type` cash_refund implies cash. Exchange returns skip GL (returns null).
  */
 export async function recordSaleReturnJournalEntry(
   saleReturnId: string,
@@ -792,7 +825,8 @@ export async function recordSaleReturnJournalEntry(
   refundType: string,
   returnDate: string,
   description: string,
-  client: any = supabase
+  client: any = supabase,
+  paymentMethod?: string | null
 ) {
   if (!saleReturnId) throw new Error("saleReturnId is required");
   if (!organizationId) throw new Error("organizationId is required");
@@ -805,15 +839,18 @@ export async function recordSaleReturnJournalEntry(
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const returnsAccount = getAccountByCode(systemAccounts, "4050");
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
-  const arAccount = getAccountByCode(systemAccounts, "1200");
 
-  if (!returnsAccount || !cashInHand || !arAccount) {
-    throw new Error("Missing chart accounts for sale return journal (Sales Returns / Cash / AR)");
+  if (!returnsAccount) {
+    throw new Error("Missing chart account Sales Returns & Allowances (4050)");
   }
 
-  const creditAccount =
-    rt === "cash_refund" ? cashInHand : arAccount;
+  const effectivePm =
+    paymentMethod != null && String(paymentMethod).trim() !== ""
+      ? paymentMethod
+      : rt === "cash_refund"
+        ? "cash"
+        : null;
+  const creditAccount = resolveReturnSettlementAccount(systemAccounts, effectivePm, "credit_customer");
 
   const lines: PostJournalLineInput[] = [
     { accountId: returnsAccount.id, debitAmount: net, creditAmount: 0 },
@@ -834,7 +871,7 @@ export async function recordSaleReturnJournalEntry(
 }
 
 /**
- * Purchase return (`purchase_returns.id`): DR Accounts Payable, CR COGS (reversal of purchase expense).
+ * Purchase return (`purchase_returns.id`): DR 2000 AP or 1000/1010 per `paymentMethod`; CR 5050 Purchase Returns (contra expense).
  */
 export async function recordPurchaseReturnJournalEntry(
   purchaseReturnId: string,
@@ -842,7 +879,8 @@ export async function recordPurchaseReturnJournalEntry(
   netAmount: number,
   returnDate: string,
   description: string,
-  client: any = supabase
+  client: any = supabase,
+  paymentMethod?: string | null
 ) {
   if (!purchaseReturnId) throw new Error("purchaseReturnId is required");
   if (!organizationId) throw new Error("organizationId is required");
@@ -851,16 +889,17 @@ export async function recordPurchaseReturnJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const apAccount = getAccountByCode(systemAccounts, "2000");
-  const cogsAccount = getAccountByCode(systemAccounts, "5000");
+  const purchaseReturnsAccount = getAccountByCode(systemAccounts, "5050");
 
-  if (!apAccount || !cogsAccount) {
-    throw new Error("Missing chart accounts for purchase return journal (AP / COGS)");
+  if (!purchaseReturnsAccount) {
+    throw new Error("Missing chart account Purchase Returns (5050)");
   }
 
+  const debitAccount = resolveReturnSettlementAccount(systemAccounts, paymentMethod ?? null, "debit_supplier");
+
   const lines: PostJournalLineInput[] = [
-    { accountId: apAccount.id, debitAmount: net, creditAmount: 0 },
-    { accountId: cogsAccount.id, debitAmount: 0, creditAmount: net },
+    { accountId: debitAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: purchaseReturnsAccount.id, debitAmount: 0, creditAmount: net },
   ];
 
   const desc = description.trim() || `Purchase return ${purchaseReturnId.slice(0, 8)}`;
