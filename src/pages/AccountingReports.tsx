@@ -15,11 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Wallet
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Wallet, Info
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -571,8 +571,10 @@ export default function AccountingReports() {
             <Calculator className="h-6 w-6 text-primary" />
             Accounting Reports
           </h1>
-          <p className="text-muted-foreground">
-            GST-Compliant Financial Statements for Indian SMEs
+          <p className="text-muted-foreground max-w-2xl">
+            P&L, balance sheet, and trial balance from your live sales, purchases, stock, and vouchers (operational
+            tabs). Chart-led views (GL tabs) use posted journals when the accounting engine is on—treat older periods as
+            needing an audit before sign-off.
           </p>
         </div>
         <div className="flex gap-2">
@@ -589,6 +591,34 @@ export default function AccountingReports() {
           </Button>
         </div>
       </div>
+
+      <Alert className="print:hidden border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-800">
+        <Info className="h-4 w-4 text-amber-700 dark:text-amber-400" />
+        <AlertTitle className="text-amber-900 dark:text-amber-100">Existing businesses — review before you rely on numbers</AlertTitle>
+        <AlertDescription className="text-amber-900/90 dark:text-amber-100/90 text-sm space-y-2">
+          <p>
+            Your team can already use <strong className="font-medium">Trial Balance</strong>, <strong className="font-medium">P&L</strong>, and{" "}
+            <strong className="font-medium">Balance Sheet</strong> on the operational tabs: they reflect data already captured in the app
+            (invoices, bills, returns, expenses, etc.).
+          </p>
+          <p>
+            <strong className="font-medium">GL</strong> tabs and <strong className="font-medium">Journal vouchers</strong> only include periods where
+            double-entry journals were posted. If the accounting engine was off for part of your history, or vouchers were edited before journals
+            existed, GL totals may not match operational totals until you reconcile or use a clear cut-over date.
+          </p>
+          <p className="font-medium text-foreground">Suggested audit for an existing organization</p>
+          <ol className="list-decimal pl-5 space-y-1">
+            <li>Pick a reporting period and an &quot;as of&quot; date you care about (e.g. end of last month).</li>
+            <li>Run operational Trial Balance and GL Trial for the same date; investigate any large differences via Journal vouchers.</li>
+            <li>Spot-check high-value customers and cash using Customer account statement and Daily cash tally.</li>
+            <li>Use Tally export for a parallel check or import if you already run Tally.</li>
+          </ol>
+          <p className="text-xs pt-1 opacity-90">
+            Positioning: this product gives strong operational and GST reporting plus optional double-entry GL—it is not a replacement for every
+            statutory or enterprise-ERP workflow without your own review (auditors, partners, or internal sign-off still apply).
+          </p>
+        </AlertDescription>
+      </Alert>
 
       <Card className="print:hidden border-primary/20 bg-muted/30">
         <CardHeader className="pb-2">
