@@ -94,7 +94,7 @@ const toYmd = (date: Date) => format(date, "yyyy-MM-dd");
 
 export default function JournalVouchers() {
   const { currentOrganization } = useOrganization();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialFrom = searchParams.get("from");
   const initialTo = searchParams.get("to");
   const initialRef = parseRefTypeParam(searchParams.get("ref") ?? searchParams.get("referenceType"));
@@ -106,10 +106,30 @@ export default function JournalVouchers() {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const ref = parseRefTypeParam(searchParams.get("ref") ?? searchParams.get("referenceType"));
-    if (from) setFromDate(new Date(from));
-    if (to) setToDate(new Date(to));
-    setReferenceType(ref);
+    setFromDate((prev) => {
+      if (from && /^\d{4}-\d{2}-\d{2}/.test(from)) {
+        const parsed = new Date(from);
+        if (toYmd(parsed) !== toYmd(prev)) return parsed;
+      }
+      return prev;
+    });
+    setToDate((prev) => {
+      if (to && /^\d{4}-\d{2}-\d{2}/.test(to)) {
+        const parsed = new Date(to);
+        if (toYmd(parsed) !== toYmd(prev)) return parsed;
+      }
+      return prev;
+    });
+    setReferenceType((prev) => (ref !== prev ? ref : prev));
   }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("from", toYmd(fromDate));
+    params.set("to", toYmd(toDate));
+    if (referenceType !== "all") params.set("ref", referenceType);
+    setSearchParams(params, { replace: true });
+  }, [fromDate, toDate, referenceType, setSearchParams]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data: accountingSettings } = useQuery({
