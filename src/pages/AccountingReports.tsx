@@ -1720,8 +1720,25 @@ export default function AccountingReports() {
                 </TableBody>
               </Table>
             )}
-            <Button type="button" variant="link" className="h-auto p-0 text-sm" onClick={() => orgNavigate("/journal-vouchers")}>
-              Open journal vouchers
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-sm"
+              onClick={() => {
+                if (!glLedgerDateRange) {
+                  orgNavigate("/journal-vouchers");
+                  setGlLedgerOpen(false);
+                  return;
+                }
+                const q = new URLSearchParams({
+                  from: glLedgerDateRange.from,
+                  to: glLedgerDateRange.to,
+                });
+                orgNavigate(`/journal-vouchers?${q.toString()}`);
+                setGlLedgerOpen(false);
+              }}
+            >
+              Open journal vouchers (same date range)
             </Button>
           </div>
         </SheetContent>

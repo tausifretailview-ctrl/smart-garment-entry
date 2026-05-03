@@ -12,6 +12,22 @@ const findBankLikeAccount = (accounts: SeededAccount[]) => {
   return accounts.find((a) => a.account_type === "Asset" && bankRegex.test(a.account_name));
 };
 
+/** Cash (1000) for cash/pay_later; else prefer system 1010 Bank, then any bank-like asset name, else cash. */
+function resolveCashOrBankLedgerAccount(
+  accounts: SeededAccount[],
+  paymentMethod: string | null | undefined
+): SeededAccount {
+  const cashInHand = getAccountByCode(accounts, "1000");
+  if (!cashInHand) {
+    throw new Error("Missing chart account Cash in Hand (1000)");
+  }
+  const pm = (paymentMethod || "").toLowerCase().trim();
+  if (["cash", "pay_later", ""].includes(pm)) return cashInHand;
+  const bank1010 = getAccountByCode(accounts, "1010");
+  if (bank1010) return bank1010;
+  return findBankLikeAccount(accounts) || cashInHand;
+}
+
 /** Matches `journal_entries.reference_type` CHECK constraint. */
 export type JournalReferenceType =
   | "Sale"
@@ -187,10 +203,7 @@ export async function recordExpenseVoucherJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
-  if (!cashInHand) {
-    throw new Error("Missing chart account for expense journal (Cash)");
-  }
+  const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   let expenseAccountId: string;
   if (expenseLedgerAccountId) {
@@ -212,10 +225,6 @@ export async function recordExpenseVoucherJournalEntry(
     }
     expenseAccountId = expenseAccount.id;
   }
-
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
 
   const lines: PostJournalLineInput[] = [
     { accountId: expenseAccountId, debitAmount: net, creditAmount: 0 },
@@ -255,16 +264,13 @@ export async function recordSalaryVoucherJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const salaryExpense = getAccountByCode(systemAccounts, "6100");
 
-  if (!cashInHand || !salaryExpense) {
-    throw new Error("Missing chart accounts for salary journal (Cash / Salaries & Wages)");
+  if (!salaryExpense) {
+    throw new Error("Missing chart accounts for salary journal (Salaries & Wages 6100)");
   }
 
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: salaryExpense.id, debitAmount: net, creditAmount: 0 },
@@ -309,17 +315,14 @@ export async function recordCustomerReceiptJournalEntry(
   if (cashPortion < 0) throw new Error("Invalid receipt: discount exceeds total");
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const arAccount = getAccountByCode(systemAccounts, "1200");
   const discountAccount = getAccountByCode(systemAccounts, "6050");
 
-  if (!cashInHand || !arAccount || !discountAccount) {
-    throw new Error("Missing chart accounts for customer receipt (Cash / AR / Settlement Discounts 6050)");
+  if (!arAccount || !discountAccount) {
+    throw new Error("Missing chart accounts for customer receipt (AR / Settlement Discounts 6050)");
   }
 
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [];
   if (cashPortion > 0) {
@@ -362,16 +365,13 @@ export async function recordSupplierPaymentJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const apAccount = getAccountByCode(systemAccounts, "2000");
 
-  if (!cashInHand || !apAccount) {
-    throw new Error("Missing chart accounts for supplier payment (Cash / Accounts Payable)");
+  if (!apAccount) {
+    throw new Error("Missing chart accounts for supplier payment (Accounts Payable)");
   }
 
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: apAccount.id, debitAmount: net, creditAmount: 0 },
@@ -453,16 +453,13 @@ export async function recordCustomerAdvanceReceiptJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const advancesAccount = getAccountByCode(systemAccounts, "2150");
 
-  if (!cashInHand || !advancesAccount) {
-    throw new Error("Missing chart accounts for advance receipt (Cash / Customer Advances 2150)");
+  if (!advancesAccount) {
+    throw new Error("Missing chart accounts for advance receipt (Customer Advances 2150)");
   }
 
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: receiptAccount.id, debitAmount: net, creditAmount: 0 },
@@ -501,16 +498,13 @@ export async function recordCustomerAdvanceRefundJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const advancesAccount = getAccountByCode(systemAccounts, "2150");
 
-  if (!cashInHand || !advancesAccount) {
-    throw new Error("Missing chart accounts for advance refund (Cash / Customer Advances 2150)");
+  if (!advancesAccount) {
+    throw new Error("Missing chart accounts for advance refund (Customer Advances 2150)");
   }
 
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: advancesAccount.id, debitAmount: net, creditAmount: 0 },
@@ -696,16 +690,14 @@ export async function recordSaleJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const arAccount = getAccountByCode(systemAccounts, "1200");
   const salesRevenue = getAccountByCode(systemAccounts, "4000");
 
-  if (!cashInHand || !arAccount || !salesRevenue) {
-    throw new Error("Missing required system accounts for journaling (Cash/AR/Sales Revenue)");
+  if (!arAccount || !salesRevenue) {
+    throw new Error("Missing required system accounts for journaling (AR/Sales Revenue)");
   }
 
-  const useBankAccount = !["cash", "pay_later", ""].includes((paymentMethod || "").toLowerCase().trim());
-  const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: salesRevenue.id, debitAmount: 0, creditAmount: net },
@@ -759,16 +751,14 @@ export async function recordPurchaseJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const apAccount = getAccountByCode(systemAccounts, "2000");
   const cogsAccount = getAccountByCode(systemAccounts, "5000");
 
-  if (!cashInHand || !apAccount || !cogsAccount) {
-    throw new Error("Missing required system accounts for journaling (Cash/AP/COGS)");
+  if (!apAccount || !cogsAccount) {
+    throw new Error("Missing required system accounts for journaling (AP/COGS)");
   }
 
-  const useBankAccount = !["cash", "pay_later", ""].includes((paymentMethod || "").toLowerCase().trim());
-  const paymentAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: cogsAccount.id, debitAmount: net, creditAmount: 0 },
@@ -911,16 +901,13 @@ export async function recordSchoolFeeReceiptJournalEntry(
   if (net <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
-  const cashInHand = getAccountByCode(systemAccounts, "1000");
   const feeIncome = getAccountByCode(systemAccounts, "4100") || getAccountByCode(systemAccounts, "4000");
 
-  if (!cashInHand || !feeIncome) {
-    throw new Error("Missing chart accounts for fee journal (Cash / School Fee Income)");
+  if (!feeIncome) {
+    throw new Error("Missing chart accounts for fee journal (School Fee Income)");
   }
 
-  const pm = (paymentMethod || "").toLowerCase().trim();
-  const useBankAccount = !["cash", "pay_later", ""].includes(pm);
-  const receiptAccount = useBankAccount ? findBankLikeAccount(systemAccounts) || cashInHand : cashInHand;
+  const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
     { accountId: feeIncome.id, debitAmount: 0, creditAmount: net },

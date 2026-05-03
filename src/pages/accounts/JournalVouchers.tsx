@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, BookText, ChevronDown, ChevronUp, Info } from "lucide-react";
@@ -33,6 +33,30 @@ type RefTypeFilter =
   | "CustomerAdvanceRefund"
   | "SaleReturn"
   | "PurchaseReturn";
+
+const REF_TYPE_VALUES: RefTypeFilter[] = [
+  "all",
+  "Sale",
+  "Purchase",
+  "Payment",
+  "StudentFeeReceipt",
+  "ExpenseVoucher",
+  "SalaryVoucher",
+  "CustomerReceipt",
+  "SupplierPayment",
+  "CustomerAdvanceApplication",
+  "CustomerCreditNoteApplication",
+  "CustomerAdvanceReceipt",
+  "CustomerAdvanceRefund",
+  "SaleReturn",
+  "PurchaseReturn",
+];
+
+function parseRefTypeParam(v: string | null): RefTypeFilter {
+  if (!v) return "all";
+  const t = v.trim();
+  return REF_TYPE_VALUES.includes(t as RefTypeFilter) ? (t as RefTypeFilter) : "all";
+}
 
 interface JournalEntryRow {
   id: string;
@@ -73,9 +97,19 @@ export default function JournalVouchers() {
   const [searchParams] = useSearchParams();
   const initialFrom = searchParams.get("from");
   const initialTo = searchParams.get("to");
+  const initialRef = parseRefTypeParam(searchParams.get("ref") ?? searchParams.get("referenceType"));
   const [fromDate, setFromDate] = useState<Date>(initialFrom ? new Date(initialFrom) : new Date());
   const [toDate, setToDate] = useState<Date>(initialTo ? new Date(initialTo) : new Date());
-  const [referenceType, setReferenceType] = useState<RefTypeFilter>("all");
+  const [referenceType, setReferenceType] = useState<RefTypeFilter>(initialRef);
+
+  useEffect(() => {
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    const ref = parseRefTypeParam(searchParams.get("ref") ?? searchParams.get("referenceType"));
+    if (from) setFromDate(new Date(from));
+    if (to) setToDate(new Date(to));
+    setReferenceType(ref);
+  }, [searchParams]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data: accountingSettings } = useQuery({

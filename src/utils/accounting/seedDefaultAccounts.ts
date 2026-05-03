@@ -18,6 +18,7 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   account_type: AccountType;
 }> = [
   { account_code: "1000", account_name: "Cash in Hand", account_type: "Asset" },
+  { account_code: "1010", account_name: "Bank Account", account_type: "Asset" },
   { account_code: "1200", account_name: "Accounts Receivable", account_type: "Asset" },
   { account_code: "2000", account_name: "Accounts Payable", account_type: "Liability" },
   { account_code: "2150", account_name: "Customer Advances", account_type: "Liability" },
