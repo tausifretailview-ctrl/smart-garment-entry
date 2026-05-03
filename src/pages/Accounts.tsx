@@ -57,6 +57,7 @@ import { EmployeeSalaryTab } from "@/components/accounts/EmployeeSalaryTab";
 import { ExpensesTab } from "@/components/accounts/ExpensesTab";
 import { VoucherEntryTab } from "@/components/accounts/VoucherEntryTab";
 import { ReconciliationTab } from "@/components/accounts/ReconciliationTab";
+import { BankReconciliationTab } from "@/components/accounts/BankReconciliationTab";
 import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashboardTab";
 
 export default function Accounts() {
@@ -800,7 +801,22 @@ export default function Accounts() {
           )}
           {selectedTab === "voucher-entry" && <VoucherEntryTab vouchers={vouchers} />}
           {selectedTab === "reconciliation" && currentOrganization?.id && (
-            <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+            <Tabs defaultValue="payments" className="w-full space-y-4">
+              <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
+                <TabsTrigger value="payments" className="rounded-md text-xs font-medium">
+                  Payment receipts
+                </TabsTrigger>
+                <TabsTrigger value="bank-gl" className="rounded-md text-xs font-medium">
+                  Bank GL
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="payments" className="mt-0 space-y-0 outline-none">
+                <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+              </TabsContent>
+              <TabsContent value="bank-gl" className="mt-0 outline-none">
+                <BankReconciliationTab organizationId={currentOrganization.id} />
+              </TabsContent>
+            </Tabs>
           )}
         </div>
 
@@ -1004,7 +1020,24 @@ export default function Accounts() {
         </TabsContent>
 
         <TabsContent value="reconciliation" className="space-y-6">
-          {currentOrganization?.id && <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />}
+          {currentOrganization?.id && (
+            <Tabs defaultValue="payments" className="w-full space-y-4">
+              <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
+                <TabsTrigger value="payments" className="rounded-md text-xs font-medium">
+                  Payment receipts
+                </TabsTrigger>
+                <TabsTrigger value="bank-gl" className="rounded-md text-xs font-medium">
+                  Bank GL
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="payments" className="mt-0 space-y-0 outline-none">
+                <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+              </TabsContent>
+              <TabsContent value="bank-gl" className="mt-0 outline-none">
+                <BankReconciliationTab organizationId={currentOrganization.id} />
+              </TabsContent>
+            </Tabs>
+          )}
         </TabsContent>
 
         {isAdmin && (
