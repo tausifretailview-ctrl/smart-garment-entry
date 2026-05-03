@@ -29,8 +29,10 @@ function resolveCashOrBankLedgerAccount(
 }
 
 /**
- * Return refund routing: `cash` → 1000; upi/card/bank_transfer/cheque/other or name containing "bank" → 1010;
- * empty / on-account → AR (credit to customer) or AP (debit supplier / reduce payable).
+ * Return refund routing for GL:
+ * - `cash` → 1000 Cash in Hand
+ * - `upi`, `card`, `bank_transfer` (and cheque/other/bank-like) → 1010 Bank Account when present
+ * - null / empty / on-account → 1200 AR (sale return credit) or 2000 AP (purchase return debit)
  */
 function resolveReturnSettlementAccount(
   accounts: SeededAccount[],
@@ -815,8 +817,9 @@ export async function recordPurchaseJournalEntry(
 }
 
 /**
- * Sale return (`sale_returns.id`): DR 4050 Sales Returns & Allowances; CR 1000/1010 per `paymentMethod`, else CR 1200 AR.
- * `paymentMethod` null/empty with `refund_type` cash_refund implies cash. Exchange returns skip GL (returns null).
+ * Sale return (`sale_returns.id`): DR 4050 Sales Returns & Allowances; CR side from `paymentMethod`:
+ * `cash` → 1000; `upi` | `card` | `bank_transfer` → 1010; null/empty → 1200 AR (on-account / credit note path).
+ * If `paymentMethod` is omitted and `refund_type` is `cash_refund`, treats as `cash`. Exchange returns skip GL (returns null).
  */
 export async function recordSaleReturnJournalEntry(
   saleReturnId: string,
@@ -871,7 +874,8 @@ export async function recordSaleReturnJournalEntry(
 }
 
 /**
- * Purchase return (`purchase_returns.id`): DR 2000 AP or 1000/1010 per `paymentMethod`; CR 5050 Purchase Returns (contra expense).
+ * Purchase return (`purchase_returns.id`): DR 2000 AP (on-account) or 1000/1010 when `paymentMethod` is
+ * `cash` | `upi` | `card` | `bank_transfer`; CR 5050 Purchase Returns (contra expense).
  */
 export async function recordPurchaseReturnJournalEntry(
   purchaseReturnId: string,

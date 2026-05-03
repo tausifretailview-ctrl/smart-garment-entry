@@ -65,6 +65,10 @@ interface LineItem {
   mrp?: number;
 }
 
+/** AP = reduce supplier payable; immediate = cash/bank received from supplier (GL 1000/1010 vs 2000). */
+type PurchaseReturnRefundSettlement = "ap_adjustment" | "immediate_refund";
+type PurchaseReturnRefundPm = "cash" | "upi" | "card" | "bank_transfer";
+
 const PurchaseReturnEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -134,6 +138,9 @@ const PurchaseReturnEntry = () => {
     original_bill_number: "",
     notes: "",
   });
+
+  const [refundSettlement, setRefundSettlement] = useState<PurchaseReturnRefundSettlement>("ap_adjustment");
+  const [refundPaymentMethod, setRefundPaymentMethod] = useState<PurchaseReturnRefundPm>("cash");
 
   // Draft save hook
   const {
@@ -248,6 +255,15 @@ const PurchaseReturnEntry = () => {
           original_bill_number: typedReturn.original_bill_number || "",
           notes: typedReturn.notes || "",
         });
+
+        const pm = typedReturn.payment_method as string | null | undefined;
+        if (pm === "cash" || pm === "upi" || pm === "card" || pm === "bank_transfer") {
+          setRefundSettlement("immediate_refund");
+          setRefundPaymentMethod(pm);
+        } else {
+          setRefundSettlement("ap_adjustment");
+          setRefundPaymentMethod("cash");
+        }
 
         // Fetch return items
         const { data: items, error: itemsError } = await supabase
@@ -883,6 +899,9 @@ const PurchaseReturnEntry = () => {
 
     setLoading(true);
     try {
+      const paymentMethodForReturnRow: string | null =
+        refundSettlement === "immediate_refund" ? refundPaymentMethod : null;
+
       if (isEditMode && editId) {
         // Update existing return
         const { error: updateError } = await supabase
@@ -896,6 +915,7 @@ const PurchaseReturnEntry = () => {
             gst_amount: gstAmount,
             net_amount: netAmount,
             notes: returnData.notes || null,
+            payment_method: paymentMethodForReturnRow,
           })
           .eq("id", editId);
 
@@ -932,11 +952,6 @@ const PurchaseReturnEntry = () => {
           .maybeSingle();
         if (isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
-            const { data: prMeta } = await supabase
-              .from("purchase_returns")
-              .select("payment_method")
-              .eq("id", editId)
-              .maybeSingle();
             await deleteJournalEntryByReference(currentOrganization!.id, "PurchaseReturn", editId, supabase);
             await supabase
               .from("purchase_returns" as any)
@@ -949,7 +964,7 @@ const PurchaseReturnEntry = () => {
               format(returnDate, "yyyy-MM-dd"),
               `Purchase return ${returnNumber}`,
               supabase,
-              prMeta?.payment_method ?? null
+              paymentMethodForReturnRow
             );
             await supabase
               .from("purchase_returns" as any)
@@ -1001,6 +1016,7 @@ const PurchaseReturnEntry = () => {
             notes: returnData.notes || null,
             return_number: freshReturnNumber,
             credit_status: "pending",
+            payment_method: paymentMethodForReturnRow,
           })
           .select()
           .single();
@@ -1043,7 +1059,7 @@ const PurchaseReturnEntry = () => {
               format(returnDate, "yyyy-MM-dd"),
               `Purchase return ${freshReturnNumber}`,
               supabase,
-              null
+              paymentMethodForReturnRow
             );
             await supabase
               .from("purchase_returns" as any)
@@ -1266,6 +1282,45 @@ const PurchaseReturnEntry = () => {
                   onChange={(e) => setReturnData({ ...returnData, notes: e.target.value })}
                   rows={3}
                 />
+              </div>
+
+              <div className="space-y-3 md:col-span-3 border-t pt-4">
+                <Label className="text-sm font-medium">Refund settlement (GL)</Label>
+                <Select
+                  value={refundSettlement}
+                  onValueChange={(v) => setRefundSettlement(v as PurchaseReturnRefundSettlement)}
+                >
+                  <SelectTrigger className="max-w-md">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ap_adjustment">Reduce supplier balance (Accounts Payable)</SelectItem>
+                    <SelectItem value="immediate_refund">Refund received from supplier (cash or bank)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {refundSettlement === "immediate_refund" && (
+                  <div className="space-y-2 max-w-xs">
+                    <Label className="text-xs text-muted-foreground">Received via</Label>
+                    <Select
+                      value={refundPaymentMethod}
+                      onValueChange={(v) => setRefundPaymentMethod(v as PurchaseReturnRefundPm)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="upi">UPI</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
+                        <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Cash → <span className="font-mono">1000</span>; UPI, Card, Bank transfer →{" "}
+                      <span className="font-mono">1010</span>. AP adjustment uses <span className="font-mono">2000</span>.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>

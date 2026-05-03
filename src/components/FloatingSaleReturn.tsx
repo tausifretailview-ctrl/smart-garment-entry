@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard, RotateCcw } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -19,6 +20,9 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
+
+/** Saved to `sale_returns.payment_method` when issuing a direct refund; drives 1000 vs 1010 in GL. */
+type DirectRefundPaymentMethod = "cash" | "upi" | "card" | "bank_transfer";
 
 interface ReturnItem {
   productId: string;
@@ -92,6 +96,8 @@ export const FloatingSaleReturn = ({
   const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [refundType, setRefundType] = useState<RefundType>("exchange");
+  /** When refund type is direct refund: how the shop paid the customer (Cash → 1000, UPI/Card/Bank → 1010). */
+  const [directRefundPaymentMethod, setDirectRefundPaymentMethod] = useState<DirectRefundPaymentMethod>("cash");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
 
   // Inline customer picker (used when no customer was passed from POS)
@@ -168,6 +174,7 @@ export const FloatingSaleReturn = ({
       setBillSaleId(null);
       setBillItems([]);
       setRefundType("exchange");
+      setDirectRefundPaymentMethod("cash");
       setPendingCreditNotes([]);
       setAppliedCreditNoteId(null);
       setAppliedCreditAmount(0);
@@ -673,7 +680,8 @@ export const FloatingSaleReturn = ({
         refundType === "exchange" ? "adjusted" :
         "pending";
 
-      const paymentMethodForReturn = refundType === "cash_refund" ? "cash" : null;
+      const paymentMethodForReturn =
+        refundType === "cash_refund" ? directRefundPaymentMethod : null;
 
       const { data: returnData, error: returnError } = await supabase
         .from("sale_returns")
@@ -789,7 +797,7 @@ export const FloatingSaleReturn = ({
             reference_id: effectiveCustomerId,
             description: `Refund paid for sale return: ${returnNumber}`,
             total_amount: grossAmount,
-            payment_method: "cash",
+            payment_method: directRefundPaymentMethod,
           });
         } catch (vErr) { console.error("Refund voucher failed:", vErr); }
       }
@@ -882,7 +890,8 @@ export const FloatingSaleReturn = ({
         }
       }
 
-      const refundLabel = refundType === "cash_refund" ? "Cash Refund" : refundType === "exchange" ? "Exchange" : "Credit Note";
+      const refundLabel =
+        refundType === "cash_refund" ? "Direct refund" : refundType === "exchange" ? "Exchange" : "Credit Note";
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
       const effectiveReturnAmount = returnItems.length === 0 ? appliedCreditAmount : grossAmount;
       const effectiveRefundType: RefundType = returnItems.length === 0 ? "credit_note" : refundType;
@@ -1298,14 +1307,17 @@ export const FloatingSaleReturn = ({
               type="button"
               onClick={() => setRefundType("cash_refund")}
               className={cn(
-                "flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all",
+                "flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all text-left",
                 refundType === "cash_refund"
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-background text-muted-foreground hover:border-primary/40"
               )}
             >
-              <Banknote className="h-4 w-4" />
-              Cash Refund
+              <span className="flex items-center gap-2">
+                <Banknote className="h-4 w-4 shrink-0" />
+                Direct refund
+              </span>
+              <span className="text-[10px] font-normal opacity-80 pl-6 leading-tight">Cash / UPI / Card / Bank</span>
             </button>
             <button
               type="button"
@@ -1334,6 +1346,29 @@ export const FloatingSaleReturn = ({
               S/R Exchange
             </button>
           </div>
+          {refundType === "cash_refund" && (
+            <div className="mt-3 space-y-2">
+              <Label className="text-xs text-muted-foreground">Refund paid via (GL)</Label>
+              <Select
+                value={directRefundPaymentMethod}
+                onValueChange={(v) => setDirectRefundPaymentMethod(v as DirectRefundPaymentMethod)}
+              >
+                <SelectTrigger className="w-full max-w-xs">
+                  <SelectValue placeholder="Payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Cash posts to <span className="font-mono">1000</span>; UPI, Card, and Bank transfer post to{" "}
+                <span className="font-mono">1010</span>.
+              </p>
+            </div>
+          )}
           {refundType === "exchange" && (
             <div className="mt-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-400">
               ✦ Exchange: Return amount (₹{Math.round(totalAmount).toLocaleString('en-IN')}) will be auto-deducted from the new bill in POS as S/R Adjust.
@@ -1385,7 +1420,7 @@ export const FloatingSaleReturn = ({
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {returnItems.length === 0 && appliedCreditNoteId
                 ? `Apply Credit Note — ₹${Math.round(appliedCreditAmount).toLocaleString("en-IN")}`
-                : refundType === "cash_refund" ? "Save & Cash Refund"
+                : refundType === "cash_refund" ? "Save & refund"
                 : refundType === "exchange" ? "Save & Exchange (S/R Adj)"
                 : "Save Return (Credit Note)"}
             </Button>
