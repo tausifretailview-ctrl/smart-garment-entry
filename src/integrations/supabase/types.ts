@@ -2644,27 +2644,36 @@ export type Database = {
       journal_lines: {
         Row: {
           account_id: string
+          bank_statement_reference: string | null
           created_at: string
           credit_amount: number
           debit_amount: number
           id: string
+          is_reconciled: boolean
           journal_entry_id: string
+          reconciliation_date: string | null
         }
         Insert: {
           account_id: string
+          bank_statement_reference?: string | null
           created_at?: string
           credit_amount?: number
           debit_amount?: number
           id?: string
+          is_reconciled?: boolean
           journal_entry_id: string
+          reconciliation_date?: string | null
         }
         Update: {
           account_id?: string
+          bank_statement_reference?: string | null
           created_at?: string
           credit_amount?: number
           debit_amount?: number
           id?: string
+          is_reconciled?: boolean
           journal_entry_id?: string
+          reconciliation_date?: string | null
         }
         Relationships: [
           {
