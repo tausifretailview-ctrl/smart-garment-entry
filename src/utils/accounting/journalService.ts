@@ -665,10 +665,8 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
 }
 
 /**
- * Records strict double-entry journal lines for a sale:
- *   CR Sales Revenue = netAmount
- *   DR Cash/Bank = paidAmount
- *   DR Accounts Receivable = balance
+ * Records strict double-entry for a sale: DR Cash/Bank (paid), DR AR (receivable), CR Sales Revenue (net).
+ * GL trial balance columns come from `get_gl_trial_balance` (movement is raw DR/CR on each account).
  * @param entryDate Optional `YYYY-MM-DD` for the journal header (defaults to today).
  */
 export async function recordSaleJournalEntry(
@@ -726,10 +724,7 @@ export async function recordSaleJournalEntry(
 }
 
 /**
- * Records strict double-entry journal lines for a purchase bill:
- *   DR Cost of Goods Sold = netAmount
- *   CR Cash/Bank = paidAmount
- *   CR Accounts Payable = balance
+ * Records strict double-entry for a purchase bill: DR COGS (net), CR Cash/Bank (paid), CR AP (payable).
  * @param entryDate Optional `YYYY-MM-DD` for the journal header (defaults to today).
  */
 export async function recordPurchaseJournalEntry(

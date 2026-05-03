@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Printer, Send, Coins, LayoutDashboard, Loader2, BookMarked } from "lucide-react";
+import { CalendarIcon, Plus, Printer, Send, Coins, LayoutDashboard, Loader2, BookMarked, Trash2 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +23,16 @@ import { cn } from "@/lib/utils";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import { SupplierLedger } from "@/components/SupplierLedger";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -37,7 +47,7 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { runHistoricalAccountingBackfill } from "@/utils/accounting/historicalMigration";
+import { resetOrganizationGlLedger, runHistoricalAccountingBackfill } from "@/utils/accounting/historicalMigration";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -73,6 +83,9 @@ export default function Accounts() {
   const [showFailedJournalsDialog, setShowFailedJournalsDialog] = useState(false);
   const [failedJournalSourceFilter, setFailedJournalSourceFilter] = useState<"all" | "sale" | "purchase">("all");
   const [backfillRunning, setBackfillRunning] = useState(false);
+  const [resetLedgerDialogOpen, setResetLedgerDialogOpen] = useState(false);
+  const [resetLedgerRunning, setResetLedgerRunning] = useState(false);
+  const ledgerMigrationBusy = backfillRunning || resetLedgerRunning;
 
   // Edit payment dialog state
   const [showEditPaymentDialog, setShowEditPaymentDialog] = useState(false);
@@ -360,7 +373,7 @@ export default function Accounts() {
   }, [failedJournalRows, failedJournalSourceFilter]);
 
   const handleHistoricalBackfill = async () => {
-    if (!currentOrganization?.id || backfillRunning) return;
+    if (!currentOrganization?.id || ledgerMigrationBusy) return;
     setBackfillRunning(true);
     try {
       const summary = await runHistoricalAccountingBackfill(currentOrganization.id, supabase);
@@ -371,12 +384,36 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization.id] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers", currentOrganization.id] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Backfill failed";
       toast.error(message);
       console.error(e);
     } finally {
       setBackfillRunning(false);
+    }
+  };
+
+  const handleConfirmResetGlLedger = async () => {
+    if (!currentOrganization?.id || ledgerMigrationBusy) return;
+    setResetLedgerRunning(true);
+    try {
+      const res = await resetOrganizationGlLedger(currentOrganization.id, supabase);
+      toast.success(
+        `GL cleared: ${Number(res.journal_lines_deleted ?? 0)} lines, ${Number(res.journal_entries_deleted ?? 0)} entries removed. Sales and purchases set to pending for re-post.`
+      );
+      setResetLedgerDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Reset failed";
+      toast.error(message);
+      console.error(e);
+    } finally {
+      setResetLedgerRunning(false);
     }
   };
 
@@ -843,11 +880,12 @@ export default function Accounts() {
             </CardTitle>
             <CardDescription>
               Post pending sale and purchase journals and expense vouchers that never reached the GL. Safe to re-run: existing
-              journals are skipped. Check the browser console for per-row errors.
+              journals are skipped. Check the browser console for per-row errors. Use reset only before a full re-backfill if you
+              need to clear incorrect GL rows (platform admin or org admin).
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button type="button" variant="secondary" disabled={backfillRunning} onClick={handleHistoricalBackfill}>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" disabled={ledgerMigrationBusy} onClick={handleHistoricalBackfill}>
               {backfillRunning ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -857,9 +895,52 @@ export default function Accounts() {
                 "Run Historical Ledger Backfill"
               )}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="text-destructive border-destructive/40 hover:bg-destructive/10"
+              disabled={ledgerMigrationBusy}
+              onClick={() => setResetLedgerDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Reset GL ledger
+            </Button>
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={resetLedgerDialogOpen} onOpenChange={setResetLedgerDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset GL ledger for this organization?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes all journal lines and journal entries for the current organization, then marks sales and
+              purchase bills as pending so you can run the historical backfill again. Expense vouchers lose their posted journals
+              until you backfill. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetLedgerRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={resetLedgerRunning}
+              onClick={(ev) => {
+                ev.preventDefault();
+                void handleConfirmResetGlLedger();
+              }}
+            >
+              {resetLedgerRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
+                  Resetting…
+                </>
+              ) : (
+                "Reset ledger"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10 h-10 bg-muted/60 p-1 rounded-xl">

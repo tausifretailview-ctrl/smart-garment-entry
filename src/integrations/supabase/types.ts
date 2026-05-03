@@ -7507,6 +7507,10 @@ export type Database = {
           trial_debit: number
         }[]
       }
+      admin_reset_org_gl: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       get_gl_account_ledger: {
         Args: {
           p_account_id: string

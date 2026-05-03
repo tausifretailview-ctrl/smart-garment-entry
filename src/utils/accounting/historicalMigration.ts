@@ -220,3 +220,19 @@ export async function runHistoricalAccountingBackfill(
 
   return summary;
 }
+
+export type AdminResetOrgGlResult = {
+  ok?: boolean;
+  journal_lines_deleted?: number;
+  journal_entries_deleted?: number;
+};
+
+/** Deletes all journal_lines / journal_entries for the org and resets sale & purchase journal_status to pending (RPC). */
+export async function resetOrganizationGlLedger(
+  organizationId: string,
+  client: SupabaseClient<Database>
+): Promise<AdminResetOrgGlResult> {
+  const { data, error } = await client.rpc("admin_reset_org_gl", { p_org_id: organizationId });
+  if (error) throw error;
+  return (data ?? {}) as AdminResetOrgGlResult;
+}
