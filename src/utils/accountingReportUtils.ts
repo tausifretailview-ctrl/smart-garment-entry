@@ -97,6 +97,40 @@ export interface NetProfitSummary {
   generatedAt: string;
 }
 
+export interface GlTrialBalanceEntry {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  accountType: string;
+  movementDebit: number;
+  movementCredit: number;
+  debit: number;
+  credit: number;
+}
+
+/** Cumulative GL trial balance from journal_lines through as-of date (posted journals only). */
+export async function calculateGlTrialBalance(
+  organizationId: string,
+  asOfDate: string
+): Promise<GlTrialBalanceEntry[]> {
+  const { data, error } = await supabase.rpc("get_gl_trial_balance", {
+    p_org_id: organizationId,
+    p_as_of_date: asOfDate,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    accountId: String(r.account_id ?? ""),
+    accountCode: String(r.account_code ?? ""),
+    accountName: String(r.account_name ?? ""),
+    accountType: String(r.account_type ?? ""),
+    movementDebit: Number(r.movement_debit ?? 0),
+    movementCredit: Number(r.movement_credit ?? 0),
+    debit: Number(r.trial_debit ?? 0),
+    credit: Number(r.trial_credit ?? 0),
+  }));
+}
+
 // Calculate Trial Balance — uses server-side RPC
 export async function calculateTrialBalance(
   organizationId: string,

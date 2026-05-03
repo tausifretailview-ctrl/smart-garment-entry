@@ -7494,6 +7494,19 @@ export type Database = {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
       }
+      get_gl_trial_balance: {
+        Args: { p_as_of_date: string; p_org_id: string }
+        Returns: {
+          account_code: string
+          account_id: string
+          account_name: string
+          account_type: string
+          movement_credit: number
+          movement_debit: number
+          trial_credit: number
+          trial_debit: number
+        }[]
+      }
       get_gst_summary: {
         Args: {
           p_from_date: string

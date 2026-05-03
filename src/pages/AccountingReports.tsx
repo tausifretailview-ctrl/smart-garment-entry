@@ -11,19 +11,21 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
   calculateTrialBalance,
+  calculateGlTrialBalance,
   calculateProfitLoss,
   calculateBalanceSheet,
   calculateNetProfitSummary,
   getIndiaFinancialYear,
   getAllIndiaFYQuarters,
   TrialBalanceEntry,
+  GlTrialBalanceEntry,
   ProfitLossData,
   BalanceSheetData,
   NetProfitSummary,
@@ -213,6 +215,7 @@ export default function AccountingReports() {
   const [profitLoss, setProfitLoss] = useState<ProfitLossData | null>(null);
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetData | null>(null);
   const [netProfitSummary, setNetProfitSummary] = useState<NetProfitSummary | null>(null);
+  const [glTrialBalance, setGlTrialBalance] = useState<GlTrialBalanceEntry[]>([]);
 
   const fetchTrialBalance = async () => {
     if (!currentOrganization?.id) return;
@@ -266,12 +269,27 @@ export default function AccountingReports() {
     setLoading(false);
   };
 
+  const fetchGlTrialBalance = async () => {
+    if (!currentOrganization?.id) return;
+    setLoading(true);
+    try {
+      const data = await calculateGlTrialBalance(currentOrganization.id, asOfDate);
+      setGlTrialBalance(data);
+    } catch (error) {
+      toast.error("Failed to load GL trial balance");
+      console.error(error);
+    }
+    setLoading(false);
+  };
+
   // Auto-load reports when tab, dates, or org changes
   useEffect(() => {
     if (!currentOrganization?.id) return;
     if (activeTab === "trial-balance" || activeTab === "balance-sheet") {
       if (activeTab === "trial-balance") fetchTrialBalance();
       else fetchBalanceSheet();
+    } else if (activeTab === "gl-trial-balance") {
+      fetchGlTrialBalance();
     } else {
       if (activeTab === "profit-loss") fetchProfitLoss();
       else if (activeTab === "net-profit") fetchNetProfitSummary();
@@ -283,6 +301,7 @@ export default function AccountingReports() {
     else if (activeTab === "profit-loss") fetchProfitLoss();
     else if (activeTab === "balance-sheet") fetchBalanceSheet();
     else if (activeTab === "net-profit") fetchNetProfitSummary();
+    else if (activeTab === "gl-trial-balance") fetchGlTrialBalance();
   };
 
   const exportToExcel = () => {
@@ -340,8 +359,24 @@ export default function AccountingReports() {
       ];
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, "Balance Sheet");
+    } else if (activeTab === "gl-trial-balance" && glTrialBalance.length > 0) {
+      const data = glTrialBalance.map((e) => ({
+        Code: e.accountCode,
+        "Account Name": e.accountName,
+        Type: e.accountType,
+        "Debit (₹)": e.debit,
+        "Credit (₹)": e.credit,
+        "Posted Dr": e.movementDebit,
+        "Posted Cr": e.movementCredit,
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, "GL Trial Balance");
     }
 
+    if (!wb.SheetNames?.length) {
+      toast.error("Nothing to export — load the report or add rows first.");
+      return;
+    }
     XLSX.writeFile(wb, `${activeTab}-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
     toast.success("Report exported successfully");
   };
@@ -355,6 +390,17 @@ export default function AccountingReports() {
     (acc, e) => ({ debit: acc.debit + e.debit, credit: acc.credit + e.credit }),
     { debit: 0, credit: 0 }
   );
+
+  const glTbTotals = glTrialBalance.reduce(
+    (acc, e) => ({ debit: acc.debit + e.debit, credit: acc.credit + e.credit }),
+    { debit: 0, credit: 0 }
+  );
+
+  const glCashBankRows = glTrialBalance.filter(
+    (e) => e.accountCode >= "1000" && e.accountCode < "1100"
+  );
+  const glCashBankNet =
+    glCashBankRows.reduce((s, e) => s + e.debit - e.credit, 0);
 
   return (
     <div className="space-y-6 p-6 print:p-0">
@@ -384,10 +430,14 @@ export default function AccountingReports() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 print:hidden">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 h-auto print:hidden">
           <TabsTrigger value="trial-balance" className="flex items-center gap-2">
             <Scale className="h-4 w-4" />
             Trial Balance
+          </TabsTrigger>
+          <TabsTrigger value="gl-trial-balance" className="flex items-center gap-2">
+            <BookText className="h-4 w-4" />
+            GL Trial
           </TabsTrigger>
           <TabsTrigger value="profit-loss" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -483,6 +533,105 @@ export default function AccountingReports() {
                     </TableFooter>
                   )}
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* GL Trial Balance — from journal_lines / chart_of_accounts */}
+        <TabsContent value="gl-trial-balance" className="space-y-4">
+          <Card className="print:shadow-none print:border-0">
+            <CardHeader className="print:pb-2">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2 print:hidden">
+                  <BookText className="h-5 w-5" />
+                  GL Trial Balance
+                  <Badge variant="secondary" className="ml-1 font-normal">
+                    Posted journals
+                  </Badge>
+                </CardTitle>
+              </div>
+              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+              <Alert className="print:hidden">
+                <AlertDescription className="text-sm">
+                  Built from <strong>journal_entries</strong> through the as-of date. Use the first tab for the operational
+                  (transaction-based) trial balance. Codes <strong>1000–1099</strong> are summarized below as cash / bank style liquidity.
+                </AlertDescription>
+              </Alert>
+              <div className="hidden print:block">
+                <ReportHeader
+                  title="GL Trial Balance"
+                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {glCashBankRows.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+                      <span className="font-medium text-muted-foreground">Cash / bank bucket (codes 1000–1099)</span>
+                      <span className="font-mono font-semibold">
+                        Net (Dr − Cr): {formatCurrency(glCashBankNet)}
+                      </span>
+                    </div>
+                  )}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[88px]">Code</TableHead>
+                        <TableHead>Account</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Debit (₹)</TableHead>
+                        <TableHead className="text-right">Credit (₹)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {glTrialBalance.map((entry) => (
+                        <TableRow key={entry.accountId}>
+                          <TableCell className="font-mono text-muted-foreground">{entry.accountCode}</TableCell>
+                          <TableCell className="font-medium">{entry.accountName}</TableCell>
+                          <TableCell>{entry.accountType}</TableCell>
+                          <TableCell className="text-right">
+                            {entry.debit > 0 ? formatCurrency(entry.debit) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {entry.credit > 0 ? formatCurrency(entry.credit) : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {glTrialBalance.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                            No posted journal lines through this date. Enable the accounting engine and record transactions, or pick a later as-of date.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                    {glTrialBalance.length > 0 && (
+                      <TableFooter>
+                        <TableRow className="font-bold bg-muted/50">
+                          <TableCell colSpan={3}>Total</TableCell>
+                          <TableCell className="text-right">{formatCurrency(glTbTotals.debit)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(glTbTotals.credit)}</TableCell>
+                        </TableRow>
+                        {Math.abs(glTbTotals.debit - glTbTotals.credit) > 0.01 && (
+                          <TableRow className="text-destructive">
+                            <TableCell colSpan={5} className="text-center">
+                              Trial debits and credits differ by {formatCurrency(Math.abs(glTbTotals.debit - glTbTotals.credit))}
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableFooter>
+                    )}
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

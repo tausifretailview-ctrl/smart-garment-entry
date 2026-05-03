@@ -7,6 +7,7 @@ import { logError } from "@/lib/errorLogger";
 import {
   recordPurchaseJournalEntry,
   recordPurchaseReturnJournalEntry,
+  repostJournalForRestoredVoucher,
   recordSaleJournalEntry,
   recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
@@ -322,10 +323,22 @@ export function useSoftDelete() {
           if (qError) throw qError;
           break;
 
-        case "voucher_entries":
+        case "voucher_entries": {
           const { error: vError } = await supabase.rpc("restore_voucher", { p_voucher_id: id });
           if (vError) throw vError;
+          try {
+            await repostJournalForRestoredVoucher(id, supabase);
+          } catch (glErr) {
+            console.error("Repost voucher journal after restore:", glErr);
+            toast({
+              title: "Ledger warning",
+              description:
+                "Voucher was restored but the day book entry could not be reposted. Check Journal Vouchers or contact support.",
+              variant: "destructive",
+            });
+          }
           break;
+        }
 
         default:
           const { error } = await supabase

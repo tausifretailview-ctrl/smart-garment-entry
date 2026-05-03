@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
 
 const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
@@ -570,6 +571,103 @@ export async function recordCustomerCreditNoteApplicationJournalEntry(
     client,
   });
   return result.journalEntryId;
+}
+
+/**
+ * After recycle-bin restore of `voucher_entries`, repost the chart journal using the same rules as original saves.
+ * No-op when accounting is explicitly off or voucher shape has no GL mapping (e.g. customer refund payment without journal).
+ */
+export async function repostJournalForRestoredVoucher(voucherId: string, client: any = supabase): Promise<void> {
+  if (!voucherId) return;
+
+  const { data: v, error: fetchErr } = await client
+    .from("voucher_entries")
+    .select(
+      "id, organization_id, voucher_type, reference_type, payment_method, total_amount, discount_amount, description, category, voucher_date"
+    )
+    .eq("id", voucherId)
+    .maybeSingle();
+
+  if (fetchErr) throw fetchErr;
+  if (!v?.organization_id) return;
+
+  const { data: settings } = await client
+    .from("settings")
+    .select("accounting_engine_enabled")
+    .eq("organization_id", v.organization_id)
+    .maybeSingle();
+
+  if (!isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null)) return;
+
+  const vt = String(v.voucher_type || "").toLowerCase();
+  const rt = String(v.reference_type || "").toLowerCase();
+  const pm = String(v.payment_method || "").toLowerCase();
+  const amt = Number(v.total_amount || 0);
+  const disc = Number(v.discount_amount || 0);
+  const desc = String(v.description || "");
+  const vDate =
+    v.voucher_date != null ? String(v.voucher_date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const orgId = v.organization_id as string;
+
+  if (vt === "expense" || rt === "expense") {
+    let ledgerId: string | null | undefined;
+    if (v.category) {
+      const { data: ec } = await client
+        .from("expense_categories")
+        .select("ledger_account_id")
+        .eq("organization_id", orgId)
+        .eq("name", v.category)
+        .maybeSingle();
+      ledgerId = ec?.ledger_account_id ?? null;
+    }
+    await recordExpenseVoucherJournalEntry(
+      voucherId,
+      orgId,
+      amt,
+      pm || "cash",
+      vDate,
+      desc || String(v.category || "Expense"),
+      client,
+      ledgerId ?? null
+    );
+    return;
+  }
+
+  if (vt === "payment" && rt === "employee") {
+    await recordSalaryVoucherJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client);
+    return;
+  }
+
+  if (vt === "payment" && rt === "supplier") {
+    await recordSupplierPaymentJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client);
+    return;
+  }
+
+  if (vt === "receipt" && rt === "student_fee") {
+    await recordSchoolFeeReceiptJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client);
+    return;
+  }
+
+  if (vt === "receipt" && (rt === "customer" || rt === "sale")) {
+    if (pm === "advance_adjustment") {
+      await recordCustomerAdvanceApplicationJournalEntry(voucherId, orgId, amt, vDate, desc, client);
+      return;
+    }
+    if (pm === "credit_note_adjustment") {
+      await recordCustomerCreditNoteApplicationJournalEntry(voucherId, orgId, amt, vDate, desc, client);
+      return;
+    }
+    await recordCustomerReceiptJournalEntry(voucherId, orgId, amt, disc, pm || "cash", vDate, desc, client);
+    return;
+  }
+
+  console.warn(
+    "[repostJournalForRestoredVoucher] No GL rule for restored voucher",
+    voucherId,
+    v.voucher_type,
+    v.reference_type,
+    v.payment_method
+  );
 }
 
 /**
