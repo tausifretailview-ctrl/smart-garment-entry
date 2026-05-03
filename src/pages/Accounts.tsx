@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Printer, Send, Coins, LayoutDashboard } from "lucide-react";
+import { CalendarIcon, Plus, Printer, Send, Coins, LayoutDashboard, Loader2, BookMarked } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,7 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { runHistoricalAccountingBackfill } from "@/utils/accounting/historicalMigration";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -71,6 +72,7 @@ export default function Accounts() {
   const [showBalanceAdjustmentDialog, setShowBalanceAdjustmentDialog] = useState(false);
   const [showFailedJournalsDialog, setShowFailedJournalsDialog] = useState(false);
   const [failedJournalSourceFilter, setFailedJournalSourceFilter] = useState<"all" | "sale" | "purchase">("all");
+  const [backfillRunning, setBackfillRunning] = useState(false);
 
   // Edit payment dialog state
   const [showEditPaymentDialog, setShowEditPaymentDialog] = useState(false);
@@ -356,6 +358,27 @@ export default function Accounts() {
     if (failedJournalSourceFilter === "all") return failedJournalRows;
     return failedJournalRows.filter((row) => row.source === failedJournalSourceFilter);
   }, [failedJournalRows, failedJournalSourceFilter]);
+
+  const handleHistoricalBackfill = async () => {
+    if (!currentOrganization?.id || backfillRunning) return;
+    setBackfillRunning(true);
+    try {
+      const summary = await runHistoricalAccountingBackfill(currentOrganization.id, supabase);
+      toast.success(
+        `Historical ledger backfill finished. Sales: ${summary.sales.ok} ok, ${summary.sales.err} errors · Purchases: ${summary.purchases.ok} ok, ${summary.purchases.err} errors · Expenses: ${summary.expenses.ok} ok, ${summary.expenses.err} errors.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers", currentOrganization.id] });
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries", currentOrganization.id] });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Backfill failed";
+      toast.error(message);
+      console.error(e);
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
 
   // Fetch sales only when customer-payment or reconciliation tab is active
   const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
@@ -810,6 +833,33 @@ export default function Accounts() {
         failedJournalCount={failedJournalCount}
         onFailedJournalClick={() => setShowFailedJournalsDialog(true)}
       />
+
+      {isAdmin && currentOrganization?.id && (
+        <Card className="border-dashed">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BookMarked className="h-4 w-4" />
+              Accounting migration
+            </CardTitle>
+            <CardDescription>
+              Post pending sale and purchase journals and expense vouchers that never reached the GL. Safe to re-run: existing
+              journals are skipped. Check the browser console for per-row errors.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button type="button" variant="secondary" disabled={backfillRunning} onClick={handleHistoricalBackfill}>
+              {backfillRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Running backfill…
+                </>
+              ) : (
+                "Run Historical Ledger Backfill"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10 h-10 bg-muted/60 p-1 rounded-xl">
