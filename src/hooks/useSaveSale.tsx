@@ -1509,6 +1509,38 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
+      if (accountingEngineOn) {
+        try {
+          await deleteJournalEntryByReference(currentOrganization.id, "Sale", sale.id, supabase);
+          const saleJournalDate =
+            sale.sale_date != null
+              ? String(sale.sale_date).slice(0, 10)
+              : new Date().toISOString().slice(0, 10);
+          await recordSaleJournalEntry(
+            sale.id,
+            currentOrganization.id,
+            Number(saleData.netAmount || 0),
+            Number(paidAmt || 0),
+            String(finalPaymentMethod || ""),
+            supabase,
+            saleJournalDate
+          );
+          await (supabase as any)
+            .from("sales")
+            .update({ journal_status: "posted", journal_error: null })
+            .eq("id", sale.id);
+        } catch (journalErr) {
+          console.error("Auto-journal (resume held sale) failed:", journalErr);
+          await (supabase as any)
+            .from("sales")
+            .update({
+              journal_status: "failed",
+              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+            })
+            .eq("id", sale.id);
+        }
+      }
+
       // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
         try {
