@@ -843,6 +843,73 @@ export default function AccountingReports() {
                   Period only
                 </Button>
               </div>
+              <div className="flex flex-col gap-2 print:hidden">
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Cumulative</span> adds up every posted line from the beginning
+                  through the as-of date (not just today). For <span className="font-medium text-foreground">only sales and
+                  other activity inside one month or one financial year</span>, switch to{" "}
+                  <span className="font-medium text-foreground">Period only</span> or use a quick range below.
+                </p>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs text-muted-foreground">Quick period:</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setGlTrialMode("period");
+                      const d = new Date();
+                      setFromDate(format(startOfMonth(d), "yyyy-MM-dd"));
+                      setToDate(format(endOfMonth(d), "yyyy-MM-dd"));
+                    }}
+                  >
+                    This calendar month
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setGlTrialMode("period");
+                      const d = new Date(asOfDate);
+                      setFromDate(format(startOfMonth(d), "yyyy-MM-dd"));
+                      setToDate(format(endOfMonth(d), "yyyy-MM-dd"));
+                    }}
+                  >
+                    Month of as-of date
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setGlTrialMode("period");
+                      const fy = getIndiaFinancialYear(0);
+                      setFromDate(fy.fromDate);
+                      setToDate(fy.toDate);
+                    }}
+                  >
+                    Current FY (Apr–Mar)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setGlTrialMode("period");
+                      const fy = getIndiaFinancialYear(-1);
+                      setFromDate(fy.fromDate);
+                      setToDate(fy.toDate);
+                    }}
+                  >
+                    Previous FY
+                  </Button>
+                </div>
+              </div>
               {glTrialMode === "cumulative" ? (
                 <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
               ) : (
@@ -857,7 +924,7 @@ export default function AccountingReports() {
               )}
               <Alert className="print:hidden">
                 <AlertDescription className="text-sm">
-                  Built from <strong>journal_entries</strong> ({glTrialMode === "cumulative" ? "all history through as-of" : "inclusive period"}).
+                  Built from <strong>journal_entries</strong> ({glTrialMode === "cumulative" ? "all history through as-of" : "inclusive period only — monthly/yearly here"}).
                   Operational totals stay on the first tab. Codes <strong>1000–1099</strong> are summarized as cash / bank style liquidity.
                 </AlertDescription>
               </Alert>
