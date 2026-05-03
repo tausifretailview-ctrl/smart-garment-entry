@@ -23,6 +23,8 @@ import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+import { recordPurchaseReturnJournalEntry } from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface ProductVariant {
   id: string;
@@ -977,6 +979,29 @@ const PurchaseReturnEntry = () => {
           .insert(itemsToInsert);
 
         if (itemsError) throw itemsError;
+
+        const prId = (returnRecord as { id: string }).id;
+        const { data: acctPr } = await supabase
+          .from("settings")
+          .select("accounting_engine_enabled")
+          .eq("organization_id", currentOrganization!.id)
+          .maybeSingle();
+        if (isAccountingEngineEnabled(acctPr as { accounting_engine_enabled?: boolean } | null)) {
+          try {
+            await recordPurchaseReturnJournalEntry(
+              prId,
+              currentOrganization!.id,
+              netAmount,
+              format(returnDate, "yyyy-MM-dd"),
+              `Purchase return ${freshReturnNumber}`,
+              supabase
+            );
+          } catch (glErr) {
+            await supabase.from("purchase_return_items" as any).delete().eq("return_id", prId);
+            await supabase.from("purchase_returns" as any).delete().eq("id", prId);
+            throw glErr;
+          }
+        }
 
         // Auto-create credit note voucher for proper accounting
         try {

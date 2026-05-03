@@ -14,6 +14,7 @@ import { insertLedgerCredit } from "@/lib/customerLedger";
 import {
   deleteJournalEntryByReference,
   recordCustomerCreditNoteApplicationJournalEntry,
+  recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
@@ -718,6 +719,31 @@ export const FloatingSaleReturn = ({
 
       if (itemsError) throw itemsError;
 
+      const returnDateYmd =
+        (returnData as { return_date?: string }).return_date || new Date().toISOString().split("T")[0];
+      const { data: acctSaleReturn } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (isAccountingEngineEnabled(acctSaleReturn as { accounting_engine_enabled?: boolean } | null)) {
+        try {
+          await recordSaleReturnJournalEntry(
+            returnData.id,
+            organizationId,
+            grossAmount,
+            refundType,
+            returnDateYmd,
+            `Sale return ${returnNumber}`,
+            supabase
+          );
+        } catch (glErr) {
+          await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
+          await supabase.from("sale_returns").delete().eq("id", returnData.id);
+          throw glErr;
+        }
+      }
+
       // Stock is restored automatically by the database trigger
       // (restore_stock_on_sale_return) — no manual increment needed
 
@@ -859,6 +885,7 @@ export const FloatingSaleReturn = ({
       // Clean up orphan parent record if it was created but items failed
       if (createdReturnId) {
         try {
+          await deleteJournalEntryByReference(organizationId, "SaleReturn", createdReturnId, supabase);
           await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
           await supabase.from("sale_returns").delete().eq("id", createdReturnId);
           console.log("Cleaned up orphan sale return:", createdReturnId);

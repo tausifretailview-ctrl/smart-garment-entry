@@ -24,7 +24,9 @@ export type JournalReferenceType =
   | "CustomerAdvanceApplication"
   | "CustomerCreditNoteApplication"
   | "CustomerAdvanceReceipt"
-  | "CustomerAdvanceRefund";
+  | "CustomerAdvanceRefund"
+  | "SaleReturn"
+  | "PurchaseReturn";
 
 export type PostJournalLineInput = {
   accountId: string;
@@ -680,6 +682,101 @@ export async function recordPurchaseJournalEntry(
     referenceType: "Purchase",
     referenceId: purchaseId,
     description: `Auto journal for purchase ${purchaseId}`,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Sale return (`sale_returns.id`): DR Sales Returns (4050); CR Cash for cash refund or AR for credit note.
+ * Exchange-only returns skip posting (inventory / invoice linkage handled elsewhere).
+ */
+export async function recordSaleReturnJournalEntry(
+  saleReturnId: string,
+  organizationId: string,
+  netAmount: number,
+  refundType: string,
+  returnDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!saleReturnId) throw new Error("saleReturnId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(netAmount);
+  if (net <= 0) return null;
+
+  const rt = (refundType || "").toLowerCase().trim();
+  if (rt === "exchange") return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const returnsAccount = getAccountByCode(systemAccounts, "4050");
+  const cashInHand = getAccountByCode(systemAccounts, "1000");
+  const arAccount = getAccountByCode(systemAccounts, "1200");
+
+  if (!returnsAccount || !cashInHand || !arAccount) {
+    throw new Error("Missing chart accounts for sale return journal (Sales Returns / Cash / AR)");
+  }
+
+  const creditAccount =
+    rt === "cash_refund" ? cashInHand : arAccount;
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: returnsAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: creditAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc = description.trim() || `Sale return ${saleReturnId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: returnDate,
+    referenceType: "SaleReturn",
+    referenceId: saleReturnId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
+ * Purchase return (`purchase_returns.id`): DR Accounts Payable, CR COGS (reversal of purchase expense).
+ */
+export async function recordPurchaseReturnJournalEntry(
+  purchaseReturnId: string,
+  organizationId: string,
+  netAmount: number,
+  returnDate: string,
+  description: string,
+  client: any = supabase
+) {
+  if (!purchaseReturnId) throw new Error("purchaseReturnId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const net = round2(netAmount);
+  if (net <= 0) return null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const apAccount = getAccountByCode(systemAccounts, "2000");
+  const cogsAccount = getAccountByCode(systemAccounts, "5000");
+
+  if (!apAccount || !cogsAccount) {
+    throw new Error("Missing chart accounts for purchase return journal (AP / COGS)");
+  }
+
+  const lines: PostJournalLineInput[] = [
+    { accountId: apAccount.id, debitAmount: net, creditAmount: 0 },
+    { accountId: cogsAccount.id, debitAmount: 0, creditAmount: net },
+  ];
+
+  const desc = description.trim() || `Purchase return ${purchaseReturnId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: returnDate,
+    referenceType: "PurchaseReturn",
+    referenceId: purchaseReturnId,
+    description: desc,
     lines,
     client,
   });

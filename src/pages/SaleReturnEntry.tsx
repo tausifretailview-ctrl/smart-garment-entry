@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { logError } from "@/lib/errorLogger";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
+import {
+  deleteJournalEntryByReference,
+  recordSaleReturnJournalEntry,
+} from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -841,6 +846,29 @@ export default function SaleReturnEntry() {
 
           if (itemsError) throw itemsError;
 
+          const { data: acctSrPage } = await supabase
+            .from("settings")
+            .select("accounting_engine_enabled")
+            .eq("organization_id", currentOrganization!.id)
+            .maybeSingle();
+          if (isAccountingEngineEnabled(acctSrPage as { accounting_engine_enabled?: boolean } | null)) {
+            try {
+              await recordSaleReturnJournalEntry(
+                returnData.id,
+                currentOrganization!.id,
+                totals.netAmount,
+                "credit_note",
+                returnDate,
+                `Sale return ${returnData.return_number}`,
+                supabase
+              );
+            } catch (glErr) {
+              await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
+              await supabase.from("sale_returns").delete().eq("id", returnData.id);
+              throw glErr;
+            }
+          }
+
           toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
 
           // Customer Account Statement — write credit ledger entry
@@ -859,6 +887,12 @@ export default function SaleReturnEntry() {
           // Clean up orphan parent if items failed
           if (createdReturnId) {
             try {
+              await deleteJournalEntryByReference(
+                currentOrganization!.id,
+                "SaleReturn",
+                createdReturnId,
+                supabase
+              );
               await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
               await supabase.from("sale_returns").delete().eq("id", createdReturnId);
             } catch (cleanupErr) {
