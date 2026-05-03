@@ -4,6 +4,12 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
+import {
+  deleteJournalEntryByReference,
+  recordPurchaseReturnJournalEntry,
+  recordSaleReturnJournalEntry,
+} from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 export type SoftDeleteEntity = 
   | "customers"
@@ -34,7 +40,7 @@ export interface StockDependency {
 
 export function useSoftDelete() {
   const { user } = useAuth();
-  const { organizationRole } = useOrganization();
+  const { organizationRole, currentOrganization } = useOrganization();
   const { toast } = useToast();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
@@ -68,6 +74,13 @@ export function useSoftDelete() {
             p_user_id: user.id,
           });
           if (srError) throw srError;
+          if (currentOrganization?.id) {
+            try {
+              await deleteJournalEntryByReference(currentOrganization.id, "SaleReturn", id, supabase);
+            } catch (jErr) {
+              console.error("Remove SaleReturn journal after soft delete:", jErr);
+            }
+          }
           break;
 
         case "purchase_returns":
@@ -76,6 +89,13 @@ export function useSoftDelete() {
             p_user_id: user.id,
           });
           if (prError) throw prError;
+          if (currentOrganization?.id) {
+            try {
+              await deleteJournalEntryByReference(currentOrganization.id, "PurchaseReturn", id, supabase);
+            } catch (jErr) {
+              console.error("Remove PurchaseReturn journal after soft delete:", jErr);
+            }
+          }
           break;
 
         case "sale_orders":
@@ -157,11 +177,80 @@ export function useSoftDelete() {
         case "sale_returns":
           const { error: srError } = await supabase.rpc("restore_sale_return", { p_return_id: id });
           if (srError) throw srError;
+          {
+            const { data: srRow } = await supabase
+              .from("sale_returns")
+              .select("organization_id, net_amount, refund_type, return_date, return_number")
+              .eq("id", id)
+              .maybeSingle();
+            if (srRow?.organization_id) {
+              const { data: setSr } = await supabase
+                .from("settings")
+                .select("accounting_engine_enabled")
+                .eq("organization_id", srRow.organization_id)
+                .maybeSingle();
+              if (isAccountingEngineEnabled(setSr as { accounting_engine_enabled?: boolean } | null)) {
+                try {
+                  await recordSaleReturnJournalEntry(
+                    id,
+                    srRow.organization_id,
+                    Number(srRow.net_amount) || 0,
+                    srRow.refund_type || "credit_note",
+                    srRow.return_date || new Date().toISOString().slice(0, 10),
+                    `Sale return ${srRow.return_number || id.slice(0, 8)}`,
+                    supabase
+                  );
+                } catch (glErr) {
+                  console.error("Repost SaleReturn journal after restore:", glErr);
+                  toast({
+                    title: "Ledger warning",
+                    description:
+                      "Return was restored but the day book entry could not be reposted. Check Journal Vouchers or contact support.",
+                    variant: "destructive",
+                  });
+                }
+              }
+            }
+          }
           break;
 
         case "purchase_returns":
           const { error: prError } = await supabase.rpc("restore_purchase_return", { p_return_id: id });
           if (prError) throw prError;
+          {
+            const { data: prRow } = await supabase
+              .from("purchase_returns")
+              .select("organization_id, net_amount, return_date, return_number")
+              .eq("id", id)
+              .maybeSingle();
+            if (prRow?.organization_id) {
+              const { data: setPr } = await supabase
+                .from("settings")
+                .select("accounting_engine_enabled")
+                .eq("organization_id", prRow.organization_id)
+                .maybeSingle();
+              if (isAccountingEngineEnabled(setPr as { accounting_engine_enabled?: boolean } | null)) {
+                try {
+                  await recordPurchaseReturnJournalEntry(
+                    id,
+                    prRow.organization_id,
+                    Number(prRow.net_amount) || 0,
+                    prRow.return_date || new Date().toISOString().slice(0, 10),
+                    `Purchase return ${prRow.return_number || id.slice(0, 8)}`,
+                    supabase
+                  );
+                } catch (glErr) {
+                  console.error("Repost PurchaseReturn journal after restore:", glErr);
+                  toast({
+                    title: "Ledger warning",
+                    description:
+                      "Purchase return was restored but the day book entry could not be reposted. Check Journal Vouchers or contact support.",
+                    variant: "destructive",
+                  });
+                }
+              }
+            }
+          }
           break;
 
         case "sale_orders":
@@ -248,9 +337,23 @@ export function useSoftDelete() {
           await supabase.from("sale_items").delete().eq("sale_id", id);
           break;
         case "sale_returns":
+          if (currentOrganization?.id) {
+            try {
+              await deleteJournalEntryByReference(currentOrganization.id, "SaleReturn", id, supabase);
+            } catch (jErr) {
+              console.error("Remove SaleReturn journal before hard delete:", jErr);
+            }
+          }
           await supabase.from("sale_return_items").delete().eq("return_id", id);
           break;
         case "purchase_returns":
+          if (currentOrganization?.id) {
+            try {
+              await deleteJournalEntryByReference(currentOrganization.id, "PurchaseReturn", id, supabase);
+            } catch (jErr) {
+              console.error("Remove PurchaseReturn journal before hard delete:", jErr);
+            }
+          }
           await supabase.from("purchase_return_items").delete().eq("return_id", id);
           break;
         case "sale_orders":
