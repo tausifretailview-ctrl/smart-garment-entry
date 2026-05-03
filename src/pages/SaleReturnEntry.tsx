@@ -776,6 +776,38 @@ export default function SaleReturnEntry() {
 
         if (updateError) throw updateError;
 
+        const { data: srRefundMeta } = await supabase
+          .from("sale_returns")
+          .select("refund_type")
+          .eq("id", editId)
+          .maybeSingle();
+        const { data: acctEditSr } = await supabase
+          .from("settings")
+          .select("accounting_engine_enabled")
+          .eq("organization_id", currentOrganization!.id)
+          .maybeSingle();
+        if (isAccountingEngineEnabled(acctEditSr as { accounting_engine_enabled?: boolean } | null)) {
+          try {
+            await deleteJournalEntryByReference(currentOrganization!.id, "SaleReturn", editId, supabase);
+            await recordSaleReturnJournalEntry(
+              editId,
+              currentOrganization!.id,
+              totals.netAmount,
+              (srRefundMeta as { refund_type?: string } | null)?.refund_type || "credit_note",
+              returnDate,
+              `Sale return ${nextReturnNumber}`,
+              supabase
+            );
+          } catch (glErr) {
+            console.error("Sale return edit journal:", glErr);
+            toast({
+              title: "Ledger warning",
+              description: "Return was saved but the day book could not be updated.",
+              variant: "destructive",
+            });
+          }
+        }
+
         toast({ title: "Success", description: `Sale return ${nextReturnNumber} updated successfully` });
 
         // Customer Account Statement — refresh ledger entry on edit

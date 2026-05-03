@@ -4,11 +4,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
-import {
-  deleteJournalEntryByReference,
-  recordPurchaseReturnJournalEntry,
-  recordSaleReturnJournalEntry,
-} from "@/utils/accounting/journalService";
+import { recordPurchaseReturnJournalEntry, recordSaleReturnJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 export type SoftDeleteEntity = 
@@ -40,7 +36,7 @@ export interface StockDependency {
 
 export function useSoftDelete() {
   const { user } = useAuth();
-  const { organizationRole, currentOrganization } = useOrganization();
+  const { organizationRole } = useOrganization();
   const { toast } = useToast();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
@@ -74,13 +70,6 @@ export function useSoftDelete() {
             p_user_id: user.id,
           });
           if (srError) throw srError;
-          if (currentOrganization?.id) {
-            try {
-              await deleteJournalEntryByReference(currentOrganization.id, "SaleReturn", id, supabase);
-            } catch (jErr) {
-              console.error("Remove SaleReturn journal after soft delete:", jErr);
-            }
-          }
           break;
 
         case "purchase_returns":
@@ -89,13 +78,6 @@ export function useSoftDelete() {
             p_user_id: user.id,
           });
           if (prError) throw prError;
-          if (currentOrganization?.id) {
-            try {
-              await deleteJournalEntryByReference(currentOrganization.id, "PurchaseReturn", id, supabase);
-            } catch (jErr) {
-              console.error("Remove PurchaseReturn journal after soft delete:", jErr);
-            }
-          }
           break;
 
         case "sale_orders":
@@ -337,23 +319,9 @@ export function useSoftDelete() {
           await supabase.from("sale_items").delete().eq("sale_id", id);
           break;
         case "sale_returns":
-          if (currentOrganization?.id) {
-            try {
-              await deleteJournalEntryByReference(currentOrganization.id, "SaleReturn", id, supabase);
-            } catch (jErr) {
-              console.error("Remove SaleReturn journal before hard delete:", jErr);
-            }
-          }
           await supabase.from("sale_return_items").delete().eq("return_id", id);
           break;
         case "purchase_returns":
-          if (currentOrganization?.id) {
-            try {
-              await deleteJournalEntryByReference(currentOrganization.id, "PurchaseReturn", id, supabase);
-            } catch (jErr) {
-              console.error("Remove PurchaseReturn journal before hard delete:", jErr);
-            }
-          }
           await supabase.from("purchase_return_items").delete().eq("return_id", id);
           break;
         case "sale_orders":

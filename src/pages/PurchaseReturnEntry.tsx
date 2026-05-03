@@ -23,7 +23,10 @@ import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
-import { recordPurchaseReturnJournalEntry } from "@/utils/accounting/journalService";
+import {
+  deleteJournalEntryByReference,
+  recordPurchaseReturnJournalEntry,
+} from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 interface ProductVariant {
@@ -920,6 +923,32 @@ const PurchaseReturnEntry = () => {
         if (updErr) throw updErr;
         if (updResult && !(updResult as any).success) {
           throw new Error((updResult as any).error || 'Update failed');
+        }
+
+        const { data: acctEditPr } = await supabase
+          .from("settings")
+          .select("accounting_engine_enabled")
+          .eq("organization_id", currentOrganization!.id)
+          .maybeSingle();
+        if (isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
+          try {
+            await deleteJournalEntryByReference(currentOrganization!.id, "PurchaseReturn", editId, supabase);
+            await recordPurchaseReturnJournalEntry(
+              editId,
+              currentOrganization!.id,
+              netAmount,
+              format(returnDate, "yyyy-MM-dd"),
+              `Purchase return ${returnNumber}`,
+              supabase
+            );
+          } catch (glErr) {
+            console.error("Purchase return edit journal:", glErr);
+            toast({
+              title: "Ledger warning",
+              description: "Purchase return was saved but the day book could not be updated.",
+              variant: "destructive",
+            });
+          }
         }
 
         toast({
