@@ -7507,6 +7507,27 @@ export type Database = {
           trial_debit: number
         }[]
       }
+      get_gl_account_ledger: {
+        Args: {
+          p_account_id: string
+          p_from_date: string
+          p_org_id: string
+          p_to_date: string
+        }
+        Returns: {
+          created_at: string | null
+          credit_amount: number
+          debit_amount: number
+          description: string
+          entry_date: string
+          journal_entry_id: string | null
+          journal_line_id: string | null
+          line_seq: number
+          reference_id: string | null
+          reference_type: string
+          running_balance: number
+        }[]
+      }
       get_gst_summary: {
         Args: {
           p_from_date: string

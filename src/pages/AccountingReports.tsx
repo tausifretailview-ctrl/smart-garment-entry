@@ -1,6 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +27,8 @@ import {
   calculateTrialBalance,
   calculateGlTrialBalance,
   calculateGlTrialBalanceForRange,
+  calculateGlAccountLedger,
+  GL_CUMULATIVE_FROM_DATE,
   buildGlPnlSummaryFromTrial,
   buildGlBalanceSheetFromTrial,
   calculateProfitLoss,
@@ -29,6 +38,7 @@ import {
   getAllIndiaFYQuarters,
   TrialBalanceEntry,
   GlTrialBalanceEntry,
+  GlAccountLedgerRow,
   ProfitLossData,
   BalanceSheetData,
   NetProfitSummary,
@@ -222,6 +232,10 @@ export default function AccountingReports() {
   const [glTrialMode, setGlTrialMode] = useState<"cumulative" | "period">("cumulative");
   const [glPnlRows, setGlPnlRows] = useState<GlTrialBalanceEntry[]>([]);
   const [glBsRows, setGlBsRows] = useState<GlTrialBalanceEntry[]>([]);
+  const [glLedgerOpen, setGlLedgerOpen] = useState(false);
+  const [glLedgerAccount, setGlLedgerAccount] = useState<GlTrialBalanceEntry | null>(null);
+  const [glLedgerRows, setGlLedgerRows] = useState<GlAccountLedgerRow[]>([]);
+  const [glLedgerLoading, setGlLedgerLoading] = useState(false);
 
   const fetchTrialBalance = async () => {
     if (!currentOrganization?.id) return;
@@ -348,6 +362,43 @@ export default function AccountingReports() {
       else if (activeTab === "net-profit") fetchNetProfitSummary();
     }
   }, [activeTab, currentOrganization?.id, fromDate, toDate, asOfDate, glTrialMode]);
+
+  const glLedgerDateRange = useMemo(() => {
+    if (!glLedgerAccount) return null;
+    if (glTrialMode === "cumulative") {
+      return { from: GL_CUMULATIVE_FROM_DATE, to: asOfDate };
+    }
+    return { from: fromDate, to: toDate };
+  }, [glLedgerAccount, glTrialMode, asOfDate, fromDate, toDate]);
+
+  useEffect(() => {
+    if (!glLedgerOpen || !currentOrganization?.id || !glLedgerAccount || !glLedgerDateRange) return;
+    let cancelled = false;
+    (async () => {
+      setGlLedgerLoading(true);
+      setGlLedgerRows([]);
+      try {
+        const rows = await calculateGlAccountLedger(
+          currentOrganization.id,
+          glLedgerAccount.accountId,
+          glLedgerDateRange.from,
+          glLedgerDateRange.to
+        );
+        if (!cancelled) setGlLedgerRows(rows);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setGlLedgerRows([]);
+          toast.error("Could not load account ledger");
+        }
+      } finally {
+        if (!cancelled) setGlLedgerLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [glLedgerOpen, currentOrganization?.id, glLedgerAccount?.accountId, glLedgerDateRange?.from, glLedgerDateRange?.to]);
 
   const handleRefresh = () => {
     if (activeTab === "trial-balance") fetchTrialBalance();
@@ -736,6 +787,7 @@ export default function AccountingReports() {
                         <TableHead>Type</TableHead>
                         <TableHead className="text-right">Debit (₹)</TableHead>
                         <TableHead className="text-right">Credit (₹)</TableHead>
+                        <TableHead className="w-[100px] text-right print:hidden">Ledger</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -750,11 +802,25 @@ export default function AccountingReports() {
                           <TableCell className="text-right">
                             {entry.credit > 0 ? formatCurrency(entry.credit) : "—"}
                           </TableCell>
+                          <TableCell className="text-right print:hidden">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setGlLedgerAccount(entry);
+                                setGlLedgerOpen(true);
+                              }}
+                            >
+                              Lines
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                       {glTrialBalance.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                             No posted journal lines for this view. Enable the accounting engine, widen the period, or pick a later as-of date.
                           </TableCell>
                         </TableRow>
@@ -766,10 +832,11 @@ export default function AccountingReports() {
                           <TableCell colSpan={3}>Total</TableCell>
                           <TableCell className="text-right">{formatCurrency(glTbTotals.debit)}</TableCell>
                           <TableCell className="text-right">{formatCurrency(glTbTotals.credit)}</TableCell>
+                          <TableCell className="print:hidden" />
                         </TableRow>
                         {Math.abs(glTbTotals.debit - glTbTotals.credit) > 0.01 && (
                           <TableRow className="text-destructive">
-                            <TableCell colSpan={5} className="text-center">
+                            <TableCell colSpan={6} className="text-center">
                               Trial debits and credits differ by {formatCurrency(Math.abs(glTbTotals.debit - glTbTotals.credit))}
                             </TableCell>
                           </TableRow>
@@ -1573,6 +1640,92 @@ export default function AccountingReports() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Sheet
+        open={glLedgerOpen}
+        onOpenChange={(open) => {
+          setGlLedgerOpen(open);
+          if (!open) setGlLedgerAccount(null);
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="pr-8">
+              {glLedgerAccount ? (
+                <>
+                  <span className="font-mono text-muted-foreground">{glLedgerAccount.accountCode}</span>{" "}
+                  {glLedgerAccount.accountName}
+                </>
+              ) : (
+                "Account ledger"
+              )}
+            </SheetTitle>
+            <SheetDescription>
+              {glLedgerDateRange
+                ? `${format(new Date(glLedgerDateRange.from), "dd MMM yyyy")} – ${format(new Date(glLedgerDateRange.to), "dd MMM yyyy")}`
+                : ""}
+              {glLedgerAccount &&
+                (glLedgerAccount.accountType === "Asset" || glLedgerAccount.accountType === "Expense"
+                  ? " · Balance increases with debit."
+                  : " · Balance increases with credit.")}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            {glLedgerLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : glLedgerRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6">No lines in this range.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[96px]">Date</TableHead>
+                    <TableHead>Ref / note</TableHead>
+                    <TableHead className="text-right w-[88px]">Dr</TableHead>
+                    <TableHead className="text-right w-[88px]">Cr</TableHead>
+                    <TableHead className="text-right w-[100px]">Balance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {glLedgerRows.map((row) => (
+                    <TableRow key={`${row.lineSeq}-${row.journalLineId ?? "ob"}`}>
+                      <TableCell className="font-mono text-xs whitespace-nowrap">
+                        {format(new Date(row.entryDate), "dd/MM/yy")}
+                      </TableCell>
+                      <TableCell className="text-sm max-w-[200px]">
+                        <div className="truncate" title={row.description ?? ""}>
+                          {row.referenceType === "_opening"
+                            ? "Opening"
+                            : `${row.referenceType}${row.referenceId ? ` · ${String(row.referenceId).slice(0, 8)}` : ""}`}
+                        </div>
+                        {row.description && row.referenceType !== "_opening" && (
+                          <div className="text-xs text-muted-foreground truncate" title={row.description}>
+                            {row.description}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {row.debitAmount > 0 ? formatCurrency(row.debitAmount) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {row.creditAmount > 0 ? formatCurrency(row.creditAmount) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm font-medium">
+                        {formatCurrency(row.runningBalance)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            <Button type="button" variant="link" className="h-auto p-0 text-sm" onClick={() => orgNavigate("/journal-vouchers")}>
+              Open journal vouchers
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

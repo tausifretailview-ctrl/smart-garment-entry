@@ -148,6 +148,50 @@ export async function calculateGlTrialBalance(
   return calculateGlTrialBalanceForRange(organizationId, GL_CUMULATIVE_FROM_DATE, asOfDate);
 }
 
+export interface GlAccountLedgerRow {
+  lineSeq: number;
+  entryDate: string;
+  createdAt: string | null;
+  journalEntryId: string | null;
+  journalLineId: string | null;
+  referenceType: string;
+  referenceId: string | null;
+  description: string | null;
+  debitAmount: number;
+  creditAmount: number;
+  runningBalance: number;
+}
+
+/** Posted lines for one chart account with opening (if non-zero) and running balance. */
+export async function calculateGlAccountLedger(
+  organizationId: string,
+  accountId: string,
+  fromDate: string,
+  toDate: string
+): Promise<GlAccountLedgerRow[]> {
+  const { data, error } = await supabase.rpc("get_gl_account_ledger", {
+    p_org_id: organizationId,
+    p_account_id: accountId,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    lineSeq: Number(r.line_seq ?? 0),
+    entryDate: String(r.entry_date ?? "").slice(0, 10),
+    createdAt: r.created_at != null ? String(r.created_at) : null,
+    journalEntryId: r.journal_entry_id != null ? String(r.journal_entry_id) : null,
+    journalLineId: r.journal_line_id != null ? String(r.journal_line_id) : null,
+    referenceType: String(r.reference_type ?? ""),
+    referenceId: r.reference_id != null ? String(r.reference_id) : null,
+    description: r.description != null ? String(r.description) : null,
+    debitAmount: Number(r.debit_amount ?? 0),
+    creditAmount: Number(r.credit_amount ?? 0),
+    runningBalance: Number(r.running_balance ?? 0),
+  }));
+}
+
 export interface GlPnlLine {
   accountCode: string;
   accountName: string;
