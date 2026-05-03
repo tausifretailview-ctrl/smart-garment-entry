@@ -4,7 +4,12 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
-import { recordPurchaseReturnJournalEntry, recordSaleReturnJournalEntry } from "@/utils/accounting/journalService";
+import {
+  recordPurchaseJournalEntry,
+  recordPurchaseReturnJournalEntry,
+  recordSaleJournalEntry,
+  recordSaleReturnJournalEntry,
+} from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 export type SoftDeleteEntity = 
@@ -146,15 +151,81 @@ export function useSoftDelete() {
   const restore = async (entity: SoftDeleteEntity, id: string) => {
     try {
       switch (entity) {
-        case "purchase_bills":
+        case "purchase_bills": {
           const { error: pbError } = await supabase.rpc("restore_purchase_bill", { p_bill_id: id });
           if (pbError) throw pbError;
+          const { data: billRow } = await supabase
+            .from("purchase_bills")
+            .select("organization_id, net_amount, paid_amount")
+            .eq("id", id)
+            .maybeSingle();
+          if (billRow?.organization_id) {
+            const { data: setB } = await supabase
+              .from("settings")
+              .select("accounting_engine_enabled")
+              .eq("organization_id", billRow.organization_id)
+              .maybeSingle();
+            if (isAccountingEngineEnabled(setB as { accounting_engine_enabled?: boolean } | null)) {
+              try {
+                await recordPurchaseJournalEntry(
+                  id,
+                  billRow.organization_id,
+                  Number(billRow.net_amount) || 0,
+                  Number(billRow.paid_amount ?? 0),
+                  "pay_later",
+                  supabase
+                );
+              } catch (glErr) {
+                console.error("Repost Purchase journal after restore:", glErr);
+                toast({
+                  title: "Ledger warning",
+                  description:
+                    "Purchase bill was restored but the day book entry could not be reposted. Check Journal Vouchers or contact support.",
+                  variant: "destructive",
+                });
+              }
+            }
+          }
           break;
+        }
 
-        case "sales":
-          const { error: saleError } = await supabase.rpc("restore_sale", { p_sale_id: id });
-          if (saleError) throw saleError;
+        case "sales": {
+          const { error: saleRestErr } = await supabase.rpc("restore_sale", { p_sale_id: id });
+          if (saleRestErr) throw saleRestErr;
+          const { data: saleRow } = await supabase
+            .from("sales")
+            .select("organization_id, net_amount, paid_amount, payment_method")
+            .eq("id", id)
+            .maybeSingle();
+          if (saleRow?.organization_id) {
+            const { data: setS } = await supabase
+              .from("settings")
+              .select("accounting_engine_enabled")
+              .eq("organization_id", saleRow.organization_id)
+              .maybeSingle();
+            if (isAccountingEngineEnabled(setS as { accounting_engine_enabled?: boolean } | null)) {
+              try {
+                await recordSaleJournalEntry(
+                  id,
+                  saleRow.organization_id,
+                  Number(saleRow.net_amount) || 0,
+                  Number(saleRow.paid_amount ?? 0),
+                  String(saleRow.payment_method || "cash"),
+                  supabase
+                );
+              } catch (glErr) {
+                console.error("Repost Sale journal after restore:", glErr);
+                toast({
+                  title: "Ledger warning",
+                  description:
+                    "Sale was restored but the day book entry could not be reposted. Check Journal Vouchers or contact support.",
+                  variant: "destructive",
+                });
+              }
+            }
+          }
           break;
+        }
 
         case "sale_returns":
           const { error: srError } = await supabase.rpc("restore_sale_return", { p_return_id: id });
