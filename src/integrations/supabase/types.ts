@@ -4794,37 +4794,9 @@ export type Database = {
           },
         ]
       }
-      sale_return_invoice_allocations: {
-        Row: {
-          amount: number
-          created_at: string
-          id: string
-          organization_id: string
-          sale_id: string
-          sale_return_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          id?: string
-          organization_id: string
-          sale_id: string
-          sale_return_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          organization_id?: string
-          sale_id?: string
-          sale_return_id?: string
-        }
-        Relationships: []
-      }
       sale_returns: {
         Row: {
           created_at: string
-          credit_available_balance: number | null
           credit_note_id: string | null
           credit_status: string | null
           customer_id: string | null
@@ -4849,7 +4821,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          credit_available_balance?: number | null
           credit_note_id?: string | null
           credit_status?: string | null
           customer_id?: string | null
@@ -4874,7 +4845,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          credit_available_balance?: number | null
           credit_note_id?: string | null
           credit_status?: string | null
           customer_id?: string | null
