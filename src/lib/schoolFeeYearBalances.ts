@@ -64,7 +64,7 @@ export async function computeYearWiseFeeBalances(
   });
 
   const { data: allAdjustments } = await (supabase.from("student_balance_audit" as any) as any)
-    .select("academic_year_id, adjustment_type, change_amount")
+    .select("academic_year_id, adjustment_type, change_amount, old_balance, new_balance")
     .eq("organization_id", organizationId)
     .eq("student_id", student.id)
     // Trace-only — receipt deletions/modifications are reflected via
@@ -77,10 +77,12 @@ export async function computeYearWiseFeeBalances(
     if (!y) return;
     const delta =
       a.adjustment_type === "credit"
-        ? (a.change_amount || 0)
+        ? Number(a.change_amount || 0)
         : a.adjustment_type === "debit"
-          ? -(a.change_amount || 0)
-          : 0;
+          ? -Number(a.change_amount || 0)
+          : a.adjustment_type === "set"
+            ? Number(a.new_balance ?? 0) - Number(a.old_balance ?? 0)
+            : 0;
     adjByYear.set(y, (adjByYear.get(y) || 0) + delta);
   });
 
