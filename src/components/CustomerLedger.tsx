@@ -1463,6 +1463,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             timestamp: voucher.created_at,
             type: (
               voucher.payment_method === 'advance_adjustment' ||
+              voucher.payment_method === 'credit_note_adjustment' ||
               (voucher.description && (
                 voucher.description.toLowerCase().includes('adjusted from advance balance') ||
                 voucher.description.toLowerCase().includes('advance adjusted')
@@ -1698,12 +1699,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
           });
         } else if (item.type === 'advance_application') {
-          // Advance applied to invoice: credit running balance (settles AR).
-          // paid_amount on the sale already includes this; "payment at sale"
-          // nets voucher totals so we do not double-credit when combined with
-          // the invoice inline payment row.
+          // Advance or CN *applied* to invoice: not new funds — reduces existing
+          // customer-side credit (same effect as Dr on account statement: running += amount).
           const voucher = item.data as any;
           const amount = Number(voucher.total_amount) || 0;
+          const isCnApply = voucher.payment_method === 'credit_note_adjustment';
 
           // Resolve linked invoice number from reference_id when possible,
           // otherwise fall back to parsing the voucher description.
@@ -1716,11 +1716,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             linkedSaleNumber = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
           }
 
-          const description = linkedSaleNumber
-            ? cleanDescription(`Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber}`)
-            : cleanDescription(`Advance Applied — ₹${amount.toLocaleString('en-IN')}`);
+          const description = isCnApply
+            ? linkedSaleNumber
+              ? cleanDescription(`Credit note adjusted to ${linkedSaleNumber} — ₹${amount.toLocaleString('en-IN')}`)
+              : cleanDescription(`Credit note applied — ₹${amount.toLocaleString('en-IN')}`)
+            : linkedSaleNumber
+              ? cleanDescription(`Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber}`)
+              : cleanDescription(`Advance Applied — ₹${amount.toLocaleString('en-IN')}`);
 
-          runningBalance -= amount;
+          runningBalance += amount;
 
           allTransactions.push({
             id: voucher.id,
@@ -1729,8 +1733,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'advance_application',
             reference: voucher.voucher_number || 'ADV-APP',
             description,
-            debit: 0,
-            credit: amount,
+            debit: amount,
+            credit: 0,
             balance: runningBalance,
             appliedAmount: amount,
             status: 'applied',

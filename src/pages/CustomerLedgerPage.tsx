@@ -43,6 +43,22 @@ interface CustomerOption {
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtAmt = (n: number) => (n ? inr.format(Math.abs(n)) : "");
 
+/**
+ * Statement running balance uses `running += debit - credit` (negative = customer Cr).
+ * Advance / CN *applications* are not new receipts — they allocate existing customer-side
+ * credit; they must post as **debit** so totals and closing balance match reality.
+ */
+function normalizeApplicationLedgerRow(row: LedgerRow): LedgerRow {
+  const vt = (row.voucher_type || "").toUpperCase();
+  if (vt !== "ADVANCE_APPLIED" && vt !== "CN_APPLIED") return row;
+  const cr = Number(row.credit || 0);
+  const dr = Number(row.debit || 0);
+  if (cr > 0.005 && dr < 0.005) {
+    return { ...row, debit: cr, credit: 0 };
+  }
+  return row;
+}
+
 export default function CustomerLedgerPage() {
   const { currentOrganization } = useOrganization();
   const [searchParams] = useSearchParams();
@@ -106,6 +122,8 @@ export default function CustomerLedgerPage() {
       });
       if (error) throw error;
 
+      const rpcRowsNormalized = ((data ?? []) as LedgerRow[]).map(normalizeApplicationLedgerRow);
+
       // Mamta Footwear customer balance reconciliation - Apr 2026:
       // ensure in-range invoices are never dropped by RPC-side joins/filters.
       let salesQuery = supabase
@@ -122,7 +140,7 @@ export default function CustomerLedgerPage() {
       if (salesError) throw salesError;
 
       const existingInvoiceRefs = new Set(
-        ((data ?? []) as LedgerRow[])
+        rpcRowsNormalized
           .filter((row) => Number(row.debit || 0) > 0)
           .map((row) => (row.voucher_no || "").trim())
       );
@@ -171,7 +189,7 @@ export default function CustomerLedgerPage() {
       if (creditNoteVouchersError) throw creditNoteVouchersError;
 
       const existingReturnRefs = new Set(
-        ((data ?? []) as LedgerRow[])
+        rpcRowsNormalized
           .filter((row) => Number(row.credit || 0) > 0)
           .map((row) => (row.voucher_no || "").trim())
       );
@@ -210,7 +228,7 @@ export default function CustomerLedgerPage() {
       // Voucher numbers already represented (RPC + supplements) — skip duplicate voucher rows.
       const existingVoucherNumbers = new Set<string>();
       for (const row of [
-        ...((data ?? []) as LedgerRow[]),
+        ...rpcRowsNormalized,
         ...missingInvoiceRows,
         ...returnRows,
         ...creditNoteRows,
@@ -261,6 +279,10 @@ export default function CustomerLedgerPage() {
           if (vn) existingVoucherNumbers.add(vn);
           const cr = voucherCreditAmount(v as any);
           if (cr <= 0) continue;
+          const pm = String((v as any).payment_method || "").toLowerCase();
+          const isAdvanceApplied = pm === "advance_adjustment";
+          const isCnApplied = pm === "credit_note_adjustment";
+          const isAllocateExistingCredit = isAdvanceApplied || isCnApplied;
           saleReceiptLedgerRows.push({
             id: `ve-sale-${(v as any).id}`,
             transaction_date: (v as any).voucher_date,
@@ -269,8 +291,8 @@ export default function CustomerLedgerPage() {
             particulars:
               (v as any).description ||
               `Receipt (${String((v as any).payment_method || "cash").replace(/_/g, " ")})`,
-            debit: 0,
-            credit: cr,
+            debit: isAllocateExistingCredit ? cr : 0,
+            credit: isAllocateExistingCredit ? 0 : cr,
             running_balance: 0,
           });
         }
@@ -314,14 +336,22 @@ export default function CustomerLedgerPage() {
         } else {
           const cr = voucherCreditAmount(v as any);
           if (cr <= 0) continue;
+          const pm = String((v as any).payment_method || "").toLowerCase();
+          const isAllocateExistingCredit =
+            pm === "advance_adjustment" || pm === "credit_note_adjustment";
           customerVoucherLedgerRows.push({
             id: `ve-cust-${(v as any).id}`,
             transaction_date: (v as any).voucher_date,
-            voucher_type: "RECEIPT",
+            voucher_type:
+              pm === "advance_adjustment"
+                ? "ADVANCE_APPLIED"
+                : pm === "credit_note_adjustment"
+                  ? "CN_APPLIED"
+                  : "RECEIPT",
             voucher_no: (v as any).voucher_number || null,
             particulars: (v as any).description || "Receipt (customer account)",
-            debit: 0,
-            credit: cr,
+            debit: isAllocateExistingCredit ? cr : 0,
+            credit: isAllocateExistingCredit ? 0 : cr,
             running_balance: 0,
           });
         }
@@ -446,7 +476,7 @@ export default function CustomerLedgerPage() {
 
       const combined = (
         [
-          ...((data ?? []) as LedgerRow[]),
+          ...rpcRowsNormalized,
           ...missingInvoiceRows,
           ...returnRows,
           ...creditNoteRows,
