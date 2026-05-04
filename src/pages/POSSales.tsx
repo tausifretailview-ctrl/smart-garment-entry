@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { logError } from "@/lib/errorLogger";
 import { cn, displayBarcode } from "@/lib/utils";
 import { isDecimalUOM } from "@/constants/uom";
@@ -217,6 +217,24 @@ export default function POSSales() {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [highlightCartItemId, setHighlightCartItemId] = useState<string | null>(null);
+  const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const posCartRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const bumpCartHighlight = useCallback((id: string) => {
+    setHighlightCartItemId(id);
+    if (highlightClearTimerRef.current) clearTimeout(highlightClearTimerRef.current);
+    highlightClearTimerRef.current = setTimeout(() => {
+      setHighlightCartItemId(null);
+      highlightClearTimerRef.current = null;
+    }, 2800);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!highlightCartItemId) return;
+    const el = posCartRowRefs.current.get(highlightCartItemId);
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [highlightCartItemId, items]);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
@@ -1622,6 +1640,7 @@ export default function POSSales() {
         productType: 'service',
       };
       setItems(prev => [...prev, newItem]);
+      bumpCartHighlight(newItem.id);
       playSuccessBeep();
       setShowQuickServiceDialog(false);
       setQuickServiceCode("");
@@ -1676,11 +1695,12 @@ export default function POSSales() {
       productType: 'service',
     };
     setItems(prev => [...prev, newItem]);
+    bumpCartHighlight(newItem.id);
     playSuccessBeep();
     setShowQuickServiceDialog(false);
     setQuickServiceCode("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
-  }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd]);
+  }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd, bumpCartHighlight]);
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
@@ -1715,6 +1735,8 @@ export default function POSSales() {
       
       // Play success beep for quantity increment
       playSuccessBeep();
+
+      const mergedLineId = itemsRef.current[existingItemIndex]?.id;
       
       // Increment quantity if already in cart - use functional update to prevent race conditions
       setItems(prev => {
@@ -1723,6 +1745,7 @@ export default function POSSales() {
         updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
         return updatedItems;
       });
+      if (mergedLineId) bumpCartHighlight(mergedLineId);
     } else {
       // Real-time stock validation before adding new item
       const stockCheck = await checkStock(variant.id, 1);
@@ -1824,6 +1847,7 @@ export default function POSSales() {
       };
       hasManuallyAddedNewItemRef.current = true;
       setItems(prev => [...prev, newItem]);
+      bumpCartHighlight(newItem.id);
       
       // Play success beep for new item added
       playSuccessBeep();
@@ -4697,7 +4721,7 @@ export default function POSSales() {
       </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2 pb-32">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2 pb-[calc(8rem+9rem)] min-[1100px]:pb-[calc(8rem+10rem)]">
           <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
@@ -4742,7 +4766,7 @@ export default function POSSales() {
 
             <div
               ref={itemsContainerRef} 
-              className="flex-1 overflow-y-auto relative"
+              className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain relative scroll-smooth"
               onScroll={(e) => {
                 const target = e.target as HTMLDivElement;
                 setShowScrollTop(target.scrollTop > 100);
@@ -4789,7 +4813,21 @@ export default function POSSales() {
                   return (
                     <>
                       {items.map((item, index) => (
-                        <div key={index} className={`grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors ${index % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
+                        <div
+                          key={item.id}
+                          ref={(el) => {
+                            if (el) posCartRowRefs.current.set(item.id, el);
+                            else posCartRowRefs.current.delete(item.id);
+                          }}
+                          data-pos-cart-row={item.id}
+                          className={cn(
+                            "grid gap-1.5 px-3 py-2 border-b border-border/40 hover:bg-accent/30 text-sm transition-colors duration-500",
+                            index % 2 === 1 ? "bg-muted/20" : "",
+                            highlightCartItemId === item.id &&
+                              "ring-2 ring-inset ring-primary/70 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)] z-[1] relative"
+                          )}
+                          style={{ gridTemplateColumns: ROW_COLS }}
+                        >
                           <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
                           <div className="flex items-center text-sm font-mono text-foreground/80">{displayBarcode(item.barcode)}</div>
                           <div className="flex items-center font-medium text-sm min-w-0 gap-1">
@@ -4888,8 +4926,12 @@ export default function POSSales() {
                     </>
                   );
                 })()}
+            </div>
+
+                {/* Notes + discount stay below line-item scroll so the cart list can use full height */}
+                <div className="shrink-0 border-t border-border/60 bg-card">
                 {/* Notes Section - Always visible after items */}
-                <div className="p-3 border-t bg-muted/30">
+                <div className="p-3 bg-muted/30">
                   <div className="flex items-center gap-3">
                     <Label className="text-sm font-medium whitespace-nowrap">
                       <FileText className="h-4 w-4 inline mr-1" />
@@ -4914,7 +4956,7 @@ export default function POSSales() {
                   if (!hasDiscountInfo && !showPointsSection) return null;
                   
                   return (
-                    <div className="p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
+                    <div className="p-3 border-t border-border/60 bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
                       {/* Discount Indicator */}
                       {hasBrandDiscounts && brandDiscounts.length > 0 ? (
                         <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
