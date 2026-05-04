@@ -700,10 +700,17 @@ export default function SaleReturnDashboard() {
                             >
                               <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
-                            {(!["adjusted", "adjusted_outstanding", "refunded"].includes(ret.credit_status || "") &&
-                              (ret.credit_status === "pending" ||
-                                ret.credit_status === "partially_adjusted" ||
-                                !ret.credit_status)) && (
+                            {(() => {
+                              const status = ret.credit_status || "";
+                              if (status === "refunded" || status === "adjusted_outstanding") return false;
+                              // "adjusted" with linked_sale_id means already applied to an invoice
+                              if (status === "adjusted" && ret.linked_sale_id) return false;
+                              const bal =
+                                ret.credit_available_balance != null && !Number.isNaN(Number(ret.credit_available_balance))
+                                  ? Number(ret.credit_available_balance)
+                                  : Number(ret.net_amount) || 0;
+                              return bal > 0;
+                            })() && (
                               <Button
                                 variant="ghost"
                                 size="icon"
