@@ -45,18 +45,23 @@ const fmtAmt = (n: number) => (n ? inr.format(Math.abs(n)) : "");
 
 /**
  * Statement running balance uses `running += debit - credit` (negative = customer Cr).
- * Advance / CN *applications* are not new receipts — they allocate existing customer-side
- * credit; they must post as **debit** so totals and closing balance match reality.
+ * ADVANCE_APPLIED / CN_APPLIED are memo-only: they allocate existing advance/CN to an
+ * invoice — not new billing or new money. Dr and Cr must stay 0 so totals and running
+ * balance match real economics (invoices vs advances and cash receipts).
  */
 function normalizeApplicationLedgerRow(row: LedgerRow): LedgerRow {
   const vt = (row.voucher_type || "").toUpperCase();
   if (vt !== "ADVANCE_APPLIED" && vt !== "CN_APPLIED") return row;
   const cr = Number(row.credit || 0);
   const dr = Number(row.debit || 0);
-  if (cr > 0.005 && dr < 0.005) {
-    return { ...row, debit: cr, credit: 0 };
-  }
-  return row;
+  const amt = Math.max(cr, dr);
+  const memo =
+    amt > 0.005
+      ? ` [Applied ₹${inr.format(amt)} — memo only, excluded from Dr/Cr totals]`
+      : "";
+  const base = (row.particulars || "").trim();
+  const particulars = `${base}${memo}`.trim();
+  return { ...row, debit: 0, credit: 0, particulars: particulars || row.particulars };
 }
 
 export default function CustomerLedgerPage() {
@@ -282,17 +287,21 @@ export default function CustomerLedgerPage() {
           const pm = String((v as any).payment_method || "").toLowerCase();
           const isAdvanceApplied = pm === "advance_adjustment";
           const isCnApplied = pm === "credit_note_adjustment";
-          const isAllocateExistingCredit = isAdvanceApplied || isCnApplied;
+          const isMemoApplication = isAdvanceApplied || isCnApplied;
+          const descBase =
+            (v as any).description ||
+            `Receipt (${String((v as any).payment_method || "cash").replace(/_/g, " ")})`;
+          const memoSuffix = isMemoApplication
+            ? ` [Applied ₹${inr.format(cr)} — memo only, excluded from Dr/Cr totals]`
+            : "";
           saleReceiptLedgerRows.push({
             id: `ve-sale-${(v as any).id}`,
             transaction_date: (v as any).voucher_date,
             voucher_type: receiptVoucherType((v as any).payment_method),
             voucher_no: (v as any).voucher_number || null,
-            particulars:
-              (v as any).description ||
-              `Receipt (${String((v as any).payment_method || "cash").replace(/_/g, " ")})`,
-            debit: isAllocateExistingCredit ? cr : 0,
-            credit: isAllocateExistingCredit ? 0 : cr,
+            particulars: `${descBase}${memoSuffix}`.trim(),
+            debit: 0,
+            credit: isMemoApplication ? 0 : cr,
             running_balance: 0,
           });
         }
@@ -337,8 +346,12 @@ export default function CustomerLedgerPage() {
           const cr = voucherCreditAmount(v as any);
           if (cr <= 0) continue;
           const pm = String((v as any).payment_method || "").toLowerCase();
-          const isAllocateExistingCredit =
+          const isMemoApplication =
             pm === "advance_adjustment" || pm === "credit_note_adjustment";
+          const descCust = (v as any).description || "Receipt (customer account)";
+          const memoSuffixCust = isMemoApplication
+            ? ` [Applied ₹${inr.format(cr)} — memo only, excluded from Dr/Cr totals]`
+            : "";
           customerVoucherLedgerRows.push({
             id: `ve-cust-${(v as any).id}`,
             transaction_date: (v as any).voucher_date,
@@ -349,9 +362,9 @@ export default function CustomerLedgerPage() {
                   ? "CN_APPLIED"
                   : "RECEIPT",
             voucher_no: (v as any).voucher_number || null,
-            particulars: (v as any).description || "Receipt (customer account)",
-            debit: isAllocateExistingCredit ? cr : 0,
-            credit: isAllocateExistingCredit ? 0 : cr,
+            particulars: `${descCust}${memoSuffixCust}`.trim(),
+            debit: 0,
+            credit: isMemoApplication ? 0 : cr,
             running_balance: 0,
           });
         }
@@ -678,8 +691,14 @@ export default function CustomerLedgerPage() {
                     const debit = Number(r.debit || 0);
                     const credit = Number(r.credit || 0);
                     const bal = Number(r.running_balance || 0);
-                    const rowTone =
-                      debit > 0
+                    const vtUp = (r.voucher_type || "").toUpperCase();
+                    const isMemoApplicationRow =
+                      (vtUp === "ADVANCE_APPLIED" || vtUp === "CN_APPLIED") &&
+                      debit < 0.005 &&
+                      credit < 0.005;
+                    const rowTone = isMemoApplicationRow
+                      ? "bg-slate-50/80 dark:bg-muted/20"
+                      : debit > 0
                         ? "bg-red-50/30 hover:bg-red-50/60 dark:bg-red-950/10"
                         : credit > 0
                           ? "bg-green-50/30 hover:bg-green-50/60 dark:bg-green-950/10"

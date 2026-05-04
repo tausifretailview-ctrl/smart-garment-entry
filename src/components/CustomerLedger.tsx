@@ -1699,8 +1699,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
           });
         } else if (item.type === 'advance_application') {
-          // Advance or CN *applied* to invoice: not new funds — reduces existing
-          // customer-side credit (same effect as Dr on account statement: running += amount).
+          // Advance or CN applied to invoice: memo-only — does not change running balance
+          // or Dr/Cr totals (advance booking + invoices already reflect economics).
           const voucher = item.data as any;
           const amount = Number(voucher.total_amount) || 0;
           const isCnApply = voucher.payment_method === 'credit_note_adjustment';
@@ -1716,15 +1716,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             linkedSaleNumber = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
           }
 
+          const memo = ` [Memo only — ₹${amount.toLocaleString("en-IN")} excluded from Dr/Cr totals]`;
           const description = isCnApply
             ? linkedSaleNumber
-              ? cleanDescription(`Credit note adjusted to ${linkedSaleNumber} — ₹${amount.toLocaleString('en-IN')}`)
-              : cleanDescription(`Credit note applied — ₹${amount.toLocaleString('en-IN')}`)
+              ? cleanDescription(`Credit note applied to ${linkedSaleNumber}${memo}`)
+              : cleanDescription(`Credit note applied${memo}`)
             : linkedSaleNumber
-              ? cleanDescription(`Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber}`)
-              : cleanDescription(`Advance Applied — ₹${amount.toLocaleString('en-IN')}`);
-
-          runningBalance += amount;
+              ? cleanDescription(`Advance applied to ${linkedSaleNumber}${memo}`)
+              : cleanDescription(`Advance applied${memo}`);
 
           allTransactions.push({
             id: voucher.id,
@@ -1733,7 +1732,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'advance_application',
             reference: voucher.voucher_number || 'ADV-APP',
             description,
-            debit: amount,
+            debit: 0,
             credit: 0,
             balance: runningBalance,
             appliedAmount: amount,
