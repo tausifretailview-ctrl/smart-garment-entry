@@ -734,19 +734,32 @@ export function CustomerHistoryDialog({
                 <Card className="border-l-4 border-l-green-500">
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Sales</p>
-                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{totalSales.toFixed(2)}</p>
+                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{(totalSalesGross || totalSales).toFixed(2)}</p>
+                    {totalSaleReturnAdjustOnSales > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Net ₹{totalSales.toFixed(0)}</p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-purple-500">
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Paid</p>
-                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{totalPaid.toFixed(2)}</p>
+                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{(totalCashPaid || totalPaid).toFixed(2)}</p>
+                    {(totalAdvanceApplied > 0 || totalCnApplied > 0) && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                        {totalAdvanceApplied > 0 && `Adv ₹${totalAdvanceApplied.toFixed(0)}`}
+                        {totalAdvanceApplied > 0 && totalCnApplied > 0 && ' · '}
+                        {totalCnApplied > 0 && `CN ₹${totalCnApplied.toFixed(0)}`}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Advance</p>
                     <p className="text-xs sm:text-sm font-bold text-orange-600 truncate tabular-nums mt-0.5">₹{advanceBalance.toFixed(2)}</p>
+                    {totalAdvanceApplied > 0 && (
+                      <p className="text-[10px] text-orange-400 mt-0.5">₹{totalAdvanceApplied.toFixed(0)} adjusted</p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-pink-500">
