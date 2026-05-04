@@ -29,6 +29,8 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import {
   computeCustomerOutstanding,
+  reconcileSaleInvoiceDisplay,
+  splitSaleLinkedReceiptRows,
   type VoucherLedgerRow,
   type SaleReturnLedgerRow,
 } from "@/utils/customerBalanceUtils";
@@ -1547,6 +1549,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(grossAmount - saleReturnAdjust).toLocaleString('en-IN')})`
             : `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
 
+          const split = receiptSplitBySaleId.get(sale.id) || { cash: 0, cn: 0, adv: 0 };
+          const recDisplay = reconcileSaleInvoiceDisplay({
+            net_amount: sale.net_amount,
+            sale_return_adjust: sale.sale_return_adjust,
+            paid_amount: sale.paid_amount,
+            split,
+          });
+
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
@@ -1561,7 +1571,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             credit: 0,
             displayDebit: isCancelled ? 0 : (showGross ? grossAmount : invoiceDebit),
             balance: runningBalance,
-            paymentStatus: sale.payment_status,
+            paymentStatus: isCancelled ? sale.payment_status : recDisplay.payment_status,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
 
@@ -1688,8 +1698,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
           });
         } else if (item.type === 'advance_application') {
-          // Advance applied to invoice — display-only, no balance impact
-          // (advance already credited when received, this is just re-allocation)
+          // Advance applied to invoice: credit running balance (settles AR).
+          // paid_amount on the sale already includes this; "payment at sale"
+          // nets voucher totals so we do not double-credit when combined with
+          // the invoice inline payment row.
           const voucher = item.data as any;
           const amount = Number(voucher.total_amount) || 0;
 
@@ -1705,8 +1717,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           }
 
           const description = linkedSaleNumber
-            ? cleanDescription(`Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber} (info only)`)
-            : cleanDescription(`Advance Applied — ₹${amount.toLocaleString('en-IN')} (info only)`);
+            ? cleanDescription(`Advance ₹${amount.toLocaleString('en-IN')} applied to ${linkedSaleNumber}`)
+            : cleanDescription(`Advance Applied — ₹${amount.toLocaleString('en-IN')}`);
+
+          runningBalance -= amount;
 
           allTransactions.push({
             id: voucher.id,
@@ -1715,13 +1729,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'advance_application',
             reference: voucher.voucher_number || 'ADV-APP',
             description,
-            // Balance math unchanged (already reflected via advance + invoice rows).
-            // Real ledger impact remains 0; we expose the amount via display-only fields.
             debit: 0,
-            credit: 0,
-            displayDebit: amount,   // visible reduction of the customer's credit
-            displayCredit: 0,
-            informational: true,    // muted/italic styling, excluded from totals
+            credit: amount,
             balance: runningBalance,
             appliedAmount: amount,
             status: 'applied',

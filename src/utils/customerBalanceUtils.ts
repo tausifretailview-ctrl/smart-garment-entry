@@ -252,16 +252,30 @@ export function reconcileSaleInvoiceDisplay(params: {
     effectiveCash = Math.max(0, cash);
   }
 
-  const outstanding = Math.max(0, Math.round(net - sr - effectiveCash));
+  // After stripping advance/CN from paid_amount into `effectiveCash`, settlement
+  // toward the bill still includes the advance/CN voucher buckets (same as
+  // computeCustomerOutstanding). Without this, advance-only payments left
+  // outstanding = net − sr while effectiveCash was 0.
+  const exposureAfterCashLike = Math.max(0, net - sr - effectiveCash);
+  const cappedNonCash = Math.min(exposureAfterCashLike, adv + cn);
+  const outstanding = Math.max(0, Math.round(net - sr - effectiveCash - cappedNonCash));
+  const settledDisplay = Math.max(
+    0,
+    Math.round(Math.min(net - sr, effectiveCash + cappedNonCash))
+  );
+
   const payment_status: "pending" | "partial" | "completed" =
     outstanding <= INVOICE_RECON_TOL
       ? "completed"
-      : effectiveCash > INVOICE_RECON_TOL || sr > INVOICE_RECON_TOL
+      : effectiveCash > INVOICE_RECON_TOL ||
+          sr > INVOICE_RECON_TOL ||
+          adv > INVOICE_RECON_TOL ||
+          cn > INVOICE_RECON_TOL
         ? "partial"
         : "pending";
 
   return {
-    paid_amount: Math.max(0, Math.round(effectiveCash)),
+    paid_amount: settledDisplay,
     payment_status,
     outstanding,
   };
