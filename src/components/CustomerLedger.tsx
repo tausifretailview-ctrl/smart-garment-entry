@@ -1544,11 +1544,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // informational sub-row that visibly credits the S/R offset. The
           // sub-row has balanceEffect = 0 (debit=0, credit=0 for math/totals)
           // so the running balance is unchanged.
-          const grossAmount = isExchangeCoveredByReturn ? (sale.net_amount || 0) : (sale.net_amount || 0) + saleReturnAdjust;
-          const showGross = saleReturnAdjust > 0 && !isCancelled;
-          const invoiceDescription = showGross
-            ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(grossAmount - saleReturnAdjust).toLocaleString('en-IN')})`
-            : `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
+          // The invoice amount shown is the bill's own net_amount (the actual
+          // value of THIS invoice). Any sale_return_adjust on this sale
+          // represents credit from a PRIOR sale return adjusted at billing
+          // time and is rendered as its own separate credit row in the
+          // ledger (the sale_returns entry). Showing gross+S/R here caused
+          // the invoice line to display an inflated amount (e.g. 10,800
+          // instead of 6,300).
+          const showGross = false;
+          const invoiceDescription = `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
 
           const split = { cash: 0, cn: 0, adv: 0 };
           const recDisplay = reconcileSaleInvoiceDisplay({
@@ -1570,7 +1574,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             // the balance math. `displayDebit` overrides the rendered value.
             debit: isCancelled ? 0 : invoiceDebit,
             credit: 0,
-            displayDebit: isCancelled ? 0 : (showGross ? grossAmount : invoiceDebit),
+            displayDebit: isCancelled ? 0 : invoiceDebit,
             balance: runningBalance,
             paymentStatus: isCancelled ? sale.payment_status : recDisplay.payment_status,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
