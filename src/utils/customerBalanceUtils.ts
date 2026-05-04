@@ -367,6 +367,11 @@ export async function fetchCustomerBalanceSnapshot(
   adjustmentTotal: number;
   unusedAdvanceTotal: number;
   saleReturnTotal: number;
+  totalSalesGross: number;
+  totalSaleReturnAdjustOnSales: number;
+  totalCashPaid: number;
+  totalAdvanceApplied: number;
+  totalCnApplied: number;
 }> {
   const { data: customer, error: customerError } = await client
     .from("customers")
@@ -469,5 +474,10 @@ export async function fetchCustomerBalanceSnapshot(
     adjustmentTotal: co.adjustmentTotal,
     unusedAdvanceTotal: co.unusedAdvanceTotal,
     saleReturnTotal: co.saleReturnTotal,
+    totalSalesGross: co.totalSalesGross,
+    totalSaleReturnAdjustOnSales: co.totalSaleReturnAdjustOnSales,
+    totalCashPaid: co.totalCashPaid,
+    totalAdvanceApplied: co.totalAdvanceApplied,
+    totalCnApplied: co.totalCnApplied,
   };
 }
