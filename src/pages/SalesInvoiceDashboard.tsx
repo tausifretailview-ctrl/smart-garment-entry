@@ -791,23 +791,25 @@ export default function SalesInvoiceDashboard() {
         ? normalized.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
         : normalized;
 
-      const netBill = (inv: any) =>
-        Math.max(0, Number(inv.net_amount || 0) - Number(inv.sale_return_adjust || 0));
+      // Sum `net_amount` only — matches each row's "Amount" column. `sale_return_adjust`
+      // is CN/S-R settlement shown under Disc (+S/R); it must not reduce revenue again
+      // when `net_amount` is already the billed invoice total (e.g. CN-adjusted sales).
+      const invoiceFaceNet = (inv: any) => Math.max(0, Number(inv.net_amount || 0));
 
       return {
         totalInvoices: filteredByStatus.length,
-        totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + netBill(inv), 0),
+        totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
         totalDiscount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0), 0),
         totalQty: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.total_qty || 0), 0),
         pendingAmount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.outstanding || 0), 0),
         deliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'delivered').length,
         deliveredAmount: filteredByStatus
           .filter((inv: any) => inv.delivery_status === 'delivered')
-          .reduce((s: number, inv: any) => s + netBill(inv), 0),
+          .reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
         undeliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'undelivered').length,
         undeliveredAmount: filteredByStatus
           .filter((inv: any) => inv.delivery_status === 'undelivered')
-          .reduce((s: number, inv: any) => s + netBill(inv), 0),
+          .reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
       };
     },
     enabled: !!currentOrganization?.id,
@@ -3087,7 +3089,7 @@ export default function SalesInvoiceDashboard() {
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/65 mt-0.5">Net amount</p>
+              <p className="text-xs text-white/65 mt-0.5">Sum of invoice amounts</p>
             </CardContent>
           </Card>
 
