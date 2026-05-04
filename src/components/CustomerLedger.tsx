@@ -1549,7 +1549,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             ? `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status} (Gross ₹${grossAmount.toLocaleString('en-IN')}; less S/R ₹${saleReturnAdjust.toLocaleString('en-IN')}; Net ₹${(grossAmount - saleReturnAdjust).toLocaleString('en-IN')})`
             : `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
 
-          const split = receiptSplitBySaleId.get(sale.id) || { cash: 0, cn: 0, adv: 0 };
+          const split = { cash: 0, cn: 0, adv: 0 };
           const recDisplay = reconcileSaleInvoiceDisplay({
             net_amount: sale.net_amount,
             sale_return_adjust: sale.sale_return_adjust,
