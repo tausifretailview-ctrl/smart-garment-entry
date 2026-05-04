@@ -176,7 +176,10 @@ export default function CustomerLedgerPage() {
           .map((row) => (row.voucher_no || "").trim())
       );
 
-      const returnRows: LedgerRow[] = (saleReturns || []).map((sr: any) => ({
+      // Fully applied to invoice(s): settlement appears as CN_APPLIED / sale receipts — omit duplicate SR credit.
+      const returnRows: LedgerRow[] = (saleReturns || [])
+        .filter((sr: any) => String(sr.credit_status || "").toLowerCase() !== "adjusted")
+        .map((sr: any) => ({
         id: `sr-${sr.id}`,
         transaction_date: sr.return_date,
         voucher_type: sr.credit_status === "pending" ? "CREDIT_NOTE" : sr.credit_status === "adjusted_outstanding" ? "CREDIT_NOTE" : "SALE_RETURN",
@@ -190,7 +193,8 @@ export default function CustomerLedgerPage() {
         debit: 0,
         credit: Number(sr.net_amount || 0),
         running_balance: 0,
-      })).filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
+      }))
+        .filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
 
       const creditNoteRows: LedgerRow[] = (creditNoteVouchers || []).map((v: any) => ({
         id: `cnv-${v.id}`,
@@ -203,7 +207,256 @@ export default function CustomerLedgerPage() {
         running_balance: 0,
       })).filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
 
-      const combined = ([...(data ?? []) as LedgerRow[], ...missingInvoiceRows, ...returnRows, ...creditNoteRows]).sort((a, b) => {
+      // Voucher numbers already represented (RPC + supplements) — skip duplicate voucher rows.
+      const existingVoucherNumbers = new Set<string>();
+      for (const row of [
+        ...((data ?? []) as LedgerRow[]),
+        ...missingInvoiceRows,
+        ...returnRows,
+        ...creditNoteRows,
+      ]) {
+        const vn = (row.voucher_no || "").trim();
+        if (vn) existingVoucherNumbers.add(vn);
+      }
+
+      const voucherCreditAmount = (v: { total_amount?: number | null; discount_amount?: number | null }) =>
+        Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0));
+
+      const receiptVoucherType = (paymentMethod: string | null | undefined) => {
+        const pm = (paymentMethod || "").toLowerCase();
+        if (pm === "advance_adjustment") return "ADVANCE_APPLIED";
+        if (pm === "credit_note_adjustment") return "CN_APPLIED";
+        return "RECEIPT";
+      };
+
+      // All sales for this customer (voucher_date filters receipts; sales may be older).
+      const { data: custSaleList, error: custSaleListErr } = await supabase
+        .from("sales")
+        .select("id")
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null);
+      if (custSaleListErr) throw custSaleListErr;
+      const saleIds = (custSaleList || []).map((s: { id: string }) => s.id).filter(Boolean);
+
+      const saleReceiptLedgerRows: LedgerRow[] = [];
+      if (saleIds.length > 0) {
+        let veSaleQ = supabase
+          .from("voucher_entries")
+          .select(
+            "id, voucher_number, voucher_date, total_amount, discount_amount, description, payment_method, reference_type, reference_id, voucher_type",
+          )
+          .eq("organization_id", currentOrganization!.id)
+          .eq("voucher_type", "receipt")
+          .eq("reference_type", "sale")
+          .in("reference_id", saleIds)
+          .is("deleted_at", null);
+        if (fromDate) veSaleQ = veSaleQ.gte("voucher_date", format(fromDate, "yyyy-MM-dd"));
+        if (toDate) veSaleQ = veSaleQ.lte("voucher_date", format(toDate, "yyyy-MM-dd"));
+        const { data: saleReceiptVouchers, error: saleReceiptVouchersErr } = await veSaleQ;
+        if (saleReceiptVouchersErr) throw saleReceiptVouchersErr;
+        for (const v of saleReceiptVouchers || []) {
+          const vn = ((v as any).voucher_number || "").trim();
+          if (vn && existingVoucherNumbers.has(vn)) continue;
+          if (vn) existingVoucherNumbers.add(vn);
+          const cr = voucherCreditAmount(v as any);
+          if (cr <= 0) continue;
+          saleReceiptLedgerRows.push({
+            id: `ve-sale-${(v as any).id}`,
+            transaction_date: (v as any).voucher_date,
+            voucher_type: receiptVoucherType((v as any).payment_method),
+            voucher_no: (v as any).voucher_number || null,
+            particulars:
+              (v as any).description ||
+              `Receipt (${String((v as any).payment_method || "cash").replace(/_/g, " ")})`,
+            debit: 0,
+            credit: cr,
+            running_balance: 0,
+          });
+        }
+      }
+
+      // Opening balance payments & customer-level payment (refund) vouchers.
+      let veCustQ = supabase
+        .from("voucher_entries")
+        .select(
+          "id, voucher_number, voucher_date, total_amount, discount_amount, description, payment_method, voucher_type",
+        )
+        .eq("organization_id", currentOrganization!.id)
+        .eq("reference_type", "customer")
+        .eq("reference_id", customerId!)
+        .is("deleted_at", null)
+        .in("voucher_type", ["receipt", "payment"]);
+      if (fromDate) veCustQ = veCustQ.gte("voucher_date", format(fromDate, "yyyy-MM-dd"));
+      if (toDate) veCustQ = veCustQ.lte("voucher_date", format(toDate, "yyyy-MM-dd"));
+      const { data: customerVouchers, error: customerVouchersErr } = await veCustQ;
+      if (customerVouchersErr) throw customerVouchersErr;
+
+      const customerVoucherLedgerRows: LedgerRow[] = [];
+      for (const v of customerVouchers || []) {
+        const vn = ((v as any).voucher_number || "").trim();
+        if (vn && existingVoucherNumbers.has(vn)) continue;
+        if (vn) existingVoucherNumbers.add(vn);
+        const vtype = String((v as any).voucher_type || "").toLowerCase();
+        if (vtype === "payment") {
+          const dr = Number((v as any).total_amount || 0);
+          if (dr <= 0) continue;
+          customerVoucherLedgerRows.push({
+            id: `ve-custpay-${(v as any).id}`,
+            transaction_date: (v as any).voucher_date,
+            voucher_type: "PAYMENT",
+            voucher_no: (v as any).voucher_number || null,
+            particulars: (v as any).description || "Payment / refund to customer",
+            debit: dr,
+            credit: 0,
+            running_balance: 0,
+          });
+        } else {
+          const cr = voucherCreditAmount(v as any);
+          if (cr <= 0) continue;
+          customerVoucherLedgerRows.push({
+            id: `ve-cust-${(v as any).id}`,
+            transaction_date: (v as any).voucher_date,
+            voucher_type: "RECEIPT",
+            voucher_no: (v as any).voucher_number || null,
+            particulars: (v as any).description || "Receipt (customer account)",
+            debit: 0,
+            credit: cr,
+            running_balance: 0,
+          });
+        }
+      }
+
+      // Advance bookings (not always mirrored in customer_ledger_entries).
+      let advBookQ = supabase
+        .from("customer_advances")
+        .select("id, advance_number, advance_date, amount, payment_method, description, status")
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id);
+      if (fromDate) advBookQ = advBookQ.gte("advance_date", format(fromDate, "yyyy-MM-dd"));
+      if (toDate) advBookQ = advBookQ.lte("advance_date", format(toDate, "yyyy-MM-dd"));
+      const { data: advanceBookings, error: advanceBookingsErr } = await advBookQ;
+      if (advanceBookingsErr) throw advanceBookingsErr;
+
+      const advanceBookingLedgerRows: LedgerRow[] = [];
+      for (const a of advanceBookings || []) {
+        const vn = ((a as any).advance_number || "").trim();
+        if (vn && existingVoucherNumbers.has(vn)) continue;
+        if (vn) existingVoucherNumbers.add(vn);
+        const amt = Number((a as any).amount || 0);
+        if (amt <= 0) continue;
+        const pm = (a as any).payment_method ? String((a as any).payment_method) : "cash";
+        advanceBookingLedgerRows.push({
+          id: `adv-book-${(a as any).id}`,
+          transaction_date: (a as any).advance_date,
+          voucher_type: "ADVANCE",
+          voucher_no: (a as any).advance_number || null,
+          particulars:
+            ((a as any).description ? `${(a as any).description} — ` : "") +
+            `Advance booking (${pm})${(a as any).status ? ` [${(a as any).status}]` : ""}`,
+          debit: 0,
+          credit: amt,
+          running_balance: 0,
+        });
+      }
+
+      // Advance refunds (cash out) — debit.
+      const { data: advIdsRows } = await supabase
+        .from("customer_advances")
+        .select("id")
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id);
+      const advanceIds = (advIdsRows || []).map((r: { id: string }) => r.id).filter(Boolean);
+      const advanceRefundLedgerRows: LedgerRow[] = [];
+      if (advanceIds.length > 0) {
+        let arq = supabase
+          .from("advance_refunds")
+          .select("id, refund_date, refund_amount, reason, payment_method, advance_id")
+          .eq("organization_id", currentOrganization!.id)
+          .in("advance_id", advanceIds);
+        if (fromDate) arq = arq.gte("refund_date", format(fromDate, "yyyy-MM-dd"));
+        if (toDate) arq = arq.lte("refund_date", format(toDate, "yyyy-MM-dd"));
+        const { data: advRefunds, error: advRefundsErr } = await arq;
+        if (advRefundsErr) throw advRefundsErr;
+        for (const r of advRefunds || []) {
+          const dr = Number((r as any).refund_amount || 0);
+          if (dr <= 0) continue;
+          advanceRefundLedgerRows.push({
+            id: `adv-ref-${(r as any).id}`,
+            transaction_date: (r as any).refund_date,
+            voucher_type: "ADV_REFUND",
+            voucher_no: `REF-${String((r as any).id).slice(0, 8)}`,
+            particulars:
+              ((r as any).reason || "Advance refund") +
+              ((r as any).payment_method ? ` (${(r as any).payment_method})` : ""),
+            debit: dr,
+            credit: 0,
+            running_balance: 0,
+          });
+        }
+      }
+
+      // Manual balance adjustments (aligned with CustomerLedger adjustment math).
+      let adjQ = supabase
+        .from("customer_balance_adjustments")
+        .select(
+          "id, adjustment_date, reason, outstanding_difference, advance_difference",
+        )
+        .eq("customer_id", customerId!)
+        .eq("organization_id", currentOrganization!.id);
+      if (fromDate) adjQ = adjQ.gte("adjustment_date", format(fromDate, "yyyy-MM-dd"));
+      if (toDate) adjQ = adjQ.lte("adjustment_date", format(toDate, "yyyy-MM-dd"));
+      const { data: balAdjs, error: balAdjsErr } = await adjQ;
+      if (balAdjsErr) throw balAdjsErr;
+
+      const balanceAdjustmentLedgerRows: LedgerRow[] = [];
+      for (const adj of balAdjs || []) {
+        const outDiff = Number((adj as any).outstanding_difference || 0);
+        const advDiff = Number((adj as any).advance_difference || 0);
+        const debit =
+          (outDiff > 0 ? outDiff : 0) + (advDiff < 0 ? Math.abs(advDiff) : 0);
+        const credit =
+          (outDiff < 0 ? Math.abs(outDiff) : 0) + (advDiff > 0 ? advDiff : 0);
+        const net = Math.round((debit - credit) * 100) / 100;
+        if (Math.abs(net) < 0.01) continue;
+        if (net > 0) {
+          balanceAdjustmentLedgerRows.push({
+            id: `cba-${(adj as any).id}`,
+            transaction_date: (adj as any).adjustment_date,
+            voucher_type: "BAL_ADJ",
+            voucher_no: `ADJ-${String((adj as any).id).slice(0, 8)}`,
+            particulars: (adj as any).reason || "Balance adjustment",
+            debit: net,
+            credit: 0,
+            running_balance: 0,
+          });
+        } else {
+          balanceAdjustmentLedgerRows.push({
+            id: `cba-${(adj as any).id}`,
+            transaction_date: (adj as any).adjustment_date,
+            voucher_type: "BAL_ADJ",
+            voucher_no: `ADJ-${String((adj as any).id).slice(0, 8)}`,
+            particulars: (adj as any).reason || "Balance adjustment",
+            debit: 0,
+            credit: -net,
+            running_balance: 0,
+          });
+        }
+      }
+
+      const combined = (
+        [
+          ...((data ?? []) as LedgerRow[]),
+          ...missingInvoiceRows,
+          ...returnRows,
+          ...creditNoteRows,
+          ...saleReceiptLedgerRows,
+          ...customerVoucherLedgerRows,
+          ...advanceBookingLedgerRows,
+          ...advanceRefundLedgerRows,
+          ...balanceAdjustmentLedgerRows,
+        ] as LedgerRow[]
+      ).sort((a, b) => {
         const dA = new Date(a.transaction_date).getTime();
         const dB = new Date(b.transaction_date).getTime();
         if (dA !== dB) return dA - dB;
