@@ -4729,6 +4729,69 @@ export type Database = {
           },
         ]
       }
+      sale_return_invoice_allocations: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          organization_id: string
+          sale_id: string
+          sale_return_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          organization_id: string
+          sale_id: string
+          sale_return_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          organization_id?: string
+          sale_id?: string
+          sale_return_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_return_invoice_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_return_invoice_allocations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "sale_return_invoice_allocations_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_return_invoice_allocations_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_return_invoice_allocations_sale_return_id_fkey"
+            columns: ["sale_return_id"]
+            isOneToOne: false
+            referencedRelation: "sale_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_return_items: {
         Row: {
           barcode: string | null
@@ -4793,33 +4856,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      sale_return_invoice_allocations: {
-        Row: {
-          amount: number
-          created_at: string
-          id: string
-          organization_id: string
-          sale_id: string
-          sale_return_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          id?: string
-          organization_id: string
-          sale_id: string
-          sale_return_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          organization_id?: string
-          sale_id?: string
-          sale_return_id?: string
-        }
-        Relationships: []
       }
       sale_returns: {
         Row: {
@@ -7719,6 +7755,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_org_admin: {
+        Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
       log_audit: {
