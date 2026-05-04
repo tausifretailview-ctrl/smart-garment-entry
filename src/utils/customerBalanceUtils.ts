@@ -184,6 +184,89 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
   };
 }
 
+const INVOICE_RECON_TOL = 0.01;
+/** Legacy bug duplicated CN into paid_amount alongside sale_return_adjust (same rupee amount). */
+const DUPLICATE_CN_PAID_MATCH_TOL = 1;
+
+export type SaleReceiptVoucherSplit = {
+  cash: number;
+  cn: number;
+  adv: number;
+};
+
+/**
+ * Bucket sale-linked receipt voucher rows by payment method / description
+ * (same rules as {@link computeCustomerOutstanding}).
+ */
+export function splitSaleLinkedReceiptRows(
+  rows: Array<{
+    reference_id: string | null;
+    total_amount?: number | null;
+    payment_method?: string | null;
+    description?: string | null;
+  }>
+): Map<string, SaleReceiptVoucherSplit> {
+  const map = new Map<string, SaleReceiptVoucherSplit>();
+  const empty = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0 });
+
+  for (const r of rows) {
+    if (!r.reference_id) continue;
+    const v: VoucherLedgerRow = {
+      reference_id: r.reference_id,
+      total_amount: r.total_amount,
+      payment_method: r.payment_method,
+      description: r.description,
+    };
+    const amt = Number(r.total_amount || 0);
+    const cur = map.get(r.reference_id) || empty();
+    if (isAdvVoucher(v)) cur.adv += amt;
+    else if (isCnVoucher(v)) cur.cn += amt;
+    else cur.cash += amt;
+    map.set(r.reference_id, cur);
+  }
+  return map;
+}
+
+/**
+ * Per-invoice cash paid, outstanding, and status for Sales Invoice Dashboard.
+ * Uses ledger-consistent cash vs CN/advance split and repairs duplicate CN in paid_amount.
+ */
+export function reconcileSaleInvoiceDisplay(params: {
+  net_amount: number;
+  sale_return_adjust: number;
+  paid_amount: number;
+  split?: SaleReceiptVoucherSplit | null;
+}): {
+  paid_amount: number;
+  payment_status: "pending" | "partial" | "completed";
+  outstanding: number;
+} {
+  const net = Number(params.net_amount || 0);
+  const sr = Number(params.sale_return_adjust || 0);
+  const salePaid = Number(params.paid_amount || 0);
+  const { cash = 0, cn = 0, adv = 0 } = params.split || { cash: 0, cn: 0, adv: 0 };
+  const advCn = adv + cn;
+  let effectiveCash = Math.max(salePaid - advCn, cash);
+
+  if (sr > INVOICE_RECON_TOL && Math.abs(salePaid - sr) <= DUPLICATE_CN_PAID_MATCH_TOL) {
+    effectiveCash = Math.max(0, cash);
+  }
+
+  const outstanding = Math.max(0, Math.round(net - sr - effectiveCash));
+  const payment_status: "pending" | "partial" | "completed" =
+    outstanding <= INVOICE_RECON_TOL
+      ? "completed"
+      : effectiveCash > INVOICE_RECON_TOL || sr > INVOICE_RECON_TOL
+        ? "partial"
+        : "pending";
+
+  return {
+    paid_amount: Math.max(0, Math.round(effectiveCash)),
+    payment_status,
+    outstanding,
+  };
+}
+
 /**
  * Build a map of sale_id -> total voucher payment amount from voucher entries.
  * Also returns total opening balance payments for a specific customer.

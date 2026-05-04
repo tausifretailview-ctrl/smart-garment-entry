@@ -77,7 +77,13 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
 import { waitForPrintReady } from "@/utils/printReady";
-import { computeCustomerOutstanding, fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import {
+  computeCustomerOutstanding,
+  fetchCustomerBalanceSnapshot,
+  reconcileSaleInvoiceDisplay,
+  splitSaleLinkedReceiptRows,
+  type SaleReceiptVoucherSplit,
+} from "@/utils/customerBalanceUtils";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -552,7 +558,7 @@ export default function SalesInvoiceDashboard() {
 
       const { data: receiptRows, error: receiptErr } = await supabase
         .from('voucher_entries')
-        .select('reference_id, total_amount')
+        .select('reference_id, total_amount, payment_method, description')
         .eq('organization_id', currentOrganization.id)
         .eq('voucher_type', 'receipt')
         .eq('reference_type', 'sale')
@@ -560,28 +566,19 @@ export default function SalesInvoiceDashboard() {
         .in('reference_id', saleIds);
       if (receiptErr) throw receiptErr;
 
-      const receiptBySale = new Map<string, number>();
-      (receiptRows || []).forEach((r: any) => {
-        if (!r.reference_id) return;
-        receiptBySale.set(r.reference_id, (receiptBySale.get(r.reference_id) || 0) + Number(r.total_amount || 0));
-      });
+      const splitBySale = splitSaleLinkedReceiptRows(receiptRows || []);
 
-      // KS Footwear payment-status reconciliation (Apr 2026):
-      // if receipts exist but paid_amount/payment_status is stale, sync sales row.
+      // If paid_amount / payment_status is stale vs vouchers + S/R, sync sales row (ledger-consistent cash vs CN).
       const staleUpdates = invoices
         .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
         .map((inv: any) => {
-          const net = Number(inv.net_amount || 0);
-          const sr = Number(inv.sale_return_adjust || 0);
-          const cap = Math.max(0, net - sr);
-          const normalizedPaid = Math.min(cap, Math.max(Number(inv.paid_amount || 0), Number(receiptBySale.get(inv.id) || 0)));
-          const normalizedStatus =
-            normalizedPaid + sr >= net - 0.01
-              ? 'completed'
-              : normalizedPaid > 0 || sr > 0
-                ? 'partial'
-                : 'pending';
-          return { inv, normalizedPaid, normalizedStatus };
+          const rec = reconcileSaleInvoiceDisplay({
+            net_amount: inv.net_amount,
+            sale_return_adjust: inv.sale_return_adjust,
+            paid_amount: inv.paid_amount,
+            split: splitBySale.get(inv.id) ?? null,
+          });
+          return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
         })
         .filter(({ inv, normalizedPaid, normalizedStatus }) =>
           Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
@@ -601,17 +598,13 @@ export default function SalesInvoiceDashboard() {
       }
 
       const normalizedInvoices = invoices.map((inv: any) => {
-        const net = Number(inv.net_amount || 0);
-        const sr = Number(inv.sale_return_adjust || 0);
-        const cap = Math.max(0, net - sr);
-        const normalizedPaid = Math.min(cap, Math.max(Number(inv.paid_amount || 0), Number(receiptBySale.get(inv.id) || 0)));
-        const normalizedStatus =
-          normalizedPaid + sr >= net - 0.01
-            ? 'completed'
-            : normalizedPaid > 0 || sr > 0
-              ? 'partial'
-              : 'pending';
-        return { ...inv, paid_amount: normalizedPaid, payment_status: normalizedStatus };
+        const rec = reconcileSaleInvoiceDisplay({
+          net_amount: inv.net_amount,
+          sale_return_adjust: inv.sale_return_adjust,
+          paid_amount: inv.paid_amount,
+          split: splitBySale.get(inv.id) ?? null,
+        });
+        return { ...inv, paid_amount: rec.paid_amount, payment_status: rec.payment_status };
       });
 
       const filteredNormalized = paymentStatusFilter.length > 0
@@ -692,7 +685,6 @@ export default function SalesInvoiceDashboard() {
       }
 
       const PAGE_SIZE = 1000;
-      const TOLERANCE = 0.01;
       let offset = 0;
       const allInvoices: any[] = [];
 
@@ -762,39 +754,37 @@ export default function SalesInvoiceDashboard() {
       }
 
       const saleIds = allInvoices.map((s: any) => s.id).filter(Boolean);
-      const receiptBySale = new Map<string, number>();
+      const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
       for (let i = 0; i < saleIds.length; i += 400) {
         const batch = saleIds.slice(i, i + 400);
         const { data: receiptRows, error: receiptErr } = await supabase
           .from('voucher_entries')
-          .select('reference_id, total_amount')
+          .select('reference_id, total_amount, payment_method, description')
           .eq('organization_id', currentOrganization.id)
           .eq('voucher_type', 'receipt')
           .eq('reference_type', 'sale')
           .is('deleted_at', null)
           .in('reference_id', batch);
         if (receiptErr) throw receiptErr;
-        (receiptRows || []).forEach((r: any) => {
-          if (!r.reference_id) return;
-          receiptBySale.set(r.reference_id, (receiptBySale.get(r.reference_id) || 0) + Number(r.total_amount || 0));
-        });
+        const batchSplit = splitSaleLinkedReceiptRows(receiptRows || []);
+        batchSplit.forEach((v, k) => splitBySale.set(k, v));
       }
 
       const normalized = allInvoices
         .filter((inv: any) => !inv?.is_cancelled && inv?.payment_status !== 'hold')
         .map((inv: any) => {
-          const net = Number(inv.net_amount || 0);
-          const sr = Number(inv.sale_return_adjust || 0);
-          const cap = Math.max(0, net - sr);
-          const normalizedPaid = Math.min(cap, Math.max(Number(inv.paid_amount || 0), Number(receiptBySale.get(inv.id) || 0)));
-          const outstanding = Math.max(0, net - normalizedPaid - sr);
-          const normalizedStatus =
-            outstanding <= TOLERANCE
-              ? 'completed'
-              : normalizedPaid > TOLERANCE || sr > TOLERANCE
-                ? 'partial'
-                : 'pending';
-          return { ...inv, paid_amount: normalizedPaid, outstanding, payment_status: normalizedStatus };
+          const rec = reconcileSaleInvoiceDisplay({
+            net_amount: inv.net_amount,
+            sale_return_adjust: inv.sale_return_adjust,
+            paid_amount: inv.paid_amount,
+            split: splitBySale.get(inv.id) ?? null,
+          });
+          return {
+            ...inv,
+            paid_amount: rec.paid_amount,
+            outstanding: rec.outstanding,
+            payment_status: rec.payment_status,
+          };
         });
 
       const filteredByStatus = paymentStatusFilter.length > 0

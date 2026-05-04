@@ -239,96 +239,102 @@ export function AdjustCustomerCreditNoteDialog({
             .single();
 
           if (linkedSale) {
-            const adjustAmount = Math.min(
-              creditAmount,
-              Math.max(0, (linkedSale.net_amount || 0) - (linkedSale.paid_amount || 0))
-            );
+            const net = Number(linkedSale.net_amount || 0);
             const snapPaid = Number(linkedSale.paid_amount || 0);
             const snapSr = Number((linkedSale as any).sale_return_adjust || 0);
             const snapStatus = String(linkedSale.payment_status || "pending");
-            const newPaidAmount = snapPaid + adjustAmount;
+            // Room for CN is remaining bill after existing S/R and cash paid — do not add CN to paid_amount
+            // (that double-counts vs sale_return_adjust; balance = net − paid − sr).
+            const capRemaining = Math.max(0, net - snapSr - snapPaid);
+            const adjustAmount = Math.min(creditAmount, capRemaining);
+            const newSr = snapSr + adjustAmount;
+            const outstandingAfter = Math.max(0, net - newSr - snapPaid);
             const newStatus =
-              newPaidAmount >= (linkedSale.net_amount || 0) ? "completed" : "partial";
+              outstandingAfter <= 0.01
+                ? "completed"
+                : snapPaid > 0.01 || newSr > 0.01
+                  ? "partial"
+                  : "pending";
 
-            await supabase
-              .from("sales")
-              .update({
-                paid_amount: newPaidAmount,
-                payment_status: newStatus,
-                sale_return_adjust: snapSr + adjustAmount,
-              })
-              .eq("id", linkedSaleId);
+            if (adjustAmount > 0.01) {
+              await supabase
+                .from("sales")
+                .update({
+                  payment_status: newStatus,
+                  sale_return_adjust: newSr,
+                })
+                .eq("id", linkedSaleId);
 
-            const today = format(new Date(), "yyyy-MM-dd");
-            const { data: lastRcp } = await supabase
-              .from("voucher_entries")
-              .select("voucher_number")
-              .eq("organization_id", currentOrganization?.id)
-              .eq("voucher_type", "receipt")
-              .order("created_at", { ascending: false })
-              .limit(1);
-            const lastNum =
-              lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
-            const cnApplyDesc = `Credit note adjusted against invoice (Return ${returnNumber})`;
+              const today = format(new Date(), "yyyy-MM-dd");
+              const { data: lastRcp } = await supabase
+                .from("voucher_entries")
+                .select("voucher_number")
+                .eq("organization_id", currentOrganization?.id)
+                .eq("voucher_type", "receipt")
+                .order("created_at", { ascending: false })
+                .limit(1);
+              const lastNum =
+                lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+              const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+              const cnApplyDesc = `Credit note adjusted against invoice (Return ${returnNumber})`;
 
-            const { data: outVoucherRow, error: outVoucherErr } = await supabase
-              .from("voucher_entries")
-              .insert({
-                organization_id: currentOrganization?.id,
-                voucher_number: newVoucherNumber,
-                voucher_type: "receipt",
-                voucher_date: today,
-                reference_type: "sale",
-                reference_id: linkedSaleId,
-                total_amount: adjustAmount,
-                payment_method: "credit_note_adjustment",
-                description: cnApplyDesc,
-              })
-              .select("id")
-              .single();
-            if (outVoucherErr) throw outVoucherErr;
-            const outVoucherId = outVoucherRow?.id as string | undefined;
+              const { data: outVoucherRow, error: outVoucherErr } = await supabase
+                .from("voucher_entries")
+                .insert({
+                  organization_id: currentOrganization?.id,
+                  voucher_number: newVoucherNumber,
+                  voucher_type: "receipt",
+                  voucher_date: today,
+                  reference_type: "sale",
+                  reference_id: linkedSaleId,
+                  total_amount: adjustAmount,
+                  payment_method: "credit_note_adjustment",
+                  description: cnApplyDesc,
+                })
+                .select("id")
+                .single();
+              if (outVoucherErr) throw outVoucherErr;
+              const outVoucherId = outVoucherRow?.id as string | undefined;
 
-            const { data: acctOut } = await supabase
-              .from("settings")
-              .select("accounting_engine_enabled")
-              .eq("organization_id", currentOrganization?.id)
-              .maybeSingle();
-            if (
-              outVoucherId &&
-              isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null)
-            ) {
-              try {
-                await recordCustomerCreditNoteApplicationJournalEntry(
-                  outVoucherId,
-                  currentOrganization!.id,
-                  adjustAmount,
-                  today,
-                  cnApplyDesc,
-                  supabase
-                );
-              } catch (glErr) {
-                await deleteJournalEntryByReference(
-                  currentOrganization!.id,
-                  "CustomerCreditNoteApplication",
-                  outVoucherId,
-                  supabase
-                );
-                await supabase.from("voucher_entries").delete().eq("id", outVoucherId);
-                await supabase
-                  .from("sales")
-                  .update({
-                    paid_amount: snapPaid,
-                    payment_status: snapStatus as "pending" | "partial" | "completed",
-                    sale_return_adjust: snapSr,
-                  })
-                  .eq("id", linkedSaleId);
-                await supabase
-                  .from("sale_returns")
-                  .update({ credit_status: prevReturnCreditStatus })
-                  .eq("id", saleReturnId);
-                throw glErr;
+              const { data: acctOut } = await supabase
+                .from("settings")
+                .select("accounting_engine_enabled")
+                .eq("organization_id", currentOrganization?.id)
+                .maybeSingle();
+              if (
+                outVoucherId &&
+                isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null)
+              ) {
+                try {
+                  await recordCustomerCreditNoteApplicationJournalEntry(
+                    outVoucherId,
+                    currentOrganization!.id,
+                    adjustAmount,
+                    today,
+                    cnApplyDesc,
+                    supabase
+                  );
+                } catch (glErr) {
+                  await deleteJournalEntryByReference(
+                    currentOrganization!.id,
+                    "CustomerCreditNoteApplication",
+                    outVoucherId,
+                    supabase
+                  );
+                  await supabase.from("voucher_entries").delete().eq("id", outVoucherId);
+                  await supabase
+                    .from("sales")
+                    .update({
+                      payment_status: snapStatus as "pending" | "partial" | "completed",
+                      sale_return_adjust: snapSr,
+                    })
+                    .eq("id", linkedSaleId);
+                  await supabase
+                    .from("sale_returns")
+                    .update({ credit_status: prevReturnCreditStatus })
+                    .eq("id", saleReturnId);
+                  throw glErr;
+                }
               }
             }
           }
