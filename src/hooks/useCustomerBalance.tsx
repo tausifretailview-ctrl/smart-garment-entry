@@ -39,6 +39,11 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
           adjustmentTotal: 0,
           unusedAdvanceTotal: 0,
           saleReturnTotal: 0,
+          totalSalesGross: 0,
+          totalSaleReturnAdjustOnSales: 0,
+          totalCashPaid: 0,
+          totalAdvanceApplied: 0,
+          totalCnApplied: 0,
         };
       }
 
