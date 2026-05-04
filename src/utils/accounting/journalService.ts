@@ -69,6 +69,7 @@ export type JournalReferenceType =
   | "Purchase"
   | "Payment"
   | "StudentFeeReceipt"
+  | "StudentFeeBalanceAdjustment"
   | "ExpenseVoucher"
   | "SalaryVoucher"
   | "CustomerReceipt"

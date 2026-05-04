@@ -25,6 +25,8 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "4000", account_name: "Sales Revenue", account_type: "Revenue" },
   { account_code: "4050", account_name: "Sales Returns & Allowances", account_type: "Revenue" },
   { account_code: "4100", account_name: "School Fee Income", account_type: "Revenue" },
+  { account_code: "4060", account_name: "Fee Discounts & Concessions", account_type: "Expense" },
+  { account_code: "4070", account_name: "Late Fees & Penalties", account_type: "Revenue" },
   { account_code: "5000", account_name: "Cost of Goods Sold", account_type: "Expense" },
   { account_code: "5050", account_name: "Purchase Returns", account_type: "Expense" },
   { account_code: "6000", account_name: "General Expenses", account_type: "Expense" },
