@@ -353,7 +353,8 @@ export async function resetOrganizationGlLedger(
   organizationId: string,
   client: SupabaseClient<Database>
 ): Promise<AdminResetOrgGlResult> {
-  const { data, error } = await client.rpc("admin_reset_org_gl", { p_org_id: organizationId });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client.rpc as any)("admin_reset_org_gl", { p_org_id: organizationId });
   if (error) throw error;
   return (data ?? {}) as AdminResetOrgGlResult;
 }

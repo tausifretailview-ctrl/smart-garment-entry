@@ -24,7 +24,8 @@ export async function fetchUnclearedBankTransactions(
   if (!organizationId) throw new Error("organizationId is required");
   if (!bankLedgerId) throw new Error("bankLedgerId is required");
 
-  let q = supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q: any = (supabase as any)
     .from("journal_lines")
     .select(
       `
@@ -138,7 +139,8 @@ export async function reconcileTransactions(
 
   for (let i = 0; i < unique.length; i += UPDATE_CHUNK) {
     const chunk = unique.slice(i, i + UPDATE_CHUNK);
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("journal_lines")
       .update({
         is_reconciled: true,
