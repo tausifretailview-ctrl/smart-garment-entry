@@ -1,61 +1,69 @@
 ## Problem
 
-When a fee receipt is edited from ₹5,000 down to ₹3,000 in **Fees Collection → Edit**, the balance shrinks by ₹5,000 instead of by ₹3,000 (off by the reduction amount). The Student Ledger and Year-wise totals also drift.
+Opening Sale Return throws:
+
+> Could not find the 'payment_method' column of 'sale_returns' in the schema cache
+
+The recent accounting engine sync (Phase 7-8) added code in `FloatingSaleReturn.tsx`, `SaleReturnEntry.tsx`, `useSoftDelete.tsx`, `journalService.ts`, and `historicalMigration.ts` that **inserts/updates/selects** these columns on `sale_returns`:
+
+- `payment_method` (drives 1000 cash vs 1010 bank GL routing for direct refunds)
+- `journal_status` (`pending` / `posted` / `failed`)
+- `journal_error` (text, last GL posting error)
+
+…but the database table only has: `id, organization_id, customer_id, customer_name, original_sale_number, return_date, gross_amount, gst_amount, net_amount, notes, created_at, updated_at, return_number, deleted_at, deleted_by, credit_note_id, credit_status, linked_sale_id, refund_type`.
+
+The same gap exists on `purchase_returns` (used by `useSoftDelete.tsx → restore("purchase_returns")` and the Purchase Return flow). It will throw the same error the moment a purchase return is restored or its journal is reposted.
 
 ## Root Cause
 
-`ModifyFeeReceiptDialog` does two things on save:
+A migration to add these columns was missed when the journal posting layer was merged. PostgREST's schema cache simply has nothing to expose, so every insert/select/update on these names 4040s.
 
-1. **Updates the existing `student_fees` row** — sets `paid_amount` to the new (reduced) value. This alone correctly changes the balance.
-2. **Inserts a `student_balance_audit` row** with `reason_code = 'receipt_modified'`, `adjustment_type = 'debit'` (when amount is reduced), and `change_amount = old - new`.
+## Fix (schema-only; no app code changes needed)
 
-But every balance calculator (FeeCollection grid, Student Ledger, year-wise PDF balances) treats every `student_balance_audit` row as a **real financial adjustment** and adds it to the displayed due:
+Single migration that adds the missing columns to **both** return tables, with safe defaults so existing rows remain valid.
 
+### Migration
+
+```sql
+-- sale_returns
+ALTER TABLE public.sale_returns
+  ADD COLUMN IF NOT EXISTS payment_method  text,
+  ADD COLUMN IF NOT EXISTS journal_status  text NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS journal_error   text;
+
+-- purchase_returns (same shape, no refund_type needed - already different model)
+ALTER TABLE public.purchase_returns
+  ADD COLUMN IF NOT EXISTS payment_method  text,
+  ADD COLUMN IF NOT EXISTS journal_status  text NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS journal_error   text;
+
+-- Helpful index for the auto-repost worker / status filters
+CREATE INDEX IF NOT EXISTS idx_sale_returns_journal_status
+  ON public.sale_returns (organization_id, journal_status)
+  WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_purchase_returns_journal_status
+  ON public.purchase_returns (organization_id, journal_status)
+  WHERE deleted_at IS NULL;
 ```
-Total Due = Liability + adjustmentsNet − paymentsTotal
-```
 
-So for a ₹5,000 → ₹3,000 edit on a ₹34,800 liability:
-- `paymentsTotal` correctly drops from 5,000 to 3,000 (✓)
-- `adjustmentsNet` extra debit of −2,000 is applied (✗ — phantom)
-- Result: 34,800 − 2,000 − 3,000 = **29,800** instead of the correct **31,800**
+Notes:
+- `payment_method` is nullable — credit-note returns legitimately have no payment method.
+- Existing rows get `journal_status='pending'`. They were already posted historically (or didn't use the engine), so this only affects the auto-repost worker's view, not user-visible balances.
+- No CHECK constraints (per project rule — use validation triggers if needed later).
+- All scoped through `organization_id` indexes (per Core memory rule).
 
-This is the exact same class of bug that was already fixed for `receipt_deleted` — the audit row is **trace-only** and must not affect balances. The current filters only exclude `receipt_deleted`, not `receipt_modified`.
+### Verification after migration
 
-The voucher row is updated (`voucher_entries.total_amount`), but the underlying double-entry `account_ledgers` lines posted by `postSchoolFeeReceiptAccounting` are **not** rewritten. That causes the Student Ledger/journal totals to drift by the same delta.
+1. PostgREST schema cache reloads automatically.
+2. Open Sale Return for any invoice — the dialog loads without the error.
+3. Save a credit-note return → row has `payment_method=null, journal_status='posted'`.
+4. Save a cash refund → row has `payment_method='cash', journal_status='posted'`.
+5. Soft-delete then restore a sale return from Recycle Bin → no "Ledger warning" toast; `journal_status='posted'`.
 
-## Fix
+## What is NOT changing
 
-Code-only changes. No data cleanup, no DB writes outside what already happens.
-
-### 1. Exclude `receipt_modified` from balance math (mirror the `receipt_deleted` fix)
-
-In every place that already does `.neq("reason_code", "receipt_deleted")`, also exclude `receipt_modified`. Switch to `.not("reason_code", "in", "(receipt_deleted,receipt_modified)")`.
-
-Files:
-- `src/pages/school/FeeCollection.tsx` — both query sites (~line 280 and ~line 416)
-- `src/components/CustomerLedger.tsx` — both query sites (~line 747 and ~line 973)
-- `src/lib/schoolFeeYearBalances.ts` — both query sites (~line 71 and ~line 207)
-
-### 2. Keep modify-receipt journal in sync
-
-In `src/components/school/ModifyFeeReceiptDialog.tsx`, after updating `student_fees` and `voucher_entries`, also rewrite the linked `account_ledgers` rows (and student sub-ledger credit) so the journal total matches the new `paid_amount`. Approach: look up rows by the matching `voucher_number = fee.payment_receipt_id`, scoped by `organization_id`, and update each line's `debit`/`credit` to the new amount (single-line cash receipt, so a straight overwrite is safe). If no journal lines are found for legacy receipts, skip silently.
-
-### 3. Stop double-purposing the audit row (optional defense-in-depth)
-
-Keep inserting the `receipt_modified` audit row as a trace (it shows up in History dialogs already), but set `academic_year_id` to the same value the receipt belongs to. The exclusion in step 1 makes this safe regardless. No schema or migration changes needed.
-
-## Verification (manual after fix)
-
-For the test student with the ₹34,800 liability:
-1. Collect ₹5,000 → balance should read **₹29,800** in Fees Collection grid and Student Ledger.
-2. Edit that receipt to ₹3,000 → balance should read **₹31,800** (not 29,800).
-3. Print receipt shows ₹3,000 with correct remaining ₹31,800.
-4. Delete the modified receipt → balance returns to **₹34,800**.
-5. Student Ledger running balance matches Fees Collection total at every step.
-
-## Out of scope
-
-- No migrations, no historical data backfill.
-- No UI redesign of the modify/collect dialogs.
-- No change to receipt numbering or audit-row schema.
+- No application/TypeScript code edits — every reference is already correct, just waiting on the columns.
+- No data backfill or balance recalculation — historical rows keep their current GL state.
+- No changes to `refund_type`, credit-note tables, or RLS policies.
+- The Supabase auto-generated `types.ts` will refresh on its own after the migration.

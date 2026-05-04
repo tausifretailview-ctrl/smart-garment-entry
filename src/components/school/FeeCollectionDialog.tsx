@@ -386,7 +386,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
 
       // When fee structures exist, carried opening is still part of liability (Fee Collection grid).
       // Add one row so the modal total matches Total Due (structure balances + opening remainder).
-      if (totalStructureAmount > 0 && student.is_new_admission !== true) {
+      if (totalStructureAmount > 0 && (student as { is_new_admission?: boolean }).is_new_admission !== true) {
         const { data: allYears } = await supabase
           .from("academic_years")
           .select("id, start_date, end_date")

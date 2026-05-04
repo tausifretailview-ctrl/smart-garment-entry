@@ -3991,11 +3991,14 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          journal_error: string | null
+          journal_status: string
           linked_bill_id: string | null
           net_amount: number
           notes: string | null
           organization_id: string
           original_bill_number: string | null
+          payment_method: string | null
           return_date: string
           return_number: string | null
           supplier_id: string | null
@@ -4011,11 +4014,14 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          journal_error?: string | null
+          journal_status?: string
           linked_bill_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
           original_bill_number?: string | null
+          payment_method?: string | null
           return_date?: string
           return_number?: string | null
           supplier_id?: string | null
@@ -4031,11 +4037,14 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          journal_error?: string | null
+          journal_status?: string
           linked_bill_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
           original_bill_number?: string | null
+          payment_method?: string | null
           return_date?: string
           return_number?: string | null
           supplier_id?: string | null
@@ -4755,11 +4764,14 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          journal_error: string | null
+          journal_status: string
           linked_sale_id: string | null
           net_amount: number
           notes: string | null
           organization_id: string
           original_sale_number: string | null
+          payment_method: string | null
           refund_type: string
           return_date: string
           return_number: string | null
@@ -4776,11 +4788,14 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          journal_error?: string | null
+          journal_status?: string
           linked_sale_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
           original_sale_number?: string | null
+          payment_method?: string | null
           refund_type?: string
           return_date?: string
           return_number?: string | null
@@ -4797,11 +4812,14 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          journal_error?: string | null
+          journal_status?: string
           linked_sale_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
           original_sale_number?: string | null
+          payment_method?: string | null
           refund_type?: string
           return_date?: string
           return_number?: string | null

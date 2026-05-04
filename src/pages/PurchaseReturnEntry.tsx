@@ -1044,7 +1044,7 @@ const PurchaseReturnEntry = () => {
 
         if (itemsError) throw itemsError;
 
-        const prId = (returnRecord as { id: string }).id;
+        const prId = (returnRecord as unknown as { id: string }).id;
         const { data: acctPr } = await supabase
           .from("settings")
           .select("accounting_engine_enabled")
