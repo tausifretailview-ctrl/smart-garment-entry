@@ -364,6 +364,15 @@ export function AdjustCustomerCreditNoteDialog({
         appliedRows.push({ saleId, amount: adjustAmount });
       }
 
+      if (appliedRows.length === 0) {
+        toast({
+          title: "Nothing applied",
+          description: "No outstanding capacity on the selected invoices for this allocation.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       const appliedTotal = appliedRows.reduce((s, r) => s + r.amount, 0);
       const newRemaining = Math.max(0, Math.round((maxCredit - appliedTotal) * 100) / 100);
       const firstLinked = appliedRows[0]?.saleId || null;

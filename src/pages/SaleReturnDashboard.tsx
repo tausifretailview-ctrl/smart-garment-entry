@@ -32,6 +32,8 @@ interface SaleReturn {
   gross_amount: number;
   gst_amount: number;
   net_amount: number;
+  /** Remaining rupees on CN when partially applied (null = use net_amount). */
+  credit_available_balance?: number | null;
   notes: string | null;
   items?: SaleReturnItem[];
   credit_note_id?: string;
@@ -67,6 +69,7 @@ interface BusinessDetails {
 const formatCreditStatusLabel = (ret: SaleReturn) => {
   if (ret.credit_status === "refunded") return "Refunded to Customer";
   if (ret.credit_status === "adjusted_outstanding") return "Adjusted to Customer Outstanding";
+  if (ret.credit_status === "partially_adjusted") return "CN Partially Applied to Invoice(s)";
   if (ret.credit_status === "adjusted" && ret.linked_sale_id) return "S/R Adjusted in Invoice";
   if (ret.credit_status === "adjusted") return "Credit Note Generated";
   if (ret.credit_status === "pending") return "Credit Note Pending";
@@ -144,7 +147,7 @@ export default function SaleReturnDashboard() {
 
       let query = supabase
         .from("sale_returns")
-        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, notes, credit_note_id, credit_status, linked_sale_id, refund_type", { count: "exact" })
+        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -565,6 +568,7 @@ export default function SaleReturnDashboard() {
                   <SelectItem value="adjusted">Adjusted</SelectItem>
                   <SelectItem value="refunded">Refunded</SelectItem>
                   <SelectItem value="adjusted_outstanding">Adj. Outstanding</SelectItem>
+                  <SelectItem value="partially_adjusted">Partially Adjusted</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" onClick={handleExportExcel}>
@@ -696,7 +700,10 @@ export default function SaleReturnDashboard() {
                             >
                               <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
-                            {(!['adjusted', 'adjusted_outstanding'].includes(ret.credit_status || '') && (ret.credit_status === 'pending' || !ret.credit_status)) && (
+                            {(!["adjusted", "adjusted_outstanding", "refunded"].includes(ret.credit_status || "") &&
+                              (ret.credit_status === "pending" ||
+                                ret.credit_status === "partially_adjusted" ||
+                                !ret.credit_status)) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -818,7 +825,12 @@ export default function SaleReturnDashboard() {
             saleReturnId={selectedReturnForAdjust.id}
             creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
             returnNumber={selectedReturnForAdjust.return_number || "N/A"}
-            creditAmount={selectedReturnForAdjust.net_amount}
+            creditAmount={
+              selectedReturnForAdjust.credit_available_balance != null &&
+              !Number.isNaN(Number(selectedReturnForAdjust.credit_available_balance))
+                ? Number(selectedReturnForAdjust.credit_available_balance)
+                : selectedReturnForAdjust.net_amount
+            }
             customerId={selectedReturnForAdjust.customer_id || ""}
             customerName={selectedReturnForAdjust.customer_name}
             onSuccess={() => refetchReturns()}
