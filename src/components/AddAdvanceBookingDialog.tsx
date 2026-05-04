@@ -301,6 +301,7 @@ export function AddAdvanceBookingDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
@@ -484,5 +485,29 @@ export function AddAdvanceBookingDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Blocking error dialog — user MUST acknowledge */}
+    <Dialog open={!!saveError} onOpenChange={(o) => { if (!o) setSaveError(null); }}>
+      <DialogContent className="sm:max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            Advance NOT Saved
+          </DialogTitle>
+          <DialogDescription>
+            The advance booking was <strong>not</strong> recorded. Nothing was saved to the database.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm font-mono text-destructive">
+          {saveError}
+        </div>
+        <DialogFooter>
+          <Button variant="destructive" onClick={() => setSaveError(null)}>
+            OK, I understand
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
