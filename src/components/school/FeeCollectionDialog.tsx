@@ -363,18 +363,76 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         };
       });
 
-      // If no fee structures found OR all structure amounts are 0, use closing_fees_balance
+      // If no fee structures found OR all structure amounts are 0, use imported opening
+      // (same resolveImportedOpeningBalance + adjustments as Fee Collection grid).
       const totalStructureAmount = items.reduce((sum, i) => sum + i.structure_amount, 0);
       if ((items.length === 0 || totalStructureAmount === 0) && student.closing_fees_balance && student.closing_fees_balance > 0) {
-        // Clear zero-amount structure items so we use imported balance instead
         if (totalStructureAmount === 0) items.length = 0;
+        const { data: allYearsImp } = await supabase
+          .from("academic_years")
+          .select("id, start_date, end_date")
+          .eq("organization_id", currentOrganization!.id)
+          .order("start_date", { ascending: true });
+
+        const prevYearImp =
+          usedYear.start_date && allYearsImp?.length
+            ? [...allYearsImp]
+                .filter((y: any) => y.end_date && new Date(y.end_date) < new Date(usedYear.start_date as string))
+                .sort(
+                  (a: any, b: any) =>
+                    new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+                )[0]
+            : null;
+
+        let latePrevPaidImp = 0;
+        if (prevYearImp?.id) {
+          const { data: lateFeesImp } = await supabase
+            .from("student_fees")
+            .select("paid_amount")
+            .eq("organization_id", currentOrganization!.id)
+            .eq("student_id", student.id)
+            .eq("academic_year_id", prevYearImp.id)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0);
+          latePrevPaidImp = (lateFeesImp || []).reduce((s: number, f: any) => s + Number(f.paid_amount || 0), 0);
+        }
+
+        const importedEff = resolveImportedOpeningBalance(
+          Number(student.closing_fees_balance || 0),
+          latePrevPaidImp,
+          student.fees_opening_is_net === true
+        );
+
+        const { data: adjRowsImp } = await (supabase.from("student_balance_audit" as any) as any)
+          .select("adjustment_type, change_amount")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("student_id", student.id)
+          .eq("academic_year_id", usedYear.id)
+          .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
+
+        const adjustmentNetImp = (adjRowsImp || []).reduce((sum: number, a: any) => {
+          if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);
+          if (a.adjustment_type === "debit") return sum - (a.change_amount || 0);
+          return sum;
+        }, 0);
+
         const totalPaidInYear = (payments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
-        const importedBalance = student.closing_fees_balance - totalPaidInYear;
+        const liabilityImp = resolveLiability(
+          { ...student, closing_fees_balance: importedEff },
+          0,
+          usedYear.year_name
+        );
+        const totalDueGrossImp =
+          Math.round((Number(liabilityImp) + adjustmentNetImp) * 100) / 100;
+        const importedBalance = Math.max(
+          0,
+          Math.round((totalDueGrossImp - totalPaidInYear) * 100) / 100
+        );
         if (importedBalance > 0) {
           items.push({
             fee_head_id: "__imported_balance__",
             head_name: "Fees Balance (Imported)",
-            structure_amount: student.closing_fees_balance,
+            structure_amount: totalDueGrossImp,
             already_paid: totalPaidInYear,
             balance: importedBalance,
             selected: true,
@@ -426,7 +484,8 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .select("adjustment_type, change_amount")
           .eq("organization_id", currentOrganization!.id)
           .eq("student_id", student.id)
-          .eq("academic_year_id", usedYear.id);
+          .eq("academic_year_id", usedYear.id)
+          .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
         const adjustmentNet = (adjRows || []).reduce((sum: number, a: any) => {
           if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);

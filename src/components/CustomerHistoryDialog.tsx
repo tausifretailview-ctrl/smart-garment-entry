@@ -409,7 +409,8 @@ export function CustomerHistoryDialog({
         .select("adjustment_type, change_amount")
         .eq("organization_id", organizationId)
         .eq("student_id", student.id)
-        .eq("academic_year_id", currentYear.id);
+        .eq("academic_year_id", currentYear.id)
+        .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
       const adjustmentNet = (adjustments || []).reduce((sum: number, a: any) => {
         if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);

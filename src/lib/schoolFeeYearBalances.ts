@@ -110,12 +110,17 @@ export async function computeYearWiseFeeBalances(
       latePrevPaid = paymentsByYear.get(previousYear.id) || 0;
     }
 
+    // `students.closing_fees_balance` / `fees_opening_is_net` apply only to the student's
+    // enrollment year — not every academic year row (prevents duplicating carry into prior years).
+    const isStudentEnrollmentYear =
+      !!student.academic_year_id && student.academic_year_id === Y.id;
     const openingIsNet =
-      student.fees_opening_is_net === true &&
-      !!student.academic_year_id &&
-      student.academic_year_id === Y.id;
+      student.fees_opening_is_net === true && isStudentEnrollmentYear;
+    const closingForImported = isStudentEnrollmentYear
+      ? Number(student.closing_fees_balance || 0)
+      : 0;
     const importedBalance = resolveImportedOpeningBalance(
-      Number(student.closing_fees_balance || 0),
+      closingForImported,
       latePrevPaid,
       openingIsNet
     );
@@ -257,12 +262,15 @@ export async function computePendingAllSessionsBatch(
       if (previousYear?.id) {
         latePrevPaid = paymentsByYear.get(previousYear.id) || 0;
       }
+      const isStudentEnrollmentYear =
+        !!student.academic_year_id && student.academic_year_id === Y.id;
       const openingIsNet =
-        student.fees_opening_is_net === true &&
-        !!student.academic_year_id &&
-        student.academic_year_id === Y.id;
+        student.fees_opening_is_net === true && isStudentEnrollmentYear;
+      const closingForImported = isStudentEnrollmentYear
+        ? Number(student.closing_fees_balance || 0)
+        : 0;
       const importedBalance = resolveImportedOpeningBalance(
-        Number(student.closing_fees_balance || 0),
+        closingForImported,
         latePrevPaid,
         openingIsNet
       );
