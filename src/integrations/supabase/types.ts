@@ -7359,6 +7359,21 @@ export type Database = {
           },
         ]
       }
+      v_student_ledger: {
+        Row: {
+          academic_year_id: string | null
+          credit: number | null
+          debit: number | null
+          description: string | null
+          organization_id: string | null
+          source_id: string | null
+          source_table: string | null
+          student_id: string | null
+          transaction_date: string | null
+          transaction_type: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adjust_invoice_balance: {
@@ -7370,6 +7385,19 @@ export type Database = {
           p_notes?: string
           p_organization_id: string
           p_source_document_id: string
+        }
+        Returns: boolean
+      }
+      adjust_student_fee_balance: {
+        Args: {
+          p_academic_year_id: string
+          p_adjusted_by: string
+          p_current_due: number
+          p_new_balance: number
+          p_organization_id: string
+          p_reason_code_label: string
+          p_reason_detail: string
+          p_student_id: string
         }
         Returns: boolean
       }

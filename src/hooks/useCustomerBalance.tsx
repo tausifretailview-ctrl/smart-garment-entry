@@ -10,6 +10,11 @@ interface CustomerBalanceResult {
   adjustmentTotal: number;
   unusedAdvanceTotal: number;
   saleReturnTotal: number;
+  totalSalesGross: number;
+  totalSaleReturnAdjustOnSales: number;
+  totalCashPaid: number;
+  totalAdvanceApplied: number;
+  totalCnApplied: number;
   isLoading: boolean;
 }
 
@@ -34,6 +39,11 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
           adjustmentTotal: 0,
           unusedAdvanceTotal: 0,
           saleReturnTotal: 0,
+          totalSalesGross: 0,
+          totalSaleReturnAdjustOnSales: 0,
+          totalCashPaid: 0,
+          totalAdvanceApplied: 0,
+          totalCnApplied: 0,
         };
       }
 
@@ -51,6 +61,11 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
     adjustmentTotal: data?.adjustmentTotal || 0,
     unusedAdvanceTotal: data?.unusedAdvanceTotal || 0,
     saleReturnTotal: data?.saleReturnTotal || 0,
+    totalSalesGross: data?.totalSalesGross || 0,
+    totalSaleReturnAdjustOnSales: data?.totalSaleReturnAdjustOnSales || 0,
+    totalCashPaid: data?.totalCashPaid || 0,
+    totalAdvanceApplied: data?.totalAdvanceApplied || 0,
+    totalCnApplied: data?.totalCnApplied || 0,
     isLoading,
   };
 }

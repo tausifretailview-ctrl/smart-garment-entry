@@ -50,6 +50,9 @@ export interface CustomerOutstandingResult extends CustomerBalanceResult {
   unusedAdvanceTotal: number;
   adjustmentTotal: number;
   saleReturnTotal: number;
+  totalCashPaid: number;
+  totalAdvanceApplied: number;
+  totalCnApplied: number;
 }
 
 const normalizeStatus = (status: unknown) =>
@@ -181,6 +184,9 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     unusedAdvanceTotal: Math.round(unusedAdvanceTotal),
     adjustmentTotal: Math.round(p.adjustmentTotal),
     saleReturnTotal: Math.round(saleReturnTotal),
+    totalCashPaid: Math.round(totalPaidOnSales + openingBalanceVoucherPayments),
+    totalAdvanceApplied: Math.round(totalAdvanceApplied),
+    totalCnApplied: Math.round(totalCnApplied),
   };
 }
 
@@ -361,6 +367,11 @@ export async function fetchCustomerBalanceSnapshot(
   adjustmentTotal: number;
   unusedAdvanceTotal: number;
   saleReturnTotal: number;
+  totalSalesGross: number;
+  totalSaleReturnAdjustOnSales: number;
+  totalCashPaid: number;
+  totalAdvanceApplied: number;
+  totalCnApplied: number;
 }> {
   const { data: customer, error: customerError } = await client
     .from("customers")
@@ -463,5 +474,10 @@ export async function fetchCustomerBalanceSnapshot(
     adjustmentTotal: co.adjustmentTotal,
     unusedAdvanceTotal: co.unusedAdvanceTotal,
     saleReturnTotal: co.saleReturnTotal,
+    totalSalesGross: co.totalSalesGross,
+    totalSaleReturnAdjustOnSales: co.totalSaleReturnAdjustOnSales,
+    totalCashPaid: co.totalCashPaid,
+    totalAdvanceApplied: co.totalAdvanceApplied,
+    totalCnApplied: co.totalCnApplied,
   };
 }
