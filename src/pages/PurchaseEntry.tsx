@@ -4446,7 +4446,7 @@ const PurchaseEntry = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell className="w-[80px]">
+                        <TableCell className="w-[110px]">
                           <div className="flex items-center gap-0.5">
                             <Input
                               ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
@@ -4470,7 +4470,7 @@ const PurchaseEntry = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="w-[120px]">
+                        <TableCell className="w-[140px]">
                           <CalculatorInput
                             value={item.pur_price}
                             onChange={(val) =>
@@ -4479,7 +4479,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
-                        <TableCell className="w-[120px]">
+                        <TableCell className="w-[140px]">
                           <CalculatorInput
                             value={item.sale_price}
                             onChange={(val) =>
@@ -4489,7 +4489,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         {showMrp && (
-                          <TableCell className="w-[120px]">
+                          <TableCell className="w-[140px]">
                             <CalculatorInput
                               value={item.mrp || 0}
                               onChange={(val) =>
@@ -4499,7 +4499,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        {showPurCol.gst && <TableCell className="w-[100px]">
+                        {showPurCol.gst && <TableCell className="w-[110px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -4521,7 +4521,7 @@ const PurchaseEntry = () => {
                         <TableCell className="w-[120px] text-right font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        {showPurCol.disc_percent && <TableCell className="w-[100px]">
+                        {showPurCol.disc_percent && <TableCell className="w-[110px]">
                           <Input
                             type="number"
                             min="0"
