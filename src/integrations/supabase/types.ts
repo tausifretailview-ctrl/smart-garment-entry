@@ -120,6 +120,48 @@ export type Database = {
           },
         ]
       }
+      advance_booking_attempts: {
+        Row: {
+          advance_id: string | null
+          amount: number | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          error_message: string | null
+          id: string
+          organization_id: string
+          payment_method: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          advance_id?: string | null
+          amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id: string
+          payment_method?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          advance_id?: string | null
+          amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string
+          payment_method?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       advance_refunds: {
         Row: {
           advance_id: string
@@ -5654,8 +5696,6 @@ export type Database = {
           change_amount: number
           created_at: string | null
           id: string
-          journal_entry_id: string | null
-          journal_status: string | null
           new_balance: number
           old_balance: number
           organization_id: string
@@ -5673,8 +5713,6 @@ export type Database = {
           change_amount?: number
           created_at?: string | null
           id?: string
-          journal_entry_id?: string | null
-          journal_status?: string | null
           new_balance?: number
           old_balance?: number
           organization_id: string
@@ -5692,8 +5730,6 @@ export type Database = {
           change_amount?: number
           created_at?: string | null
           id?: string
-          journal_entry_id?: string | null
-          journal_status?: string | null
           new_balance?: number
           old_balance?: number
           organization_id?: string

@@ -255,14 +255,14 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         }
         await supabase
           .from("student_balance_audit")
-          .update({ journal_status: "error", journal_entry_id: null })
+          .update({ journal_status: "error", journal_entry_id: null } as any)
           .eq("id", adjustmentId);
         throw glErr;
       }
 
       await supabase
         .from("student_balance_audit")
-        .update({ journal_status: journalStatus, journal_entry_id: journalEntryId })
+        .update({ journal_status: journalStatus, journal_entry_id: journalEntryId } as any)
         .eq("id", adjustmentId);
 
       return {

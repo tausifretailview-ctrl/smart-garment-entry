@@ -1,69 +1,46 @@
-## Problem
+# Fix: Missing Advance Bookings (ELLA NOOR)
 
-Opening Sale Return throws:
+## What I confirmed in the DB
 
-> Could not find the 'payment_method' column of 'sale_returns' in the schema cache
+- ELLA NOOR has **only 1 advance booking saved today** (ADV/26-27/166, ₹1,000, 1:50 PM IST, UPI). Its journal entry is posted correctly.
+- Advance number sequence is **continuous** (no gaps) → no rolled-back rows hiding.
+- No Postgres errors for advances in the morning window.
+- Accounting engine is **enabled** for this org.
 
-The recent accounting engine sync (Phase 7-8) added code in `FloatingSaleReturn.tsx`, `SaleReturnEntry.tsx`, `useSoftDelete.tsx`, `journalService.ts`, and `historicalMigration.ts` that **inserts/updates/selects** these columns on `sale_returns`:
+The "morning multiple advances" the user reported are **not in the database at all** and were never persisted. The save UI either errored silently from the user's perspective, or the user saved on a different org / used the adjust-from-advance flow (which doesn't create advance rows).
 
-- `payment_method` (drives 1000 cash vs 1010 bank GL routing for direct refunds)
-- `journal_status` (`pending` / `posted` / `failed`)
-- `journal_error` (text, last GL posting error)
+## Plan
 
-…but the database table only has: `id, organization_id, customer_id, customer_name, original_sale_number, return_date, gross_amount, gst_amount, net_amount, notes, created_at, updated_at, return_number, deleted_at, deleted_by, credit_note_id, credit_status, linked_sale_id, refund_type`.
+### 1. Add a forensic audit log table (one-time)
+Create `advance_booking_attempts` (org-scoped, RLS) capturing every Save click — user_id, customer_id, amount, payment_method, status (`attempted`/`succeeded`/`failed`), error_message, timestamp. Keeps a record even when the mutation fails, so we can prove what happened next time.
 
-The same gap exists on `purchase_returns` (used by `useSoftDelete.tsx → restore("purchase_returns")` and the Purchase Return flow). It will throw the same error the moment a purchase return is restored or its journal is reposted.
+### 2. Fix the silent-failure UX in `AddAdvanceBookingDialog.tsx`
+- The current `handleSubmit` catches errors with an empty block. Toast does fire from the hook, but it can be dismissed quickly. Replace the empty catch with a **loud, non-dismissible error dialog** showing: "Advance NOT saved — {reason}". User must click OK.
+- Disable the dialog close button while `createAdvance.isPending` to avoid losing context.
 
-## Root Cause
+### 3. Add post-save verification
+After `mutateAsync` resolves, immediately re-`SELECT` the advance by `id` from DB. If not found (e.g., interceptor rolled it back due to GL failure), show the same loud error and DO NOT show the print prompt.
 
-A migration to add these columns was missed when the journal posting layer was merged. PostgREST's schema cache simply has nothing to expose, so every insert/select/update on these names 4040s.
+### 4. Verify chart-of-accounts for ELLA NOOR
+Run `seedDefaultAccounts` check against ELLA NOOR org to confirm code `2150` (Customer Advances) and cash/bank/UPI ledger accounts exist. If missing, the GL post throws → advance is deleted server-side. Seed any missing system accounts.
 
-## Fix (schema-only; no app code changes needed)
+### 5. Reconciliation report
+Add a small admin tool: `Advance Save Failures (last 7 days)` reading from the new `advance_booking_attempts` table where `status = 'failed'`, scoped to current org. Owner can review what was attempted but not saved.
 
-Single migration that adds the missing columns to **both** return tables, with safe defaults so existing rows remain valid.
+### 6. Educate the user / UI clarification
+Rename **"Adjust from Advance"** button on the customer ledger to **"Apply Existing Advance Balance"** so users don't confuse it with creating a new advance booking. Add a tooltip: *"This applies an already-received advance to invoices. To record a NEW advance, use 'Add Advance Booking'."*
 
-### Migration
+## Out of scope (per memory: do not modify without explicit ask)
+- Will NOT touch `useCustomerAdvances.tsx` core mutation, `journalService.ts`, `customerBalanceUtils.ts`, or the auto-rollback `delete()` behavior. Only wrap the UI side and add the audit table.
 
-```sql
--- sale_returns
-ALTER TABLE public.sale_returns
-  ADD COLUMN IF NOT EXISTS payment_method  text,
-  ADD COLUMN IF NOT EXISTS journal_status  text NOT NULL DEFAULT 'pending',
-  ADD COLUMN IF NOT EXISTS journal_error   text;
+## Files to change
+- **NEW** migration: `advance_booking_attempts` table + RLS + index `(organization_id, created_at)`
+- `src/components/AddAdvanceBookingDialog.tsx` — verification + loud error dialog + audit insert
+- `src/components/CustomerLedger.tsx` — relabel adjust-advance button + tooltip
+- **NEW** `src/pages/AdvanceSaveFailures.tsx` — read-only admin report
+- Route entry in `src/App.tsx` for the new report
 
--- purchase_returns (same shape, no refund_type needed - already different model)
-ALTER TABLE public.purchase_returns
-  ADD COLUMN IF NOT EXISTS payment_method  text,
-  ADD COLUMN IF NOT EXISTS journal_status  text NOT NULL DEFAULT 'pending',
-  ADD COLUMN IF NOT EXISTS journal_error   text;
-
--- Helpful index for the auto-repost worker / status filters
-CREATE INDEX IF NOT EXISTS idx_sale_returns_journal_status
-  ON public.sale_returns (organization_id, journal_status)
-  WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS idx_purchase_returns_journal_status
-  ON public.purchase_returns (organization_id, journal_status)
-  WHERE deleted_at IS NULL;
-```
-
-Notes:
-- `payment_method` is nullable — credit-note returns legitimately have no payment method.
-- Existing rows get `journal_status='pending'`. They were already posted historically (or didn't use the engine), so this only affects the auto-repost worker's view, not user-visible balances.
-- No CHECK constraints (per project rule — use validation triggers if needed later).
-- All scoped through `organization_id` indexes (per Core memory rule).
-
-### Verification after migration
-
-1. PostgREST schema cache reloads automatically.
-2. Open Sale Return for any invoice — the dialog loads without the error.
-3. Save a credit-note return → row has `payment_method=null, journal_status='posted'`.
-4. Save a cash refund → row has `payment_method='cash', journal_status='posted'`.
-5. Soft-delete then restore a sale return from Recycle Bin → no "Ledger warning" toast; `journal_status='posted'`.
-
-## What is NOT changing
-
-- No application/TypeScript code edits — every reference is already correct, just waiting on the columns.
-- No data backfill or balance recalculation — historical rows keep their current GL state.
-- No changes to `refund_type`, credit-note tables, or RLS policies.
-- The Supabase auto-generated `types.ts` will refresh on its own after the migration.
+## Acceptance
+- Saving an advance with intentionally broken chart-of-accounts shows a blocking error dialog (no print prompt, no false "saved").
+- An entry appears in `advance_booking_attempts` with `status='failed'` and the SQL error message.
+- Successful saves continue to behave exactly as today and also log `status='succeeded'`.

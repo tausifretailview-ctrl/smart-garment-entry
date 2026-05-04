@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CalendarIcon, Check, ChevronsUpDown, Coins, Printer } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
@@ -47,6 +48,7 @@ export function AddAdvanceBookingDialog({
   const [printPaperSize, setPrintPaperSize] = useState<"A4" | "A5">("A5");
   const [savedAdvanceData, setSavedAdvanceData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { createAdvance } = useCustomerAdvances(organizationId);
   const { currentOrganization } = useOrganization();
@@ -137,10 +139,37 @@ export function AddAdvanceBookingDialog({
       return;
     }
 
+    // Get current user for audit log
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id ?? null;
+    const numericAmount = parseFloat(amount);
+
+    // Audit: record the attempt up-front so we have a record even if
+    // the network call dies, the tab closes, or the GL post rolls back.
+    let attemptId: string | null = null;
+    try {
+      const { data: attemptRow } = await supabase
+        .from("advance_booking_attempts" as any)
+        .insert({
+          organization_id: organizationId,
+          user_id: userId,
+          customer_id: customerId,
+          customer_name: selectedCustomerData?.customer_name ?? null,
+          amount: numericAmount,
+          payment_method: paymentMethod,
+          status: "attempted",
+        } as any)
+        .select("id")
+        .single();
+      attemptId = (attemptRow as any)?.id ?? null;
+    } catch {
+      // non-blocking
+    }
+
     try {
       const result = await createAdvance.mutateAsync({
         customerId,
-        amount: parseFloat(amount),
+        amount: numericAmount,
         paymentMethod,
         description: description || undefined,
         chequeNumber: paymentMethod === "cheque" ? chequeNumber : undefined,
@@ -148,21 +177,55 @@ export function AddAdvanceBookingDialog({
         advanceDate,
       });
 
+      // Post-save verification: re-read the row to confirm it actually persisted
+      // (the create flow rolls back the advance row if GL posting fails).
+      const { data: verifyRow } = await supabase
+        .from("customer_advances")
+        .select("id, advance_number")
+        .eq("id", (result as any).id)
+        .maybeSingle();
+
+      if (!verifyRow) {
+        const msg = "Advance was rolled back by the accounting engine. Please check chart of accounts (Customer Advances 2150 and the cash/bank/UPI ledgers) and try again.";
+        if (attemptId) {
+          await supabase
+            .from("advance_booking_attempts" as any)
+            .update({ status: "failed", error_message: msg } as any)
+            .eq("id", attemptId);
+        }
+        setSaveError(msg);
+        return;
+      }
+
+      if (attemptId) {
+        await supabase
+          .from("advance_booking_attempts" as any)
+          .update({ status: "succeeded", advance_id: (result as any).id } as any)
+          .eq("id", attemptId);
+      }
+
       // Store data for printing
       setSavedAdvanceData({
         advanceNumber: result.advance_number,
         advanceDate: result.advance_date,
         customerName: selectedCustomerData?.customer_name || "",
         customerPhone: selectedCustomerData?.phone || undefined,
-        amount: parseFloat(amount),
+        amount: numericAmount,
         paymentMethod,
         chequeNumber: paymentMethod === "cheque" ? chequeNumber : undefined,
         transactionId: (paymentMethod === "upi" || paymentMethod === "bank_transfer") ? transactionId : undefined,
         description: description || undefined,
       });
       setShowPrintPrompt(true);
-    } catch (error) {
-      // Error already handled by mutation
+    } catch (error: any) {
+      const msg = error?.message || "Unknown error while saving advance.";
+      if (attemptId) {
+        await supabase
+          .from("advance_booking_attempts" as any)
+          .update({ status: "failed", error_message: msg } as any)
+          .eq("id", attemptId);
+      }
+      setSaveError(msg);
     }
   };
 
@@ -238,6 +301,7 @@ export function AddAdvanceBookingDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
@@ -421,5 +485,29 @@ export function AddAdvanceBookingDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Blocking error dialog — user MUST acknowledge */}
+    <Dialog open={!!saveError} onOpenChange={(o) => { if (!o) setSaveError(null); }}>
+      <DialogContent className="sm:max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            Advance NOT Saved
+          </DialogTitle>
+          <DialogDescription>
+            The advance booking was <strong>not</strong> recorded. Nothing was saved to the database.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm font-mono text-destructive">
+          {saveError}
+        </div>
+        <DialogFooter>
+          <Button variant="destructive" onClick={() => setSaveError(null)}>
+            OK, I understand
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
