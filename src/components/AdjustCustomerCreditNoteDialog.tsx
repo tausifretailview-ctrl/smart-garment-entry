@@ -189,30 +189,17 @@ export function AdjustCustomerCreditNoteDialog({
     [cnAvailable, sumAllocationsExcept]
   );
 
-  const rollbackInvoiceSteps = async (
-    steps: Array<{ saleId: string; prevSr: number; prevStatus: string; voucherId?: string }>
-  ) => {
-    for (const st of [...steps].reverse()) {
-      if (st.voucherId) {
-        await deleteJournalEntryByReference(
-          currentOrganization!.id,
-          "CustomerCreditNoteApplication",
-          st.voucherId,
-          supabase
-        );
-        await supabase.from("voucher_entries").delete().eq("id", st.voucherId);
-      }
-      await supabase
-        .from("sales")
-        .update({
-          sale_return_adjust: st.prevSr,
-          payment_status: st.prevStatus as "pending" | "partial" | "completed",
-        })
-        .eq("id", st.saleId);
+  /** Multi-invoice CN apply: one `adjust_invoice_balance` RPC per row (types pending regen). */
+  const applyInvoiceAllocationsViaRpc = async (maxCredit: number): Promise<boolean> => {
+    if (!creditNoteId || creditNoteId === "") {
+      toast({
+        title: "Cannot apply",
+        description: "Credit note record is missing. Link a credit_notes row before applying.",
+        variant: "destructive",
+      });
+      return false;
     }
-  };
 
-  const applyInvoiceAllocations = async (maxCredit: number): Promise<boolean> => {
     const entries = Object.entries(allocations)
       .map(([saleId, amt]) => ({ saleId, amount: Number(amt) || 0 }))
       .filter((e) => e.amount > 0.01 && checkedIds.has(e.saleId))
@@ -237,208 +224,35 @@ export function AdjustCustomerCreditNoteDialog({
       }
     }
 
-    const appliedSteps: Array<{ saleId: string; prevSr: number; prevStatus: string; voucherId?: string }> = [];
-    const appliedRows: Array<{ saleId: string; amount: number }> = [];
-    let insertedAllocationIds: string[] = [];
-
-    const { data: srBefore } = await supabase
-      .from("sale_returns")
-      .select("credit_available_balance, credit_status, linked_sale_id, net_amount")
-      .eq("id", saleReturnId)
-      .single();
-
     try {
-      const { data: acctOut } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", currentOrganization!.id)
-        .maybeSingle();
-      const glOn = isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null);
-
-      const { data: lastRcp } = await supabase
-        .from("voucher_entries")
-        .select("voucher_number")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("voucher_type", "receipt")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      const lastNum = lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-      let seq = parseInt(lastNum, 10) + 1;
-      const today = format(new Date(), "yyyy-MM-dd");
+      const sb = supabase as any;
+      let appliedTotal = 0;
 
       for (const { saleId, amount } of entries) {
-        const { data: linkedSale, error: lsErr } = await supabase
-          .from("sales")
-          .select("paid_amount, net_amount, sale_return_adjust, payment_status")
-          .eq("id", saleId)
-          .single();
-        if (lsErr) throw lsErr;
-        if (!linkedSale) throw new Error("Invoice not found");
-
-        const net = Number(linkedSale.net_amount || 0);
-        const snapPaid = Number(linkedSale.paid_amount || 0);
-        const snapSr = Number((linkedSale as any).sale_return_adjust || 0);
-        const snapStatus = String(linkedSale.payment_status || "pending");
-        const capRemaining = Math.max(0, net - snapSr - snapPaid);
-        const adjustAmount = Math.min(amount, capRemaining);
-        if (adjustAmount <= 0.01) continue;
-
-        const newSr = snapSr + adjustAmount;
-        const outstandingAfter = Math.max(0, net - newSr - snapPaid);
-        const newStatus =
-          outstandingAfter <= 0.01
-            ? "completed"
-            : snapPaid > 0.01 || newSr > 0.01
-              ? "partial"
-              : "pending";
-
-        const { error: saleErr } = await supabase
-          .from("sales")
-          .update({
-            payment_status: newStatus,
-            sale_return_adjust: newSr,
-          })
-          .eq("id", saleId);
-        if (saleErr) throw saleErr;
-
-        const newVoucherNumber = `RCP-${String(seq).padStart(5, "0")}`;
-        seq += 1;
-        const cnApplyDesc = `Credit note ${returnNumber} → ${(unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId}`;
-
-        const { data: outVoucherRow, error: outVoucherErr } = await supabase
-          .from("voucher_entries")
-          .insert({
-            organization_id: currentOrganization!.id,
-            voucher_number: newVoucherNumber,
-            voucher_type: "receipt",
-            voucher_date: today,
-            reference_type: "sale",
-            reference_id: saleId,
-            total_amount: adjustAmount,
-            payment_method: "credit_note_adjustment",
-            description: cnApplyDesc,
-          })
-          .select("id")
-          .single();
-        if (outVoucherErr) throw outVoucherErr;
-        const outVoucherId = outVoucherRow?.id as string | undefined;
-
-        if (outVoucherId && glOn) {
-          try {
-            await recordCustomerCreditNoteApplicationJournalEntry(
-              outVoucherId,
-              currentOrganization!.id,
-              adjustAmount,
-              today,
-              cnApplyDesc,
-              supabase
-            );
-          } catch (glErr) {
-            await rollbackInvoiceSteps(appliedSteps);
-            if (outVoucherId) {
-              await deleteJournalEntryByReference(
-                currentOrganization!.id,
-                "CustomerCreditNoteApplication",
-                outVoucherId,
-                supabase
-              );
-              await supabase.from("voucher_entries").delete().eq("id", outVoucherId);
-            }
-            await supabase
-              .from("sales")
-              .update({
-                sale_return_adjust: snapSr,
-                payment_status: snapStatus as "pending" | "partial" | "completed",
-              })
-              .eq("id", saleId);
-            throw glErr;
-          }
-        }
-
-        appliedSteps.push({
-          saleId,
-          prevSr: snapSr,
-          prevStatus: snapStatus,
-          voucherId: outVoucherId,
+        const { error } = await sb.rpc("adjust_invoice_balance", {
+          p_organization_id: currentOrganization!.id,
+          p_invoice_id: saleId,
+          p_adjustment_type: "CREDIT_NOTE",
+          p_source_document_id: creditNoteId,
+          p_amount_applied: Number(amount),
         });
-        appliedRows.push({ saleId, amount: adjustAmount });
-      }
 
-      if (appliedRows.length === 0) {
-        toast({
-          title: "Nothing applied",
-          description: "No outstanding capacity on the selected invoices for this allocation.",
-          variant: "destructive",
-        });
-        return false;
-      }
-
-      const appliedTotal = appliedRows.reduce((s, r) => s + r.amount, 0);
-      const newRemaining = Math.max(0, Math.round((maxCredit - appliedTotal) * 100) / 100);
-      const firstLinked = appliedRows[0]?.saleId || null;
-      const { error: srUpdErr } = await supabase
-        .from("sale_returns")
-        .update({
-          credit_available_balance: newRemaining,
-          credit_status: newRemaining <= 0.01 ? "adjusted" : "partially_adjusted",
-          linked_sale_id: firstLinked,
-        })
-        .eq("id", saleReturnId);
-      if (srUpdErr) throw srUpdErr;
-
-      if (appliedRows.length > 0) {
-        const { data: insertedAllocs, error: allocErr } = await supabase
-          .from("sale_return_invoice_allocations")
-          .insert(
-            appliedRows.map((r) => ({
-              organization_id: currentOrganization!.id,
-              sale_return_id: saleReturnId,
-              sale_id: r.saleId,
-              amount: r.amount,
-            }))
-          )
-          .select("id");
-        if (allocErr) throw allocErr;
-        insertedAllocationIds = (insertedAllocs || []).map((r: any) => r.id).filter(Boolean);
-      }
-
-      if (creditNoteId && creditNoteId !== "") {
-        const nums = appliedRows
-          .map((e) => (unpaidSales.find((s: any) => s.id === e.saleId) as any)?.sale_number)
-          .filter(Boolean);
-        const { error: descErr } = await supabase
-          .from("voucher_entries")
-          .update({
-            description: `Credit Note ${returnNumber} adjusted against invoice(s): ${nums.join(", ")}`,
-          })
-          .eq("id", creditNoteId);
-        if (descErr) throw descErr;
+        if (error) throw error;
+        appliedTotal += Number(amount) || 0;
       }
 
       toast({
-        title: "Success",
-        description: `Applied ₹${appliedTotal.toLocaleString("en-IN")} across ${appliedRows.length} invoice(s). Remaining CN: ₹${newRemaining.toLocaleString("en-IN")}.`,
+        title: "Adjustment applied successfully",
+        description: `Applied ₹${appliedTotal.toLocaleString("en-IN")} across ${entries.length} invoice(s).`,
       });
 
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta", saleReturnId] });
       queryClient.invalidateQueries({ queryKey: ["unpaid-customer-sales", customerId] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       return true;
     } catch (err: any) {
       console.error(err);
-      await rollbackInvoiceSteps(appliedSteps);
-      if (insertedAllocationIds.length > 0) {
-        await supabase.from("sale_return_invoice_allocations").delete().in("id", insertedAllocationIds);
-      }
-      if (srBefore) {
-        await supabase
-          .from("sale_returns")
-          .update({
-            credit_available_balance: srBefore.credit_available_balance ?? srBefore.net_amount ?? null,
-            credit_status: srBefore.credit_status ?? "pending",
-            linked_sale_id: srBefore.linked_sale_id ?? null,
-          })
-          .eq("id", saleReturnId);
-      }
       toast({
         title: "Error",
         description: err?.message || "Failed to apply credit note to invoices",
@@ -499,7 +313,7 @@ export function AdjustCustomerCreditNoteDialog({
     setLoading(true);
     try {
       if (adjustmentType === "invoice") {
-        const ok = await applyInvoiceAllocations(liveCn);
+        const ok = await applyInvoiceAllocationsViaRpc(liveCn);
         if (!ok) return;
       } else if (adjustmentType === "refund") {
         const today = format(new Date(), "yyyy-MM-dd");
