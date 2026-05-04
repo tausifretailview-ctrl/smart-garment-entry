@@ -78,6 +78,11 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       setProducts([]);
       setSelectedProducts([]);
       setSizeWiseData({ sizes: [], rows: [] });
+      setPopoverOpen(false);
+    } else {
+      // Auto-open search popover so cursor lands in the input
+      const t = setTimeout(() => setPopoverOpen(true), 80);
+      return () => clearTimeout(t);
     }
   }, [open]);
 

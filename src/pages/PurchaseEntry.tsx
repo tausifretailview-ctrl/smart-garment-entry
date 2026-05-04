@@ -4368,13 +4368,13 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[260px]">ITEM NAME</TableHead>
                     {showPurCol.size && <TableHead className="w-[50px]">SIZE</TableHead>}
                     <TableHead className="w-[120px]">{isMobileERPMode ? 'IMEI NUMBER' : 'BARCODE'}</TableHead>
-                    <TableHead className="w-[80px] text-right">QTY</TableHead>
-                    <TableHead className='w-[120px] text-right pur-rate-col'>PUR.RATE</TableHead>
-                    <TableHead className='w-[120px] text-right sale-rate-col'>SALE.RATE</TableHead>
-                    {showMrp && <TableHead className="w-[120px] text-right">MRP</TableHead>}
-                    {showPurCol.gst && <TableHead className="w-[100px] text-right">GST %</TableHead>}
+                    <TableHead className="w-[110px] text-right">QTY</TableHead>
+                    <TableHead className='w-[140px] text-right pur-rate-col'>PUR.RATE</TableHead>
+                    <TableHead className='w-[140px] text-right sale-rate-col'>SALE.RATE</TableHead>
+                    {showMrp && <TableHead className="w-[140px] text-right">MRP</TableHead>}
+                    {showPurCol.gst && <TableHead className="w-[110px] text-right">GST %</TableHead>}
                     <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
-                    {showPurCol.disc_percent && <TableHead className="w-[100px] text-right">DISC %</TableHead>}
+                    {showPurCol.disc_percent && <TableHead className="w-[110px] text-right">DISC %</TableHead>}
                     <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">Action</TableHead>
@@ -4446,7 +4446,7 @@ const PurchaseEntry = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell className="w-[80px]">
+                        <TableCell className="w-[110px]">
                           <div className="flex items-center gap-0.5">
                             <Input
                               ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
@@ -4470,7 +4470,7 @@ const PurchaseEntry = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="w-[120px]">
+                        <TableCell className="w-[140px]">
                           <CalculatorInput
                             value={item.pur_price}
                             onChange={(val) =>
@@ -4479,7 +4479,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
-                        <TableCell className="w-[120px]">
+                        <TableCell className="w-[140px]">
                           <CalculatorInput
                             value={item.sale_price}
                             onChange={(val) =>
@@ -4489,7 +4489,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         {showMrp && (
-                          <TableCell className="w-[120px]">
+                          <TableCell className="w-[140px]">
                             <CalculatorInput
                               value={item.mrp || 0}
                               onChange={(val) =>
@@ -4499,7 +4499,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        {showPurCol.gst && <TableCell className="w-[100px]">
+                        {showPurCol.gst && <TableCell className="w-[110px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -4521,7 +4521,7 @@ const PurchaseEntry = () => {
                         <TableCell className="w-[120px] text-right font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        {showPurCol.disc_percent && <TableCell className="w-[100px]">
+                        {showPurCol.disc_percent && <TableCell className="w-[110px]">
                           <Input
                             type="number"
                             min="0"
@@ -4741,7 +4741,7 @@ const PurchaseEntry = () => {
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
                       <TableCell className="w-[130px]"></TableCell>
-                      <TableCell className="w-[80px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
+                      <TableCell className="w-[110px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
                       <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5}></TableCell>
                     </TableRow>
                   )}

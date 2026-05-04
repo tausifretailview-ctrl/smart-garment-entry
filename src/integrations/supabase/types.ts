@@ -2565,6 +2565,45 @@ export type Database = {
           },
         ]
       }
+      invoice_adjustments: {
+        Row: {
+          adjusted_by: string | null
+          adjustment_date: string
+          adjustment_type: string
+          amount_applied: number
+          created_at: string
+          id: string
+          invoice_id: string
+          notes: string | null
+          organization_id: string
+          source_document_id: string | null
+        }
+        Insert: {
+          adjusted_by?: string | null
+          adjustment_date?: string
+          adjustment_type: string
+          amount_applied: number
+          created_at?: string
+          id?: string
+          invoice_id: string
+          notes?: string | null
+          organization_id: string
+          source_document_id?: string | null
+        }
+        Update: {
+          adjusted_by?: string | null
+          adjustment_date?: string
+          adjustment_type?: string
+          amount_applied?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          notes?: string | null
+          organization_id?: string
+          source_document_id?: string | null
+        }
+        Relationships: []
+      }
       journal_entries: {
         Row: {
           created_at: string
@@ -7322,6 +7361,18 @@ export type Database = {
       }
     }
     Functions: {
+      adjust_invoice_balance: {
+        Args: {
+          p_adjusted_by?: string
+          p_adjustment_type: string
+          p_amount_applied: number
+          p_invoice_id: string
+          p_notes?: string
+          p_organization_id: string
+          p_source_document_id: string
+        }
+        Returns: boolean
+      }
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
       apply_credit_note_to_sale: {
         Args: {
