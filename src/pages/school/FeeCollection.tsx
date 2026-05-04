@@ -275,9 +275,9 @@ const FeeCollection = () => {
               .eq("organization_id", currentOrganization!.id)
               .eq("academic_year_id", activeYear.id)
               .in("student_id", studentIdList)
-              // Exclude pure trace entries (e.g. receipt_deleted) — receipt
-              // deletions are already reflected via student_fees.status='deleted'.
-              .neq("reason_code", "receipt_deleted"),
+              // Exclude pure trace entries (receipt_deleted, receipt_modified)
+              // — these are reflected via student_fees row changes directly.
+              .not("reason_code", "in", "(receipt_deleted,receipt_modified)"),
           ])
         : [{ data: [] as any[] }, { data: [] as any[] }];
       const allPayments = paymentsRes?.data || [];
@@ -410,10 +410,10 @@ const FeeCollection = () => {
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", activeYear.id)
           .in("student_id", studentIds)
-          // Exclude pure trace entries (e.g. receipt_deleted) — they must NOT
-          // affect Total Due. Receipt deletions are already reflected via
-          // student_fees.status = 'deleted' (excluded from paidTotal).
-          .neq("reason_code", "receipt_deleted"),
+          // Exclude pure trace entries (receipt_deleted, receipt_modified) —
+          // they must NOT affect Total Due. Both are already reflected via
+          // student_fees row changes (status='deleted' or updated paid_amount).
+          .not("reason_code", "in", "(receipt_deleted,receipt_modified)"),
       ]);
 
       const structures = structuresRes.data || [];

@@ -67,8 +67,9 @@ export async function computeYearWiseFeeBalances(
     .select("academic_year_id, adjustment_type, change_amount")
     .eq("organization_id", organizationId)
     .eq("student_id", student.id)
-    // Trace-only — receipt deletions are reflected via student_fees.status='deleted'.
-    .neq("reason_code", "receipt_deleted");
+    // Trace-only — receipt deletions/modifications are reflected via
+    // student_fees rows directly. Including them would phantom-double the math.
+    .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
   const adjByYear = new Map<string, number>();
   (allAdjustments || []).forEach((a: any) => {
@@ -204,7 +205,7 @@ export async function computePendingAllSessionsBatch(
     .select("student_id, academic_year_id, adjustment_type, change_amount")
     .eq("organization_id", organizationId)
     .in("student_id", studentIds)
-    .neq("reason_code", "receipt_deleted");
+    .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
   const adjByStudent = new Map<string, Map<string, number>>();
   (allAdj || []).forEach((a: any) => {
