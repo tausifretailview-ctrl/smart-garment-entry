@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -64,19 +65,17 @@ export default function CustomerLedgerPage() {
   const [toDate, setToDate] = useState<Date | undefined>(fyEnd);
   const [custOpen, setCustOpen] = useState(false);
 
-  // Customers list
+  // Customers list — paginate past PostgREST default max (1000 rows).
   const { data: customers = [] } = useQuery({
     queryKey: ["customers-for-ledger", currentOrganization?.id],
     enabled: !!currentOrganization?.id,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null)
-        .order("customer_name");
-      if (error) throw error;
-      return (data ?? []) as CustomerOption[];
+      const rows = await fetchAllCustomers(currentOrganization!.id);
+      return rows.map((c: { id: string; customer_name: string; phone?: string | null }) => ({
+        id: c.id,
+        customer_name: c.customer_name,
+        phone: c.phone ?? null,
+      })) as CustomerOption[];
     },
   });
 
