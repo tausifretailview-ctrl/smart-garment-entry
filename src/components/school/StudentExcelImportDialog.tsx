@@ -26,6 +26,7 @@ import {
   normalizePhoneNumber 
 } from "@/utils/excelImportUtils";
 import { toast } from "sonner";
+import { formatAdmissionFromNumeric, maxAdmNumericFromRows } from "@/lib/schoolAdmissionNumber";
 
 interface StudentExcelImportDialogProps {
   open: boolean;
@@ -246,20 +247,15 @@ export const StudentExcelImportDialog = ({
         existingStudents?.map(s => s.admission_number.toLowerCase()) || []
       );
 
-      // Auto-generate sequential admission numbers for students without one
-      const { data: maxAdmData } = await supabase
+      // Auto-generate sequential ADM numbers from max numeric suffix (active students only)
+      const { data: admRows } = await supabase
         .from("students")
         .select("admission_number")
         .eq("organization_id", currentOrganization.id)
-        .ilike("admission_number", "ADM%")
-        .order("admission_number", { ascending: false })
-        .limit(1);
-      
-      let autoAdmCounter = 1;
-      if (maxAdmData && maxAdmData.length > 0) {
-        const match = maxAdmData[0].admission_number.match(/ADM(\d+)/);
-        if (match) autoAdmCounter = parseInt(match[1], 10) + 1;
-      }
+        .is("deleted_at", null)
+        .ilike("admission_number", "ADM%");
+
+      let nextAutoNumeric = maxAdmNumericFromRows(admRows || []) + 1;
 
       for (let i = 0; i < parsedStudents.length; i += BATCH_SIZE) {
         const batch = parsedStudents.slice(i, i + BATCH_SIZE);
@@ -268,9 +264,8 @@ export const StudentExcelImportDialog = ({
           // Determine admission number
           let admNumber = student.admission_number;
           if (!admNumber) {
-            // Auto-generate unique admission number
-            admNumber = `ADM${String(autoAdmCounter).padStart(4, "0")}`;
-            autoAdmCounter++;
+            admNumber = formatAdmissionFromNumeric(nextAutoNumeric);
+            nextAutoNumeric += 1;
           } else {
             // Skip if admission number already exists
             if (existingAdmNumbers.has(admNumber.toLowerCase())) {

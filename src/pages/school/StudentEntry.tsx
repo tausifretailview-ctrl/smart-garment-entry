@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { formatNextAdmissionAfterMax, maxAdmNumericFromRows } from "@/lib/schoolAdmissionNumber";
 import { ArrowLeft, Save, Loader2, GraduationCap } from "lucide-react";
 
 interface StudentFormData {
@@ -126,19 +127,15 @@ const StudentEntry = () => {
     queryKey: ["next-admission-number", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id || isEditing) return "";
-      
-      const { data } = await supabase
+
+      const { data, error } = await supabase
         .from("students")
         .select("admission_number")
         .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (data && data.length > 0) {
-        const lastNum = parseInt(data[0].admission_number.replace(/\D/g, "")) || 0;
-        return `ADM${String(lastNum + 1).padStart(4, "0")}`;
-      }
-      return "ADM0001";
+        .is("deleted_at", null)
+        .ilike("admission_number", "ADM%");
+      if (error) throw error;
+      return formatNextAdmissionAfterMax(maxAdmNumericFromRows(data || []));
     },
     enabled: !!currentOrganization?.id && !isEditing,
   });
@@ -239,11 +236,25 @@ const StudentEntry = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["next-admission-number", currentOrganization?.id] });
       toast.success(isEditing ? "Student updated successfully" : "Student added successfully");
       orgNavigate("/students");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to save student");
+      const msg = String(error?.message || "");
+      const code = error?.code;
+      if (
+        code === "23505" ||
+        msg.includes("students_organization_id_admission_number") ||
+        msg.includes("students_organization_id_admission_number_active")
+      ) {
+        queryClient.invalidateQueries({ queryKey: ["next-admission-number", currentOrganization?.id] });
+        toast.error(
+          "This admission number is already used by an active student. Change the number or reload the page to refresh the suggested next ADM number."
+        );
+        return;
+      }
+      toast.error(msg || "Failed to save student");
     },
   });
 
