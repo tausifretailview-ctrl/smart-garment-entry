@@ -209,7 +209,7 @@ export async function computePendingAllSessionsBatch(
   });
 
   const { data: allAdj } = await (supabase.from("student_balance_audit" as any) as any)
-    .select("student_id, academic_year_id, adjustment_type, change_amount")
+    .select("student_id, academic_year_id, adjustment_type, change_amount, old_balance, new_balance")
     .eq("organization_id", organizationId)
     .in("student_id", studentIds)
     .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
@@ -221,10 +221,12 @@ export async function computePendingAllSessionsBatch(
     if (!y) return;
     const delta =
       a.adjustment_type === "credit"
-        ? (a.change_amount || 0)
+        ? Number(a.change_amount || 0)
         : a.adjustment_type === "debit"
-          ? -(a.change_amount || 0)
-          : 0;
+          ? -Number(a.change_amount || 0)
+          : a.adjustment_type === "set"
+            ? Number(a.new_balance ?? 0) - Number(a.old_balance ?? 0)
+            : 0;
     if (!adjByStudent.has(sid)) adjByStudent.set(sid, new Map());
     const m = adjByStudent.get(sid)!;
     m.set(y, (m.get(y) || 0) + delta);

@@ -964,3 +964,81 @@ export async function recordSchoolFeeReceiptJournalEntry(
   });
   return result.journalEntryId;
 }
+
+/**
+ * School student fee balance adjustment (student_balance_audit.id):
+ * - Due decreases (discount / waiver / set lower): DR Fee Discounts (4060), CR AR (1200).
+ * - Due increases (late fee / set higher): DR AR (1200), CR Late Fees & Penalties (4070).
+ * `dueDelta` = new pending due − old pending due (same sign as economic effect on receivable).
+ */
+export async function recordStudentFeeAdjustmentJournalEntry(
+  adjustmentId: string,
+  organizationId: string,
+  entryDate: string,
+  dueDelta: number,
+  reason: string,
+  client: any = supabase
+): Promise<{ journalEntryId: string | null; status: "posted" | "skipped" | "noop" }> {
+  if (!adjustmentId) throw new Error("adjustmentId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+
+  const delta = round2(dueDelta);
+  if (delta === 0) {
+    return { journalEntryId: null, status: "noop" };
+  }
+
+  const { data: settings } = await client
+    .from("settings")
+    .select("accounting_engine_enabled")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (!isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null)) {
+    return { journalEntryId: null, status: "skipped" };
+  }
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  const ar = getAccountByCode(systemAccounts, "1200");
+  if (!ar) throw new Error("Missing chart account Accounts Receivable (1200)");
+
+  const discountExpense =
+    getAccountByCode(systemAccounts, "4060") || getAccountByCode(systemAccounts, "6050");
+  const lateFeeRevenue =
+    getAccountByCode(systemAccounts, "4070") ||
+    getAccountByCode(systemAccounts, "4100") ||
+    getAccountByCode(systemAccounts, "4000");
+
+  const amount = round2(Math.abs(delta));
+  const descBase = (reason || "Student fee balance adjustment").trim();
+  const desc = descBase.length > 500 ? descBase.slice(0, 497) + "…" : descBase;
+
+  let lines: PostJournalLineInput[];
+  if (delta < 0) {
+    if (!discountExpense) {
+      throw new Error("Missing chart account Fee Discounts (4060) or Settlement Discounts (6050)");
+    }
+    lines = [
+      { accountId: discountExpense.id, debitAmount: amount, creditAmount: 0 },
+      { accountId: ar.id, debitAmount: 0, creditAmount: amount },
+    ];
+  } else {
+    if (!lateFeeRevenue) {
+      throw new Error("Missing chart account Late Fees (4070) or fee/revenue fallback");
+    }
+    lines = [
+      { accountId: ar.id, debitAmount: amount, creditAmount: 0 },
+      { accountId: lateFeeRevenue.id, debitAmount: 0, creditAmount: amount },
+    ];
+  }
+
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate.slice(0, 10),
+    referenceType: "StudentFeeBalanceAdjustment",
+    referenceId: adjustmentId,
+    description: desc,
+    lines,
+    client,
+  });
+  return { journalEntryId: result.journalEntryId, status: "posted" };
+}

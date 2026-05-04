@@ -5654,6 +5654,8 @@ export type Database = {
           change_amount: number
           created_at: string | null
           id: string
+          journal_entry_id: string | null
+          journal_status: string | null
           new_balance: number
           old_balance: number
           organization_id: string
@@ -5671,6 +5673,8 @@ export type Database = {
           change_amount?: number
           created_at?: string | null
           id?: string
+          journal_entry_id?: string | null
+          journal_status?: string | null
           new_balance?: number
           old_balance?: number
           organization_id: string
@@ -5688,6 +5692,8 @@ export type Database = {
           change_amount?: number
           created_at?: string | null
           id?: string
+          journal_entry_id?: string | null
+          journal_status?: string | null
           new_balance?: number
           old_balance?: number
           organization_id?: string

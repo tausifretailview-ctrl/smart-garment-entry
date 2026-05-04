@@ -13,6 +13,9 @@ import { Loader2, Save, Printer, AlertTriangle, TrendingUp, TrendingDown, Edit3,
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
+import { recordStudentFeeAdjustmentJournalEntry } from "@/utils/accounting/journalService";
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
 interface BalanceEditDialogProps {
   open: boolean;
@@ -123,14 +126,17 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
     adjustmentType === "credit" ? oldDue + amountNum :        // add to what's owed
     adjustmentType === "debit"  ? Math.max(0, oldDue - amountNum) :  // reduce what's owed
     amountNum;                                                  // set exact remaining
-  // closing_fees_balance = newDue + alreadyPaid
-  // (because ledger shows: closing_fees_balance - paid = remaining)
-  const newBalance = newDue + alreadyPaid;
-  const changeAmount = amountNum;
-  const isIncrease = newDue > oldDue;
   // For UI display — always show the DUE amounts (not the gross closing_fees_balance)
   const displayOldBalance = oldDue;
   const displayNewBalance = newDue;
+  // closing_fees_balance = newDue + alreadyPaid
+  // (because ledger shows: closing_fees_balance - paid = remaining)
+  const newBalance = newDue + alreadyPaid;
+  // Voucher / audit magnitude: for "set", store the absolute movement (not the target balance).
+  const changeAmount =
+    adjustmentType === "set" ? round2(Math.abs(displayOldBalance - displayNewBalance)) : amountNum;
+  const dueDelta = round2(displayNewBalance - displayOldBalance);
+  const isIncrease = newDue > oldDue;
 
   const { data: currentYear } = useQuery({
     queryKey: ["current-academic-year", currentOrganization?.id],
@@ -179,15 +185,8 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         hasActiveStructures = (count || 0) > 0;
       }
 
-      if (!hasActiveStructures) {
-        // Imported balance mode: update closing_fees_balance
-        const { error } = await supabase
-          .from("students")
-          .update({ closing_fees_balance: newBalance, fees_opening_is_net: false })
-          .eq("id", student.id);
-        if (error) throw error;
-      }
-      // For structure-based students, adjustment is tracked ONLY via student_balance_audit
+      const prevClosing = Number(student.closing_fees_balance || 0);
+      const prevFeesOpeningIsNet = student.fees_opening_is_net === true;
 
       const auditRecord = {
         organization_id: currentOrganization.id,
@@ -204,12 +203,75 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         voucher_number: voucherNumber,
         academic_year_id: currentYear?.id || null,
         created_at: new Date().toISOString(),
+        journal_status: "pending" as const,
       };
 
-      const { error: auditErr } = await (supabase.from("student_balance_audit" as any) as any).insert(auditRecord);
-      if (auditErr) console.error("Audit log failed (non-blocking):", auditErr);
+      const { data: inserted, error: auditErr } = await supabase
+        .from("student_balance_audit")
+        .insert(auditRecord)
+        .select("id")
+        .single();
 
-      return { ...auditRecord, reason_code_label: reasonLabel };
+      if (auditErr) throw auditErr;
+      const adjustmentId = inserted!.id as string;
+
+      if (!hasActiveStructures) {
+        const { error: stErr } = await supabase
+          .from("students")
+          .update({ closing_fees_balance: newBalance, fees_opening_is_net: false })
+          .eq("id", student.id);
+        if (stErr) {
+          await supabase.from("student_balance_audit").delete().eq("id", adjustmentId);
+          throw stErr;
+        }
+      }
+
+      const entryDate = new Date().toISOString();
+      const reasonText = [reasonLabel, reasonDetail?.trim()].filter(Boolean).join(" — ");
+
+      let journalEntryId: string | null = null;
+      let journalStatus = "skipped";
+
+      try {
+        const jr = await recordStudentFeeAdjustmentJournalEntry(
+          adjustmentId,
+          currentOrganization.id,
+          entryDate,
+          dueDelta,
+          reasonText,
+          supabase
+        );
+        journalEntryId = jr.journalEntryId;
+        journalStatus = jr.status === "posted" ? "posted" : "skipped";
+      } catch (glErr) {
+        if (!hasActiveStructures) {
+          await supabase
+            .from("students")
+            .update({
+              closing_fees_balance: prevClosing,
+              fees_opening_is_net: prevFeesOpeningIsNet,
+            })
+            .eq("id", student.id);
+        }
+        await supabase
+          .from("student_balance_audit")
+          .update({ journal_status: "error", journal_entry_id: null })
+          .eq("id", adjustmentId);
+        throw glErr;
+      }
+
+      await supabase
+        .from("student_balance_audit")
+        .update({ journal_status: journalStatus, journal_entry_id: journalEntryId })
+        .eq("id", adjustmentId);
+
+      return {
+        ...auditRecord,
+        id: adjustmentId,
+        journal_entry_id: journalEntryId,
+        journal_status: journalStatus,
+        reason_code_label: reasonLabel,
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["students-fee-collection"] });
@@ -218,6 +280,7 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
       queryClient.invalidateQueries({ queryKey: ["student-fee-details"] });
       queryClient.invalidateQueries({ queryKey: ["student-balance-audit"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-reports", "gl-trial-balance"] });
       toast.success("Balance adjusted successfully");
       setSavedVoucher(data);
       setConfirming(false);
