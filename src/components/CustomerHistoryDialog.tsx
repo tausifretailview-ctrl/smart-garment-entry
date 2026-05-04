@@ -287,7 +287,18 @@ export function CustomerHistoryDialog({
   const { isSchool } = useSchoolFeatures();
 
   // Get customer balance (business mode)
-  const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
+  const {
+    balance,
+    openingBalance,
+    totalSales,
+    totalPaid,
+    totalSalesGross,
+    totalSaleReturnAdjustOnSales,
+    totalCashPaid,
+    totalAdvanceApplied,
+    totalCnApplied,
+    isLoading: balanceLoading,
+  } = useCustomerBalance(
     customerId,
     organizationId
   );
