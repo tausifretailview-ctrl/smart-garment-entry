@@ -4741,7 +4741,7 @@ const PurchaseEntry = () => {
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
                       <TableCell className="w-[130px]"></TableCell>
-                      <TableCell className="w-[80px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
+                      <TableCell className="w-[110px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
                       <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5}></TableCell>
                     </TableRow>
                   )}
