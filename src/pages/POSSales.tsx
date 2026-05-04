@@ -4725,7 +4725,7 @@ export default function POSSales() {
           <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
-              <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px' }}>
+              <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 58px 60px 80px 58px 70px 88px 85px 120px' }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
@@ -4793,7 +4793,7 @@ export default function POSSales() {
               {(() => {
                   const MIN_DISPLAY_ROWS = 5;
                   const blankRowsNeeded = Math.max(0, MIN_DISPLAY_ROWS - items.length);
-                  const ROW_COLS = '40px 110px 1fr 58px 58px 60px 80px 58px 70px 68px 85px 105px';
+                  const ROW_COLS = '40px 110px 1fr 58px 58px 60px 80px 58px 70px 88px 85px 120px';
                   const blankRow = (idx: number) => (
                     <div key={`blank-${idx}`} className={`grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
@@ -4910,7 +4910,7 @@ export default function POSSales() {
                           </div>
                           <div className="flex items-center justify-end text-sm text-muted-foreground">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
+                            <span className="font-extrabold text-base md:text-lg">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
                             <Button
                               size="icon"
                               variant="ghost"
