@@ -50,6 +50,9 @@ export interface CustomerOutstandingResult extends CustomerBalanceResult {
   unusedAdvanceTotal: number;
   adjustmentTotal: number;
   saleReturnTotal: number;
+  totalCashPaid: number;
+  totalAdvanceApplied: number;
+  totalCnApplied: number;
 }
 
 const normalizeStatus = (status: unknown) =>
@@ -181,6 +184,9 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     unusedAdvanceTotal: Math.round(unusedAdvanceTotal),
     adjustmentTotal: Math.round(p.adjustmentTotal),
     saleReturnTotal: Math.round(saleReturnTotal),
+    totalCashPaid: Math.round(totalPaidOnSales + openingBalanceVoucherPayments),
+    totalAdvanceApplied: Math.round(totalAdvanceApplied),
+    totalCnApplied: Math.round(totalCnApplied),
   };
 }
 
