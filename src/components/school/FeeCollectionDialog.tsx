@@ -257,6 +257,89 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         .in("status", ["paid", "partial"])
         .gt("paid_amount", 0);
 
+      const paidTotalYear = (payments || []).reduce((sum: number, p: any) => sum + Number(p.paid_amount || 0), 0);
+
+      // New admissions: liability is opening balance only (same as Fee Collection grid), not class fee structure.
+      if (student.is_new_admission === true) {
+        const structureRows = structures || [];
+        const totalStructureAmount = structureRows.reduce((sum: number, s: any) => {
+          const mult = s.frequency === "monthly" ? 12 : s.frequency === "quarterly" ? 4 : 1;
+          return sum + (s.amount || 0) * mult;
+        }, 0);
+
+        const { data: allYears } = await supabase
+          .from("academic_years")
+          .select("id, start_date, end_date")
+          .eq("organization_id", currentOrganization!.id)
+          .order("start_date", { ascending: true });
+
+        const prevYear =
+          usedYear.start_date && allYears?.length
+            ? [...allYears]
+                .filter((y: any) => y.end_date && new Date(y.end_date) < new Date(usedYear.start_date as string))
+                .sort(
+                  (a: any, b: any) =>
+                    new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+                )[0]
+            : null;
+
+        let latePrevPaid = 0;
+        if (prevYear?.id) {
+          const { data: lateFees } = await supabase
+            .from("student_fees")
+            .select("paid_amount")
+            .eq("organization_id", currentOrganization!.id)
+            .eq("student_id", student.id)
+            .eq("academic_year_id", prevYear.id)
+            .in("status", ["paid", "partial"])
+            .gt("paid_amount", 0);
+          latePrevPaid = (lateFees || []).reduce((s: number, f: any) => s + Number(f.paid_amount || 0), 0);
+        }
+
+        const importedEff = resolveImportedOpeningBalance(
+          Number(student.closing_fees_balance || 0),
+          latePrevPaid,
+          student.fees_opening_is_net === true
+        );
+
+        const { data: adjRowsNew } = await (supabase.from("student_balance_audit" as any) as any)
+          .select("adjustment_type, change_amount")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("student_id", student.id)
+          .eq("academic_year_id", usedYear.id)
+          .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
+
+        const adjustmentNet = (adjRowsNew || []).reduce((sum: number, a: any) => {
+          if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);
+          if (a.adjustment_type === "debit") return sum - (a.change_amount || 0);
+          return sum;
+        }, 0);
+
+        const liability = resolveLiability(
+          { ...student, closing_fees_balance: importedEff },
+          totalStructureAmount,
+          usedYear.year_name
+        );
+        const totalDueGross = Math.round((Number(liability) + adjustmentNet) * 100) / 100;
+        const totalDue = Math.max(0, Math.round((totalDueGross - paidTotalYear) * 100) / 100);
+
+        const itemsNew: FeeItem[] = [];
+        if (totalDueGross > 0.005 || paidTotalYear > 0.005) {
+          itemsNew.push({
+            fee_head_id: "__imported_balance__",
+            head_name: "Opening Fees Balance",
+            structure_amount: totalDueGross,
+            already_paid: paidTotalYear,
+            balance: totalDue,
+            selected: totalDue > 0.005,
+            paying: 0,
+            fee_structure_id: "__imported__",
+          });
+        }
+        setFeeItems(itemsNew);
+        return itemsNew;
+      }
+
       const items: FeeItem[] = (structures || []).map((s: any) => {
         const paidForHead = (payments || [])
           .filter((p: any) => p.fee_head_id === s.fee_head_id)
@@ -350,8 +433,6 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           if (a.adjustment_type === "debit") return sum - (a.change_amount || 0);
           return sum;
         }, 0);
-
-        const paidTotalYear = (payments || []).reduce((sum: number, p: any) => sum + Number(p.paid_amount || 0), 0);
 
         const liability = resolveLiability(
           { ...student, closing_fees_balance: importedEff },

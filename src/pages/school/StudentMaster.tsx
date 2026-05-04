@@ -46,6 +46,8 @@ import { StudentExcelImportDialog } from "@/components/school/StudentExcelImport
 import { StudentBulkUpdateDialog } from "@/components/school/StudentBulkUpdateDialog";
 import { FeesBalanceImportDialog } from "@/components/school/FeesBalanceImportDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { resolveLiability } from "@/lib/schoolFeeLiability";
 
 const PAGE_SIZE = 50;
 
@@ -173,7 +175,7 @@ const StudentMaster = () => {
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedYearId || studentIds.length === 0) return {};
 
-      const [structuresRes, paymentsRes, adjustmentsRes] = await Promise.all([
+      const [structuresRes, paymentsRes, adjustmentsRes, yearsRes] = await Promise.all([
         classIds.length > 0
           ? supabase
               .from("fee_structures")
@@ -194,12 +196,50 @@ const StudentMaster = () => {
           .select("student_id, adjustment_type, change_amount")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", selectedYearId)
-          .in("student_id", studentIds),
+          .in("student_id", studentIds)
+          .not("reason_code", "in", "(receipt_deleted,receipt_modified)"),
+        supabase
+          .from("academic_years")
+          .select("id, start_date, end_date, year_name")
+          .eq("organization_id", currentOrganization.id)
+          .order("start_date", { ascending: true }),
       ]);
 
       const structures = (structuresRes as any).data || [];
       const payments = (paymentsRes as any).data || [];
       const adjustments = (adjustmentsRes as any).data || [];
+      const allYears = (yearsRes as any).data || [];
+      const usedYearRow = allYears.find((y: any) => y.id === selectedYearId);
+      const prevYear =
+        usedYearRow?.start_date && allYears.length
+          ? [...allYears]
+              .filter(
+                (y: any) =>
+                  y.end_date && new Date(y.end_date) < new Date(usedYearRow.start_date as string)
+              )
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+              )[0]
+          : null;
+
+      const latePrevPaidByStudent = new Map<string, number>();
+      if (prevYear?.id && studentIds.length > 0) {
+        const { data: latePrevFees } = await supabase
+          .from("student_fees")
+          .select("student_id, paid_amount")
+          .eq("organization_id", currentOrganization.id)
+          .eq("academic_year_id", prevYear.id)
+          .in("student_id", studentIds)
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0);
+        (latePrevFees || []).forEach((f: any) => {
+          latePrevPaidByStudent.set(
+            f.student_id,
+            (latePrevPaidByStudent.get(f.student_id) || 0) + Number(f.paid_amount || 0)
+          );
+        });
+      }
 
       // Per-class expected total
       const expectedByClass: Record<string, number> = {};
@@ -221,14 +261,23 @@ const StudentMaster = () => {
         adjByStudent[a.student_id] = (adjByStudent[a.student_id] || 0) + v;
       }
 
+      const yearName = usedYearRow?.year_name ?? null;
       const map: Record<string, number> = {};
       for (const st of students) {
-        const opening = st.closing_fees_balance || 0;
         const expected = expectedByClass[st.class_id] || 0;
         const paid = paidByStudent[st.id] || 0;
         const adj = adjByStudent[st.id] || 0;
-        const liability = st.is_new_admission ? opening : expected;
-        const due = Math.max(0, liability + adj - paid);
+        const importedEff = resolveImportedOpeningBalance(
+          Number(st.closing_fees_balance || 0),
+          latePrevPaidByStudent.get(st.id) || 0,
+          st.fees_opening_is_net === true
+        );
+        const liability = resolveLiability(
+          { ...st, closing_fees_balance: importedEff },
+          expected,
+          yearName
+        );
+        const due = Math.max(0, Number(liability) + adj - paid);
         map[st.id] = due;
       }
       return map;
