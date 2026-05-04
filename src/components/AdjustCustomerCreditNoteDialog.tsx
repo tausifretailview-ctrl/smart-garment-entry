@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
@@ -16,6 +20,7 @@ import {
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { cn } from "@/lib/utils";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -27,6 +32,17 @@ interface AdjustCustomerCreditNoteDialogProps {
   customerId: string;
   customerName: string;
   onSuccess?: () => void;
+}
+
+function invoiceOutstanding(sale: {
+  net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
+}): number {
+  const net = Number(sale.net_amount || 0);
+  const paid = Number(sale.paid_amount || 0);
+  const sr = Number(sale.sale_return_adjust || 0);
+  return Math.max(0, Math.round(net - paid - sr));
 }
 
 export function AdjustCustomerCreditNoteDialog({
@@ -42,21 +58,54 @@ export function AdjustCustomerCreditNoteDialog({
 }: AdjustCustomerCreditNoteDialogProps) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [adjustmentType, setAdjustmentType] = useState<"invoice" | "refund" | "outstanding">("invoice");
-  const [selectedSaleId, setSelectedSaleId] = useState<string>("");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  /** Rupee amount allocated per sale id */
+  const [allocations, setAllocations] = useState<Record<string, number>>({});
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
-  // Fetch unpaid/partially paid sales for this customer
+  const { data: returnMeta, isLoading: returnMetaLoading } = useQuery({
+    queryKey: ["cn-adjust-return-meta", saleReturnId, currentOrganization?.id, open],
+    queryFn: async () => {
+      if (!saleReturnId || !currentOrganization?.id || !open) return null;
+      const { data, error } = await supabase
+        .from("sale_returns")
+        .select("net_amount, credit_available_balance, credit_status")
+        .eq("id", saleReturnId)
+        .eq("organization_id", currentOrganization.id)
+        .single();
+      if (error) throw error;
+      return data as {
+        net_amount: number;
+        credit_available_balance: number | null;
+        credit_status: string | null;
+      };
+    },
+    enabled: open && !!saleReturnId && !!currentOrganization?.id,
+    staleTime: 0,
+  });
+
+  const cnAvailable = useMemo(() => {
+    if (returnMeta?.credit_available_balance != null && !Number.isNaN(Number(returnMeta.credit_available_balance))) {
+      return Math.max(0, Math.round(Number(returnMeta.credit_available_balance)));
+    }
+    const net = Number(returnMeta?.net_amount ?? creditAmount ?? 0);
+    return Math.max(0, Math.round(net));
+  }, [returnMeta, creditAmount]);
+
   const { data: unpaidSales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["unpaid-customer-sales", customerId, currentOrganization?.id],
     queryFn: async () => {
-      if (!customerId || customerId === '' || !currentOrganization?.id) return [];
+      if (!customerId || customerId === "" || !currentOrganization?.id) return [];
 
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, is_cancelled")
+        .select(
+          "id, sale_number, sale_date, net_amount, paid_amount, payment_status, is_cancelled, sale_return_adjust"
+        )
         .eq("customer_id", customerId)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
@@ -68,104 +117,384 @@ export function AdjustCustomerCreditNoteDialog({
       return (salesData || [])
         .filter((sale: any) => !sale.is_cancelled)
         .map((sale: any) => ({
-        ...sale,
-        pending_amount: (sale.net_amount || 0) - (sale.paid_amount || 0),
-      })).filter((sale: any) => sale.pending_amount > 0);
+          ...sale,
+          outstanding: invoiceOutstanding(sale),
+        }))
+        .filter((sale: any) => sale.outstanding > 0.01);
     },
-    enabled: open && !!customerId && customerId !== '' && !!currentOrganization?.id,
+    enabled: open && !!customerId && customerId !== "" && !!currentOrganization?.id,
   });
+
+  useEffect(() => {
+    if (!open) return;
+    setAllocations({});
+    setCheckedIds(new Set());
+  }, [open, saleReturnId]);
+
+  const totalAllocated = useMemo(() => {
+    return Object.values(allocations).reduce((s, v) => s + (Number(v) || 0), 0);
+  }, [allocations]);
+
+  const remainingCn = useMemo(() => cnAvailable - totalAllocated, [cnAvailable, totalAllocated]);
+  const overAllocated = remainingCn < -0.01;
+
+  const sumAllocationsExcept = useCallback(
+    (saleId: string) => {
+      let s = 0;
+      Object.entries(allocations).forEach(([id, amt]) => {
+        if (id !== saleId) s += Number(amt) || 0;
+      });
+      return s;
+    },
+    [allocations]
+  );
+
+  const toggleInvoice = useCallback(
+    (sale: { id: string; outstanding: number }, checked: boolean) => {
+      if (checked) {
+        setCheckedIds((prev) => new Set(prev).add(sale.id));
+        setAllocations((prev) => {
+          const other = Object.entries(prev)
+            .filter(([id]) => id !== sale.id)
+            .reduce((s, [, v]) => s + (Number(v) || 0), 0);
+          const room = Math.max(0, cnAvailable - other);
+          const alloc = Math.min(sale.outstanding, room);
+          return { ...prev, [sale.id]: alloc };
+        });
+      } else {
+        setCheckedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(sale.id);
+          return next;
+        });
+        setAllocations((prev) => {
+          const next = { ...prev };
+          delete next[sale.id];
+          return next;
+        });
+      }
+    },
+    [cnAvailable]
+  );
+
+  const setAllocationInput = useCallback(
+    (saleId: string, raw: string, saleOutstanding: number) => {
+      const parsed = parseFloat(raw.replace(/,/g, ""));
+      const num = Number.isFinite(parsed) ? parsed : 0;
+      const other = sumAllocationsExcept(saleId);
+      const maxForCn = Math.max(0, cnAvailable - other);
+      const clamped = Math.max(0, Math.min(num, saleOutstanding, maxForCn));
+      setAllocations((prev) => ({ ...prev, [saleId]: Math.round(clamped * 100) / 100 }));
+    },
+    [cnAvailable, sumAllocationsExcept]
+  );
+
+  const rollbackInvoiceSteps = async (
+    steps: Array<{ saleId: string; prevSr: number; prevStatus: string; voucherId?: string }>
+  ) => {
+    for (const st of [...steps].reverse()) {
+      if (st.voucherId) {
+        await deleteJournalEntryByReference(
+          currentOrganization!.id,
+          "CustomerCreditNoteApplication",
+          st.voucherId,
+          supabase
+        );
+        await supabase.from("voucher_entries").delete().eq("id", st.voucherId);
+      }
+      await supabase
+        .from("sales")
+        .update({
+          sale_return_adjust: st.prevSr,
+          payment_status: st.prevStatus as "pending" | "partial" | "completed",
+        })
+        .eq("id", st.saleId);
+    }
+  };
+
+  const applyInvoiceAllocations = async (maxCredit: number): Promise<boolean> => {
+    const entries = Object.entries(allocations)
+      .map(([saleId, amt]) => ({ saleId, amount: Number(amt) || 0 }))
+      .filter((e) => e.amount > 0.01 && checkedIds.has(e.saleId))
+      .sort((a, b) => a.saleId.localeCompare(b.saleId));
+
+    if (entries.length === 0) {
+      toast({ title: "Nothing to apply", description: "Select invoices and enter amounts to allocate.", variant: "destructive" });
+      return false;
+    }
+
+    const total = entries.reduce((s, e) => s + e.amount, 0);
+    if (total > maxCredit + 0.01) {
+      toast({ title: "Invalid allocation", description: "Allocated amount exceeds Credit Note value.", variant: "destructive" });
+      return false;
+    }
+
+    for (const e of entries) {
+      const row = unpaidSales.find((s: any) => s.id === e.saleId);
+      if (!row || e.amount > row.outstanding + 0.01) {
+        toast({ title: "Invalid allocation", description: "An amount exceeds invoice outstanding.", variant: "destructive" });
+        return false;
+      }
+    }
+
+    const appliedSteps: Array<{ saleId: string; prevSr: number; prevStatus: string; voucherId?: string }> = [];
+    const appliedRows: Array<{ saleId: string; amount: number }> = [];
+    let insertedAllocationIds: string[] = [];
+
+    const { data: srBefore } = await supabase
+      .from("sale_returns")
+      .select("credit_available_balance, credit_status, linked_sale_id, net_amount")
+      .eq("id", saleReturnId)
+      .single();
+
+    try {
+      const { data: acctOut } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      const glOn = isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null);
+
+      const { data: lastRcp } = await supabase
+        .from("voucher_entries")
+        .select("voucher_number")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("voucher_type", "receipt")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      const lastNum = lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+      let seq = parseInt(lastNum, 10) + 1;
+      const today = format(new Date(), "yyyy-MM-dd");
+
+      for (const { saleId, amount } of entries) {
+        const { data: linkedSale, error: lsErr } = await supabase
+          .from("sales")
+          .select("paid_amount, net_amount, sale_return_adjust, payment_status")
+          .eq("id", saleId)
+          .single();
+        if (lsErr) throw lsErr;
+        if (!linkedSale) throw new Error("Invoice not found");
+
+        const net = Number(linkedSale.net_amount || 0);
+        const snapPaid = Number(linkedSale.paid_amount || 0);
+        const snapSr = Number((linkedSale as any).sale_return_adjust || 0);
+        const snapStatus = String(linkedSale.payment_status || "pending");
+        const capRemaining = Math.max(0, net - snapSr - snapPaid);
+        const adjustAmount = Math.min(amount, capRemaining);
+        if (adjustAmount <= 0.01) continue;
+
+        const newSr = snapSr + adjustAmount;
+        const outstandingAfter = Math.max(0, net - newSr - snapPaid);
+        const newStatus =
+          outstandingAfter <= 0.01
+            ? "completed"
+            : snapPaid > 0.01 || newSr > 0.01
+              ? "partial"
+              : "pending";
+
+        const { error: saleErr } = await supabase
+          .from("sales")
+          .update({
+            payment_status: newStatus,
+            sale_return_adjust: newSr,
+          })
+          .eq("id", saleId);
+        if (saleErr) throw saleErr;
+
+        const newVoucherNumber = `RCP-${String(seq).padStart(5, "0")}`;
+        seq += 1;
+        const cnApplyDesc = `Credit note ${returnNumber} → ${(unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId}`;
+
+        const { data: outVoucherRow, error: outVoucherErr } = await supabase
+          .from("voucher_entries")
+          .insert({
+            organization_id: currentOrganization!.id,
+            voucher_number: newVoucherNumber,
+            voucher_type: "receipt",
+            voucher_date: today,
+            reference_type: "sale",
+            reference_id: saleId,
+            total_amount: adjustAmount,
+            payment_method: "credit_note_adjustment",
+            description: cnApplyDesc,
+          })
+          .select("id")
+          .single();
+        if (outVoucherErr) throw outVoucherErr;
+        const outVoucherId = outVoucherRow?.id as string | undefined;
+
+        if (outVoucherId && glOn) {
+          try {
+            await recordCustomerCreditNoteApplicationJournalEntry(
+              outVoucherId,
+              currentOrganization!.id,
+              adjustAmount,
+              today,
+              cnApplyDesc,
+              supabase
+            );
+          } catch (glErr) {
+            await rollbackInvoiceSteps(appliedSteps);
+            if (outVoucherId) {
+              await deleteJournalEntryByReference(
+                currentOrganization!.id,
+                "CustomerCreditNoteApplication",
+                outVoucherId,
+                supabase
+              );
+              await supabase.from("voucher_entries").delete().eq("id", outVoucherId);
+            }
+            await supabase
+              .from("sales")
+              .update({
+                sale_return_adjust: snapSr,
+                payment_status: snapStatus as "pending" | "partial" | "completed",
+              })
+              .eq("id", saleId);
+            throw glErr;
+          }
+        }
+
+        appliedSteps.push({
+          saleId,
+          prevSr: snapSr,
+          prevStatus: snapStatus,
+          voucherId: outVoucherId,
+        });
+        appliedRows.push({ saleId, amount: adjustAmount });
+      }
+
+      const appliedTotal = appliedRows.reduce((s, r) => s + r.amount, 0);
+      const newRemaining = Math.max(0, Math.round((maxCredit - appliedTotal) * 100) / 100);
+      const firstLinked = appliedRows[0]?.saleId || null;
+      const { error: srUpdErr } = await supabase
+        .from("sale_returns")
+        .update({
+          credit_available_balance: newRemaining,
+          credit_status: newRemaining <= 0.01 ? "adjusted" : "partially_adjusted",
+          linked_sale_id: firstLinked,
+        })
+        .eq("id", saleReturnId);
+      if (srUpdErr) throw srUpdErr;
+
+      if (appliedRows.length > 0) {
+        const { data: insertedAllocs, error: allocErr } = await supabase
+          .from("sale_return_invoice_allocations")
+          .insert(
+            appliedRows.map((r) => ({
+              organization_id: currentOrganization!.id,
+              sale_return_id: saleReturnId,
+              sale_id: r.saleId,
+              amount: r.amount,
+            }))
+          )
+          .select("id");
+        if (allocErr) throw allocErr;
+        insertedAllocationIds = (insertedAllocs || []).map((r: any) => r.id).filter(Boolean);
+      }
+
+      if (creditNoteId && creditNoteId !== "") {
+        const nums = appliedRows
+          .map((e) => (unpaidSales.find((s: any) => s.id === e.saleId) as any)?.sale_number)
+          .filter(Boolean);
+        const { error: descErr } = await supabase
+          .from("voucher_entries")
+          .update({
+            description: `Credit Note ${returnNumber} adjusted against invoice(s): ${nums.join(", ")}`,
+          })
+          .eq("id", creditNoteId);
+        if (descErr) throw descErr;
+      }
+
+      toast({
+        title: "Success",
+        description: `Applied ₹${appliedTotal.toLocaleString("en-IN")} across ${appliedRows.length} invoice(s). Remaining CN: ₹${newRemaining.toLocaleString("en-IN")}.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta", saleReturnId] });
+      queryClient.invalidateQueries({ queryKey: ["unpaid-customer-sales", customerId] });
+      return true;
+    } catch (err: any) {
+      console.error(err);
+      await rollbackInvoiceSteps(appliedSteps);
+      if (insertedAllocationIds.length > 0) {
+        await supabase.from("sale_return_invoice_allocations").delete().in("id", insertedAllocationIds);
+      }
+      if (srBefore) {
+        await supabase
+          .from("sale_returns")
+          .update({
+            credit_available_balance: srBefore.credit_available_balance ?? srBefore.net_amount ?? null,
+            credit_status: srBefore.credit_status ?? "pending",
+            linked_sale_id: srBefore.linked_sale_id ?? null,
+          })
+          .eq("id", saleReturnId);
+      }
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to apply credit note to invoices",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
 
   const handleApply = async () => {
     if (loading) return;
-    if (adjustmentType === "invoice" && !selectedSaleId) {
+
+    const { data: currentReturn, error: currentReturnError } = await supabase
+      .from("sale_returns")
+      .select("credit_status, net_amount, credit_available_balance")
+      .eq("id", saleReturnId)
+      .single();
+
+    if (currentReturnError) throw currentReturnError;
+
+    const status = String((currentReturn as any)?.credit_status || "");
+    if (["adjusted", "refunded", "adjusted_outstanding"].includes(status)) {
       toast({
-        title: "Error",
-        description: "Please select an invoice to adjust against",
+        title: "Already Adjusted",
+        description: "This return cannot be adjusted in this way anymore.",
         variant: "destructive",
       });
       return;
     }
 
-    setLoading(true);
-    try {
-      const { data: currentReturn, error: currentReturnError } = await supabase
-        .from("sale_returns")
-        .select("credit_status")
-        .eq("id", saleReturnId)
-        .single();
+    const liveCn =
+      (currentReturn as any)?.credit_available_balance != null &&
+      !Number.isNaN(Number((currentReturn as any).credit_available_balance))
+        ? Math.max(0, Number((currentReturn as any).credit_available_balance))
+        : Math.max(0, Number((currentReturn as any)?.net_amount ?? creditAmount));
 
-      if (currentReturnError) throw currentReturnError;
-
-      if (["adjusted", "adjusted_outstanding"].includes((currentReturn as any)?.credit_status || "")) {
+    if (adjustmentType === "invoice") {
+      if (overAllocated || totalAllocated <= 0.01) {
         toast({
-          title: "Already Adjusted",
-          description: "This return has already been adjusted.",
+          title: "Cannot apply",
+          description: overAllocated
+            ? "Allocated amount exceeds Credit Note value."
+            : "Allocate at least one rupee to an invoice.",
           variant: "destructive",
         });
         return;
       }
-
-      if (adjustmentType === "invoice") {
-        // Adjust against invoice - update sale's paid_amount and payment_status
-        const selectedSale = unpaidSales.find((s: any) => s.id === selectedSaleId);
-        if (!selectedSale) throw new Error("Invoice not found");
-
-        const adjustAmount = Math.min(creditAmount, selectedSale.pending_amount);
-        const newPaidAmount = (selectedSale.paid_amount || 0) + adjustAmount;
-        const newStatus = newPaidAmount >= selectedSale.net_amount ? "completed" : "partial";
-
-        // Fetch current sale_return_adjust to accumulate
-        const { data: currentSale } = await supabase
-          .from("sales")
-          .select("sale_return_adjust")
-          .eq("id", selectedSaleId)
-          .single();
-        const existingAdjust = currentSale?.sale_return_adjust || 0;
-
-        // Update the sale
-        const { error: saleError } = await supabase
-          .from("sales")
-          .update({
-            paid_amount: newPaidAmount,
-            payment_status: newStatus,
-            sale_return_adjust: existingAdjust + adjustAmount,
-          })
-          .eq("id", selectedSaleId);
-
-        if (saleError) throw saleError;
-
-        // Update the sale return credit status
-        const { error: returnError } = await supabase
-          .from("sale_returns")
-          .update({
-            credit_status: "adjusted",
-            linked_sale_id: selectedSaleId,
-          })
-          .eq("id", saleReturnId);
-
-        if (returnError) throw returnError;
-
-        // Update the voucher entry description if creditNoteId exists
-        if (creditNoteId && creditNoteId !== '') {
-          const { error: voucherError } = await supabase
-            .from("voucher_entries")
-            .update({
-              description: `Credit Note adjusted against Invoice: ${selectedSale.sale_number}`,
-            })
-            .eq("id", creditNoteId);
-
-          if (voucherError) throw voucherError;
-        }
-
+      if (totalAllocated > liveCn + 0.01) {
         toast({
-          title: "Success",
-          description: `Credit note adjusted against invoice. ₹${adjustAmount.toFixed(2)} applied.`,
+          title: "Cannot apply",
+          description: "Allocated amount exceeds Credit Note value.",
+          variant: "destructive",
         });
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      if (adjustmentType === "invoice") {
+        const ok = await applyInvoiceAllocations(liveCn);
+        if (!ok) return;
       } else if (adjustmentType === "refund") {
-        // Mark as refund - create a payment voucher
         const today = format(new Date(), "yyyy-MM-dd");
 
-        // Generate payment voucher number
         const { data: lastVoucher } = await supabase
           .from("voucher_entries")
           .select("voucher_number")
@@ -177,7 +506,6 @@ export function AdjustCustomerCreditNoteDialog({
         const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
         const newVoucherNumber = `PAY-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
 
-        // Create payment voucher (refund to customer)
         const insertData: any = {
           organization_id: currentOrganization?.id,
           voucher_number: newVoucherNumber,
@@ -185,23 +513,21 @@ export function AdjustCustomerCreditNoteDialog({
           voucher_date: today,
           reference_type: "customer",
           description: `Refund paid for Sale Return: ${returnNumber}`,
-          total_amount: creditAmount,
+          total_amount: liveCn,
           payment_method: refundMode,
         };
-        if (customerId && customerId !== '') {
+        if (customerId && customerId !== "") {
           insertData.reference_id = customerId;
         }
-        const { error: paymentError } = await supabase
-          .from("voucher_entries")
-          .insert(insertData);
+        const { error: paymentError } = await supabase.from("voucher_entries").insert(insertData);
 
         if (paymentError) throw paymentError;
 
-        // Update the sale return credit status
         const { error: returnError } = await supabase
           .from("sale_returns")
           .update({
             credit_status: "refunded",
+            credit_available_balance: 0,
           })
           .eq("id", saleReturnId);
 
@@ -213,7 +539,6 @@ export function AdjustCustomerCreditNoteDialog({
         });
       } else if (adjustmentType === "outstanding") {
         const prevReturnCreditStatus = String((currentReturn as any)?.credit_status || "pending");
-        // Adjust in Outstanding Balance - mark return + apply credit against linked invoice
         const { error: returnError } = await supabase
           .from("sale_returns")
           .update({
@@ -223,7 +548,6 @@ export function AdjustCustomerCreditNoteDialog({
 
         if (returnError) throw returnError;
 
-        // Find linked invoice on the sale_return so we can apply the credit to it
         const { data: srRow } = await supabase
           .from("sale_returns")
           .select("linked_sale_id")
@@ -231,7 +555,7 @@ export function AdjustCustomerCreditNoteDialog({
           .single();
         const linkedSaleId = (srRow as any)?.linked_sale_id || null;
 
-        if (linkedSaleId && creditAmount > 0) {
+        if (linkedSaleId && liveCn > 0) {
           const { data: linkedSale } = await supabase
             .from("sales")
             .select("paid_amount, net_amount, sale_return_adjust, payment_status")
@@ -243,10 +567,8 @@ export function AdjustCustomerCreditNoteDialog({
             const snapPaid = Number(linkedSale.paid_amount || 0);
             const snapSr = Number((linkedSale as any).sale_return_adjust || 0);
             const snapStatus = String(linkedSale.payment_status || "pending");
-            // Room for CN is remaining bill after existing S/R and cash paid — do not add CN to paid_amount
-            // (that double-counts vs sale_return_adjust; balance = net − paid − sr).
             const capRemaining = Math.max(0, net - snapSr - snapPaid);
-            const adjustAmount = Math.min(creditAmount, capRemaining);
+            const adjustAmount = Math.min(liveCn, capRemaining);
             const newSr = snapSr + adjustAmount;
             const outstandingAfter = Math.max(0, net - newSr - snapPaid);
             const newStatus =
@@ -273,9 +595,8 @@ export function AdjustCustomerCreditNoteDialog({
                 .eq("voucher_type", "receipt")
                 .order("created_at", { ascending: false })
                 .limit(1);
-              const lastNum =
-                lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-              const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+              const lastNum2 = lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+              const newVoucherNumber = `RCP-${String(parseInt(lastNum2) + 1).padStart(5, "0")}`;
               const cnApplyDesc = `Credit note adjusted against invoice (Return ${returnNumber})`;
 
               const { data: outVoucherRow, error: outVoucherErr } = await supabase
@@ -296,14 +617,14 @@ export function AdjustCustomerCreditNoteDialog({
               if (outVoucherErr) throw outVoucherErr;
               const outVoucherId = outVoucherRow?.id as string | undefined;
 
-              const { data: acctOut } = await supabase
+              const { data: acctOut2 } = await supabase
                 .from("settings")
                 .select("accounting_engine_enabled")
                 .eq("organization_id", currentOrganization?.id)
                 .maybeSingle();
               if (
                 outVoucherId &&
-                isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null)
+                isAccountingEngineEnabled(acctOut2 as { accounting_engine_enabled?: boolean } | null)
               ) {
                 try {
                   await recordCustomerCreditNoteApplicationJournalEntry(
@@ -340,8 +661,7 @@ export function AdjustCustomerCreditNoteDialog({
           }
         }
 
-        // Update voucher description if creditNoteId exists
-        if (creditNoteId && creditNoteId !== '') {
+        if (creditNoteId && creditNoteId !== "") {
           const { error: voucherError } = await supabase
             .from("voucher_entries")
             .update({
@@ -354,7 +674,7 @@ export function AdjustCustomerCreditNoteDialog({
 
         toast({
           title: "Success",
-          description: `Credit note adjusted to customer outstanding balance. ₹${creditAmount.toFixed(2)} deducted.`,
+          description: `Credit note adjusted to customer outstanding balance. ₹${liveCn.toFixed(2)} deducted.`,
         });
       }
 
@@ -372,34 +692,49 @@ export function AdjustCustomerCreditNoteDialog({
     }
   };
 
+  const invoiceApplyDisabled =
+    loading ||
+    returnMetaLoading ||
+    overAllocated ||
+    totalAllocated <= 0.01 ||
+    unpaidSales.length === 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Adjust Credit Note</DialogTitle>
           <DialogDescription>
-            Return: <strong>{returnNumber}</strong> | Customer: <button className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-bold" onClick={() => setShowCustomerHistory(true)}>{customerName}</button>
+            Return: <strong>{returnNumber}</strong> | Customer:{" "}
+            <button
+              type="button"
+              className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-bold"
+              onClick={() => setShowCustomerHistory(true)}
+            >
+              {customerName}
+            </button>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Credit Amount Display */}
-          <div className="flex items-center justify-center p-4 bg-muted rounded-lg">
+        <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
+          <div className="flex items-center justify-center p-3 bg-muted rounded-lg shrink-0">
             <IndianRupee className="h-5 w-5 mr-1 text-primary" />
-            <span className="text-2xl font-bold text-primary">{creditAmount.toFixed(2)}</span>
+            <span className="text-xl font-bold text-primary">
+              {returnMetaLoading ? "…" : cnAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-sm text-muted-foreground ml-2">available to allocate</span>
           </div>
 
-          {/* Adjustment Type */}
           <RadioGroup
             value={adjustmentType}
             onValueChange={(value) => setAdjustmentType(value as "invoice" | "refund" | "outstanding")}
-            className="space-y-3"
+            className="space-y-2 shrink-0"
           >
             <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
               <RadioGroupItem value="invoice" id="invoice" />
               <Label htmlFor="invoice" className="flex-1 cursor-pointer">
-                <div className="font-medium">Adjust Against Invoice</div>
-                <div className="text-sm text-muted-foreground">Reduce outstanding amount on an unpaid invoice</div>
+                <div className="font-medium">Adjust Against Invoice(s)</div>
+                <div className="text-sm text-muted-foreground">Split credit across one or more unpaid invoices</div>
               </Label>
             </div>
             <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -413,48 +748,105 @@ export function AdjustCustomerCreditNoteDialog({
               <RadioGroupItem value="outstanding" id="outstanding" />
               <Label htmlFor="outstanding" className="flex-1 cursor-pointer">
                 <div className="font-medium">Adjust in Outstanding Balance</div>
-                <div className="text-sm text-muted-foreground">Reduce customer's overall balance without linking to a specific invoice</div>
+                <div className="text-sm text-muted-foreground">Reduce customer balance (linked invoice flow)</div>
               </Label>
             </div>
           </RadioGroup>
 
-          {/* Invoice Selection */}
           {adjustmentType === "invoice" && (
             <div className="space-y-2">
-              <Label>Select Invoice to Adjust</Label>
-              {salesLoading ? (
-                <div className="flex items-center justify-center p-4">
-                  <Loader2 className="h-5 w-5 animate-spin" />
+              <Label>Invoices</Label>
+              {salesLoading || returnMetaLoading ? (
+                <div className="flex items-center justify-center p-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : unpaidSales.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">
-                  No unpaid invoices found for this customer
-                </p>
+                <p className="text-sm text-muted-foreground p-3 bg-muted rounded-lg">No unpaid invoices for this customer</p>
               ) : (
-                <Select value={selectedSaleId} onValueChange={setSelectedSaleId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an invoice..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unpaidSales.map((sale: any) => (
-                      <SelectItem key={sale.id} value={sale.id}>
-                        <div className="flex justify-between items-center gap-4">
-                          <span>{sale.sale_number}</span>
-                          <span className="text-muted-foreground text-sm">
-                            Pending: ₹{sale.pending_amount.toFixed(2)}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ScrollArea className="h-[min(280px,40vh)] rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-10" />
+                        <TableHead>Invoice</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Outstanding</TableHead>
+                        <TableHead className="text-right w-[140px]">Adjust ₹</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {unpaidSales.map((sale: any) => {
+                        const checked = checkedIds.has(sale.id);
+                        const val = allocations[sale.id] ?? 0;
+                        return (
+                          <TableRow key={sale.id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(c) => toggleInvoice(sale, c === true)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{sale.sale_number}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : "—"}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              ₹{sale.outstanding.toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                className="h-8 text-right tabular-nums"
+                                disabled={!checked}
+                                value={checked ? (Number.isFinite(val) ? val : 0) : ""}
+                                placeholder="0"
+                                onChange={(e) => setAllocationInput(sale.id, e.target.value, sale.outstanding)}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
               )}
+
+              <div
+                className={cn(
+                  "sticky bottom-0 z-10 rounded-lg border bg-card p-3 space-y-1 text-sm shadow-sm",
+                  overAllocated && "border-destructive"
+                )}
+              >
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total CN available</span>
+                  <span className="font-semibold tabular-nums">₹{cnAvailable.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total allocated</span>
+                  <span className="font-semibold tabular-nums">₹{totalAllocated.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between border-t pt-1">
+                  <span className="font-medium">Remaining CN</span>
+                  <span
+                    className={cn(
+                      "font-bold tabular-nums",
+                      overAllocated ? "text-destructive" : remainingCn <= 0.01 ? "text-emerald-600" : "text-amber-600"
+                    )}
+                  >
+                    ₹{remainingCn.toLocaleString("en-IN")}
+                  </span>
+                </div>
+                {overAllocated && (
+                  <p className="text-destructive text-xs font-medium pt-1">Allocated amount exceeds Credit Note value.</p>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Refund Mode */}
           {adjustmentType === "refund" && (
-            <div className="space-y-2">
+            <div className="space-y-2 shrink-0">
               <Label>Payment Mode</Label>
               <Select value={refundMode} onValueChange={(value) => setRefundMode(value as "cash" | "bank")}>
                 <SelectTrigger>
@@ -469,11 +861,18 @@ export function AdjustCustomerCreditNoteDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleApply} disabled={loading}>
+          <Button
+            onClick={handleApply}
+            disabled={
+              loading ||
+              (adjustmentType === "invoice" && invoiceApplyDisabled) ||
+              (adjustmentType === "refund" && (returnMetaLoading || cnAvailable <= 0))
+            }
+          >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Apply Adjustment
           </Button>
