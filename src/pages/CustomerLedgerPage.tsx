@@ -255,12 +255,22 @@ export default function CustomerLedgerPage() {
       // All sales for this customer (voucher_date filters receipts; sales may be older).
       const { data: custSaleList, error: custSaleListErr } = await supabase
         .from("sales")
-        .select("id")
+        .select("id, sale_number")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null);
       if (custSaleListErr) throw custSaleListErr;
       const saleIds = (custSaleList || []).map((s: { id: string }) => s.id).filter(Boolean);
+      const saleIdToNumber = new Map<string, string>();
+      for (const s of custSaleList || []) {
+        const sid = (s as any).id;
+        const sn = ((s as any).sale_number || "").trim();
+        if (sid && sn) saleIdToNumber.set(sid, sn);
+      }
+      // sale_number -> total amount applied via advance/CN (memo) for that sale.
+      // Used to repair RPC RECEIPT rows whose `paid_amount` double-counts an
+      // advance/CN adjustment that was already credited at booking time.
+      const saleAdvCnApplied = new Map<string, number>();
 
       const saleReceiptLedgerRows: LedgerRow[] = [];
       if (saleIds.length > 0) {
@@ -288,6 +298,16 @@ export default function CustomerLedgerPage() {
           const isAdvanceApplied = pm === "advance_adjustment";
           const isCnApplied = pm === "credit_note_adjustment";
           const isMemoApplication = isAdvanceApplied || isCnApplied;
+          if (isMemoApplication) {
+            const refSaleId = (v as any).reference_id as string | null;
+            const refSaleNumber = refSaleId ? saleIdToNumber.get(refSaleId) : null;
+            if (refSaleNumber) {
+              saleAdvCnApplied.set(
+                refSaleNumber,
+                (saleAdvCnApplied.get(refSaleNumber) || 0) + cr,
+              );
+            }
+          }
           const descBase =
             (v as any).description ||
             `Receipt (${String((v as any).payment_method || "cash").replace(/_/g, " ")})`;
@@ -489,7 +509,22 @@ export default function CustomerLedgerPage() {
 
       const combined = (
         [
-          ...rpcRowsNormalized,
+          ...rpcRowsNormalized.map((r) => {
+            const vt = String(r.voucher_type || "").toUpperCase();
+            if (vt !== "RECEIPT") return r;
+            const vn = (r.voucher_no || "").trim();
+            const portion = vn ? saleAdvCnApplied.get(vn) || 0 : 0;
+            if (portion <= 0) return r;
+            const cr = Number(r.credit || 0);
+            const newCredit = Math.max(0, Math.round((cr - portion) * 100) / 100);
+            return {
+              ...r,
+              credit: newCredit,
+              particulars:
+                `${r.particulars || ""} ` +
+                `[Cash portion only — ₹${inr.format(portion)} applied via advance/CN credited separately]`.trim(),
+            };
+          }),
           ...missingInvoiceRows,
           ...returnRows,
           ...creditNoteRows,
