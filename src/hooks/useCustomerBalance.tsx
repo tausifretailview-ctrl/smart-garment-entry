@@ -105,9 +105,14 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         }
       });
 
-      // net_amount is already the post-SR-adjustment amount.
-      // saleReturnTotal subtracts the sale_return entries separately.
+      // Sum of invoice net amounts (gross billings before credit-note / return offsets on the sale row).
       const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
+      // Credit notes and returns applied to a specific invoice increase `sale_return_adjust`.
+      // Those same returns are often excluded from `saleReturnTotal` below (`alreadyInNet` when
+      // linked + adjusted), so we must reduce receivables here — matches per-invoice
+      // `net_amount - paid_amount - sale_return_adjust` (CustomerPaymentTab, SalesInvoiceDashboard).
+      const totalSaleReturnAdjustOnSales =
+        sales?.reduce((sum, sale) => sum + Number(sale.sale_return_adjust || 0), 0) || 0;
       
       let totalPaidOnSales = 0;
       let totalAdvanceApplied = 0;
@@ -223,7 +228,14 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       //   - Other actioned sale returns + Refunds paid out
       const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
       const grossOutstanding =
-        openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnusedAdvances - saleReturnTotal + totalRefundsPaid;
+        openingBalance +
+        totalSales -
+        totalSaleReturnAdjustOnSales -
+        totalPaid +
+        adjustmentTotal -
+        effectiveUnusedAdvances -
+        saleReturnTotal +
+        totalRefundsPaid;
       // Explicit subtraction for returns adjusted directly to outstanding.
       const balance = Math.round(grossOutstanding - adjustedOutstandingTotal);
 

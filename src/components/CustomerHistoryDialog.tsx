@@ -433,7 +433,7 @@ export function CustomerHistoryDialog({
       }, 0);
 
       const feesDue = Math.max(0, feesExpected - feesPaid);
-      const hasStructures = structureTotal > 0;
+      const hasStructures = structureTotal > 0 && student.is_new_admission !== true;
 
       return {
         feesExpected,

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, GraduationCap, IndianRupee, Receipt } from "lucide-react";
 import { format } from "date-fns";
+import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { resolveLiability } from "@/lib/schoolFeeLiability";
 
 interface StudentHistoryDialogProps {
   open: boolean;
@@ -21,6 +23,8 @@ interface StudentHistoryDialogProps {
     class_id?: string | null;
     parent_phone?: string | null;
     closing_fees_balance?: number | null;
+    is_new_admission?: boolean | null;
+    fees_opening_is_net?: boolean | null;
     school_classes?: { class_name: string } | null;
     totalExpected?: number;
     totalPaid?: number;
@@ -103,63 +107,149 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
     enabled: open && !!student?.id && !!currentOrganization?.id && !!activeAcademicYearId,
   });
 
+  const { data: liabilityContext } = useQuery({
+    queryKey: [
+      "student-history-liability-ctx",
+      student?.id,
+      activeAcademicYearId,
+      currentOrganization?.id,
+    ],
+    queryFn: async () => {
+      if (!student?.id || !activeAcademicYearId || !currentOrganization?.id) return null;
+      const { data: usedYear, error } = await supabase
+        .from("academic_years")
+        .select("id, year_name, start_date, end_date")
+        .eq("id", activeAcademicYearId)
+        .single();
+      if (error || !usedYear) return { yearName: null as string | null, latePrevPaid: 0 };
+
+      const { data: allYears } = await supabase
+        .from("academic_years")
+        .select("id, start_date, end_date")
+        .eq("organization_id", currentOrganization.id)
+        .order("start_date", { ascending: true });
+
+      const prevYear =
+        usedYear.start_date && allYears?.length
+          ? [...allYears]
+              .filter(
+                (y: any) =>
+                  y.end_date && new Date(y.end_date) < new Date(usedYear.start_date as string)
+              )
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.end_date).getTime() - new Date(a.end_date).getTime()
+              )[0]
+          : null;
+
+      let latePrevPaid = 0;
+      if (prevYear?.id) {
+        const { data: lateFees } = await supabase
+          .from("student_fees")
+          .select("paid_amount")
+          .eq("organization_id", currentOrganization.id)
+          .eq("student_id", student.id)
+          .eq("academic_year_id", prevYear.id)
+          .in("status", ["paid", "partial"])
+          .gt("paid_amount", 0);
+        latePrevPaid = (lateFees || []).reduce(
+          (s: number, f: any) => s + Number(f.paid_amount || 0),
+          0
+        );
+      }
+      return { yearName: usedYear.year_name as string | null, latePrevPaid };
+    },
+    enabled: open && !!student?.id && !!activeAcademicYearId && !!currentOrganization?.id,
+  });
+
   if (!student) return null;
 
-  // Calculate structure-based expected total
   const structureTotal = (feeStructures || []).reduce((sum: number, fs: any) => {
     const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
     return sum + fs.amount * mult;
   }, 0);
   const hasStructures = structureTotal > 0;
-  const importedBalance = student.closing_fees_balance || 0;
+  const isNewAdmission = student.is_new_admission === true;
 
-  // Mirror fee collection logic: use structures OR imported balance, not both
-  const totalExpected = hasStructures ? structureTotal : importedBalance;
-  
+  const latePrevPaid = liabilityContext?.latePrevPaid ?? 0;
+  const yearName = liabilityContext?.yearName ?? null;
+
+  const importedEff = resolveImportedOpeningBalance(
+    Number(student.closing_fees_balance || 0),
+    latePrevPaid,
+    student.fees_opening_is_net === true
+  );
+
   // Separate real payments from balance adjustments
   const allRealPayments = (feePayments || []).filter((p: any) => p.status !== "balance_adjustment" && p.status !== "deleted");
-  // Queries are year-scoped; keep a single source list for calculations and ledger rows.
   const realPayments = allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
-  // Calculate net adjustment impact
   const adjustmentNet = (adjustmentLog || []).reduce((sum: number, adj: any) => {
-    if (adj.adjustment_type === 'credit') return sum + (adj.change_amount || 0);
-    if (adj.adjustment_type === 'debit') return sum - (adj.change_amount || 0);
-    return 0; // 'set' type handled differently
+    const rc = adj.reason_code as string | undefined;
+    if (rc === "receipt_deleted" || rc === "receipt_modified") return sum;
+    if (adj.adjustment_type === "credit") return sum + (adj.change_amount || 0);
+    if (adj.adjustment_type === "debit") return sum - (adj.change_amount || 0);
+    return 0;
   }, 0);
-  const totalDue = Math.max(0, totalExpected + adjustmentNet - totalPaid);
 
-  // Head-wise summary
-  const headSummary = (feeStructures || []).map((fs: any) => {
-    const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
-    const structureTotal = fs.amount * mult;
-    const paid = realPayments
-      .filter((p: any) => p.fee_head_id === fs.fee_head_id)
-      .reduce((s: number, p: any) => s + (p.paid_amount || 0), 0);
-    return {
-      headName: fs.fee_heads?.head_name || "Unknown",
-      total: structureTotal,
-      paid,
-      balance: Math.max(0, structureTotal - paid),
-    };
-  });
+  const liability = resolveLiability(
+    { ...student, closing_fees_balance: importedEff },
+    structureTotal,
+    yearName
+  );
+  const totalDueGross = Math.round((Number(liability) + adjustmentNet) * 100) / 100;
+  const totalDue = Math.max(0, Math.round((totalDueGross - totalPaid) * 100) / 100);
+
+  /** Ledger running balance starts at gross liability before adjustments (entries apply adjustments then payments). */
+  const ledgerOpeningBase = Number(liability);
+
+  /** First summary card: same gross as Fee Collection "Total Fees" / opening basis. */
+  const summaryExpectedGross = totalDueGross;
+
+  /** Head-wise: new admissions show a single opening line, not class structure heads. */
+  const headSummary = isNewAdmission
+    ? [
+        {
+          headName: "Opening / closing balance",
+          total: totalDueGross,
+          paid: totalPaid,
+          balance: totalDue,
+        },
+      ]
+    : (feeStructures || []).map((fs: any) => {
+        const mult = fs.frequency === "monthly" ? 12 : fs.frequency === "quarterly" ? 4 : 1;
+        const headTotal = fs.amount * mult;
+        const paid = realPayments
+          .filter((p: any) => p.fee_head_id === fs.fee_head_id)
+          .reduce((s: number, p: any) => s + (p.paid_amount || 0), 0);
+        return {
+          headName: fs.fee_heads?.head_name || "Unknown",
+          total: headTotal,
+          paid,
+          balance: Math.max(0, headTotal - paid),
+        };
+      });
+
+  const adjustmentLogForLedger = (adjustmentLog || []).filter(
+    (adj: any) => adj.reason_code !== "receipt_deleted" && adj.reason_code !== "receipt_modified"
+  );
 
   // Build combined ledger: payments + adjustments, sorted chronologically
   const combinedEntries = [
     ...realPayments.map((p: any) => ({
-      type: 'payment' as const,
+      type: "payment" as const,
       date: p.paid_date || p.created_at,
       data: p,
     })),
-    ...(adjustmentLog || []).map((adj: any) => ({
-      type: 'adjustment' as const,
+    ...adjustmentLogForLedger.map((adj: any) => ({
+      type: "adjustment" as const,
       date: adj.created_at,
       data: adj,
     })),
   ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  let runningBalance = totalExpected;
+  let runningBalance = ledgerOpeningBase;
   const ledgerEntries = combinedEntries.map((entry) => {
     if (entry.type === 'payment') {
       runningBalance -= (entry.data.paid_amount || 0);
@@ -194,18 +284,25 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 py-3">
-          {hasStructures ? (
+          {isNewAdmission ? (
+            <Card className="border-l-4 border-l-orange-500">
+              <CardContent className="p-2 sm:p-3">
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Closing balance</p>
+                <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{fmtINR(summaryExpectedGross)}</p>
+              </CardContent>
+            </Card>
+          ) : hasStructures ? (
             <Card className="border-l-4 border-l-blue-500">
               <CardContent className="p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Total Fees</p>
-                <p className="text-sm sm:text-base font-bold text-blue-600 truncate">₹{fmtINR(totalExpected)}</p>
+                <p className="text-sm sm:text-base font-bold text-blue-600 truncate">₹{fmtINR(summaryExpectedGross)}</p>
               </CardContent>
             </Card>
           ) : (
             <Card className="border-l-4 border-l-orange-500">
               <CardContent className="p-2 sm:p-3">
                 <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Opening Balance</p>
-                <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{fmtINR(importedBalance)}</p>
+                <p className="text-sm sm:text-base font-bold text-orange-600 truncate">₹{fmtINR(summaryExpectedGross)}</p>
               </CardContent>
             </Card>
           )}
@@ -225,7 +322,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
             <CardContent className="p-2 sm:p-3">
               <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Collection Rate</p>
               <p className="text-sm sm:text-base font-bold text-blue-600 truncate">
-                {totalExpected > 0 ? `${((totalPaid / totalExpected) * 100).toFixed(1)}%` : '0%'}
+                {summaryExpectedGross > 0 ? `${((totalPaid / summaryExpectedGross) * 100).toFixed(1)}%` : "0%"}
               </p>
             </CardContent>
           </Card>
@@ -369,26 +466,37 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                 </TableHeader>
                 <TableBody>
                   {/* Opening balance row */}
-                  {hasStructures && (
+                  {isNewAdmission && ledgerOpeningBase > 0.005 && (
+                    <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
+                      <TableCell className="text-xs text-muted-foreground">Opening</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="font-medium text-sm">Closing balance (admission)</TableCell>
+                      <TableCell>—</TableCell>
+                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(ledgerOpeningBase)}</TableCell>
+                      <TableCell className="text-right">—</TableCell>
+                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(ledgerOpeningBase)}</TableCell>
+                    </TableRow>
+                  )}
+                  {!isNewAdmission && hasStructures && (
                     <TableRow className="bg-blue-50/50 dark:bg-blue-950/20">
                       <TableCell className="text-xs text-muted-foreground">Opening</TableCell>
                       <TableCell>—</TableCell>
                       <TableCell className="font-medium text-sm">Fee Structure (Annual Due)</TableCell>
                       <TableCell>—</TableCell>
-                      <TableCell className="text-right font-bold text-red-600">₹{fmtINR(totalExpected)}</TableCell>
+                      <TableCell className="text-right font-bold text-red-600">₹{fmtINR(structureTotal)}</TableCell>
                       <TableCell className="text-right">—</TableCell>
-                      <TableCell className="text-right font-bold">₹{fmtINR(totalExpected)}</TableCell>
+                      <TableCell className="text-right font-bold">₹{fmtINR(structureTotal)}</TableCell>
                     </TableRow>
                   )}
-                  {!hasStructures && importedBalance > 0 && (
+                  {!isNewAdmission && !hasStructures && importedEff > 0.005 && (
                     <TableRow className="bg-orange-50/50 dark:bg-orange-950/20">
                       <TableCell className="text-xs text-muted-foreground">Opening</TableCell>
                       <TableCell>—</TableCell>
                       <TableCell className="font-medium text-sm">Closing Balance (Previous Year)</TableCell>
                       <TableCell>—</TableCell>
-                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(importedBalance)}</TableCell>
+                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(importedEff)}</TableCell>
                       <TableCell className="text-right">—</TableCell>
-                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(importedBalance)}</TableCell>
+                      <TableCell className="text-right font-bold text-orange-600">₹{fmtINR(importedEff)}</TableCell>
                     </TableRow>
                   )}
                   {/* Payment / adjustment rows */}
@@ -470,14 +578,14 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
                     })
                   )}
                   {/* Totals row */}
-                  {ledgerEntries.length > 0 && (
+                  {(ledgerEntries.length > 0 || summaryExpectedGross > 0.005 || totalPaid > 0.005) && (
                     <TableRow className="bg-muted/30 font-bold border-t-2">
                       <TableCell colSpan={5} className="text-right text-sm">TOTALS</TableCell>
                       <TableCell className="text-right text-green-600">₹{fmtINR(totalPaid)}</TableCell>
                       <TableCell className="text-right">
-                        <span className={totalDue > 0 ? 'text-red-600' : 'text-green-600'}>
+                        <span className={totalDue > 0 ? "text-red-600" : "text-green-600"}>
                           ₹{fmtINR(totalDue)}
-                          {totalDue === 0 ? ' (Settled)' : ' (Pending)'}
+                          {totalDue === 0 ? " (Settled)" : " (Pending)"}
                         </span>
                       </TableCell>
                     </TableRow>

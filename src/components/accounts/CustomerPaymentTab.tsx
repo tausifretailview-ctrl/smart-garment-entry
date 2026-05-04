@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -339,6 +339,17 @@ export function CustomerPaymentTab({
     referenceId || null,
     organizationId
   );
+
+  /** Sum of opening + per-invoice pending (matches Select Invoices list; includes sale_return_adjust). */
+  const listedInvoicePendingTotal = useMemo(() => {
+    if (!referenceId) return 0;
+    return (
+      (customerInvoices || []).reduce(
+        (s, inv) => s + getInvoiceOutstanding(inv, customerInvoiceVoucherPayments.get(inv.id) || 0),
+        0
+      ) + (openingBalanceRemaining || 0)
+    );
+  }, [referenceId, customerInvoices, customerInvoiceVoucherPayments, openingBalanceRemaining]);
 
 
   // Customer advance balance
@@ -1098,7 +1109,19 @@ export function CustomerPaymentTab({
         return;
       }
     }
-    if (customerBalance !== undefined && customerBalance <= 0) { toast.error("Cannot create payment receipt - customer balance is zero"); return; }
+    // Align with listed invoice rows (includes sale_return_adjust). Hook balance can lag or
+    // historically missed per-invoice CN adjust until useCustomerBalance subtracts sale_return_adjust.
+    const selectedPayableForZeroGuard =
+      selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : 0;
+    if (
+      customerBalance !== undefined &&
+      customerBalance <= 0 &&
+      selectedPayableForZeroGuard < MIN_PENDING_RUPEE &&
+      listedInvoicePendingTotal < MIN_PENDING_RUPEE
+    ) {
+      toast.error("Cannot create payment receipt - customer balance is zero");
+      return;
+    }
     const hasSelectableRows = (customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0;
     if (hasSelectableRows && selectedInvoiceIds.length === 0) { toast.error("Please select at least one invoice or Opening Balance"); return; }
     const discountValue = roundToRupee(discountAmount);
@@ -1220,17 +1243,35 @@ export function CustomerPaymentTab({
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {referenceId && customerBalance !== undefined && (
-                  <div className={cn("mt-2 p-3 border rounded-md", customerBalance <= 0 ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
-                    {customerBalance <= 0 ? (
+                {referenceId && customerBalance !== undefined && (() => {
+                  const showAsNoOutstanding =
+                    customerBalance <= 0 && listedInvoicePendingTotal < MIN_PENDING_RUPEE;
+                  const displayBalance =
+                    customerBalance >= MIN_PENDING_RUPEE
+                      ? Math.round(customerBalance)
+                      : Math.round(listedInvoicePendingTotal);
+                  return (
+                  <div className={cn("mt-2 p-3 border rounded-md", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
+                    {showAsNoOutstanding ? (
                       <p className="text-sm font-medium text-red-900 dark:text-red-100">⚠️ No outstanding balance - Payment receipt not allowed</p>
                     ) : (
-                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Outstanding Balance: <span className="text-lg font-bold">₹{Math.round(customerBalance).toLocaleString('en-IN')}</span></p>
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        Outstanding Balance:{" "}
+                        <span className="text-lg font-bold">
+                          ₹{displayBalance.toLocaleString("en-IN")}
+                        </span>
+                        {customerBalance < MIN_PENDING_RUPEE && listedInvoicePendingTotal >= MIN_PENDING_RUPEE && (
+                          <span className="block text-xs font-normal mt-1 text-amber-800 dark:text-amber-200">
+                            Includes sale return / credit note adjustments on invoices
+                          </span>
+                        )}
+                      </p>
                     )}
                   </div>
-                )}
+                  );
+                })()}
                 {/* Advance Balance Banner */}
-                {referenceId && advanceBalance > 0 && customerBalance !== undefined && customerBalance > 0 && (
+                {referenceId && advanceBalance > 0 && customerBalance !== undefined && (customerBalance >= MIN_PENDING_RUPEE || listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
                   <div className="mt-2 p-3 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
