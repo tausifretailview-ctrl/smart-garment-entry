@@ -228,17 +228,77 @@ export function AdjustCustomerCreditNoteDialog({
       const sb = supabase as any;
       let appliedTotal = 0;
 
+      const { data: acctOut } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      const glOn = isAccountingEngineEnabled(acctOut as { accounting_engine_enabled?: boolean } | null);
+      const today = format(new Date(), "yyyy-MM-dd");
+
+      const voucherIdFromRpcPayload = (rpcData: unknown): string => {
+        if (rpcData == null) return "";
+        if (typeof rpcData === "string") return rpcData;
+        if (Array.isArray(rpcData) && rpcData.length > 0 && typeof rpcData[0] === "object" && rpcData[0] !== null) {
+          const o = rpcData[0] as Record<string, unknown>;
+          return String(o.voucher_entry_id ?? o.voucher_id ?? o.id ?? "");
+        }
+        if (typeof rpcData === "object") {
+          const o = rpcData as Record<string, unknown>;
+          return String(o.voucher_entry_id ?? o.voucher_id ?? o.id ?? "");
+        }
+        return "";
+      };
+
       for (const { saleId, amount } of entries) {
-        const { error } = await sb.rpc("adjust_invoice_balance", {
+        const applyAmt = Number(amount);
+        const { data: rpcData, error } = await sb.rpc("adjust_invoice_balance", {
           p_organization_id: currentOrganization!.id,
           p_invoice_id: saleId,
           p_adjustment_type: "CREDIT_NOTE",
           p_source_document_id: creditNoteId,
-          p_amount_applied: Number(amount),
+          p_amount_applied: applyAmt,
         });
 
         if (error) throw error;
-        appliedTotal += Number(amount) || 0;
+        appliedTotal += applyAmt || 0;
+
+        if (glOn) {
+          let voucherEntryId = voucherIdFromRpcPayload(rpcData);
+
+          if (!voucherEntryId) {
+            const { data: vRows, error: vErr } = await supabase
+              .from("voucher_entries")
+              .select("id")
+              .eq("organization_id", currentOrganization!.id)
+              .eq("reference_type", "sale")
+              .eq("reference_id", saleId)
+              .eq("voucher_type", "receipt")
+              .eq("payment_method", "credit_note_adjustment")
+              .order("created_at", { ascending: false })
+              .limit(1);
+            if (vErr) throw vErr;
+            voucherEntryId = (vRows?.[0] as { id?: string } | undefined)?.id || "";
+          }
+
+          if (!voucherEntryId) {
+            throw new Error(
+              "Accounting is enabled but no receipt voucher was found for this allocation, so the journal entry was not posted."
+            );
+          }
+
+          const saleNumber = (unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId;
+          const cnApplyDesc = `Credit note ${returnNumber} → ${saleNumber}`;
+
+          await recordCustomerCreditNoteApplicationJournalEntry(
+            voucherEntryId,
+            currentOrganization!.id,
+            applyAmt,
+            today,
+            cnApplyDesc,
+            supabase
+          );
+        }
       }
 
       toast({
