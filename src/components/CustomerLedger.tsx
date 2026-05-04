@@ -27,6 +27,11 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import {
+  computeCustomerOutstanding,
+  type VoucherLedgerRow,
+  type SaleReturnLedgerRow,
+} from "@/utils/customerBalanceUtils";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
@@ -454,7 +459,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL unused advances
       const { data: allAdvances, error: advError } = await supabase
         .from('customer_advances')
-        .select('customer_id, amount, used_amount')
+        .select('id, customer_id, amount, used_amount')
         .eq('organization_id', organizationId)
         .in('status', ['active', 'partially_used']);
 
@@ -504,8 +509,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       refundVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
         // Exclude exchange-refund vouchers (POS refund + round-off). Those refunds
-        // settle the SR-overflow that is ALREADY captured via creditNoteTotal +
-        // GROSS sales math; counting them again would create a phantom debit.
+        // settle SR overflow already captured in sale return / ledger math; counting
+        // them again would create a phantom debit.
         const desc = (v.description || '').toLowerCase();
         const isExchangeRefund =
           desc.includes('refund paid for pos exchange') ||
@@ -515,7 +520,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         customerRefundsPaid.set(v.reference_id, (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0));
       });
 
-      // Build sale_id -> customer_id map for invoice vouchers
+      // Build sale_id -> customer_id map for routing receipt vouchers to customers
       const saleToCustomerMap = new Map<string, string>();
       salesData.forEach((s: any) => {
         if (s.customer_id) {
@@ -523,132 +528,102 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      // Separate opening-balance payments from invoice payments.
-      // Per master reconciliation rules:
-      //  - True cash receipts go in invoiceVoucherPayments (used in Math.max drift check)
-      //  - Advance + CN adjustment receipts go in invoiceAdvCnPortions and are
-      //    SUBTRACTED from sale.paid_amount before the Math.max drift check, so
-      //    they aren't double-counted (advances handled via customerUnusedAdvances,
-      //    CN handled via customerCreditNotes).
-      //  - Opening-balance receipts are tracked separately and added to totalPaid.
-      const openingBalancePayments = new Map<string, number>(); // customer_id -> amount
-      const invoiceVoucherPayments = new Map<string, number>(); // sale_id -> cash amount
-      const invoiceAdvPortions = new Map<string, number>();     // sale_id -> advance amount
-      const invoiceCnPortions = new Map<string, number>();      // sale_id -> credit note amount
+      // Sale returns with credit_status + linked_sale_id (matches computeCustomerOutstanding / useCustomerBalance)
+      const { data: allSaleReturns, error: srFetchError } = await supabase
+        .from("sale_returns")
+        .select("customer_id, net_amount, credit_status, linked_sale_id")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+      if (srFetchError) console.error("Error fetching sale returns:", srFetchError);
 
-      allVouchers?.forEach((v: any) => {
-        if (!v.reference_id) return;
-        // Only consider receipt-type vouchers as customer payments here.
-        // Payment-type vouchers (refunds TO customer) are handled via refundsPaidTotal.
-        if (v.voucher_type !== 'receipt') return;
+      const saleReturnsByCustomer = new Map<string, SaleReturnLedgerRow[]>();
+      (allSaleReturns || []).forEach((sr: any) => {
+        if (!sr.customer_id) return;
+        const row: SaleReturnLedgerRow = {
+          net_amount: sr.net_amount,
+          credit_status: sr.credit_status,
+          linked_sale_id: sr.linked_sale_id,
+        };
+        const list = saleReturnsByCustomer.get(sr.customer_id) || [];
+        list.push(row);
+        saleReturnsByCustomer.set(sr.customer_id, list);
+      });
 
-        const desc = (v.description || '').toLowerCase();
-        const isAdv = v.payment_method === 'advance_adjustment'
-          || desc.includes('adjusted from advance balance')
-          || desc.includes('advance adjusted');
-        const isCn = v.payment_method === 'credit_note_adjustment'
-          || desc.includes('credit note adjusted')
-          || desc.includes('cn adjusted');
+      // Receipt vouchers per customer (sale-linked + customer opening / CN rows)
+      const vouchersByCustomer = new Map<string, VoucherLedgerRow[]>();
+      customersData.forEach((c: any) => vouchersByCustomer.set(c.id, []));
 
-        // ID-match classification (legacy-safe): if reference_id points to a known
-        // sale, treat as invoice payment regardless of reference_type string.
-        const isSaleRef = saleToCustomerMap.has(v.reference_id);
-        if (isSaleRef) {
-          if (isAdv) {
-            invoiceAdvPortions.set(v.reference_id,
-              (invoiceAdvPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-          } else if (isCn) {
-            invoiceCnPortions.set(v.reference_id,
-              (invoiceCnPortions.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-          } else {
-            invoiceVoucherPayments.set(v.reference_id,
-              (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-          }
-        } else if (v.reference_type === 'customer') {
-          // True opening-balance payment (reference_id is the customer id).
-          // Skip adv/CN adjustment rows since those are accounted separately.
-          if (!isAdv && !isCn) {
-            openingBalancePayments.set(v.reference_id,
-              (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-          }
+      (allVouchers || []).forEach((v: any) => {
+        if (v.voucher_type !== "receipt" || !v.reference_id) return;
+        const row: VoucherLedgerRow = {
+          reference_id: v.reference_id,
+          reference_type: v.reference_type,
+          total_amount: v.total_amount,
+          payment_method: v.payment_method,
+          description: v.description,
+        };
+        const saleCustId = saleToCustomerMap.get(v.reference_id);
+        if (saleCustId) {
+          vouchersByCustomer.get(saleCustId)?.push(row);
+        } else if (v.reference_type === "customer") {
+          vouchersByCustomer.get(v.reference_id)?.push(row);
         }
       });
 
-      // Fetch all sale returns (credit notes) for this org
-      const { data: allCreditNotes } = await supabase
-        .from("sale_returns")
-        .select("customer_id, net_amount")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null);
-
-      const customerCreditNotes = new Map<string, number>();
-      (allCreditNotes || []).forEach((sr: any) => {
-        if (sr.customer_id)
-          customerCreditNotes.set(sr.customer_id, (customerCreditNotes.get(sr.customer_id) || 0) + (sr.net_amount || 0));
+      const advancesByCustomer = new Map<
+        string,
+        Array<{ id: string; amount: number | null; used_amount: number | null }>
+      >();
+      allAdvances?.forEach((adv: any) => {
+        if (!adv.customer_id || !adv.id) return;
+        const list = advancesByCustomer.get(adv.customer_id) || [];
+        list.push({
+          id: adv.id,
+          amount: adv.amount,
+          used_amount: adv.used_amount,
+        });
+        advancesByCustomer.set(adv.customer_id, list);
       });
 
-      
-
-      // Calculate totals per customer using Math.max to avoid double-counting
+      // List totals + balance: single source of truth (avoids double-counting CN in
+      // sale_returns + sale_return_adjust + voucher paid, which showed phantom Advance).
       const customerTotals = customersData.map((customer: any) => {
-        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id && s.payment_status !== 'cancelled' && s.payment_status !== 'hold');
-        // Mamta Footwear customer balance reconciliation - Apr 2026:
-        // Keep totalSales as invoice net_amount only (single source display rule),
-        // then subtract sale returns/credit notes separately via creditNoteTotal.
-        const totalSales = customerSales.reduce(
-          (sum: number, s: any) => sum + (s.net_amount || 0),
-          0
+        const customerSales = salesData.filter(
+          (s: any) =>
+            s.customer_id === customer.id &&
+            s.payment_status !== "cancelled" &&
+            s.payment_status !== "hold"
         );
-        
-        let totalPaidOnSales = 0;
-        let totalAdvanceApplied = 0;
-        let totalCnApplied = 0;
-        customerSales.forEach((sale: any) => {
-          const salePaidAmount = sale.paid_amount || 0;
-          const cashVoucher = invoiceVoucherPayments.get(sale.id) || 0;
-          const advVoucher = invoiceAdvPortions.get(sale.id) || 0;
-          const cnVoucher = invoiceCnPortions.get(sale.id) || 0;
-          const advCnVoucher = advVoucher + cnVoucher;
-          // sale.paid_amount typically includes advance + CN-adjusted portions.
-          // Subtract them before the drift check so we only count true cash here.
-          // Mirrors reconcile_customer_balances RPC GREATEST(...) logic.
-          // Advance + CN applied are added back below; sale returns are handled
-          // via creditNoteTotal in the final balance formula.
-          const actualPaid = Math.max(salePaidAmount - advCnVoucher, cashVoucher);
-          totalPaidOnSales += actualPaid;
-          totalAdvanceApplied += advVoucher;
-          totalCnApplied += cnVoucher;
-        });
-        
-        const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
-        // totalPaid = cash on sales + advance applied + CN applied + opening-balance receipts.
-        const totalPaid = totalPaidOnSales + totalAdvanceApplied + totalCnApplied + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
         const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
         const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
         const advanceRefundTotal = customerAdvanceRefunds.get(customer.id) || 0;
         const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
-        const creditNoteTotal = customerCreditNotes.get(customer.id) || 0;
-        // Fix Apr 2026: subtract sale_return_adjust to match per-invoice outstanding.
-        // Test case: Mamta Footwear-Kandivali W (1ce7dbea-...) outstanding = ₹15,054
-        const totalSaleReturnAdjust = customerSales.reduce(
-          (sum: number, s: any) => sum + (Number(s.sale_return_adjust) || 0),
-          0
-        );
         const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
-        // Balance = Opening + Sales - Paid + Adjustments - Effective Unused Advances - Credit Notes + Refunds Paid
-        // refundsPaidTotal uses + sign because cash refunds paid OUT cancel the credit liability from sale returns
-        const balance = Math.round(
-          openingBalance + totalSales - totalPaid + adjustmentTotal
-          - effectiveUnusedAdvances - creditNoteTotal - totalSaleReturnAdjust + refundsPaidTotal
-        );
+
+        const co = computeCustomerOutstanding({
+          openingBalance,
+          customerId: customer.id,
+          sales: customerSales.map((s: any) => ({
+            id: s.id,
+            net_amount: s.net_amount,
+            paid_amount: s.paid_amount,
+            sale_return_adjust: s.sale_return_adjust,
+          })),
+          vouchers: vouchersByCustomer.get(customer.id) || [],
+          adjustmentTotal,
+          advances: advancesByCustomer.get(customer.id) || [],
+          advanceRefundTotal,
+          saleReturns: saleReturnsByCustomer.get(customer.id) || [],
+          refundsPaidTotal,
+        });
 
         return {
           ...customer,
           opening_balance: Math.round(openingBalance),
-          totalSales: Math.round(totalSales),
-          totalPaid: Math.round(totalPaid),
-          balance,
+          totalSales: co.totalSalesGross,
+          totalPaid: co.totalPaid,
+          balance: co.balance,
           unusedAdvanceTotal: Math.round(effectiveUnusedAdvances),
         };
       });
