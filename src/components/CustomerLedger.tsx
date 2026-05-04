@@ -665,7 +665,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   }, [customers, selectedCustomer?.id, selectedCustomer?.studentId]);
 
   // Fetch detailed transactions for selected customer
-  const { data: transactions } = useQuery({
+  const { data: transactions, isPending: transactionsPending } = useQuery({
     queryKey: ["customer-transactions", selectedCustomer?.id, startDate, endDate, isSchool, selectedAcademicYearId],
     queryFn: async () => {
       if (!selectedCustomer) return [];
@@ -2676,7 +2676,10 @@ Please clear your dues at the earliest. Thank you!`;
     doc.save(`${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
   };
 
-  if (selectedCustomer && transactions) {
+  if (selectedCustomer) {
+    const ledgerRows = transactions ?? [];
+    const ledgerLoading = transactionsPending && ledgerRows.length === 0;
+
     return (
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -3055,14 +3058,21 @@ Please clear your dues at the earliest. Thank you!`;
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {transactions.length === 0 ? (
+                      {ledgerLoading ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                            <Loader2 className="h-8 w-8 animate-spin inline align-middle mr-2 text-primary" />
+                            Loading ledger…
+                          </TableCell>
+                        </TableRow>
+                      ) : ledgerRows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                             No transactions found
                           </TableCell>
                         </TableRow>
                       ) : (
-                         transactions.map((transaction) => (
+                         ledgerRows.map((transaction) => (
                            <TableRow key={transaction.id} className={cn(
                              transaction.id === 'opening-balance'
                                ? 'bg-orange-50/60 dark:bg-orange-950/20 border-l-4 border-l-orange-400'
@@ -3259,7 +3269,7 @@ Please clear your dues at the earliest. Thank you!`;
                         ))
                       )}
                       {/* Totals Row */}
-                      {transactions.length > 0 && (
+                      {!ledgerLoading && ledgerRows.length > 0 && (
                         <TableRow className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600">
                           <TableCell colSpan={4} className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                             Totals
@@ -3272,11 +3282,11 @@ Please clear your dues at the earliest. Thank you!`;
                           </TableCell>
                           <TableCell className={cn(
                             "text-right",
-                            transactions[transactions.length - 1].balance > 0 ? "text-red-600 dark:text-red-400" : 
-                            transactions[transactions.length - 1].balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
+                            ledgerRows[ledgerRows.length - 1].balance > 0 ? "text-red-600 dark:text-red-400" : 
+                            ledgerRows[ledgerRows.length - 1].balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
                             "text-foreground"
                           )}>
-                            ₹{Math.abs(transactions[transactions.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            ₹{Math.abs(ledgerRows[ledgerRows.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </TableCell>
                         </TableRow>
                       )}
@@ -3285,21 +3295,21 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
 
                 {/* Balance Reconciliation Box — derived from rendered transactions */}
-                {transactions.length > 0 && (
+                {!ledgerLoading && ledgerRows.length > 0 && (
                   <div className="mt-4 rounded-md border bg-muted/30 p-4">
                     <div className="text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">
                       Balance Reconciliation
                     </div>
                     {(() => {
-                      const confirmedReturns = (transactions || [])
+                      const confirmedReturns = ledgerRows
                         .filter((t) => t.type === 'return' && t.status === 'adjusted')
                         .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
-                      const pendingReturns = (transactions || [])
+                      const pendingReturns = ledgerRows
                         .filter((t) => t.type === 'return' && t.status === 'pending')
                         .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
                       const cashPaid = reconciliation.payments;
                       const advanceAdjusted = reconciliation.advanceApplied;
-                      const advanceRefunded = Math.max(0, (transactions || [])
+                      const advanceRefunded = Math.max(0, ledgerRows
                         .filter((t) => t.type === 'refund')
                         .reduce((sum, t) => sum + (t.debit || 0), 0));
                       const outstanding = reconciliation.finalBalance;
@@ -3499,16 +3509,16 @@ Please clear your dues at the earliest. Thank you!`;
                   );
                   
                   // Also find voucher entries with reference_type='customer' (opening balance payments)
-                  const unappliedVouchers = transactions?.filter(t => 
+                  const unappliedVouchers = ledgerRows.filter(t => 
                     t.type === 'payment' && t.credit > 0 && 
                     (t.description?.includes('Opening balance') || t.description?.includes('Opening Balance'))
-                  ) || [];
+                  );
 
                   // Find invoices with advance available but showing as pending
-                  const pendingInvoicesWithAdvance = transactions?.filter(t => 
+                  const pendingInvoicesWithAdvance = ledgerRows.filter(t => 
                     t.type === 'invoice' && t.debit > 0 && t.id !== 'opening-balance' && 
                     t.paymentStatus !== 'completed'
-                  ) || [];
+                  );
 
                   const hasAdvanceBalance = effectiveBalance < 0;
                   const advanceAmount = hasAdvanceBalance ? Math.abs(effectiveBalance) : 0;
