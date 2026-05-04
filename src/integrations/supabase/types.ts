@@ -1199,63 +1199,6 @@ export type Database = {
         }
         Relationships: []
       }
-      student_ledger_entries: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          credit: number
-          debit: number
-          id: string
-          organization_id: string
-          particulars: string | null
-          student_id: string
-          transaction_date: string | null
-          voucher_no: string | null
-          voucher_type: string
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          credit?: number
-          debit?: number
-          id?: string
-          organization_id: string
-          particulars?: string | null
-          student_id: string
-          transaction_date?: string | null
-          voucher_no?: string | null
-          voucher_type: string
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          credit?: number
-          debit?: number
-          id?: string
-          organization_id?: string
-          particulars?: string | null
-          student_id?: string
-          transaction_date?: string | null
-          voucher_no?: string | null
-          voucher_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "student_ledger_entries_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_ledger_entries_student_id_fkey"
-            columns: ["student_id"]
-            isOneToOne: false
-            referencedRelation: "students"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       customer_points_history: {
         Row: {
           created_at: string | null
@@ -2111,7 +2054,6 @@ export type Database = {
           display_order: number | null
           head_name: string
           id: string
-          income_account_id: string | null
           is_active: boolean | null
           is_refundable: boolean | null
           organization_id: string
@@ -2122,7 +2064,6 @@ export type Database = {
           display_order?: number | null
           head_name: string
           id?: string
-          income_account_id?: string | null
           is_active?: boolean | null
           is_refundable?: boolean | null
           organization_id: string
@@ -2133,19 +2074,11 @@ export type Database = {
           display_order?: number | null
           head_name?: string
           id?: string
-          income_account_id?: string | null
           is_active?: boolean | null
           is_refundable?: boolean | null
           organization_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "fee_heads_income_account_id_fkey"
-            columns: ["income_account_id"]
-            isOneToOne: false
-            referencedRelation: "account_ledgers"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "fee_heads_organization_id_fkey"
             columns: ["organization_id"]
@@ -2644,36 +2577,27 @@ export type Database = {
       journal_lines: {
         Row: {
           account_id: string
-          bank_statement_reference: string | null
           created_at: string
           credit_amount: number
           debit_amount: number
           id: string
-          is_reconciled: boolean
           journal_entry_id: string
-          reconciliation_date: string | null
         }
         Insert: {
           account_id: string
-          bank_statement_reference?: string | null
           created_at?: string
           credit_amount?: number
           debit_amount?: number
           id?: string
-          is_reconciled?: boolean
           journal_entry_id: string
-          reconciliation_date?: string | null
         }
         Update: {
           account_id?: string
-          bank_statement_reference?: string | null
           created_at?: string
           credit_amount?: number
           debit_amount?: number
           id?: string
-          is_reconciled?: boolean
           journal_entry_id?: string
-          reconciliation_date?: string | null
         }
         Relationships: [
           {
@@ -4067,14 +3991,11 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
-          journal_error: string | null
-          journal_status: string
           linked_bill_id: string | null
           net_amount: number
           notes: string | null
           organization_id: string
           original_bill_number: string | null
-          payment_method: string | null
           return_date: string
           return_number: string | null
           supplier_id: string | null
@@ -4090,14 +4011,11 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
-          journal_error?: string | null
-          journal_status?: string
           linked_bill_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
           original_bill_number?: string | null
-          payment_method?: string | null
           return_date?: string
           return_number?: string | null
           supplier_id?: string | null
@@ -4113,14 +4031,11 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
-          journal_error?: string | null
-          journal_status?: string
           linked_bill_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
           original_bill_number?: string | null
-          payment_method?: string | null
           return_date?: string
           return_number?: string | null
           supplier_id?: string | null
@@ -4840,14 +4755,11 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
-          journal_error: string | null
-          journal_status: string
           linked_sale_id: string | null
           net_amount: number
           notes: string | null
           organization_id: string
           original_sale_number: string | null
-          payment_method: string | null
           refund_type: string
           return_date: string
           return_number: string | null
@@ -4864,14 +4776,11 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
-          journal_error?: string | null
-          journal_status?: string
           linked_sale_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
           original_sale_number?: string | null
-          payment_method?: string | null
           refund_type?: string
           return_date?: string
           return_number?: string | null
@@ -4888,14 +4797,11 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
-          journal_error?: string | null
-          journal_status?: string
           linked_sale_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
           original_sale_number?: string | null
-          payment_method?: string | null
           refund_type?: string
           return_date?: string
           return_number?: string | null
@@ -7521,6 +7427,27 @@ export type Database = {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
       }
+      get_gl_account_ledger: {
+        Args: {
+          p_account_id: string
+          p_from_date: string
+          p_org_id: string
+          p_to_date: string
+        }
+        Returns: {
+          created_at: string
+          credit_amount: number
+          debit_amount: number
+          description: string
+          entry_date: string
+          journal_entry_id: string
+          journal_line_id: string
+          line_seq: number
+          reference_id: string
+          reference_type: string
+          running_balance: number
+        }[]
+      }
       get_gl_trial_balance: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: {
@@ -7532,31 +7459,6 @@ export type Database = {
           movement_debit: number
           trial_credit: number
           trial_debit: number
-        }[]
-      }
-      admin_reset_org_gl: {
-        Args: { p_org_id: string }
-        Returns: Json
-      }
-      get_gl_account_ledger: {
-        Args: {
-          p_account_id: string
-          p_from_date: string
-          p_org_id: string
-          p_to_date: string
-        }
-        Returns: {
-          created_at: string | null
-          credit_amount: number
-          debit_amount: number
-          description: string
-          entry_date: string
-          journal_entry_id: string | null
-          journal_line_id: string | null
-          line_seq: number
-          reference_id: string | null
-          reference_type: string
-          running_balance: number
         }[]
       }
       get_gst_summary: {
@@ -7792,6 +7694,10 @@ export type Database = {
             Returns: Json
           }
       purge_all_old_backup_logs: { Args: never; Returns: Json }
+      purge_journals_for_voucher_ref: {
+        Args: { p_org: string; p_voucher_id: string }
+        Returns: undefined
+      }
       purge_old_audit_logs: { Args: never; Returns: Json }
       purge_old_backup_logs: {
         Args: { p_days: number; p_org_id: string }
