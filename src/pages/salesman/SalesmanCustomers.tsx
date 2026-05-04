@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildVoucherPaymentMaps, calculateCustomerBalance } from "@/utils/customerBalanceUtils";
+import { computeCustomerOutstanding } from "@/utils/customerBalanceUtils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -67,20 +67,38 @@ const SalesmanCustomers = () => {
         .order("customer_name");
       if (customersError) throw customersError;
 
-      // Fetch all sales
+      // Fetch all sales (exclude cancelled/hold — same as ledger)
       const { data: salesData } = await supabase
         .from("sales")
-        .select("id, customer_id, net_amount, paid_amount, sale_date, sale_return_adjust")
+        .select("id, customer_id, net_amount, paid_amount, sale_date, sale_return_adjust, payment_status")
         .eq("organization_id", orgId)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .not("payment_status", "in", '("cancelled","hold")');
 
-      // Fetch ALL receipt vouchers
+      // Receipt vouchers (full rows for CN / advance split)
       const { data: receiptVouchers } = await supabase
         .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount")
+        .select("reference_id, reference_type, total_amount, payment_method, description")
         .eq("organization_id", orgId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
+
+      const { data: allSaleReturns } = await supabase
+        .from("sale_returns")
+        .select("customer_id, net_amount, credit_status, linked_sale_id")
+        .eq("organization_id", orgId)
+        .is("deleted_at", null);
+
+      const returnsByCustomer = new Map<string, { net_amount: number | null; credit_status: string | null; linked_sale_id: string | null }[]>();
+      (allSaleReturns || []).forEach((sr: any) => {
+        if (!sr.customer_id) return;
+        if (!returnsByCustomer.has(sr.customer_id)) returnsByCustomer.set(sr.customer_id, []);
+        returnsByCustomer.get(sr.customer_id)!.push({
+          net_amount: sr.net_amount,
+          credit_status: sr.credit_status,
+          linked_sale_id: sr.linked_sale_id,
+        });
+      });
 
       // Fetch refund payments (outgoing to customer)
       const { data: refundVouchers } = await supabase
@@ -97,23 +115,43 @@ const SalesmanCustomers = () => {
         .select("customer_id, outstanding_difference")
         .eq("organization_id", orgId);
 
-      // Fetch unused advances
       const { data: advances } = await supabase
         .from("customer_advances")
-        .select("customer_id, amount, used_amount")
+        .select("id, customer_id, amount, used_amount")
         .eq("organization_id", orgId)
         .in("status", ["active", "partially_used"]);
+
+      const advanceIds = (advances || []).map((a: any) => a.id).filter(Boolean);
+      const refundByAdvanceId = new Map<string, number>();
+      if (advanceIds.length > 0) {
+        const { data: advRefunds } = await supabase
+          .from("advance_refunds")
+          .select("advance_id, refund_amount")
+          .in("advance_id", advanceIds);
+        (advRefunds || []).forEach((r: any) => {
+          if (!r.advance_id) return;
+          refundByAdvanceId.set(
+            r.advance_id,
+            (refundByAdvanceId.get(r.advance_id) || 0) + (Number(r.refund_amount) || 0)
+          );
+        });
+      }
+
+      const advancesByCustomer = new Map<string, { id: string; amount: number | null; used_amount: number | null }[]>();
+      (advances || []).forEach((a: any) => {
+        if (!a.customer_id) return;
+        if (!advancesByCustomer.has(a.customer_id)) advancesByCustomer.set(a.customer_id, []);
+        advancesByCustomer.get(a.customer_id)!.push({
+          id: a.id,
+          amount: a.amount,
+          used_amount: a.used_amount,
+        });
+      });
 
       // Build per-customer maps
       const adjMap = new Map<string, number>();
       (adjustments || []).forEach((a: any) => {
         adjMap.set(a.customer_id, (adjMap.get(a.customer_id) || 0) + (a.outstanding_difference || 0));
-      });
-
-      const advanceMap = new Map<string, number>();
-      (advances || []).forEach((a: any) => {
-        const avail = Math.max(0, (a.amount || 0) - (a.used_amount || 0));
-        advanceMap.set(a.customer_id, (advanceMap.get(a.customer_id) || 0) + avail);
       });
 
       const refundMap = new Map<string, number>();
@@ -136,32 +174,29 @@ const SalesmanCustomers = () => {
       const customersWithBalance: CustomerWithBalance[] = (customersData || []).map((c: any) => {
         const customerData = customerSales[c.id] || { sales: [], lastOrderDate: null };
         const openingBalance = c.opening_balance || 0;
-        const saleIds = customerData.sales.map((s: any) => s.id);
-        const { invoiceVoucherPayments, openingBalancePayments } = buildVoucherPaymentMaps(
-          receiptVouchers || [],
-          saleIds,
-          c.id
+        const custAdvances = advancesByCustomer.get(c.id) || [];
+        const advanceRefundTotal = custAdvances.reduce(
+          (s, adv) => s + (refundByAdvanceId.get(adv.id) || 0),
+          0
         );
 
-        const adjustmentTotal = adjMap.get(c.id) || 0;
-        const unusedAdvanceTotal = advanceMap.get(c.id) || 0;
-        const refundsPaidTotal = refundMap.get(c.id) || 0;
-
-        const balanceResult = calculateCustomerBalance(
+        const balanceResult = computeCustomerOutstanding({
           openingBalance,
-          customerData.sales,
-          invoiceVoucherPayments,
-          openingBalancePayments,
-          adjustmentTotal,
-          unusedAdvanceTotal,
-          refundsPaidTotal
-        );
+          customerId: c.id,
+          sales: customerData.sales,
+          vouchers: (receiptVouchers || []) as any[],
+          adjustmentTotal: adjMap.get(c.id) || 0,
+          advances: custAdvances,
+          advanceRefundTotal,
+          saleReturns: returnsByCustomer.get(c.id) || [],
+          refundsPaidTotal: refundMap.get(c.id) || 0,
+        });
 
         return {
           ...c,
           opening_balance: openingBalance,
-          totalSales: Math.round(balanceResult.totalSales),
-          totalPaid: Math.round(balanceResult.totalPaid),
+          totalSales: balanceResult.totalSales,
+          totalPaid: balanceResult.totalPaid,
           balance: balanceResult.balance,
           lastOrderDate: customerData.lastOrderDate,
         };

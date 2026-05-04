@@ -77,6 +77,7 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
 import { waitForPrintReady } from "@/utils/printReady";
+import { computeCustomerOutstanding, fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -800,20 +801,23 @@ export default function SalesInvoiceDashboard() {
         ? normalized.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
         : normalized;
 
+      const netBill = (inv: any) =>
+        Math.max(0, Number(inv.net_amount || 0) - Number(inv.sale_return_adjust || 0));
+
       return {
         totalInvoices: filteredByStatus.length,
-        totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.net_amount || 0), 0),
+        totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + netBill(inv), 0),
         totalDiscount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0), 0),
         totalQty: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.total_qty || 0), 0),
         pendingAmount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.outstanding || 0), 0),
         deliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'delivered').length,
         deliveredAmount: filteredByStatus
           .filter((inv: any) => inv.delivery_status === 'delivered')
-          .reduce((s: number, inv: any) => s + Number(inv.net_amount || 0), 0),
+          .reduce((s: number, inv: any) => s + netBill(inv), 0),
         undeliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'undelivered').length,
         undeliveredAmount: filteredByStatus
           .filter((inv: any) => inv.delivery_status === 'undelivered')
-          .reduce((s: number, inv: any) => s + Number(inv.net_amount || 0), 0),
+          .reduce((s: number, inv: any) => s + netBill(inv), 0),
       };
     },
     enabled: !!currentOrganization?.id,
@@ -887,53 +891,57 @@ export default function SalesInvoiceDashboard() {
             { data: customerAdjustments },
             { data: customerVouchers },
             { data: refundVouchers },
+            { data: customerAdvancesForBal },
           ] = await Promise.all([
             supabase.from('customers').select('opening_balance').eq('id', customerId).single(),
             supabase.from('sales').select('id, net_amount, paid_amount, sale_return_adjust, payment_status')
               .eq('organization_id', orgId).eq('customer_id', customerId)
               .is('deleted_at', null).not('payment_status', 'in', '("cancelled","hold")'),
-            supabase.from('sale_returns').select('net_amount')
+            supabase.from('sale_returns').select('net_amount, credit_status, linked_sale_id')
               .eq('organization_id', orgId).eq('customer_id', customerId).is('deleted_at', null),
             supabase.from('customer_balance_adjustments').select('outstanding_difference')
               .eq('organization_id', orgId).eq('customer_id', customerId),
-            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type, description')
+            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type, description, payment_method')
               .eq('organization_id', orgId).eq('voucher_type', 'receipt').is('deleted_at', null),
             supabase.from('voucher_entries').select('reference_id, total_amount')
               .eq('organization_id', orgId).eq('voucher_type', 'payment')
               .eq('reference_type', 'customer').eq('reference_id', customerId).is('deleted_at', null),
+            supabase.from('customer_advances').select('id, amount, used_amount')
+              .eq('organization_id', orgId).eq('customer_id', customerId)
+              .in('status', ['active', 'partially_used']),
           ]);
 
           const openingBalance = customerData?.opening_balance || 0;
-          const totalSales = (customerSales || []).reduce((s: number, sale: any) => s + (sale.net_amount || 0), 0);
-          const saleIds = new Set((customerSales || []).map((s: any) => s.id));
-          
-          const invoiceVoucherMap = new Map<string, number>();
-          let openingBalancePaymentTotal = 0;
-          (customerVouchers || []).forEach((v: any) => {
-            // Skip CN adjustment vouchers to avoid double-counting with creditNoteTotal
-            const desc = (v.description || '').toLowerCase();
-            if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) return;
-            if (v.reference_id && saleIds.has(v.reference_id)) {
-              invoiceVoucherMap.set(v.reference_id, (invoiceVoucherMap.get(v.reference_id) || 0) + (v.total_amount || 0));
-            } else if (v.reference_type === 'customer' && v.reference_id === customerId && v.voucher_type === 'receipt') {
-              openingBalancePaymentTotal += (v.total_amount || 0);
-            }
-          });
-          
-          let totalPaidOnSales = 0;
-          (customerSales || []).forEach((sale: any) => {
-            const salePaid = sale.paid_amount || 0;
-            const srAdj = sale.sale_return_adjust || 0;
-            const voucherAmt = invoiceVoucherMap.get(sale.id) || 0;
-            totalPaidOnSales += Math.max(salePaid - srAdj, voucherAmt);
-          });
-          
-          const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
           const adjustmentTotal = (customerAdjustments || []).reduce((s: number, a: any) => s + (a.outstanding_difference || 0), 0);
-          const creditNoteTotal = (customerReturns || []).reduce((s: number, r: any) => s + (r.net_amount || 0), 0);
           const refundsPaidTotal = (refundVouchers || []).reduce((s: number, v: any) => s + (v.total_amount || 0), 0);
-          
-          const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - creditNoteTotal + refundsPaidTotal);
+
+          const advanceIds = (customerAdvancesForBal || []).map((a: any) => a.id).filter(Boolean);
+          let advanceRefundTotal = 0;
+          if (advanceIds.length > 0) {
+            const { data: advRefRows } = await supabase
+              .from('advance_refunds')
+              .select('refund_amount')
+              .in('advance_id', advanceIds);
+            advanceRefundTotal = (advRefRows || []).reduce((s: number, r: any) => s + (Number(r.refund_amount) || 0), 0);
+          }
+
+          const co = computeCustomerOutstanding({
+            openingBalance,
+            customerId,
+            sales: customerSales || [],
+            vouchers: (customerVouchers || []) as any[],
+            adjustmentTotal,
+            advances: (customerAdvancesForBal || []).map((a: any) => ({
+              id: a.id,
+              amount: a.amount,
+              used_amount: a.used_amount,
+            })),
+            advanceRefundTotal,
+            saleReturns: (customerReturns || []) as any[],
+            refundsPaidTotal,
+          });
+
+          const balance = co.balance;
           
           let creditBalance = 0;
           if (balance < 0) {
@@ -1603,26 +1611,18 @@ export default function SalesInvoiceDashboard() {
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
     const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
     
-    // Fetch customer balance if customer_id exists
     let customerBalance = 0;
-    if (invoice.customer_id) {
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('opening_balance')
-        .eq('id', invoice.customer_id)
-        .single();
-      
-      const openingBalance = customer?.opening_balance || 0;
-      
-      const { data: sales } = await supabase
-        .from('sales')
-        .select('net_amount, paid_amount, sale_return_adjust')
-        .eq('customer_id', invoice.customer_id)
-        .eq('organization_id', currentOrganization?.id);
-      
-      const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-      const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0) + (s.sale_return_adjust || 0), 0) || 0;
-      customerBalance = openingBalance + totalSales - totalPaid;
+    if (invoice.customer_id && currentOrganization?.id) {
+      try {
+        const snap = await fetchCustomerBalanceSnapshot(
+          supabase,
+          currentOrganization.id,
+          invoice.customer_id
+        );
+        customerBalance = snap.balance;
+      } catch {
+        customerBalance = 0;
+      }
     }
     
     // Use template for message - no product items, just invoice details + link
@@ -1797,61 +1797,57 @@ export default function SalesInvoiceDashboard() {
             { data: customerAdjustments },
             { data: customerVouchers },
             { data: refundVouchers },
+            { data: customerAdvancesForBal },
           ] = await Promise.all([
             supabase.from('customers').select('opening_balance').eq('id', customerId).single(),
             supabase.from('sales').select('id, net_amount, paid_amount, sale_return_adjust, payment_status')
               .eq('organization_id', orgId!).eq('customer_id', customerId)
               .is('deleted_at', null).not('payment_status', 'in', '("cancelled","hold")'),
-            supabase.from('sale_returns').select('net_amount')
+            supabase.from('sale_returns').select('net_amount, credit_status, linked_sale_id')
               .eq('organization_id', orgId!).eq('customer_id', customerId).is('deleted_at', null),
             supabase.from('customer_balance_adjustments').select('outstanding_difference')
               .eq('organization_id', orgId!).eq('customer_id', customerId),
-            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type')
+            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type, description, payment_method')
               .eq('organization_id', orgId!).eq('voucher_type', 'receipt').is('deleted_at', null),
             supabase.from('voucher_entries').select('reference_id, total_amount')
               .eq('organization_id', orgId!).eq('voucher_type', 'payment')
               .eq('reference_type', 'customer').eq('reference_id', customerId).is('deleted_at', null),
+            supabase.from('customer_advances').select('id, amount, used_amount')
+              .eq('organization_id', orgId!).eq('customer_id', customerId)
+              .in('status', ['active', 'partially_used']),
           ]);
 
           const openingBalance = customerData?.opening_balance || 0;
-          const totalSales = (customerSales || []).reduce((s: number, sale: any) => s + (sale.net_amount || 0), 0);
-          
-          // Build sale ID set for this customer
-          const saleIds = new Set((customerSales || []).map((s: any) => s.id));
-          
-          // Calculate totalPaid using same logic as CustomerLedger
-          const invoiceVoucherMap = new Map<string, number>();
-          (customerVouchers || []).forEach((v: any) => {
-            if (v.reference_id && saleIds.has(v.reference_id)) {
-              invoiceVoucherMap.set(v.reference_id, (invoiceVoucherMap.get(v.reference_id) || 0) + (v.total_amount || 0));
-            }
-          });
-          
-          // Opening balance payments (receipt vouchers referencing customer directly)
-          let openingBalancePaymentTotal = 0;
-          (customerVouchers || []).forEach((v: any) => {
-            if (v.reference_type === 'customer' && v.reference_id === customerId && v.voucher_type === 'receipt') {
-              openingBalancePaymentTotal += (v.total_amount || 0);
-            }
-          });
-          
-          let totalPaidOnSales = 0;
-          (customerSales || []).forEach((sale: any) => {
-            const salePaid = sale.paid_amount || 0;
-            const srAdj = sale.sale_return_adjust || 0;
-            const voucherAmt = invoiceVoucherMap.get(sale.id) || 0;
-            totalPaidOnSales += Math.max(salePaid - srAdj, voucherAmt);
-          });
-          
-          const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
           const adjustmentTotal = (customerAdjustments || []).reduce((s: number, a: any) => s + (a.outstanding_difference || 0), 0);
-          const creditNoteTotal = (customerReturns || []).reduce((s: number, r: any) => s + (r.net_amount || 0), 0);
           const refundsPaidTotal = (refundVouchers || []).reduce((s: number, v: any) => s + (v.total_amount || 0), 0);
-          
-          // Unused advance total (already have bookingBalance)
-          // effectiveUnusedAdvances is already subtracted - but we don't want to double count with bookingBalance
-          
-          const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - creditNoteTotal + refundsPaidTotal);
+
+          const advanceIds2 = (customerAdvancesForBal || []).map((a: any) => a.id).filter(Boolean);
+          let advanceRefundTotal2 = 0;
+          if (advanceIds2.length > 0) {
+            const { data: advRefRows2 } = await supabase
+              .from('advance_refunds')
+              .select('refund_amount')
+              .in('advance_id', advanceIds2);
+            advanceRefundTotal2 = (advRefRows2 || []).reduce((s: number, r: any) => s + (Number(r.refund_amount) || 0), 0);
+          }
+
+          const co2 = computeCustomerOutstanding({
+            openingBalance,
+            customerId,
+            sales: customerSales || [],
+            vouchers: (customerVouchers || []) as any[],
+            adjustmentTotal,
+            advances: (customerAdvancesForBal || []).map((a: any) => ({
+              id: a.id,
+              amount: a.amount,
+              used_amount: a.used_amount,
+            })),
+            advanceRefundTotal: advanceRefundTotal2,
+            saleReturns: (customerReturns || []) as any[],
+            refundsPaidTotal,
+          });
+
+          const balance = co2.balance;
           
           // If balance is negative, customer has credit/overpayment
           if (balance < 0) {
