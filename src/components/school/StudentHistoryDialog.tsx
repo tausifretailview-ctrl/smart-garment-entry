@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, GraduationCap, IndianRupee, Receipt } from "lucide-react";
 import { format } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { adjustmentDueDelta, computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
+import { computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
 
 interface StudentHistoryDialogProps {
   open: boolean;
