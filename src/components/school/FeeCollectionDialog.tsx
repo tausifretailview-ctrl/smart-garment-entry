@@ -498,9 +498,23 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           Math.round((dueGross - paidTotalYear) * 100) / 100
         );
         const sumStructureBalances = items.reduce((sum, i) => sum + i.balance, 0);
+        // If "set balance" lowered due below structure balances, cap modal rows
+        // so the collect dialog matches Fee Collection grid pending due.
+        if (totalDue + 0.005 < sumStructureBalances) {
+          let remaining = totalDue;
+          for (const item of items) {
+            const effective = Math.max(0, Math.min(item.balance, remaining));
+            const rounded = Math.round(effective * 100) / 100;
+            item.balance = rounded;
+            item.selected = rounded > 0.005;
+            item.paying = 0;
+            remaining = Math.max(0, Math.round((remaining - rounded) * 100) / 100);
+          }
+        }
+        const effectiveStructureBalances = items.reduce((sum, i) => sum + i.balance, 0);
         const openingDue = Math.max(
           0,
-          Math.round((totalDue - sumStructureBalances) * 100) / 100
+          Math.round((totalDue - effectiveStructureBalances) * 100) / 100
         );
 
         if (openingDue > 0.005) {
