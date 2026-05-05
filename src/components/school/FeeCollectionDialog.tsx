@@ -24,7 +24,7 @@ import {
 } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
+import { computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
 import { postSchoolFeeReceiptAccounting } from "@/lib/schoolFeeAccounting";
 
 const OPENING_CARRY_HEAD_ID = "__opening_carry__";
@@ -479,25 +479,23 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         );
 
         const { data: adjRows } = await (supabase.from("student_balance_audit" as any) as any)
-          .select("adjustment_type, change_amount, old_balance, new_balance")
+          .select("adjustment_type, change_amount, old_balance, new_balance, created_at, reason_code")
           .eq("organization_id", currentOrganization!.id)
           .eq("student_id", student.id)
           .eq("academic_year_id", usedYear.id)
           .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
-
-        const adjustmentNet = (adjRows || []).reduce(
-          (sum: number, a: any) => sum + adjustmentDueDelta(a),
-          0
-        );
 
         const liability = resolveLiability(
           { ...student, closing_fees_balance: importedEff },
           totalStructureAmount,
           usedYear.year_name
         );
+        const dueGross = (adjRows || []).length > 0
+          ? computeEffectivePendingDue(Number(liability), adjRows as any[])
+          : Number(liability);
         const totalDue = Math.max(
           0,
-          Math.round((liability + adjustmentNet - paidTotalYear) * 100) / 100
+          Math.round((dueGross - paidTotalYear) * 100) / 100
         );
         const sumStructureBalances = items.reduce((sum, i) => sum + i.balance, 0);
         const openingDue = Math.max(

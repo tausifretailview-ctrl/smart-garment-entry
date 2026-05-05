@@ -21,7 +21,7 @@ import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDial
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
+import { computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
 import {
   buildFeeReceiptWhatsAppMessage,
   computeYearWiseFeeBalances,
@@ -271,7 +271,7 @@ const FeeCollection = () => {
               .in("status", ["paid", "partial"])
               .gt("paid_amount", 0),
             (supabase.from("student_balance_audit" as any) as any)
-              .select("student_id, adjustment_type, change_amount, old_balance, new_balance")
+              .select("student_id, adjustment_type, change_amount, old_balance, new_balance, created_at, reason_code")
               .eq("organization_id", currentOrganization!.id)
               .eq("academic_year_id", activeYear.id)
               .in("student_id", studentIdList)
@@ -323,9 +323,10 @@ const FeeCollection = () => {
       });
 
       const adjByStudent = new Map<string, number>();
+      const auditsByStudent = new Map<string, any[]>();
       (allAdjustments as any[]).forEach((a: any) => {
-        const delta = adjustmentDueDelta(a);
-        adjByStudent.set(a.student_id, (adjByStudent.get(a.student_id) || 0) + delta);
+        if (!auditsByStudent.has(a.student_id)) auditsByStudent.set(a.student_id, []);
+        auditsByStudent.get(a.student_id)!.push(a);
       });
 
       // Aggregate pending:
@@ -335,7 +336,6 @@ const FeeCollection = () => {
       (allStudents || []).forEach((st: any) => {
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
-        const adjustment = adjByStudent.get(st.id) || 0;
         const latePrevPaid = latePrevPaidByStudent.get(st.id) || 0;
         const effectiveStudent = {
           ...st,
@@ -346,7 +346,11 @@ const FeeCollection = () => {
           ),
         };
         const liability = resolveLiability(effectiveStudent, struct, activeYear?.year_name);
-        pending += Math.max(0, liability + adjustment - paid);
+        const audits = auditsByStudent.get(st.id) || [];
+        const dueGross = audits.length > 0
+          ? computeEffectivePendingDue(liability, audits)
+          : liability;
+        pending += Math.max(0, dueGross - paid);
       });
 
       return { today: todayTotal, month: monthTotal, pending };
@@ -402,7 +406,7 @@ const FeeCollection = () => {
         supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
         // Fetch balance adjustments (audit log) — these reduce/increase the displayed due
         (supabase.from("student_balance_audit" as any) as any)
-          .select("student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id")
+          .select("student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id, created_at, reason_code")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", activeYear.id)
           .in("student_id", studentIds)
@@ -465,18 +469,21 @@ const FeeCollection = () => {
         // would push the displayed due to 0). So we only honour audit deltas when
         // a fee structure is present (where closing_fees_balance stays as opening).
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
-        const adjustmentNet = hasActiveStructures
-          ? studentAdjustments.reduce(
-              (sum: number, a: any) => sum + adjustmentDueDelta(a),
-              0
-            )
-          : 0;
+        // "Set" balance entries are authoritative overrides — see computeEffectivePendingDue.
+        // For students WITHOUT an active structure, BalanceEditDialog mutates
+        // students.closing_fees_balance directly, so we still skip audit deltas there
+        // to avoid double-counting.
+        const liability0 = resolveLiability({ ...student, closing_fees_balance: importedBalance }, totalExpected, activeYear?.year_name);
+        const dueGross = hasActiveStructures && studentAdjustments.length > 0
+          ? computeEffectivePendingDue(liability0, studentAdjustments)
+          : liability0;
+        const adjustmentNet = dueGross - liability0;
 
         // Liability rule:
         // - New admission: use closing_fees_balance entered during admission
         // - Promoted/existing student: use yearly fee structure
-        const liability = resolveLiability({ ...student, closing_fees_balance: importedBalance }, totalExpected, activeYear?.year_name);
-        const totalDueGross = liability + adjustmentNet;
+        const liability = liability0;
+        const totalDueGross = dueGross;
         const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
