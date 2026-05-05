@@ -120,6 +120,19 @@ interface CartItem {
   uom?: string;
 }
 
+/** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
+function calculatePosCartLineNet(item: CartItem): number {
+  const baseAmount = item.mrp * item.quantity;
+  const percentDiscount = (baseAmount * item.discountPercent) / 100;
+  const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
+  return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
+}
+
+/** Net amount per unit after line-level discounts (for display / receipt rate). */
+function posLineNetUnitPrice(item: CartItem): number {
+  return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
+}
+
 export default function POSSales() {
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
@@ -1742,7 +1755,7 @@ export default function POSSales() {
       setItems(prev => {
         const updatedItems = [...prev];
         updatedItems[existingItemIndex].quantity = newQty;
-        updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
+        updatedItems[existingItemIndex].netAmount = calculatePosCartLineNet(updatedItems[existingItemIndex]);
         return updatedItems;
       });
       if (mergedLineId) bumpCartHighlight(mergedLineId);
@@ -1823,6 +1836,7 @@ export default function POSSales() {
       const discountPercent = brandDiscount > 0 ? brandDiscount : (productSaleDiscount > 0 ? productSaleDiscount : 0);
       const discountAmount = 0;
       
+      // POS bills from MRP (display price); master sale_price is for sale invoices, not the default POS rate.
       const newItem: CartItem = {
         // Generate unique ID for service products so each scan creates a distinct line item
         id: isServiceProduct ? `${variant.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : variant.id,
@@ -1836,8 +1850,8 @@ export default function POSSales() {
         gstPer: applyGarmentGstRule(displayMrp, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
         discountPercent,
         discountAmount,
-        unitCost: salePrice,
-        netAmount: displayMrp - (displayMrp * discountPercent / 100),
+        unitCost: displayMrp,
+        netAmount: 0,
         productId: product.id,
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
@@ -1845,6 +1859,7 @@ export default function POSSales() {
         isDcProduct: variant.is_dc_product === true,
         uom: product.uom || 'NOS',
       };
+      newItem.netAmount = calculatePosCartLineNet(newItem);
       hasManuallyAddedNewItemRef.current = true;
       setItems(prev => [...prev, newItem]);
       bumpCartHighlight(newItem.id);
@@ -1871,16 +1886,6 @@ export default function POSSales() {
       setPendingPriceSelection(null);
       setShowPriceSelectionDialog(false);
     }
-  };
-
-  const calculateNetAmount = (item: CartItem) => {
-    const baseAmount = item.mrp * item.quantity;
-    const percentDiscount = (baseAmount * item.discountPercent) / 100;
-    // Treat manual rate override (MRP > Unit Price) as an implicit line discount
-    // so Disc Rs, net amount, and totals stay aligned.
-    const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
-    const totalDiscount = percentDiscount + item.discountAmount + implicitRateDiscount;
-    return baseAmount - totalDiscount;
   };
 
   const removeItem = (index: number) => {
@@ -1910,7 +1915,7 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].quantity = newQty;
-      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -1920,7 +1925,7 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].discountPercent = discountPercent;
-      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -1930,7 +1935,7 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].discountAmount = discountAmount;
-      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -1944,7 +1949,7 @@ export default function POSSales() {
       updatedItems[index].unitCost = newMrp;
       // Garment / Footwear GST auto-bump rule on price change
       updatedItems[index].gstPer = applyGarmentGstRule(newMrp, updatedItems[index].gstPer, garmentGstSettings);
-      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -1954,7 +1959,7 @@ export default function POSSales() {
       const updatedItems = [...prev];
       // Re-apply auto-bump: if user picks <18% but price > threshold, bump back to 18
       updatedItems[index].gstPer = applyGarmentGstRule(updatedItems[index].mrp, newGstPer, garmentGstSettings);
-      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -1970,13 +1975,11 @@ export default function POSSales() {
       return sum + percentDiscount + item.discountAmount + implicitRateDiscount;
     }, 0),
     subtotal: items.reduce((sum, item) => sum + item.netAmount, 0),
-    // Calculate savings from MRP (originalMrp - unitCost) * quantity
-    savings: items.reduce((sum, item) => {
-      if (item.originalMrp && item.originalMrp > item.unitCost) {
-        return sum + (item.originalMrp - item.unitCost) * item.quantity;
-      }
-      return sum;
-    }, 0),
+    // Savings vs line MRP after Disc% / Disc Rs (POS bills from MRP; sale invoices use sale price in SalesInvoice).
+    savings: items.reduce(
+      (sum, item) => sum + Math.max(0, item.mrp * item.quantity - item.netAmount),
+      0
+    ),
   };
 
   const flatDiscountAmount = flatDiscountMode === 'percent' 
@@ -3938,10 +3941,10 @@ export default function POSSales() {
               barcode: item.barcode || "",
               hsn: item.hsnCode || "",
               color: item.color || "",
-              sp: item.unitCost,
+              sp: posLineNetUnitPrice(item),
               mrp: item.originalMrp || item.mrp,
               qty: item.quantity,
-              rate: item.unitCost,
+              rate: posLineNetUnitPrice(item),
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
               discountPercent: item.discountPercent || 0,
@@ -3953,10 +3956,10 @@ export default function POSSales() {
               barcode: item.barcode || "",
               hsn: item.hsnCode || "",
               color: item.color || "",
-              sp: item.unitCost,
+              sp: posLineNetUnitPrice(item),
               mrp: item.originalMrp || item.mrp,
               qty: item.quantity,
-              rate: item.unitCost,
+              rate: posLineNetUnitPrice(item),
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
               discountPercent: item.discountPercent || 0,
@@ -4836,7 +4839,7 @@ export default function POSSales() {
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                             )}
                             {(Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
-                              <span className="px-1 py-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 rounded flex-shrink-0" title="Unit price is below MRP — counted as line discount">
+                              <span className="px-1 py-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 rounded flex-shrink-0" title="Selling rate below MRP (manual rate / loaded invoice line)">
                                 Rate override
                               </span>
                             )}
@@ -4908,7 +4911,12 @@ export default function POSSales() {
                               step="0.01"
                             />
                           </div>
-                          <div className="flex items-center justify-end text-sm text-muted-foreground">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
+                          <div
+                            className="flex items-center justify-end text-sm text-muted-foreground"
+                            title="Net unit after line Disc% / Disc Rs"
+                          >
+                            ₹{Math.round(posLineNetUnitPrice(item)).toLocaleString('en-IN')}
+                          </div>
                           <div className="flex items-center justify-between">
                             <span className="font-extrabold text-base md:text-lg">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
                             <Button
@@ -5323,10 +5331,10 @@ export default function POSSales() {
                   size: item.size,
                   barcode: item.barcode,
                   hsn: item.hsnCode || "",
-                  sp: item.unitCost,
+                  sp: posLineNetUnitPrice(item),
                   mrp: item.originalMrp || item.mrp,
                   qty: item.quantity,
-                  rate: item.unitCost,
+                  rate: posLineNetUnitPrice(item),
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
                   discountPercent: item.discountPercent || 0,
@@ -5516,10 +5524,10 @@ export default function POSSales() {
                 barcode: item.barcode || "",
                 hsn: item.hsnCode || "",
                 color: item.color || "",
-                sp: item.unitCost,
+                sp: posLineNetUnitPrice(item as CartItem),
                 mrp: item.originalMrp || item.mrp,
                 qty: item.quantity,
-                rate: item.unitCost,
+                rate: posLineNetUnitPrice(item as CartItem),
                 total: item.netAmount,
                 gstPercent: item.gstPer || 0,
                 discountPercent: item.discountPercent || 0,
@@ -5603,10 +5611,10 @@ export default function POSSales() {
                   barcode: item.barcode || "",
                   hsn: item.hsnCode || "",
                   color: item.color || "",
-                  sp: item.unitCost,
+                  sp: posLineNetUnitPrice(item as CartItem),
                   mrp: item.originalMrp || item.mrp,
                   qty: item.quantity,
-                  rate: item.unitCost,
+                  rate: posLineNetUnitPrice(item as CartItem),
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
                   discountPercent: item.discountPercent || 0,
@@ -5617,10 +5625,10 @@ export default function POSSales() {
                   barcode: item.barcode || "",
                   hsn: item.hsnCode || "",
                   color: item.color || "",
-                  sp: item.unitCost,
+                  sp: posLineNetUnitPrice(item),
                   mrp: item.originalMrp || item.mrp,
                   qty: item.quantity,
-                  rate: item.unitCost,
+                  rate: posLineNetUnitPrice(item),
                   total: item.netAmount,
                   gstPercent: item.gstPer || 0,
                   discountPercent: item.discountPercent || 0,
