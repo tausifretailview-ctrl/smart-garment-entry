@@ -336,7 +336,6 @@ const FeeCollection = () => {
       (allStudents || []).forEach((st: any) => {
         const struct = structureByClass.get(st.class_id) || 0;
         const paid = paidByStudent.get(st.id) || 0;
-        const adjustment = adjByStudent.get(st.id) || 0;
         const latePrevPaid = latePrevPaidByStudent.get(st.id) || 0;
         const effectiveStudent = {
           ...st,
@@ -347,7 +346,11 @@ const FeeCollection = () => {
           ),
         };
         const liability = resolveLiability(effectiveStudent, struct, activeYear?.year_name);
-        pending += Math.max(0, liability + adjustment - paid);
+        const audits = auditsByStudent.get(st.id) || [];
+        const dueGross = audits.length > 0
+          ? computeEffectivePendingDue(liability, audits)
+          : liability;
+        pending += Math.max(0, dueGross - paid);
       });
 
       return { today: todayTotal, month: monthTotal, pending };
