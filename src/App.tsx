@@ -106,6 +106,7 @@ const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
 const DailySaleAnalysis = lazyWithRetry(() => import("./pages/DailySaleAnalysis"));
 const EInvoiceReport = lazyWithRetry(() => import("./pages/EInvoiceReport"));
 const CustomerLedgerPage = lazyWithRetry(() => import("./pages/CustomerLedgerPage"));
+const CustomerAuditReport = lazyWithRetry(() => import("./pages/CustomerAuditReport"));
 const CustomerLedgerReport = lazyWithRetry(() => import("./pages/CustomerLedgerReport"));
 const CustomerReconciliation = lazyWithRetry(() => import("./pages/CustomerReconciliation"));
 const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"));
@@ -1079,6 +1080,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <CustomerLedgerPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-audit-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerAuditReport />
                       </Layout>
                     </ProtectedRoute>
                   }
