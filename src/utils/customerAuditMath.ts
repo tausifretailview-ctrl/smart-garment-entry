@@ -83,7 +83,7 @@ export const computeCustomerOutstanding = (params: {
     totalInvoiced -
     totalSaleReturnAdjust -
     totalRealPayments -
-    customerPaymentDebits +
+    customerPaymentDebits -
     totalAdvanceUsed -
     unusedAdvance;
   // Applied + unused (net of refunds) = customer prepayments that reduce receivables.

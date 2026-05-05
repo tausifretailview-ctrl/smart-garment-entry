@@ -467,6 +467,22 @@ export default function CustomerAuditReport() {
     return { openingCarried: carried, displayRows: disp, rowBalances: balances };
   }, [allRows, auditBundle, fromYmd, toYmd]);
 
+  const outstandingFromRunningBalance =
+    displayRows.length > 0 ? (rowBalances[rowBalances.length - 1] ?? openingCarried) : openingCarried;
+  const finalOutstanding = outstandingFromRunningBalance;
+
+  useEffect(() => {
+    if (!selectedCustomer || !math) return;
+    if (Math.abs(math.outstanding - finalOutstanding) > 1) {
+      console.warn("[CustomerAuditReport] Outstanding mismatch", {
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.customer_name,
+        formulaOutstanding: math.outstanding,
+        runningBalanceOutstanding: finalOutstanding,
+      });
+    }
+  }, [selectedCustomer, math, finalOutstanding]);
+
   const netInvoiced =
     math != null ? math.totalInvoiced - math.totalSaleReturnAdjust : 0;
 
@@ -669,23 +685,23 @@ export default function CustomerAuditReport() {
                   </div>
                 </CardContent>
               </Card>
-              {math.outstanding > 0.005 ? (
+              {finalOutstanding > 0.005 ? (
                 <Card className="shadow-sm border-l-4 border-l-red-500 text-red-700 dark:text-red-400">
                   <CardContent className="p-4">
                     <div className="text-xs uppercase tracking-wide font-medium opacity-80">Outstanding</div>
                     <div className="text-2xl font-bold mt-1 tabular-nums">
-                      ₹ {fmt(math.outstanding)} Dr
+                      ₹ {fmt(finalOutstanding)} Dr
                     </div>
                   </CardContent>
                 </Card>
-              ) : math.outstanding < -0.005 ? (
+              ) : finalOutstanding < -0.005 ? (
                 <Card className="shadow-sm border-l-4 border-l-emerald-600 text-emerald-700 dark:text-emerald-300">
                   <CardContent className="p-4">
                     <div className="text-xs uppercase tracking-wide font-medium opacity-80">
                       Customer Credit
                     </div>
                     <div className="text-2xl font-bold mt-1 tabular-nums">
-                      ₹ {fmt(Math.abs(math.outstanding))} Cr
+                      ₹ {fmt(Math.abs(finalOutstanding))} Cr
                     </div>
                   </CardContent>
                 </Card>
