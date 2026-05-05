@@ -5801,6 +5801,8 @@ export type Database = {
           change_amount: number
           created_at: string | null
           id: string
+          journal_entry_id: string | null
+          journal_status: string | null
           new_balance: number
           old_balance: number
           organization_id: string
@@ -5818,6 +5820,8 @@ export type Database = {
           change_amount?: number
           created_at?: string | null
           id?: string
+          journal_entry_id?: string | null
+          journal_status?: string | null
           new_balance?: number
           old_balance?: number
           organization_id: string
@@ -5835,6 +5839,8 @@ export type Database = {
           change_amount?: number
           created_at?: string | null
           id?: string
+          journal_entry_id?: string | null
+          journal_status?: string | null
           new_balance?: number
           old_balance?: number
           organization_id?: string
@@ -5850,6 +5856,13 @@ export type Database = {
             columns: ["academic_year_id"]
             isOneToOne: false
             referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_balance_audit_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
             referencedColumns: ["id"]
           },
           {
