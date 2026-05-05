@@ -75,7 +75,9 @@ export const computeCustomerOutstanding = (params: {
     totalInvoiced -
     totalSaleReturnAdjust -
     totalRealPayments -
+    totalAdvanceUsed -
     unusedAdvance;
+  // Applied + unused (net of refunds) = customer prepayments that reduce receivables.
 
   return {
     openingBalance: Number(params.openingBalance || 0),

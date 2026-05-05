@@ -478,6 +478,7 @@ export default function CustomerAuditReport() {
     rows.push(["Net Invoiced", netInvoiced]);
     rows.push(["Receipts (excl. Adv Adj)", -math.receiptCredits]);
     rows.push(["Credit notes", -math.creditNoteCredits]);
+    rows.push(["Advance applied to invoices", -math.totalAdvanceUsed]);
     rows.push(["Unused advance (net)", -math.unusedAdvance]);
     rows.push(["Outstanding (+ = Dr)", math.outstanding]);
 
@@ -784,9 +785,17 @@ export default function CustomerAuditReport() {
                     <span>₹ {fmt(math.creditNoteCredits)}</span>
                   </div>
                   <div className="flex justify-between gap-4">
+                    <span>(-) Advance Applied to Invoices</span>
+                    <span>₹ {fmt(math.totalAdvanceUsed)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
                     <span>(-) Unused Advance Credit</span>
                     <span>₹ {fmt(math.unusedAdvance)}</span>
                   </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Advance applied + unused advance (after refunds) equals total advance received — both
+                    reduce what the customer owes.
+                  </p>
                   <div className="flex justify-between gap-4 border-t border-border pt-2 font-semibold text-base">
                     <span>
                       {math.outstanding >= 0 ? "OUTSTANDING (Dr)" : "CREDIT (Cr)"}
