@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { resolveLiability } from "@/lib/schoolFeeLiability";
+import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
 
 type AcademicYearRow = {
   id: string;
@@ -75,15 +75,7 @@ export async function computeYearWiseFeeBalances(
   (allAdjustments || []).forEach((a: any) => {
     const y = a.academic_year_id as string | undefined;
     if (!y) return;
-    const delta =
-      a.adjustment_type === "credit"
-        ? Number(a.change_amount || 0)
-        : a.adjustment_type === "debit"
-          ? -Number(a.change_amount || 0)
-          : a.adjustment_type === "set"
-            ? Number(a.new_balance ?? 0) - Number(a.old_balance ?? 0)
-            : 0;
-    adjByYear.set(y, (adjByYear.get(y) || 0) + delta);
+    adjByYear.set(y, (adjByYear.get(y) || 0) + adjustmentDueDelta(a));
   });
 
   const yearIds = yearsChrono.map((y) => y.id);
@@ -219,14 +211,7 @@ export async function computePendingAllSessionsBatch(
     const sid = a.student_id as string;
     const y = a.academic_year_id as string | undefined;
     if (!y) return;
-    const delta =
-      a.adjustment_type === "credit"
-        ? Number(a.change_amount || 0)
-        : a.adjustment_type === "debit"
-          ? -Number(a.change_amount || 0)
-          : a.adjustment_type === "set"
-            ? Number(a.new_balance ?? 0) - Number(a.old_balance ?? 0)
-            : 0;
+    const delta = adjustmentDueDelta(a);
     if (!adjByStudent.has(sid)) adjByStudent.set(sid, new Map());
     const m = adjByStudent.get(sid)!;
     m.set(y, (m.get(y) || 0) + delta);

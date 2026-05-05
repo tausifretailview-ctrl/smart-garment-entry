@@ -17,6 +17,7 @@ import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
+import { adjustmentDueDelta } from "@/lib/schoolFeeLiability";
 
 interface SaleItem {
   id: string;
@@ -417,17 +418,16 @@ export function CustomerHistoryDialog({
       }
 
       const { data: adjustments } = await (supabase.from("student_balance_audit" as any) as any)
-        .select("adjustment_type, change_amount")
+        .select("adjustment_type, change_amount, old_balance, new_balance")
         .eq("organization_id", organizationId)
         .eq("student_id", student.id)
         .eq("academic_year_id", currentYear.id)
         .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
-      const adjustmentNet = (adjustments || []).reduce((sum: number, a: any) => {
-        if (a.adjustment_type === "credit") return sum + (a.change_amount || 0);
-        if (a.adjustment_type === "debit") return sum - (a.change_amount || 0);
-        return sum;
-      }, 0);
+      const adjustmentNet = (adjustments || []).reduce(
+        (sum: number, a: any) => sum + adjustmentDueDelta(a),
+        0
+      );
 
       const feesExpected = liabilityGross + adjustmentNet;
 

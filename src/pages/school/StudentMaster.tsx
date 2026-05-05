@@ -47,7 +47,7 @@ import { StudentBulkUpdateDialog } from "@/components/school/StudentBulkUpdateDi
 import { FeesBalanceImportDialog } from "@/components/school/FeesBalanceImportDialog";
 import { StudentHistoryDialog } from "@/components/school/StudentHistoryDialog";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { resolveLiability } from "@/lib/schoolFeeLiability";
+import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
 
 const PAGE_SIZE = 50;
 
@@ -193,7 +193,7 @@ const StudentMaster = () => {
           .in("status", ["paid", "partial"])
           .gt("paid_amount", 0),
         (supabase.from("student_balance_audit" as any) as any)
-          .select("student_id, adjustment_type, change_amount")
+          .select("student_id, adjustment_type, change_amount, old_balance, new_balance")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", selectedYearId)
           .in("student_id", studentIds)
@@ -255,10 +255,7 @@ const StudentMaster = () => {
 
       const adjByStudent: Record<string, number> = {};
       for (const a of adjustments) {
-        const v = a.adjustment_type === "credit" ? (a.change_amount || 0)
-               : a.adjustment_type === "debit" ? -(a.change_amount || 0)
-               : 0;
-        adjByStudent[a.student_id] = (adjByStudent[a.student_id] || 0) + v;
+        adjByStudent[a.student_id] = (adjByStudent[a.student_id] || 0) + adjustmentDueDelta(a);
       }
 
       const yearName = usedYearRow?.year_name ?? null;

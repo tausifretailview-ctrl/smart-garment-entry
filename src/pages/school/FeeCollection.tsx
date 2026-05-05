@@ -21,7 +21,7 @@ import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDial
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { resolveLiability } from "@/lib/schoolFeeLiability";
+import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
 import {
   buildFeeReceiptWhatsAppMessage,
   computeYearWiseFeeBalances,
@@ -271,7 +271,7 @@ const FeeCollection = () => {
               .in("status", ["paid", "partial"])
               .gt("paid_amount", 0),
             (supabase.from("student_balance_audit" as any) as any)
-              .select("student_id, adjustment_type, change_amount")
+              .select("student_id, adjustment_type, change_amount, old_balance, new_balance")
               .eq("organization_id", currentOrganization!.id)
               .eq("academic_year_id", activeYear.id)
               .in("student_id", studentIdList)
@@ -324,11 +324,7 @@ const FeeCollection = () => {
 
       const adjByStudent = new Map<string, number>();
       (allAdjustments as any[]).forEach((a: any) => {
-        const delta = a.adjustment_type === "credit"
-          ? (a.change_amount || 0)
-          : a.adjustment_type === "debit"
-            ? -(a.change_amount || 0)
-            : 0;
+        const delta = adjustmentDueDelta(a);
         adjByStudent.set(a.student_id, (adjByStudent.get(a.student_id) || 0) + delta);
       });
 
@@ -406,7 +402,7 @@ const FeeCollection = () => {
         supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
         // Fetch balance adjustments (audit log) — these reduce/increase the displayed due
         (supabase.from("student_balance_audit" as any) as any)
-          .select("student_id, adjustment_type, change_amount, academic_year_id")
+          .select("student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", activeYear.id)
           .in("student_id", studentIds)
@@ -459,15 +455,13 @@ const FeeCollection = () => {
           latePrevPaidByStudent.get(student.id) || 0,
           student.fees_opening_is_net === true
         );
-        // Apply balance adjustments from audit log:
-        //  - 'credit' increases due, 'debit' reduces due
+        // Apply balance adjustments from audit log (credit / debit / set → new−old).
         // Already year-scoped in the query
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
-        const adjustmentNet = studentAdjustments.reduce((sum: number, a: any) => {
-          if (a.adjustment_type === 'credit') return sum + (a.change_amount || 0);
-          if (a.adjustment_type === 'debit')  return sum - (a.change_amount || 0);
-          return sum;
-        }, 0);
+        const adjustmentNet = studentAdjustments.reduce(
+          (sum: number, a: any) => sum + adjustmentDueDelta(a),
+          0
+        );
 
         // Liability rule:
         // - New admission: use closing_fees_balance entered during admission

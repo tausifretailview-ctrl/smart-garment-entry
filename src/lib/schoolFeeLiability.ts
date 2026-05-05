@@ -19,3 +19,17 @@ export function resolveLiability(
   if (isLegacy2025 && importedBalance > 0 && expected <= 0) return importedBalance;
   return importedBalance;
 }
+
+/** Signed effect on pending due for one `student_balance_audit` row (credit +, debit −, set = new−old). */
+export function adjustmentDueDelta(a: {
+  adjustment_type: string;
+  change_amount?: number | null;
+  old_balance?: number | null;
+  new_balance?: number | null;
+}): number {
+  const t = a.adjustment_type;
+  if (t === "credit") return Number(a.change_amount || 0);
+  if (t === "debit") return -Number(a.change_amount || 0);
+  if (t === "set") return Number(a.new_balance ?? 0) - Number(a.old_balance ?? 0);
+  return 0;
+}

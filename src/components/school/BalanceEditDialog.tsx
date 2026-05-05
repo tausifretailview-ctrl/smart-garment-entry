@@ -17,6 +17,26 @@ import { recordStudentFeeAdjustmentJournalEntry } from "@/utils/accounting/journ
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
+/** Older DBs may not have journal_* columns on student_balance_audit; PostgREST returns a schema-cache error. */
+function isJournalAuditColumnsUnsupportedError(err: { message?: string } | null): boolean {
+  const m = (err?.message || "").toLowerCase();
+  return (
+    m.includes("journal_status") ||
+    m.includes("journal_entry_id") ||
+    m.includes("schema cache")
+  );
+}
+
+async function patchStudentBalanceAuditJournalMeta(
+  adjustmentId: string,
+  patch: { journal_status: string; journal_entry_id: string | null }
+) {
+  const { error } = await supabase.from("student_balance_audit").update(patch as any).eq("id", adjustmentId);
+  if (error && !isJournalAuditColumnsUnsupportedError(error)) {
+    console.warn("[BalanceEditDialog] student_balance_audit journal meta:", error.message);
+  }
+}
+
 interface BalanceEditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -203,7 +223,6 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
         voucher_number: voucherNumber,
         academic_year_id: currentYear?.id || null,
         created_at: new Date().toISOString(),
-        journal_status: "pending" as const,
       };
 
       const { data: inserted, error: auditErr } = await supabase
@@ -253,17 +272,17 @@ export const BalanceEditDialog = ({ open, onOpenChange, student }: BalanceEditDi
             })
             .eq("id", student.id);
         }
-        await supabase
-          .from("student_balance_audit")
-          .update({ journal_status: "error", journal_entry_id: null } as any)
-          .eq("id", adjustmentId);
+        await patchStudentBalanceAuditJournalMeta(adjustmentId, {
+          journal_status: "error",
+          journal_entry_id: null,
+        });
         throw glErr;
       }
 
-      await supabase
-        .from("student_balance_audit")
-        .update({ journal_status: journalStatus, journal_entry_id: journalEntryId } as any)
-        .eq("id", adjustmentId);
+      await patchStudentBalanceAuditJournalMeta(adjustmentId, {
+        journal_status: journalStatus,
+        journal_entry_id: journalEntryId,
+      });
 
       return {
         ...auditRecord,

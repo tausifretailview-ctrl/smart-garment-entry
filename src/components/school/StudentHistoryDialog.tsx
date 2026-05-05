@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, GraduationCap, IndianRupee, Receipt } from "lucide-react";
 import { format } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { resolveLiability } from "@/lib/schoolFeeLiability";
+import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
 
 interface StudentHistoryDialogProps {
   open: boolean;
@@ -188,9 +188,7 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   const adjustmentNet = (adjustmentLog || []).reduce((sum: number, adj: any) => {
     const rc = adj.reason_code as string | undefined;
     if (rc === "receipt_deleted" || rc === "receipt_modified") return sum;
-    if (adj.adjustment_type === "credit") return sum + (adj.change_amount || 0);
-    if (adj.adjustment_type === "debit") return sum - (adj.change_amount || 0);
-    return 0;
+    return sum + adjustmentDueDelta(adj);
   }, 0);
 
   const liability = resolveLiability(

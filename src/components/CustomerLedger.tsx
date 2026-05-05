@@ -759,8 +759,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               const adjAmount = Number(adj.change_amount || 0);
               const isCredit = adj.adjustment_type === "credit";
               const isDebit = adj.adjustment_type === "debit";
+              const isSet = adj.adjustment_type === "set";
               if (isCredit) rb -= adjAmount;
               else if (isDebit) rb += adjAmount;
+              else if (isSet) rb = Number(adj.old_balance ?? rb);
             }
           }
 
