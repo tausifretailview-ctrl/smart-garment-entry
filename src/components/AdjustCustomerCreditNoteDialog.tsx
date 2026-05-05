@@ -333,8 +333,16 @@ export function AdjustCustomerCreditNoteDialog({
 
     if (currentReturnError) throw currentReturnError;
 
+    const liveCn =
+      (currentReturn as any)?.credit_available_balance != null &&
+      !Number.isNaN(Number((currentReturn as any).credit_available_balance))
+        ? Math.max(0, Number((currentReturn as any).credit_available_balance))
+        : Math.max(0, Number((currentReturn as any)?.net_amount ?? creditAmount));
+
     const status = String((currentReturn as any)?.credit_status || "");
-    if (["adjusted", "refunded", "adjusted_outstanding"].includes(status)) {
+    const hasNoCreditLeft = liveCn <= 0.01;
+    // Only block truly terminal cases. A partially adjusted return can still be refunded/allocated.
+    if (status === "refunded" || (["adjusted", "adjusted_outstanding"].includes(status) && hasNoCreditLeft)) {
       toast({
         title: "Already Adjusted",
         description: "This return cannot be adjusted in this way anymore.",
@@ -342,12 +350,6 @@ export function AdjustCustomerCreditNoteDialog({
       });
       return;
     }
-
-    const liveCn =
-      (currentReturn as any)?.credit_available_balance != null &&
-      !Number.isNaN(Number((currentReturn as any).credit_available_balance))
-        ? Math.max(0, Number((currentReturn as any).credit_available_balance))
-        : Math.max(0, Number((currentReturn as any)?.net_amount ?? creditAmount));
 
     if (adjustmentType === "invoice") {
       if (overAllocated || totalAllocated <= 0.01) {
