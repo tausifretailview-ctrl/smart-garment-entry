@@ -96,6 +96,8 @@ const menuStructure = [
       { id: "net_profit_analysis", name: "Net Profit Analysis" },
       { id: "hourly_sales_analysis", name: "Hourly Sales Analysis" },
       { id: "customer_ledger", name: "Customer Ledger" },
+      { id: "customer_account_statement", name: "Customer Account Statement" },
+      { id: "customer_audit_report", name: "Customer Audit Report" },
     ],
   },
   {
@@ -249,6 +251,8 @@ const defaultManagerPermissions: Record<string, boolean> = {
   net_profit_analysis: true,
   hourly_sales_analysis: true,
   customer_ledger: true,
+  customer_account_statement: true,
+  customer_audit_report: true,
   delivery_dashboard: true,
   delivery_update: true,
   delivery_whatsapp: true,
@@ -362,6 +366,13 @@ const UserRights = () => {
     if (userPermissions?.permissions) {
       const perms = userPermissions.permissions as Record<string, any>;
       const menuPerms = perms.menu || (selectedUserRole === 'manager' ? defaultManagerPermissions : defaultBasicPermissions);
+      // Backward compatibility: older records used one key (`customer_ledger`) for all customer report screens.
+      if (menuPerms.customer_account_statement === undefined) {
+        menuPerms.customer_account_statement = !!menuPerms.customer_ledger;
+      }
+      if (menuPerms.customer_audit_report === undefined) {
+        menuPerms.customer_audit_report = !!menuPerms.customer_ledger;
+      }
       const mainMenus = perms.mainMenu || (selectedUserRole === 'manager' ? defaultManagerMainMenu : {});
       
       setPermissions(menuPerms);

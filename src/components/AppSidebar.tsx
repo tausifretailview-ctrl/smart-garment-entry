@@ -900,7 +900,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_account_statement") || hasMenuAccess("customer_ledger")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-account-statement")} className="text-slate-300 dark:text-slate-300 hover:text-white dark:hover:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/customer-account-statement" className="flex items-center gap-2 group">
@@ -910,7 +910,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("customer_ledger")) && (
+                        {(isAdminPermissions || hasMenuAccess("customer_audit_report") || hasMenuAccess("customer_ledger")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/customer-audit-report")} className="text-slate-300 dark:text-slate-300 hover:text-white dark:hover:text-white dark:hover:bg-[hsl(213,32%,22%)] data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-semibold">
                               <NavLink to="/customer-audit-report" className="flex items-center gap-2 group" title="Verified customer outstanding balance">
