@@ -309,10 +309,11 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .eq("academic_year_id", usedYear.id)
           .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
-        const adjustmentNet = (adjRowsNew || []).reduce(
-          (sum: number, a: any) => sum + adjustmentDueDelta(a),
-          0
-        );
+        // No active structures: BalanceEditDialog mutated closing_fees_balance directly,
+        // so the audit row's delta is already baked into importedEff. Re-applying it
+        // would double-count (e.g. set 34716→6720 would push due to 0).
+        const adjustmentNet = 0;
+        void adjRowsNew;
 
         const liability = resolveLiability(
           { ...student, closing_fees_balance: importedEff },
@@ -409,10 +410,9 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
           .eq("academic_year_id", usedYear.id)
           .not("reason_code", "in", "(receipt_deleted,receipt_modified)");
 
-        const adjustmentNetImp = (adjRowsImp || []).reduce(
-          (sum: number, a: any) => sum + adjustmentDueDelta(a),
-          0
-        );
+        // Same reason as above — no-structure path: skip audit deltas to avoid double-count.
+        const adjustmentNetImp = 0;
+        void adjRowsImp;
 
         const totalPaidInYear = (payments || []).reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
         const liabilityImp = resolveLiability(
