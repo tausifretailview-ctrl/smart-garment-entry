@@ -118,6 +118,7 @@ interface CartItem {
   productType?: string; // Track product type to handle service items differently
   isDcProduct?: boolean; // DC (Direct Cash) product flag
   uom?: string;
+  showDiscount?: boolean;
 }
 
 /** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
@@ -555,6 +556,7 @@ export default function POSSales() {
 
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  const posBarcodePriceMode: 'mrp' | 'sale_price' = _posSaleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price';
   const posBillFormat: 'a4' | 'a5' | 'a5-horizontal' | 'thermal' =
     (_posSaleSettings.pos_bill_format as 'a4' | 'a5' | 'a5-horizontal' | 'thermal') || 'thermal';
   const posInvoiceTemplate: 'professional' | 'modern' | 'classic' | 'compact' =
@@ -1534,7 +1536,8 @@ export default function POSSales() {
       // Clear input immediately for fast scanning UX
       setSearchInput("");
       // Await stock check before adding - prevents out-of-stock items from being added
-      await addItemToCart(foundProduct, foundVariant);
+      const isBarcodeMatch = (foundVariant?.barcode || '').toLowerCase() === searchTerm.toLowerCase();
+      await addItemToCart(foundProduct, foundVariant, undefined, isBarcodeMatch ? 'barcode' : 'manual');
     } else {
       // Not found in local cache (or cache not loaded yet) — search DB directly
       if (currentOrganization?.id) {
@@ -1556,7 +1559,8 @@ export default function POSSales() {
           // If product has stock, add it to cart directly (cache miss recovery)
           if (stockQty > 0 || prod.product_type === 'service' || prod.product_type === 'combo') {
             setSearchInput("");
-            await addItemToCart(prod, dbVariant);
+            const isBarcodeMatch = (dbVariant?.barcode || '').toLowerCase() === searchTerm.toLowerCase();
+            await addItemToCart(prod, dbVariant, undefined, isBarcodeMatch ? 'barcode' : 'manual');
             return;
           }
           
@@ -1586,7 +1590,7 @@ export default function POSSales() {
             const match = nameResults[0];
             const prod = (match as any).products;
             setSearchInput("");
-            await addItemToCart(prod, match);
+            await addItemToCart(prod, match, undefined, 'manual');
             return;
           }
         }
@@ -1613,7 +1617,7 @@ export default function POSSales() {
               const prod = (variant as any).products;
               setSearchInput("");
               const variantWithIMEI = { ...variant, barcode: searchTerm };
-              await addItemToCart(prod, variantWithIMEI);
+              await addItemToCart(prod, variantWithIMEI, undefined, 'barcode');
               return;
             }
           }
@@ -1715,7 +1719,12 @@ export default function POSSales() {
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
   }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd, bumpCartHighlight]);
 
-  const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
+  const addItemToCart = async (
+    product: any,
+    variant: any,
+    overridePrice?: { sale_price: number; mrp: number },
+    addSource: 'manual' | 'barcode' = 'manual'
+  ) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
     // This is essential for saree shops where each piece has different MRP
     const isServiceProduct = product.product_type === 'service';
@@ -1799,6 +1808,8 @@ export default function POSSales() {
       // Use override price or master price
       const salePrice = overridePrice?.sale_price ?? masterSalePrice;
       const mrpToUse = overridePrice?.mrp ?? masterMrp;
+      const shouldApplyBarcodeMode = addSource === 'barcode' && ((settingsData as any)?.purchase_settings?.show_mrp === true);
+      const useMrpAsPrice = shouldApplyBarcodeMode && posBarcodePriceMode === 'mrp';
       
       // Build product description: name-category-style,brand-color
       const descriptionParts = [product.product_name];
@@ -1848,9 +1859,9 @@ export default function POSSales() {
         mrp: displayMrp,
         originalMrp: mrpToUse,
         gstPer: applyGarmentGstRule(displayMrp, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
-        discountPercent,
+        discountPercent: useMrpAsPrice ? 0 : discountPercent,
         discountAmount,
-        unitCost: displayMrp,
+        unitCost: useMrpAsPrice ? displayMrp : salePrice,
         netAmount: 0,
         productId: product.id,
         variantId: variant.id,
@@ -1858,6 +1869,7 @@ export default function POSSales() {
         productType: product.product_type,
         isDcProduct: variant.is_dc_product === true,
         uom: product.uom || 'NOS',
+        showDiscount: !useMrpAsPrice && displayMrp > salePrice,
       };
       newItem.netAmount = calculatePosCartLineNet(newItem);
       hasManuallyAddedNewItemRef.current = true;
@@ -1882,7 +1894,7 @@ export default function POSSales() {
   const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
     if (pendingPriceSelection) {
       hasManuallyAddedNewItemRef.current = true;
-      addItemToCart(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
+      addItemToCart(pendingPriceSelection.product, pendingPriceSelection.variant, prices, 'manual');
       setPendingPriceSelection(null);
       setShowPriceSelectionDialog(false);
     }
@@ -3947,7 +3959,9 @@ export default function POSSales() {
               rate: posLineNetUnitPrice(item),
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
-              discountPercent: item.discountPercent || 0,
+              discountPercent: item.showDiscount && (item.originalMrp || item.mrp) > posLineNetUnitPrice(item)
+                ? Number((((((item.originalMrp || item.mrp) - posLineNetUnitPrice(item)) / (item.originalMrp || item.mrp)) * 100).toFixed(2)))
+                : (item.discountPercent || 0),
               uom: item.uom || 'NOS',
             })) : items.map((item, index) => ({
               sr: index + 1,
@@ -3962,7 +3976,9 @@ export default function POSSales() {
               rate: posLineNetUnitPrice(item),
               total: item.netAmount,
               gstPercent: item.gstPer || 0,
-              discountPercent: item.discountPercent || 0,
+              discountPercent: item.showDiscount && (item.originalMrp || item.mrp) > posLineNetUnitPrice(item)
+                ? Number((((((item.originalMrp || item.mrp) - posLineNetUnitPrice(item)) / (item.originalMrp || item.mrp)) * 100).toFixed(2)))
+                : (item.discountPercent || 0),
               uom: item.uom || 'NOS',
             }))}
             subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}

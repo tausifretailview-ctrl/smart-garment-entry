@@ -123,6 +123,7 @@ interface EInvoiceSettings {
 
 interface SaleSettings {
   enable_customer_price_memory?: boolean; // Customer-wise sale price memory
+  pos_barcode_price_mode?: 'mrp' | 'sale_price';
   default_discount?: number;
   payment_methods?: string[];
   default_payment_method?: string;
@@ -1844,6 +1845,45 @@ export default function Settings() {
                   When enabled, MRP field will be shown in Product Entry, Sales, POS, Reports and Print invoices. 
                   Discount will be calculated as MRP - Sale Price.
                 </p>
+
+                {settings.purchase_settings?.show_mrp && (
+                  <div className="mt-4 ml-6 rounded-lg border p-3 space-y-2 bg-muted/20">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          POS Barcode Scan - Use MRP as Price
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enabled: barcode scan adds MRP as selling price with no discount shown. Disabled:
+                          scan adds Sale Price and shows MRP vs Sale Price discount on POS.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={(settings.sale_settings?.pos_barcode_price_mode || 'sale_price') === 'mrp'}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              pos_barcode_price_mode: checked ? 'mrp' : 'sale_price',
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="rounded-md bg-background p-2 text-xs">
+                      {(settings.sale_settings?.pos_barcode_price_mode || 'sale_price') === 'mrp' ? (
+                        <span className="text-blue-600">
+                          Scan barcode -> MRP added as price, no discount displayed.
+                        </span>
+                      ) : (
+                        <span className="text-green-600">
+                          Scan barcode -> Sale Price added, MRP discount is shown.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Switch
