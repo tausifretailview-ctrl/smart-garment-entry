@@ -20,7 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -664,6 +664,12 @@ export default function AccountingReports() {
               </Link>
             </Button>
             <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/customer-audit-report")} className="gap-1.5 inline-flex items-center">
+                <ShieldCheck className="h-4 w-4" />
+                Customer audit report
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
               <Link to={getOrgPath("/gst-reports")} className="gap-1.5 inline-flex items-center">
                 <Calculator className="h-4 w-4" />
                 GST reports
@@ -683,6 +689,10 @@ export default function AccountingReports() {
             <li>
               <span className="font-medium text-foreground">Customer account statement</span> ties receivables to invoices
               and receipts—use it when operational AR does not match a debtor ledger in Tally.
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Customer audit report</span> recalculates outstanding without
+              double-counting advance-application receipts—use it to verify the account statement.
             </li>
             <li>
               <span className="font-medium text-foreground">Daily cash tally</span> records physical cash vs expected drawer

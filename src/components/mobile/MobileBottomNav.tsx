@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
     icon: Wallet, 
     label: "Accounts", 
     path: "/mobile-accounts",
-    matchPaths: ["/mobile-accounts", "/accounts", "/payments-dashboard", "/customer-ledger-report"]
+    matchPaths: ["/mobile-accounts", "/accounts", "/payments-dashboard", "/customer-ledger-report", "/customer-audit-report"]
   },
   { 
     icon: MoreHorizontal, 

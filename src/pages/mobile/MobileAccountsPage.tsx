@@ -1,7 +1,7 @@
 import { MobileAccountsSummary } from "@/components/mobile/MobileAccountsSummary";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ChevronRight, ArrowDownLeft, ArrowUpRight, BookOpen, Building2, Users, Receipt } from "lucide-react";
+import { ChevronRight, ArrowDownLeft, ArrowUpRight, BookOpen, Building2, Users, Receipt, ShieldCheck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ export default function MobileAccountsPage() {
     { icon: ArrowDownLeft, label: "Receive Payment", nav: "/accounts", color: "text-emerald-500", bg: "bg-emerald-50", desc: "Record customer receipt" },
     { icon: ArrowUpRight, label: "Make Payment", nav: "/accounts", color: "text-rose-500", bg: "bg-rose-50", desc: "Record supplier payment" },
     { icon: BookOpen, label: "Customer Ledger", nav: "/customer-ledger-report", color: "text-purple-500", bg: "bg-purple-50", desc: "Full transaction log" },
+    { icon: ShieldCheck, label: "Customer Audit", nav: "/customer-audit-report", color: "text-violet-500", bg: "bg-violet-50", desc: "Verified outstanding balance" },
     { icon: Building2, label: "Supplier Ledger", nav: "/accounts", color: "text-orange-500", bg: "bg-orange-50", desc: "Payables & payments" },
     { icon: Users, label: "Customers", nav: "/customers", color: "text-blue-500", bg: "bg-blue-50", desc: "Customer master" },
     { icon: Receipt, label: "Payment History", nav: "/payments-dashboard", color: "text-teal-500", bg: "bg-teal-50", desc: "All voucher entries" },

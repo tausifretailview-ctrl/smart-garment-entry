@@ -11,7 +11,8 @@ import {
   FileText,
   Building2,
   Receipt,
-  TrendingUp
+  TrendingUp,
+  ShieldCheck
 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,6 +78,7 @@ export default function MobileReportsHub() {
       color: "text-purple-500",
       reports: [
         { icon: TrendingUp, label: "Profit Analysis", path: "/net-profit-analysis", desc: "Gross/Net profit" },
+        { icon: ShieldCheck, label: "Customer Audit", path: "/customer-audit-report", desc: "Verified customer outstanding" },
         { icon: Receipt, label: "GST Report", path: "/gst-reports", desc: "GST summaries" },
       ]
     },
