@@ -57,6 +57,14 @@ export const computeCustomerOutstanding = (params: {
     )
     .reduce((sum, v) => sum + voucherCredit(v), 0);
 
+  const customerPaymentDebits = params.voucherEntries
+    .filter(
+      (v) =>
+        String(v.voucher_type || "").toLowerCase() === "payment" &&
+        String(v.reference_type || "").toLowerCase() === "customer",
+    )
+    .reduce((sum, v) => sum + Math.max(0, Number(v.total_amount || 0)), 0);
+
   const totalRealPayments = receiptCredits + creditNoteCredits;
 
   const totalAdvanceReceived = params.customerAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
@@ -75,6 +83,7 @@ export const computeCustomerOutstanding = (params: {
     totalInvoiced -
     totalSaleReturnAdjust -
     totalRealPayments -
+    customerPaymentDebits +
     totalAdvanceUsed -
     unusedAdvance;
   // Applied + unused (net of refunds) = customer prepayments that reduce receivables.
@@ -87,6 +96,7 @@ export const computeCustomerOutstanding = (params: {
     totalRealPayments,
     receiptCredits,
     creditNoteCredits,
+    customerPaymentDebits,
     totalAdvanceReceived,
     totalAdvanceUsed,
     unusedAdvance,

@@ -1161,7 +1161,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Merge invoice payments and opening balance payments
       // Exclude payment-type (refund) vouchers for sale returns — they are already
       // represented by the Sale Return entry with "(Cash Refunded)" label
-      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
+      let allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
         .filter((v: any) => {
           // Keep all receipt vouchers EXCEPT credit note adjustments linked to sale returns
           if (v.voucher_type === 'receipt') {
@@ -1171,14 +1171,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               return false;
             }
             return true;
-          }
-          // For payment vouchers (refunds to customer): exclude sale return refunds
-          // as the sale_returns entry already shows the credit with "(Cash Refunded)"
-          if (v.voucher_type === 'payment' && v.reference_type === 'customer') {
-            const desc = (v.description || '').toLowerCase();
-            if (desc.includes('refund paid for sale return') || desc.includes('refund for sale return')) {
-              return false;
-            }
           }
           return true;
         });
@@ -1236,6 +1228,36 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       const { data: saleReturnsData, error: saleReturnsError } = await saleReturnsQuery.order("return_date", { ascending: true });
       if (saleReturnsError) throw saleReturnsError;
+
+      // Include sale-return refund payment vouchers even when they still point to an old/orphan customer_id.
+      // We map by return_number mentioned in voucher description.
+      const returnNumbers = (saleReturnsData || [])
+        .map((sr: any) => String(sr.return_number || "").trim())
+        .filter(Boolean);
+      if (returnNumbers.length > 0) {
+        const orFilter = returnNumbers
+          .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
+          .join(",");
+        if (orFilter) {
+          const { data: saleReturnRefundVouchers } = await supabase
+            .from("voucher_entries")
+            .select("*")
+            .eq("organization_id", organizationId)
+            .eq("voucher_type", "payment")
+            .eq("reference_type", "customer")
+            .is("deleted_at", null)
+            .or(orFilter)
+            .order("voucher_date", { ascending: true });
+
+          if (saleReturnRefundVouchers?.length) {
+            const byId = new Map<string, any>();
+            [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
+              if (v?.id) byId.set(v.id, v);
+            });
+            allVouchers = Array.from(byId.values());
+          }
+        }
+      }
 
       // Get linked sale numbers for display
       const linkedSaleIds = (saleReturnsData || []).filter((sr: any) => sr.linked_sale_id).map((sr: any) => sr.linked_sale_id);

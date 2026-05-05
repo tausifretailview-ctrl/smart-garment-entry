@@ -312,6 +312,14 @@ export default function CustomerAuditReport() {
 
       const saleIds = (allSales || []).map((s: { id: string }) => s.id).filter(Boolean);
 
+      const { data: saleReturns, error: srErr } = await supabase
+        .from("sale_returns")
+        .select("id, return_number, return_date, net_amount, credit_status, notes")
+        .eq("customer_id", custId)
+        .eq("organization_id", orgId)
+        .is("deleted_at", null);
+      if (srErr) throw srErr;
+
       let veCustQ = supabase
         .from("voucher_entries")
         .select(
@@ -325,6 +333,32 @@ export default function CustomerAuditReport() {
 
       const { data: vouchersCustomer, error: veCustErr } = await veCustQ;
       if (veCustErr) throw veCustErr;
+
+      // Legacy safety: refund vouchers for sale returns may still reference an old/orphan customer_id.
+      // Pull them by matching SR number in description.
+      let vouchersRefundBySr: any[] = [];
+      const returnNumbers = (saleReturns || [])
+        .map((sr: any) => String(sr.return_number || "").trim())
+        .filter(Boolean);
+      if (returnNumbers.length > 0) {
+        const orFilter = returnNumbers
+          .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
+          .join(",");
+        if (orFilter) {
+          const { data: vr, error: vrErr } = await supabase
+            .from("voucher_entries")
+            .select(
+              "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method",
+            )
+            .eq("organization_id", orgId)
+            .eq("voucher_type", "payment")
+            .eq("reference_type", "customer")
+            .is("deleted_at", null)
+            .or(orFilter);
+          if (vrErr) throw vrErr;
+          vouchersRefundBySr = vr || [];
+        }
+      }
 
       let vouchersSale: any[] = [];
       if (saleIds.length > 0) {
@@ -343,18 +377,10 @@ export default function CustomerAuditReport() {
       }
 
       const voucherById = new Map<string, any>();
-      for (const v of [...(vouchersCustomer || []), ...vouchersSale]) {
+      for (const v of [...(vouchersCustomer || []), ...vouchersSale, ...vouchersRefundBySr]) {
         voucherById.set(v.id, v);
       }
       const vouchersMerged = Array.from(voucherById.values());
-
-      const { data: saleReturns, error: srErr } = await supabase
-        .from("sale_returns")
-        .select("id, return_number, return_date, net_amount, credit_status, notes")
-        .eq("customer_id", custId)
-        .eq("organization_id", orgId)
-        .is("deleted_at", null);
-      if (srErr) throw srErr;
 
       const { data: advances, error: advErr } = await supabase
         .from("customer_advances")
@@ -477,6 +503,7 @@ export default function CustomerAuditReport() {
     rows.push(["Sale return adjust (on invoices)", -math.totalSaleReturnAdjust]);
     rows.push(["Net Invoiced", netInvoiced]);
     rows.push(["Receipts (excl. Adv Adj)", -math.receiptCredits]);
+    rows.push(["Payments / Refunds to customer", math.customerPaymentDebits]);
     rows.push(["Credit notes", -math.creditNoteCredits]);
     rows.push(["Advance applied to invoices", -math.totalAdvanceUsed]);
     rows.push(["Unused advance (net)", -math.unusedAdvance]);
@@ -780,6 +807,10 @@ export default function CustomerAuditReport() {
                   <p className="text-[11px] text-muted-foreground pl-0">
                     Excludes advance-application receipts (Adv Adj).
                   </p>
+                  <div className="flex justify-between gap-4">
+                    <span>(+) Payments / Refunds to Customer</span>
+                    <span>₹ {fmt(math.customerPaymentDebits)}</span>
+                  </div>
                   <div className="flex justify-between gap-4">
                     <span>(-) Credit notes (customer)</span>
                     <span>₹ {fmt(math.creditNoteCredits)}</span>
