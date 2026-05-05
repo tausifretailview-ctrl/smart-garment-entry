@@ -455,13 +455,22 @@ const FeeCollection = () => {
           latePrevPaidByStudent.get(student.id) || 0,
           student.fees_opening_is_net === true
         );
+        const classStructuresCount = classStructures.length;
+        const hasActiveStructures = classStructuresCount > 0 && totalExpected > 0;
         // Apply balance adjustments from audit log (credit / debit / set → new−old).
-        // Already year-scoped in the query
+        // IMPORTANT: For students WITHOUT an active fee structure, BalanceEditDialog
+        // mutates students.closing_fees_balance DIRECTLY to the new due value.
+        // The audit row exists only for ledger/history visibility — re-applying its
+        // delta here would double-count the adjustment (e.g. a "set 34716 → 6720"
+        // would push the displayed due to 0). So we only honour audit deltas when
+        // a fee structure is present (where closing_fees_balance stays as opening).
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
-        const adjustmentNet = studentAdjustments.reduce(
-          (sum: number, a: any) => sum + adjustmentDueDelta(a),
-          0
-        );
+        const adjustmentNet = hasActiveStructures
+          ? studentAdjustments.reduce(
+              (sum: number, a: any) => sum + adjustmentDueDelta(a),
+              0
+            )
+          : 0;
 
         // Liability rule:
         // - New admission: use closing_fees_balance entered during admission
@@ -471,7 +480,7 @@ const FeeCollection = () => {
         const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
-        const hasStructures = classStructures.length > 0 && totalExpected > 0;
+        const hasStructures = hasActiveStructures;
         const effectiveExpected = totalDueGross; // shown in "Total Fees" column
         const effectiveStatus = resolveFeeStatus(totalDue, totalPaid, effectiveExpected);
 
