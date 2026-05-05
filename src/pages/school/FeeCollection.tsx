@@ -271,7 +271,7 @@ const FeeCollection = () => {
               .in("status", ["paid", "partial"])
               .gt("paid_amount", 0),
             (supabase.from("student_balance_audit" as any) as any)
-              .select("student_id, adjustment_type, change_amount, old_balance, new_balance")
+              .select("student_id, adjustment_type, change_amount, old_balance, new_balance, created_at, reason_code")
               .eq("organization_id", currentOrganization!.id)
               .eq("academic_year_id", activeYear.id)
               .in("student_id", studentIdList)
@@ -402,7 +402,7 @@ const FeeCollection = () => {
         supabase.from("student_fees").select("student_id, paid_amount, fee_head_id, academic_year_id, status").eq("organization_id", currentOrganization.id).eq("academic_year_id", activeYear.id).in("student_id", studentIds).in("status", ["paid", "partial"]).gt("paid_amount", 0),
         // Fetch balance adjustments (audit log) — these reduce/increase the displayed due
         (supabase.from("student_balance_audit" as any) as any)
-          .select("student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id")
+          .select("student_id, adjustment_type, change_amount, old_balance, new_balance, academic_year_id, created_at, reason_code")
           .eq("organization_id", currentOrganization.id)
           .eq("academic_year_id", activeYear.id)
           .in("student_id", studentIds)
