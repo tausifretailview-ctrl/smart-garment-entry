@@ -323,9 +323,10 @@ const FeeCollection = () => {
       });
 
       const adjByStudent = new Map<string, number>();
+      const auditsByStudent = new Map<string, any[]>();
       (allAdjustments as any[]).forEach((a: any) => {
-        const delta = adjustmentDueDelta(a);
-        adjByStudent.set(a.student_id, (adjByStudent.get(a.student_id) || 0) + delta);
+        if (!auditsByStudent.has(a.student_id)) auditsByStudent.set(a.student_id, []);
+        auditsByStudent.get(a.student_id)!.push(a);
       });
 
       // Aggregate pending:
