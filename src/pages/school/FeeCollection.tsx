@@ -469,18 +469,21 @@ const FeeCollection = () => {
         // would push the displayed due to 0). So we only honour audit deltas when
         // a fee structure is present (where closing_fees_balance stays as opening).
         const studentAdjustments = allAdjustments.filter((a: any) => a.student_id === student.id);
-        const adjustmentNet = hasActiveStructures
-          ? studentAdjustments.reduce(
-              (sum: number, a: any) => sum + adjustmentDueDelta(a),
-              0
-            )
-          : 0;
+        // "Set" balance entries are authoritative overrides — see computeEffectivePendingDue.
+        // For students WITHOUT an active structure, BalanceEditDialog mutates
+        // students.closing_fees_balance directly, so we still skip audit deltas there
+        // to avoid double-counting.
+        const liability0 = resolveLiability({ ...student, closing_fees_balance: importedBalance }, totalExpected, activeYear?.year_name);
+        const dueGross = hasActiveStructures && studentAdjustments.length > 0
+          ? computeEffectivePendingDue(liability0, studentAdjustments)
+          : liability0;
+        const adjustmentNet = dueGross - liability0;
 
         // Liability rule:
         // - New admission: use closing_fees_balance entered during admission
         // - Promoted/existing student: use yearly fee structure
-        const liability = resolveLiability({ ...student, closing_fees_balance: importedBalance }, totalExpected, activeYear?.year_name);
-        const totalDueGross = liability + adjustmentNet;
+        const liability = liability0;
+        const totalDueGross = dueGross;
         const totalPaid = paidTotal;
         const totalDue = Math.max(0, totalDueGross - totalPaid);
 
