@@ -21,7 +21,7 @@ import { ModifyFeeReceiptDialog } from "@/components/school/ModifyFeeReceiptDial
 import { toast } from "sonner";
 import { format, startOfDay, endOfDay, startOfMonth, startOfQuarter, startOfYear, subDays } from "date-fns";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
-import { adjustmentDueDelta, resolveLiability } from "@/lib/schoolFeeLiability";
+import { adjustmentDueDelta, computeEffectivePendingDue, resolveLiability } from "@/lib/schoolFeeLiability";
 import {
   buildFeeReceiptWhatsAppMessage,
   computeYearWiseFeeBalances,
