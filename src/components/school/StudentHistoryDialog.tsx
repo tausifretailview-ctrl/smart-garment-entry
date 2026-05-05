@@ -185,11 +185,16 @@ export function StudentHistoryDialog({ open, onOpenChange, student }: StudentHis
   const realPayments = allRealPayments;
   const totalPaid = realPayments.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0);
 
-  const adjustmentNet = (adjustmentLog || []).reduce((sum: number, adj: any) => {
-    const rc = adj.reason_code as string | undefined;
-    if (rc === "receipt_deleted" || rc === "receipt_modified") return sum;
-    return sum + adjustmentDueDelta(adj);
-  }, 0);
+  // When no fee structure exists, BalanceEditDialog has already mutated
+  // students.closing_fees_balance directly to reflect the new due. Re-applying
+  // the audit row's delta here would double-count (e.g. set 34716→6720 → 0).
+  const adjustmentNet = hasStructures
+    ? (adjustmentLog || []).reduce((sum: number, adj: any) => {
+        const rc = adj.reason_code as string | undefined;
+        if (rc === "receipt_deleted" || rc === "receipt_modified") return sum;
+        return sum + adjustmentDueDelta(adj);
+      }, 0)
+    : 0;
 
   const liability = resolveLiability(
     { ...student, closing_fees_balance: importedEff },
