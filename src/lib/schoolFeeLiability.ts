@@ -33,3 +33,47 @@ export function adjustmentDueDelta(a: {
   if (t === "set") return Number(a.new_balance ?? 0) - Number(a.old_balance ?? 0);
   return 0;
 }
+
+/**
+ * Compute the effective pending-due (BEFORE this-year payments) given a base liability
+ * and the audit log for the year. "Set" entries are treated as authoritative overrides:
+ * the latest "set" replaces the liability + all prior credits/debits. Subsequent
+ * credits/debits are then layered on top.
+ *
+ * Pass audits in any order — they're sorted internally by created_at ascending.
+ */
+export function computeEffectivePendingDue(
+  baseLiability: number,
+  audits: Array<{
+    adjustment_type: string;
+    change_amount?: number | null;
+    old_balance?: number | null;
+    new_balance?: number | null;
+    created_at?: string | null;
+    reason_code?: string | null;
+  }>
+): number {
+  const sorted = [...(audits || [])]
+    .filter(
+      (a) => a.reason_code !== "receipt_deleted" && a.reason_code !== "receipt_modified"
+    )
+    .sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return ta - tb;
+    });
+
+  let due = Number(baseLiability) || 0;
+  for (const a of sorted) {
+    const t = a.adjustment_type;
+    if (t === "set") {
+      // Authoritative override — clears liability + prior adjustments.
+      due = Number(a.new_balance ?? 0);
+    } else if (t === "credit") {
+      due += Number(a.change_amount || 0);
+    } else if (t === "debit") {
+      due -= Number(a.change_amount || 0);
+    }
+  }
+  return Math.round(due * 100) / 100;
+}
