@@ -865,6 +865,14 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleSaveInner = async () => {
+    const isMissingDcColumnError = (err: any) => {
+      const msg = (err?.message || String(err || "")).toLowerCase();
+      return msg.includes("is_dc") && (msg.includes("column") || msg.includes("schema cache"));
+    };
+
+    const stripIsDcFromItems = (items: Array<Record<string, any>>) =>
+      items.map(({ is_dc, ...rest }) => rest);
+
     if (!returnData.supplier_id) {
       toast({
         title: "Error",
@@ -892,23 +900,33 @@ const PurchaseReturnEntry = () => {
 
       if (isEditMode && editId) {
         // Update existing return
+        const updatePayload: any = {
+          supplier_id: returnData.supplier_id,
+          supplier_name: returnData.supplier_name,
+          original_bill_number: returnData.original_bill_number || null,
+          return_date: format(returnDate, "yyyy-MM-dd"),
+          gross_amount: grossAmount,
+          is_dc: isDC,
+          gst_amount: isDC ? 0 : gstAmount,
+          net_amount: isDC ? grossAmount - discountAmount : netAmount,
+          notes: returnData.notes || null,
+          payment_method: paymentMethodForReturnRow,
+        };
+
         const { error: updateError } = await supabase
           .from("purchase_returns" as any)
-          .update({
-            supplier_id: returnData.supplier_id,
-            supplier_name: returnData.supplier_name,
-            original_bill_number: returnData.original_bill_number || null,
-            return_date: format(returnDate, "yyyy-MM-dd"),
-            gross_amount: grossAmount,
-            is_dc: isDC,
-            gst_amount: isDC ? 0 : gstAmount,
-            net_amount: isDC ? grossAmount - discountAmount : netAmount,
-            notes: returnData.notes || null,
-            payment_method: paymentMethodForReturnRow,
-          })
+          .update(updatePayload)
           .eq("id", editId);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          if (!isMissingDcColumnError(updateError)) throw updateError;
+          const { is_dc, ...fallbackUpdatePayload } = updatePayload;
+          const { error: fallbackUpdateError } = await supabase
+            .from("purchase_returns" as any)
+            .update(fallbackUpdatePayload)
+            .eq("id", editId);
+          if (fallbackUpdateError) throw fallbackUpdateError;
+        }
 
         // Atomic update via RPC: pre-checks stock, then deletes + reinserts in one transaction
         const itemsPayload = lineItems.map((item) => buildPurchaseReturnItemPayload(item, isDC));
@@ -930,7 +948,7 @@ const PurchaseReturnEntry = () => {
             .from("purchase_return_items" as any)
             .update({ is_dc: isDC })
             .eq("return_id", editId);
-          if (itemsDcErr) throw itemsDcErr;
+          if (itemsDcErr && !isMissingDcColumnError(itemsDcErr)) throw itemsDcErr;
         }
 
         const { data: acctEditPr } = await supabase
@@ -990,39 +1008,62 @@ const PurchaseReturnEntry = () => {
         }
 
         // Insert new purchase return
-        const { data: returnRecord, error: returnError } = await supabase
+        const headerPayload: any = {
+          organization_id: currentOrganization?.id,
+          supplier_id: returnData.supplier_id,
+          supplier_name: returnData.supplier_name,
+          original_bill_number: returnData.original_bill_number || null,
+          return_date: format(returnDate, "yyyy-MM-dd"),
+          gross_amount: grossAmount,
+          is_dc: isDC,
+          gst_amount: isDC ? 0 : gstAmount,
+          net_amount: isDC ? grossAmount - discountAmount : netAmount,
+          notes: returnData.notes || null,
+          return_number: freshReturnNumber,
+          credit_status: "pending",
+          payment_method: paymentMethodForReturnRow,
+        };
+
+        let returnRecord: any = null;
+        const insertResult = await supabase
           .from("purchase_returns" as any)
-          .insert({
-            organization_id: currentOrganization?.id,
-            supplier_id: returnData.supplier_id,
-            supplier_name: returnData.supplier_name,
-            original_bill_number: returnData.original_bill_number || null,
-            return_date: format(returnDate, "yyyy-MM-dd"),
-            gross_amount: grossAmount,
-            is_dc: isDC,
-            gst_amount: isDC ? 0 : gstAmount,
-            net_amount: isDC ? grossAmount - discountAmount : netAmount,
-            notes: returnData.notes || null,
-            return_number: freshReturnNumber,
-            credit_status: "pending",
-            payment_method: paymentMethodForReturnRow,
-          })
+          .insert(headerPayload)
           .select()
           .single();
 
-        if (returnError) throw returnError;
+        if (insertResult.error) {
+          if (!isMissingDcColumnError(insertResult.error)) throw insertResult.error;
+          const { is_dc, ...fallbackHeaderPayload } = headerPayload;
+          const fallbackInsertResult = await supabase
+            .from("purchase_returns" as any)
+            .insert(fallbackHeaderPayload)
+            .select()
+            .single();
+          if (fallbackInsertResult.error) throw fallbackInsertResult.error;
+          returnRecord = fallbackInsertResult.data;
+        } else {
+          returnRecord = insertResult.data;
+        }
 
         // Insert return items
-        const itemsToInsert = lineItems.map((item) => ({
+        const itemsToInsertWithDc = lineItems.map((item) => ({
           return_id: (returnRecord as any).id,
           ...buildPurchaseReturnItemPayload(item, isDC),
         }));
 
-        const { error: itemsError } = await supabase
+        let { error: itemsError } = await supabase
           .from("purchase_return_items" as any)
-          .insert(itemsToInsert);
+          .insert(itemsToInsertWithDc);
 
-        if (itemsError) throw itemsError;
+        if (itemsError) {
+          if (!isMissingDcColumnError(itemsError)) throw itemsError;
+          const itemsToInsertWithoutDc = stripIsDcFromItems(itemsToInsertWithDc as any[]);
+          const fallbackItemsInsert = await supabase
+            .from("purchase_return_items" as any)
+            .insert(itemsToInsertWithoutDc as any);
+          itemsError = fallbackItemsInsert.error;
+          if (itemsError) throw itemsError;
+        }
 
         const prId = (returnRecord as unknown as { id: string }).id;
         const { data: acctPr } = await supabase
