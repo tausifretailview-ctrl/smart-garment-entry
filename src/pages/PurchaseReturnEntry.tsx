@@ -458,29 +458,13 @@ const PurchaseReturnEntry = () => {
     try {
       const variant = await handleBarcodeSearch(barcode);
       if (variant) {
-        // Stock validation: check if stock is available for purchase return
+        // Soft stock warnings only. Save-time DB trigger is authoritative.
         if ((variant.stock_qty || 0) <= 0) {
-          const currentItems = lineItemsRef.current;
-          const existingItem = currentItems.find(item => item.sku_id === variant.id);
-          if (!existingItem) {
-            setStockAlertMessage(`${variant.product_name} - ${variant.size} is out of stock. Cannot add to purchase return.`);
-            setStockAlertOpen(true);
-            setSearchQuery("");
-            setShowSearch(false);
-            setSearchResults([]);
-            barcodeScanner.reset();
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-            return;
-          }
-          const nextQty = existingItem.qty + 1;
-          if (nextQty > variant.stock_qty) {
-            setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
-            setStockAlertOpen(true);
-            setSearchQuery("");
-            barcodeScanner.reset();
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-            return;
-          }
+          toast({
+            title: "Low Stock Warning",
+            description: `${variant.product_name} - ${variant.size} has 0 stock. Return will be blocked by system if insufficient.`,
+            variant: "default",
+          });
         }
 
         const currentItems = lineItemsRef.current;
@@ -488,12 +472,11 @@ const PurchaseReturnEntry = () => {
         if (existingItem) {
           const nextQty = existingItem.qty + 1;
           if (nextQty > (variant.stock_qty || 0)) {
-            setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
-            setStockAlertOpen(true);
-            setSearchQuery("");
-            barcodeScanner.reset();
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-            return;
+            toast({
+              title: "Stock Warning",
+              description: `${variant.product_name}: Qty ${nextQty} exceeds current stock ${variant.stock_qty || 0}. System will validate on save.`,
+              variant: "default",
+            });
           }
           updateLineItem(existingItem.temp_id, "qty", nextQty);
           toast({
@@ -769,16 +752,18 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
-    // Stock validation for purchase return
+    // Soft stock warnings only. Save-time DB trigger is authoritative.
     const currentItems = lineItemsRef.current;
     const existingItem = currentItems.find(item => item.sku_id === variant.id);
     
     if (existingItem) {
       const nextQty = existingItem.qty + 1;
       if (nextQty > (variant.stock_qty || 0)) {
-        setStockAlertMessage(`${variant.product_name} - ${variant.size}: Only ${variant.stock_qty} units in stock. Cannot return more.`);
-        setStockAlertOpen(true);
-        return;
+        toast({
+          title: "Stock Warning",
+          description: `${variant.product_name}: Qty ${nextQty} exceeds current stock ${variant.stock_qty || 0}. System will validate on save.`,
+          variant: "default",
+        });
       }
       updateLineItem(existingItem.temp_id, "qty", nextQty);
       toast({
@@ -786,11 +771,13 @@ const PurchaseReturnEntry = () => {
         description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
       });
     } else {
-      // Check stock before adding new item
+      // Warn when stock is 0, but do not block adding.
       if ((variant.stock_qty || 0) <= 0) {
-        setStockAlertMessage(`${variant.product_name} - ${variant.size} is out of stock. Cannot add to purchase return.`);
-        setStockAlertOpen(true);
-        return;
+        toast({
+          title: "Low Stock Warning",
+          description: `${variant.product_name} - ${variant.size} has 0 stock. Return will be blocked by system if insufficient.`,
+          variant: "default",
+        });
       }
       // Get price from specific bill if available, else most recent purchase
       const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
@@ -1126,9 +1113,12 @@ const PurchaseReturnEntry = () => {
       navigate("/purchase-returns");
     } catch (error: any) {
       console.error("Error saving purchase return:", error);
+      const msg = error?.message || String(error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to save purchase return",
+        title: msg.includes("No Stock available For Return") ? "Stock Error" : "Error saving return",
+        description: msg.includes("No Stock available For Return")
+          ? msg.replace("No Stock available For Return.", "Cannot save return — insufficient stock.")
+          : msg,
         variant: "destructive",
       });
     } finally {
