@@ -731,11 +731,12 @@ const POSDashboard = () => {
   const getPageStyle = () => {
     const format = posBillFormat;
     let size = 'A5 portrait';
-    let margin = '5mm';
-    
+    let margin = '10mm';
+
     switch (format) {
       case 'a5-horizontal':
         size = 'A5 landscape';
+        margin = '10mm';
         break;
       case 'a4':
         size = 'A4 portrait';
@@ -745,27 +746,57 @@ const POSDashboard = () => {
         size = '80mm auto';
         margin = '3mm';
         break;
-      default: // a5-vertical
+      default:
         size = 'A5 portrait';
+        margin = '10mm';
         break;
     }
-    
+
+    /* Do NOT use universal page-break-* on * — it breaks pagination and often yields a blank first page. */
     return `
       @page {
         size: ${size};
         margin: ${margin};
       }
       @media print {
-        html, body {
-          width: 100%;
-          height: 100%;
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-        }
         * {
-          page-break-after: avoid !important;
-          page-break-inside: avoid !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .invoice-print-root {
+          margin: 0 !important;
+          padding: 0 !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
+        }
+        div:empty {
+          display: none !important;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          page-break-inside: auto;
+        }
+        thead {
+          display: table-header-group;
+        }
+        tfoot {
+          display: table-footer-group;
+        }
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
+        }
+        .tax-invoice-totals-section {
+          page-break-inside: avoid;
+          break-inside: avoid;
         }
       }
     `;

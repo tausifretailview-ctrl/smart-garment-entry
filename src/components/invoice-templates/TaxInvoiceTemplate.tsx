@@ -159,6 +159,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
   const logoAlign = logoPlacement === 'center' ? 'center' : logoPlacement === 'right' ? 'right' : 'left';
+  const pageSizeCss =
+    format === 'a4' ? 'A4 portrait' : format === 'a5-horizontal' ? 'A5 landscape' : 'A5 portrait';
+  const pageMarginCss = format === 'a4' ? '10mm' : '8mm';
 
   // Group items for wholesale display
   const groupItems = (items: InvoiceItem[]): GroupedItem[] => {
@@ -210,7 +213,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   const groupedItems = groupItems(items);
 
   return (
-    <div style={{
+    <div
+      className="tax-invoice-template-root"
+      style={{
       width,
       minHeight,
       margin: '0 auto',
@@ -226,8 +231,28 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
         {`
           @media print {
             @page {
-              size: ${format === 'a4' ? 'A4' : format === 'a5-horizontal' ? 'A5 landscape' : 'A5'} portrait;
-              margin: 5mm;
+              size: ${pageSizeCss};
+              margin: ${pageMarginCss};
+            }
+            .tax-invoice-template-root {
+              min-height: 0 !important;
+              height: auto !important;
+              page-break-before: avoid !important;
+              break-before: avoid !important;
+            }
+            .tax-invoice-items-table {
+              page-break-inside: auto;
+            }
+            .tax-invoice-items-table thead {
+              display: table-header-group;
+            }
+            .tax-invoice-items-table tr {
+              page-break-inside: avoid;
+              page-break-after: auto;
+            }
+            .tax-invoice-totals-section {
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
             /* Remove gradients for clean print */
             [style*="linear-gradient"] {
@@ -293,7 +318,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       </div>
 
       {/* Items Table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px', fontSize: '8px', border: `1px solid ${colors.primary}` }}>
+      <table className="tax-invoice-items-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px', fontSize: '8px', border: `1px solid ${colors.primary}` }}>
         <thead>
           <tr style={{ background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`, color: 'white' }}>
             <th style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, width: '25px' }}>Sr</th>
@@ -353,7 +378,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       </table>
 
       {/* Tax Breakdown & Totals */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+      <div className="tax-invoice-totals-section" style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
         {/* Tax Calculation Box */}
         <div style={{ flex: 1, border: `1px solid ${colors.primary}`, padding: '6px', fontSize: '8px' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '4px', textAlign: 'center', textDecoration: 'underline', color: colors.primary }}>TAX CALCULATION</div>

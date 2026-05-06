@@ -502,7 +502,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       }
     };
 
-    return <div ref={ref}>{renderTemplate()}</div>;
+    return (
+      <div ref={ref} className="invoice-print-root">
+        {renderTemplate()}
+      </div>
+    );
   }
 );
 
