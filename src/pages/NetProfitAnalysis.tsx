@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
-  Loader2, Download, Printer, TrendingUp, TrendingDown, 
+  Loader2, Download, Printer, TrendingUp,
   Users, Package, Search, Calendar, ArrowLeft, Building2, Clock
 } from "lucide-react";
 import { format, startOfYear, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
@@ -24,11 +24,14 @@ import { fetchAllSaleItems, fetchAllPurchaseItems } from "@/utils/fetchAllRows";
 interface SupplierProfitData {
   supplierId: string | null;
   supplierName: string;
-  totalSales: number;
+  grossSales: number;
+  totalDiscounts: number;
+  netSales: number;
   totalCOGS: number;
   grossProfit: number;
   marginPercent: number;
   itemsSold: number;
+  zeroCostQty: number;
 }
 
 interface ProductProfitData {
@@ -36,11 +39,56 @@ interface ProductProfitData {
   productName: string;
   brand: string | null;
   category: string | null;
-  totalSales: number;
+  grossSales: number;
+  totalDiscounts: number;
+  netSales: number;
   totalCOGS: number;
   grossProfit: number;
   marginPercent: number;
   quantitySold: number;
+  zeroCostQty: number;
+}
+
+/** Per sale_item: gross before discounts, bill-level share, net value for margin (excludes round-off share). */
+function computeSaleLineRevenue(
+  item: {
+    quantity: number;
+    line_total: number;
+    unit_price: number;
+    mrp: number;
+    discount_percent: number;
+    discount_share?: number | null;
+    sale_id: string;
+  },
+  saleMeta: { gross_amount: number; flat_discount_amount: number } | undefined
+): { grossLine: number; flatShare: number; netLine: number; lineDiscount: number } {
+  const qty = Number(item.quantity) || 0;
+  const lineTotal = Number(item.line_total) || 0;
+  const unitP = Number(item.unit_price) || 0;
+  const mrp = Number(item.mrp) || 0;
+  const dPct = Number(item.discount_percent) || 0;
+
+  let lineGross = qty * (mrp > 0 ? mrp : unitP);
+  if (mrp <= 0 && dPct > 0 && dPct < 100) {
+    const reconstructed = lineTotal / (1 - dPct / 100);
+    if (reconstructed > lineGross && Number.isFinite(reconstructed)) {
+      lineGross = Math.round(reconstructed * 100) / 100;
+    }
+  }
+
+  const lineDiscount = Math.max(0, lineGross - lineTotal);
+
+  let flatShare: number;
+  if (item.discount_share != null && Number.isFinite(Number(item.discount_share))) {
+    flatShare = Number(item.discount_share);
+  } else {
+    const g = saleMeta?.gross_amount ?? 0;
+    const flat = saleMeta?.flat_discount_amount ?? 0;
+    flatShare = g > 0 && flat > 0 ? (lineTotal / g) * flat : 0;
+  }
+
+  const netLine = lineTotal - flatShare;
+  return { grossLine: lineGross, flatShare, netLine, lineDiscount };
 }
 
 const formatCurrency = (amount: number) => {
@@ -151,12 +199,14 @@ export default function NetProfitAnalysis() {
     try {
       const { data: sales } = await supabase
         .from("sales")
-        .select("id")
+        .select("id, gross_amount, flat_discount_amount")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
         .lte("sale_date", `${toDate}T23:59:59`)
         .is("deleted_at", null)
-        .eq("is_cancelled", false);
+        .eq("is_cancelled", false)
+        .or("payment_status.is.null,payment_status.neq.cancelled")
+        .or("sale_type.is.null,sale_type.neq.sale_return");
 
       if (!sales || sales.length === 0) {
         setSupplierData([]);
@@ -165,6 +215,15 @@ export default function NetProfitAnalysis() {
       }
 
       const saleIds = sales.map(s => s.id);
+      const saleMetaById = new Map(
+        sales.map((s) => [
+          s.id,
+          {
+            gross_amount: Number(s.gross_amount) || 0,
+            flat_discount_amount: Number(s.flat_discount_amount) || 0,
+          },
+        ])
+      );
 
       // Use paginated fetch to get ALL sale items (bypasses 1000 row limit)
       const saleItems = await fetchAllSaleItems(saleIds);
@@ -226,13 +285,19 @@ export default function NetProfitAnalysis() {
 
       const supplierProfitMap = new Map<string, SupplierProfitData>();
 
-      saleItems.forEach(item => {
+      saleItems.forEach((item: any) => {
         const variant = variantMap.get(item.variant_id);
         const supplierInfo = variantToSupplier.get(item.variant_id) || { id: null, name: "Unknown Supplier" };
         const supplierKey = supplierInfo.id || supplierInfo.name;
 
         const qty = item.quantity || 0;
-        const lineTotal = item.line_total || 0;
+        const lineTotal = Number(item.line_total) || 0;
+        if (qty === 0 && lineTotal === 0) return;
+        if (lineTotal < 0) return;
+
+        const meta = saleMetaById.get(item.sale_id);
+        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+
         const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
         const cogs = qty * purPrice;
 
@@ -240,24 +305,30 @@ export default function NetProfitAnalysis() {
           supplierProfitMap.set(supplierKey, {
             supplierId: supplierInfo.id,
             supplierName: supplierInfo.name,
-            totalSales: 0,
+            grossSales: 0,
+            totalDiscounts: 0,
+            netSales: 0,
             totalCOGS: 0,
             grossProfit: 0,
             marginPercent: 0,
             itemsSold: 0,
+            zeroCostQty: 0,
           });
         }
 
         const data = supplierProfitMap.get(supplierKey)!;
-        data.totalSales += lineTotal;
+        data.grossSales += grossLine;
+        data.totalDiscounts += lineDiscount + flatShare;
+        data.netSales += netLine;
         data.totalCOGS += cogs;
         data.itemsSold += qty;
+        if (purPrice === 0 && qty > 0) data.zeroCostQty += qty;
       });
 
       const result: SupplierProfitData[] = [];
       supplierProfitMap.forEach(data => {
-        data.grossProfit = data.totalSales - data.totalCOGS;
-        data.marginPercent = data.totalSales > 0 ? (data.grossProfit / data.totalSales) * 100 : 0;
+        data.grossProfit = Math.max(0, data.netSales - data.totalCOGS);
+        data.marginPercent = data.netSales > 0 ? (data.grossProfit / data.netSales) * 100 : 0;
         result.push(data);
       });
 
@@ -277,12 +348,14 @@ export default function NetProfitAnalysis() {
     try {
       const { data: sales } = await supabase
         .from("sales")
-        .select("id")
+        .select("id, gross_amount, flat_discount_amount")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
         .lte("sale_date", `${toDate}T23:59:59`)
         .is("deleted_at", null)
-        .eq("is_cancelled", false);
+        .eq("is_cancelled", false)
+        .or("payment_status.is.null,payment_status.neq.cancelled")
+        .or("sale_type.is.null,sale_type.neq.sale_return");
 
       if (!sales || sales.length === 0) {
         setProductData([]);
@@ -291,6 +364,15 @@ export default function NetProfitAnalysis() {
       }
 
       const saleIds = sales.map(s => s.id);
+      const saleMetaById = new Map(
+        sales.map((s) => [
+          s.id,
+          {
+            gross_amount: Number(s.gross_amount) || 0,
+            flat_discount_amount: Number(s.flat_discount_amount) || 0,
+          },
+        ])
+      );
 
       // Use paginated fetch to get ALL sale items (bypasses 1000 row limit)
       const saleItems = await fetchAllSaleItems(saleIds);
@@ -342,13 +424,19 @@ export default function NetProfitAnalysis() {
 
       const productProfitMap = new Map<string, ProductProfitData>();
 
-      saleItems.forEach(item => {
+      saleItems.forEach((item: any) => {
         const variant = variantMap.get(item.variant_id);
         const productId = item.product_id || variant?.product_id || "";
         const product = productMap.get(productId);
 
         const qty = item.quantity || 0;
-        const lineTotal = item.line_total || 0;
+        const lineTotal = Number(item.line_total) || 0;
+        if (qty === 0 && lineTotal === 0) return;
+        if (lineTotal < 0) return;
+
+        const meta = saleMetaById.get(item.sale_id);
+        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+
         const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
         const cogs = qty * purPrice;
 
@@ -358,24 +446,30 @@ export default function NetProfitAnalysis() {
             productName: item.product_name || product?.product_name || "Unknown Product",
             brand: product?.brand || null,
             category: product?.category || null,
-            totalSales: 0,
+            grossSales: 0,
+            totalDiscounts: 0,
+            netSales: 0,
             totalCOGS: 0,
             grossProfit: 0,
             marginPercent: 0,
             quantitySold: 0,
+            zeroCostQty: 0,
           });
         }
 
         const data = productProfitMap.get(productId)!;
-        data.totalSales += lineTotal;
+        data.grossSales += grossLine;
+        data.totalDiscounts += lineDiscount + flatShare;
+        data.netSales += netLine;
         data.totalCOGS += cogs;
         data.quantitySold += qty;
+        if (purPrice === 0 && qty > 0) data.zeroCostQty += qty;
       });
 
       const result: ProductProfitData[] = [];
       productProfitMap.forEach(data => {
-        data.grossProfit = data.totalSales - data.totalCOGS;
-        data.marginPercent = data.totalSales > 0 ? (data.grossProfit / data.totalSales) * 100 : 0;
+        data.grossProfit = Math.max(0, data.netSales - data.totalCOGS);
+        data.marginPercent = data.netSales > 0 ? (data.grossProfit / data.netSales) * 100 : 0;
         result.push(data);
       });
 
@@ -424,10 +518,13 @@ export default function NetProfitAnalysis() {
         filteredSupplierData.map((s) => ({
           "Supplier": s.supplierName,
           "Items Sold": s.itemsSold,
-          "Total Sales": s.totalSales,
+          "Gross Sales": s.grossSales,
+          "Discounts": s.totalDiscounts,
+          "Net Sales": s.netSales,
           "COGS": s.totalCOGS,
           "Gross Profit": s.grossProfit,
           "Margin %": `${s.marginPercent.toFixed(1)}%`,
+          "Qty w/o Cost": s.zeroCostQty,
         }))
       );
       const wb = XLSX.utils.book_new();
@@ -444,10 +541,13 @@ export default function NetProfitAnalysis() {
           "Brand": p.brand || "-",
           "Category": p.category || "-",
           "Qty Sold": p.quantitySold,
-          "Total Sales": p.totalSales,
+          "Gross Sales": p.grossSales,
+          "Discounts": p.totalDiscounts,
+          "Net Sales": p.netSales,
           "COGS": p.totalCOGS,
           "Gross Profit": p.grossProfit,
           "Margin %": `${p.marginPercent.toFixed(1)}%`,
+          "Qty w/o Cost": p.zeroCostQty,
         }))
       );
       const wb = XLSX.utils.book_new();
@@ -469,22 +569,26 @@ export default function NetProfitAnalysis() {
 
   const supplierTotals = filteredSupplierData.reduce(
     (acc, s) => ({
-      sales: acc.sales + s.totalSales,
+      grossSales: acc.grossSales + s.grossSales,
+      discounts: acc.discounts + s.totalDiscounts,
+      netSales: acc.netSales + s.netSales,
       cogs: acc.cogs + s.totalCOGS,
       profit: acc.profit + s.grossProfit,
       items: acc.items + s.itemsSold,
     }),
-    { sales: 0, cogs: 0, profit: 0, items: 0 }
+    { grossSales: 0, discounts: 0, netSales: 0, cogs: 0, profit: 0, items: 0 }
   );
 
   const productTotals = filteredProductData.reduce(
     (acc, p) => ({
-      sales: acc.sales + p.totalSales,
+      grossSales: acc.grossSales + p.grossSales,
+      discounts: acc.discounts + p.totalDiscounts,
+      netSales: acc.netSales + p.netSales,
       cogs: acc.cogs + p.totalCOGS,
       profit: acc.profit + p.grossProfit,
       qty: acc.qty + p.quantitySold,
     }),
-    { sales: 0, cogs: 0, profit: 0, qty: 0 }
+    { grossSales: 0, discounts: 0, netSales: 0, cogs: 0, profit: 0, qty: 0 }
   );
 
   return (
@@ -624,7 +728,9 @@ export default function NetProfitAnalysis() {
                     <TableRow>
                       <TableHead className="w-[200px] text-foreground font-semibold">Supplier</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Items Sold</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Total Sales</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Gross Sales</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400">Discounts</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Net Sales</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Margin %</TableHead>
@@ -633,7 +739,7 @@ export default function NetProfitAnalysis() {
                   <TableBody>
                     {filteredSupplierData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           No data available for the selected period
                         </TableCell>
                       </TableRow>
@@ -642,20 +748,26 @@ export default function NetProfitAnalysis() {
                         <TableRow key={supplier.supplierId || idx}>
                           <TableCell className="font-medium">{supplier.supplierName}</TableCell>
                           <TableCell className="text-right">{supplier.itemsSold}</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(supplier.totalSales)}</TableCell>
-                          <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
-                            {formatCurrency(supplier.totalCOGS)}
+                          <TableCell className="text-right font-mono">{formatCurrency(supplier.grossSales)}</TableCell>
+                          <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                            −{formatCurrency(supplier.totalDiscounts)}
                           </TableCell>
-                          <TableCell className={`text-right font-mono font-semibold ${supplier.grossProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <TableCell className="text-right font-mono">{formatCurrency(supplier.netSales)}</TableCell>
+                          <TableCell
+                            className="text-right font-mono text-amber-600 dark:text-amber-400"
+                            title={supplier.zeroCostQty > 0 ? `${supplier.zeroCostQty} qty sold with no purchase rate (COGS treated as 0)` : undefined}
+                          >
+                            {formatCurrency(supplier.totalCOGS)}
+                            {supplier.zeroCostQty > 0 && (
+                              <span className="ml-1 text-xs text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold text-green-600 dark:text-green-400">
                             {formatCurrency(supplier.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant={supplier.marginPercent >= 20 ? "default" : supplier.marginPercent >= 0 ? "secondary" : "destructive"}>
-                              {supplier.grossProfit >= 0 ? (
-                                <TrendingUp className="h-3 w-3 mr-1" />
-                              ) : (
-                                <TrendingDown className="h-3 w-3 mr-1" />
-                              )}
+                              <TrendingUp className="h-3 w-3 mr-1" />
                               {supplier.marginPercent.toFixed(1)}%
                             </Badge>
                           </TableCell>
@@ -668,16 +780,20 @@ export default function NetProfitAnalysis() {
                       <TableRow>
                         <TableCell>TOTAL</TableCell>
                         <TableCell className="text-right">{supplierTotals.items}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(supplierTotals.sales)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(supplierTotals.grossSales)}</TableCell>
+                        <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                          −{formatCurrency(supplierTotals.discounts)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(supplierTotals.netSales)}</TableCell>
                         <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
                           {formatCurrency(supplierTotals.cogs)}
                         </TableCell>
-                        <TableCell className={`text-right font-mono ${supplierTotals.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
                           {formatCurrency(supplierTotals.profit)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant={supplierTotals.profit >= 0 ? "default" : "destructive"}>
-                            {supplierTotals.sales > 0 ? ((supplierTotals.profit / supplierTotals.sales) * 100).toFixed(1) : 0}%
+                            {supplierTotals.netSales > 0 ? ((supplierTotals.profit / supplierTotals.netSales) * 100).toFixed(1) : 0}%
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -719,7 +835,9 @@ export default function NetProfitAnalysis() {
                       <TableHead className="w-[200px] text-foreground font-semibold">Product</TableHead>
                       <TableHead className="text-foreground font-semibold">Brand</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Qty Sold</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold">Total Sales</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Gross Sales</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400">Discounts</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Net Sales</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Margin %</TableHead>
@@ -728,7 +846,7 @@ export default function NetProfitAnalysis() {
                   <TableBody>
                     {filteredProductData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           No data available for the selected period
                         </TableCell>
                       </TableRow>
@@ -744,20 +862,26 @@ export default function NetProfitAnalysis() {
                             ) : "-"}
                           </TableCell>
                           <TableCell className="text-right">{product.quantitySold}</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(product.totalSales)}</TableCell>
-                          <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
-                            {formatCurrency(product.totalCOGS)}
+                          <TableCell className="text-right font-mono">{formatCurrency(product.grossSales)}</TableCell>
+                          <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                            −{formatCurrency(product.totalDiscounts)}
                           </TableCell>
-                          <TableCell className={`text-right font-mono font-semibold ${product.grossProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <TableCell className="text-right font-mono">{formatCurrency(product.netSales)}</TableCell>
+                          <TableCell
+                            className="text-right font-mono text-amber-600 dark:text-amber-400"
+                            title={product.zeroCostQty > 0 ? `${product.zeroCostQty} qty with no purchase rate (COGS treated as 0)` : undefined}
+                          >
+                            {formatCurrency(product.totalCOGS)}
+                            {product.zeroCostQty > 0 && (
+                              <span className="ml-1 text-xs text-amber-700 dark:text-amber-300" aria-hidden>⚠</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-semibold text-green-600 dark:text-green-400">
                             {formatCurrency(product.grossProfit)}
                           </TableCell>
                           <TableCell className="text-right">
                             <Badge variant={product.marginPercent >= 20 ? "default" : product.marginPercent >= 0 ? "secondary" : "destructive"}>
-                              {product.grossProfit >= 0 ? (
-                                <TrendingUp className="h-3 w-3 mr-1" />
-                              ) : (
-                                <TrendingDown className="h-3 w-3 mr-1" />
-                              )}
+                              <TrendingUp className="h-3 w-3 mr-1" />
                               {product.marginPercent.toFixed(1)}%
                             </Badge>
                           </TableCell>
@@ -771,16 +895,20 @@ export default function NetProfitAnalysis() {
                         <TableCell>TOTAL</TableCell>
                         <TableCell>-</TableCell>
                         <TableCell className="text-right">{productTotals.qty}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(productTotals.sales)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(productTotals.grossSales)}</TableCell>
+                        <TableCell className="text-right font-mono text-orange-600 dark:text-orange-400">
+                          −{formatCurrency(productTotals.discounts)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(productTotals.netSales)}</TableCell>
                         <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
                           {formatCurrency(productTotals.cogs)}
                         </TableCell>
-                        <TableCell className={`text-right font-mono ${productTotals.profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <TableCell className="text-right font-mono text-green-600 dark:text-green-400">
                           {formatCurrency(productTotals.profit)}
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant={productTotals.profit >= 0 ? "default" : "destructive"}>
-                            {productTotals.sales > 0 ? ((productTotals.profit / productTotals.sales) * 100).toFixed(1) : 0}%
+                            {productTotals.netSales > 0 ? ((productTotals.profit / productTotals.netSales) * 100).toFixed(1) : 0}%
                           </Badge>
                         </TableCell>
                       </TableRow>
