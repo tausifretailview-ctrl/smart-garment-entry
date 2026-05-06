@@ -1874,11 +1874,11 @@ export default function Settings() {
                     <div className="rounded-md bg-background p-2 text-xs">
                       {(settings.sale_settings?.pos_barcode_price_mode || 'sale_price') === 'mrp' ? (
                         <span className="text-blue-600">
-                          Scan barcode -> MRP added as price, no discount displayed.
+                          {"Scan barcode -> MRP added as price, no discount displayed."}
                         </span>
                       ) : (
                         <span className="text-green-600">
-                          Scan barcode -> Sale Price added, MRP discount is shown.
+                          {"Scan barcode -> Sale Price added, MRP discount is shown."}
                         </span>
                       )}
                     </div>
