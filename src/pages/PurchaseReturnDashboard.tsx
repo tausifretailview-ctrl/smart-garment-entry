@@ -108,7 +108,7 @@ const PurchaseReturnDashboard = () => {
   }, [startDate, endDate]);
 
   // Server-side paginated query
-  const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
+  const { data: returnsData, isLoading: returnsLoading, error: returnsError, refetch: refetchReturns } = useQuery({
     queryKey: ["purchase-returns", currentOrganization?.id, debouncedSearch, startDate, endDate, dcFilter, currentPage, pageSize],
     queryFn: async () => {
       if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
@@ -116,25 +116,52 @@ const PurchaseReturnDashboard = () => {
       const startIndex = (currentPage - 1) * pageSize;
       const endIndex = startIndex + pageSize - 1;
 
-      let query = supabase
-        .from("purchase_returns" as any)
-        .select("id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, is_dc, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id", { count: "exact" })
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+      const runReturnsQuery = async (withDcColumn: boolean) => {
+        const selectFields = withDcColumn
+          ? "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, is_dc, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id"
+          : "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id";
 
-      if (dcFilter === "dc") query = query.eq("is_dc", true);
-      if (dcFilter === "gst") query = query.eq("is_dc", false);
+        let query = supabase
+          .from("purchase_returns" as any)
+          .select(selectFields, { count: "exact" })
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
 
-      if (debouncedSearch) {
-        query = query.or(`supplier_name.ilike.%${debouncedSearch}%,original_bill_number.ilike.%${debouncedSearch}%,return_number.ilike.%${debouncedSearch}%`);
+        if (withDcColumn) {
+          if (dcFilter === "dc") query = query.eq("is_dc", true);
+          if (dcFilter === "gst") query = query.eq("is_dc", false);
+        }
+
+        if (debouncedSearch) {
+          query = query.or(`supplier_name.ilike.%${debouncedSearch}%,original_bill_number.ilike.%${debouncedSearch}%,return_number.ilike.%${debouncedSearch}%`);
+        }
+        if (startDate) query = query.gte("return_date", startDate);
+        if (endDate) query = query.lte("return_date", endDate);
+
+        query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
+        return await query;
+      };
+
+      let data: any[] | null = null;
+      let count = 0;
+      const primary = await runReturnsQuery(true);
+      if (primary.error) {
+        const errMsg = (primary.error as any)?.message || "";
+        const missingDcColumn =
+          errMsg.includes("is_dc") &&
+          (errMsg.toLowerCase().includes("column") || errMsg.toLowerCase().includes("does not exist"));
+
+        if (!missingDcColumn) throw primary.error;
+
+        // Backward-compatible fallback for org DBs where migration isn't applied yet.
+        const fallback = await runReturnsQuery(false);
+        if (fallback.error) throw fallback.error;
+        data = ((fallback.data as any[]) || []).map((r: any) => ({ ...r, is_dc: false }));
+        count = fallback.count || 0;
+      } else {
+        data = (primary.data as any[]) || [];
+        count = primary.count || 0;
       }
-      if (startDate) query = query.gte("return_date", startDate);
-      if (endDate) query = query.lte("return_date", endDate);
-
-      query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
-
-      const { data, error, count } = await query;
-      if (error) throw error;
       
       // Fetch total qty for returned items
       const returnIds = (data || []).map((r: any) => r.id);
@@ -167,11 +194,21 @@ const PurchaseReturnDashboard = () => {
   });
 
   useEffect(() => {
-    if (returnsData) {
-      setReturns(returnsData.returns);
+    if (returnsData || returnsError) {
+      setReturns(returnsData?.returns || []);
       setLoading(false);
     }
-  }, [returnsData]);
+  }, [returnsData, returnsError]);
+
+  useEffect(() => {
+    if (!returnsError) return;
+    console.error("Error loading purchase returns:", returnsError);
+    toast({
+      title: "Load Error",
+      description: "Failed to load purchase returns. Please refresh and try again.",
+      variant: "destructive",
+    });
+  }, [returnsError, toast]);
 
   useEffect(() => {
     if (returnsLoading && returns.length === 0) setLoading(true);
