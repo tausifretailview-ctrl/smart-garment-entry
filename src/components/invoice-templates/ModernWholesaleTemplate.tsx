@@ -367,7 +367,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           {customerAddress && <div style={{ fontSize: isA5 ? "6.5pt" : "8pt", lineHeight: "1.3" }}>{customerAddress}</div>}
           {customerMobile && <div style={{ fontSize: isA5 ? "6.5pt" : "8pt" }}>Mob: {customerMobile}</div>}
           {customerGSTIN && (
-            <div style={{ fontSize: isA5 ? "6pt" : "7.5pt", fontWeight: "500" }}>GSTIN: {customerGSTIN}</div>
+            <div style={{ fontSize: isA5 ? "6.5pt" : "8.5pt", fontWeight: "700", color: colors.primary }}>GSTIN: {customerGSTIN}</div>
           )}
           {customerTransportDetails && (
             <div style={{ fontSize: isA5 ? "6pt" : "7.5pt" }}>Transport: {customerTransportDetails}</div>
