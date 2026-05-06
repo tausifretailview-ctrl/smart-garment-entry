@@ -916,11 +916,22 @@ const PurchaseReturnEntry = () => {
           notes: returnData.notes || null,
           payment_method: paymentMethodForReturnRow,
         };
+        const itemsPayload = lineItems.map((item) => buildPurchaseReturnItemPayload(item, isDC));
 
-        const { error: updateError } = await supabase
-          .from("purchase_returns" as any)
-          .update(updatePayload)
-          .eq("id", editId);
+        // Run the two independent operations in parallel for faster save.
+        const [
+          { error: updateError },
+          { data: updResult, error: updErr }
+        ] = await Promise.all([
+          supabase
+            .from("purchase_returns" as any)
+            .update(updatePayload)
+            .eq("id", editId),
+          supabase.rpc(
+            'update_purchase_return_items' as any,
+            { p_return_id: editId, p_items: itemsPayload as any }
+          )
+        ]);
 
         if (updateError) {
           if (!isMissingDcColumnError(updateError)) throw updateError;
@@ -932,27 +943,9 @@ const PurchaseReturnEntry = () => {
           if (fallbackUpdateError) throw fallbackUpdateError;
         }
 
-        // Atomic update via RPC: pre-checks stock, then deletes + reinserts in one transaction
-        const itemsPayload = lineItems.map((item) => buildPurchaseReturnItemPayload(item, isDC));
-
-        const { data: updResult, error: updErr } = await supabase.rpc(
-          'update_purchase_return_items' as any,
-          { p_return_id: editId, p_items: itemsPayload as any }
-        );
-
         if (updErr) throw updErr;
         if (updResult && !(updResult as any).success) {
           throw new Error((updResult as any).error || 'Update failed');
-        }
-
-        // RPC `update_purchase_return_items` doesn't know about `is_dc`.
-        // Persist DC mode at the item level so dashboard + print can rely on it.
-        if (typeof isDC === "boolean") {
-          const { error: itemsDcErr } = await supabase
-            .from("purchase_return_items" as any)
-            .update({ is_dc: isDC })
-            .eq("return_id", editId);
-          if (itemsDcErr && !isMissingDcColumnError(itemsDcErr)) throw itemsDcErr;
         }
 
         const { data: acctEditPr } = await supabase
@@ -960,7 +953,7 @@ const PurchaseReturnEntry = () => {
           .select("accounting_engine_enabled")
           .eq("organization_id", currentOrganization!.id)
           .maybeSingle();
-        if (isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
+        if (!isDC && isAccountingEngineEnabled(acctEditPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await deleteJournalEntryByReference(currentOrganization!.id, "PurchaseReturn", editId, supabase);
             await supabase
@@ -993,6 +986,11 @@ const PurchaseReturnEntry = () => {
               variant: "destructive",
             });
           }
+        } else if (isDC) {
+          await supabase
+            .from("purchase_returns" as any)
+            .update({ journal_status: "not_applicable", journal_error: null })
+            .eq("id", editId);
         }
 
         toast({
@@ -1075,7 +1073,7 @@ const PurchaseReturnEntry = () => {
           .select("accounting_engine_enabled")
           .eq("organization_id", currentOrganization!.id)
           .maybeSingle();
-        if (isAccountingEngineEnabled(acctPr as { accounting_engine_enabled?: boolean } | null)) {
+        if (!isDC && isAccountingEngineEnabled(acctPr as { accounting_engine_enabled?: boolean } | null)) {
           try {
             await recordPurchaseReturnJournalEntry(
               prId,
@@ -1102,6 +1100,11 @@ const PurchaseReturnEntry = () => {
             await supabase.from("purchase_returns" as any).delete().eq("id", prId);
             throw glErr;
           }
+        } else if (isDC) {
+          await supabase
+            .from("purchase_returns" as any)
+            .update({ journal_status: "not_applicable", journal_error: null })
+            .eq("id", prId);
         }
 
         // Auto-create credit note voucher for proper accounting

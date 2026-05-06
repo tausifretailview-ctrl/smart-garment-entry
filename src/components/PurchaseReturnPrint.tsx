@@ -277,7 +277,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <th style={{ width: "6%" }}>Sr</th>
                 <th style={{ width: "22%" }}>Description Of Goods</th>
                 <th style={{ width: "8%" }}>Color</th>
-                {!isDC && <th style={{ width: "8%" }}>Hsn Code</th>}
+                <th style={{ width: "8%" }}>Hsn Code</th>
                 <th style={{ width: "7%" }}>Pcs</th>
                 <th style={{ width: "11%" }}>Rate</th>
                 <th style={{ width: "8%" }}>Disc%</th>
@@ -291,7 +291,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-center">{index + 1}</td>
                   <td>{item.product_name || "-"}</td>
                   <td className="text-center">{item.color || "-"}</td>
-                  {!isDC && <td className="text-center">{item.hsn_code || ""}</td>}
+                  <td className="text-center">{isDC ? "" : (item.hsn_code || "")}</td>
                   <td className="text-center">{item.qty}</td>
                   <td className="text-right">{item.pur_price.toFixed(2)}</td>
                   <td className="text-right">{(item.discount_percent || 0).toFixed(2)}</td>
@@ -321,7 +321,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             <div className="pr-border-r p-1 text-center font-bold" style={{ width: "6%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1 font-bold" style={{ width: "22%", fontSize: "12px" }}>Total</div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            {!isDC && <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>}
+            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
             <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
