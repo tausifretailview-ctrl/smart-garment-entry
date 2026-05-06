@@ -1510,7 +1510,7 @@ export default function POSSales() {
     });
   }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
-  const searchAndAddProduct = async (searchTerm: string) => {
+  async function searchAndAddProduct(searchTerm: string) {
     // Quick service shortcodes (1-9): check if a real product has this barcode first
     if (/^[1-9]$/.test(searchTerm)) {
       // Check local cache for exact barcode match
@@ -1669,7 +1669,7 @@ export default function POSSales() {
       playErrorBeep();
       toast.error("Product not found", { description: `No product matches: ${searchTerm}` });
     }
-  };
+  }
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
     // If we have a pre-identified product (from barcode scan), use it directly
