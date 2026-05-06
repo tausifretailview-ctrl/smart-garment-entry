@@ -119,6 +119,7 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
   invoiceDate,
   customerName,
   customerMobile,
+  customerGSTIN,
   salesman,
   notes,
   items,
@@ -246,6 +247,13 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
               )}
             </td>
           </tr>
+          {customerGSTIN && (
+            <tr>
+              <td colSpan={2} style={{ border: cellBorder, padding: '1mm 2mm' }}>
+                <strong>GSTIN :</strong> {customerGSTIN}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
 
