@@ -130,6 +130,10 @@ const PurchaseReturnDashboard = () => {
         if (withDcColumn) {
           if (dcFilter === "dc") query = query.eq("is_dc", true);
           if (dcFilter === "gst") query = query.eq("is_dc", false);
+        } else {
+          // Backward-compatible filtering when `is_dc` column is not available.
+          if (dcFilter === "dc") query = query.eq("gst_amount", 0);
+          if (dcFilter === "gst") query = query.gt("gst_amount", 0);
         }
 
         if (debouncedSearch) {
@@ -156,7 +160,10 @@ const PurchaseReturnDashboard = () => {
         // Backward-compatible fallback for org DBs where migration isn't applied yet.
         const fallback = await runReturnsQuery(false);
         if (fallback.error) throw fallback.error;
-        data = ((fallback.data as any[]) || []).map((r: any) => ({ ...r, is_dc: false }));
+        data = ((fallback.data as any[]) || []).map((r: any) => ({
+          ...r,
+          is_dc: Number(r?.gst_amount || 0) === 0,
+        }));
         count = fallback.count || 0;
       } else {
         data = (primary.data as any[]) || [];
@@ -183,6 +190,8 @@ const PurchaseReturnDashboard = () => {
 
       const returnsWithQty = (data || []).map((r: any) => ({
         ...r,
+        // Extra safeguard for older rows where is_dc may be null.
+        is_dc: r?.is_dc === true || (r?.is_dc == null && Number(r?.gst_amount || 0) === 0),
         total_qty: qtyMap[r.id] || 0
       }));
 

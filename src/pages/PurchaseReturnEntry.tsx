@@ -257,7 +257,11 @@ const PurchaseReturnEntry = () => {
         setReturnNumber(typedReturn.return_number || "");
         setReturnDate(new Date(typedReturn.return_date));
         // If existing return was saved as DC, force DC mode in UI.
-        if ((typedReturn as any).is_dc) {
+        // Backward compatibility: if `is_dc` column is unavailable, infer DC from zero GST.
+        const inferredDcMode =
+          (typedReturn as any).is_dc === true ||
+          ((typedReturn as any).is_dc == null && Number((typedReturn as any).gst_amount || 0) === 0);
+        if (inferredDcMode) {
           setTaxType("dc");
         }
         setReturnData({
