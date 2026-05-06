@@ -4248,11 +4248,6 @@ export default function POSSales() {
         <div className="shrink-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
           <div className="w-full pl-2">
             <div className="flex flex-wrap items-end gap-3">
-          {posRuntimeSettingsRef.current?.pos_barcode_price_mode === 'mrp' && posRuntimeSettingsRef.current?.enable_mrp && (
-            <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200">
-              MRP Price Mode Active
-            </div>
-          )}
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <div className="relative w-60">
@@ -5159,6 +5154,11 @@ export default function POSSales() {
                 </div>
               </div>
             </div>
+            {posRuntimeSettingsRef.current?.pos_barcode_price_mode === 'mrp' && posRuntimeSettingsRef.current?.enable_mrp && (
+              <div className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200 font-semibold shrink-0">
+                MRP Price Mode Active
+              </div>
+            )}
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round */}
             <div className="flex items-end gap-3 flex-wrap justify-end">
