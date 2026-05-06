@@ -121,6 +121,11 @@ interface CartItem {
   showDiscount?: boolean;
 }
 
+interface POSBarcodeRuntimeSettings {
+  pos_barcode_price_mode: 'mrp' | 'sale_price';
+  enable_mrp: boolean;
+}
+
 /** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
 function calculatePosCartLineNet(item: CartItem): number {
   const baseAmount = item.mrp * item.quantity;
@@ -547,6 +552,40 @@ export default function POSSales() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
+  const [posRuntimeSettings, setPosRuntimeSettings] = useState<POSBarcodeRuntimeSettings | null>(null);
+  const posRuntimeSettingsRef = useRef<POSBarcodeRuntimeSettings | null>(null);
+
+  const fetchPOSSettings = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    const { data } = await supabase
+      .from('settings')
+      .select('sale_settings, purchase_settings')
+      .eq('organization_id', currentOrganization.id)
+      .maybeSingle();
+    const saleSettings = (data as any)?.sale_settings || {};
+    const purchaseSettings = (data as any)?.purchase_settings || {};
+    const next: POSBarcodeRuntimeSettings = {
+      pos_barcode_price_mode: saleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price',
+      enable_mrp: purchaseSettings.show_mrp === true,
+    };
+    setPosRuntimeSettings(next);
+    posRuntimeSettingsRef.current = next;
+    console.log('POS Settings loaded:', next);
+  }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    posRuntimeSettingsRef.current = posRuntimeSettings;
+  }, [posRuntimeSettings]);
+
+  useEffect(() => {
+    void fetchPOSSettings();
+  }, [fetchPOSSettings]);
+
+  useEffect(() => {
+    const onFocus = () => { void fetchPOSSettings(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchPOSSettings]);
 
   // Garment / Footwear GST auto-bump rule (from purchase_settings)
   const garmentGstSettings = {
@@ -556,7 +595,6 @@ export default function POSSales() {
 
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
-  const posBarcodePriceMode: 'mrp' | 'sale_price' = _posSaleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price';
   const posBillFormat: 'a4' | 'a5' | 'a5-horizontal' | 'thermal' =
     (_posSaleSettings.pos_bill_format as 'a4' | 'a5' | 'a5-horizontal' | 'thermal') || 'thermal';
   const posInvoiceTemplate: 'professional' | 'modern' | 'classic' | 'compact' =
@@ -1225,7 +1263,7 @@ export default function POSSales() {
         barcodeInputRef.current?.focus();
       }, 50);
     }
-  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted]);
+  }, [resetScannerDetection, cancelAutoSubmit, markSubmitted, searchAndAddProduct]);
 
   // Optimized input change handler with scanner detection
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1281,7 +1319,7 @@ export default function POSSales() {
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
     }
-  }, [recordKeystroke, detectScannerInput]);
+  }, [recordKeystroke, detectScannerInput, scheduleAutoSubmit, searchAndAddProduct, resetScannerDetection]);
 
   const mobileERP = useMobileERP();
 
@@ -1472,7 +1510,7 @@ export default function POSSales() {
     });
   }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
-  const searchAndAddProduct = useCallback(async (searchTerm: string) => {
+  const searchAndAddProduct = async (searchTerm: string) => {
     // Quick service shortcodes (1-9): check if a real product has this barcode first
     if (/^[1-9]$/.test(searchTerm)) {
       // Check local cache for exact barcode match
@@ -1631,7 +1669,7 @@ export default function POSSales() {
       playErrorBeep();
       toast.error("Product not found", { description: `No product matches: ${searchTerm}` });
     }
-  }, [productsData, playErrorBeep, toast, currentOrganization?.id, mobileERP]);
+  };
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
     // If we have a pre-identified product (from barcode scan), use it directly
@@ -1808,8 +1846,18 @@ export default function POSSales() {
       // Use override price or master price
       const salePrice = overridePrice?.sale_price ?? masterSalePrice;
       const mrpToUse = overridePrice?.mrp ?? masterMrp;
-      const shouldApplyBarcodeMode = addSource === 'barcode' && ((settingsData as any)?.purchase_settings?.show_mrp === true);
-      const useMrpAsPrice = shouldApplyBarcodeMode && posBarcodePriceMode === 'mrp';
+      const runtime = posRuntimeSettingsRef.current;
+      const useMrpMode = runtime?.enable_mrp === true && runtime?.pos_barcode_price_mode === 'mrp';
+      const shouldApplyBarcodeMode = addSource === 'barcode';
+      const useMrpAsPrice = shouldApplyBarcodeMode && useMrpMode;
+      console.log('Scan settings at time of scan:', {
+        pos_barcode_price_mode: runtime?.pos_barcode_price_mode,
+        enable_mrp: runtime?.enable_mrp,
+        useMrpMode,
+        product_mrp: mrpToUse,
+        product_sale_price: salePrice,
+        price_being_added: useMrpAsPrice ? mrpToUse : salePrice,
+      });
       
       // Build product description: name-category-style,brand-color
       const descriptionParts = [product.product_name];
@@ -4200,6 +4248,11 @@ export default function POSSales() {
         <div className="shrink-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
           <div className="w-full pl-2">
             <div className="flex flex-wrap items-end gap-3">
+          {posRuntimeSettingsRef.current?.pos_barcode_price_mode === 'mrp' && posRuntimeSettingsRef.current?.enable_mrp && (
+            <div className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200">
+              MRP Price Mode Active
+            </div>
+          )}
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <div className="relative w-60">
