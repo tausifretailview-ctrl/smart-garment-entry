@@ -506,6 +506,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
             const effective = Math.max(0, Math.min(item.balance, remaining));
             const rounded = Math.round(effective * 100) / 100;
             item.balance = rounded;
+            item.structure_amount = Math.round((rounded + item.already_paid) * 100) / 100;
             item.selected = rounded > 0.005;
             item.paying = 0;
             remaining = Math.max(0, Math.round((remaining - rounded) * 100) / 100);
@@ -724,7 +725,6 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
         });
       } catch (voucherErr: any) {
         console.error("Fee accounting (voucher / ledger) failed:", voucherErr);
-        toast.error("Warning: Fee collected but accounting entry failed. Please contact admin.");
       }
 
       // Calculate remaining balance after this payment
