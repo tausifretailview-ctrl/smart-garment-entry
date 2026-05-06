@@ -100,6 +100,26 @@ const cleanDescription = (desc: string) => {
     .trim();
 };
 
+function computeAdjustmentPosting(adj: any): { debit: number; credit: number } {
+  const amount = Number(adj?.change_amount || 0);
+  if (adj?.adjustment_type === "credit") {
+    // "credit" in audit means due increased -> debit in student ledger.
+    return { debit: amount, credit: 0 };
+  }
+  if (adj?.adjustment_type === "debit") {
+    // "debit" in audit means due reduced -> credit in student ledger.
+    return { debit: 0, credit: amount };
+  }
+  if (adj?.adjustment_type === "set") {
+    const oldBal = Number(adj?.old_balance ?? 0);
+    const newBal = Number(adj?.new_balance ?? oldBal);
+    const delta = Math.round((newBal - oldBal) * 100) / 100;
+    if (delta > 0) return { debit: delta, credit: 0 };
+    if (delta < 0) return { debit: 0, credit: Math.abs(delta) };
+  }
+  return { debit: 0, credit: 0 };
+}
+
 const getBadgeStyle = (type: string, status?: string) => {
   switch (type) {
     case 'advance':
@@ -737,16 +757,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               .map((fee: any) => ({
                 kind: "payment" as const,
                 date: fee.paid_date || fee.created_at?.substring(0, 10) || "",
+                sortAt: fee.created_at || (fee.paid_date ? `${fee.paid_date}T00:00:00` : ""),
                 data: fee,
               })),
             ...((adjustmentsAll || []) as any[]).map((adj: any) => ({
               kind: "adjustment" as const,
               date: adj.created_at?.substring(0, 10) || "",
+              sortAt: adj.created_at || "",
               data: adj,
             })),
           ].sort(
             (a, b) =>
-              new Date(a.date || "2000-01-01").getTime() - new Date(b.date || "2000-01-01").getTime()
+              new Date(a.sortAt || a.date || "2000-01-01").getTime() -
+              new Date(b.sortAt || b.date || "2000-01-01").getTime()
           );
 
           let rb = totalPendingNow;
@@ -801,6 +824,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             const adjAmount = Number(adj.change_amount || 0);
             const isCredit = adj.adjustment_type === "credit";
             const isDebit = adj.adjustment_type === "debit";
+            const posting = computeAdjustmentPosting(adj);
             if (isCredit) runningBalance += adjAmount;
             else if (isDebit) runningBalance -= adjAmount;
             else if (adj.adjustment_type === "set") runningBalance = Number(adj.new_balance || runningBalance);
@@ -812,8 +836,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               type: "adjustment",
               reference: adj.voucher_number || "Adjustment",
               description: adj.reason_code_label || "Balance Adjustment",
-              debit: isCredit ? adjAmount : 0,
-              credit: isDebit ? adjAmount : 0,
+              debit: posting.debit,
+              credit: posting.credit,
               balance: runningBalance,
             });
           });
@@ -1023,14 +1047,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             .map((fee: any) => ({
               kind: 'payment' as const,
               date: fee.paid_date || fee.created_at?.substring(0, 10) || '',
+              sortAt: fee.created_at || (fee.paid_date ? `${fee.paid_date}T00:00:00` : ''),
               data: fee,
             })),
           ...((adjustmentsData || []) as any[]).map((adj: any) => ({
             kind: 'adjustment' as const,
             date: adj.created_at?.substring(0, 10) || '',
+            sortAt: adj.created_at || '',
             data: adj,
           })),
-        ].sort((a, b) => new Date(a.date || '2000-01-01').getTime() - new Date(b.date || '2000-01-01').getTime());
+        ].sort(
+          (a, b) =>
+            new Date(a.sortAt || a.date || '2000-01-01').getTime() -
+            new Date(b.sortAt || b.date || '2000-01-01').getTime()
+        );
 
         combinedEntries.forEach((entry: any) => {
           if (entry.kind === 'payment') {
@@ -1060,6 +1090,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const adjAmount = Number(adj.change_amount || 0);
           const isCredit = adj.adjustment_type === 'credit';
           const isDebit = adj.adjustment_type === 'debit';
+          const posting = computeAdjustmentPosting(adj);
           if (isCredit) runningBalance += adjAmount;
           else if (isDebit) runningBalance -= adjAmount;
           else if (adj.adjustment_type === 'set') runningBalance = Number(adj.new_balance || runningBalance);
@@ -1071,8 +1102,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             type: 'adjustment',
             reference: adj.voucher_number || 'Adjustment',
             description: adj.reason_code_label || 'Balance Adjustment',
-            debit: isCredit ? adjAmount : 0,
-            credit: isDebit ? adjAmount : 0,
+            debit: posting.debit,
+            credit: posting.credit,
             balance: runningBalance,
           });
         });
