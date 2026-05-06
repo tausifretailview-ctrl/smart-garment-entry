@@ -24,6 +24,10 @@ import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import {
+  buildPurchaseReturnItemPayload,
+  calculatePurchaseReturnTotals,
+} from "@/utils/purchaseReturnDc";
+import {
   deleteJournalEntryByReference,
   recordPurchaseReturnJournalEntry,
 } from "@/utils/accounting/journalService";
@@ -90,7 +94,9 @@ const PurchaseReturnEntry = () => {
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
   const [returnNumber, setReturnNumber] = useState("");
-  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  // taxType: GST handling mode.
+  // 'dc' means Delivery Challan (no GST) — force GST to 0 and hide GST fields in UI.
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive" | "dc">("exclusive");
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
@@ -124,6 +130,7 @@ const PurchaseReturnEntry = () => {
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const defaultTaxRate = (settings?.purchase_settings as any)?.default_tax_rate;
+  const isDC = taxType === "dc";
 
   // Auto-focus search input on mount when setting is enabled
   useEffect(() => {
@@ -249,6 +256,10 @@ const PurchaseReturnEntry = () => {
         // Set return data
         setReturnNumber(typedReturn.return_number || "");
         setReturnDate(new Date(typedReturn.return_date));
+        // If existing return was saved as DC, force DC mode in UI.
+        if ((typedReturn as any).is_dc) {
+          setTaxType("dc");
+        }
         setReturnData({
           supplier_id: typedReturn.supplier_id || "",
           supplier_name: typedReturn.supplier_name || "",
@@ -548,40 +559,21 @@ const PurchaseReturnEntry = () => {
   }, [searchQuery, barcodeScanner.isScannerInput, processBarcodeInput]);
 
   useEffect(() => {
-    if (taxType === "exclusive") {
-      // GST Exclusive: line_total is base price, GST added on top
-      const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
-      // Apply discount on gross amount
-      const discountedGross = gross - discountAmount;
-      const gst = lineItems.reduce((sum, r) => {
-        const itemDiscountedTotal = r.line_total - (r.line_total / gross * discountAmount);
-        return sum + (itemDiscountedTotal * r.gst_per / 100);
-      }, 0);
-      setGrossAmount(gross);
-      setGstAmount(gross > 0 ? gst : 0);
-      setNetAmount(discountedGross + (gross > 0 ? gst : 0));
-    } else {
-      // GST Inclusive: line_total includes GST, need to extract base and GST
-      let totalGross = 0;
-      let totalGst = 0;
-      const lineTotal = lineItems.reduce((sum, r) => sum + r.line_total, 0);
-      lineItems.forEach((item) => {
-        const inclusiveTotal = item.line_total;
-        const gstRate = item.gst_per / 100;
-        const baseAmount = inclusiveTotal / (1 + gstRate);
-        const gstAmt = inclusiveTotal - baseAmount;
-        totalGross += baseAmount;
-        totalGst += gstAmt;
-      });
-      // Apply discount proportionally
-      const discountRatio = lineTotal > 0 ? discountAmount / lineTotal : 0;
-      const adjustedGross = totalGross * (1 - discountRatio);
-      const adjustedGst = totalGst * (1 - discountRatio);
-      setGrossAmount(totalGross);
-      setGstAmount(adjustedGst);
-      setNetAmount(adjustedGross + adjustedGst);
-    }
+    const totals = calculatePurchaseReturnTotals(lineItems, taxType, discountAmount);
+    setGrossAmount(totals.grossAmount);
+    setGstAmount(totals.gstAmount);
+    setNetAmount(totals.netAmount);
   }, [lineItems, taxType, discountAmount]);
+
+  // If DC mode is enabled, force per-line GST% to 0 so save/print are consistent.
+  useEffect(() => {
+    if (!isDC) return;
+    setLineItems((prev) => {
+      const needsUpdate = prev.some((it) => (it.gst_per || 0) !== 0);
+      if (!needsUpdate) return prev;
+      return prev.map((it) => ({ ...it, gst_per: 0 }));
+    });
+  }, [isDC, lineItems]);
 
   // Sync discount percent and amount
   const handleDiscountPercentChange = (percent: number) => {
@@ -723,7 +715,7 @@ const PurchaseReturnEntry = () => {
       const searchTerm = returnData.original_bill_number.trim();
       const { data: bill, error } = await supabase
         .from('purchase_bills')
-        .select(`id, supplier_id, supplier_name, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`)
+        .select(`id, supplier_id, supplier_name, is_dc_purchase, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`)
         .eq('organization_id', currentOrganization.id)
         .or(`software_bill_no.eq.${searchTerm},supplier_invoice_no.eq.${searchTerm}`)
         .is('deleted_at', null)
@@ -741,6 +733,13 @@ const PurchaseReturnEntry = () => {
         setReturnData(prev => ({ ...prev, supplier_id: bill.supplier_id, supplier_name: bill.supplier_name }));
       }
 
+      // Auto-detect DC bill: delivery challan (no GST)
+      const isBillDC = !!(bill as any).is_dc_purchase;
+      if (isBillDC) {
+        setTaxType('dc');
+        toast.info('DC bill detected — return will be saved as Delivery Challan (no GST).');
+      }
+
       const items: LineItem[] = ((bill as any).purchase_items || []).map((item: any) => ({
         temp_id: Date.now().toString() + Math.random(),
         product_id: item.product_id,
@@ -750,7 +749,7 @@ const PurchaseReturnEntry = () => {
         color: item.color || '',
         qty: item.qty || 1,
         pur_price: item.pur_price || 0,
-        gst_per: item.gst_per || 0,
+        gst_per: isBillDC ? 0 : (item.gst_per || 0),
         hsn_code: item.hsn_code || '',
         barcode: item.barcode || '',
         line_total: item.line_total || 0,
@@ -902,6 +901,8 @@ const PurchaseReturnEntry = () => {
       const paymentMethodForReturnRow: string | null =
         refundSettlement === "immediate_refund" ? refundPaymentMethod : null;
 
+      const isDC = taxType === "dc";
+
       if (isEditMode && editId) {
         // Update existing return
         const { error: updateError } = await supabase
@@ -912,8 +913,9 @@ const PurchaseReturnEntry = () => {
             original_bill_number: returnData.original_bill_number || null,
             return_date: format(returnDate, "yyyy-MM-dd"),
             gross_amount: grossAmount,
-            gst_amount: gstAmount,
-            net_amount: netAmount,
+            is_dc: isDC,
+            gst_amount: isDC ? 0 : gstAmount,
+            net_amount: isDC ? grossAmount - discountAmount : netAmount,
             notes: returnData.notes || null,
             payment_method: paymentMethodForReturnRow,
           })
@@ -922,18 +924,7 @@ const PurchaseReturnEntry = () => {
         if (updateError) throw updateError;
 
         // Atomic update via RPC: pre-checks stock, then deletes + reinserts in one transaction
-        const itemsPayload = lineItems.map((item) => ({
-          product_id: item.product_id,
-          sku_id: item.sku_id,
-          size: item.size,
-          color: item.color || null,
-          qty: item.qty,
-          pur_price: item.pur_price,
-          gst_per: item.gst_per,
-          hsn_code: item.hsn_code,
-          barcode: item.barcode,
-          line_total: item.line_total,
-        }));
+        const itemsPayload = lineItems.map((item) => buildPurchaseReturnItemPayload(item, isDC));
 
         const { data: updResult, error: updErr } = await supabase.rpc(
           'update_purchase_return_items' as any,
@@ -943,6 +934,16 @@ const PurchaseReturnEntry = () => {
         if (updErr) throw updErr;
         if (updResult && !(updResult as any).success) {
           throw new Error((updResult as any).error || 'Update failed');
+        }
+
+        // RPC `update_purchase_return_items` doesn't know about `is_dc`.
+        // Persist DC mode at the item level so dashboard + print can rely on it.
+        if (typeof isDC === "boolean") {
+          const { error: itemsDcErr } = await supabase
+            .from("purchase_return_items" as any)
+            .update({ is_dc: isDC })
+            .eq("return_id", editId);
+          if (itemsDcErr) throw itemsDcErr;
         }
 
         const { data: acctEditPr } = await supabase
@@ -1011,8 +1012,9 @@ const PurchaseReturnEntry = () => {
             original_bill_number: returnData.original_bill_number || null,
             return_date: format(returnDate, "yyyy-MM-dd"),
             gross_amount: grossAmount,
-            gst_amount: gstAmount,
-            net_amount: netAmount,
+            is_dc: isDC,
+            gst_amount: isDC ? 0 : gstAmount,
+            net_amount: isDC ? grossAmount - discountAmount : netAmount,
             notes: returnData.notes || null,
             return_number: freshReturnNumber,
             credit_status: "pending",
@@ -1026,16 +1028,7 @@ const PurchaseReturnEntry = () => {
         // Insert return items
         const itemsToInsert = lineItems.map((item) => ({
           return_id: (returnRecord as any).id,
-          product_id: item.product_id,
-          sku_id: item.sku_id,
-          size: item.size,
-          color: item.color || null,
-          qty: item.qty,
-          pur_price: item.pur_price,
-          gst_per: item.gst_per,
-          hsn_code: item.hsn_code,
-          barcode: item.barcode,
-          line_total: item.line_total,
+          ...buildPurchaseReturnItemPayload(item, isDC),
         }));
 
         const { error: itemsError } = await supabase
@@ -1263,13 +1256,14 @@ const PurchaseReturnEntry = () => {
 
               <div className="space-y-2">
                 <Label>GST Type</Label>
-                <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
+                <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive" | "dc") => setTaxType(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="exclusive">GST Exclusive</SelectItem>
                     <SelectItem value="inclusive">GST Inclusive</SelectItem>
+                    <SelectItem value="dc">DC (No GST)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1371,13 +1365,27 @@ const PurchaseReturnEntry = () => {
                 <span className="font-medium">-₹{discountAmount.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">GST Amount:</span>
-              <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
-            </div>
+            {!isDC ? (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">GST Amount:</span>
+                <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-medium">GST Amount:</span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-bold">
+                    DC
+                  </span>
+                  <span className="font-medium">₹0.00</span>
+                </span>
+              </div>
+            )}
             <div className="flex justify-between border-t pt-3">
               <span className="font-semibold">Net Amount:</span>
-              <span className="font-bold text-lg">₹{netAmount.toFixed(2)}</span>
+              <span className="font-bold text-lg">
+                ₹{(isDC ? grossAmount - discountAmount : netAmount).toFixed(2)}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -1500,7 +1508,7 @@ const PurchaseReturnEntry = () => {
                     <TableHead className="w-32">Price</TableHead>
                     <TableHead className="w-20">Disc%</TableHead>
                     <TableHead className="w-24">Disc ₹</TableHead>
-                    <TableHead className="w-24">GST%</TableHead>
+                    {!isDC && <TableHead className="w-24">GST%</TableHead>}
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
@@ -1581,20 +1589,22 @@ const PurchaseReturnEntry = () => {
                           className="w-24"
                         />
                       </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={item.gst_per}
-                          onChange={(e) =>
-                            updateLineItem(item.temp_id, "gst_per", parseFloat(e.target.value) || 0)
-                          }
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20"
-                        />
-                      </TableCell>
+                      {!isDC && (
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={item.gst_per}
+                            onChange={(e) =>
+                              updateLineItem(item.temp_id, "gst_per", parseFloat(e.target.value) || 0)
+                            }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-20"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="text-right font-medium">
                         ₹{item.line_total.toFixed(2)}
                       </TableCell>

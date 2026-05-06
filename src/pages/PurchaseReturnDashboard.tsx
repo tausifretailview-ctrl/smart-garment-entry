@@ -45,6 +45,7 @@ interface PurchaseReturn {
   supplier_id?: string;
   original_bill_number?: string;
   gross_amount: number;
+  is_dc?: boolean;
   gst_amount: number;
   net_amount: number;
   notes?: string;
@@ -65,6 +66,7 @@ const PurchaseReturnDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [dcFilter, setDcFilter] = useState<"all" | "dc" | "gst">("all");
   const [expandedReturns, setExpandedReturns] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [returnToDelete, setReturnToDelete] = useState<PurchaseReturn | null>(null);
@@ -107,7 +109,7 @@ const PurchaseReturnDashboard = () => {
 
   // Server-side paginated query
   const { data: returnsData, isLoading: returnsLoading, refetch: refetchReturns } = useQuery({
-    queryKey: ["purchase-returns", currentOrganization?.id, debouncedSearch, startDate, endDate, currentPage, pageSize],
+    queryKey: ["purchase-returns", currentOrganization?.id, debouncedSearch, startDate, endDate, dcFilter, currentPage, pageSize],
     queryFn: async () => {
       if (!currentOrganization?.id) return { returns: [], totalCount: 0 };
 
@@ -116,9 +118,12 @@ const PurchaseReturnDashboard = () => {
 
       let query = supabase
         .from("purchase_returns" as any)
-        .select("id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id", { count: "exact" })
+        .select("id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, is_dc, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
+
+      if (dcFilter === "dc") query = query.eq("is_dc", true);
+      if (dcFilter === "gst") query = query.eq("is_dc", false);
 
       if (debouncedSearch) {
         query = query.or(`supplier_name.ilike.%${debouncedSearch}%,original_bill_number.ilike.%${debouncedSearch}%,return_number.ilike.%${debouncedSearch}%`);
@@ -588,7 +593,7 @@ const PurchaseReturnDashboard = () => {
           <CardTitle className="text-lg">Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -617,6 +622,18 @@ const PurchaseReturnDashboard = () => {
                 onChange={(e) => setEndDate(e.target.value)}
                 className="pl-10"
               />
+            </div>
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">DC Filter</div>
+              <select
+                value={dcFilter}
+                onChange={(e) => setDcFilter(e.target.value as any)}
+                className="border rounded px-3 py-2 text-sm bg-background w-full"
+              >
+                <option value="all">All Returns</option>
+                <option value="dc">DC Only</option>
+                <option value="gst">GST Only</option>
+              </select>
             </div>
           </div>
         </CardContent>
@@ -699,9 +716,16 @@ const PurchaseReturnDashboard = () => {
                           />
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-sm">
-                          <Badge variant="secondary" className="font-medium text-xs px-1.5 py-0.5">
-                            {returnRecord.return_number || "-"}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="font-medium text-xs px-1.5 py-0.5">
+                              {returnRecord.return_number || "-"}
+                            </Badge>
+                            {returnRecord.is_dc && (
+                              <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded font-bold">
+                                DC
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-sm whitespace-nowrap">
                           {format(new Date(returnRecord.return_date), "dd MMM yyyy")}
@@ -732,7 +756,14 @@ const PurchaseReturnDashboard = () => {
                           ₹{returnRecord.gross_amount.toFixed(2)}
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums">
-                          ₹{returnRecord.gst_amount.toFixed(2)}
+                          {returnRecord.is_dc ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="text-orange-500 text-xs font-medium">DC</span>
+                              <span className="text-xs text-muted-foreground">₹0.00</span>
+                            </div>
+                          ) : (
+                            <span>₹{returnRecord.gst_amount.toFixed(2)}</span>
+                          )}
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-sm text-right font-semibold tabular-nums text-primary">
                           ₹{returnRecord.net_amount.toFixed(2)}

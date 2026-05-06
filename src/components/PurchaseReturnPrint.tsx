@@ -37,6 +37,7 @@ interface PurchaseReturnPrintProps {
     original_bill_number?: string;
     original_bill_date?: string;
     gross_amount: number;
+    is_dc?: boolean;
     gst_amount: number;
     net_amount: number;
     notes?: string;
@@ -122,6 +123,7 @@ function amountInWords(amount: number): string {
 
 export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrintProps>(
   ({ returnData, items, businessDetails, saleSettings, logoUrl }, ref) => {
+    const isDC = !!returnData.is_dc;
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
     const discountAmount = returnData.discount_amount || 0;
     const discountPercent = returnData.discount_percent || 0;
@@ -212,7 +214,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
           {/* Title */}
           <div className="text-center pr-border-b py-1" style={{ backgroundColor: "#f5f5f5" }}>
-            <h2 className="text-base font-bold">PURCHASE RETURN (DEBIT NOTE)</h2>
+            <h2 className="text-base font-bold">
+              PURCHASE RETURN ({isDC ? "DELIVERY CHALLAN" : "DEBIT NOTE"})
+            </h2>
           </div>
 
           {/* Billed To / Shipped To Section */}
@@ -273,7 +277,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <th style={{ width: "6%" }}>Sr</th>
                 <th style={{ width: "22%" }}>Description Of Goods</th>
                 <th style={{ width: "8%" }}>Color</th>
-                <th style={{ width: "8%" }}>Hsn Code</th>
+                {!isDC && <th style={{ width: "8%" }}>Hsn Code</th>}
                 <th style={{ width: "7%" }}>Pcs</th>
                 <th style={{ width: "11%" }}>Rate</th>
                 <th style={{ width: "8%" }}>Disc%</th>
@@ -287,7 +291,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-center">{index + 1}</td>
                   <td>{item.product_name || "-"}</td>
                   <td className="text-center">{item.color || "-"}</td>
-                  <td className="text-center">{item.hsn_code || ""}</td>
+                  {!isDC && <td className="text-center">{item.hsn_code || ""}</td>}
                   <td className="text-center">{item.qty}</td>
                   <td className="text-right">{item.pur_price.toFixed(2)}</td>
                   <td className="text-right">{(item.discount_percent || 0).toFixed(2)}</td>
@@ -317,7 +321,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             <div className="pr-border-r p-1 text-center font-bold" style={{ width: "6%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1 font-bold" style={{ width: "22%", fontSize: "12px" }}>Total</div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
+            {!isDC && <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>}
             <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
             <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
@@ -359,18 +363,30 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
             {/* Amount Summary */}
             <div className="w-1/2">
-              <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount Before Tax</div>
-                <div className="w-1/3 p-1 text-right text-sm">{amountBeforeTax.toFixed(2)}</div>
-              </div>
-              <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Add : GST</div>
-                <div className="w-1/3 p-1 text-right text-sm">{returnData.gst_amount.toFixed(2)}</div>
-              </div>
-              <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount After Tax</div>
-                <div className="w-1/3 p-1 text-right text-sm font-bold">{returnData.net_amount.toFixed(2)}</div>
-              </div>
+              {!isDC && (
+                <div className="flex pr-border-b">
+                  <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount Before Tax</div>
+                  <div className="w-1/3 p-1 text-right text-sm">{amountBeforeTax.toFixed(2)}</div>
+                </div>
+              )}
+              {!isDC && (
+                <>
+                  <div className="flex pr-border-b">
+                    <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Add : GST</div>
+                    <div className="w-1/3 p-1 text-right text-sm">{returnData.gst_amount.toFixed(2)}</div>
+                  </div>
+                  <div className="flex pr-border-b">
+                    <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount After Tax</div>
+                    <div className="w-1/3 p-1 text-right text-sm font-bold">{returnData.net_amount.toFixed(2)}</div>
+                  </div>
+                </>
+              )}
+              {isDC && (
+                <div className="flex pr-border-b">
+                  <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount</div>
+                  <div className="w-1/3 p-1 text-right text-sm font-bold">{returnData.net_amount.toFixed(2)}</div>
+                </div>
+              )}
 
               {/* Signatory */}
               <div className="p-2 text-center">
