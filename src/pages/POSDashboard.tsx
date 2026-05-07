@@ -54,6 +54,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { PosScaleControl, applyPosScale, getStoredPosScale } from "@/components/pos/PosScaleControl";
 
 interface SaleItem {
   id: string;
