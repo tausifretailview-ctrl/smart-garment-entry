@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   calculateGSTBreakup,
+  calculateInvoiceValue,
   isInterState,
   generateGSTRegisterExcel,
   downloadGSTRegisterExcel,
@@ -132,11 +133,43 @@ const GSTSalePurchaseRegister = () => {
       const toDateObj = new Date(toDate);
       toDateObj.setHours(23, 59, 59, 999);
 
+      /**
+       * Scale item line_totals to account for bill-level flat discount.
+       *
+       * When a flat discount is applied at bill level, line_total on rows may
+       * still represent pre-flat-discount values. We scale each item
+       * proportionally so GST breakup matches net bill amount.
+       */
+      const applyFlatDiscountToItems = (
+        items: any[],
+        saleNetAmount: number,
+        _saleGrossAmount: number,
+        _saleDiscountAmount: number,
+        saleFlatDiscountAmount: number
+      ): any[] => {
+        if (!items || items.length === 0) return items;
+
+        const itemsGrossTotal = items.reduce((sum, i) => sum + (Number(i.line_total) || 0), 0);
+        if (itemsGrossTotal <= 0) return items;
+
+        const flatDisc = Number(saleFlatDiscountAmount) || 0;
+        if (flatDisc <= 0.001) return items;
+
+        const scaleFactor = (Number(saleNetAmount) || 0) / itemsGrossTotal;
+        if (!Number.isFinite(scaleFactor) || scaleFactor <= 0) return items;
+
+        return items.map((item) => ({
+          ...item,
+          line_total: Math.round((Number(item.line_total || 0) * scaleFactor) * 100) / 100,
+        }));
+      };
+
       // ===== Fetch Invoice Sales Data (sale_type = 'invoice') =====
       const { data: salesData } = await supabase
         .from("sales")
         .select(`
           id, sale_number, sale_date, customer_name, net_amount,
+          gross_amount, discount_amount, flat_discount_amount, tax_type,
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -152,6 +185,7 @@ const GSTSalePurchaseRegister = () => {
         .from("sales")
         .select(`
           id, sale_number, sale_date, customer_name, net_amount,
+          gross_amount, discount_amount, flat_discount_amount, tax_type,
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -187,10 +221,21 @@ const GSTSalePurchaseRegister = () => {
 
       // FIX G9: Process sales register with IGST columns
       const salesRegister: SalesRegisterRow[] = (salesData || []).map((sale, index) => {
-        const items = (saleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
+        const rawItems = (saleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
+        const items = applyFlatDiscountToItems(
+          rawItems,
+          Number(sale.net_amount) || 0,
+          Number((sale as any).gross_amount) || 0,
+          Number((sale as any).discount_amount) || 0,
+          Number((sale as any).flat_discount_amount) || 0
+        );
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
-        const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
+        const taxType = ((sale as any).tax_type === "exclusive" || (sale as any).tax_type === "gst_exclusive")
+          ? "exclusive"
+          : "inclusive";
+        const breakup = calculateGSTBreakup(items, taxType, isInterStateTx);
+        calculateInvoiceValue(breakup);
 
         return {
           sno: index + 1,
@@ -215,16 +260,27 @@ const GSTSalePurchaseRegister = () => {
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
           igst_28: breakup.igst_28,
-          invoiceValue: sale.net_amount,
+          invoiceValue: Number(sale.net_amount) || 0,
         };
       });
 
       // Process POS sales register with IGST columns
       const posSalesRegister: SalesRegisterRow[] = (posSalesData || []).map((sale, index) => {
-        const items = (posSaleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
+        const rawItems = (posSaleItemsMap.get(sale.id) || []).filter((i: any) => !i.is_dc_item);
+        const items = applyFlatDiscountToItems(
+          rawItems,
+          Number(sale.net_amount) || 0,
+          Number((sale as any).gross_amount) || 0,
+          Number((sale as any).discount_amount) || 0,
+          Number((sale as any).flat_discount_amount) || 0
+        );
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
-        const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
+        const taxType = ((sale as any).tax_type === "exclusive" || (sale as any).tax_type === "gst_exclusive")
+          ? "exclusive"
+          : "inclusive";
+        const breakup = calculateGSTBreakup(items, taxType, isInterStateTx);
+        calculateInvoiceValue(breakup);
 
         return {
           sno: index + 1,
@@ -249,7 +305,7 @@ const GSTSalePurchaseRegister = () => {
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
           igst_28: breakup.igst_28,
-          invoiceValue: sale.net_amount,
+          invoiceValue: Number(sale.net_amount) || 0,
         };
       });
 
@@ -308,12 +364,11 @@ const GSTSalePurchaseRegister = () => {
       const { data: purchaseData } = await supabase
         .from("purchase_bills")
         .select(`
-          id, supplier_invoice_no, bill_date, supplier_name, net_amount,
+          id, supplier_invoice_no, bill_date, supplier_name, net_amount, gross_amount, discount_amount, is_dc_purchase,
           supplier_id, suppliers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .or('is_dc_purchase.is.null,is_dc_purchase.eq.false')
         .gte("bill_date", fromDate)
         .lte("bill_date", toDate)
         .order("bill_date", { ascending: true });
@@ -332,11 +387,22 @@ const GSTSalePurchaseRegister = () => {
       });
 
       const purchaseRegister: PurchaseRegisterRow[] = (purchaseData || []).map((purchase, index) => {
-        const items = purchaseItemsMap.get(purchase.id) || [];
+        const rawItems = purchaseItemsMap.get(purchase.id) || [];
+        const items = applyFlatDiscountToItems(
+          rawItems.map((i: any) => ({
+            ...i,
+            line_total: Number(i.line_total) || 0,
+            gst_percent: (purchase as any).is_dc_purchase ? 0 : (Number(i.gst_per) || 0),
+          })),
+          Number(purchase.net_amount) || 0,
+          Number((purchase as any).gross_amount) || 0,
+          Number((purchase as any).discount_amount) || 0,
+          Number((purchase as any).discount_amount) || 0
+        );
         const supplierGSTIN = (purchase.suppliers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, supplierGSTIN);
         const breakup = calculateGSTBreakup(
-          items.map(i => ({ gst_percent: i.gst_per, line_total: i.line_total })),
+          items,
           "exclusive",
           isInterStateTx
         );
@@ -364,7 +430,7 @@ const GSTSalePurchaseRegister = () => {
           cgst_14: breakup.cgst_14,
           sgst_14: breakup.sgst_14,
           igst_28: breakup.igst_28,
-          invoiceValue: purchase.net_amount,
+          invoiceValue: Number(purchase.net_amount) || 0,
         };
       });
 

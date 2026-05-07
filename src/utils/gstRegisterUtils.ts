@@ -142,9 +142,11 @@ export const calculateGSTBreakup = (
     let gstAmount: number;
 
     if (taxType === 'inclusive') {
-      taxableAmount = calculateTaxableFromInclusive(item.line_total, gstPercent);
+      // line_total includes GST — extract taxable
+      taxableAmount = item.line_total / (1 + gstPercent / 100);
       gstAmount = item.line_total - taxableAmount;
     } else {
+      // line_total is taxable amount (GST exclusive); GST is added on top
       taxableAmount = item.line_total;
       gstAmount = taxableAmount * (gstPercent / 100);
     }
