@@ -5334,16 +5334,6 @@ export default function BarcodePrinting() {
           <Download className="h-4 w-4 mr-2" />
           Export PDF
         </Button>
-        {!(isThermal1Up() || isThermal2Up()) && (
-          <Button
-            onClick={handleExportPerfectPDF}
-            variant="outline"
-            className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700 dark:bg-purple-950 dark:hover:bg-purple-900 dark:border-purple-800 dark:text-purple-300"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Perfect PDF ✨
-          </Button>
-        )}
         <Button 
           onClick={handleSaveAsDefault} 
           variant={selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "default" : "secondary"}
