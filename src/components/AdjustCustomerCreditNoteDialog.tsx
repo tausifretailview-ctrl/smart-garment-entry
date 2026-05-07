@@ -189,17 +189,94 @@ export function AdjustCustomerCreditNoteDialog({
     [cnAvailable, sumAllocationsExcept]
   );
 
-  /** Multi-invoice CN apply: one `adjust_invoice_balance` RPC per row (types pending regen). */
-  const applyInvoiceAllocationsViaRpc = async (maxCredit: number): Promise<boolean> => {
-    if (!creditNoteId || creditNoteId === "") {
-      toast({
-        title: "Cannot apply",
-        description: "Credit note record is missing. Link a credit_notes row before applying.",
-        variant: "destructive",
-      });
-      return false;
+  const ensureCreditNoteIdForReturn = useCallback(async (): Promise<string | null> => {
+    const existingFromProps = String(creditNoteId || "").trim();
+
+    if (existingFromProps) {
+      const { data: existingCn, error: existingCnError } = await supabase
+        .from("credit_notes")
+        .select("id")
+        .eq("id", existingFromProps)
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (existingCnError) throw existingCnError;
+      if (existingCn?.id) return existingCn.id;
     }
 
+    const { data: sr, error: srError } = await supabase
+      .from("sale_returns")
+      .select("id, organization_id, customer_id, customer_name, return_number, return_date, net_amount, linked_sale_id, credit_note_id")
+      .eq("id", saleReturnId)
+      .eq("organization_id", currentOrganization!.id)
+      .single();
+    if (srError) throw srError;
+
+    const srLinkedCreditNoteId = String((sr as any)?.credit_note_id || "").trim();
+    if (srLinkedCreditNoteId) {
+      const { data: linkedCn, error: linkedCnError } = await supabase
+        .from("credit_notes")
+        .select("id")
+        .eq("id", srLinkedCreditNoteId)
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (linkedCnError) throw linkedCnError;
+      if (linkedCn?.id) return linkedCn.id;
+    }
+
+    const { data: creditNoteNumber, error: numberError } = await supabase.rpc(
+      "generate_credit_note_number",
+      { p_organization_id: currentOrganization!.id }
+    );
+    if (numberError) throw numberError;
+
+    const { data: newCN, error: createError } = await supabase
+      .from("credit_notes")
+      .insert({
+        organization_id: currentOrganization!.id,
+        credit_note_number: creditNoteNumber,
+        sale_id: (sr as any)?.linked_sale_id || null,
+        customer_id: (sr as any)?.customer_id || null,
+        customer_name: (sr as any)?.customer_name || customerName || "Walk-in Customer",
+        credit_amount: Math.max(
+          0,
+          Number((sr as any)?.net_amount ?? creditAmount ?? 0)
+        ),
+        used_amount: 0,
+        status: "active",
+        issue_date: (sr as any)?.return_date || format(new Date(), "yyyy-MM-dd"),
+        notes: `Credit note from sale return ${(sr as any)?.return_number || returnNumber || saleReturnId}`,
+      } as any)
+      .select("id")
+      .single();
+    if (createError) throw createError;
+
+    const createdId = (newCN as any)?.id;
+    if (!createdId) return null;
+
+    const { error: linkError } = await supabase
+      .from("sale_returns")
+      .update({ credit_note_id: createdId })
+      .eq("id", saleReturnId)
+      .eq("organization_id", currentOrganization!.id);
+    if (linkError) throw linkError;
+
+    return createdId;
+  }, [
+    creditAmount,
+    creditNoteId,
+    currentOrganization,
+    customerName,
+    returnNumber,
+    saleReturnId,
+  ]);
+
+  /** Multi-invoice CN apply: one `adjust_invoice_balance` RPC per row (types pending regen). */
+  const applyInvoiceAllocationsViaRpc = async (
+    maxCredit: number,
+    effectiveCreditNoteId: string
+  ): Promise<boolean> => {
     const entries = Object.entries(allocations)
       .map(([saleId, amt]) => ({ saleId, amount: Number(amt) || 0 }))
       .filter((e) => e.amount > 0.01 && checkedIds.has(e.saleId))
@@ -256,7 +333,7 @@ export function AdjustCustomerCreditNoteDialog({
           p_organization_id: currentOrganization!.id,
           p_invoice_id: saleId,
           p_adjustment_type: "CREDIT_NOTE",
-          p_source_document_id: creditNoteId,
+          p_source_document_id: effectiveCreditNoteId,
           p_amount_applied: applyAmt,
         });
 
@@ -375,7 +452,28 @@ export function AdjustCustomerCreditNoteDialog({
     setLoading(true);
     try {
       if (adjustmentType === "invoice") {
-        const ok = await applyInvoiceAllocationsViaRpc(liveCn);
+        let effectiveCreditNoteId: string;
+        try {
+          const ensured = await ensureCreditNoteIdForReturn();
+          if (!ensured) {
+            toast({
+              title: "Cannot apply",
+              description: "Failed to prepare credit note record for this sale return.",
+              variant: "destructive",
+            });
+            return;
+          }
+          effectiveCreditNoteId = ensured;
+        } catch (ensureErr: any) {
+          toast({
+            title: "Cannot apply",
+            description: ensureErr?.message || "Failed to create missing credit note record.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const ok = await applyInvoiceAllocationsViaRpc(liveCn, effectiveCreditNoteId);
         if (!ok) return;
       } else if (adjustmentType === "refund") {
         const today = format(new Date(), "yyyy-MM-dd");

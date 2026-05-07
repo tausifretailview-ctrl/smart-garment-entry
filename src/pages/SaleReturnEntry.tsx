@@ -896,6 +896,50 @@ export default function SaleReturnEntry() {
 
           if (itemsError) throw itemsError;
 
+          // Ensure every credit-note sale return has a linked credit_notes row.
+          const { data: srLinkRow, error: srLinkError } = await supabase
+            .from("sale_returns")
+            .select("credit_note_id")
+            .eq("id", returnData.id)
+            .maybeSingle();
+          if (srLinkError) throw srLinkError;
+
+          if (!(srLinkRow as any)?.credit_note_id) {
+            const { data: creditNoteNumber, error: cnNumberError } = await supabase
+              .rpc("generate_credit_note_number", { p_organization_id: currentOrganization!.id });
+            if (cnNumberError) throw cnNumberError;
+
+            const { data: newCreditNote, error: cnCreateError } = await supabase
+              .from("credit_notes")
+              .insert({
+                organization_id: currentOrganization!.id,
+                credit_note_number: creditNoteNumber,
+                sale_id: originalSaleId || null,
+                customer_id: selectedCustomer || null,
+                customer_name: customer?.customer_name || "Walk-in Customer",
+                customer_phone: customer?.phone || null,
+                credit_amount: totals.netAmount,
+                used_amount: 0,
+                status: "active",
+                issue_date: returnDate,
+                notes: `Credit note from sale return ${returnData.return_number}`,
+              } as any)
+              .select("id")
+              .single();
+            if (cnCreateError) throw cnCreateError;
+
+            const createdCreditNoteId = (newCreditNote as any)?.id;
+            if (!createdCreditNoteId) {
+              throw new Error("Credit note was created but no id was returned.");
+            }
+
+            const { error: srUpdateError } = await supabase
+              .from("sale_returns")
+              .update({ credit_note_id: createdCreditNoteId, credit_status: "pending", linked_sale_id: null })
+              .eq("id", returnData.id);
+            if (srUpdateError) throw srUpdateError;
+          }
+
           const { data: acctSrPage } = await supabase
             .from("settings")
             .select("accounting_engine_enabled")

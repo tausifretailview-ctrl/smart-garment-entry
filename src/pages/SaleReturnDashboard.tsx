@@ -705,6 +705,7 @@ export default function SaleReturnDashboard() {
                               if (status === "refunded" || status === "adjusted_outstanding") return false;
                               // "adjusted" with linked_sale_id means already applied to an invoice
                               if (status === "adjusted" && ret.linked_sale_id) return false;
+                              if (!ret.credit_note_id) return false;
                               const bal =
                                 ret.credit_available_balance != null && !Number.isNaN(Number(ret.credit_available_balance))
                                   ? Number(ret.credit_available_balance)
