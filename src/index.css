@@ -1842,46 +1842,114 @@ body {
   font-size: 11.5px !important;
 }
 
-/* ── 4. Table text scaling ── */
+/* ============================================
+   TABLE COLUMN FIX — prevents truncation
+   ============================================ */
+
+/* Purchase Bills / Sales Invoice dashboards
+   (Exclude POS tables via .erp-desktop-table) */
+table:not(.erp-desktop-table) {
+  table-layout: auto !important; /* AUTO not fixed — lets columns breathe */
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
 
 /* Table header */
-table th,
-thead th {
-  font-size: 11px !important;
-  padding: 6px 10px !important;
-  height: 30px !important;
-  letter-spacing: 0.05em !important;
+table:not(.erp-desktop-table) thead th {
+  font-size: 11px !important; /* SAFE */
+  height: 32px !important;
+  padding: 5px 10px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
 }
 
 /* Table body cells */
-table td,
-tbody td {
+table:not(.erp-desktop-table) tbody td {
   font-size: 13px !important;
-  padding: 5px 10px !important;
   height: 36px !important;
+  padding: 5px 10px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  max-width: none !important;
 }
 
-/* Amount/number cells in table */
-table td[class*="text-right"],
-table td[class*="font-mono"],
-table td[class*="tabular"] {
-  font-size: 13px !important;
-  font-family: "Segoe UI", system-ui, sans-serif !important;
+/* Amount values */
+table:not(.erp-desktop-table) td[class*="text-right"],
+table:not(.erp-desktop-table) th[class*="text-right"] {
+  min-width: 90px !important;
+  white-space: nowrap !important;
+  text-align: right !important;
+}
+
+table:not(.erp-desktop-table) td[class*="text-right"] {
+  font-size: 12.5px !important;
   font-weight: 600 !important;
 }
 
-/* Bill number / reference links in table */
-table td a,
-table td [class*="text-primary"],
-table td [class*="font-medium"] {
-  font-size: 13px !important;
-  font-weight: 600 !important;
+/* Bill number column — never truncate */
+table:not(.erp-desktop-table) td:nth-child(2),
+table:not(.erp-desktop-table) td[class*="bill"],
+table:not(.erp-desktop-table) td a[class*="primary"] {
+  white-space: nowrap !important;
+  overflow: visible !important;
+  min-width: 130px !important;
 }
 
-/* Supplier / customer name in table */
-table td [class*="font-semibold"],
-table td [class*="font-bold"] {
-  font-size: 13px !important;
+/* Supplier / Customer name — must show fully (ellipsis allowed) */
+table:not(.erp-desktop-table) td:nth-child(5),
+table:not(.erp-desktop-table) td[class*="supplier"],
+table:not(.erp-desktop-table) td[class*="customer"],
+table:not(.erp-desktop-table) td [class*="font-semibold"],
+table:not(.erp-desktop-table) td button[class*="font"] {
+  min-width: 180px !important;
+  max-width: 280px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Status badge column */
+table:not(.erp-desktop-table) td [class*="badge"],
+table:not(.erp-desktop-table) td [class*="rounded"][class*="px"] {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+}
+
+/* Action column — fixed small width */
+table:not(.erp-desktop-table) td:last-child,
+table:not(.erp-desktop-table) th:last-child {
+  min-width: 90px !important;
+  width: 90px !important;
+  white-space: nowrap !important;
+}
+
+/* Horizontal scroll on table container when needed */
+[class*="overflow-x-auto"],
+[class*="table-container"],
+.relative.overflow-auto {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* KPI card values — responsive font size */
+[class*="CardContent"] [class*="text-xl"],
+[class*="CardContent"] [class*="text-2xl"],
+[class*="CardContent"] p[class*="font-semibold"],
+[class*="CardContent"] p[class*="font-mono"] {
+  font-size: clamp(16px, 2vw, 24px) !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* KPI card container — prevent overflow */
+[class*="CardContent"] {
+  overflow: hidden !important;
+  min-width: 0 !important;
 }
 
 /* ── 5. Status badges — bigger and readable ── */

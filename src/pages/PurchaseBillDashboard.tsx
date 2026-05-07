@@ -1403,8 +1403,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 120,
-      minSize: 90,
+      size: 140,
+      minSize: 130,
     },
     {
       accessorKey: "bill_date",
@@ -1422,7 +1422,7 @@ const PurchaseBillDashboard = () => {
         <span className="font-mono text-sm">{row.original.supplier_invoice_no}</span>
       ),
       size: 90,
-      minSize: 70,
+      minSize: 80,
     },
     {
       accessorKey: "supplier_name",
@@ -1449,8 +1449,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 180,
-      minSize: 120,
+      size: 220,
+      minSize: 180,
     },
     {
       accessorKey: "gross_amount",
@@ -1510,8 +1510,8 @@ const PurchaseBillDashboard = () => {
         const displayCount = countFromExpand ?? countFromQuery ?? 0;
         return <span className="text-center block text-sm">{displayCount}</span>;
       },
-      size: 55,
-      minSize: 45,
+      size: 60,
+      minSize: 60,
     },
     {
       id: "bill_image",
@@ -1612,8 +1612,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 170,
-      minSize: 150,
+      size: 90,
+      minSize: 90,
     },
   ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
 
