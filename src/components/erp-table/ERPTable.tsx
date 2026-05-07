@@ -231,6 +231,7 @@ export function ERPTable<T>({
                           {row.getVisibleCells().map((cell, idx) => (
                             <td
                               key={cell.id}
+                              data-column-id={cell.column.id}
                               style={{
                                 width: cell.column.getSize(),
                                 minWidth: cell.column.columnDef.minSize ?? 60,
