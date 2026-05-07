@@ -2263,10 +2263,6 @@ table[class*="table-fixed"] tbody td {
   max-width: 360px !important;
 }
 
-.erp-data-table {
-  table-layout: auto !important;
-}
-
 /* SIZE column */
 .erp-desktop-table th[class*="w-[50px]"],
 .erp-desktop-table td[class*="w-[50px]"] {
