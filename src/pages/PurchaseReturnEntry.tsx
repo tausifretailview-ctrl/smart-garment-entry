@@ -67,6 +67,7 @@ interface LineItem {
   discount_percent: number;
   discount_amount: number;
   mrp?: number;
+  stock_qty?: number;
 }
 
 /** AP = reduce supplier payable; immediate = cash/bank received from supplier (GL 1000/1010 vs 2000). */
@@ -724,7 +725,7 @@ const PurchaseReturnEntry = () => {
       const isBillDC = !!(bill as any).is_dc_purchase;
       if (isBillDC) {
         setTaxType('dc');
-        toast.info('DC bill detected — return will be saved as Delivery Challan (no GST).');
+        toast({ title: 'DC bill detected', description: 'Return will be saved as Delivery Challan (no GST).' });
       }
 
       const items: LineItem[] = ((bill as any).purchase_items || []).map((item: any) => ({
