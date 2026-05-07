@@ -10,6 +10,7 @@ import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
+import { DashboardScaleControl } from "@/components/dashboard/DashboardScaleControl";
 import { useLocation } from "react-router-dom";
 
 interface FullScreenLayoutProps {
@@ -21,6 +22,13 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   // Full-screen billing: hide sidebar + header/tabs ONLY on Sales Invoice entry page
   // (not the dashboard). Matches /sales-invoice and /:org/sales-invoice exactly.
   const isSalesInvoicePage = /\/sales-invoice\/?$/.test(location.pathname);
+  const isEnterpriseDashboardOrReport =
+    /(dashboard|report|analytics|analysis|tally|ledger|stock-ageing|stock-report|stock-analysis|accounts|payments-dashboard|delivery-dashboard)/.test(
+      location.pathname
+    ) &&
+    !/\/(sales-invoice|purchase-entry|pos-sales|pos-dashboard)(\/|$)/.test(
+      location.pathname
+    );
   return (
     <ChatProvider>
       <SidebarProvider defaultOpen={!isSalesInvoicePage}>
@@ -55,9 +63,16 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               className={
                 isSalesInvoicePage
                   ? "flex-1 animate-fade-in relative z-[1] min-h-0 overflow-hidden"
-                  : "flex-1 animate-fade-in p-4 pb-20 lg:pb-10 relative z-[1]"
+                  : `flex-1 animate-fade-in p-4 pb-20 lg:pb-10 relative z-[1]${
+                      isEnterpriseDashboardOrReport ? " dashboard-readable" : ""
+                    }`
               }
             >
+              {isEnterpriseDashboardOrReport && (
+                <div className="mb-3 flex justify-end">
+                  <DashboardScaleControl />
+                </div>
+              )}
               {children}
             </main>
           </SidebarInset>

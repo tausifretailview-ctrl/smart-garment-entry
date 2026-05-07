@@ -1168,15 +1168,13 @@ body[data-pos-scale="125"] .pos-desktop-readable { zoom: 1.25; }
 body[data-pos-scale="150"] .pos-desktop-readable { zoom: 1.50; }
 
 /* Main Dashboard scale (100/110/125/150) */
-.dashboard-readable { font-size: 15px; }
-.dashboard-readable input,
-.dashboard-readable [role="combobox"],
-.dashboard-readable button { font-size: 14px; }
-.dashboard-readable h1 { font-size: 28px !important; }
+/* Base Dashboard Overrides */
+.dashboard-readable { width: 100%; max-width: 100%; }
 .dashboard-readable h2 { font-size: 22px !important; }
 .dashboard-readable .text-xs { font-size: 12px !important; }
 .dashboard-readable .text-sm { font-size: 14px !important; }
 
+/* SCALE: 110% */
 body[data-dash-scale="110"] .dashboard-readable { font-size: 17px; }
 body[data-dash-scale="110"] .dashboard-readable input,
 body[data-dash-scale="110"] .dashboard-readable [role="combobox"],
@@ -1185,24 +1183,52 @@ body[data-dash-scale="110"] .dashboard-readable h1 { font-size: 32px !important;
 body[data-dash-scale="110"] .dashboard-readable h2 { font-size: 24px !important; }
 body[data-dash-scale="110"] .dashboard-readable .text-xs { font-size: 13px !important; }
 body[data-dash-scale="110"] .dashboard-readable .text-sm { font-size: 15px !important; }
+body[data-dash-scale="110"] .dashboard-readable .text-base { font-size: 17px !important; }
+body[data-dash-scale="110"] .dashboard-readable .text-lg { font-size: 20px !important; }
+body[data-dash-scale="110"] .dashboard-readable .text-xl { font-size: 22px !important; }
+body[data-dash-scale="110"] .dashboard-readable .text-2xl { font-size: 26px !important; }
+body[data-dash-scale="110"] .dashboard-readable .text-3xl { font-size: 33px !important; }
+body[data-dash-scale="110"] .dashboard-readable .text-4xl { font-size: 40px !important; }
+body[data-dash-scale="110"] .dashboard-readable th,
+body[data-dash-scale="110"] .dashboard-readable td { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
 
-body[data-dash-scale="125"] .dashboard-readable { font-size: 19px; }
+/* SCALE: 125% */
+body[data-dash-scale="125"] .dashboard-readable { font-size: 20px; }
 body[data-dash-scale="125"] .dashboard-readable input,
 body[data-dash-scale="125"] .dashboard-readable [role="combobox"],
 body[data-dash-scale="125"] .dashboard-readable button { font-size: 18px !important; }
 body[data-dash-scale="125"] .dashboard-readable h1 { font-size: 36px !important; }
 body[data-dash-scale="125"] .dashboard-readable h2 { font-size: 28px !important; }
-body[data-dash-scale="125"] .dashboard-readable .text-xs { font-size: 14px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-xs { font-size: 15px !important; }
 body[data-dash-scale="125"] .dashboard-readable .text-sm { font-size: 17px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-base { font-size: 20px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-lg { font-size: 22px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-xl { font-size: 25px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-2xl { font-size: 30px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-3xl { font-size: 37px !important; }
+body[data-dash-scale="125"] .dashboard-readable .text-4xl { font-size: 46px !important; }
+body[data-dash-scale="125"] .dashboard-readable .p-6 { padding: 2rem !important; }
+body[data-dash-scale="125"] .dashboard-readable th,
+body[data-dash-scale="125"] .dashboard-readable td { padding-top: 1rem !important; padding-bottom: 1rem !important; font-size: 17px !important; }
 
-body[data-dash-scale="150"] .dashboard-readable { font-size: 22px; }
+/* SCALE: 150% */
+body[data-dash-scale="150"] .dashboard-readable { font-size: 24px; }
 body[data-dash-scale="150"] .dashboard-readable input,
 body[data-dash-scale="150"] .dashboard-readable [role="combobox"],
 body[data-dash-scale="150"] .dashboard-readable button { font-size: 21px !important; }
 body[data-dash-scale="150"] .dashboard-readable h1 { font-size: 42px !important; }
 body[data-dash-scale="150"] .dashboard-readable h2 { font-size: 32px !important; }
-body[data-dash-scale="150"] .dashboard-readable .text-xs { font-size: 16px !important; }
-body[data-dash-scale="150"] .dashboard-readable .text-sm { font-size: 19px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-xs { font-size: 18px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-sm { font-size: 21px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-base { font-size: 24px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-lg { font-size: 27px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-xl { font-size: 30px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-2xl { font-size: 36px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-3xl { font-size: 45px !important; }
+body[data-dash-scale="150"] .dashboard-readable .text-4xl { font-size: 56px !important; }
+body[data-dash-scale="150"] .dashboard-readable .p-6 { padding: 2.5rem !important; }
+body[data-dash-scale="150"] .dashboard-readable th,
+body[data-dash-scale="150"] .dashboard-readable td { padding-top: 1.25rem !important; padding-bottom: 1.25rem !important; font-size: 20px !important; }
 
 /* Fallback: keep POS/Sales Invoice readable even if body class races on refresh */
 @media (min-width: 1024px) {

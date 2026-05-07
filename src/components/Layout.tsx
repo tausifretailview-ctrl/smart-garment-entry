@@ -14,6 +14,7 @@ import { StatusBar } from "@/components/StatusBar";
 import { useEscapeBack } from "@/hooks/useEscapeBack";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { initUIScale } from "@/components/UIScaleSelector";
+import { DashboardScaleControl } from "@/components/dashboard/DashboardScaleControl";
 import { useLocation } from "react-router-dom";
 
 interface LayoutProps {
@@ -27,6 +28,13 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   // Full-screen billing: hide sidebar + header/tabs on Sales Invoice
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
+  const isEnterpriseDashboardOrReport =
+    /(dashboard|report|analytics|analysis|tally|ledger|stock-ageing|stock-report|stock-analysis|accounts|payments-dashboard|delivery-dashboard)/.test(
+      location.pathname
+    ) &&
+    !/\/(sales-invoice|purchase-entry|pos-sales|pos-dashboard)(\/|$)/.test(
+      location.pathname
+    );
 
   // Apply saved UI scale on mount
   useEffect(() => { initUIScale(); }, []);
@@ -78,9 +86,16 @@ export const Layout = ({ children }: LayoutProps) => {
               className={
                 isSalesInvoicePage
                   ? "flex-1 overflow-hidden relative z-[1] min-h-0"
-                  : "flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]"
+                  : `flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]${
+                      isEnterpriseDashboardOrReport ? " dashboard-readable" : ""
+                    }`
               }
             >
+              {isEnterpriseDashboardOrReport && (
+                <div className="mb-3 flex justify-end">
+                  <DashboardScaleControl />
+                </div>
+              )}
               {children}
             </main>
           </SidebarInset>
