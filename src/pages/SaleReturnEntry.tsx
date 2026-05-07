@@ -22,7 +22,6 @@ import { Trash2, Search, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 
 interface Customer {
   id: string;
@@ -64,7 +63,6 @@ interface ReturnItem {
   maxReturnable?: number;
   originalPrice?: number;
   discountPercent?: number;
-  stock_qty?: number;
 }
 
 export default function SaleReturnEntry() {
@@ -896,50 +894,6 @@ export default function SaleReturnEntry() {
 
           if (itemsError) throw itemsError;
 
-          // Ensure every credit-note sale return has a linked credit_notes row.
-          const { data: srLinkRow, error: srLinkError } = await supabase
-            .from("sale_returns")
-            .select("credit_note_id")
-            .eq("id", returnData.id)
-            .maybeSingle();
-          if (srLinkError) throw srLinkError;
-
-          if (!(srLinkRow as any)?.credit_note_id) {
-            const { data: creditNoteNumber, error: cnNumberError } = await supabase
-              .rpc("generate_credit_note_number", { p_organization_id: currentOrganization!.id });
-            if (cnNumberError) throw cnNumberError;
-
-            const { data: newCreditNote, error: cnCreateError } = await supabase
-              .from("credit_notes")
-              .insert({
-                organization_id: currentOrganization!.id,
-                credit_note_number: creditNoteNumber,
-                sale_id: originalSaleId || null,
-                customer_id: selectedCustomer || null,
-                customer_name: customer?.customer_name || "Walk-in Customer",
-                customer_phone: customer?.phone || null,
-                credit_amount: totals.netAmount,
-                used_amount: 0,
-                status: "active",
-                issue_date: returnDate,
-                notes: `Credit note from sale return ${returnData.return_number}`,
-              } as any)
-              .select("id")
-              .single();
-            if (cnCreateError) throw cnCreateError;
-
-            const createdCreditNoteId = (newCreditNote as any)?.id;
-            if (!createdCreditNoteId) {
-              throw new Error("Credit note was created but no id was returned.");
-            }
-
-            const { error: srUpdateError } = await supabase
-              .from("sale_returns")
-              .update({ credit_note_id: createdCreditNoteId, credit_status: "pending", linked_sale_id: null })
-              .eq("id", returnData.id);
-            if (srUpdateError) throw srUpdateError;
-          }
-
           const { data: acctSrPage } = await supabase
             .from("settings")
             .select("accounting_engine_enabled")
@@ -1438,17 +1392,8 @@ export default function SaleReturnEntry() {
                           max={item.maxReturnable || undefined}
                           value={item.quantity}
                           onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                          title={item.quantity > (item.stock_qty || 0) ? `Only ${item.stock_qty || 0} in stock` : ""}
-                          className={cn(
-                            "w-20 h-8 text-sm text-center",
-                            item.quantity > (item.stock_qty || 0) && "border-destructive bg-destructive/5 text-destructive",
-                          )}
+                          className="w-20 h-8 text-sm text-center"
                         />
-                        {item.quantity > (item.stock_qty || 0) && (
-                          <span className="text-destructive text-xs" title={`Only ${item.stock_qty || 0} in stock`}>
-                            ⚠
-                          </span>
-                        )}
                         {item.maxReturnable && (
                           <span className="text-[10px] text-muted-foreground">Max: {item.maxReturnable}</span>
                         )}

@@ -2,7 +2,6 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
 
 const getCurrentPageName = (path: string): string => {
   const PAGE_NAMES: Record<string, string> = {
@@ -38,12 +37,6 @@ const getCurrentPageName = (path: string): string => {
 export const StatusBar = () => {
   const { currentOrganization } = useOrganization();
   const location = useLocation();
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Current financial year (Indian FY: Apr-Mar)
   const now = new Date();
@@ -121,17 +114,7 @@ export const StatusBar = () => {
           </div>
         </>
       )}
-      <span className="ml-auto">
-        {currentTime.toLocaleDateString("en-IN", {
-          weekday: "short",
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })}
-        {" · "}
-        {currentTime.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-      </span>
-      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
+      <div className="flex-1" />
       <div className="status-item opacity-50 text-[10px]">
         EzzyERP v2.0
       </div>

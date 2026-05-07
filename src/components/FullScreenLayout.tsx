@@ -10,7 +10,6 @@ import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
-import { DashboardScaleControl } from "@/components/dashboard/DashboardScaleControl";
 import { useLocation } from "react-router-dom";
 
 interface FullScreenLayoutProps {
@@ -22,16 +21,6 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   // Full-screen billing: hide sidebar + header/tabs ONLY on Sales Invoice entry page
   // (not the dashboard). Matches /sales-invoice and /:org/sales-invoice exactly.
   const isSalesInvoicePage = /\/sales-invoice\/?$/.test(location.pathname);
-  const enterpriseScalePaths = [
-    "/products",
-    "/sales-invoice-dashboard",
-    "/net-profit-analysis",
-  ];
-  const isEnterpriseDashboardOrReport =
-    enterpriseScalePaths.some((path) =>
-      location.pathname === path || location.pathname.endsWith(path)
-    ) &&
-    !/\/(sales-invoice|purchase-entry|pos-sales|pos-dashboard)(\/|$)/.test(location.pathname);
   return (
     <ChatProvider>
       <SidebarProvider defaultOpen={!isSalesInvoicePage}>
@@ -66,21 +55,10 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               className={
                 isSalesInvoicePage
                   ? "flex-1 animate-fade-in relative z-[1] min-h-0 overflow-hidden"
-                  : `flex-1 animate-fade-in pb-20 lg:pb-10 relative z-[1]${
-                      isEnterpriseDashboardOrReport ? "" : " p-4"
-                    }`
+                  : "flex-1 animate-fade-in p-4 pb-20 lg:pb-10 relative z-[1]"
               }
             >
-              {isEnterpriseDashboardOrReport ? (
-                <div className="w-full px-4 py-4 space-y-4 bg-background min-h-full dashboard-readable">
-                  <div className="flex justify-end">
-                    <DashboardScaleControl />
-                  </div>
-                  {children}
-                </div>
-              ) : (
-                children
-              )}
+              {children}
             </main>
           </SidebarInset>
         </div>

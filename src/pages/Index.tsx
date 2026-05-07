@@ -43,7 +43,6 @@ import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { DashboardScaleControl } from "@/components/dashboard/DashboardScaleControl";
 import {
   Select,
   SelectContent,
@@ -613,7 +612,7 @@ const DesktopDashboard = () => {
     <>
     <TooltipProvider>
     <div 
-      className="w-full px-6 py-4 space-y-4 bg-background min-h-full dashboard-readable"
+      className="w-full px-6 py-4 space-y-4 bg-background min-h-full"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -638,7 +637,6 @@ const DesktopDashboard = () => {
         
         {/* Date Range Selector & Theme Toggle */}
         <div className="flex items-center gap-2">
-          <DashboardScaleControl />
           <ThemeToggle />
           
           {/* Refresh Button */}

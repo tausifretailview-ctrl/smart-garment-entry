@@ -195,10 +195,9 @@ function RootRedirect() {
 // Redirect non-org routes (like /purchase-bills) to /:orgSlug/... when possible
 function NonOrgRedirect({ path }: { path: string }) {
   const savedOrgSlug = getStoredOrgSlug();
-  const search = typeof window !== "undefined" ? window.location.search : "";
 
   if (savedOrgSlug) {
-    return <Navigate to={`/${savedOrgSlug}/${path}${search}`} replace />;
+    return <Navigate to={`/${savedOrgSlug}/${path}`} replace />;
   }
 
   return <Navigate to="/organization-setup" replace />;

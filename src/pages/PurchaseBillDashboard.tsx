@@ -43,7 +43,6 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { Skeleton } from "@/components/ui/skeleton";
-import { usePageTitle } from "@/hooks/usePageTitle";
 
 interface PurchaseItem {
   id: string;
@@ -123,14 +122,12 @@ interface PurchaseBill {
 
 const PurchaseBillDashboard = () => {
   const { toast } = useToast();
-  usePageTitle("Purchase Bills");
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [copiedBillNo, setCopiedBillNo] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -183,22 +180,6 @@ const PurchaseBillDashboard = () => {
 
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleCopyBillNo = async (billNo: string) => {
-    if (!billNo) return;
-    await navigator.clipboard.writeText(billNo);
-    setCopiedBillNo(billNo);
-    toast({ title: `Copied: ${billNo}`, duration: 1200 });
-    setTimeout(() => setCopiedBillNo((prev) => (prev === billNo ? null : prev)), 1000);
-  };
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -289,7 +270,7 @@ const PurchaseBillDashboard = () => {
               bill_number: bill.software_bill_no || bill.supplier_invoice_no,
               supplier_code: supplierCode,
             }));
-            navigate("/barcode-printing", { state: { purchaseItems: barcodeItems, openTab: "standard" } });
+            navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
           } catch (err) {
             toast({ title: "Error loading items for barcode print", variant: "destructive" });
           }
@@ -1145,7 +1126,7 @@ const PurchaseBillDashboard = () => {
       }));
 
       navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems, billId: billId, openTab: "standard" } 
+        state: { purchaseItems: barcodeItems, billId: billId } 
       });
       
     } catch (error: any) {
@@ -1364,17 +1345,9 @@ const PurchaseBillDashboard = () => {
         const bill = row.original;
         return (
           <div className={cn("flex items-center gap-1.5", bill.is_cancelled && "opacity-60")}>
-            <span
-              className={cn("font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md cursor-pointer", bill.is_cancelled && "line-through")}
-              title="Click to copy"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCopyBillNo(bill.software_bill_no || "");
-              }}
-            >
+            <span className={cn("font-mono text-sm font-semibold bg-primary/8 text-primary px-2 py-0.5 rounded-md", bill.is_cancelled && "line-through")}>
               {bill.software_bill_no || "N/A"}
             </span>
-            {copiedBillNo === bill.software_bill_no && <span className="text-emerald-600 text-xs font-bold">✓</span>}
             {bill.is_dc_purchase && (
               <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400 border border-orange-300 dark:border-orange-700">DC</span>
             )}
@@ -1403,8 +1376,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 140,
-      minSize: 130,
+      size: 120,
+      minSize: 90,
     },
     {
       accessorKey: "bill_date",
@@ -1422,7 +1395,7 @@ const PurchaseBillDashboard = () => {
         <span className="font-mono text-sm">{row.original.supplier_invoice_no}</span>
       ),
       size: 90,
-      minSize: 80,
+      minSize: 70,
     },
     {
       accessorKey: "supplier_name",
@@ -1430,10 +1403,9 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center gap-1.5 min-w-0 w-full">
+          <div className="flex items-center gap-1.5">
             <span 
-              className={cn("text-sm whitespace-normal break-words leading-tight flex-1", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
-              title={bill.supplier_name}
+              className={cn("truncate text-sm", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
               onClick={(e) => {
                 if (bill.supplier_id) {
                   e.stopPropagation();
@@ -1450,8 +1422,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 420,
-      minSize: 400,
+      size: 180,
+      minSize: 120,
     },
     {
       accessorKey: "gross_amount",
@@ -1511,8 +1483,8 @@ const PurchaseBillDashboard = () => {
         const displayCount = countFromExpand ?? countFromQuery ?? 0;
         return <span className="text-center block text-sm">{displayCount}</span>;
       },
-      size: 60,
-      minSize: 60,
+      size: 55,
+      minSize: 45,
     },
     {
       id: "bill_image",
@@ -1613,8 +1585,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 90,
-      minSize: 90,
+      size: 170,
+      minSize: 150,
     },
   ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
 
@@ -2087,28 +2059,12 @@ const PurchaseBillDashboard = () => {
               <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  ref={searchInputRef}
                   placeholder="Search by bill no, supplier, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      if (searchQuery) {
-                        setSearchQuery("");
-                      } else {
-                        searchInputRef.current?.blur();
-                      }
-                      e.stopPropagation();
-                    }
-                  }}
                   className="pl-9 h-9"
                 />
               </div>
-              {(billsQueryData?.totalCount || filteredBills.length) > 0 && (
-                <span className="text-[11px] text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-sm border border-border">
-                  {(billsQueryData?.totalCount || filteredBills.length).toLocaleString("en-IN")} result{(billsQueryData?.totalCount || filteredBills.length) !== 1 ? "s" : ""}
-                </span>
-              )}
               <Input
                 type="date"
                 placeholder="Start Date"

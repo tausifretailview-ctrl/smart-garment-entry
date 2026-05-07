@@ -48,7 +48,6 @@ import {
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { resetOrganizationGlLedger, runHistoricalAccountingBackfill } from "@/utils/accounting/historicalMigration";
-import { usePageTitle } from "@/hooks/usePageTitle";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -63,7 +62,6 @@ import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashbo
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
-  usePageTitle("Account Ledgers");
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();

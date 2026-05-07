@@ -84,7 +84,6 @@ import {
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
-import { usePageTitle } from "@/hooks/usePageTitle";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -122,7 +121,6 @@ const defaultColumnSettings: ColumnSettings = {
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
-  usePageTitle("Sales Invoice");
   const { orgNavigate: navigate } = useOrgNavigation();
   const { user } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
@@ -133,7 +131,6 @@ export default function SalesInvoiceDashboard() {
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
-  const [copiedBillNo, setCopiedBillNo] = useState<string | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
   const loadedItemsRef = useRef<Record<string, any[]>>({});
@@ -255,22 +252,6 @@ export default function SalesInvoiceDashboard() {
   
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleCopyBillNo = async (billNo: string) => {
-    if (!billNo) return;
-    await navigator.clipboard.writeText(billNo);
-    setCopiedBillNo(billNo);
-    toast({ title: `Copied: ${billNo}`, duration: 1200 });
-    setTimeout(() => setCopiedBillNo((prev) => (prev === billNo ? null : prev)), 1000);
-  };
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_invoice');
@@ -2764,17 +2745,7 @@ export default function SalesInvoiceDashboard() {
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span
-                          className={cn("font-mono text-xs font-bold text-primary cursor-pointer", inv.is_cancelled && "line-through decoration-red-500/70")}
-                          title="Click to copy"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyBillNo(inv.sale_number);
-                          }}
-                        >
-                          {inv.sale_number}
-                        </span>
-                        {copiedBillNo === inv.sale_number && <span className="text-emerald-600 text-xs font-bold">✓</span>}
+                        <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
                         <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", sc[effectiveStatus] || sc.pending)}>
                           {effectiveStatus === 'completed' ? 'Paid' : effectiveStatus}
                         </span>
@@ -2948,9 +2919,9 @@ export default function SalesInvoiceDashboard() {
                 qty: item.quantity,
                 rate: item.unit_price,
                 total: item.line_total,
-                color: item.color || "",
-                brand: item.brand || "",
-                style: item.style || "",
+                color: item.color || item.products?.color || "",
+                brand: item.products?.brand || "",
+                style: item.products?.style || "",
                 gstPercent: item.gst_percent || 0,
                 discountPercent: item.discount_percent || 0,
               })) || []}
@@ -3193,28 +3164,12 @@ export default function SalesInvoiceDashboard() {
               <div className="relative flex-1 min-w-[200px] max-w-[280px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  ref={searchInputRef}
                   placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      if (searchQuery) {
-                        setSearchQuery("");
-                      } else {
-                        searchInputRef.current?.blur();
-                      }
-                      e.stopPropagation();
-                    }
-                  }}
                   className="pl-10 h-9 text-[13px] border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
-              {totalCount > 0 && (
-                <span className="text-[11px] text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-sm border border-border">
-                  {totalCount.toLocaleString("en-IN")} result{totalCount !== 1 ? "s" : ""}
-                </span>
-              )}
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
                 <SelectTrigger className="w-[120px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
@@ -3397,8 +3352,6 @@ export default function SalesInvoiceDashboard() {
                 saleReturns={saleReturns}
                 cnAdjustedMap={cnAdjustedMap || {}}
                 loadedItems={loadedItems}
-                copiedBillNo={copiedBillNo}
-                onCopyBillNo={handleCopyBillNo}
                 renderToolbar={(toolbar) => {
                   const portalTarget = document.getElementById('erp-toolbar-portal');
                   if (portalTarget) {
@@ -3916,9 +3869,9 @@ export default function SalesInvoiceDashboard() {
                 qty: item.quantity,
                 rate: item.unit_price,
                 total: item.line_total,
-                color: item.color || "",
-                brand: item.brand || "",
-                style: item.style || "",
+                color: item.color || item.products?.color || "",
+                brand: item.products?.brand || "",
+                style: item.products?.style || "",
                 gstPercent: item.gst_percent || 0,
                 discountPercent: item.discount_percent || 0,
               })) || []}
@@ -3984,9 +3937,9 @@ export default function SalesInvoiceDashboard() {
                 qty: item.quantity,
                 rate: item.unit_price,
                 total: item.line_total,
-                color: item.color || "",
-                brand: item.brand || "",
-                style: item.style || "",
+                color: item.color || item.products?.color || "",
+                brand: item.products?.brand || "",
+                style: item.products?.style || "",
                 gstPercent: item.gst_percent || 0,
                 discountPercent: item.discount_percent || 0,
               })) || []}

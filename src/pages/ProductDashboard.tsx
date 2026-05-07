@@ -43,7 +43,6 @@ import { ProductImageViewer } from "@/components/ProductImageViewer";
 import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
 import { useSettings } from "@/hooks/useSettings";
-import { usePageTitle } from "@/hooks/usePageTitle";
 
 interface ProductVariant {
   variant_id: string;
@@ -85,7 +84,6 @@ interface DashboardStats {
 
 const ProductDashboard = () => {
   const { toast } = useToast();
-  usePageTitle("Products");
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
@@ -100,7 +98,6 @@ const ProductDashboard = () => {
   const [isRefetching, setIsRefetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   
@@ -157,13 +154,6 @@ const ProductDashboard = () => {
   const [stockImporting, setStockImporting] = useState(false);
   const [stockImportProgress, setStockImportProgress] = useState({ done: 0, total: 0 });
   const stockImportFileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      searchInputRef.current?.focus();
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -1329,20 +1319,9 @@ const ProductDashboard = () => {
                 <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    ref={searchInputRef}
                     placeholder="Search name, brand, barcode, HSN... (multi-word AND)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        if (searchQuery) {
-                          setSearchQuery("");
-                        } else {
-                          searchInputRef.current?.blur();
-                        }
-                        e.stopPropagation();
-                      }
-                    }}
                     className="pl-9 pr-8 no-uppercase"
                   />
                   {searchQuery && (
@@ -1354,9 +1333,9 @@ const ProductDashboard = () => {
                     </button>
                   )}
                 </div>
-                {totalCount > 0 && (
-                  <span className="text-[11px] text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-sm border border-border whitespace-nowrap">
-                    {totalCount.toLocaleString("en-IN")} result{totalCount !== 1 ? "s" : ""}
+                {searchQuery && (
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    Showing {totalCount.toLocaleString('en-IN')} results
                   </span>
                 )}
                 <div id="erp-toolbar-portal-product" className="flex items-center gap-2" />
