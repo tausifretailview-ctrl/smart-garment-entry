@@ -64,6 +64,7 @@ interface ReturnItem {
   maxReturnable?: number;
   originalPrice?: number;
   discountPercent?: number;
+  stock_qty?: number;
 }
 
 export default function SaleReturnEntry() {
