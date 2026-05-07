@@ -378,6 +378,21 @@ export function AdjustCustomerCreditNoteDialog({
         }
       }
 
+      const remainingCredit = Math.max(0, Math.round((maxCredit - appliedTotal) * 100) / 100);
+      const nextCreditStatus = remainingCredit <= 0.01 ? "adjusted" : "partially_adjusted";
+      const linkedSaleForStatus = entries.length === 1 ? entries[0].saleId : null;
+
+      const { error: returnUpdateError } = await supabase
+        .from("sale_returns")
+        .update({
+          credit_available_balance: remainingCredit,
+          credit_status: nextCreditStatus,
+          linked_sale_id: linkedSaleForStatus,
+        })
+        .eq("id", saleReturnId)
+        .eq("organization_id", currentOrganization!.id);
+      if (returnUpdateError) throw returnUpdateError;
+
       toast({
         title: "Adjustment applied successfully",
         description: `Applied ₹${appliedTotal.toLocaleString("en-IN")} across ${entries.length} invoice(s).`,
@@ -387,6 +402,8 @@ export function AdjustCustomerCreditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta", saleReturnId] });
       queryClient.invalidateQueries({ queryKey: ["unpaid-customer-sales", customerId] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+      queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
       return true;
     } catch (err: any) {
       console.error(err);
