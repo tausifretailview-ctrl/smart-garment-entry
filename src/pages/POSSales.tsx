@@ -4057,6 +4057,10 @@ export default function POSSales() {
   // Desktop POS Layout
   return (
     <div className="h-[calc(100vh-4rem)] w-full bg-background flex overflow-hidden pos-desktop-readable">
+      {/* Floating display-scale control */}
+      <div className="fixed top-2 right-3 z-50">
+        <PosScaleControl />
+      </div>
       {/* Left Action Button Bar */}
       <div className="w-[88px] h-full bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
