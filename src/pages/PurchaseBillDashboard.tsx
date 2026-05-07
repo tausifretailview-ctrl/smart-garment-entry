@@ -1430,9 +1430,9 @@ const PurchaseBillDashboard = () => {
       cell: ({ row }) => {
         const bill = row.original;
         return (
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 min-w-[400px] w-full">
             <span 
-              className={cn("text-sm whitespace-normal break-words leading-tight", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
+              className={cn("text-sm whitespace-normal break-words leading-tight flex-1", bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium")}
               title={bill.supplier_name}
               onClick={(e) => {
                 if (bill.supplier_id) {
@@ -1450,8 +1450,8 @@ const PurchaseBillDashboard = () => {
           </div>
         );
       },
-      size: 320,
-      minSize: 280,
+      size: 420,
+      minSize: 400,
     },
     {
       accessorKey: "gross_amount",
