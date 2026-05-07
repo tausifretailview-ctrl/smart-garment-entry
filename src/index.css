@@ -1775,3 +1775,312 @@ td.num {
   font-size: 11px !important;
   font-weight: 700 !important;
 }
+
+/* ============================================
+   FONT SCALE & READABILITY FIX — EzzyERP
+   Improves visibility across all screens
+   ============================================ */
+
+/* ── 1. Base font scale up ── */
+:root {
+  --erp-base-font: 13.5px;
+  --erp-label-font: 11px;
+  --erp-value-font: 13.5px;
+  --erp-table-font: 13px;
+  --erp-heading-font: 14px;
+  --erp-kpi-value-font: 26px;
+  --erp-kpi-label-font: 11.5px;
+}
+
+body {
+  font-size: var(--erp-base-font) !important;
+}
+
+/* ── 2. Dashboard KPI cards — bigger values ── */
+
+/* KPI card value numbers */
+[class*="text-xl"],
+[class*="text-2xl"],
+[class*="text-3xl"] {
+  font-size: 24px !important;
+  line-height: 1.2 !important;
+}
+
+/* KPI label text */
+[class*="text-xs"][class*="uppercase"],
+[class*="text-xs"][class*="tracking"] {
+  font-size: 11.5px !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* KPI sub text */
+[class*="text-xs"][class*="muted"] {
+  font-size: 11.5px !important;
+}
+
+/* ── 3. Dashboard specific card values ── */
+/* The metric cards showing ₹4,80,589 etc */
+.card [class*="text-xl"],
+.card [class*="text-2xl"],
+.card [class*="font-semibold"][class*="tabular"],
+.card [class*="font-mono"] {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+}
+
+/* Card label */
+.card p[class*="text-xs"],
+.card [class*="text-xs"][class*="uppercase"] {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Card sub-label like "Amount", "Count" */
+.card [class*="text-xs"]:last-child,
+.card span[class*="text-xs"] {
+  font-size: 11.5px !important;
+}
+
+/* ── 4. Table text scaling ── */
+
+/* Table header */
+table th,
+thead th {
+  font-size: 11px !important;
+  padding: 6px 10px !important;
+  height: 30px !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Table body cells */
+table td,
+tbody td {
+  font-size: 13px !important;
+  padding: 5px 10px !important;
+  height: 36px !important;
+}
+
+/* Amount/number cells in table */
+table td[class*="text-right"],
+table td[class*="font-mono"],
+table td[class*="tabular"] {
+  font-size: 13px !important;
+  font-family: "Segoe UI", system-ui, sans-serif !important;
+  font-weight: 600 !important;
+}
+
+/* Bill number / reference links in table */
+table td a,
+table td [class*="text-primary"],
+table td [class*="font-medium"] {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* Supplier / customer name in table */
+table td [class*="font-semibold"],
+table td [class*="font-bold"] {
+  font-size: 13px !important;
+}
+
+/* ── 5. Status badges — bigger and readable ── */
+.badge,
+[class*="badge"],
+[class*="Badge"],
+[class*="rounded-full"][class*="text-xs"],
+[class*="rounded-sm"][class*="text-xs"] {
+  font-size: 10.5px !important;
+  padding: 2px 7px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* Status badges like "Not Paid", "Paid", "Partial" */
+[class*="bg-red"][class*="text-"],
+[class*="bg-green"][class*="text-"],
+[class*="bg-yellow"][class*="text-"],
+[class*="bg-orange"][class*="text-"],
+[class*="bg-blue"][class*="text-"] {
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+}
+
+/* ── 6. Navigation sidebar text ── */
+nav [class*="text-sm"],
+aside [class*="text-sm"],
+[class*="sidebar"] [class*="text-sm"] {
+  font-size: 13px !important;
+}
+
+/* ── 7. Buttons — readable text ── */
+button {
+  font-size: 13px !important;
+}
+
+button[class*="text-xs"] {
+  font-size: 12px !important;
+}
+
+button[class*="text-sm"] {
+  font-size: 13px !important;
+}
+
+/* ── 8. Form labels ── */
+label,
+[class*="label"],
+[class*="Label"] {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+}
+
+/* ── 9. Input fields ── */
+input,
+select,
+textarea {
+  font-size: 13px !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  font-size: 12.5px !important;
+}
+
+/* ── 10. Dialog / Modal text ── */
+[role="dialog"] {
+  font-size: 13.5px !important;
+}
+
+[role="dialog"] [class*="text-sm"] {
+  font-size: 13px !important;
+}
+
+[role="dialog"] h2,
+[role="dialog"] [class*="text-lg"],
+[role="dialog"] [class*="DialogTitle"] {
+  font-size: 15px !important;
+  font-weight: 700 !important;
+}
+
+/* ── 11. Page headings ── */
+h1[class*="text-"],
+h2[class*="text-"],
+h3[class*="text-"] {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+/* Sub headings */
+[class*="text-lg"] {
+  font-size: 15px !important;
+}
+
+[class*="text-base"] {
+  font-size: 14px !important;
+}
+
+[class*="text-sm"] {
+  font-size: 13px !important;
+}
+
+[class*="text-xs"] {
+  font-size: 11.5px !important;
+}
+
+/* ── 12. Dropdown menu items ── */
+[data-radix-select-item],
+[data-radix-dropdown-menu-item],
+[role="option"],
+[role="menuitem"] {
+  font-size: 13px !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+}
+
+/* ── 13. Toast notifications ── */
+[data-sonner-toast],
+[class*="toast"] {
+  font-size: 13px !important;
+}
+
+/* ── 14. Tabs ── */
+[role="tab"],
+[class*="TabsTrigger"] {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* ── 15. KPI card on dashboard — specific override ── */
+/* Target the animated metric cards specifically */
+[class*="CardContent"] p:first-child {
+  font-size: 11.5px !important;
+}
+
+[class*="CardContent"] p[class*="text-xl"],
+[class*="CardContent"] p[class*="font-semibold"] {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+}
+
+[class*="CardContent"] span[class*="text-xs"],
+[class*="CardContent"] span[class*="text-[10px]"] {
+  font-size: 11.5px !important;
+}
+
+/* ── 16. Action icons in table — bigger click target ── */
+table td button,
+table td [class*="button"],
+table td svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+table td [class*="h-4"],
+table td [class*="w-4"] {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* Action button wrapper — bigger touch target */
+table [class*="ghost"][class*="h-8"],
+table [class*="ghost"][class*="h-7"],
+table [class*="ghost"][class*="size"] {
+  height: 30px !important;
+  width: 30px !important;
+  min-width: 30px !important;
+}
+
+/* ── 17. Breadcrumb and topbar text ── */
+[class*="breadcrumb"] [class*="text-sm"],
+[class*="topbar"] [class*="text-sm"],
+[class*="text-muted-foreground"] {
+  font-size: 12.5px !important;
+}
+
+/* ── 18. Filter bar text ── */
+[class*="filter"] input,
+[class*="filter"] select,
+[class*="search"] input {
+  font-size: 13px !important;
+  height: 32px !important;
+}
+
+/* ── 19. Pagination text ── */
+[class*="pagination"] [class*="text-xs"],
+[class*="pagination"] [class*="text-sm"] {
+  font-size: 12.5px !important;
+}
+
+/* ── 20. Section headings in forms ── */
+[class*="font-semibold"][class*="text-sm"],
+[class*="font-bold"][class*="text-sm"] {
+  font-size: 13.5px !important;
+}
+
+/* ── EXCEPTION: Do NOT scale print/thermal CSS ── */
+@media print {
+  body { font-size: inherit !important; }
+  table th { font-size: inherit !important; }
+  table td { font-size: inherit !important; }
+  button { font-size: inherit !important; }
+}
