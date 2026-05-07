@@ -1162,6 +1162,28 @@ body.pos-large-ui .pos-desktop-readable table td {
   font-size: 15px !important;
 }
 
+/* POS user-controlled display scale (100/110/125/150) — affects font + spacing */
+body[data-pos-scale="110"] .pos-desktop-readable { font-size: 17px; }
+body[data-pos-scale="110"] .pos-desktop-readable input,
+body[data-pos-scale="110"] .pos-desktop-readable [role="combobox"] { font-size: 19px !important; height: 42px !important; }
+body[data-pos-scale="110"] .pos-desktop-readable button { font-size: 16px; }
+body[data-pos-scale="110"] .pos-desktop-readable table th { font-size: 15px !important; }
+body[data-pos-scale="110"] .pos-desktop-readable table td { font-size: 16px !important; padding-top: 8px !important; padding-bottom: 8px !important; }
+
+body[data-pos-scale="125"] .pos-desktop-readable { font-size: 18px; }
+body[data-pos-scale="125"] .pos-desktop-readable input,
+body[data-pos-scale="125"] .pos-desktop-readable [role="combobox"] { font-size: 20px !important; height: 46px !important; }
+body[data-pos-scale="125"] .pos-desktop-readable button { font-size: 17px; }
+body[data-pos-scale="125"] .pos-desktop-readable table th { font-size: 16px !important; }
+body[data-pos-scale="125"] .pos-desktop-readable table td { font-size: 18px !important; padding-top: 10px !important; padding-bottom: 10px !important; }
+
+body[data-pos-scale="150"] .pos-desktop-readable { font-size: 21px; }
+body[data-pos-scale="150"] .pos-desktop-readable input,
+body[data-pos-scale="150"] .pos-desktop-readable [role="combobox"] { font-size: 23px !important; height: 52px !important; }
+body[data-pos-scale="150"] .pos-desktop-readable button { font-size: 19px; }
+body[data-pos-scale="150"] .pos-desktop-readable table th { font-size: 18px !important; }
+body[data-pos-scale="150"] .pos-desktop-readable table td { font-size: 21px !important; padding-top: 12px !important; padding-bottom: 12px !important; }
+
 /* Fallback: keep POS/Sales Invoice readable even if body class races on refresh */
 @media (min-width: 1024px) {
   .pos-desktop-readable {
