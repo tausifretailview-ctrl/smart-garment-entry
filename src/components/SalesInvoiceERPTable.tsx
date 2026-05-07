@@ -59,6 +59,8 @@ interface SalesInvoiceERPTableProps {
   saleReturns: Record<string, any[]>;
   cnAdjustedMap: Record<string, any[]>;
   loadedItems?: Record<string, any[]>;
+  copiedBillNo?: string | null;
+  onCopyBillNo?: (billNo: string) => void;
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
@@ -112,6 +114,8 @@ export function SalesInvoiceERPTable({
   saleReturns,
   cnAdjustedMap,
   loadedItems,
+  copiedBillNo,
+  onCopyBillNo,
   renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
@@ -169,7 +173,17 @@ export function SalesInvoiceERPTable({
           return (
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5 font-medium text-[17px]">
-                <span className={invoice.is_cancelled ? "line-through decoration-red-500/70" : ""}>{invoice.sale_number}</span>
+                <span
+                  className={invoice.is_cancelled ? "line-through decoration-red-500/70 cursor-pointer" : "cursor-pointer"}
+                  title="Click to copy"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCopyBillNo?.(invoice.sale_number);
+                  }}
+                >
+                  {invoice.sale_number}
+                </span>
+                {copiedBillNo === invoice.sale_number && <span className="text-emerald-600 text-xs font-bold">✓</span>}
                 {invoice.is_cancelled && (
                   <Badge className="no-line-through text-xs px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
                 )}

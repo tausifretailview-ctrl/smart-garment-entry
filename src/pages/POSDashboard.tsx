@@ -53,6 +53,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 interface SaleItem {
   id: string;
@@ -131,6 +132,7 @@ const DEFAULT_POS_COLUMNS = {
 
 const POSDashboard = () => {
   const { toast } = useToast();
+  usePageTitle("Point of Sale");
   const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();

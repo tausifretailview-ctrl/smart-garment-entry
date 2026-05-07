@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -62,6 +63,7 @@ import { logError } from "@/lib/errorLogger";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 interface PriceChange {
   sku_id: string;
@@ -266,6 +268,7 @@ const PurchaseEntry = () => {
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
   const [savedBillId, setSavedBillId] = useState<string | null>(null);
   const [savedSupplierId, setSavedSupplierId] = useState<string | null>(null);
+  usePageTitle(isEditMode ? "Edit Purchase Bill" : "New Purchase Bill");
   
   // Bill navigation state (like Sales Invoice)
   const [navBillIndex, setNavBillIndex] = useState<number | null>(null);
@@ -709,6 +712,12 @@ const PurchaseEntry = () => {
     staleTime: 300000, // 5 minutes - reduces multi-tab load
     refetchOnWindowFocus: false,
   });
+  const selectedSupplier = useMemo(
+    () => suppliers.find((s: any) => s.id === billData.supplier_id),
+    [suppliers, billData.supplier_id],
+  );
+  const supplierBalance = Number(selectedSupplier?.opening_balance ?? 0);
+  const saveButtonLabel = isEditMode ? "Update Bill" : loading ? "Saving..." : "Save Bill";
 
   // Fetch last purchase bill for reference
   const { data: lastPurchaseBill } = useQuery({
@@ -3873,7 +3882,7 @@ const PurchaseEntry = () => {
             className="w-full bg-primary text-primary-foreground rounded-xl h-12 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 touch-manipulation shadow-sm disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {loading ? "Saving…" : `Save Bill${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
+            {loading ? "Saving…" : `${saveButtonLabel}${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
           </button>
         </div>
 
@@ -4116,6 +4125,18 @@ const PurchaseEntry = () => {
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
+                {billData.supplier_id && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[11px] text-muted-foreground">Outstanding:</span>
+                    <span className={cn("text-[11px] font-bold font-mono", supplierBalance > 0 ? "text-destructive" : "text-green-600")}>
+                      ₹{Math.abs(supplierBalance).toLocaleString("en-IN")}
+                      {supplierBalance > 0 ? " Dr" : " Cr"}
+                    </span>
+                    {supplierBalance > 0 && (
+                      <span className="text-[9px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded-sm font-semibold">OVERDUE</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2 flex-1 min-w-[140px]">
@@ -4842,18 +4863,36 @@ const PurchaseEntry = () => {
               <X className="h-3.5 w-3.5" />
               Cancel
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={loading || lineItems.length === 0 || isBillLocked}
-              className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm"
-            >
-              {loading ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
-              ) : (
-                <><Check className="h-3 w-3" /> <span className="kbd-hint">✓ Save Bill <kbd>Ctrl+S</kbd></span></>
-              )}
-            </Button>
+            <div className="flex items-center">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={loading || lineItems.length === 0 || isBillLocked}
+                className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm rounded-r-none"
+              >
+                {loading ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
+                ) : (
+                  <><Check className="h-3 w-3" /> <span className="kbd-hint">{saveButtonLabel} <kbd>Ctrl+S</kbd></span></>
+                )}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    disabled={loading || lineItems.length === 0 || isBillLocked}
+                    className="h-8 px-2 bg-white text-teal-900 hover:bg-teal-100 border-l border-teal-200 rounded-l-none shadow-sm"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleSave}>Save &amp; Print</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSave}>Save &amp; New</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSave}>Save &amp; Stay</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </footer>

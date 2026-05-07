@@ -1569,8 +1569,17 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "qty", parseInt(e.target.value) || 1)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20"
+                          title={item.qty > (item.stock_qty || 0) ? `Only ${item.stock_qty || 0} in stock` : ""}
+                          className={cn(
+                            "w-20",
+                            item.qty > (item.stock_qty || 0) && "border-destructive bg-destructive/5 text-destructive",
+                          )}
                         />
+                        {item.qty > (item.stock_qty || 0) && (
+                          <span className="ml-1 text-destructive text-xs" title={`Only ${item.stock_qty || 0} in stock`}>
+                            ⚠
+                          </span>
+                        )}
                       </TableCell>
                       {showMrp && (
                         <TableCell>

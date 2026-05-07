@@ -22,6 +22,7 @@ import { Trash2, Search, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface Customer {
   id: string;
@@ -1392,8 +1393,17 @@ export default function SaleReturnEntry() {
                           max={item.maxReturnable || undefined}
                           value={item.quantity}
                           onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                          className="w-20 h-8 text-sm text-center"
+                          title={item.quantity > (item.stock_qty || 0) ? `Only ${item.stock_qty || 0} in stock` : ""}
+                          className={cn(
+                            "w-20 h-8 text-sm text-center",
+                            item.quantity > (item.stock_qty || 0) && "border-destructive bg-destructive/5 text-destructive",
+                          )}
                         />
+                        {item.quantity > (item.stock_qty || 0) && (
+                          <span className="text-destructive text-xs" title={`Only ${item.stock_qty || 0} in stock`}>
+                            ⚠
+                          </span>
+                        )}
                         {item.maxReturnable && (
                           <span className="text-[10px] text-muted-foreground">Max: {item.maxReturnable}</span>
                         )}

@@ -22,6 +22,7 @@ import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCreditNoteDialog } from "@/components/AdjustCreditNoteDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 interface PurchaseReturnItem {
   id: string;
@@ -59,11 +60,13 @@ interface PurchaseReturn {
 
 const PurchaseReturnDashboard = () => {
   const { toast } = useToast();
+  usePageTitle("Purchase Returns");
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [copiedBillNo, setCopiedBillNo] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [dcFilter, setDcFilter] = useState<"all" | "dc" | "gst">("all");
@@ -78,6 +81,22 @@ const PurchaseReturnDashboard = () => {
   const [saleSettings, setSaleSettings] = useState<any>(null);
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const printRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleCopyBillNo = async (billNo: string) => {
+    if (!billNo) return;
+    await navigator.clipboard.writeText(billNo);
+    setCopiedBillNo(billNo);
+    toast({ title: `Copied: ${billNo}`, duration: 1200 });
+    setTimeout(() => setCopiedBillNo((prev) => (prev === billNo ? null : prev)), 1000);
+  };
 
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase_return');
@@ -643,12 +662,28 @@ const PurchaseReturnDashboard = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 placeholder="Search by return no., supplier or bill number..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    if (searchQuery) {
+                      setSearchQuery("");
+                    } else {
+                      searchInputRef.current?.blur();
+                    }
+                    e.stopPropagation();
+                  }
+                }}
                 className="pl-10"
               />
             </div>
+            {(returnsData?.totalCount || filteredReturns.length) > 0 && (
+              <span className="text-[11px] text-muted-foreground font-medium bg-muted px-2 py-0.5 rounded-sm border border-border">
+                {(returnsData?.totalCount || filteredReturns.length).toLocaleString("en-IN")} result{(returnsData?.totalCount || filteredReturns.length) !== 1 ? "s" : ""}
+              </span>
+            )}
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -763,9 +798,18 @@ const PurchaseReturnDashboard = () => {
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-sm">
                           <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="font-medium text-xs px-1.5 py-0.5">
+                            <Badge
+                              variant="secondary"
+                              className="font-medium text-xs px-1.5 py-0.5 cursor-pointer"
+                              title="Click to copy"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyBillNo(returnRecord.return_number || "");
+                              }}
+                            >
                               {returnRecord.return_number || "-"}
                             </Badge>
+                            {copiedBillNo === returnRecord.return_number && <span className="text-emerald-600 text-xs font-bold">✓</span>}
                             {returnRecord.is_dc && (
                               <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded font-bold">
                                 DC

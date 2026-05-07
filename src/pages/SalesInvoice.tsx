@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -211,6 +212,7 @@ export default function SalesInvoice() {
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const saveButtonLabel = editingInvoiceId ? "Update Invoice" : isSaving ? "Saving..." : "Save Bill";
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
@@ -3345,17 +3347,17 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {/* Balance badge below field */}
-            {selectedCustomerId && !isBalanceLoading && (
-              <div className={`inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border ${
-                customerBalance > 0
-                  ? 'bg-red-50 text-red-600 border-red-200'
-                  : customerBalance < 0
-                    ? 'bg-green-50 text-green-700 border-green-200'
-                    : 'bg-slate-50 text-slate-500 border-slate-200'
-              }`}>
-                <CreditCard className="h-3 w-3" />
-                ₹{Math.abs(customerBalance).toLocaleString('en-IN')} {customerBalance > 0 ? 'due' : customerBalance < 0 ? 'credit' : ''}
+            {/* Outstanding inline balance */}
+            {selectedCustomer && !isBalanceLoading && customerBalance !== null && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[11px] text-muted-foreground">Outstanding:</span>
+                <span className={cn("text-[11px] font-bold font-mono", customerBalance > 0 ? "text-destructive" : "text-green-600")}>
+                  ₹{Math.abs(customerBalance).toLocaleString("en-IN")}
+                  {customerBalance > 0 ? " Dr" : " Cr"}
+                </span>
+                {customerBalance > 0 && (
+                  <span className="text-[9px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded-sm font-semibold">OVERDUE</span>
+                )}
               </div>
             )}
             {selectedCustomerId && selectedCustomer?.discount_percent > 0 && (
@@ -4095,18 +4097,36 @@ Thank you for choosing us!`;
               <X className="h-4 w-4" />
               Cancel
             </Button>
-            <Button
-              size="sm"
-              onClick={handleSaveInvoice}
-              disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
-              className="h-9 px-5 text-[14px] bg-green-600 text-white hover:bg-green-500 font-extrabold gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.4)] active:scale-95 transition-all"
-            >
-              {isSaving ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
-              ) : (
-                <><Check className="h-4 w-4" /> <span className="kbd-hint">{editingInvoiceId ? 'Save Invoice' : '✓ Save Invoice'} <kbd>Ctrl+S</kbd></span></>
-              )}
-            </Button>
+            <div className="flex items-center">
+              <Button
+                size="sm"
+                onClick={handleSaveInvoice}
+                disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
+                className="h-9 px-5 text-[14px] bg-green-600 text-white hover:bg-green-500 font-extrabold gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.4)] active:scale-95 transition-all rounded-r-none"
+              >
+                {isSaving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+                ) : (
+                  <><Check className="h-4 w-4" /> <span className="kbd-hint">{saveButtonLabel} <kbd>Ctrl+S</kbd></span></>
+                )}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    disabled={isSaving || savingLockRef.current || !lineItems.some(i => i.productId)}
+                    className="h-9 px-2 bg-green-600 text-white hover:bg-green-500 rounded-l-none border-l border-green-400/60"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleSaveInvoice}>Save &amp; Print</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSaveInvoice}>Save &amp; New</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSaveInvoice}>Save &amp; Stay</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </footer>
