@@ -2285,35 +2285,35 @@ table [class*="ghost"][class*="size"] {
   width: 80px !important;
   text-align: right !important;
 }
-.erp-desktop-table th:nth-child(8),
-.erp-desktop-table td:nth-child(8) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(8),
+.pos-desktop-readable .erp-desktop-table td:nth-child(8) {
   width: 80px !important;
   text-align: right !important;
 }
-.erp-desktop-table th:nth-child(9),
-.erp-desktop-table td:nth-child(9) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(9),
+.pos-desktop-readable .erp-desktop-table td:nth-child(9) {
   width: 70px !important;
   text-align: right !important;
 }
-.erp-desktop-table th:nth-child(10),
-.erp-desktop-table td:nth-child(10) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(10),
+.pos-desktop-readable .erp-desktop-table td:nth-child(10) {
   width: 80px !important;
   text-align: right !important;
 }
-.erp-desktop-table th:nth-child(11),
-.erp-desktop-table td:nth-child(11) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(11),
+.pos-desktop-readable .erp-desktop-table td:nth-child(11) {
   width: 90px !important;
   text-align: right !important;
 }
-.erp-desktop-table th:nth-child(12),
-.erp-desktop-table td:nth-child(12) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(12),
+.pos-desktop-readable .erp-desktop-table td:nth-child(12) {
   width: 110px !important;
   text-align: right !important;
 }
 
 /* Right-aligned numeric columns in POS */
-.erp-desktop-table th:nth-child(n+9),
-.erp-desktop-table td:nth-child(n+9) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(n+9),
+.pos-desktop-readable .erp-desktop-table td:nth-child(n+9) {
   text-align: right !important;
 }
 
