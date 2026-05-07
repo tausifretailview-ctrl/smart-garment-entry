@@ -1696,6 +1696,7 @@ const POSDashboard = () => {
             <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
           </div>
           <div className="flex gap-2 items-center">
+            <PosScaleControl />
             <Button variant="outline" onClick={handleExportExcel} className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
