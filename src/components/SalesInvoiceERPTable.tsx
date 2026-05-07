@@ -200,7 +200,7 @@ export function SalesInvoiceERPTable({
           );
         },
         size: 130,
-        minSize: 110,
+        minSize: 130,
       },
       {
         accessorKey: "customer_name",
@@ -209,7 +209,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <span
-              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[200px] text-[17px] font-medium"
+              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[280px] text-[17px] font-medium"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedCustomerForHistory({
@@ -223,8 +223,8 @@ export function SalesInvoiceERPTable({
             </span>
           );
         },
-        size: 170,
-        minSize: 120,
+        size: 220,
+        minSize: 200,
       });
 
     if (columnSettings.phone) {
@@ -233,7 +233,7 @@ export function SalesInvoiceERPTable({
         header: "Phone",
         cell: ({ row }) => <span className="text-[17px]">{row.original.customer_phone || '-'}</span>,
         size: 115,
-        minSize: 100,
+        minSize: 80,
       });
     }
 
@@ -590,8 +590,8 @@ export function SalesInvoiceERPTable({
           return null;
         }
       },
-      size: 160,
-      minSize: 140,
+      size: 90,
+      minSize: 80,
     });
 
     return cols;
