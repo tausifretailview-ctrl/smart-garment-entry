@@ -1726,3 +1726,52 @@ main,
   --erp-input-height: 28px;
   --erp-font-size: 13px;
 }
+
+/* CHANGE 12 — Readability boost: larger and bolder UI typography */
+:root {
+  --erp-font-size: 14px;
+}
+
+body {
+  font-size: var(--erp-font-size) !important;
+  font-weight: 500 !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]),
+textarea,
+select,
+[role="combobox"],
+[cmdk-input] {
+  font-size: var(--erp-font-size) !important;
+  font-weight: 600 !important;
+}
+
+button {
+  font-size: var(--erp-font-size) !important;
+  font-weight: 600 !important;
+}
+
+table td {
+  font-size: var(--erp-font-size) !important;
+  font-weight: 600 !important;
+}
+
+table th {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+.tabular-nums,
+.erp-financial,
+.erp-kpi-value,
+td.num {
+  font-size: var(--erp-font-size) !important;
+  font-weight: 700 !important;
+}
+
+.badge,
+[data-badge],
+.erp-badge {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
