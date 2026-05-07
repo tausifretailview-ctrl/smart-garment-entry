@@ -2221,15 +2221,15 @@ table [class*="ghost"][class*="size"] {
 /* ── 1. POS TABLE — column alignment fix ── */
 
 /* POS line items table — force column widths to match headers */
-.erp-desktop-table,
-table[class*="table-fixed"] {
+.pos-desktop-readable .erp-desktop-table,
+.pos-desktop-readable table[class*="table-fixed"] {
   table-layout: fixed !important;
   width: 100% !important;
 }
 
 /* POS table header cells */
-.erp-desktop-table th,
-table[class*="table-fixed"] thead th {
+.pos-desktop-readable .erp-desktop-table th,
+.pos-desktop-readable table[class*="table-fixed"] thead th {
   font-size: 11.5px !important;
   font-weight: 700 !important;
   padding: 5px 8px !important;
@@ -2242,8 +2242,8 @@ table[class*="table-fixed"] thead th {
 }
 
 /* POS table data cells — match header alignment */
-.erp-desktop-table td,
-table[class*="table-fixed"] tbody td {
+.pos-desktop-readable .erp-desktop-table td,
+.pos-desktop-readable table[class*="table-fixed"] tbody td {
   font-size: 13px !important;
   padding: 4px 8px !important;
   height: 38px !important;
@@ -2253,16 +2253,16 @@ table[class*="table-fixed"] tbody td {
 }
 
 /* POS explicit column width map (header/cell parity) */
-.erp-desktop-table th:nth-child(1),
-.erp-desktop-table td:nth-child(1) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(1),
+.pos-desktop-readable .erp-desktop-table td:nth-child(1) {
   width: 45px !important;
 }
-.erp-desktop-table th:nth-child(2),
-.erp-desktop-table td:nth-child(2) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(2),
+.pos-desktop-readable .erp-desktop-table td:nth-child(2) {
   width: 130px !important;
 }
-.erp-desktop-table th:nth-child(3),
-.erp-desktop-table td:nth-child(3) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(3),
+.pos-desktop-readable .erp-desktop-table td:nth-child(3) {
   width: auto !important;
 }
 .erp-desktop-table th:nth-child(4),
