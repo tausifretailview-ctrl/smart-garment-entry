@@ -67,6 +67,7 @@ interface LineItem {
   discount_percent: number;
   discount_amount: number;
   mrp?: number;
+  stock_qty?: number;
 }
 
 /** AP = reduce supplier payable; immediate = cash/bank received from supplier (GL 1000/1010 vs 2000). */
