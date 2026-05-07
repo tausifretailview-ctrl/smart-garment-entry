@@ -164,7 +164,7 @@ export function ERPTable<T>({
             onDragEnd={handleDragEnd}
             
           >
-            <table className="w-full erp-desktop-table" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
+            <table className="w-full erp-desktop-table erp-resizable-table" style={{ tableLayout: "auto", width: table.getTotalSize(), minWidth: "100%" }}>
               <thead className="sticky top-0 z-20 bg-black text-white">
                 {headerGroups.map((headerGroup) => (
                   <tr key={headerGroup.id}>
@@ -231,6 +231,7 @@ export function ERPTable<T>({
                           {row.getVisibleCells().map((cell, idx) => (
                             <td
                               key={cell.id}
+                              data-column-id={cell.column.id}
                               style={{
                                 width: cell.column.getSize(),
                                 minWidth: cell.column.columnDef.minSize ?? 60,
