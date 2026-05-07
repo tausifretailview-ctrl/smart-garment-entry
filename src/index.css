@@ -2317,29 +2317,35 @@ table [class*="ghost"][class*="size"] {
   text-align: right !important;
 }
 
+.sale-bill-entry-table {
+  table-layout: auto !important;
+  width: max-content !important;
+  min-width: 100% !important;
+}
+
 .sale-bill-entry-table th:nth-child(2),
 .sale-bill-entry-table td:nth-child(2) {
-  width: 280px !important;
-  min-width: 280px !important;
-  max-width: 360px !important;
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: none !important;
 }
 
 /* SIZE column */
-.erp-desktop-table th[class*="w-[50px]"],
-.erp-desktop-table td[class*="w-[50px]"] {
+.pos-desktop-readable .erp-desktop-table th[class*="w-[50px]"],
+.pos-desktop-readable .erp-desktop-table td[class*="w-[50px]"] {
   width: 52px !important;
   text-align: center !important;
 }
 
 /* COLOR column */
-.erp-desktop-table th:nth-child(9),
-.erp-desktop-table td:nth-child(9) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(9),
+.pos-desktop-readable .erp-desktop-table td:nth-child(9) {
   text-align: center !important;
 }
 
 /* QTY, MRP, TAX%, DISC%, DISC RS, UNIT PRICE, NET AMOUNT — right align */
-.erp-desktop-table th[class*="text-right"],
-.erp-desktop-table td[class*="text-right"] {
+.pos-desktop-readable .erp-desktop-table th[class*="text-right"],
+.pos-desktop-readable .erp-desktop-table td[class*="text-right"] {
   text-align: right !important;
   padding-right: 10px !important;
 }
