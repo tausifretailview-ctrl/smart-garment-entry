@@ -1145,39 +1145,41 @@ body.pos-hide-toasts [data-sonner-toaster] [data-sonner-toast][data-type="error"
 
 /* POS desktop readability boost: larger text and controls */
 body.pos-large-ui .pos-desktop-readable {
-  font-size: 15px;
+  font-size: 16px;
 }
 body.pos-large-ui .pos-desktop-readable input,
 body.pos-large-ui .pos-desktop-readable [role="combobox"] {
-  font-size: 16px !important;
+  font-size: 18px !important;
+  height: 40px !important;
 }
 body.pos-large-ui .pos-desktop-readable button {
-  font-size: 14px;
+  font-size: 15px;
 }
 body.pos-large-ui .pos-desktop-readable table th {
-  font-size: 12px !important;
+  font-size: 14px !important;
 }
 body.pos-large-ui .pos-desktop-readable table td {
-  font-size: 13px !important;
+  font-size: 15px !important;
 }
 
 /* Fallback: keep POS/Sales Invoice readable even if body class races on refresh */
 @media (min-width: 1024px) {
   .pos-desktop-readable {
-    font-size: 15px;
+    font-size: 16px;
   }
   .pos-desktop-readable input,
   .pos-desktop-readable [role="combobox"] {
-    font-size: 16px !important;
+    font-size: 18px !important;
+    height: 40px !important;
   }
   .pos-desktop-readable button {
-    font-size: 14px;
+    font-size: 15px;
   }
   .pos-desktop-readable table th {
-    font-size: 12px !important;
+    font-size: 14px !important;
   }
   .pos-desktop-readable table td {
-    font-size: 13px !important;
+    font-size: 15px !important;
   }
 }
 
