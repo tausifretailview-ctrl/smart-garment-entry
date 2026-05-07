@@ -2693,3 +2693,14 @@ table[class*="min-w-[1"] {
   border-collapse: collapse !important;
   border-spacing: 0 !important;
 }
+
+/* -- SalesInvoice form table - protect from global overrides -- */
+/* The invoice form has its own sizing - don't override it */
+.sales-invoice-table th,
+.sales-invoice-table td,
+thead.sticky th,
+tr.group td {
+  font-size: unset !important;
+  height: unset !important;
+  padding: unset !important;
+}

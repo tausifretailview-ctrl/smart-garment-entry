@@ -3672,24 +3672,24 @@ Thank you for choosing us!`;
           className="h-full overflow-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
          <div className="bg-white min-h-full pb-4">
-          <table className="w-full border-separate border-spacing-0 erp-desktop-table sale-bill-entry-table">
+          <table className="w-full border-separate border-spacing-0 erp-desktop-table sale-bill-entry-table sales-invoice-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
-                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[420px] w-[420px]">PRODUCT</th>
-                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
-                {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
-                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
-                {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">HSN</th>}
-                <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">QTY</th>
-                {showCol.box && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">BOX</th>}
-                {showCol.mrp && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">MRP</th>}
-                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">PRICE</th>
-                {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">DISC%</th>}
-                {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">DISC ₹</th>}
-                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">GST%</th>}
-                <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
-                <th className="w-8 px-1 h-10 bg-slate-800"></th>
+                <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-8 rounded-tl-lg">#</th>
+                <th className="text-left text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 min-w-[280px] w-[280px]">PRODUCT</th>
+                <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-16">SIZE</th>
+                {showCol.color && <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-16">COLOR</th>}
+                <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-24">BARCODE</th>
+                {showCol.hsn && <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-16">HSN</th>}
+                <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-16">QTY</th>
+                {showCol.box && <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-14">BOX</th>}
+                {showCol.mrp && <th className="text-right text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-20">MRP</th>}
+                <th className="text-right text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-20">PRICE</th>
+                {showCol.disc_percent && <th className="text-right text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-16">DISC%</th>}
+                {showCol.disc_amount && <th className="text-right text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-20">DISC ₹</th>}
+                {showCol.gst && <th className="text-center text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-2 w-14">GST%</th>}
+                <th className="text-right text-[13px] uppercase tracking-[.06em] font-bold h-10 text-white px-3 w-24 bg-blue-700 rounded-tr-lg">TOTAL</th>
+                <th className="w-7 px-1 h-10 bg-slate-800"></th>
               </tr>
             </thead>
             <tbody>
@@ -3727,12 +3727,12 @@ Thank you for choosing us!`;
                       key={item.id}
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
-                      <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{srNo}</td>
-                      <td className="px-3 py-2 min-w-[420px] w-[420px]">
+                      <td className="text-center text-[13px] text-muted-foreground px-2 py-1.5">{srNo}</td>
+                      <td className="px-3 py-1.5 min-w-[280px] w-[280px]">
                         <button
                           type="button"
                           onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                          className="block text-primary hover:underline text-left font-semibold whitespace-normal break-words leading-tight text-[15px]"
+                          className="block text-primary hover:underline text-left font-semibold whitespace-normal break-words leading-tight text-[13.5px]"
                         >
                           {item.productName}
                         </button>
@@ -3740,9 +3740,9 @@ Thank you for choosing us!`;
                           <div className="text-xs text-muted-foreground mt-0.5">{item.color}</div>
                         )}
                       </td>
-                      <td className="text-center px-3 py-2">
+                      <td className="text-center px-2 py-1.5">
                         {item.size ? (
-                          <span className={`inline-block text-[15px] font-bold px-2 py-0.5 rounded ${
+                          <span className={`inline-block text-[13px] font-bold px-1.5 py-0.5 rounded ${
                             ['XS','S','M','L','XL','XXL','XXXL'].includes(item.size?.toUpperCase())
                               ? 'bg-blue-100 text-blue-700'
                               : /^\d+$/.test(item.size)
@@ -3753,14 +3753,14 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      {showCol.color && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-[13px] font-semibold text-slate-900 px-2 py-1.5">
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>}
-                      <td className="text-center px-3 py-2">
-                        <span className="font-mono text-[15px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
+                      <td className="text-center px-2 py-1.5">
+                        <span className="font-mono text-[13px] font-semibold text-blue-600">{item.barcode || <span className="text-slate-300 font-normal">—</span>}</span>
                       </td>
                       {showCol.hsn && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5">{item.hsnCode || <span className="text-slate-300">—</span>}</td>}
-                      <td className="text-center px-1.5 py-1">
+                      <td className="text-center px-1 py-1">
                         <Input
                           type="number"
                           min={isDecimalUOM(item.uom) ? "0.001" : "1"}
@@ -3769,7 +3769,7 @@ Thank you for choosing us!`;
                           placeholder="1"
                           onChange={(e) => updateQuantity(item.id, isDecimalUOM(item.uom) ? (parseFloat(e.target.value) || 0.001) : (parseInt(e.target.value) || 1))}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-10 text-center font-bold text-[17px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
+                          className="w-14 h-9 text-center font-bold text-[14px] bg-warning/10 border-warning/30 focus:border-warning mx-auto tabular-nums"
                         />
                         {item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' && (
                           <span className="text-[10px] text-muted-foreground text-center block">{item.uom}</span>
@@ -3784,7 +3784,7 @@ Thank you for choosing us!`;
                           className="w-14 h-10 text-center text-[15px] mx-auto"
                         />
                       </td>}
-                      {showCol.mrp && <td className="text-right px-1.5 py-1">
+                      {showCol.mrp && <td className="text-right px-1 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3792,10 +3792,10 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[120px] h-10 text-right text-[17px] tabular-nums ml-auto"
+                          className="w-[78px] h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
                       </td>}
-                      <td className="text-right px-1.5 py-1">
+                      <td className="text-right px-1 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3803,10 +3803,10 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-[120px] h-10 text-right text-[15px] font-semibold tabular-nums ml-auto"
+                          className="w-[78px] h-9 text-right text-[14px] font-semibold tabular-nums ml-auto"
                         />
                       </td>
-                      {showCol.disc_percent && <td className="text-right px-1.5 py-1">
+                      {showCol.disc_percent && <td className="text-right px-1 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3815,10 +3815,10 @@ Thank you for choosing us!`;
                           placeholder="0"
                           onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-10 text-right text-[17px] tabular-nums ml-auto"
+                          className="w-14 h-9 text-right text-[14px] tabular-nums ml-auto"
                         />
                       </td>}
-                      {showCol.disc_amount && <td className="text-right px-1.5 py-1">
+                      {showCol.disc_amount && <td className="text-right px-1 py-1">
                         <Input
                           type="number"
                           min="0"
@@ -3826,14 +3826,14 @@ Thank you for choosing us!`;
                           placeholder="-"
                           onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20 h-10 text-right text-[17px] tabular-nums ml-auto text-destructive"
+                          className="w-[70px] h-9 text-right text-[14px] tabular-nums ml-auto text-destructive"
                         />
                       </td>}
                       {showCol.gst && <td className="text-center px-3 py-2">
                         <span className="text-[15px] font-semibold text-muted-foreground">{item.gstPercent}%</span>
                       </td>}
                       <td className="text-right px-3 py-2 bg-blue-50/40">
-                        <span className="text-[17px] font-bold text-blue-700 font-mono tabular-nums">
+                        <span className="font-bold text-[15px] tabular-nums text-blue-700 font-mono">
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
@@ -3909,53 +3909,53 @@ Thank you for choosing us!`;
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
           <div className="flex items-center px-4 py-3 gap-0 min-w-max">
             {/* FLAT DISC % */}
-            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Flat Disc %</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-200 mr-1.5 whitespace-nowrap">Flat Disc %</span>
             <Input
               type="number" min="0" max="100"
               value={flatDiscountPercent || ""}
               placeholder="0"
               onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[80px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+              className="w-[72px] h-9 text-[15px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
             <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
             {/* FLAT DISC ₹ */}
-            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Flat Disc ₹</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-200 mr-1.5 whitespace-nowrap">Flat Disc ₹</span>
             <Input
               type="number" min="0"
               value={flatDiscountRupees || ""}
               placeholder="0"
               onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[90px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+              className="w-[82px] h-9 text-[15px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
             <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
             {/* Other Charges */}
-            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Charges</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-200 mr-1.5 whitespace-nowrap">Charges</span>
             <Input
               type="number" min="0"
               value={otherCharges || ""}
               placeholder="0"
               onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[90px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+              className="w-[82px] h-9 text-[15px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
             <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
             {/* Round Off */}
-            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Round</span>
+            <span className="text-[13px] font-extrabold uppercase tracking-wider text-slate-200 mr-1.5 whitespace-nowrap">Round</span>
             <Input
               type="number" step="0.01"
               value={roundOff || ""}
               placeholder="0"
               onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-              className="w-[110px] h-10 text-[17px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
+              className="w-[90px] h-9 text-[15px] text-right bg-white text-slate-900 font-extrabold font-mono border-0 rounded-sm"
             />
 
             {pointsToRedeem > 0 && (
@@ -3973,13 +3973,13 @@ Thank you for choosing us!`;
             <div className="ml-auto flex items-center gap-4 shrink-0">
               <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
                 <div className="flex items-center justify-between gap-3 min-w-[120px]">
-                  <span className="text-[12px] uppercase tracking-wider text-slate-300 font-extrabold">Items</span>
+                  <span className="text-[13px] uppercase tracking-wider text-slate-300 font-extrabold">Items</span>
                   <span className="text-[16px] font-extrabold text-white tabular-nums">
                     {lineItems.filter(i => i.productId).length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-w-[120px]">
-                  <span className="text-[12px] uppercase tracking-wider text-slate-300 font-extrabold">Total Qty</span>
+                  <span className="text-[13px] uppercase tracking-wider text-slate-300 font-extrabold">Total Qty</span>
                   <span className="text-[16px] font-extrabold text-white tabular-nums">
                     {lineItems.reduce((s, i) => s + (i.productId ? i.quantity : 0), 0)}
                   </span>
@@ -3987,11 +3987,11 @@ Thank you for choosing us!`;
               </div>
               <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
-                  <span className="text-[12px] uppercase tracking-wider text-slate-300 font-extrabold">Gross</span>
+                  <span className="text-[13px] uppercase tracking-wider text-slate-300 font-extrabold">Gross</span>
                   <span className="text-[16px] font-extrabold text-slate-100 tabular-nums">₹{grossAmount.toFixed(0)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
-                  <span className="text-[12px] uppercase tracking-wider text-rose-400 font-extrabold">Discount</span>
+                  <span className="text-[13px] uppercase tracking-wider text-rose-400 font-extrabold">Discount</span>
                   <span className="text-[16px] font-extrabold text-rose-400 tabular-nums">
                     -₹{(lineItemDiscount + flatDiscountAmount).toFixed(0)}
                   </span>
