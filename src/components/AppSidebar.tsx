@@ -52,6 +52,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useChat } from "@/contexts/ChatContext";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -70,6 +71,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 export function AppSidebar() {
   const { open, setOpen } = useSidebar();
+  const { user: currentUser } = useAuth();
   const [isLocked, setIsLocked] = useState<boolean>(() => {
     try {
       return localStorage.getItem("sidebar_locked") === "true";
@@ -1165,6 +1167,18 @@ export function AppSidebar() {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      {/* Sidebar Footer — user info */}
+      <div className="mt-auto border-t border-white/[0.06] px-3 py-2">
+        <div className="text-[9px] font-700 text-white/30 uppercase tracking-wider mb-1">
+          Logged In As
+        </div>
+        <div className="text-[11px] font-semibold text-white/60">
+          {currentUser?.email?.split("@")[0] || "Admin User"}
+        </div>
+        <div className="text-[9px] text-white/25 mt-0.5">
+          {currentOrganization?.name}
+        </div>
+      </div>
     </Sidebar>
   );
 }
