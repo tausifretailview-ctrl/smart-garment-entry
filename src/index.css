@@ -2256,6 +2256,13 @@ table[class*="table-fixed"] tbody td {
   text-align: right !important;
 }
 
+.sale-bill-entry-table th:nth-child(2),
+.sale-bill-entry-table td:nth-child(2) {
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 360px !important;
+}
+
 /* SIZE column */
 .erp-desktop-table th[class*="w-[50px]"],
 .erp-desktop-table td[class*="w-[50px]"] {

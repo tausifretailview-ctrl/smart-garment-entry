@@ -233,6 +233,7 @@ export function ERPTable<T>({
                               key={cell.id}
                               style={{
                                 width: cell.column.getSize(),
+                                minWidth: cell.column.columnDef.minSize ?? 60,
                                 ...(((cell.column.columnDef as any).meta as any)?.stickyRight
                                   ? { position: 'sticky', right: 0, zIndex: 5 }
                                   : {}),
