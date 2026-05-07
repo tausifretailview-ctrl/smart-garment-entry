@@ -5169,19 +5169,19 @@ export default function POSSales() {
             <div className="flex items-end gap-3 flex-wrap justify-end">
               {/* Flat Disc */}
               <div className="text-center">
-                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
+                <div className="text-sm text-white uppercase font-extrabold mb-1 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="bg-white/20 text-white px-2 py-1 text-sm rounded-l-md h-9 hover:bg-white/30 border-0 font-bold min-w-[26px]"
+                    className="bg-white/20 text-white px-2 py-1 text-base rounded-l-md h-11 hover:bg-white/30 border-0 font-extrabold min-w-[30px]"
                     onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
                   >
                     {flatDiscountMode === 'percent' ? '%' : '₹'}
                   </Button>
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold rounded-l-none border-0" 
+                    className="w-28 h-11 bg-white text-foreground text-center text-xl font-extrabold rounded-l-none border-0 tabular-nums" 
                     value={flatDiscountValue || ""}
                     placeholder="0"
                     onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
@@ -5191,13 +5191,13 @@ export default function POSSales() {
               
               {/* S/R Adj */}
               <div className="text-center">
-                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">
+                <div className="text-sm text-white uppercase font-extrabold mb-1 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
                 </div>
                 <div className="flex items-center">
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold border-0 rounded-md" 
+                    className="w-28 h-11 bg-white text-foreground text-center text-xl font-extrabold border-0 rounded-md tabular-nums" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
                     onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
@@ -5206,7 +5206,7 @@ export default function POSSales() {
                   {customerId && pendingSaleReturnCredits.length > 0 && (
                     <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 text-white hover:bg-white/20 p-0 ml-1">
+                        <Button variant="ghost" size="icon" className="h-11 w-9 text-white hover:bg-white/20 p-0 ml-1">
                           <ChevronDown className="h-3.5 w-3.5" />
                         </Button>
                       </PopoverTrigger>
@@ -5235,7 +5235,7 @@ export default function POSSales() {
               
               {/* Round */}
               <div className="text-center">
-                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">
+                <div className="text-sm text-white uppercase font-extrabold mb-1 tracking-wide">
                   Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
                 </div>
                 <div className="flex items-center gap-0.5">
@@ -5260,7 +5260,7 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-24 h-9 text-center text-base font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-28 h-11 text-center text-xl font-extrabold border-0 rounded-md tabular-nums ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
@@ -5272,10 +5272,10 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-sm text-white uppercase font-extrabold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-purple-100 text-purple-700 text-center text-base font-semibold border-0 rounded-md" 
+                    className="w-28 h-11 bg-purple-100 text-purple-700 text-center text-xl font-extrabold border-0 rounded-md tabular-nums" 
                     value={creditApplied || ""}
                     placeholder="0"
                     onChange={(e) => {
@@ -5306,11 +5306,11 @@ export default function POSSales() {
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">
-                <span className="text-base text-white/80 uppercase font-semibold">Net Amount</span>
+                <span className="text-lg text-white uppercase font-extrabold">Net Amount</span>
               </div>
               <Input 
                 type="number"
-                className={`w-[160px] sm:w-[210px] h-12 text-right text-3xl sm:text-4xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-[180px] sm:w-[240px] h-14 text-right text-4xl sm:text-5xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
