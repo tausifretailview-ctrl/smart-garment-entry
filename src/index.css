@@ -2265,23 +2265,23 @@ table [class*="ghost"][class*="size"] {
 .pos-desktop-readable .erp-desktop-table td:nth-child(3) {
   width: auto !important;
 }
-.erp-desktop-table th:nth-child(4),
-.erp-desktop-table td:nth-child(4) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(4),
+.pos-desktop-readable .erp-desktop-table td:nth-child(4) {
   width: 55px !important;
   text-align: center !important;
 }
-.erp-desktop-table th:nth-child(5),
-.erp-desktop-table td:nth-child(5) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(5),
+.pos-desktop-readable .erp-desktop-table td:nth-child(5) {
   width: 70px !important;
   text-align: center !important;
 }
-.erp-desktop-table th:nth-child(6),
-.erp-desktop-table td:nth-child(6) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(6),
+.pos-desktop-readable .erp-desktop-table td:nth-child(6) {
   width: 60px !important;
   text-align: right !important;
 }
-.erp-desktop-table th:nth-child(7),
-.erp-desktop-table td:nth-child(7) {
+.pos-desktop-readable .erp-desktop-table th:nth-child(7),
+.pos-desktop-readable .erp-desktop-table td:nth-child(7) {
   width: 80px !important;
   text-align: right !important;
 }
