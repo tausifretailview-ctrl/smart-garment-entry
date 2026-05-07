@@ -44,6 +44,7 @@ export function DraggableHeader<T>({ header, isSticky, density }: DraggableHeade
   return (
     <th
       ref={setNodeRef}
+      data-column-id={header.column.id}
       style={{
         ...style,
         ...(((header.column.columnDef as any).meta as any)?.stickyRight
