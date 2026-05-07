@@ -54,6 +54,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { PosScaleControl, applyPosScale, getStoredPosScale } from "@/components/pos/PosScaleControl";
 
 interface SaleItem {
   id: string;
@@ -1696,6 +1697,7 @@ const POSDashboard = () => {
             <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
           </div>
           <div className="flex gap-2 items-center">
+            <PosScaleControl />
             <Button variant="outline" onClick={handleExportExcel} className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
