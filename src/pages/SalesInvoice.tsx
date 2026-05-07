@@ -3669,14 +3669,14 @@ Thank you for choosing us!`;
       <section className="flex-1 min-h-0 px-6 pb-2 overflow-hidden bg-slate-100 relative">
         <div
           ref={tableContainerRef}
-          className="h-full overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
+          className="h-full overflow-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
          <div className="bg-white min-h-full pb-4">
           <table className="w-full border-separate border-spacing-0 erp-desktop-table sale-bill-entry-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[280px]">PRODUCT</th>
+                <th className="text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[420px] w-[420px]">PRODUCT</th>
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
                 {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
@@ -3728,11 +3728,11 @@ Thank you for choosing us!`;
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
                       <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{srNo}</td>
-                      <td className="px-3 py-2 min-w-[280px] max-w-[360px]">
+                      <td className="px-3 py-2 min-w-[420px] w-[420px]">
                         <button
                           type="button"
                           onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                          className="block text-primary hover:underline text-left font-semibold break-words whitespace-normal leading-tight text-[14px]"
+                          className="block text-primary hover:underline text-left font-semibold whitespace-normal break-words leading-tight text-[15px]"
                         >
                           {item.productName}
                         </button>
