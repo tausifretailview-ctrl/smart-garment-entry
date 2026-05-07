@@ -1522,12 +1522,6 @@ input.no-uppercase {
   text-overflow: clip !important;
 }
 
-.erp-resizable-table th[data-column-id="supplier_name"],
-.erp-resizable-table td[data-column-id="supplier_name"] {
-  width: 420px !important;
-  min-width: 420px !important;
-}
-
 .erp-resizable-table td[data-column-id="supplier_name"] {
   white-space: normal !important;
   overflow-wrap: anywhere !important;
