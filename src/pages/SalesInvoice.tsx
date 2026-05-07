@@ -3306,12 +3306,12 @@ Thank you for choosing us!`;
                                     setOpenCustomerSearch(false);
                                     setCustomerSearchInput("");
                                   }}
-                                  className="cursor-pointer"
+                                  className="cursor-pointer items-start py-2.5 min-h-[52px] border-b border-border/40 last:border-0 leading-normal"
                                 >
-                                  <div className="flex flex-col gap-1 w-full">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium uppercase">{customer.customer_name}</span>
-                                      <div className="flex items-center gap-1.5">
+                                  <div className="flex flex-col gap-1 w-full min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-medium uppercase truncate">{customer.customer_name}</span>
+                                      <div className="flex items-center gap-1.5 shrink-0">
                                         {advanceAmt > 0 && (
                                           <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
                                             ₹{advanceAmt.toLocaleString('en-IN')} Adv
@@ -3328,7 +3328,7 @@ Thank you for choosing us!`;
                                         )}
                                       </div>
                                     </div>
-                                    <span className="text-sm text-muted-foreground">
+                                    <span className="text-xs text-muted-foreground truncate">
                                       {customer.phone && `Phone: ${customer.phone}`}
                                       {customer.email && ` | Email: ${customer.email}`}
                                     </span>
