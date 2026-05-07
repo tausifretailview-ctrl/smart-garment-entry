@@ -90,6 +90,7 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
 import { FinancerDetailsForm, FinancerDetails, saveFinancerDetails } from "@/components/FinancerDetailsForm";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
+import { PosScaleControl, applyPosScale, getStoredPosScale } from "@/components/pos/PosScaleControl";
 
 interface PendingPriceSelection {
   product: any;
