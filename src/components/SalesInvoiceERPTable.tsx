@@ -59,6 +59,8 @@ interface SalesInvoiceERPTableProps {
   saleReturns: Record<string, any[]>;
   cnAdjustedMap: Record<string, any[]>;
   loadedItems?: Record<string, any[]>;
+  copiedBillNo?: string | null;
+  onCopyBillNo?: (billNo: string) => void;
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
@@ -112,6 +114,8 @@ export function SalesInvoiceERPTable({
   saleReturns,
   cnAdjustedMap,
   loadedItems,
+  copiedBillNo,
+  onCopyBillNo,
   renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
@@ -169,7 +173,17 @@ export function SalesInvoiceERPTable({
           return (
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5 font-medium text-[17px]">
-                <span className={invoice.is_cancelled ? "line-through decoration-red-500/70" : ""}>{invoice.sale_number}</span>
+                <span
+                  className={invoice.is_cancelled ? "line-through decoration-red-500/70 cursor-pointer" : "cursor-pointer"}
+                  title="Click to copy"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCopyBillNo?.(invoice.sale_number);
+                  }}
+                >
+                  {invoice.sale_number}
+                </span>
+                {copiedBillNo === invoice.sale_number && <span className="text-emerald-600 text-xs font-bold">✓</span>}
                 {invoice.is_cancelled && (
                   <Badge className="no-line-through text-xs px-1.5 py-0 h-4 bg-red-700 hover:bg-red-800 text-white no-underline" style={{ textDecoration: 'none' }}>CANCELLED</Badge>
                 )}
@@ -186,7 +200,7 @@ export function SalesInvoiceERPTable({
           );
         },
         size: 130,
-        minSize: 110,
+        minSize: 130,
       },
       {
         accessorKey: "customer_name",
@@ -195,7 +209,7 @@ export function SalesInvoiceERPTable({
           const invoice = row.original;
           return (
             <span
-              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[200px] text-[17px] font-medium"
+              className="cursor-pointer text-blue-600 hover:underline whitespace-nowrap block truncate max-w-[280px] text-[17px] font-medium"
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedCustomerForHistory({
@@ -209,8 +223,8 @@ export function SalesInvoiceERPTable({
             </span>
           );
         },
-        size: 170,
-        minSize: 120,
+        size: 220,
+        minSize: 200,
       });
 
     if (columnSettings.phone) {
@@ -219,7 +233,7 @@ export function SalesInvoiceERPTable({
         header: "Phone",
         cell: ({ row }) => <span className="text-[17px]">{row.original.customer_phone || '-'}</span>,
         size: 115,
-        minSize: 100,
+        minSize: 80,
       });
     }
 
@@ -576,8 +590,8 @@ export function SalesInvoiceERPTable({
           return null;
         }
       },
-      size: 160,
-      minSize: 140,
+      size: 90,
+      minSize: 80,
     });
 
     return cols;
