@@ -164,7 +164,7 @@ export function ERPTable<T>({
             onDragEnd={handleDragEnd}
             
           >
-            <table className="w-full erp-data-table" style={{ tableLayout: "auto", width: "max-content", minWidth: "100%" }}>
+            <table className="w-full erp-desktop-table" style={{ tableLayout: "fixed", width: "max-content", minWidth: "100%" }}>
               <thead className="sticky top-0 z-20 bg-black text-white">
                 {headerGroups.map((headerGroup) => (
                   <tr key={headerGroup.id}>
