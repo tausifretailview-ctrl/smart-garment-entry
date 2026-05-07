@@ -1618,3 +1618,111 @@ input.no-uppercase {
   font-size: 13.5px !important;
   font-weight: 500 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHANGE 6–11 — Windows 11 ERP polish (additive overrides; see strict rules)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* CHANGE 6 — Scrollbars: thin Windows 11 style */
+* {
+  scrollbar-width: thin !important;
+  scrollbar-color: hsl(214 20% 78%) transparent !important;
+}
+
+*::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(214 20% 78%) !important;
+  border-radius: 3px !important;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(214 20% 65%) !important;
+}
+
+/* CHANGE 7 — Badges/Status chips: pill-less, flat label style */
+.badge,
+[data-badge],
+.erp-badge {
+  border-radius: 2px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 1px 6px !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase !important;
+  border: 1px solid currentColor !important;
+  opacity: 0.9 !important;
+}
+
+/* CHANGE 8 — Dropdown / Select menus: Windows-style */
+[data-radix-select-content],
+[data-radix-dropdown-menu-content],
+[data-radix-popover-content] {
+  border-radius: 3px !important;
+  border: 1px solid hsl(214 20% 80%) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 1px 3px rgba(0, 0, 0, 0.08) !important;
+  padding: 2px !important;
+}
+
+[data-radix-select-item],
+[data-radix-dropdown-menu-item] {
+  border-radius: 2px !important;
+  font-size: 13px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  cursor: pointer !important;
+}
+
+[data-radix-select-item]:hover,
+[data-radix-dropdown-menu-item]:hover,
+[data-radix-select-item][data-highlighted],
+[data-radix-dropdown-menu-item][data-highlighted] {
+  background: hsl(217 91% 94%) !important;
+  color: hsl(217 91% 35%) !important;
+}
+
+/* CHANGE 9 — Page background: Windows workspace gray */
+body,
+html {
+  background: hsl(220 20% 94%) !important;
+}
+
+main,
+[data-main-content],
+.workspace-content {
+  background: hsl(220 20% 94%) !important;
+}
+
+.page-header-panel {
+  background: #ffffff !important;
+  border-bottom: 1px solid hsl(214 20% 88%) !important;
+  padding: 10px 20px !important;
+}
+
+/* CHANGE 10 — Toast notifications: compact Windows-style */
+[data-sonner-toast] {
+  border-radius: 3px !important;
+  font-size: 12px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid hsl(214 20% 85%) !important;
+  min-height: 36px !important;
+  max-width: 320px !important;
+}
+
+/* CHANGE 11 — ERP density tokens (cascade override; earlier :root declarations preserved in file) */
+:root {
+  --radius: 0.25rem;
+  --erp-row-height: 30px;
+  --erp-input-height: 28px;
+  --erp-font-size: 13px;
+}
