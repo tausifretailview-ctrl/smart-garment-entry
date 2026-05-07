@@ -28,13 +28,53 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   // Full-screen billing: hide sidebar + header/tabs on Sales Invoice
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
+  const enterpriseScalePaths = [
+    "/",
+    "/products",
+    "/purchase-bills",
+    "/purchase-returns",
+    "/purchase-orders",
+    "/quotation-dashboard",
+    "/sale-order-dashboard",
+    "/sales-invoice-dashboard",
+    "/sale-returns",
+    "/delivery-challan-dashboard",
+    "/advance-booking-dashboard",
+    "/payments-dashboard",
+    "/delivery-dashboard",
+    "/stock-report",
+    "/stock-ageing",
+    "/stock-analysis",
+    "/purchase-report",
+    "/sales-report",
+    "/product-tracking",
+    "/daily-cashier-report",
+    "/daily-tally",
+    "/item-wise-sales",
+    "/item-wise-stock",
+    "/price-history",
+    "/gst-reports",
+    "/gst-register",
+    "/tally-export",
+    "/sales-analytics",
+    "/accounting-reports",
+    "/expense-salary-report",
+    "/customer-ledger-report",
+    "/customer-account-statement",
+    "/customer-audit-report",
+    "/daily-sale-analysis",
+    "/einvoice-report",
+    "/net-profit-analysis",
+    "/hourly-sales-analysis",
+    "/accounts",
+    "/chart-of-accounts",
+    "/audit-log",
+  ];
   const isEnterpriseDashboardOrReport =
-    /(dashboard|report|analytics|analysis|tally|ledger|stock-ageing|stock-report|stock-analysis|accounts|payments-dashboard|delivery-dashboard)/.test(
-      location.pathname
+    enterpriseScalePaths.some((path) =>
+      location.pathname === path || location.pathname.endsWith(path)
     ) &&
-    !/\/(sales-invoice|purchase-entry|pos-sales|pos-dashboard)(\/|$)/.test(
-      location.pathname
-    );
+    !/\/(sales-invoice|purchase-entry|pos-sales|pos-dashboard)(\/|$)/.test(location.pathname);
 
   // Apply saved UI scale on mount
   useEffect(() => { initUIScale(); }, []);
@@ -86,17 +126,21 @@ export const Layout = ({ children }: LayoutProps) => {
               className={
                 isSalesInvoicePage
                   ? "flex-1 overflow-hidden relative z-[1] min-h-0"
-                  : `flex-1 overflow-auto p-4 pb-20 lg:pb-14 relative z-[1]${
-                      isEnterpriseDashboardOrReport ? " dashboard-readable" : ""
+                  : `flex-1 overflow-auto pb-20 lg:pb-14 relative z-[1]${
+                      isEnterpriseDashboardOrReport ? "" : " p-4"
                     }`
               }
             >
-              {isEnterpriseDashboardOrReport && (
-                <div className="mb-3 flex justify-end">
-                  <DashboardScaleControl />
+              {isEnterpriseDashboardOrReport ? (
+                <div className="w-full px-4 py-4 space-y-4 bg-background min-h-full dashboard-readable">
+                  <div className="flex justify-end">
+                    <DashboardScaleControl />
+                  </div>
+                  {children}
                 </div>
+              ) : (
+                children
               )}
-              {children}
             </main>
           </SidebarInset>
         </div>
