@@ -1162,10 +1162,30 @@ body.pos-large-ui .pos-desktop-readable table td {
   font-size: 15px !important;
 }
 
-/* POS user-controlled display scale (100/110/125/150) — uses CSS zoom so EVERY element scales (text, padding, fixed-pixel widths). */
-body[data-pos-scale="110"] .pos-desktop-readable { zoom: 1.10; }
-body[data-pos-scale="125"] .pos-desktop-readable { zoom: 1.25; }
-body[data-pos-scale="150"] .pos-desktop-readable { zoom: 1.50; }
+/* POS user-controlled display scale (100/110/125/150).
+   IMPORTANT: We previously used CSS `zoom` here, but `zoom` breaks Radix
+   popovers/dropdowns (Customer & Product search) because their content is
+   rendered in a portal at <body> root — outside the scaled container — which
+   caused rows to overlap and misalign. We now scale only typography and
+   control sizing inside the POS container so portals stay correct. */
+body[data-pos-scale="110"] .pos-desktop-readable { font-size: 17px; }
+body[data-pos-scale="110"] .pos-desktop-readable input,
+body[data-pos-scale="110"] .pos-desktop-readable [role="combobox"],
+body[data-pos-scale="110"] .pos-desktop-readable button { font-size: 16px; }
+
+body[data-pos-scale="125"] .pos-desktop-readable { font-size: 18px; }
+body[data-pos-scale="125"] .pos-desktop-readable input,
+body[data-pos-scale="125"] .pos-desktop-readable [role="combobox"],
+body[data-pos-scale="125"] .pos-desktop-readable button { font-size: 17px; }
+body[data-pos-scale="125"] .pos-desktop-readable input,
+body[data-pos-scale="125"] .pos-desktop-readable [role="combobox"] { height: 44px !important; }
+
+body[data-pos-scale="150"] .pos-desktop-readable { font-size: 20px; }
+body[data-pos-scale="150"] .pos-desktop-readable input,
+body[data-pos-scale="150"] .pos-desktop-readable [role="combobox"],
+body[data-pos-scale="150"] .pos-desktop-readable button { font-size: 19px; }
+body[data-pos-scale="150"] .pos-desktop-readable input,
+body[data-pos-scale="150"] .pos-desktop-readable [role="combobox"] { height: 48px !important; }
 
 /* Main Dashboard scale (100/110/125/150) */
 /* Base Dashboard Overrides */
