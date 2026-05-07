@@ -91,6 +91,10 @@ All colors MUST be HSL.
     --sidebar-border: 222 47% 22%;
     --sidebar-ring: 217 91% 60%;
     --sidebar-muted: 222 47% 18%;
+
+    /* Windows-style UI font stacks */
+    --font-ui: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   }
 
   /* Classic Indigo Theme - matches old Smart Inventory theme */
@@ -292,25 +296,35 @@ All colors MUST be HSL.
     @apply p-6;
   }
 
-  /* Table density for ERP - Full View */
+  /* Table density for ERP - Full View (Tally-style) */
   table {
     border-collapse: separate;
     border-spacing: 0;
   }
 
   table th {
-    @apply text-[13px] uppercase tracking-wider font-semibold px-5 py-4;
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+    height: 28px !important;
+    letter-spacing: 0.06em !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    white-space: nowrap !important;
+    border-bottom: 2px solid hsl(var(--border)) !important;
     color: hsl(215 16% 47%);
-    letter-spacing: 0.07em;
   }
 
   table td {
-    @apply text-[15px] px-5 py-4 border-b border-muted/80;
+    padding: 4px 10px !important;
+    font-size: 13px !important;
+    height: 30px !important;
+    border-bottom: 0.5px solid hsl(214 20% 92%) !important;
+    vertical-align: middle !important;
+    white-space: nowrap !important;
   }
 
-  /* Alternating row backgrounds */
   table tbody tr:nth-child(even) {
-    background: hsl(210 33% 98%);
+    background: hsl(210 40% 98.5%) !important;
   }
 
   table tbody tr {
@@ -318,7 +332,14 @@ All colors MUST be HSL.
   }
 
   table tbody tr:hover {
-    background: hsl(213 80% 96%) !important;
+    background: hsl(217 91% 96%) !important;
+    transition: background 60ms !important;
+  }
+
+  table tbody tr.selected,
+  table tbody tr[data-selected="true"] {
+    background: hsl(217 91% 92%) !important;
+    border-left: 2px solid hsl(var(--primary)) !important;
   }
 }
 
@@ -364,9 +385,149 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground text-[16px] antialiased;
-    line-height: 1.6;
+    @apply bg-background text-foreground;
+    font-family: var(--font-ui) !important;
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: subpixel-antialiased !important;
+    font-smooth: always;
   }
+}
+
+/* ─── Windows ERP: typography, controls, tables (visual only) ─── */
+
+/* Monospace for all amounts — Tally style */
+.erp-financial,
+.erp-kpi-value,
+td.num,
+.tabular-nums {
+  font-family: var(--font-mono) !important;
+  font-size: 13px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* All inputs — sharp, flat, instant response */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]),
+textarea,
+select,
+[role="combobox"],
+[cmdk-input] {
+  border-radius: 3px !important;
+  border: 1px solid hsl(214 20% 78%) !important;
+  background: #ffffff !important;
+  font-size: 13px !important;
+  height: 28px !important;
+  padding: 0 8px !important;
+  transition: border-color 80ms ease !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]):focus,
+textarea:focus,
+select:focus,
+[role="combobox"]:focus,
+[cmdk-input]:focus {
+  border-color: hsl(var(--primary)) !important;
+  box-shadow:
+    0 0 0 2px hsl(var(--primary) / 0.18),
+    inset 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  outline: none !important;
+}
+
+textarea {
+  height: auto !important;
+  min-height: 60px !important;
+  padding: 6px 8px !important;
+  resize: vertical !important;
+}
+
+/* Preserve compact Tally-style form row height */
+.erp-form-compact .erp-field input,
+.erp-form-compact .erp-field select {
+  height: 24px !important;
+  font-size: 12px !important;
+  padding: 0 6px !important;
+}
+
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="hidden"]),
+.dark textarea,
+.dark select,
+.dark [role="combobox"],
+.dark [cmdk-input] {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Primary button — solid blue like Windows (default size only; preserve sm/lg/icon) */
+button[data-variant="default"][data-size="default"],
+.btn-primary,
+button.bg-primary[data-size="default"] {
+  border-radius: 3px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  height: 30px !important;
+  padding: 0 14px !important;
+  letter-spacing: 0.02em !important;
+  border: 1px solid hsl(217 91% 50%) !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  transition:
+    background 80ms,
+    box-shadow 80ms !important;
+}
+
+button[data-variant="default"][data-size="default"]:hover,
+button.bg-primary[data-size="default"]:hover {
+  filter: brightness(1.06) !important;
+}
+
+button[data-variant="default"][data-size="default"]:active,
+button.bg-primary[data-size="default"]:active {
+  transform: translateY(1px) !important;
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Secondary/outline buttons */
+button[data-variant="outline"][data-size="default"],
+button[data-variant="secondary"][data-size="default"] {
+  border-radius: 3px !important;
+  font-size: 13px !important;
+  height: 30px !important;
+  padding: 0 12px !important;
+  border: 1px solid hsl(214 20% 82%) !important;
+  background: #f8fafc !important;
+  color: hsl(222 47% 20%) !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  transition: background 80ms !important;
+}
+
+button[data-variant="outline"][data-size="default"]:hover,
+button[data-variant="secondary"][data-size="default"]:hover {
+  background: #f1f5f9 !important;
+  border-color: hsl(214 20% 72%) !important;
+}
+
+.dark button[data-variant="outline"][data-size="default"],
+.dark button[data-variant="secondary"][data-size="default"] {
+  background: hsl(var(--secondary)) !important;
+  color: hsl(var(--secondary-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.dark button[data-variant="outline"][data-size="default"]:hover,
+.dark button[data-variant="secondary"][data-size="default"]:hover {
+  background: hsl(var(--muted)) !important;
+}
+
+/* Destructive — red flat */
+button[data-variant="destructive"][data-size="default"] {
+  border-radius: 3px !important;
+  font-size: 13px !important;
+  height: 30px !important;
 }
 
 @layer utilities {
@@ -450,8 +611,7 @@ All colors MUST be HSL.
   }
 
   .erp-financial {
-    @apply text-[15px] font-medium text-right tabular-nums tracking-tight;
-    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+    @apply font-medium text-right tabular-nums tracking-tight;
   }
 
   .erp-customer-name {
@@ -468,8 +628,7 @@ All colors MUST be HSL.
   }
 
   .erp-kpi-value {
-    @apply text-[28px] font-bold tracking-tight;
-    font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+    @apply font-bold tracking-tight;
   }
 
   /* ERP Status Bar — Tally/SAP style bottom bar */
@@ -1286,7 +1445,7 @@ input.no-uppercase {
 .erp-desktop-table th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  font-family: var(--font-mono);
   padding-right: 12px;
 }
 
@@ -1392,7 +1551,7 @@ input.no-uppercase {
   font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  font-family: var(--font-mono);
   color: hsl(var(--foreground));
 }
 
