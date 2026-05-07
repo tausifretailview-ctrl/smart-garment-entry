@@ -5260,7 +5260,7 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-24 h-9 text-center text-base font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-28 h-11 text-center text-xl font-extrabold border-0 rounded-md tabular-nums ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
@@ -5272,10 +5272,10 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-sm text-white uppercase font-extrabold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-purple-100 text-purple-700 text-center text-base font-semibold border-0 rounded-md" 
+                    className="w-28 h-11 bg-purple-100 text-purple-700 text-center text-xl font-extrabold border-0 rounded-md tabular-nums" 
                     value={creditApplied || ""}
                     placeholder="0"
                     onChange={(e) => {
@@ -5306,11 +5306,11 @@ export default function POSSales() {
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">
-                <span className="text-base text-white/80 uppercase font-semibold">Net Amount</span>
+                <span className="text-lg text-white uppercase font-extrabold">Net Amount</span>
               </div>
               <Input 
                 type="number"
-                className={`w-[160px] sm:w-[210px] h-12 text-right text-3xl sm:text-4xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-[180px] sm:w-[240px] h-14 text-right text-4xl sm:text-5xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
