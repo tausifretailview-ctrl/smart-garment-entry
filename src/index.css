@@ -2084,3 +2084,398 @@ table [class*="ghost"][class*="size"] {
   table td { font-size: inherit !important; }
   button { font-size: inherit !important; }
 }
+
+/* ============================================
+   POS ALIGNMENT + FONT SIZE FIX — EzzyERP
+   ============================================ */
+
+/* ── 1. POS TABLE — column alignment fix ── */
+
+/* POS line items table — force column widths to match headers */
+.erp-desktop-table,
+table[class*="table-fixed"] {
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+
+/* POS table header cells */
+.erp-desktop-table th,
+table[class*="table-fixed"] thead th {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  padding: 5px 8px !important;
+  height: 32px !important;
+  text-align: left !important;
+  letter-spacing: 0.04em !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+/* POS table data cells — match header alignment */
+.erp-desktop-table td,
+table[class*="table-fixed"] tbody td {
+  font-size: 13px !important;
+  padding: 4px 8px !important;
+  height: 38px !important;
+  vertical-align: middle !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* POS explicit column width map (header/cell parity) */
+.erp-desktop-table th:nth-child(1),
+.erp-desktop-table td:nth-child(1) {
+  width: 45px !important;
+}
+.erp-desktop-table th:nth-child(2),
+.erp-desktop-table td:nth-child(2) {
+  width: 130px !important;
+}
+.erp-desktop-table th:nth-child(3),
+.erp-desktop-table td:nth-child(3) {
+  width: auto !important;
+}
+.erp-desktop-table th:nth-child(4),
+.erp-desktop-table td:nth-child(4) {
+  width: 55px !important;
+  text-align: center !important;
+}
+.erp-desktop-table th:nth-child(5),
+.erp-desktop-table td:nth-child(5) {
+  width: 70px !important;
+  text-align: center !important;
+}
+.erp-desktop-table th:nth-child(6),
+.erp-desktop-table td:nth-child(6) {
+  width: 60px !important;
+  text-align: right !important;
+}
+.erp-desktop-table th:nth-child(7),
+.erp-desktop-table td:nth-child(7) {
+  width: 80px !important;
+  text-align: right !important;
+}
+.erp-desktop-table th:nth-child(8),
+.erp-desktop-table td:nth-child(8) {
+  width: 80px !important;
+  text-align: right !important;
+}
+.erp-desktop-table th:nth-child(9),
+.erp-desktop-table td:nth-child(9) {
+  width: 70px !important;
+  text-align: right !important;
+}
+.erp-desktop-table th:nth-child(10),
+.erp-desktop-table td:nth-child(10) {
+  width: 80px !important;
+  text-align: right !important;
+}
+.erp-desktop-table th:nth-child(11),
+.erp-desktop-table td:nth-child(11) {
+  width: 90px !important;
+  text-align: right !important;
+}
+.erp-desktop-table th:nth-child(12),
+.erp-desktop-table td:nth-child(12) {
+  width: 110px !important;
+  text-align: right !important;
+}
+
+/* Right-aligned numeric columns in POS */
+.erp-desktop-table th:nth-child(n+9),
+.erp-desktop-table td:nth-child(n+9) {
+  text-align: right !important;
+}
+
+/* SIZE column */
+.erp-desktop-table th[class*="w-[50px]"],
+.erp-desktop-table td[class*="w-[50px]"] {
+  width: 52px !important;
+  text-align: center !important;
+}
+
+/* COLOR column */
+.erp-desktop-table th:nth-child(9),
+.erp-desktop-table td:nth-child(9) {
+  text-align: center !important;
+}
+
+/* QTY, MRP, TAX%, DISC%, DISC RS, UNIT PRICE, NET AMOUNT — right align */
+.erp-desktop-table th[class*="text-right"],
+.erp-desktop-table td[class*="text-right"] {
+  text-align: right !important;
+  padding-right: 10px !important;
+}
+
+/* ── 2. POS BOTTOM BAR — font size fix ── */
+
+/* Bottom summary bar container */
+.pos-bottom-bar,
+[class*="bg-teal"],
+[class*="bg-[#"],
+div[class*="fixed"][class*="bottom"] {
+  font-size: 13px !important;
+}
+
+/* QTY, MRP TOTAL, CHARGES, DISCOUNT labels */
+[class*="text-[10px]"],
+[class*="text-[11px]"] {
+  font-size: 12px !important;
+}
+
+/* Bottom bar values like ₹1,625 */
+[class*="text-[22px]"],
+[class*="text-[20px]"],
+[class*="text-2xl"] {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+}
+
+/* NET AMOUNT value in POS */
+[class*="NET AMOUNT"],
+[class*="net-amount"],
+input[class*="text-right"][class*="font"] {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+}
+
+/* PAYMENT MODE label */
+[class*="PAYMENT MODE"],
+[class*="payment-mode"] {
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+}
+
+/* Payment mode value (Cash, UPI etc) */
+[class*="text-[18px]"],
+[class*="text-lg"][class*="font-bold"] {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+}
+
+/* FLAT DISC, S/R ADJ, ROUND labels */
+[class*="FLAT"],
+[class*="ROUND"],
+[class*="S/R ADJ"] {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* ── 3. POS SHORTCUT BAR (F1 Cash, F2 UPI etc) ── */
+/* Bottom shortcut strip */
+[class*="F1"],
+[class*="F2"],
+[class*="shortcut"],
+div[class*="h-[32px]"] > span,
+div[class*="h-8"] > span {
+  font-size: 12px !important;
+}
+
+/* The Fn key labels */
+[class*="text-[10px]"][class*="text-yellow"],
+[class*="text-[10px]"][class*="text-blue"],
+[class*="text-[10px]"][class*="text-green"],
+[class*="text-[10px]"][class*="text-red"],
+[class*="text-[10px]"][class*="text-white"] {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* ── 4. POS LEFT SIDEBAR BUTTONS (Cash, UPI, Card etc) ── */
+/* Left payment mode buttons */
+[class*="rounded-lg"][class*="flex-col"][class*="items-center"] span,
+[class*="w-[55px]"] span,
+[class*="w-[50px]"] span {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+/* ── 5. POS HEADER BAR (BARCODE, CUSTOMER NAME etc) ── */
+/* Field labels in POS header */
+[class*="BARCODE"],
+[class*="CUSTOMER NAME"],
+[class*="SALESPERSON"],
+[class*="INVOICE NO"],
+label[class*="text-xs"],
+label[class*="text-[10px]"],
+label[class*="text-[11px]"] {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+}
+
+/* POS header input fields */
+[class*="barcode"] input,
+[class*="customer"] input,
+[class*="invoice"] input {
+  font-size: 13.5px !important;
+  height: 34px !important;
+}
+
+/* Previous/Next buttons in POS header */
+[class*="Previous"],
+[class*="Next"] {
+  font-size: 12.5px !important;
+}
+
+/* Invoice counter "1 of 1" */
+[class*="of-1"],
+span[class*="text-sm"][class*="font-medium"] {
+  font-size: 13px !important;
+}
+
+/* ── 6. ALL DASHBOARD TABLES — general font increase ── */
+
+/* Table header */
+table thead th {
+  font-size: 11.5px !important;
+  height: 32px !important;
+  padding: 5px 10px !important;
+}
+
+/* Table body rows */
+table tbody td {
+  font-size: 13.5px !important;
+  height: 38px !important;
+  padding: 5px 10px !important;
+}
+
+/* Amount values in table */
+table td[class*="font-mono"],
+table td[class*="tabular-nums"],
+table td[class*="text-right"] {
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+}
+
+/* Bill numbers (blue links) */
+table td a,
+table td [class*="text-primary"][class*="font"] {
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+}
+
+/* Supplier / customer names */
+table td [class*="font-semibold"],
+table td [class*="font-medium"],
+table td button[class*="font"] {
+  font-size: 13.5px !important;
+}
+
+/* ── 7. DASHBOARD KPI CARDS — bigger values ── */
+
+/* KPI card main value */
+[class*="CardContent"] [class*="text-xl"],
+[class*="CardContent"] [class*="text-2xl"],
+[class*="CardContent"] [class*="font-semibold"][class*="tabular"],
+[class*="CardContent"] p[class*="font-mono"] {
+  font-size: 26px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+}
+
+/* KPI label */
+[class*="CardContent"] p[class*="text-xs"],
+[class*="CardContent"] p[class*="uppercase"] {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* KPI sub text (Amount, Count) */
+[class*="CardContent"] span[class*="text-xs"],
+[class*="CardContent"] span[class*="text-[10px]"],
+[class*="CardContent"] span[class*="muted"] {
+  font-size: 12px !important;
+}
+
+/* ── 8. STATUS BADGES across all pages ── */
+/* "Not Paid", "Paid", "Partial", "Cancelled" */
+[class*="rounded"][class*="px-"][class*="py-"][class*="text-xs"],
+[class*="rounded"][class*="font-medium"][class*="text-xs"],
+[class*="rounded"][class*="font-semibold"][class*="text-xs"] {
+  font-size: 11.5px !important;
+  padding: 2px 8px !important;
+  font-weight: 700 !important;
+}
+
+/* ── 9. FILTER BAR inputs and selects ── */
+input[placeholder*="BILL"],
+input[placeholder*="SEARCH"],
+input[placeholder*="Search"],
+input[placeholder*="barcode"],
+select[class*="border"] {
+  font-size: 13px !important;
+  height: 34px !important;
+}
+
+/* ── 10. BOTTOM STATUS BAR (Velvet Exclusive...) ── */
+/* The blue status bar at bottom */
+[class*="status-bar"],
+[class*="statusbar"],
+div[class*="fixed"][class*="bottom-0"][class*="left-0"],
+div[class*="h-6"][class*="bg-primary"],
+div[class*="h-7"][class*="bg-primary"] {
+  font-size: 12px !important;
+  height: 26px !important;
+}
+
+[class*="status-bar"] span,
+[class*="statusbar"] span,
+div[class*="fixed"][class*="bottom-0"] span {
+  font-size: 12px !important;
+}
+
+/* ── 11. PAGE SECTION HEADINGS ── */
+h1 { font-size: 20px !important; font-weight: 800 !important; }
+h2 { font-size: 17px !important; font-weight: 700 !important; }
+h3 { font-size: 15px !important; font-weight: 700 !important; }
+
+/* ── 12. SIDEBAR NAV items ── */
+[class*="SidebarMenuButton"],
+[class*="sidebar"] a,
+[class*="sidebar"] button,
+[class*="sidebar"] span[class*="text"] {
+  font-size: 13.5px !important;
+}
+
+/* ── 13. TOP NAV TABS (POS Sales, POS Dashboard, Customers etc) ── */
+[class*="tab"][class*="text-xs"],
+[class*="tab"][class*="text-sm"],
+nav[class*="tabs"] [class*="text"],
+[role="tab"] {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* ── 14. BUTTONS across app ── */
+button[class*="text-sm"] { font-size: 13px !important; }
+button[class*="text-xs"] { font-size: 12px !important; }
+button { font-size: 13px !important; }
+
+/* Small action icon buttons in table */
+table button[class*="h-7"],
+table button[class*="h-8"],
+table button[class*="size-7"],
+table button[class*="size-8"] {
+  height: 30px !important;
+  width: 30px !important;
+  min-width: 30px !important;
+}
+
+/* ── 15. FORM inputs and labels ── */
+label { font-size: 13px !important; font-weight: 600 !important; }
+input { font-size: 13.5px !important; }
+select { font-size: 13.5px !important; }
+textarea { font-size: 13.5px !important; }
+
+/* ── STRICT: Never affect print layout ── */
+@media print {
+  * { font-size: inherit !important; }
+  body { font-size: 12px !important; }
+  table th { font-size: inherit !important; padding: inherit !important; height: inherit !important; }
+  table td { font-size: inherit !important; padding: inherit !important; height: inherit !important; }
+  button { display: none !important; }
+}
