@@ -1685,7 +1685,7 @@ const POSDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background px-8 py-6">
+    <div className="min-h-screen bg-background px-8 py-6 pos-desktop-readable">
       
       <div className="w-full space-y-4">
         <div className="flex items-center justify-between">
