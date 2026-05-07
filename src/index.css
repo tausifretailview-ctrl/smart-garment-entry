@@ -1510,6 +1510,29 @@ input.no-uppercase {
   padding-right: 12px;
 }
 
+.erp-resizable-table {
+  table-layout: auto !important;
+  width: max-content !important;
+  min-width: 100% !important;
+}
+
+.erp-resizable-table th,
+.erp-resizable-table td {
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+.erp-resizable-table th[data-column-id="supplier_name"],
+.erp-resizable-table td[data-column-id="supplier_name"] {
+  width: 420px !important;
+  min-width: 420px !important;
+}
+
+.erp-resizable-table td[data-column-id="supplier_name"] {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
 /* ─── ERP Form Compact — Tally-style entry fields ─── */
 .erp-form-compact .erp-field {
   display: flex;
