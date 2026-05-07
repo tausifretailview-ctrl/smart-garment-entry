@@ -235,6 +235,7 @@ interface BillBarcodeSettings {
   precision_a4_rows?: number;
   precision_print_mode?: 'thermal' | 'a4';
   precision_label_config?: any; // LabelDesignConfig stored as JSON
+  barcode_default_print_tab?: 'standard' | 'precision';
   // Stamp / Signature Settings
   stamp_image_base64?: string;
   stamp_position?: 'bottom-right' | 'bottom-left';
@@ -4375,6 +4376,32 @@ export default function Settings() {
                      Test Print Preview
                    </Button>
                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="barcode_default_print_tab">Default Barcode Printing Tab</Label>
+                  <Select
+                    value={settings.bill_barcode_settings?.barcode_default_print_tab || "standard"}
+                    onValueChange={(value: 'standard' | 'precision') =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          barcode_default_print_tab: value,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="barcode_default_print_tab">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard Printing</SelectItem>
+                      <SelectItem value="precision">Precision Pro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Purchase barcode print actions can still force Standard Printing when needed.
+                  </p>
+                </div>
                  <div className="space-y-2">
                    <Label htmlFor="barcode_digits">Barcode Digit Length</Label>
                    <Select

@@ -1087,6 +1087,11 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
 
 export default function BarcodePrinting() {
   const location = useLocation();
+  const routeRequestedTab = useMemo<"standard" | "precision" | null>(() => {
+    const tab = (location.state as any)?.openTab;
+    if (tab === "standard" || tab === "precision") return tab;
+    return null;
+  }, [location.state]);
   const { orgNavigate } = useOrgNavigation();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -1231,6 +1236,7 @@ export default function BarcodePrinting() {
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
+  const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision">("standard");
   const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
     try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
   });
@@ -1582,6 +1588,10 @@ export default function BarcodePrinting() {
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
           const bbs = data.bill_barcode_settings as any;
+          const configuredDefaultTab: "standard" | "precision" =
+            bbs.barcode_default_print_tab === "precision" ? "precision" : "standard";
+          setSettingsDefaultBarTab(configuredDefaultTab);
+          const preferredTab: "standard" | "precision" = routeRequestedTab || configuredDefaultTab;
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
@@ -1597,8 +1607,10 @@ export default function BarcodePrinting() {
             // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
             labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
           }));
-          if (bbs.precision_pro_enabled === true) {
+          if (preferredTab === "precision" && bbs.precision_pro_enabled === true) {
             setActiveBarTab("precision");
+          } else {
+            setActiveBarTab("standard");
           }
         }
       } catch (error) {
@@ -1653,7 +1665,10 @@ export default function BarcodePrinting() {
               thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
             }));
-            setActiveBarTab("precision");
+            const preferredTab: "standard" | "precision" = routeRequestedTab || settingsDefaultBarTab;
+            if (preferredTab === "precision") {
+              setActiveBarTab("precision");
+            }
             // Set name without "preset:" prefix — Fix 1 in settings sync will correct if needed
             if (!localStoragePresetName) {
               setActivePrecisionTemplateName(presetToLoad.name);
@@ -1675,7 +1690,7 @@ export default function BarcodePrinting() {
       setSettingsLoading(false);
     };
     loadAll();
-  }, [currentOrganization?.id]);
+  }, [activePrecisionTemplateName, currentOrganization?.id, routeRequestedTab, settingsDefaultBarTab]);
 
   // Set a preset as default for auto-loading from purchase
   const handleSetDefaultPreset = async (presetId: string, presetName: string) => {
