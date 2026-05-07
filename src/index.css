@@ -2479,3 +2479,29 @@ textarea { font-size: 13.5px !important; }
   table td { font-size: inherit !important; padding: inherit !important; height: inherit !important; }
   button { display: none !important; }
 }
+
+/* Purchase Entry table — prevent column collapse */
+.erp-invoice-table-header th {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  vertical-align: middle !important;
+}
+
+/* Input fields inside purchase entry table cells */
+.erp-desktop-table td input[type="text"],
+.erp-desktop-table td input[type="number"],
+table[class*="table-fixed"] td input {
+  width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  font-size: 13px !important;
+}
+
+/* Prevent table overflow breaking alignment */
+.erp-desktop-table,
+table[class*="min-w-[1460px]"],
+table[class*="min-w-[1"] {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}

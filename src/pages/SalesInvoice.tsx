@@ -212,10 +212,10 @@ export default function SalesInvoice() {
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
-  const saveButtonLabel = editingInvoiceId ? "Update Invoice" : isSaving ? "Saving..." : "Save Bill";
   const mobileERP = useMobileERP();
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const saveButtonLabel = editingInvoiceId ? "Update Invoice" : isSaving ? "Saving..." : "Save Bill";
   const isInitializingEditRef = useRef(false);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);

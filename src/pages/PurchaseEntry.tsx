@@ -4377,7 +4377,7 @@ const PurchaseEntry = () => {
             <Table className='table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table'>
               <TableHeader className='sticky top-0 z-10 erp-invoice-table-header'>
                   <TableRow>
-                    <TableHead className="w-[40px]">
+                    <TableHead className="w-[40px] min-w-[40px]">
                       <input
                         type="checkbox"
                         checked={lineItems.length > 0 && lineItems.every((_, i) => document.getElementById(`check-${i}`)?.getAttribute('data-state') === 'checked')}
@@ -4385,20 +4385,19 @@ const PurchaseEntry = () => {
                         readOnly
                       />
                     </TableHead>
-                    <TableHead className="w-[60px]">SR.NO</TableHead>
-                    <TableHead className="w-[260px]">ITEM NAME</TableHead>
-                    {showPurCol.size && <TableHead className="w-[50px]">SIZE</TableHead>}
-                    <TableHead className="w-[120px]">{isMobileERPMode ? 'IMEI NUMBER' : 'BARCODE'}</TableHead>
-                    <TableHead className="w-[110px] text-right">QTY</TableHead>
-                    <TableHead className='w-[140px] text-right pur-rate-col'>PUR.RATE</TableHead>
-                    <TableHead className='w-[140px] text-right sale-rate-col'>SALE.RATE</TableHead>
-                    {showMrp && <TableHead className="w-[140px] text-right">MRP</TableHead>}
-                    {showPurCol.gst && <TableHead className="w-[110px] text-right">GST %</TableHead>}
-                    <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
-                    {showPurCol.disc_percent && <TableHead className="w-[110px] text-right">DISC %</TableHead>}
-                    <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
-                    <TableHead className="w-[40px]"></TableHead>
-                    <TableHead className="w-[40px]">Action</TableHead>
+                    <TableHead className="w-[60px] min-w-[60px]">SR.NO</TableHead>
+                    <TableHead className="w-[260px] min-w-[200px]">ITEM NAME</TableHead>
+                    {showPurCol.size && <TableHead className="w-[60px] min-w-[60px] text-center">SIZE</TableHead>}
+                    <TableHead className="w-[120px] min-w-[120px]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
+                    <TableHead className="w-[90px] min-w-[80px] text-right">QTY</TableHead>
+                    <TableHead className="w-[120px] min-w-[100px] text-right pur-rate-col">PUR.RATE</TableHead>
+                    <TableHead className="w-[120px] min-w-[100px] text-right sale-rate-col">SALE.RATE</TableHead>
+                    {showMrp && <TableHead className="w-[110px] min-w-[100px] text-right">MRP</TableHead>}
+                    {showPurCol.gst && <TableHead className="w-[90px] min-w-[80px] text-right">GST %</TableHead>}
+                    <TableHead className="w-[110px] min-w-[100px] text-right">SUB TOTAL</TableHead>
+                    {showPurCol.disc_percent && <TableHead className="w-[90px] min-w-[80px] text-right">DISC %</TableHead>}
+                    <TableHead className="w-[110px] min-w-[100px] text-right total-col">TOTAL</TableHead>
+                    <TableHead className="w-[60px] min-w-[60px]">ACTION</TableHead>
                   </TableRow>
                 </TableHeader>
               </Table>
@@ -4434,20 +4433,20 @@ const PurchaseEntry = () => {
                     
                     return (
                       <TableRow key={item.temp_id} className={`hover:bg-green-50/40 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}`}>
-                        <TableCell className="w-[40px]">
+                        <TableCell className="w-[40px] min-w-[40px]">
                           <Checkbox
                             checked={!!selectedForPrintObj[item.temp_id]}
                             onCheckedChange={() => toggleItemSelection(item.temp_id)}
                             aria-label={`Select ${item.product_name} for printing`}
                           />
                         </TableCell>
-                        <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-[260px] max-w-[260px] font-medium cursor-pointer" title={formatProductDescription(item)}
+                        <TableCell className="w-[60px] min-w-[60px] text-center font-medium">{index + 1}</TableCell>
+                        <TableCell className="w-[260px] min-w-[200px] max-w-[260px] font-medium cursor-pointer" title={formatProductDescription(item)}
                           onDoubleClick={() => openEditPanel(index, "product_name")}>
                           <div className="text-sm leading-snug break-words">{formatProductDescription(item)}</div>
                         </TableCell>
-                        {showPurCol.size && <TableCell className="w-[50px] text-sm">{item.size || "—"}</TableCell>}
-                        <TableCell className="w-[120px]">
+                        {showPurCol.size && <TableCell className="w-[60px] min-w-[60px] text-sm text-center">{item.size || "—"}</TableCell>}
+                        <TableCell className="w-[120px] min-w-[120px]">
                           <Badge variant="outline" className={cn("text-xs", isMobileERPMode ? "font-mono tracking-wider" : "font-mono")}>
                             {item.barcode || "—"}
                           </Badge>
@@ -4467,7 +4466,7 @@ const PurchaseEntry = () => {
                             );
                           })()}
                         </TableCell>
-                        <TableCell className="w-[110px]">
+                        <TableCell className="w-[90px] min-w-[80px]">
                           <div className="flex items-center gap-0.5">
                             <Input
                               ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
@@ -4491,7 +4490,7 @@ const PurchaseEntry = () => {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="w-[140px]">
+                        <TableCell className="w-[120px] min-w-[100px]">
                           <CalculatorInput
                             value={item.pur_price}
                             onChange={(val) =>
@@ -4500,7 +4499,7 @@ const PurchaseEntry = () => {
                             className="w-full text-right bg-green-50 border-green-200 text-green-800 font-bold"
                           />
                         </TableCell>
-                        <TableCell className="w-[140px]">
+                        <TableCell className="w-[120px] min-w-[100px]">
                           <CalculatorInput
                             value={item.sale_price}
                             onChange={(val) =>
@@ -4510,7 +4509,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         {showMrp && (
-                          <TableCell className="w-[140px]">
+                          <TableCell className="w-[110px] min-w-[100px]">
                             <CalculatorInput
                               value={item.mrp || 0}
                               onChange={(val) =>
@@ -4520,7 +4519,7 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
-                        {showPurCol.gst && <TableCell className="w-[110px]">
+                        {showPurCol.gst && <TableCell className="w-[90px] min-w-[80px]">
                           <Select
                             value={String(item.gst_per)}
                             onValueChange={(value) =>
@@ -4539,10 +4538,10 @@ const PurchaseEntry = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>}
-                        <TableCell className="w-[120px] text-right font-semibold tabular-nums">
+                        <TableCell className="w-[110px] min-w-[100px] text-right font-semibold tabular-nums">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
-                        {showPurCol.disc_percent && <TableCell className="w-[110px]">
+                        {showPurCol.disc_percent && <TableCell className="w-[90px] min-w-[80px]">
                           <Input
                             type="number"
                             min="0"
@@ -4560,21 +4559,19 @@ const PurchaseEntry = () => {
                             className="w-full text-right"
                           />
                         </TableCell>}
-                        <TableCell className="w-[120px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
+                        <TableCell className="w-[110px] min-w-[100px] text-right font-bold tabular-nums text-green-700 bg-green-50/40 font-mono">
                           ₹{total.toFixed(2)}
                         </TableCell>
-                        <TableCell className="w-[40px]">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => removeLineItem(item.temp_id)}
-                          >
-                            <X className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                        <TableCell className="w-[40px]">
+                        <TableCell className="w-[60px] min-w-[60px]">
                           <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => removeLineItem(item.temp_id)}
+                            >
+                              <X className="h-4 w-4 text-destructive" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -4597,11 +4594,11 @@ const PurchaseEntry = () => {
                   
                   {/* Inline Search Row - Always visible at bottom */}
                   <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
-                    <TableCell className="w-[40px]"></TableCell>
-                    <TableCell className="w-[60px] text-center font-medium text-muted-foreground">
+                    <TableCell className="w-[40px] min-w-[40px]"></TableCell>
+                    <TableCell className="w-[60px] min-w-[60px] text-center font-medium text-muted-foreground">
                       {lineItems.length + 1}
                     </TableCell>
-                    <TableCell colSpan={3} className="relative overflow-visible" style={{ overflow: 'visible' }}>
+                    <TableCell colSpan={3} className="relative overflow-visible" style={{ overflow: "visible" }}>
                       <div className="relative" style={{ overflow: 'visible' }}>
                         <Input
                           ref={inlineSearchInputRef}
@@ -4746,7 +4743,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 6} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -4761,9 +4758,9 @@ const PurchaseEntry = () => {
                   {lineItems.length > 0 && (
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell colSpan={4} className="text-right font-semibold">Total:</TableCell>
-                      <TableCell className="w-[130px]"></TableCell>
-                      <TableCell className="w-[110px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 5}></TableCell>
+                      <TableCell className="w-[120px] min-w-[120px]"></TableCell>
+                      <TableCell className="w-[90px] min-w-[80px] text-right font-semibold tabular-nums">{totals.totalQty}</TableCell>
+                      <TableCell colSpan={(showMrp ? 1 : 0) + (showPurCol.gst ? 1 : 0) + (showPurCol.disc_percent ? 1 : 0) + 4}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>
