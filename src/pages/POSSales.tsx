@@ -215,6 +215,7 @@ export default function POSSales() {
   const [isManualRoundOff, setIsManualRoundOff] = useState(false);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
+  const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
   const [isProductSearchLoading, setIsProductSearchLoading] = useState(false);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
@@ -3646,6 +3647,14 @@ export default function POSSales() {
     });
   }, [productSearchResults, productsData, searchInput, selectedProductType]);
 
+  useEffect(() => {
+    if (!openProductSearch || filteredProducts.length === 0) {
+      setSelectedProductIndex(0);
+      return;
+    }
+    setSelectedProductIndex((prev) => Math.min(prev, filteredProducts.length - 1));
+  }, [openProductSearch, filteredProducts.length]);
+
   // Tablet POS Layout (iPad)
   if (isTablet && !isMobile) {
     return (
@@ -4259,7 +4268,32 @@ export default function POSSales() {
                       placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan barcode or search: name / brand / category / style / color / size / price (use spaces to combine)"}
                       value={searchInput}
                       onChange={handleBarcodeInputChange}
-                      onKeyDown={handleSearch}
+                      onKeyDown={(e) => {
+                        if (openProductSearch && filteredProducts.length > 0) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setSelectedProductIndex((prev) => Math.min(prev + 1, filteredProducts.length - 1));
+                            return;
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setSelectedProductIndex((prev) => Math.max(prev - 1, 0));
+                            return;
+                          }
+                          if (e.key === 'Enter' || e.key === 'Go' || (e as any).keyCode === 13) {
+                            e.preventDefault();
+                            const selected = filteredProducts[selectedProductIndex] || filteredProducts[0];
+                            if (selected?.product && selected?.variant) {
+                              addItemToCart(selected.product, selected.variant);
+                              setOpenProductSearch(false);
+                              setSearchInput("");
+                              setTimeout(() => barcodeInputRef.current?.focus(), 50);
+                              return;
+                            }
+                          }
+                        }
+                        handleSearch(e);
+                      }}
                       className="h-10 text-base pr-10 border-border/80 focus:border-primary"
                       autoFocus
                     />
@@ -4319,7 +4353,11 @@ export default function POSSales() {
                               onSelect={() => {
                                 addItemToCart(product, item.variant);
                               }}
-                              className="cursor-pointer group text-slate-900 dark:text-slate-100 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground"
+                              className={`cursor-pointer group text-slate-900 dark:text-slate-100 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground ${
+                                index === selectedProductIndex
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
                             >
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
