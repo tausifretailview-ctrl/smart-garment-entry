@@ -514,10 +514,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       colSpan={cols.length - cols.findIndex(c => c.key === "qty") - 2}
                       style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}
                     >
-                      {isLastPage ? totalsLabel : "Page Sub"}
+                      {isLastPage ? "" : "Page Sub"}
                     </td>
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
-                      ₹{isLastPage ? fmt(displaySubTotal) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}
+                      {isLastPage ? "" : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}`}
                     </td>
                   </tr>
                 </tbody>
@@ -539,6 +539,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                     {/* Right — Totals */}
                     <div style={{ width: "40%", fontSize: fsTotals }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold" }}>
+                        <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
+                      </div>
                       {saleReturnAdjust > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold" }}>
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
