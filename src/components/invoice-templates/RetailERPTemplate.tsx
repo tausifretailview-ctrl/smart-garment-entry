@@ -196,6 +196,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
+  // MRP-based total — sum of MRP × qty (falls back to rate when MRP missing)
+  const mrpTotal = items.reduce((s, i) => s + ((i.mrp && i.mrp > 0 ? i.mrp : i.rate) * i.qty), 0);
+  const hasMRP = items.some(i => i.mrp && i.mrp > 0 && i.mrp > i.rate);
+  // Effective discount shown on bill = (MRP Total − Subtotal) + entered discount
+  const effectiveDiscount = hasMRP ? (mrpTotal - subtotal) + discount : discount;
+  const totalsLabel = hasMRP ? "MRP Total" : "Sub Total";
+  const totalsValue = hasMRP ? mrpTotal : subtotal;
+
   // GST breakup calculation — group by rate
   const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
   const isInterState = igstAmount > 0;
