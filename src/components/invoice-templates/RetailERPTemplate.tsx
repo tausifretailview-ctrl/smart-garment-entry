@@ -538,26 +538,26 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       )}
                     </div>
                     {/* Right — Totals */}
-                    <div style={{ width: "40%", fontSize: fsTotals }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold" }}>
+                    <div style={{ width: "40%", fontSize: fsTotals, color: "#111" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                         <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
                       </div>
                       {saleReturnAdjust > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", color: "#b45309", fontSize: isA4 ? "13px" : "10px", fontWeight: "bold" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", color: "#9a3412", fontSize: isA4 ? "14px" : "11px", fontWeight: "800" }}>
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
                       {displayDiscount > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                           <span>Discount</span><span>- ₹{fmt(displayDiscount)}</span>
                         </div>
                       )}
                       {roundOff !== 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "800", color: "#000" }}>
                           <span>Round Off</span><span>{roundOff > 0 ? "+" : ""}{fmt(roundOff)}</span>
                         </div>
                       )}
-                      <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "3px 8px" : "2px 6px", fontWeight: "900", fontSize: fsGrand, backgroundColor: "#e5e5e5" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "5px 8px" : "4px 6px", fontWeight: "900", fontSize: isA4 ? "20px" : "17px", backgroundColor: "#d1d5db", color: "#000", borderTop: "2px solid #000" }}>
                         <span>Bill Total</span><span>₹{fmt(grandTotal)}</span>
                       </div>
                     </div>

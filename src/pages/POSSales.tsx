@@ -5289,8 +5289,8 @@ export default function POSSales() {
             
             {/* Discount */}
             <div className="text-center px-3">
-              <div className="text-lg font-bold leading-tight">₹{formatINR2(totals.discount)}</div>
-              <div className="text-[11px] text-white/70 uppercase font-semibold">Discount</div>
+              <div className="text-xl font-extrabold leading-tight text-white">₹{formatINR2(totals.discount)}</div>
+              <div className="text-xs text-white/90 uppercase font-bold tracking-wide">Discount</div>
             </div>
             
             {/* Invoice payment mode indicator (helps identify Edit/Last/Previous invoice mode) */}
@@ -5479,7 +5479,7 @@ export default function POSSales() {
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
             <div className="text-right min-w-[140px] sm:min-w-[180px] shrink-0">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-xs text-white/60 line-through leading-tight">
+                <div className="text-sm text-white/90 line-through font-bold leading-tight">
                   MRP ₹{formatINR2(totals.mrp)}
                 </div>
               )}
@@ -5494,7 +5494,7 @@ export default function POSSales() {
                 step="1"
               />
               {effectiveDiscountPercent > 0 && (
-                <div className="text-[10px] font-bold text-green-300 mt-0.5">
+                <div className="text-xs font-extrabold text-lime-200 mt-0.5">
                   ↓ {effectiveDiscountPercent.toFixed(1)}% off
                 </div>
               )}
