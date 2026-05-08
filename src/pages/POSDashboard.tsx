@@ -731,12 +731,12 @@ const POSDashboard = () => {
   const getPageStyle = () => {
     const format = posBillFormat;
     let size = 'A5 portrait';
-    let margin = '10mm';
+    let margin = '5mm';
 
     switch (format) {
       case 'a5-horizontal':
         size = 'A5 landscape';
-        margin = '10mm';
+        margin = '5mm';
         break;
       case 'a4':
         size = 'A4 portrait';
@@ -775,6 +775,7 @@ const POSDashboard = () => {
           padding: 0 !important;
           page-break-before: avoid !important;
           break-before: avoid !important;
+          width: auto !important;
         }
         div:empty {
           display: none !important;
@@ -865,12 +866,13 @@ const POSDashboard = () => {
           size: item.size,
           barcode: item.barcode || '',
           hsn: item.hsn_code || '',
-          sp: item.mrp,
-          mrp: item.mrp,
+          sp: Number(item.unit_price || 0),
+          mrp: Math.max(Number(item.mrp || 0), Number(item.unit_price || 0)),
           qty: item.quantity,
           rate: item.unit_price,
           total: item.line_total,
           gstPercent: item.gst_percent || 0,
+          discountPercent: item.discount_percent || 0,
         })),
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
@@ -2844,12 +2846,13 @@ const POSDashboard = () => {
                 size: item.size,
                 barcode: item.barcode || '',
                 hsn: item.hsn_code || '',
-                sp: item.mrp,
-                mrp: item.mrp,
+                sp: Number(item.unit_price || 0),
+                mrp: Math.max(Number(item.mrp || 0), Number(item.unit_price || 0)),
                 qty: item.quantity,
                 rate: item.unit_price,
                 total: item.line_total,
                 gstPercent: item.gst_percent || 0,
+                discountPercent: item.discount_percent || 0,
               }))}
               subTotal={previewSale.gross_amount}
               discount={previewSale.discount_amount + previewSale.flat_discount_amount}

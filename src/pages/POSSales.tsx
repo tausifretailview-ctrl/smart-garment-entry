@@ -139,6 +139,30 @@ function posLineNetUnitPrice(item: CartItem): number {
   return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
 }
 
+function mapPosPrintItem(item: any, index: number) {
+  const rate = posLineNetUnitPrice(item as CartItem);
+  const displayMrp = Math.max(
+    Number(item?.originalMrp) || 0,
+    Number(item?.mrp) || 0,
+    Number(rate) || 0
+  );
+  return {
+    sr: index + 1,
+    particulars: item.productName,
+    size: item.size,
+    barcode: item.barcode || "",
+    hsn: item.hsnCode || "",
+    color: item.color || "",
+    sp: rate,
+    mrp: displayMrp,
+    qty: item.quantity,
+    rate,
+    total: item.netAmount,
+    gstPercent: item.gstPer || 0,
+    discountPercent: item.discountPercent || 0,
+  };
+}
+
 export default function POSSales() {
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
@@ -4136,41 +4160,7 @@ export default function POSSales() {
             customerMobile={savedInvoiceData?.customerPhone || customerPhone}
             customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
             customerTransportDetails={(customers.find(c => c.id === customerId) as any)?.transport_details || ""}
-            items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
-              sr: index + 1,
-              particulars: item.productName,
-              size: item.size,
-              barcode: item.barcode || "",
-              hsn: item.hsnCode || "",
-              color: item.color || "",
-              sp: posLineNetUnitPrice(item),
-              mrp: item.originalMrp || item.mrp,
-              qty: item.quantity,
-              rate: posLineNetUnitPrice(item),
-              total: item.netAmount,
-              gstPercent: item.gstPer || 0,
-              discountPercent: item.showDiscount && (item.originalMrp || item.mrp) > posLineNetUnitPrice(item)
-                ? Number((((((item.originalMrp || item.mrp) - posLineNetUnitPrice(item)) / (item.originalMrp || item.mrp)) * 100).toFixed(2)))
-                : (item.discountPercent || 0),
-              uom: item.uom || 'NOS',
-            })) : items.map((item, index) => ({
-              sr: index + 1,
-              particulars: item.productName,
-              size: item.size,
-              barcode: item.barcode || "",
-              hsn: item.hsnCode || "",
-              color: item.color || "",
-              sp: posLineNetUnitPrice(item),
-              mrp: item.originalMrp || item.mrp,
-              qty: item.quantity,
-              rate: posLineNetUnitPrice(item),
-              total: item.netAmount,
-              gstPercent: item.gstPer || 0,
-              discountPercent: item.showDiscount && (item.originalMrp || item.mrp) > posLineNetUnitPrice(item)
-                ? Number((((((item.originalMrp || item.mrp) - posLineNetUnitPrice(item)) / (item.originalMrp || item.mrp)) * 100).toFixed(2)))
-                : (item.discountPercent || 0),
-              uom: item.uom || 'NOS',
-            }))}
+            items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index)) : items.map((item, index) => mapPosPrintItem(item, index))}
             subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
             discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
             saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
@@ -5780,21 +5770,7 @@ export default function POSSales() {
                 customerGSTIN={savedInvoiceData.customerGstNumber || ""}
                 customerTransportDetails={savedInvoiceData.customerTransportDetails || ""}
                 template={posInvoiceTemplate}
-              items={savedInvoiceData.items.map((item: any, index: number) => ({
-                sr: index + 1,
-                particulars: item.productName,
-                size: item.size,
-                barcode: item.barcode || "",
-                hsn: item.hsnCode || "",
-                color: item.color || "",
-                sp: posLineNetUnitPrice(item as CartItem),
-                mrp: item.originalMrp || item.mrp,
-                qty: item.quantity,
-                rate: posLineNetUnitPrice(item as CartItem),
-                total: item.netAmount,
-                gstPercent: item.gstPer || 0,
-                discountPercent: item.discountPercent || 0,
-              }))}
+              items={savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index))}
                 subTotal={savedInvoiceData.totals.subtotal}
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
@@ -5867,35 +5843,7 @@ export default function POSSales() {
                 customerGSTIN={savedInvoiceData?.customerGstNumber || customers.find(c => c.id === customerId)?.gst_number || ""}
                 customerTransportDetails={savedInvoiceData?.customerTransportDetails || (customers.find(c => c.id === customerId) as any)?.transport_details || ""}
                 template={posInvoiceTemplate}
-                items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
-                  sr: index + 1,
-                  particulars: item.productName,
-                  size: item.size,
-                  barcode: item.barcode || "",
-                  hsn: item.hsnCode || "",
-                  color: item.color || "",
-                  sp: posLineNetUnitPrice(item as CartItem),
-                  mrp: item.originalMrp || item.mrp,
-                  qty: item.quantity,
-                  rate: posLineNetUnitPrice(item as CartItem),
-                  total: item.netAmount,
-                  gstPercent: item.gstPer || 0,
-                  discountPercent: item.discountPercent || 0,
-                })) : items.map((item, index) => ({
-                  sr: index + 1,
-                  particulars: item.productName,
-                  size: item.size,
-                  barcode: item.barcode || "",
-                  hsn: item.hsnCode || "",
-                  color: item.color || "",
-                  sp: posLineNetUnitPrice(item),
-                  mrp: item.originalMrp || item.mrp,
-                  qty: item.quantity,
-                  rate: posLineNetUnitPrice(item),
-                  total: item.netAmount,
-                  gstPercent: item.gstPer || 0,
-                  discountPercent: item.discountPercent || 0,
-                }))}
+                items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index)) : items.map((item, index) => mapPosPrintItem(item, index))}
                 subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
                 discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
                 saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
