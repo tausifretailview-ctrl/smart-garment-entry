@@ -15,6 +15,7 @@ interface InvoiceItem {
   category?: string;
   color?: string;
   style?: string;
+  discountPercent?: number;
 }
 
 interface GroupedItem {
@@ -131,6 +132,12 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
     return `₹${Math.round(amount).toLocaleString('en-IN')}`;
   };
 
+  const getDisplayBaseRate = (item: InvoiceItem) => {
+    const mrp = Number(item.mrp || 0);
+    const rate = Number(item.rate || 0);
+    return mrp > 0 && mrp > rate ? mrp : rate;
+  };
+
   const width = format === 'a4' ? '210mm' : format === 'a5-horizontal' ? '210mm' : '148mm';
   const minHeight = format === 'a4' ? '297mm' : format === 'a5-horizontal' ? '148mm' : '210mm';
 
@@ -211,6 +218,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   };
 
   const groupedItems = groupItems(items);
+  const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
+  const computedDiscountFromLines = Math.max(0, displaySubTotal - Number(grandTotal || 0));
+  const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
 
   return (
     <div
@@ -357,7 +367,16 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
                 <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>
                   {formatCurrency(items[index]?.mrp || item.rate)}
                 </td>
-                <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>{formatCurrency(item.rate)}</td>
+                <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.1' }}>
+                    <span>{formatCurrency(getDisplayBaseRate(items[index] || (item as any)))}</span>
+                    {(Number((items[index] as any)?.discountPercent || 0) > 0) && (
+                      <span style={{ fontSize: '7px', color: '#b45309' }}>
+                        -{Number((items[index] as any).discountPercent).toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}`, fontWeight: 'bold' }}>{formatCurrency(item.totalAmount)}</td>
               </tr>
             );
@@ -424,11 +443,11 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
         <div style={{ width: '45%', border: `1px solid ${colors.primary}`, padding: '6px', fontSize: '9px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
             <span>Sub Total:</span>
-            <span>{formatCurrency(subtotal)}</span>
+            <span>{formatCurrency(displaySubTotal)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
             <span>Total Discount:</span>
-            <span>- {formatCurrency(discount)}</span>
+            <span>- {formatCurrency(displayDiscount)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
             <span>Taxable Amt:</span>
