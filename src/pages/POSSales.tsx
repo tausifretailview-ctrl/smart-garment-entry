@@ -5451,11 +5451,11 @@ export default function POSSales() {
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">
-                <span className="text-lg text-white/90 uppercase font-semibold">Net Amount</span>
+                <span className="text-base sm:text-lg text-white/90 uppercase font-bold tracking-wide">Net Amount</span>
               </div>
               <Input 
                 type="number"
-                className={`w-[190px] sm:w-[230px] h-14 text-right text-5xl sm:text-6xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums leading-none ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`!w-[220px] sm:!w-[280px] !h-16 sm:!h-20 text-right !text-6xl sm:!text-7xl !font-black bg-white border-0 rounded-md shadow-sm tabular-nums leading-none px-2 ${finalAmount < 0 ? '!text-orange-600' : '!text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
