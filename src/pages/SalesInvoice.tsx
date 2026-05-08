@@ -788,6 +788,7 @@ export default function SalesInvoice() {
   useEffect(() => {
     const invoiceData = location.state?.invoiceData;
     if (invoiceData) {
+      const hydrateFromState = async () => {
       isInitializingEditRef.current = true;
       hasManuallyAddedNewItemRef.current = false;
       setEditingInvoiceId(invoiceData.id);
@@ -797,13 +798,28 @@ export default function SalesInvoice() {
       
       // Set customer if available
       if (invoiceData.customer_id) {
+        let customerMeta: any = null;
+        try {
+          const { data: customerRow } = await supabase
+            .from('customers')
+            .select('gst_number, transport_details, address, phone, email, customer_name')
+            .eq('id', invoiceData.customer_id)
+            .maybeSingle();
+          customerMeta = customerRow || null;
+        } catch {
+          customerMeta = null;
+        }
         const customer = {
           id: invoiceData.customer_id,
-          customer_name: invoiceData.customer_name,
-          phone: invoiceData.customer_phone,
-          email: invoiceData.customer_email,
-          address: invoiceData.customer_address,
+          customer_name: customerMeta?.customer_name || invoiceData.customer_name,
+          phone: customerMeta?.phone || invoiceData.customer_phone,
+          email: customerMeta?.email || invoiceData.customer_email,
+          address: customerMeta?.address || invoiceData.customer_address,
+          gst_number: (invoiceData as any).customer_gst_number || null,
+          transport_details: (invoiceData as any).customer_transport_details || "",
         };
+        customer.gst_number = customerMeta?.gst_number || customer.gst_number;
+        customer.transport_details = customerMeta?.transport_details || customer.transport_details;
         setSelectedCustomer(customer);
       }
       
@@ -847,6 +863,8 @@ export default function SalesInvoice() {
         })));
       }
       isInitializingEditRef.current = false;
+      };
+      void hydrateFromState();
     }
   }, [location.state?.invoiceData]);
 
@@ -883,6 +901,8 @@ export default function SalesInvoice() {
               phone: invoiceData.customer_phone,
               email: invoiceData.customer_email,
               address: invoiceData.customer_address,
+              gst_number: (invoiceData as any).customer_gst_number || null,
+              transport_details: (invoiceData as any).customer_transport_details || "",
             });
           }
           setPaymentTerm(invoiceData.payment_term || "");
@@ -1671,6 +1691,16 @@ export default function SalesInvoice() {
         .single();
       if (error || !invoiceData) throw error || new Error('Invoice not found');
 
+      let customerMeta: any = null;
+      if (invoiceData.customer_id) {
+        const { data: customerRow } = await supabase
+          .from('customers')
+          .select('gst_number, transport_details, address, phone, email, customer_name')
+          .eq('id', invoiceData.customer_id)
+          .maybeSingle();
+        customerMeta = customerRow || null;
+      }
+
       // Fetch product UOMs so MTR/roll multiplier is applied on edit
       const productIds = [...new Set((invoiceData.sale_items || []).map((it: any) => it.product_id).filter(Boolean))];
       const productUomMap = new Map<string, string>();
@@ -1691,10 +1721,12 @@ export default function SalesInvoice() {
       if (invoiceData.customer_id) {
         setSelectedCustomer({
           id: invoiceData.customer_id,
-          customer_name: invoiceData.customer_name,
-          phone: invoiceData.customer_phone,
-          email: invoiceData.customer_email,
-          address: invoiceData.customer_address,
+          customer_name: customerMeta?.customer_name || invoiceData.customer_name,
+          phone: customerMeta?.phone || invoiceData.customer_phone,
+          email: customerMeta?.email || invoiceData.customer_email,
+          address: customerMeta?.address || invoiceData.customer_address,
+          gst_number: customerMeta?.gst_number || (invoiceData as any).customer_gst_number || null,
+          transport_details: customerMeta?.transport_details || (invoiceData as any).customer_transport_details || "",
         });
       } else {
         setSelectedCustomer(null);
@@ -1773,11 +1805,12 @@ export default function SalesInvoice() {
         totalDiscount: invoiceData.discount_amount + (invoiceData.flat_discount_amount || 0),
         customer: {
           id: invoiceData.customer_id,
-          customer_name: invoiceData.customer_name,
-          phone: invoiceData.customer_phone,
-          email: invoiceData.customer_email,
-          address: invoiceData.customer_address,
-          gst_number: null,
+          customer_name: customerMeta?.customer_name || invoiceData.customer_name,
+          phone: customerMeta?.phone || invoiceData.customer_phone,
+          email: customerMeta?.email || invoiceData.customer_email,
+          address: customerMeta?.address || invoiceData.customer_address,
+          gst_number: customerMeta?.gst_number || (invoiceData as any).customer_gst_number || null,
+          transport_details: customerMeta?.transport_details || (invoiceData as any).customer_transport_details || "",
         },
       });
     } catch (err: any) {
