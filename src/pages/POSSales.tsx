@@ -2076,6 +2076,8 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].discountPercent = discountPercent;
+      // Keep Disc% and Disc Rs synchronized as one discount mode (no double subtraction).
+      updatedItems[index].discountAmount = 0;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -2085,7 +2087,12 @@ export default function POSSales() {
     if (discountAmount < 0) return;
     setItems(prev => {
       const updatedItems = [...prev];
-      updatedItems[index].discountAmount = discountAmount;
+      const item = updatedItems[index];
+      const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
+      const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
+      updatedItems[index].discountPercent = Number(mappedPercent.toFixed(4));
+      // Store discount through percent mapping to avoid adding both percent + amount.
+      updatedItems[index].discountAmount = 0;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -5108,9 +5115,16 @@ export default function POSSales() {
                             <Input
                               type="number"
                               value={
-                                item.discountAmount > 0
-                                  ? item.discountAmount
-                                  : Math.max(0, (item.mrp - item.unitCost) * item.quantity) || ""
+                                (() => {
+                                  const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
+                                  const percentAmount = baseAmount > 0
+                                    ? (baseAmount * (Number(item.discountPercent) || 0)) / 100
+                                    : 0;
+                                  const rsDiscount = Number(item.discountAmount) > 0
+                                    ? Number(item.discountAmount)
+                                    : percentAmount;
+                                  return rsDiscount > 0 ? Number(rsDiscount.toFixed(2)) : "";
+                                })()
                               }
                               onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
