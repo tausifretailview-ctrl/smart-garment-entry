@@ -5177,26 +5177,26 @@ export default function POSSales() {
             {/* Qty */}
             <div className="text-center px-3">
               <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
-              <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Qty</div>
+              <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">Qty</div>
             </div>
             
             <div className="w-px h-8 bg-white/20 shrink-0" />
             
             {/* MRP Total */}
             <div className="text-center px-3">
-              <div className="text-base font-bold leading-tight">₹{formatINR2(totals.mrp)}</div>
-              <div className="text-[9px] text-white/60 uppercase font-medium">MRP Total</div>
+              <div className="text-lg font-bold leading-tight">₹{formatINR2(totals.mrp)}</div>
+              <div className="text-[11px] text-white/70 uppercase font-semibold">MRP Total</div>
             </div>
             
             {/* Savings */}
             {(totals.mrp > totals.subtotal || totals.savings > 0) && (
               <>
                 <div className="w-px h-8 bg-white/20 shrink-0" />
-                <div className="text-center bg-green-500/90 rounded-md py-1 px-3 mx-2 shrink-0">
-                  <div className="text-base font-bold leading-tight">
+                <div className="text-center bg-green-500/90 rounded-md py-1.5 px-3 mx-2 shrink-0">
+                  <div className="text-lg font-bold leading-tight">
                     ₹{formatINR2(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings)} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
                   </div>
-                  <div className="text-[9px] font-medium uppercase">Savings</div>
+                  <div className="text-[11px] font-semibold uppercase">Savings</div>
                 </div>
               </>
             )}
@@ -5205,29 +5205,29 @@ export default function POSSales() {
             
             {/* Charges */}
             <div className="text-center px-3">
-              <div className="text-base font-bold leading-tight">₹0</div>
-              <div className="text-[9px] text-white/60 uppercase font-medium">Charges</div>
+              <div className="text-lg font-bold leading-tight">₹0</div>
+              <div className="text-[11px] text-white/70 uppercase font-semibold">Charges</div>
             </div>
             
             <div className="w-px h-8 bg-white/20 shrink-0" />
             
             {/* Discount */}
             <div className="text-center px-3">
-              <div className="text-base font-bold leading-tight">₹{formatINR2(totals.discount)}</div>
-              <div className="text-[9px] text-white/60 uppercase font-medium">Discount</div>
+              <div className="text-lg font-bold leading-tight">₹{formatINR2(totals.discount)}</div>
+              <div className="text-[11px] text-white/70 uppercase font-semibold">Discount</div>
             </div>
             
             {/* Invoice payment mode indicator (helps identify Edit/Last/Previous invoice mode) */}
             <div className="flex-1 hidden xl:flex items-center justify-center">
               <div className="text-center px-3">
-                <div className="text-[9px] text-white/60 uppercase tracking-wider font-medium">Payment Mode</div>
-                <div className="text-sm font-extrabold text-white mt-0.5">
+                <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">Payment Mode</div>
+                <div className="text-base font-extrabold text-white mt-0.5">
                   {paymentModeLabel}
                 </div>
               </div>
             </div>
             {posRuntimeSettingsRef.current?.pos_barcode_price_mode === 'mrp' && posRuntimeSettingsRef.current?.enable_mrp && (
-              <div className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200 font-semibold shrink-0">
+              <div className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded border border-blue-200 font-semibold shrink-0">
                 MRP Price Mode Active
               </div>
             )}
@@ -5236,19 +5236,19 @@ export default function POSSales() {
             <div className="flex items-end gap-3 flex-wrap justify-end">
               {/* Flat Disc */}
               <div className="text-center">
-                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
+                <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
                 <div className="flex items-center">
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="bg-white/20 text-white px-2 py-1 text-sm rounded-l-md h-9 hover:bg-white/30 border-0 font-bold min-w-[26px]"
+                    className="bg-white/20 text-white px-2 py-1 text-base rounded-l-md h-10 hover:bg-white/30 border-0 font-bold min-w-[30px]"
                     onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
                   >
                     {flatDiscountMode === 'percent' ? '%' : '₹'}
                   </Button>
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold rounded-l-none border-0" 
+                    className="w-28 h-10 bg-white text-foreground text-center text-lg font-semibold rounded-l-none border-0" 
                     value={flatDiscountValue ? flatDiscountValue.toFixed(2) : "0.00"}
                     placeholder="0"
                     step="0.01"
@@ -5260,13 +5260,13 @@ export default function POSSales() {
               
               {/* S/R Adj */}
               <div className="text-center">
-                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">
+                <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
                   S/R Adj{customerId && pendingSaleReturnCredits.length > 0 ? ` (${pendingSaleReturnCredits.length})` : ''}
                 </div>
                 <div className="flex items-center">
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold border-0 rounded-md" 
+                    className="w-28 h-10 bg-white text-foreground text-center text-lg font-semibold border-0 rounded-md" 
                     value={saleReturnAdjust || ""}
                     placeholder="0"
                     onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
@@ -5304,7 +5304,7 @@ export default function POSSales() {
               
               {/* Round */}
               <div className="text-center">
-                <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">
+                <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">
                   Round{isManualRoundOff && <span className="text-yellow-300 normal-case"> (M)</span>}
                 </div>
                 <div className="flex items-center gap-0.5">
@@ -5329,7 +5329,7 @@ export default function POSSales() {
                   )}
                   <Input 
                     type="number"
-                    className={`w-24 h-9 text-center text-base font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+                    className={`w-28 h-10 text-center text-lg font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
                     value={roundOff || ""}
                     placeholder="0"
                     onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
@@ -5341,10 +5341,10 @@ export default function POSSales() {
               {/* Credit Applied */}
               {(availableCreditBalance > 0 || creditApplied > 0) && (
                 <div className="text-center">
-                  <div className="text-xs text-white/80 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
+                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Cr ₹{availableCreditBalance.toFixed(0)}</div>
                   <Input 
                     type="number"
-                    className="w-24 h-9 bg-purple-100 text-purple-700 text-center text-base font-semibold border-0 rounded-md" 
+                    className="w-28 h-10 bg-purple-100 text-purple-700 text-center text-lg font-semibold border-0 rounded-md" 
                     value={creditApplied || ""}
                     placeholder="0"
                     onChange={(e) => {
@@ -5370,16 +5370,16 @@ export default function POSSales() {
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
             <div className="text-right min-w-[140px] sm:min-w-[180px] shrink-0">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-[10px] text-white/50 line-through leading-tight">
+                <div className="text-xs text-white/60 line-through leading-tight">
                   MRP ₹{formatINR2(totals.mrp)}
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">
-                <span className="text-base text-white/80 uppercase font-semibold">Net Amount</span>
+                <span className="text-lg text-white/90 uppercase font-semibold">Net Amount</span>
               </div>
               <Input 
                 type="number"
-                className={`w-[160px] sm:w-[210px] h-12 text-right text-3xl sm:text-4xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-[190px] sm:w-[230px] h-14 text-right text-4xl sm:text-5xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
