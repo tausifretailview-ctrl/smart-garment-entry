@@ -5422,10 +5422,10 @@ export default function POSSales() {
               )}
 
               {customerId && (
-                <div className="text-center shrink-0 min-w-[132px]">
+                <div className="text-center shrink-0 min-w-[160px]">
                   <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Customer Balance</div>
                   <div
-                    className={`w-32 h-10 text-center text-lg font-semibold border-0 rounded-md flex items-center justify-center ${
+                    className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md flex items-center justify-center ${
                       customerBalance > 0
                         ? "bg-red-100 text-red-700"
                         : customerBalance < 0
@@ -5435,7 +5435,7 @@ export default function POSSales() {
                   >
                     {isBalanceLoading
                       ? "..."
-                      : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}`}
+                      : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
                   </div>
                 </div>
               )}
@@ -5455,7 +5455,7 @@ export default function POSSales() {
               </div>
               <Input 
                 type="number"
-                className={`w-[190px] sm:w-[230px] h-14 text-right text-4xl sm:text-5xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
+                className={`w-[190px] sm:w-[230px] h-14 text-right text-5xl sm:text-6xl font-black bg-white border-0 rounded-md shadow-sm tabular-nums leading-none ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
