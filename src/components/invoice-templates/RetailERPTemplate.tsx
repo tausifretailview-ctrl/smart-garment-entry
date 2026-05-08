@@ -197,7 +197,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
-<<<<<<< HEAD
   // Retail ERP invoice requirement:
   // show pre-discount sale rate in Rate column and net value in Amount column.
   const getDisplayBaseRate = (item: InvoiceItem) => {
@@ -209,15 +208,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - Number(roundOff || 0);
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
   const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
-=======
-  // MRP-based total — sum of MRP × qty (falls back to rate when MRP missing)
-  const mrpTotal = items.reduce((s, i) => s + ((i.mrp && i.mrp > 0 ? i.mrp : i.rate) * i.qty), 0);
-  const hasMRP = items.some(i => i.mrp && i.mrp > 0 && i.mrp > i.rate);
-  // Effective discount shown on bill = (MRP Total − Subtotal) + entered discount
-  const effectiveDiscount = hasMRP ? (mrpTotal - subtotal) + discount : discount;
-  const totalsLabel = hasMRP ? "MRP Total" : "Sub Total";
-  const totalsValue = hasMRP ? mrpTotal : subtotal;
->>>>>>> f49499bc4ca4321ffa6c665b1bdd6a5dcc8dec48
+  const totalsLabel = "Sub Total";
+  const totalsValue = displaySubTotal;
 
   // GST breakup calculation — group by rate
   const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
@@ -525,11 +517,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {isLastPage ? totalsLabel : "Page Sub"}
                     </td>
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
-<<<<<<< HEAD
                       ₹{isLastPage ? fmt(displaySubTotal) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}
-=======
-                      ₹{isLastPage ? fmt(totalsValue) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}
->>>>>>> f49499bc4ca4321ffa6c665b1bdd6a5dcc8dec48
                     </td>
                   </tr>
                 </tbody>
@@ -556,15 +544,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
-<<<<<<< HEAD
                       {displayDiscount > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
                           <span>Discount</span><span>- ₹{fmt(displayDiscount)}</span>
-=======
-                      {effectiveDiscount > 0 && (
-                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
-                          <span>Discount</span><span>- ₹{fmt(effectiveDiscount)}</span>
->>>>>>> f49499bc4ca4321ffa6c665b1bdd6a5dcc8dec48
                         </div>
                       )}
                       {roundOff !== 0 && (
