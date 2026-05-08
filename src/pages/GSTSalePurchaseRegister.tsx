@@ -169,7 +169,7 @@ const GSTSalePurchaseRegister = () => {
         .from("sales")
         .select(`
           id, sale_number, sale_date, customer_name, net_amount,
-          gross_amount, discount_amount, flat_discount_amount, tax_type,
+          gross_amount, discount_amount, flat_discount_amount,
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -185,7 +185,7 @@ const GSTSalePurchaseRegister = () => {
         .from("sales")
         .select(`
           id, sale_number, sale_date, customer_name, net_amount,
-          gross_amount, discount_amount, flat_discount_amount, tax_type,
+          gross_amount, discount_amount, flat_discount_amount,
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
