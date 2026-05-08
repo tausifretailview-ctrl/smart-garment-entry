@@ -157,6 +157,43 @@ export function useCreditNotes() {
       const totalApplied: number = Number(result.applied_amount) || 0;
       const creditNotesUsed: string[] = Array.isArray(result.notes_used) ? result.notes_used : [];
 
+      // Keep sale_return credit status in sync with the underlying credit_notes usage.
+      // If a linked credit note is fully consumed, mark that sale_return as adjusted.
+      if (creditNotesUsed.length > 0) {
+        const { data: usedNotes, error: usedNotesError } = await supabase
+          .from("credit_notes")
+          .select("id, status, credit_amount, used_amount")
+          .eq("organization_id", currentOrganization.id)
+          .eq("customer_id", customerId)
+          .in("credit_note_number", creditNotesUsed);
+
+        if (!usedNotesError && usedNotes && usedNotes.length > 0) {
+          const fullyUsedIds = usedNotes
+            .filter((note: any) => {
+              const creditAmount = Number(note.credit_amount) || 0;
+              const usedAmount = Number(note.used_amount) || 0;
+              return String(note.status || "").toLowerCase() === "fully_used" || usedAmount >= creditAmount - 0.01;
+            })
+            .map((note: any) => note.id)
+            .filter(Boolean);
+
+          if (fullyUsedIds.length > 0) {
+            await supabase
+              .from("sale_returns")
+              .update({
+                credit_status: "adjusted",
+                linked_sale_id: saleId,
+              } as any)
+              .eq("organization_id", currentOrganization.id)
+              .eq("customer_id", customerId)
+              .eq("refund_type", "credit_note")
+              .is("deleted_at", null)
+              .in("credit_note_id", fullyUsedIds as any)
+              .in("credit_status", ["pending", "adjusted_outstanding"]);
+          }
+        }
+      }
+
       if (totalApplied > 0) {
         toast({
           title: "Credit Applied",

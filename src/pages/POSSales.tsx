@@ -1218,7 +1218,39 @@ export default function POSSales() {
             .not("credit_status", "in", '("adjusted","adjusted_outstanding")')
             .eq("refund_type", "credit_note")
             .order("return_date", { ascending: false });
-          setPendingSaleReturnCredits(pendingReturns || []);
+          const returns = pendingReturns || [];
+
+          // Hide stale "pending" sale-return CN rows when the linked credit note is fully used.
+          const linkedCreditNoteIds = returns
+            .map((r: any) => r.credit_note_id)
+            .filter((id: any) => !!id);
+
+          if (linkedCreditNoteIds.length === 0) {
+            setPendingSaleReturnCredits(returns);
+          } else {
+            const { data: linkedNotes } = await supabase
+              .from("credit_notes")
+              .select("id, credit_amount, used_amount, status")
+              .in("id", linkedCreditNoteIds as any);
+
+            const linkedMap = new Map<string, any>(
+              (linkedNotes || []).map((n: any) => [String(n.id), n])
+            );
+
+            const filtered = returns.filter((sr: any) => {
+              if (!sr.credit_note_id) return true;
+              const note = linkedMap.get(String(sr.credit_note_id));
+              if (!note) return true; // keep visible if mapping missing
+              const creditAmount = Number(note.credit_amount) || 0;
+              const usedAmount = Number(note.used_amount) || 0;
+              const remaining = Math.max(0, creditAmount - usedAmount);
+              const isFullyUsed =
+                String(note.status || "").toLowerCase() === "fully_used" || remaining <= 0.01;
+              return !isFullyUsed;
+            });
+
+            setPendingSaleReturnCredits(filtered);
+          }
         }
       } else {
         setAvailableCreditBalance(0);
