@@ -1198,8 +1198,8 @@ const ProductDashboard = () => {
   const totalSaleValue = dashboardStats.sale_value;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-[1600px] mx-auto">
+    <div className="min-h-screen bg-background px-3 py-4 md:px-6 md:py-6 xl:px-8">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1211,63 +1211,63 @@ const ProductDashboard = () => {
             >
               <Home className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">Product Catalog</h1>
+            <h1 className="text-3xl font-bold text-foreground tracking-tight">Product Catalog</h1>
           </div>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
           <Card className="border-l-4 border-l-blue-500 overflow-hidden">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Stock Qty</p>
-                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">{totalStockQty.toLocaleString()}</p>
+                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">{totalStockQty.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
-                  <Boxes className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <div className="h-14 w-14 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
+                  <Boxes className="h-7 w-7 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-violet-500 overflow-hidden">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Items</p>
-                  <p className="text-2xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">{totalItems.toLocaleString()}</p>
+                  <p className="text-3xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">{totalItems.toLocaleString()}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-violet-50 dark:bg-violet-950 flex items-center justify-center">
-                  <Tags className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+                <div className="h-14 w-14 rounded-xl bg-violet-50 dark:bg-violet-950 flex items-center justify-center">
+                  <Tags className="h-7 w-7 text-violet-600 dark:text-violet-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-orange-500 overflow-hidden">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Purchase Value</p>
-                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-300 tabular-nums">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-3xl font-bold text-orange-700 dark:text-orange-300 tabular-nums">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center">
-                  <TrendingDown className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                <div className="h-14 w-14 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center">
+                  <TrendingDown className="h-7 w-7 text-orange-600 dark:text-orange-400" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Sale Value</p>
-                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
-                <div className="h-12 w-12 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                <div className="h-14 w-14 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
+                  <TrendingUp className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
                 </div>
               </div>
             </CardContent>
@@ -1275,13 +1275,13 @@ const ProductDashboard = () => {
         </div>
 
         {/* Toolbar */}
-        <Card className="mb-4 shadow-sm">
-          <CardContent className="p-3">
+        <Card className="mb-5 shadow-sm">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <Button 
                   variant={showFilters ? "default" : "outline"} 
-                  size="sm" 
+                  size="default" 
                   className="gap-2"
                   onClick={() => setShowFilters(!showFilters)}
                 >
@@ -1295,7 +1295,7 @@ const ProductDashboard = () => {
                 </Button>
                 <Button 
                   variant="outline" 
-                  size="sm" 
+                  size="default" 
                   className="gap-2"
                   onClick={handleExportToExcel}
                   disabled={productRows.length === 0}
@@ -1305,7 +1305,7 @@ const ProductDashboard = () => {
                 </Button>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="default"
                   className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   onClick={() => setShowStockImportDialog(true)}
                   disabled={productRows.length === 0}
@@ -1316,13 +1316,13 @@ const ProductDashboard = () => {
               </div>
 
               <div className="flex items-center gap-2 flex-1">
-                <div className="relative flex-1 max-w-sm">
+                <div className="relative flex-1 max-w-2xl">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search name, brand, barcode, HSN... (multi-word AND)"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-8 no-uppercase"
+                    className="pl-9 pr-8 no-uppercase h-11 text-base"
                   />
                   {searchQuery && (
                     <button
@@ -1341,7 +1341,7 @@ const ProductDashboard = () => {
                 <div id="erp-toolbar-portal-product" className="flex items-center gap-2" />
                 <div className="ml-auto">
                   <Button
-                    size="sm"
+                    size="default"
                     className="gap-2 bg-primary hover:bg-primary/90 shadow-sm font-semibold"
                     onClick={() => navigate("/product-entry")}
                   >
@@ -1645,7 +1645,8 @@ const ProductDashboard = () => {
                 )}
               </div>
             ) : (
-               <ERPTable<ProductRow>
+               <div className="text-[15px]">
+                 <ERPTable<ProductRow>
                 tableId="product_list"
                 columns={productColumns}
                 data={paginatedRows}
@@ -1662,14 +1663,15 @@ const ProductDashboard = () => {
                   return el ? createPortal(toolbar, el) : toolbar;
                 }}
               />
+               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Pagination Controls */}
         {filteredRows.length > 0 && (
-          <Card className="mt-4 shadow-sm">
-            <CardContent className="p-3">
+          <Card className="mt-5 shadow-sm">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
