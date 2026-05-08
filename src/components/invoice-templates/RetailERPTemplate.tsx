@@ -17,6 +17,7 @@ interface InvoiceItem {
   color?: string;
   style?: string;
   gstPercent?: number;
+  discountPercent?: number;
 }
 
 interface RetailERPTemplateProps {
@@ -195,6 +196,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   }
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
+
+  // Retail ERP invoice requirement:
+  // show pre-discount sale rate in Rate column and net value in Amount column.
+  const getDisplayBaseRate = (item: InvoiceItem) => {
+    const mrp = Number(item.mrp || 0);
+    const rate = Number(item.rate || 0);
+    return mrp > 0 && mrp > rate ? mrp : rate;
+  };
+  const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
+  const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - Number(roundOff || 0);
+  const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
+  const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
 
   // GST breakup calculation — group by rate
   const gstBreakup: Record<number, { hsn: string; taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
@@ -462,7 +475,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                               case "barcode": content = item.barcode || ""; break;
                               case "hsn": content = item.hsn || ""; break;
                               case "qty": content = item.qty; break;
-                              case "rate": content = fmt(item.rate); break;
+                              case "rate":
+                                content = (
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: "1.15" }}>
+                                    <span>{fmt(getDisplayBaseRate(item))}</span>
+                                    {(Number(item.discountPercent || 0) > 0) && (
+                                      <span style={{ fontSize: isA4 ? "10px" : "8px", color: "#b45309" }}>
+                                        -{Number(item.discountPercent).toFixed(0)}%
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                                break;
                               case "gst": content = ""; break;
                               case "amount": content = fmt(item.total); break;
                             }
@@ -491,7 +515,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {isLastPage ? "Sub Total" : "Page Sub"}
                     </td>
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
-                      ₹{isLastPage ? fmt(subtotal) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}
+                      ₹{isLastPage ? fmt(displaySubTotal) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}
                     </td>
                   </tr>
                 </tbody>
@@ -518,9 +542,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
-                      {discount > 0 && (
+                      {displayDiscount > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
-                          <span>Discount</span><span>- ₹{fmt(discount)}</span>
+                          <span>Discount</span><span>- ₹{fmt(displayDiscount)}</span>
                         </div>
                       )}
                       {roundOff !== 0 && (

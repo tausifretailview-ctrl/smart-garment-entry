@@ -15,6 +15,7 @@ interface InvoiceItem {
   category?: string;
   color?: string;
   style?: string;
+  discountPercent?: number;
 }
 
 interface RetailTemplateProps {
@@ -171,6 +172,15 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   }
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
+  const getDisplayBaseRate = (item: InvoiceItem) => {
+    const mrp = Number(item.mrp || 0);
+    const rate = Number(item.rate || 0);
+    return mrp > 0 && mrp > rate ? mrp : rate;
+  };
+  const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
+  const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0);
+  const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
+  const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
   const billTotal = grandTotal;
   const receivedToday = paidAmount;
   const currentBalance = billTotal - receivedToday;
@@ -347,7 +357,18 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                         </td>
                         <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
                         <td style={cellC}>{item ? item.qty : "\u00A0"}</td>
-                        <td style={cellR}>{item ? fmt(item.rate) : "\u00A0"}</td>
+                        <td style={cellR}>
+                          {item ? (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: "1.1" }}>
+                              <span>{fmt(getDisplayBaseRate(item))}</span>
+                              {(Number(item.discountPercent || 0) > 0) && (
+                                <span style={{ fontSize: isA4 ? "10px" : "8px", color: "#b45309" }}>
+                                  -{Number(item.discountPercent).toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                          ) : "\u00A0"}
+                        </td>
                         <td style={{ ...cellR, borderRight: "none" }}>{item ? fmt(item.total) : "\u00A0"}</td>
                       </tr>
                     );
@@ -366,8 +387,8 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     </td>
                     <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
                       {isLastPage
-                        ? `₹${fmt(subtotal)}`
-                        : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}`}
+                        ? `₹${fmt(displaySubTotal)}`
+                        : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}`}
                     </td>
                   </tr>
                 </tbody>
@@ -414,10 +435,10 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                 <div style={{ display: "flex", flexDirection: "column", fontSize: fsTotals }}>
                   {isLastPage ? (
                     <>
-                      {discount > 0 && (
+                      {displayDiscount > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
                           <span>Discount</span>
-                          <span>- ₹{fmt(discount)}</span>
+                          <span>- ₹{fmt(displayDiscount)}</span>
                         </div>
                       )}
                       {saleReturnAdjust > 0 && (
