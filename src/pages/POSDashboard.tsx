@@ -1355,7 +1355,7 @@ const POSDashboard = () => {
         saleTypeFilter === "all" ||
         (saleTypeFilter === "dc" && sale.sale_type === "delivery_challan") ||
         (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan") ||
-        (saleTypeFilter === "cn" && !!sale.credit_note_id);
+        (saleTypeFilter === "cn" && (!!sale.credit_note_id || (sale.credit_amount || 0) > 0));
 
       const matchesRefund =
         refundFilter === "all" ||
@@ -1364,8 +1364,8 @@ const POSDashboard = () => {
 
       const matchesCreditNote =
         creditNoteFilter === "all" ||
-        (creditNoteFilter === "with_credit_note" && sale.credit_note_id) ||
-        (creditNoteFilter === "without_credit_note" && !sale.credit_note_id);
+        (creditNoteFilter === "with_credit_note" && (sale.credit_note_id || (sale.credit_amount || 0) > 0)) ||
+        (creditNoteFilter === "without_credit_note" && !sale.credit_note_id && (sale.credit_amount || 0) <= 0);
 
       const matchesUser = userFilter === "all" || userFilter === "__pending__" || sale.created_by === userFilter;
 
@@ -1401,8 +1401,8 @@ const POSDashboard = () => {
       holdAmount: holdSales.reduce((sum, sale) => sum + sale.net_amount, 0),
       refundCount: nonHoldSales.filter(sale => (sale.refund_amount || 0) > 0).length,
       refundAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
-      creditNoteCount: nonHoldSales.filter(sale => sale.credit_note_id).length,
-      creditNoteAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.credit_note_amount || 0), 0),
+      creditNoteCount: nonHoldSales.filter(sale => sale.credit_note_id || (sale.credit_amount || 0) > 0).length,
+      creditNoteAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.credit_note_amount || sale.credit_amount || 0), 0),
       // Payment method totals
       totalCash: nonHoldSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
       totalCard: nonHoldSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
@@ -2327,7 +2327,7 @@ const POSDashboard = () => {
                             {columnSettings.creditNoteAmt && (
                               <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                                 {(() => {
-                                  const cnAmt = sale.credit_note_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
+                                  const cnAmt = sale.credit_note_amount || sale.credit_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
                                   if (cnAmt > 0 || sale.credit_note_id) {
                                     return (
                                       <span className="font-semibold text-violet-600">
@@ -2341,13 +2341,20 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.creditNoteStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                {(sale.credit_note_id || sale.net_amount < 0) ? (() => {
+                                {(sale.credit_note_id || (sale.credit_amount || 0) > 0 || sale.net_amount < 0) ? (() => {
                                   const cn = sale.credit_note_id ? creditNoteUsage[sale.credit_note_id] : null;
                                   const used = cn?.used_amount || 0;
-                                  const total = cn?.credit_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
+                                  const total = cn?.credit_amount || sale.credit_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
                                   if (used > 0 && used >= total) {
                                     return (
                                       <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-1.5 py-0 font-bold" title={`Adjusted ₹${Math.round(used).toLocaleString('en-IN')}`}>
+                                        CN AD
+                                      </Badge>
+                                    );
+                                  }
+                                  if (!sale.credit_note_id && (sale.credit_amount || 0) > 0) {
+                                    return (
+                                      <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-1.5 py-0 font-bold" title={`Adjusted ₹${Math.round(sale.credit_amount || 0).toLocaleString('en-IN')}`}>
                                         CN AD
                                       </Badge>
                                     );

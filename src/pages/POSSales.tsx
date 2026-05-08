@@ -252,6 +252,12 @@ export default function POSSales() {
     setFlatDiscountValue(normalizeDecimal2(value));
   }, [normalizeDecimal2]);
 
+  const formatINR2 = useCallback((value: number) => {
+    const parsed = Number(value);
+    const safe = Number.isFinite(parsed) ? parsed : 0;
+    return safe.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }, []);
+
   const bumpCartHighlight = useCallback((id: string) => {
     setHighlightCartItemId(id);
     if (highlightClearTimerRef.current) clearTimeout(highlightClearTimerRef.current);
@@ -955,7 +961,7 @@ export default function POSSales() {
       
       const { data, error } = await (supabase as any)
         .from('sales')
-        .select('id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, salesman, notes')
+        .select('id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, credit_amount, salesman, notes')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
@@ -2574,6 +2580,7 @@ export default function POSSales() {
         customerTransportDetails: (customers.find(c => c.id === customerId) as any)?.transport_details || "",
         roundOff: roundOff,
         creditApplied: creditApplied,
+        creditAmount: creditApplied,
         notes: saleNotes || null,
         paidAmount: method === 'pay_later' ? 0 : finalAmount,
         previousBalance: customerBalance || 0,
@@ -2867,7 +2874,7 @@ export default function POSSales() {
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
-        creditAmount: paymentData.creditAmount || 0,
+        creditAmount: (paymentData.creditAmount || 0) + (creditApplied || 0),
         financerDetails: financerDetails || null,
       } : null;
       
@@ -3231,6 +3238,7 @@ export default function POSSales() {
       cashAmount: Number(sale.cash_amount) || 0,
       upiAmount: Number(sale.upi_amount) || 0,
       cardAmount: Number(sale.card_amount) || 0,
+      creditAmount: Number((sale as any).credit_amount) || 0,
       salesman: sale.salesman || null,
     });
 
@@ -4729,7 +4737,7 @@ export default function POSSales() {
           {/* Running Total Display */}
           <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
             <div className="text-white font-bold text-base tracking-tight">
-              ₹{Math.round(finalAmount).toLocaleString('en-IN')}
+              ₹{formatINR2(finalAmount)}
             </div>
           </div>
               
@@ -5037,10 +5045,10 @@ export default function POSSales() {
                             className="flex items-center justify-end text-sm text-muted-foreground"
                             title="Net unit after line Disc% / Disc Rs"
                           >
-                            ₹{Math.round(posLineNetUnitPrice(item)).toLocaleString('en-IN')}
+                            ₹{formatINR2(posLineNetUnitPrice(item))}
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-base md:text-lg">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
+                            <span className="font-extrabold text-base md:text-lg">₹{formatINR2(item.netAmount)}</span>
                             <Button
                               size="icon"
                               variant="ghost"
@@ -5170,7 +5178,7 @@ export default function POSSales() {
             
             {/* MRP Total */}
             <div className="text-center px-3">
-              <div className="text-base font-bold leading-tight">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
+              <div className="text-base font-bold leading-tight">₹{formatINR2(totals.mrp)}</div>
               <div className="text-[9px] text-white/60 uppercase font-medium">MRP Total</div>
             </div>
             
@@ -5180,7 +5188,7 @@ export default function POSSales() {
                 <div className="w-px h-8 bg-white/20 shrink-0" />
                 <div className="text-center bg-green-500/90 rounded-md py-1 px-3 mx-2 shrink-0">
                   <div className="text-base font-bold leading-tight">
-                    ₹{Math.round(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings).toLocaleString('en-IN')} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
+                    ₹{formatINR2(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings)} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
                   </div>
                   <div className="text-[9px] font-medium uppercase">Savings</div>
                 </div>
@@ -5199,7 +5207,7 @@ export default function POSSales() {
             
             {/* Discount */}
             <div className="text-center px-3">
-              <div className="text-base font-bold leading-tight">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
+              <div className="text-base font-bold leading-tight">₹{formatINR2(totals.discount)}</div>
               <div className="text-[9px] text-white/60 uppercase font-medium">Discount</div>
             </div>
             
@@ -5278,7 +5286,7 @@ export default function POSSales() {
                               }}
                             >
                               <span className="font-medium truncate">{sr.return_number || "S/R"}</span>
-                              <Badge variant="secondary" className="ml-2 shrink-0">₹{sr.net_amount.toLocaleString('en-IN')}</Badge>
+                              <Badge variant="secondary" className="ml-2 shrink-0">₹{formatINR2(sr.net_amount)}</Badge>
                             </button>
                           ))}
                         </div>
@@ -5357,7 +5365,7 @@ export default function POSSales() {
             <div className="text-right min-w-[140px] sm:min-w-[180px] shrink-0">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
                 <div className="text-[10px] text-white/50 line-through leading-tight">
-                  MRP ₹{Math.round(totals.mrp).toLocaleString('en-IN')}
+                  MRP ₹{formatINR2(totals.mrp)}
                 </div>
               )}
               <div className="flex items-center justify-end gap-1">

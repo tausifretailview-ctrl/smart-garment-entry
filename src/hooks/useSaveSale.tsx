@@ -42,6 +42,7 @@ interface SaleData {
   saleReturnAdjust: number;
   roundOff: number;
   netAmount: number;
+  creditApplied?: number;
   refundAmount?: number;
   salesman?: string | null;
   notes?: string | null;
@@ -438,6 +439,7 @@ export const useSaveSale = () => {
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
+          credit_amount: saleData.creditApplied || 0,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
@@ -1013,6 +1015,7 @@ export const useSaveSale = () => {
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
+          credit_amount: saleData.creditApplied || 0,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
@@ -1493,6 +1496,7 @@ export const useSaveSale = () => {
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
+          credit_amount: saleData.creditApplied || 0,
           payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
