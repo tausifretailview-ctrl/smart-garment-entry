@@ -218,6 +218,7 @@ export default function POSSales() {
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
   const [isProductSearchLoading, setIsProductSearchLoading] = useState(false);
+  const productCommandListRef = useRef<HTMLDivElement | null>(null);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const isInitializingEditRef = useRef(false);
@@ -3655,6 +3656,14 @@ export default function POSSales() {
     setSelectedProductIndex((prev) => Math.min(prev, filteredProducts.length - 1));
   }, [openProductSearch, filteredProducts.length]);
 
+  useEffect(() => {
+    if (!openProductSearch || filteredProducts.length === 0) return;
+    const listEl = productCommandListRef.current;
+    if (!listEl) return;
+    const selectedEl = listEl.querySelector(`[data-pos-index="${selectedProductIndex}"]`) as HTMLElement | null;
+    selectedEl?.scrollIntoView({ block: "nearest" });
+  }, [selectedProductIndex, openProductSearch, filteredProducts.length]);
+
   // Tablet POS Layout (iPad)
   if (isTablet && !isMobile) {
     return (
@@ -4324,7 +4333,7 @@ export default function POSSales() {
                 <div className="hidden">
                   <CommandInput value={searchInput} onValueChange={() => {}} />
                 </div>
-                <CommandList>
+                <CommandList ref={productCommandListRef}>
                   {isProductSearchLoading ? (
                     <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -4350,6 +4359,7 @@ export default function POSSales() {
                             <CommandItem
                               key={`${product.id}-${item.variant.id}-${index}`}
                               value={item.searchText}
+                              data-pos-index={index}
                               onSelect={() => {
                                 addItemToCart(product, item.variant);
                               }}
