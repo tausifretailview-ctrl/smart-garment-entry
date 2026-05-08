@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { Outlet, useParams, Navigate, useLocation } from "react-router-dom";
+import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import OrgAuth from "@/pages/OrgAuth";
 import { storeOrgSlug } from "@/lib/orgSlug";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { user, loading: authLoading } = useAuth();
   const { currentOrganization, organizations, loading: orgLoading, switchOrganization } = useOrganization();
   const [isOrgSynced, setIsOrgSynced] = useState(false);
   const [syncTimeout, setSyncTimeout] = useState(false);
+  const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
   const location = useLocation();
 
   // Safety timeout: if org sync takes too long (8s), force render to prevent infinite spinner
@@ -39,7 +42,6 @@ export const OrgLayout = () => {
       if (targetOrg) {
         // Always switch if URL org doesn't match current org - force sync
         if (currentOrganization?.id !== targetOrg.id) {
-          ;
           switchOrganization(targetOrg.id);
           // Mark synced after a short delay to allow state to update
           setTimeout(() => setIsOrgSynced(true), 500);
@@ -53,6 +55,24 @@ export const OrgLayout = () => {
       }
     }
   }, [orgSlug, user, organizations, orgLoading, currentOrganization?.id, switchOrganization]);
+
+  // Critical tenant isolation: never allow fallback redirect to another organization.
+  // If URL org does not belong to the authenticated user, force sign out and keep user on this org login page.
+  useEffect(() => {
+    if (!orgSlug || !user || authLoading || orgLoading || organizations.length === 0) return;
+    const belongsToUrlOrg = organizations.some((org) => org.slug === orgSlug);
+    if (belongsToUrlOrg) {
+      if (accessDeniedForSlug) setAccessDeniedForSlug(null);
+      return;
+    }
+    if (accessDeniedForSlug === orgSlug) return;
+
+    setAccessDeniedForSlug(orgSlug);
+    toast.error("Access denied for this organization URL. Please login with an authorized account.");
+    supabase.auth.signOut({ scope: "local" }).catch(() => {
+      // Keep UX consistent even if local sign-out cleanup fails.
+    });
+  }, [orgSlug, user, authLoading, orgLoading, organizations, accessDeniedForSlug]);
 
   // Update sync state when currentOrganization matches URL
   useEffect(() => {
@@ -97,9 +117,9 @@ export const OrgLayout = () => {
   const userBelongsToOrg = organizations.some(org => org.slug === orgSlug);
   
   if (!userBelongsToOrg && organizations.length > 0) {
-    // User doesn't belong to this org, redirect to their first org
-    const firstOrg = organizations[0];
-    return <Navigate to={`/${firstOrg.slug}`} replace />;
+    // Security: do NOT redirect to another org automatically.
+    // Keep user on requested org URL login so cross-org access cannot occur.
+    return <OrgAuth />;
   }
 
   // Wait for organization to be synced before rendering children (with timeout fallback)
