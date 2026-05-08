@@ -916,36 +916,52 @@ const PurchaseReturnEntry = () => {
           notes: returnData.notes || null,
           payment_method: paymentMethodForReturnRow,
         };
+        const fallbackUpdatePayload = (() => {
+          const { is_dc: _ignore, ...rest } = updatePayload;
+          return rest;
+        })();
         const itemsPayload = lineItems.map((item) => buildPurchaseReturnItemPayload(item, isDC));
 
         // Run the two independent operations in parallel for faster save.
-        const [
-          { error: updateError },
-          { data: updResult, error: updErr }
-        ] = await Promise.all([
-          supabase
-            .from("purchase_returns" as any)
-            .update(updatePayload)
-            .eq("id", editId),
+        // Note: missing column errors can be thrown (not only returned in `{ error }`), so we retry in catch.
+        const updateReturnPromise = (async () => {
+          try {
+            const { error } = await supabase
+              .from("purchase_returns" as any)
+              .update(updatePayload)
+              .eq("id", editId);
+
+            if (!error) return { error: null as any };
+            if (!isMissingDcColumnError(error)) return { error };
+
+            const { error: fallbackError } = await supabase
+              .from("purchase_returns" as any)
+              .update(fallbackUpdatePayload)
+              .eq("id", editId);
+            return { error: fallbackError };
+          } catch (err: any) {
+            if (!isMissingDcColumnError(err)) throw err;
+
+            const { error: fallbackError } = await supabase
+              .from("purchase_returns" as any)
+              .update(fallbackUpdatePayload)
+              .eq("id", editId);
+            return { error: fallbackError };
+          }
+        })();
+
+        const [updateReturnRes, rpcRes] = await Promise.all([
+          updateReturnPromise,
           supabase.rpc(
             'update_purchase_return_items' as any,
             { p_return_id: editId, p_items: itemsPayload as any }
-          )
+          ),
         ]);
 
-        if (updateError) {
-          if (!isMissingDcColumnError(updateError)) throw updateError;
-          const { is_dc, ...fallbackUpdatePayload } = updatePayload;
-          const { error: fallbackUpdateError } = await supabase
-            .from("purchase_returns" as any)
-            .update(fallbackUpdatePayload)
-            .eq("id", editId);
-          if (fallbackUpdateError) throw fallbackUpdateError;
-        }
-
-        if (updErr) throw updErr;
-        if (updResult && !(updResult as any).success) {
-          throw new Error((updResult as any).error || 'Update failed');
+        if (updateReturnRes?.error) throw updateReturnRes.error;
+        if (rpcRes?.error) throw rpcRes.error;
+        if (rpcRes?.data && !(rpcRes.data as any).success) {
+          throw new Error((rpcRes.data as any).error || 'Update failed');
         }
 
         const { data: acctEditPr } = await supabase
@@ -1027,15 +1043,28 @@ const PurchaseReturnEntry = () => {
         };
 
         let returnRecord: any = null;
-        const insertResult = await supabase
-          .from("purchase_returns" as any)
-          .insert(headerPayload)
-          .select()
-          .single();
+        const { is_dc: _ignoreIsDc, ...fallbackHeaderPayload } = headerPayload;
+        try {
+          const insertResult = await supabase
+            .from("purchase_returns" as any)
+            .insert(headerPayload)
+            .select()
+            .single();
 
-        if (insertResult.error) {
-          if (!isMissingDcColumnError(insertResult.error)) throw insertResult.error;
-          const { is_dc, ...fallbackHeaderPayload } = headerPayload;
+          if (insertResult.error) {
+            if (!isMissingDcColumnError(insertResult.error)) throw insertResult.error;
+            const fallbackInsertResult = await supabase
+              .from("purchase_returns" as any)
+              .insert(fallbackHeaderPayload)
+              .select()
+              .single();
+            if (fallbackInsertResult.error) throw fallbackInsertResult.error;
+            returnRecord = fallbackInsertResult.data;
+          } else {
+            returnRecord = insertResult.data;
+          }
+        } catch (insertErr: any) {
+          if (!isMissingDcColumnError(insertErr)) throw insertErr;
           const fallbackInsertResult = await supabase
             .from("purchase_returns" as any)
             .insert(fallbackHeaderPayload)
@@ -1043,8 +1072,6 @@ const PurchaseReturnEntry = () => {
             .single();
           if (fallbackInsertResult.error) throw fallbackInsertResult.error;
           returnRecord = fallbackInsertResult.data;
-        } else {
-          returnRecord = insertResult.data;
         }
 
         // Insert return items
@@ -1053,18 +1080,25 @@ const PurchaseReturnEntry = () => {
           ...buildPurchaseReturnItemPayload(item, isDC),
         }));
 
-        let { error: itemsError } = await supabase
-          .from("purchase_return_items" as any)
-          .insert(itemsToInsertWithDc);
+        const itemsToInsertWithoutDc = stripIsDcFromItems(itemsToInsertWithDc as any[]);
+        try {
+          const itemsInsertRes = await supabase
+            .from("purchase_return_items" as any)
+            .insert(itemsToInsertWithDc);
 
-        if (itemsError) {
-          if (!isMissingDcColumnError(itemsError)) throw itemsError;
-          const itemsToInsertWithoutDc = stripIsDcFromItems(itemsToInsertWithDc as any[]);
+          if (itemsInsertRes.error) {
+            if (!isMissingDcColumnError(itemsInsertRes.error)) throw itemsInsertRes.error;
+            const fallbackItemsInsert = await supabase
+              .from("purchase_return_items" as any)
+              .insert(itemsToInsertWithoutDc as any);
+            if (fallbackItemsInsert.error) throw fallbackItemsInsert.error;
+          }
+        } catch (itemsErr: any) {
+          if (!isMissingDcColumnError(itemsErr)) throw itemsErr;
           const fallbackItemsInsert = await supabase
             .from("purchase_return_items" as any)
             .insert(itemsToInsertWithoutDc as any);
-          itemsError = fallbackItemsInsert.error;
-          if (itemsError) throw itemsError;
+          if (fallbackItemsInsert.error) throw fallbackItemsInsert.error;
         }
 
         const prId = (returnRecord as unknown as { id: string }).id;
