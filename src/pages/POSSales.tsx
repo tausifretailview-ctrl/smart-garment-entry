@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, BarChart3, Package, History, Grid3X3, BookmarkPlus, Search } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, ChevronDown, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Play, Loader2, AlertCircle, Clock, Coins, Package, History, BookmarkPlus, Search } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
@@ -276,6 +276,7 @@ export default function POSSales() {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
+  const [showCreditCustomerRequiredDialog, setShowCreditCustomerRequiredDialog] = useState(false);
   const [refundAmount, setRefundAmount] = useState(0);
   const [creditNoteData, setCreditNoteData] = useState<any>(null);
   const [showCreditNoteDialog, setShowCreditNoteDialog] = useState(false);
@@ -2210,9 +2211,7 @@ export default function POSSales() {
     const message = "Please enter customer name first for Credit / Pay Later invoice.";
     toast.error("Customer Name Required", { description: message });
     setOpenCustomerSearch(true);
-    if (typeof window !== "undefined") {
-      window.alert(`Customer Details Required\n${message}`);
-    }
+    setShowCreditCustomerRequiredDialog(true);
   };
 
   // Handle save sale
@@ -3682,6 +3681,32 @@ export default function POSSales() {
     selectedEl?.scrollIntoView({ block: "nearest" });
   }, [selectedProductIndex, openProductSearch, filteredProducts.length]);
 
+  const creditCustomerRequiredDialog = (
+    <AlertDialog open={showCreditCustomerRequiredDialog} onOpenChange={setShowCreditCustomerRequiredDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Customer Details Required</AlertDialogTitle>
+          <AlertDialogDescription>
+            Please enter customer name first for Credit / Pay Later invoice.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setShowCreditCustomerRequiredDialog(false)}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              setShowCreditCustomerRequiredDialog(false);
+              openAddCustomerDialog();
+            }}
+          >
+            Add Customer
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   // Tablet POS Layout (iPad)
   if (isTablet && !isMobile) {
     return (
@@ -3811,6 +3836,7 @@ export default function POSSales() {
             <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim()}>Save Customer</Button>
           </DialogContent>
         </Dialog>
+        {creditCustomerRequiredDialog}
       </>
     );
   }
@@ -3977,6 +4003,7 @@ export default function POSSales() {
             </div>
           </DialogContent>
         </Dialog>
+        {creditCustomerRequiredDialog}
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
@@ -4190,17 +4217,6 @@ export default function POSSales() {
             <span>Hold</span>
           </Button>
           
-          {/* 8. Cashier Report F8 */}
-          <Button
-            onClick={() => setShowFloatingCashierReport(true)}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-teal-500 hover:bg-teal-600 active:scale-95 text-white shadow-sm transition-all duration-150"
-            title="Daily Cashier Report (F8)"
-          >
-            <Badge className="absolute top-0.5 right-0.5 h-[14px] px-1 text-[8px] leading-[14px] bg-black/50 hover:bg-black/50 text-white/90 rounded-sm">F8</Badge>
-            <BarChart3 className="h-4 w-4" />
-            <span>Cashier</span>
-          </Button>
-          
           {/* 9. Estimate F9 */}
           <Button
             onClick={handleEstimatePrint}
@@ -4244,16 +4260,6 @@ export default function POSSales() {
             <span>Print</span>
           </Button>
           
-          {/* Size Stock */}
-          <Button
-            onClick={() => setShowFloatingStockReport(true)}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold relative w-full rounded-lg bg-cyan-500 hover:bg-cyan-600 active:scale-95 text-white shadow-sm transition-all duration-150"
-            title="Size-wise Stock Report (F11)"
-          >
-            <Grid3X3 className="h-4 w-4" />
-            <span>Size Stk</span>
-          </Button>
-
           {/* Advance Booking */}
           <Button
             onClick={() => setShowAdvanceBooking(true)}
@@ -5577,6 +5583,7 @@ export default function POSSales() {
             </div>
           </DialogContent>
         </Dialog>
+        {creditCustomerRequiredDialog}
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
