@@ -496,10 +496,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       colSpan={cols.length - cols.findIndex(c => c.key === "qty") - 2}
                       style={{ ...cellBase, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}
                     >
-                      {isLastPage ? "Sub Total" : "Page Sub"}
+                      {isLastPage ? totalsLabel : "Page Sub"}
                     </td>
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
-                      ₹{isLastPage ? fmt(subtotal) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}
+                      ₹{isLastPage ? fmt(totalsValue) : fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}
                     </td>
                   </tr>
                 </tbody>
@@ -526,9 +526,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span>S/R Adjust</span><span>- ₹{fmt(saleReturnAdjust)}</span>
                         </div>
                       )}
-                      {discount > 0 && (
+                      {effectiveDiscount > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
-                          <span>Discount</span><span>- ₹{fmt(discount)}</span>
+                          <span>Discount</span><span>- ₹{fmt(effectiveDiscount)}</span>
                         </div>
                       )}
                       {roundOff !== 0 && (
