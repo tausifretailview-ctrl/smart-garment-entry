@@ -49,7 +49,7 @@ interface ProductProfitData {
   zeroCostQty: number;
 }
 
-/** Per sale_item: gross before discounts, bill-level share, net value for margin (excludes round-off share). */
+/** Per sale_item: gross before discounts, bill-level share, net value for margin (excludes round-off impact). */
 function computeSaleLineRevenue(
   item: {
     quantity: number;
@@ -58,10 +58,11 @@ function computeSaleLineRevenue(
     mrp: number;
     discount_percent: number;
     discount_share?: number | null;
+    round_off_share?: number | null;
     sale_id: string;
   },
   saleMeta: { gross_amount: number; flat_discount_amount: number } | undefined
-): { grossLine: number; flatShare: number; netLine: number; lineDiscount: number } {
+): { grossLine: number; flatShare: number; roundOffShare: number; netLine: number; lineDiscount: number } {
   const qty = Number(item.quantity) || 0;
   const lineTotal = Number(item.line_total) || 0;
   const unitP = Number(item.unit_price) || 0;
@@ -87,8 +88,13 @@ function computeSaleLineRevenue(
     flatShare = g > 0 && flat > 0 ? (lineTotal / g) * flat : 0;
   }
 
-  const netLine = lineTotal - flatShare;
-  return { grossLine: lineGross, flatShare, netLine, lineDiscount };
+  const roundOffShare = item.round_off_share != null && Number.isFinite(Number(item.round_off_share))
+    ? Number(item.round_off_share)
+    : 0;
+
+  // Remove round-off impact from sale value for profit analysis.
+  const netLine = lineTotal - flatShare - roundOffShare;
+  return { grossLine: lineGross, flatShare, roundOffShare, netLine, lineDiscount };
 }
 
 const formatCurrency = (amount: number) => {
@@ -296,7 +302,7 @@ export default function NetProfitAnalysis() {
         if (lineTotal < 0) return;
 
         const meta = saleMetaById.get(item.sale_id);
-        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+        const { grossLine, flatShare, roundOffShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
 
         const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
         const cogs = qty * purPrice;
@@ -318,7 +324,7 @@ export default function NetProfitAnalysis() {
 
         const data = supplierProfitMap.get(supplierKey)!;
         data.grossSales += grossLine;
-        data.totalDiscounts += lineDiscount + flatShare;
+        data.totalDiscounts += lineDiscount + flatShare + roundOffShare;
         data.netSales += netLine;
         data.totalCOGS += cogs;
         data.itemsSold += qty;
@@ -435,7 +441,7 @@ export default function NetProfitAnalysis() {
         if (lineTotal < 0) return;
 
         const meta = saleMetaById.get(item.sale_id);
-        const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+        const { grossLine, flatShare, roundOffShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
 
         const purPrice = variantPurchasePriceMap.get(item.variant_id) || variant?.pur_price || 0;
         const cogs = qty * purPrice;
@@ -459,7 +465,7 @@ export default function NetProfitAnalysis() {
 
         const data = productProfitMap.get(productId)!;
         data.grossSales += grossLine;
-        data.totalDiscounts += lineDiscount + flatShare;
+        data.totalDiscounts += lineDiscount + flatShare + roundOffShare;
         data.netSales += netLine;
         data.totalCOGS += cogs;
         data.quantitySold += qty;
