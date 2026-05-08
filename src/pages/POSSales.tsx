@@ -5197,7 +5197,7 @@ export default function POSSales() {
         {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
         <div className="fixed bottom-[52px] left-[88px] right-0 w-auto bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
-          <div className="flex flex-wrap lg:flex-nowrap items-center px-6 py-3 gap-y-3 gap-0 border-b border-white/10 overflow-x-auto">
+          <div className="flex flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
             <div className="text-center px-3">
               <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
@@ -5257,7 +5257,7 @@ export default function POSSales() {
             )}
             
             {/* Middle Fields — Flat Disc, S/R Adj, Round */}
-            <div className="flex items-end gap-3 flex-wrap justify-end">
+            <div className="flex items-end gap-3 flex-nowrap justify-end shrink-0 min-w-0">
               {/* Flat Disc */}
               <div className="text-center">
                 <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Flat Disc</div>
@@ -5422,9 +5422,17 @@ export default function POSSales() {
               )}
 
               {customerId && (
-                <div className="text-center">
+                <div className="text-center shrink-0 min-w-[132px]">
                   <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Customer Balance</div>
-                  <div className="w-32 h-10 bg-red-100 text-red-700 text-center text-lg font-semibold border-0 rounded-md flex items-center justify-center">
+                  <div
+                    className={`w-32 h-10 text-center text-lg font-semibold border-0 rounded-md flex items-center justify-center ${
+                      customerBalance > 0
+                        ? "bg-red-100 text-red-700"
+                        : customerBalance < 0
+                          ? "bg-green-100 text-green-700"
+                          : "bg-muted text-muted-foreground"
+                    }`}
+                  >
                     {isBalanceLoading
                       ? "..."
                       : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}`}
