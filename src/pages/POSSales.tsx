@@ -242,6 +242,16 @@ export default function POSSales() {
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posCartRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  const normalizeDecimal2 = useCallback((value: number) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.round(parsed * 100) / 100;
+  }, []);
+
+  const handleFlatDiscountValueChange = useCallback((value: number) => {
+    setFlatDiscountValue(normalizeDecimal2(value));
+  }, [normalizeDecimal2]);
+
   const bumpCartHighlight = useCallback((id: string) => {
     setHighlightCartItemId(id);
     if (highlightClearTimerRef.current) clearTimeout(highlightClearTimerRef.current);
@@ -446,10 +456,10 @@ export default function POSSales() {
       const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
       const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
       if (savedFlatPercent > 0) {
-        setFlatDiscountValue(savedFlatPercent);
+        handleFlatDiscountValueChange(savedFlatPercent);
         setFlatDiscountMode('percent');
       } else if (savedFlatAmount > 0) {
-        setFlatDiscountValue(savedFlatAmount);
+        handleFlatDiscountValueChange(savedFlatAmount);
         setFlatDiscountMode('amount');
       } else {
         setFlatDiscountValue(0);
@@ -468,7 +478,7 @@ export default function POSSales() {
           if (holdData && holdData.items && Array.isArray(holdData.items)) {
             setItems(holdData.items);
             if (holdData.flatDiscountPercent !== undefined) {
-              setFlatDiscountValue(holdData.flatDiscountPercent);
+              handleFlatDiscountValueChange(holdData.flatDiscountPercent);
               setFlatDiscountMode('percent');
             }
             if (holdData.saleReturnAdjust !== undefined) {
@@ -703,7 +713,7 @@ export default function POSSales() {
     if (settingsData && (settingsData as any).sale_settings) {
       const saleSettings = (settingsData as any).sale_settings;
       if (saleSettings.default_discount) {
-        setFlatDiscountValue(saleSettings.default_discount);
+        handleFlatDiscountValueChange(saleSettings.default_discount);
         setFlatDiscountMode('percent');
       }
       if (saleSettings.default_payment_method) {
@@ -1226,7 +1236,7 @@ export default function POSSales() {
       } else if (customer && !hasBrandDiscounts) {
         // Customer has NO brand discounts, so apply master discount as flat discount
         if (customer.discount_percent && customer.discount_percent > 0) {
-          setFlatDiscountValue(customer.discount_percent);
+          handleFlatDiscountValueChange(customer.discount_percent);
           setFlatDiscountMode('percent');
         }
       }
@@ -3178,10 +3188,10 @@ export default function POSSales() {
     const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
     const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
     if (savedFlatPercent > 0) {
-      setFlatDiscountValue(savedFlatPercent);
+      handleFlatDiscountValueChange(savedFlatPercent);
       setFlatDiscountMode('percent');
     } else if (savedFlatAmount > 0) {
-      setFlatDiscountValue(savedFlatAmount);
+      handleFlatDiscountValueChange(savedFlatAmount);
       setFlatDiscountMode('amount');
     } else {
       setFlatDiscountValue(0);
@@ -3722,7 +3732,7 @@ export default function POSSales() {
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
           flatDiscountValue={flatDiscountValue}
           flatDiscountMode={flatDiscountMode}
-          onFlatDiscountValueChange={setFlatDiscountValue}
+          onFlatDiscountValueChange={handleFlatDiscountValueChange}
           onFlatDiscountModeChange={setFlatDiscountMode}
           selectedSalesman={selectedSalesman}
           setSelectedSalesman={setSelectedSalesman}
@@ -3860,7 +3870,7 @@ export default function POSSales() {
           hasMoreCustomers={hasMoreCustomers}
           flatDiscountValue={flatDiscountValue}
           flatDiscountMode={flatDiscountMode}
-          onFlatDiscountValueChange={setFlatDiscountValue}
+          onFlatDiscountValueChange={handleFlatDiscountValueChange}
           onFlatDiscountModeChange={setFlatDiscountMode}
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
           onAdvanceBooking={() => setShowAdvanceBooking(true)}
@@ -5225,9 +5235,11 @@ export default function POSSales() {
                   <Input 
                     type="number"
                     className="w-24 h-9 bg-white text-foreground text-center text-base font-semibold rounded-l-none border-0" 
-                    value={flatDiscountValue || ""}
+                    value={flatDiscountValue ? flatDiscountValue.toFixed(2) : "0.00"}
                     placeholder="0"
-                    onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
+                    step="0.01"
+                    onChange={(e) => handleFlatDiscountValueChange(parseFloat(e.target.value) || 0)}
+                    onBlur={() => handleFlatDiscountValueChange(flatDiscountValue)}
                   />
                 </div>
               </div>
