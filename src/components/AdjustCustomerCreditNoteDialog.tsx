@@ -359,9 +359,41 @@ export function AdjustCustomerCreditNoteDialog({
           }
 
           if (!voucherEntryId) {
-            throw new Error(
-              "Accounting is enabled but no receipt voucher was found for this allocation, so the journal entry was not posted."
-            );
+            // adjust_invoice_balance does not create a voucher_entries row; create one now
+            // so the credit-note application is auditable and the GL journal can reference it.
+            const { data: lastRcp } = await supabase
+              .from("voucher_entries")
+              .select("voucher_number")
+              .eq("organization_id", currentOrganization!.id)
+              .eq("voucher_type", "receipt")
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const lastNum = lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+            const saleNumber = (unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId;
+            const cnApplyDesc = `Credit note ${returnNumber} → ${saleNumber}`;
+
+            const { data: newVoucher, error: vInsErr } = await supabase
+              .from("voucher_entries")
+              .insert({
+                organization_id: currentOrganization!.id,
+                voucher_number: newVoucherNumber,
+                voucher_type: "receipt",
+                voucher_date: today,
+                reference_type: "sale",
+                reference_id: saleId,
+                total_amount: applyAmt,
+                payment_method: "credit_note_adjustment",
+                description: cnApplyDesc,
+              })
+              .select("id")
+              .single();
+            if (vInsErr) throw vInsErr;
+            voucherEntryId = (newVoucher as { id?: string } | null)?.id || "";
+          }
+
+          if (!voucherEntryId) {
+            throw new Error("Failed to create receipt voucher for credit-note adjustment.");
           }
 
           const saleNumber = (unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId;
