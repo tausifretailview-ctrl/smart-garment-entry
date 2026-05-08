@@ -231,6 +231,52 @@ const DatabaseStatsSection = ({ organizations }: { organizations: any[] }) => {
 
 // All Users Table Component
 const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => {
+  const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<{ userId: string; email: string } | null>(null);
+  const [editEmail, setEditEmail] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [showEditPassword, setShowEditPassword] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEdit = (userId: string, email: string) => {
+    setEditTarget({ userId, email });
+    setEditEmail(email);
+    setEditPassword("");
+    setShowEditPassword(false);
+    setEditOpen(true);
+  };
+
+  const submitEdit = async () => {
+    if (!editTarget) return;
+    const emailChanged = editEmail.trim().toLowerCase() !== editTarget.email.toLowerCase();
+    const passwordChanged = editPassword.length > 0;
+    if (!emailChanged && !passwordChanged) {
+      toast.error("Change email or password to update");
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-update-user", {
+        body: {
+          target_user_id: editTarget.userId,
+          new_email: emailChanged ? editEmail.trim() : undefined,
+          new_password: passwordChanged ? editPassword : undefined,
+        },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success("User updated");
+      setEditOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["platform-all-users-details"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-members"] });
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update user");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const { data, isLoading } = useQuery({
     queryKey: ["platform-all-users-details"],
     queryFn: async () => {
@@ -276,12 +322,13 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
             <TableHead>Organization</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Password</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {(!data || data.length === 0) ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                 No users found
               </TableCell>
             </TableRow>
@@ -300,11 +347,70 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
                 <TableCell className="text-xs text-muted-foreground italic">
                   🔒 Encrypted (security protected)
                 </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openEdit(row.userId, row.email)}
+                  >
+                    <Edit className="h-3.5 w-3.5 mr-1" />
+                    Edit
+                  </Button>
+                </TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update the login email and/or password for this user. Leave password blank to keep unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>New Password (optional)</Label>
+              <div className="relative">
+                <Input
+                  type={showEditPassword ? "text" : "password"}
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Leave blank to keep current"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  {showEditPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>
+              Cancel
+            </Button>
+            <Button onClick={submitEdit} disabled={savingEdit}>
+              {savingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
