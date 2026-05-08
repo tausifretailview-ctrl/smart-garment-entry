@@ -718,6 +718,9 @@ export default function NetProfitAnalysis() {
                 {filteredSupplierData.length} suppliers
               </span>
             </div>
+            <p className="text-[11px] text-muted-foreground mb-2 print:hidden">
+              Discounts include item discount, bill-level flat discount, and round-off adjustment.
+            </p>
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -735,7 +738,12 @@ export default function NetProfitAnalysis() {
                       <TableHead className="w-[200px] text-foreground font-semibold">Supplier</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Items Sold</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Gross Sales</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400">Discounts</TableHead>
+                      <TableHead
+                        className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400"
+                        title="Includes item discount, bill-level flat discount, and round-off adjustment"
+                      >
+                        Discounts
+                      </TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Net Sales</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
@@ -824,6 +832,9 @@ export default function NetProfitAnalysis() {
                 {filteredProductData.length} products
               </span>
             </div>
+            <p className="text-[11px] text-muted-foreground mb-2 print:hidden">
+              Discounts include item discount, bill-level flat discount, and round-off adjustment.
+            </p>
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
@@ -842,7 +853,12 @@ export default function NetProfitAnalysis() {
                       <TableHead className="text-foreground font-semibold">Brand</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Qty Sold</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Gross Sales</TableHead>
-                      <TableHead className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400">Discounts</TableHead>
+                      <TableHead
+                        className="text-right text-foreground font-semibold text-orange-600 dark:text-orange-400"
+                        title="Includes item discount, bill-level flat discount, and round-off adjustment"
+                      >
+                        Discounts
+                      </TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Net Sales</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
