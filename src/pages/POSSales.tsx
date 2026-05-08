@@ -155,6 +155,7 @@ export default function POSSales() {
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
   const [creditApplied, setCreditApplied] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
+  const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
@@ -1251,11 +1252,50 @@ export default function POSSales() {
 
             setPendingSaleReturnCredits(filtered);
           }
+
+          // Customer-wise CN redeem trace: recently adjusted sale returns with invoice linkage.
+          const { data: adjustedReturns } = await supabase
+            .from("sale_returns")
+            .select("id, return_number, net_amount, linked_sale_id")
+            .eq("organization_id", currentOrganization.id)
+            .eq("customer_id", customerId)
+            .is("deleted_at", null)
+            .eq("refund_type", "credit_note")
+            .eq("credit_status", "adjusted")
+            .not("linked_sale_id", "is", null)
+            .order("updated_at", { ascending: false })
+            .limit(8);
+
+          const adjustedRows = adjustedReturns || [];
+          const linkedSaleIds = adjustedRows
+            .map((r: any) => r.linked_sale_id)
+            .filter((id: any) => !!id);
+
+          if (linkedSaleIds.length > 0) {
+            const { data: linkedSales } = await supabase
+              .from("sales")
+              .select("id, sale_number")
+              .in("id", linkedSaleIds as any);
+
+            const saleNumberMap = new Map<string, string>(
+              (linkedSales || []).map((sale: any) => [String(sale.id), String(sale.sale_number || "")])
+            );
+
+            setRecentAdjustedSaleReturnCredits(
+              adjustedRows.map((row: any) => ({
+                ...row,
+                linked_sale_number: row.linked_sale_id ? saleNumberMap.get(String(row.linked_sale_id)) || "" : "",
+              }))
+            );
+          } else {
+            setRecentAdjustedSaleReturnCredits([]);
+          }
         }
       } else {
         setAvailableCreditBalance(0);
         setCreditApplied(0);
         setPendingSaleReturnCredits([]);
+        setRecentAdjustedSaleReturnCredits([]);
       }
     };
     fetchCreditBalance();
@@ -5327,7 +5367,40 @@ export default function POSSales() {
                               <Badge variant="secondary" className="ml-2 shrink-0">₹{formatINR2(sr.net_amount)}</Badge>
                             </button>
                           ))}
+                          {pendingSaleReturnCredits.length === 0 && (
+                            <div className="text-xs text-muted-foreground px-2 py-1">No pending credit notes</div>
+                          )}
                         </div>
+                        {recentAdjustedSaleReturnCredits.length > 0 && (
+                          <>
+                            <div className="h-px bg-border my-2" />
+                            <div className="text-xs font-semibold text-muted-foreground mb-1.5">Recently Adjusted</div>
+                            <div className="space-y-1 max-h-28 overflow-y-auto">
+                              {recentAdjustedSaleReturnCredits.map((sr) => (
+                                <div
+                                  key={`adj-${sr.id}`}
+                                  className="w-full flex items-center justify-between px-2 py-1.5 rounded text-sm text-left bg-muted/40 hover:bg-accent cursor-pointer transition-colors"
+                                  title={`Adjusted in invoice: ${sr.linked_sale_number || sr.linked_sale_id || "N/A"}`}
+                                  onClick={async () => {
+                                    if (!sr.linked_sale_id) return;
+                                    setShowSRCreditDropdown(false);
+                                    await loadSaleForEdit(sr.linked_sale_id);
+                                  }}
+                                >
+                                  <span className="font-medium truncate">
+                                    {sr.return_number || "S/R"}{" "}
+                                    <span className="text-xs text-muted-foreground">
+                                      ({sr.linked_sale_number || "Invoice"})
+                                    </span>
+                                  </span>
+                                  <Badge variant="outline" className="ml-2 shrink-0">
+                                    ₹{formatINR2(sr.net_amount)}
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </PopoverContent>
                     </Popover>
                   )}
