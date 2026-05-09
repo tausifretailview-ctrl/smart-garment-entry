@@ -92,6 +92,10 @@ const safeErrorString = (val: any): string => {
   return String(val);
 };
 
+/** Header amount but no qty on file — usually missing or soft-deleted sale_items. */
+const invoiceLikelyMissingLines = (inv: { net_amount?: number; total_qty?: number }) =>
+  Number(inv.net_amount || 0) > 0 && Number(inv.total_qty || 0) === 0;
+
 interface ColumnSettings {
   [key: string]: boolean;
   phone: boolean;
@@ -2753,6 +2757,9 @@ export default function SalesInvoiceDashboard() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
+                        {invoiceLikelyMissingLines(inv) && (
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" title="Qty 0 but amount on file — open to fix lines" />
+                        )}
                         <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", sc[effectiveStatus] || sc.pending)}>
                           {effectiveStatus === 'completed' ? 'Paid' : effectiveStatus}
                         </span>
@@ -3363,6 +3370,11 @@ export default function SalesInvoiceDashboard() {
                               <div className="flex flex-col">
                                 <div className="flex items-center gap-1.5">
                                   {invoice.sale_number}
+                                  {invoiceLikelyMissingLines(invoice) && (
+                                    <span title="Bill amount on file but quantity is 0 — line items may be missing or deleted. Open invoice to fix.">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+                                    </span>
+                                  )}
                                   {invoice.payment_status === 'completed' && (
                                     <span title="Invoice is locked (Fully Paid)">
                                       <Lock className="h-3.5 w-3.5 text-green-600" />
@@ -3604,6 +3616,20 @@ export default function SalesInvoiceDashboard() {
                                 <div className="space-y-4">
                                   <div>
                                     <h4 className="font-semibold mb-2">Items:</h4>
+                                    {(() => {
+                                      const lineRows = loadedItems[invoice.id] ?? invoice.sale_items ?? [];
+                                      const showMissingHint =
+                                        lineRows.length === 0 && Number(invoice.net_amount || 0) > 0;
+                                      return (
+                                    <>
+                                    {showMissingHint && (
+                                      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 flex gap-2 items-start">
+                                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                        <span>
+                                          No line items loaded for this invoice (inactive or never saved). Open <strong>Sales Invoice</strong> and edit this bill to re-enter products, or restore lines in the database.
+                                        </span>
+                                      </div>
+                                    )}
                                     <Table>
                                       <TableHeader>
                                         <TableRow>
@@ -3622,7 +3648,7 @@ export default function SalesInvoiceDashboard() {
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {(loadedItems[invoice.id] || invoice.sale_items || []).map((item: any) => {
+                                        {lineRows.map((item: any) => {
                                           const itemGrossTotal = item.unit_price * item.quantity;
                                           const itemDiscount = item.discount_percent > 0 ? (itemGrossTotal * item.discount_percent / 100) : 0;
                                           const itemAfterDiscount = itemGrossTotal - itemDiscount;
@@ -3647,6 +3673,10 @@ export default function SalesInvoiceDashboard() {
                                         })}
                                       </TableBody>
                                     </Table>
+                                    </>
+                                      );
+                                    })()}
+
                                   </div>
 
                                   {deliveryHistory[invoice.id] && deliveryHistory[invoice.id].length > 0 && (

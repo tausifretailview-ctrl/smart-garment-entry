@@ -2211,6 +2211,7 @@ Thank you for choosing us!`;
       return;
     }
 
+    try {
     // Validation
     if (!selectedCustomerId || !selectedCustomer) {
       toast({
@@ -2239,7 +2240,6 @@ Thank you for choosing us!`;
         title: "Validation Error",
         description: "Please add at least one product",
       });
-      savingLockRef.current = false;
       return;
     }
 
@@ -2251,7 +2251,6 @@ Thank you for choosing us!`;
         title: "Invalid Quantity",
         description: `${zeroQtyItems.length} item(s) have zero or invalid quantity. Please fix before saving.`,
       });
-      savingLockRef.current = false;
       return;
     }
 
@@ -2298,7 +2297,13 @@ Thank you for choosing us!`;
         // 1. Delete sale_items (triggers stock restoration via handle_sale_item_delete)
         // 2. Insert new sale_items (triggers stock deduction via update_stock_on_sale)
         // 3. Update sales record
-        
+        // Snapshot before delete so we can restore if insert fails (avoids header-only invoice).
+        const { data: saleItemsSnapshot, error: snapError } = await supabase
+          .from('sale_items')
+          .select('*')
+          .eq('sale_id', editingInvoiceId);
+        if (snapError) throw snapError;
+
         // Step 1: Delete existing sale items (triggers stock restoration)
         const { error: deleteError } = await supabase
           .from('sale_items')
@@ -2329,7 +2334,31 @@ Thank you for choosing us!`;
           .from('sale_items')
           .insert(saleItems);
 
-        if (itemsError) throw itemsError;
+        if (itemsError) {
+          if (saleItemsSnapshot && saleItemsSnapshot.length > 0) {
+            const restoreRows = saleItemsSnapshot.map((row: Record<string, unknown>) => {
+              const { id: _id, created_at: _c, ...rest } = row;
+              return rest;
+            });
+            const { error: restoreErr } = await supabase.from('sale_items').insert(restoreRows as any);
+            if (restoreErr) {
+              console.error('Failed to restore sale_items after insert error:', restoreErr);
+              toast({
+                variant: 'destructive',
+                title: 'Critical: invoice lines lost',
+                description: 'Insert failed and automatic restore failed. Restore from backup or re-enter lines.',
+              });
+            } else {
+              toast({
+                variant: 'destructive',
+                title: 'Save failed',
+                description: 'Previous line items were restored. Fix the error and try again.',
+              });
+              return;
+            }
+          }
+          throw itemsError;
+        }
 
         // Step 3: Update the sales record
         const { error: updateError } = await supabase
@@ -2774,8 +2803,10 @@ Thank you for choosing us!`;
       });
       setPaymentOverride(null);
     } finally {
-      savingLockRef.current = false;
       setIsSaving(false);
+    }
+    } finally {
+      savingLockRef.current = false;
     }
   };
 
