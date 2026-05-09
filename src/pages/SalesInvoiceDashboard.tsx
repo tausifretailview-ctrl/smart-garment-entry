@@ -3389,7 +3389,7 @@ export default function SalesInvoiceDashboard() {
                               {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
                             </TableCell>
                             <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                              {invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0}
+                              {invoice.total_qty || 0}
                             </TableCell>
                             <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
