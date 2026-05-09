@@ -3488,7 +3488,7 @@ export default function SalesInvoiceDashboard() {
                                       <Lock className="h-4 w-4 text-muted-foreground" />
                                     </Button>
                                   ) : (
-                                    <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
+                                    <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
                                       <Edit className="h-4 w-4" />
                                     </Button>
                                   )
@@ -3570,7 +3570,7 @@ export default function SalesInvoiceDashboard() {
                                           <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
                                         </DropdownMenuItem>
                                       ) : (
-                                        <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
+                                        <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
                                           <Edit className="h-4 w-4 mr-2" /> Edit Invoice
                                         </DropdownMenuItem>
                                       )
