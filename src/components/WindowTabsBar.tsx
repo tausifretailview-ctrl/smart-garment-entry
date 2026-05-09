@@ -54,17 +54,8 @@ export function WindowTabsBar() {
   } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
-  const dashboardToolbar = useDashboardToolbarOptional();
 
-  /* Dashboard route uses path "" and may not be in openWindows yet; still show injected toolbar. */
-  if (openWindows.length === 0) {
-    if (!dashboardToolbar?.toolbar) return null;
-    return (
-      <div className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-end gap-1.5">
-        <div className="flex items-center gap-1.5 min-w-0">{dashboardToolbar.toolbar}</div>
-      </div>
-    );
-  }
+  if (openWindows.length === 0) return null;
 
   const groupedPages = QUICK_OPEN_PAGES.reduce((acc, page) => {
     if (!acc[page.category]) acc[page.category] = [];
