@@ -81,16 +81,16 @@ All colors MUST be HSL.
     --erp-row-height: 3.5rem;
     --erp-input-height: 2.75rem;
 
-    /* Deep navy sidebar — #141E35 */
-    --sidebar-background: 222 47% 15%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    /* Light sidebar — high-contrast dark text on pale surface */
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 217 91% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 20%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 22%;
+    --sidebar-accent: 214 32% 91%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 20% 88%;
     --sidebar-ring: 217 91% 60%;
-    --sidebar-muted: 222 47% 18%;
+    --sidebar-muted: 210 25% 94%;
   }
 
   /* Classic Indigo Theme - matches old Smart Inventory theme */
@@ -201,16 +201,16 @@ All colors MUST be HSL.
     --shadow-glow: none;
     --shadow-elevated: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
 
-    /* Dark slate sidebar - with WHITE text for proper contrast */
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 217 91% 65%;
+    /* Light sidebar (same readability as default root) */
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 217 91% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 18%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 222 47% 20%;
+    --sidebar-accent: 214 32% 91%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 20% 88%;
     --sidebar-ring: 217 91% 60%;
-    --sidebar-muted: 222 47% 14%;
+    --sidebar-muted: 210 25% 94%;
   }
 
   .dark {
@@ -261,16 +261,16 @@ All colors MUST be HSL.
     --shadow-elevated: 0 2px 8px hsl(222 47% 5% / 0.3);
     --shadow-card: 0 1px 4px hsl(222 47% 5% / 0.2);
 
-    /* Dark navy sidebar */
-    --sidebar-background: 222 47% 6%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 187 100% 42%;
+    /* Light sidebar even in dark mode (readable nav per product preference) */
+    --sidebar-background: 210 40% 97%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 217 91% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 47% 12%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 15%;
+    --sidebar-accent: 214 28% 88%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 20% 82%;
     --sidebar-ring: 187 100% 42%;
-    --sidebar-muted: 222 47% 10%;
+    --sidebar-muted: 210 22% 92%;
   }
 }
 
@@ -339,19 +339,21 @@ All colors MUST be HSL.
   border-color: #cbd5e1 !important;
 }
 
-/* Sidebar Active Indicator Bar — solid blue with white left border */
+/* Sidebar active item — primary stripe + tinted fill */
 [data-sidebar="menu-button"][data-active="true"] {
-  border-left: 3px solid hsl(0 0% 100%);
-  background: hsl(var(--sidebar-primary));
-  color: hsl(var(--sidebar-primary-foreground));
+  border-left: 3px solid hsl(var(--primary));
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
 }
 
-/* Sidebar group labels — uppercase muted */
+/* Sidebar group labels — uppercase, readable on light sidebar */
 [data-sidebar="group-label"] {
-  font-size: 10px !important;
+  font-size: 0.8125rem !important;
+  font-weight: 700 !important;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  opacity: 0.5;
+  letter-spacing: 0.08em;
+  color: hsl(var(--sidebar-foreground) / 0.88) !important;
+  opacity: 1 !important;
 }
 
 @layer base {
@@ -1446,16 +1448,16 @@ input.no-uppercase {
   gap: 0.125rem;
 }
 
-/* Brighter, larger sidebar text — main + sub menus */
+/* Sidebar menu text — dark, bold, slightly larger (light sidebar) */
 [data-sidebar="sidebar"] [data-sidebar="menu-button"] span,
 [data-sidebar="sidebar"] [data-sidebar="menu-sub-button"] span,
 [data-sidebar="sidebar"] [data-sidebar="menu-sub-button"],
 [data-sidebar="sidebar"] button span {
-  color: rgba(255, 255, 255, 0.96) !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
+  color: hsl(var(--sidebar-foreground)) !important;
+  font-size: 0.9375rem !important;
+  font-weight: 700 !important;
 }
 [data-sidebar="sidebar"] [data-sidebar="menu-sub-button"] span {
-  font-size: 13.5px !important;
-  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
 }
