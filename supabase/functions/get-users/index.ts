@@ -29,30 +29,18 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     console.log("Verifying token...");
 
-    // Use a user-context client to validate the JWT (works with new signing-keys)
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    // Validate JWT using getClaims (works with signing-keys system)
+    const { data: claimsData, error: authError } = await supabaseAdmin.auth.getClaims(token);
 
-    if (authError) {
-      console.error("Auth error:", authError.message);
+    if (authError || !claimsData?.claims) {
+      console.error("Auth error:", authError?.message ?? "No claims");
       return new Response(
-        JSON.stringify({ error: "Unauthorized", details: authError.message }),
+        JSON.stringify({ error: "Unauthorized", details: authError?.message ?? "Invalid token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
-    if (!user) {
-      console.error("No user found for token");
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
+
+    const user = { id: claimsData.claims.sub as string };
     console.log("User verified:", user.id);
 
     // Check if user has admin, platform_admin, or manager role
