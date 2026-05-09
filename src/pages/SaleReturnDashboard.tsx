@@ -7,6 +7,16 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +124,13 @@ export default function SaleReturnDashboard() {
   // Credit note adjustment dialog states
   const [showAdjustDialog, setShowAdjustDialog] = useState(false);
   const [selectedReturnForAdjust, setSelectedReturnForAdjust] = useState<SaleReturn | null>(null);
+
+  const [showRefundDialog, setShowRefundDialog] = useState(false);
+  const [selectedReturnForRefund, setSelectedReturnForRefund] = useState<SaleReturn | null>(null);
+  const [refundAmount, setRefundAmount] = useState("");
+  const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card">("cash");
+  const [refundNote, setRefundNote] = useState("");
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   const queryClient = useQueryClient();
@@ -761,6 +778,37 @@ export default function SaleReturnDashboard() {
                                 <CreditCard className="h-4 w-4 text-purple-600" />
                               </Button>
                             )}
+                            {(() => {
+                              const status = (ret.credit_status || "").toLowerCase();
+                              if (status === "refunded" || status === "adjusted") return null;
+                              if (
+                                status !== "pending" &&
+                                status !== "partially_adjusted" &&
+                                status !== "Credit Note Pending".toLowerCase()
+                              )
+                                return null;
+                              const refundableAmt =
+                                ret.credit_available_balance != null
+                                  ? Number(ret.credit_available_balance)
+                                  : Number(ret.net_amount);
+                              if (refundableAmt <= 0 || !ret.customer_id) return null;
+                              return (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setSelectedReturnForRefund(ret);
+                                    setRefundAmount(refundableAmt.toFixed(2));
+                                    setRefundNote("");
+                                    setRefundMode("cash");
+                                    setShowRefundDialog(true);
+                                  }}
+                                  title={`Refund ₹${refundableAmt.toLocaleString("en-IN")} to customer`}
+                                >
+                                  <Banknote className="h-4 w-4 text-green-600" />
+                                </Button>
+                              );
+                            })()}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -909,6 +957,143 @@ export default function SaleReturnDashboard() {
           customerName={selectedCustomerForHistory?.name || ''}
           organizationId={currentOrganization?.id || ''}
         />
+
+        <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Refund Credit Note to Customer</DialogTitle>
+              <DialogDescription>
+                Refund {selectedReturnForRefund?.customer_name} for{" "}
+                {selectedReturnForRefund?.return_number || "Sale Return"} — ₹
+                {Number(
+                  selectedReturnForRefund?.credit_available_balance ??
+                    selectedReturnForRefund?.net_amount ??
+                    0
+                ).toLocaleString("en-IN")}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div>
+                <Label>Refund Amount (₹)</Label>
+                <Input
+                  type="number"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  min={0}
+                  max={Number(
+                    selectedReturnForRefund?.credit_available_balance ??
+                      selectedReturnForRefund?.net_amount ??
+                      0
+                  )}
+                />
+              </div>
+              <div>
+                <Label>Payment Mode</Label>
+                <Select
+                  value={refundMode}
+                  onValueChange={(v) => setRefundMode(v as "cash" | "upi" | "card")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Note (Optional)</Label>
+                <Textarea
+                  value={refundNote}
+                  onChange={(e) => setRefundNote(e.target.value)}
+                  placeholder="Reason for refund..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRefundDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={isProcessingRefund || !refundAmount || parseFloat(refundAmount) <= 0}
+                onClick={async () => {
+                  if (!selectedReturnForRefund || !currentOrganization?.id) return;
+                  const amount = parseFloat(refundAmount);
+                  if (!amount || amount <= 0) return;
+                  const maxRef = Number(
+                    selectedReturnForRefund.credit_available_balance ??
+                      selectedReturnForRefund.net_amount ??
+                      0
+                  );
+                  if (amount > maxRef + 0.01) {
+                    toast({
+                      title: "Invalid amount",
+                      description: `Refund cannot exceed ₹${maxRef.toLocaleString("en-IN")}.`,
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  if (!selectedReturnForRefund.customer_id) {
+                    toast({
+                      title: "Refund failed",
+                      description: "This return has no linked customer.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  setIsProcessingRefund(true);
+                  try {
+                    const {
+                      data: { user },
+                    } = await supabase.auth.getUser();
+                    const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
+                    const { error: voucherError } = await supabase.from("voucher_entries").insert({
+                      organization_id: currentOrganization.id,
+                      voucher_type: "payment",
+                      voucher_number: `CN-REFUND-${Date.now()}`,
+                      voucher_date: new Date().toISOString().split("T")[0],
+                      reference_type: "customer",
+                      reference_id: selectedReturnForRefund.customer_id,
+                      total_amount: amount,
+                      payment_method: refundMode,
+                      description: `Credit note refund for ${selectedReturnForRefund.return_number || "sale return"} to ${selectedReturnForRefund.customer_name}${noteSuffix}`,
+                      created_by: user?.id || null,
+                    });
+                    if (voucherError) throw voucherError;
+
+                    const remaining = Math.max(0, maxRef - amount);
+                    const { error: srError } = await supabase
+                      .from("sale_returns")
+                      .update({
+                        credit_status: remaining <= 0.01 ? "refunded" : selectedReturnForRefund.credit_status,
+                        credit_available_balance: remaining <= 0.01 ? 0 : remaining,
+                      })
+                      .eq("id", selectedReturnForRefund.id);
+                    if (srError) throw srError;
+
+                    toast({
+                      title: "Refund recorded",
+                      description: `₹${amount.toLocaleString("en-IN")} refunded to ${selectedReturnForRefund.customer_name}`,
+                    });
+                    setShowRefundDialog(false);
+                    queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+                    queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
+                    queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    toast({ title: "Refund failed", description: message, variant: "destructive" });
+                  } finally {
+                    setIsProcessingRefund(false);
+                  }
+                }}
+              >
+                {isProcessingRefund ? "Processing..." : "Record Refund"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
   );
 }
