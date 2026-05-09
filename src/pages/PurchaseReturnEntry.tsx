@@ -758,8 +758,6 @@ const PurchaseReturnEntry = () => {
         return;
       }
 
-      setOriginalBillId(bill.id as string);
-
       // Auto-fill supplier if not already set
       if (!returnData.supplier_id && bill.supplier_id) {
         setReturnData((prev) => ({
@@ -776,27 +774,91 @@ const PurchaseReturnEntry = () => {
         toast({ title: 'DC bill detected — return will be saved as Delivery Challan (no GST).' });
       }
 
-      const items: LineItem[] = ((bill as any).purchase_items || []).map((item: any) => ({
-        temp_id: Date.now().toString() + Math.random(),
-        product_id: item.product_id,
-        sku_id: item.sku_id,
-        product_name: item.product_name || '',
-        size: item.size || '',
-        color: item.color || '',
-        qty: item.qty || 1,
-        pur_price: item.pur_price || 0,
-        gst_per: isBillDC ? 0 : (item.gst_per || 0),
-        hsn_code: item.hsn_code || '',
-        barcode: item.barcode || '',
-        line_total: item.line_total || 0,
-        brand: item.brand || '',
-        discount_percent: item.discount_percent || 0,
-        discount_amount: item.discount_amount || 0,
-      }));
+      const rawItems: any[] = (bill as any).purchase_items || [];
+      const skuIds = [...new Set(rawItems.map((i) => i.sku_id).filter(Boolean))] as string[];
+      const stockBySku = new Map<string, number>();
+      if (skuIds.length > 0) {
+        const { data: variantsData, error: varErr } = await supabase
+          .from("product_variants")
+          .select("id, stock_qty, products(organization_id)")
+          .in("id", skuIds);
+        if (varErr) throw varErr;
+        for (const v of variantsData || []) {
+          const row = v as { id: string; stock_qty?: number; products?: { organization_id?: string } | null };
+          if (row.products?.organization_id === currentOrganization.id) {
+            stockBySku.set(row.id, Math.max(0, Number(row.stock_qty) || 0));
+          }
+        }
+      }
 
+      const skippedNames: string[] = [];
+      const items: LineItem[] = [];
+      let rowIdx = 0;
+      for (const item of rawItems) {
+        const purchasedQty = Math.max(0, Number(item.qty) || 0);
+        const stockQty = item.sku_id ? (stockBySku.get(item.sku_id) ?? 0) : 0;
+        const returnQty = Math.min(purchasedQty, stockQty);
+        if (returnQty <= 0) {
+          if (purchasedQty > 0) {
+            skippedNames.push((item.product_name || "Item").trim() || "Item");
+          }
+          continue;
+        }
+
+        const pur_price = Number(item.pur_price) || 0;
+        const baseAmount = returnQty * pur_price;
+        const discount_percent = Number(item.discount_percent) || 0;
+        let discount_amount = 0;
+        if (discount_percent > 0) {
+          discount_amount = baseAmount * (discount_percent / 100);
+        } else if (purchasedQty > 0 && Number(item.discount_amount)) {
+          discount_amount = (Number(item.discount_amount) * returnQty) / purchasedQty;
+        }
+        const line_total = baseAmount - discount_amount;
+
+        items.push({
+          temp_id: `${Date.now()}-${rowIdx}-${Math.random().toString(36).slice(2, 9)}`,
+          product_id: item.product_id,
+          sku_id: item.sku_id,
+          product_name: item.product_name || '',
+          size: item.size || '',
+          color: item.color || '',
+          qty: returnQty,
+          pur_price,
+          gst_per: isBillDC ? 0 : (Number(item.gst_per) || 0),
+          hsn_code: item.hsn_code || '',
+          barcode: item.barcode || '',
+          line_total,
+          brand: item.brand || '',
+          discount_percent,
+          discount_amount,
+        });
+        rowIdx += 1;
+      }
+
+      if (items.length === 0) {
+        toast({
+          title: "Nothing to return",
+          description:
+            skippedNames.length > 0
+              ? `No current stock for loaded lines (${skippedNames.slice(0, 5).join(", ")}${skippedNames.length > 5 ? "…" : ""}). Purchase qty is capped by stock.`
+              : "This bill has no line items, or stock is zero for every line.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setOriginalBillId(bill.id as string);
       setLineItems(items);
       setBillLoaded(true);
-      toast({ title: 'Bill Loaded', description: `${items.length} item(s) loaded from bill — edit quantities as needed` });
+      const skipNote =
+        skippedNames.length > 0
+          ? ` ${skippedNames.length} line(s) skipped (no stock).`
+          : "";
+      toast({
+        title: "Bill Loaded",
+        description: `${items.length} item(s) loaded — qty = min(purchase qty, current stock).${skipNote}`,
+      });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message || 'Failed to load bill', variant: 'destructive' });
     } finally {
@@ -1343,6 +1405,9 @@ const PurchaseReturnEntry = () => {
 
               <div className="space-y-2">
                 <Label>Supplier invoice no. (original purchase)</Label>
+                <p className="text-xs text-muted-foreground -mt-1">
+                  Load Items: each line qty = min(qty on purchase, current stock qty). Lines with no stock are omitted.
+                </p>
                 <div className="flex gap-2">
                   <Input
                     placeholder="Same as Supplier Invoice No on Purchase Entry (or software bill no.)"
@@ -1370,7 +1435,7 @@ const PurchaseReturnEntry = () => {
                 </div>
                 {billLoaded && (
                   <p className="text-xs text-green-600 font-medium mt-1">
-                    ✅ Items loaded from bill — edit quantities as needed before saving.
+                    ✅ Items loaded — quantities reflect current stock (not full purchase qty). Adjust if needed before saving.
                   </p>
                 )}
               </div>
