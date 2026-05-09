@@ -21,6 +21,7 @@ import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Organization {
   id: string;
@@ -232,6 +233,7 @@ const DatabaseStatsSection = ({ organizations }: { organizations: any[] }) => {
 // All Users Table Component
 const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => {
   const queryClient = useQueryClient();
+  const { session } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{ userId: string; email: string } | null>(null);
   const [editEmail, setEditEmail] = useState("");
@@ -278,10 +280,13 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["platform-all-users-details"],
+    queryKey: ["platform-all-users-details", session?.access_token],
     queryFn: async () => {
+      if (!session?.access_token) throw new Error("Login session required");
       // Fetch users via edge function
-      const { data: result, error } = await supabase.functions.invoke("get-users");
+      const { data: result, error } = await supabase.functions.invoke("get-users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       if (error) throw error;
       
       const users = result?.users || [];
@@ -306,6 +311,7 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
       }
       return rows;
     },
+    enabled: !!session?.access_token,
   });
 
   if (isLoading) {
