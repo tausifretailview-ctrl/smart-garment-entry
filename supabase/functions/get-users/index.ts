@@ -18,8 +18,8 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify the requesting user with a user-context client. Edge functions do
-    // not have a browser session, so never validate auth from the admin client.
+    // Verify the requesting user from JWT claims. Calling /auth/v1/user can fail
+    // for otherwise valid tokens when the session row has rotated/expired.
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) {
       return new Response(
@@ -42,32 +42,20 @@ serve(async (req) => {
       );
     }
 
-    console.log("Verifying token with auth API...");
-
-    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: {
-        Authorization: authHeader,
-        apikey: supabaseAnonKey,
-      },
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
 
-    if (!userResponse.ok) {
-      let details = "Invalid login session";
-      try {
-        const body = await userResponse.json();
-        details = body?.msg || body?.message || body?.error_description || body?.error || details;
-      } catch (_) {
-        details = await userResponse.text() || details;
-      }
-      console.error("Auth error:", details);
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsError || !userId) {
+      console.error("JWT claims verification failed:", claimsError?.message);
       return new Response(
-        JSON.stringify({ error: "Unauthorized", details }),
+        JSON.stringify({ error: "Unauthorized", details: claimsError?.message || "Invalid login session" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const verifiedUser = await userResponse.json();
-    const userId = verifiedUser?.id as string | undefined;
     if (!userId) {
       return new Response(
         JSON.stringify({ error: "Unauthorized", details: "Invalid login session" }),
