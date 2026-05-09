@@ -69,7 +69,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       return (suppliersData || []).map((supplier: any) => {
         const snap = balanceMap.get(supplier.id);
-        const openingBalance = snap?.openingBalance ?? Number(supplier.opening_balance) || 0;
+          const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
         return {
           ...supplier,
           opening_balance: openingBalance,
