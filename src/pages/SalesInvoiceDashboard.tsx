@@ -119,7 +119,7 @@ const defaultColumnSettings: ColumnSettings = {
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
   const { formatMessage } = useWhatsAppTemplates();
@@ -147,14 +147,17 @@ export default function SalesInvoiceDashboard() {
         .select("user_id, role")
         .eq("organization_id", currentOrganization.id);
       if (!members?.length) return [];
-      const { data: result } = await supabase.functions.invoke("get-users");
+      if (!session?.access_token) return [];
+      const { data: result } = await supabase.functions.invoke("get-users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       const allUsers = result?.users || [];
       const memberIds = new Set(members.map((m: any) => m.user_id));
       return allUsers
         .filter((u: any) => memberIds.has(u.id))
         .map((u: any) => ({ id: u.id, email: u.email }));
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !!session?.access_token,
     staleTime: 300000,
   });
 
