@@ -2758,7 +2758,9 @@ export default function SalesInvoiceDashboard() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
                         {invoiceLikelyMissingLines(inv) && (
-                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" title="Qty 0 but amount on file — open to fix lines" />
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0">
+                            <title>Qty 0 but amount on file — open to fix lines</title>
+                          </AlertTriangle>
                         )}
                         <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full border", sc[effectiveStatus] || sc.pending)}>
                           {effectiveStatus === 'completed' ? 'Paid' : effectiveStatus}
@@ -3416,29 +3418,35 @@ export default function SalesInvoiceDashboard() {
                                 <span className="block text-xs text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
                               )}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                <Badge 
-                                  className={`min-w-[80px] justify-center whitespace-nowrap ${
-                                    invoice.payment_status === 'completed' 
-                                      ? 'bg-green-500 hover:bg-green-600 text-white' 
-                                      : invoice.payment_status === 'partial' 
-                                        ? 'bg-orange-400 hover:bg-orange-500 text-white' 
-                                        : 'bg-red-500 hover:bg-red-600 text-white'
-                                  }`}
-                                >
-                                  {invoice.payment_status === 'completed' 
-                                    ? 'Paid' 
-                                    : invoice.payment_status === 'partial' 
-                                      ? 'Partial' 
-                                      : 'Not Paid'}
-                                </Badge>
+                                {invoice.is_cancelled ? (
+                                  <Badge className="min-w-[80px] justify-center whitespace-nowrap bg-red-500 hover:bg-red-600 text-white">
+                                    Cancelled
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    className={`min-w-[80px] justify-center whitespace-nowrap ${
+                                      invoice.payment_status === 'completed'
+                                        ? 'bg-green-500 hover:bg-green-600 text-white'
+                                        : invoice.payment_status === 'partial'
+                                          ? 'bg-orange-400 hover:bg-orange-500 text-white'
+                                          : 'bg-red-500 hover:bg-red-600 text-white'
+                                    }`}
+                                  >
+                                    {invoice.payment_status === 'completed'
+                                      ? 'Paid'
+                                      : invoice.payment_status === 'partial'
+                                        ? 'Partial'
+                                        : 'Not Paid'}
+                                  </Badge>
+                                )}
                               </TableCell>
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                ₹{Math.round((invoice.net_amount || 0) - (invoice.paid_amount || 0)).toLocaleString('en-IN')}
+                                ₹{invoice.is_cancelled ? 0 : Math.round((invoice.net_amount || 0) - (invoice.paid_amount || 0)).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -3623,12 +3631,21 @@ export default function SalesInvoiceDashboard() {
                                       return (
                                     <>
                                     {showMissingHint && (
-                                      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 flex gap-2 items-start">
-                                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-                                        <span>
-                                          No line items loaded for this invoice (inactive or never saved). Open <strong>Sales Invoice</strong> and edit this bill to re-enter products, or restore lines in the database.
-                                        </span>
-                                      </div>
+                                      invoice.is_cancelled ? (
+                                        <div className="mb-3 rounded-md border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-3 py-2 text-sm text-red-900 dark:text-red-100 flex gap-2 items-start">
+                                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                          <span>
+                                            Invoice cancelled{invoice.cancelled_at ? ` on ${format(new Date(invoice.cancelled_at), 'dd/MM/yyyy')}` : ''}. Items and stock have been reversed{invoice.cancelled_reason ? ` — reason: ${invoice.cancelled_reason}` : ''}.
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 flex gap-2 items-start">
+                                          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                          <span>
+                                            No line items loaded for this invoice (inactive or never saved). Open <strong>Sales Invoice</strong> and edit this bill to re-enter products, or restore lines in the database.
+                                          </span>
+                                        </div>
+                                      )
                                     )}
                                     <Table>
                                       <TableHeader>
