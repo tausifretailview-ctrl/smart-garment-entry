@@ -330,12 +330,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   // Recent products state
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
 
-  // Auto-generate Standard variant for service products
+  // Auto-generate single variant for service products (size "None" — not a physical size)
   useEffect(() => {
     if (formData.product_type === 'service' && variants.length === 0 && open) {
       setVariants([{
         color: "",
-        size: "Standard",
+        size: "None",
         pur_price: formData.default_pur_price ?? 1,
         sale_price: formData.default_sale_price ?? 1,
         mrp: null,
@@ -749,7 +749,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     if (formData.product_type === 'service') {
       const newVariant: ProductVariant = {
         color: "",
-        size: "Standard",
+        size: "None",
         pur_price: formData.default_pur_price ?? 1,
         sale_price: formData.default_sale_price ?? 1,
         mrp: null,

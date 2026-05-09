@@ -854,11 +854,11 @@ const ProductEntry = () => {
   const isRollWiseMtr = rollWiseMtrEnabled && formData.uom === 'MTR';
 
   const handleGenerateSizeVariants = () => {
-    // For service type, auto-generate a single "Standard" variant
+    // For service type, auto-generate a single variant (size "None")
     if (formData.product_type === 'service') {
       const newVariants: ProductVariant[] = [{
         color: "",
-        size: "Standard",
+        size: "None",
         pur_price: formData.default_pur_price ?? 0,
         sale_price: formData.default_sale_price ?? 0,
         mrp: formData.default_mrp ?? null,
