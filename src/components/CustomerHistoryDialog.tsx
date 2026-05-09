@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -47,29 +47,50 @@ interface CustomerHistoryDialogProps {
   organizationId: string;
 }
 
+function isSaleRecordCancelled(sale: { is_cancelled?: boolean | null; payment_status?: string | null }) {
+  return sale.is_cancelled === true || String(sale.payment_status || "").toLowerCase() === "cancelled";
+}
+
 // ─── Floating Detail Preview ───
 function TransactionDetailPreview({ preview, onClose, customerName }: { preview: PreviewData; onClose: () => void; customerName: string }) {
   const d = preview.data;
 
   if (preview.type === "sale" || preview.type === "refund") {
     const items: SaleItem[] = d.sale_items || [];
+    const saleCancelled = isSaleRecordCancelled(d);
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold">Invoice: {d.sale_number}</h3>
-          <Badge variant={d.payment_status === "completed" ? "default" : "secondary"}>{d.payment_status}</Badge>
+          <h3 className={cn("text-lg font-bold", saleCancelled && "line-through decoration-red-500/80")}>Invoice: {d.sale_number}</h3>
+          <Badge variant={saleCancelled ? "destructive" : d.payment_status === "completed" ? "default" : "secondary"}>
+            {saleCancelled ? "Cancelled" : d.payment_status}
+          </Badge>
         </div>
+        {saleCancelled && d.cancelled_reason && (
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Reason:</span> {d.cancelled_reason}
+          </p>
+        )}
         <Separator />
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{customerName}</span></div>
           <div><span className="text-muted-foreground">Date:</span> <span className="font-medium">{format(new Date(d.sale_date), "dd/MM/yyyy")}</span></div>
           <div><span className="text-muted-foreground">Type:</span> <span className="font-medium uppercase">{d.sale_type}</span></div>
-          <div><span className="text-muted-foreground">Net Amount:</span> <span className="font-bold">₹{d.net_amount?.toFixed(2)}</span></div>
-          <div><span className="text-muted-foreground">Paid:</span> <span className="font-medium text-green-600">₹{(d.paid_amount || 0).toFixed(2)}</span></div>
+          <div>
+            <span className="text-muted-foreground">Net Amount:</span>{" "}
+            <span className={cn("font-bold", saleCancelled && "line-through decoration-red-500/80 text-muted-foreground")}>₹{d.net_amount?.toFixed(2)}</span>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Paid:</span>{" "}
+            <span className={cn("font-medium text-green-600", saleCancelled && "line-through decoration-red-500/70")}>₹{(d.paid_amount || 0).toFixed(2)}</span>
+          </div>
           {preview.type === "refund" && d.refund_amount > 0 && (
             <div><span className="text-muted-foreground">Refund:</span> <span className="font-medium text-red-600">₹{d.refund_amount.toFixed(2)}</span></div>
           )}
         </div>
+        {saleCancelled && items.length === 0 && (
+          <p className="text-xs text-muted-foreground italic">Line items were removed when this invoice was cancelled (stock restored).</p>
+        )}
         {items.length > 0 && (
           <>
             <Separator />
@@ -467,7 +488,7 @@ export function CustomerHistoryDialog({
         .from('sales')
         .select(`
           id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_return_adjust, sale_type, refund_amount,
-          discount_amount, flat_discount_amount,
+          discount_amount, flat_discount_amount, is_cancelled, cancelled_at, cancelled_reason,
           sale_items (
             id, product_name, size, color, quantity, unit_price, mrp, line_total, barcode
           )
@@ -475,7 +496,7 @@ export function CustomerHistoryDialog({
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null)
-        .neq('payment_status', 'hold')
+        .or('payment_status.neq.hold,is_cancelled.eq.true')
         .order('sale_date', { ascending: false });
       if (error) throw error;
       return data || [];
@@ -608,10 +629,9 @@ export function CustomerHistoryDialog({
   // Fix Apr 2026: subtract sale_return_adjust to match per-invoice outstanding.
   // Test case: Mamta Footwear-Kandivali W (1ce7dbea-...) outstanding = ₹15,054
   const displayBalance = useMemo(() => {
-    const saleReturnAdjustTotal = (salesHistory || []).reduce(
-      (sum, sale: any) => sum + (Number(sale.sale_return_adjust) || 0),
-      0
-    );
+    const saleReturnAdjustTotal = (salesHistory || [])
+      .filter((sale: any) => !isSaleRecordCancelled(sale))
+      .reduce((sum, sale: any) => sum + (Number(sale.sale_return_adjust) || 0), 0);
     return balance - saleReturnAdjustTotal;
   }, [balance, salesHistory]);
 
@@ -870,19 +890,33 @@ export function CustomerHistoryDialog({
                       {salesHistory.map((sale) => {
                         const isExpanded = expandedSaleId === sale.id;
                         const items = (sale as any).sale_items as SaleItem[] || [];
+                        const saleCancelled = isSaleRecordCancelled(sale);
                         return (
-                          <>
-                            <TableRow key={sale.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}>
+                          <Fragment key={sale.id}>
+                            <TableRow
+                              className={cn(
+                                "cursor-pointer hover:bg-muted/50",
+                                saleCancelled && "opacity-80 bg-muted/20",
+                              )}
+                              onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}
+                            >
                               <TableCell className="p-2">
                                 {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                               </TableCell>
-                              <TableCell className="font-medium">{sale.sale_number}</TableCell>
-                              <TableCell>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
+                              <TableCell className={cn("font-medium", saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>{sale.sale_number}</TableCell>
+                              <TableCell className={cn(saleCancelled && "text-muted-foreground")}>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
                               <TableCell><Badge variant="outline">{sale.sale_type?.toUpperCase()}</Badge></TableCell>
-                              <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
-                              <TableCell>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
+                              <TableCell className={cn(saleCancelled && "line-through decoration-red-500/70 text-muted-foreground font-medium")}>₹{sale.net_amount.toFixed(2)}</TableCell>
+                              <TableCell className={cn(saleCancelled && "line-through decoration-red-500/70 text-muted-foreground")}>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
                               <TableCell>
                                 {(() => {
+                                  if (saleCancelled) {
+                                    return (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-red-100 text-red-800 border-red-300 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800">
+                                        Cancelled
+                                      </span>
+                                    );
+                                  }
                                   const statusConfig: Record<string, string> = {
                                     completed: "bg-emerald-100 text-emerald-700 border-emerald-300",
                                     partial:   "bg-amber-100 text-amber-700 border-amber-300",
@@ -896,7 +930,7 @@ export function CustomerHistoryDialog({
                                 })()}
                               </TableCell>
                               <TableCell>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" title="View Invoice" onClick={(e) => { e.stopPropagation(); setPreview({ type: "sale", data: sale }); }}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="View details" onClick={(e) => { e.stopPropagation(); setPreview({ type: "sale", data: sale }); }}>
                                   <Eye className="h-4 w-4" />
                                 </Button>
                               </TableCell>
@@ -934,7 +968,14 @@ export function CustomerHistoryDialog({
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                            {isExpanded && saleCancelled && items.length === 0 && (
+                              <TableRow key={`${sale.id}-cancelled-note`}>
+                                <TableCell colSpan={8} className="py-2 text-xs text-muted-foreground italic bg-muted/20">
+                                  Items were removed when this invoice was cancelled; amounts above are for audit reference only.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </TableBody>
