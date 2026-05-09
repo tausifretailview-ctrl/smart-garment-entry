@@ -36,6 +36,9 @@ verify_jwt = false
 [functions.generate-gstr1]
 verify_jwt = false
 
+[functions.get-users]
+verify_jwt = false
+
 [functions.portal-auth]
 verify_jwt = false
 

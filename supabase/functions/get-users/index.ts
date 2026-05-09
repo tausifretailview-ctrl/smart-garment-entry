@@ -42,27 +42,37 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-      auth: { persistSession: false, autoRefreshToken: false },
+    console.log("Verifying token with auth API...");
+
+    const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: authHeader,
+        apikey: supabaseAnonKey,
+      },
     });
 
-    console.log("Verifying token...");
-
-    const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
-    let userId = userData?.user?.id;
-
-    // Fallback for signing-key tokens where local claims verification is available.
-    if (userError || !userId) {
-      const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-      userId = claimsData?.claims?.sub as string | undefined;
-      if (claimsError || !userId) {
-        console.error("Auth error:", userError?.message ?? claimsError?.message ?? "Invalid token");
-        return new Response(
-          JSON.stringify({ error: "Unauthorized", details: userError?.message ?? claimsError?.message ?? "Invalid token" }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    if (!userResponse.ok) {
+      let details = "Invalid login session";
+      try {
+        const body = await userResponse.json();
+        details = body?.msg || body?.message || body?.error_description || body?.error || details;
+      } catch (_) {
+        details = await userResponse.text() || details;
       }
+      console.error("Auth error:", details);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", details }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const verifiedUser = await userResponse.json();
+    const userId = verifiedUser?.id as string | undefined;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", details: "Invalid login session" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const user = { id: userId };

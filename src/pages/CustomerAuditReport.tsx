@@ -19,7 +19,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 import { computeCustomerOutstanding } from "@/utils/customerAuditMath";
-import { buildAuditRows, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import { buildAuditRows, fetchCustomerAuditBundle, type AuditRow } from "@/utils/customerAuditBundle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
