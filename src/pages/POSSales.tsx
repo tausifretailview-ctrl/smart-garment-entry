@@ -4311,7 +4311,10 @@ export default function POSSales() {
           <Button
             onClick={handleLastInvoice}
             disabled={!todaysSales || todaysSales.length === 0}
-            className="h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
+            className={cn(
+              "h-[52px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold w-full rounded-lg bg-blue-500 hover:bg-blue-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40",
+              todaysSales && todaysSales.length > 0 && currentInvoiceIndex === 0 && "ring-2 ring-white/80 bg-blue-700 hover:bg-blue-700"
+            )}
             title="Last Invoice"
           >
             <RotateCcw className="h-4 w-4" />
