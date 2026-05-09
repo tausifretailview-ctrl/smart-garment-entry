@@ -5450,17 +5450,16 @@ export default function POSSales() {
                   MRP ₹{formatINR2(totals.mrp)}
                 </div>
               )}
-              <div className="flex flex-col items-end flex-shrink-0">
-                <span className="text-[12px] font-extrabold uppercase tracking-wider text-white mb-1">
-                  NET AMOUNT
-                </span>
-                <Input
-                  type="number"
-                  className="w-[140px] h-[44px] text-right text-[22px] font-extrabold font-mono bg-white/15 border-2 border-white/30 text-white rounded-md"
-                  value={Math.round(finalAmount)}
-                  readOnly
-                />
+              <div className="flex items-center justify-end gap-1">
+                <span className="text-base sm:text-lg text-white/90 uppercase font-bold tracking-wide">Net Amount</span>
               </div>
+              <Input 
+                type="number"
+                className={`!w-[220px] sm:!w-[280px] !h-16 sm:!h-20 text-right !text-6xl sm:!text-7xl !font-black bg-white border-0 rounded-md shadow-sm tabular-nums leading-none px-2 ${finalAmount < 0 ? '!text-orange-600' : '!text-emerald-700'}`}
+                value={Math.round(finalAmount)}
+                onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
+                step="1"
+              />
               {effectiveDiscountPercent > 0 && (
                 <div className="text-xs font-extrabold text-lime-200 mt-0.5">
                   ↓ {effectiveDiscountPercent.toFixed(1)}% off
