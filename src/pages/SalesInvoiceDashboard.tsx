@@ -3380,7 +3380,7 @@ export default function SalesInvoiceDashboard() {
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
                 <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
-                <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-[11px] sm:[&_tbody_td]:text-xs [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
                   <TableHeader className="!static">
                     <TableRow>
                       <TableHead className="w-10 px-1">
@@ -3390,12 +3390,12 @@ export default function SalesInvoiceDashboard() {
                         />
                       </TableHead>
                       <TableHead className="w-10 px-1"></TableHead>
-                      <TableHead className="font-semibold w-[20%] min-w-[11rem] xl:min-w-[13rem]">Invoice No</TableHead>
-                      <TableHead className="font-semibold w-[28%] min-w-[12rem] xl:min-w-[17rem]">Customer</TableHead>
+                      <TableHead className="font-semibold w-[12%] min-w-[7rem] max-w-[11rem]">Invoice No</TableHead>
+                      <TableHead className="font-semibold w-[18%] min-w-[8.5rem] max-w-[15rem]">Customer</TableHead>
                       {columnSettings.phone && <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>}
                       <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
                       <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
-                      <TableHead className="text-right font-semibold w-[4.5rem] px-1">Discount</TableHead>
+                      <TableHead className="text-right font-semibold w-[3.5rem] max-w-[4rem] px-1">Discount</TableHead>
                       <TableHead className="font-semibold w-[4.75rem] text-right">Amount</TableHead>
                       {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Pay Status</TableHead>}
                       {columnSettings.status && <TableHead className="text-right font-semibold w-[4.25rem] px-1">Balance</TableHead>}
@@ -3432,10 +3432,10 @@ export default function SalesInvoiceDashboard() {
                               )}
                             </TableCell>
                             <TableCell
-                              className="font-medium w-[20%] min-w-[11rem] xl:min-w-[13rem] align-top"
+                              className="font-medium w-[12%] min-w-[7rem] max-w-[11rem] align-top"
                               onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}
                             >
-                              <div className="flex flex-col gap-0.5 min-w-0">
+                              <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   <span className="break-words">{invoice.sale_number}</span>
                                   {invoiceLikelyMissingLines(invoice) && (
@@ -3449,13 +3449,13 @@ export default function SalesInvoiceDashboard() {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-[10px] sm:text-[11px] text-foreground/70 tabular-nums">
+                                <span className="text-xs text-foreground/70 tabular-nums">
                                   {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
                                 </span>
                               </div>
                             </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-600 hover:underline w-[28%] min-w-[12rem] xl:min-w-[17rem] align-top break-words hyphens-auto"
+                              className="cursor-pointer text-blue-600 hover:underline w-[18%] min-w-[8.5rem] max-w-[15rem] align-top break-words hyphens-auto"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedCustomerForHistory({
@@ -3478,22 +3478,22 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.total_qty || 0}
                             </TableCell>
-                            <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                            <TableCell className="text-right max-w-[4rem] whitespace-normal" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
                               {(invoice.sale_return_adjust || 0) > 0 && (
-                                <span className="block text-[10px] sm:text-[11px] text-amber-600 leading-tight">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
+                                <span className="block text-xs text-amber-600 leading-tight">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
                               )}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {invoice.is_cancelled ? (
-                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-[10px] sm:text-[11px] px-1.5 py-0.5 leading-tight">
+                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-0.5 leading-tight">
                                     Cancelled
                                   </Badge>
                                 ) : (
                                   <Badge
-                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-[10px] sm:text-[11px] px-1.5 py-0.5 leading-tight ${
+                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-xs px-2 py-0.5 leading-tight ${
                                       invoice.payment_status === 'completed'
                                         ? 'bg-green-500 hover:bg-green-600 text-white'
                                         : invoice.payment_status === 'partial'
@@ -3518,7 +3518,7 @@ export default function SalesInvoiceDashboard() {
                             {columnSettings.delivery && (
                               <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Badge 
-                                  className={`cursor-pointer text-[10px] sm:text-[11px] px-1.5 py-0.5 leading-tight ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
+                                  className={`cursor-pointer text-xs px-2 py-0.5 leading-tight ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
                                   onClick={() => openStatusDialog(invoice)}
                                 >
                                   {getDeliveryLabel(invoice.delivery_status || 'undelivered')}
@@ -3713,7 +3713,7 @@ export default function SalesInvoiceDashboard() {
                                         </div>
                                       )
                                     )}
-                                    <Table className="text-base [&_th]:text-base [&_td]:text-base">
+                                    <Table className="[&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_tbody_td]:text-base">
                                       <TableHeader>
                                         <TableRow>
                                           <TableHead className="font-semibold">Product</TableHead>
@@ -3742,8 +3742,8 @@ export default function SalesInvoiceDashboard() {
                                               {showItemColor && <TableCell>{item.color || productsById?.[item.product_id]?.color || '-'}</TableCell>}
                                               {showItemStyle && <TableCell>{productsById?.[item.product_id]?.style || '-'}</TableCell>}
                                               <TableCell>{item.size}</TableCell>
-                                              {showItemBarcode && <TableCell className="text-sm font-mono">{item.barcode || '-'}</TableCell>}
-                                              {showItemHsn && <TableCell className="text-sm">{item.hsn_code || '-'}</TableCell>}
+                                              {showItemBarcode && <TableCell className="text-base font-mono">{item.barcode || '-'}</TableCell>}
+                                              {showItemHsn && <TableCell className="text-base">{item.hsn_code || '-'}</TableCell>}
                                               <TableCell>{item.quantity}</TableCell>
                                               {showItemMrp && <TableCell>₹{item.mrp ? Math.round(item.mrp).toLocaleString('en-IN') : '-'}</TableCell>}
                                               <TableCell>₹{Math.round(itemGrossTotal).toLocaleString('en-IN')}</TableCell>
@@ -3789,7 +3789,7 @@ export default function SalesInvoiceDashboard() {
                                   {saleReturns[invoice.id] && saleReturns[invoice.id].length > 0 && (
                                     <div className="border-t pt-3">
                                       <h4 className="font-semibold mb-2 text-orange-600 text-base">Linked Sale Returns:</h4>
-                                      <Table className="text-base [&_th]:text-base [&_td]:text-base">
+                                      <Table className="[&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_tbody_td]:text-base">
                                         <TableHeader>
                                           <TableRow>
                                             <TableHead className="font-semibold">Return No</TableHead>
@@ -3803,7 +3803,7 @@ export default function SalesInvoiceDashboard() {
                                           {saleReturns[invoice.id].map((saleReturn: any) => (
                                             <TableRow key={saleReturn.id}>
                                               <TableCell>
-                                                <Badge variant="outline" className="text-orange-600 text-sm px-2.5 py-0.5">
+                                                <Badge variant="outline" className="text-orange-600 text-base px-2.5 py-0.5">
                                                   {saleReturn.return_number || '-'}
                                                 </Badge>
                                               </TableCell>
@@ -3832,7 +3832,7 @@ export default function SalesInvoiceDashboard() {
                     )}
                     {/* Page Totals Row */}
                     {paginatedInvoices.length > 0 && (
-                      <TableRow className="bg-muted/70 font-semibold border-t-2 text-base">
+                      <TableRow className="bg-muted/70 font-semibold border-t-2 text-sm">
                         <TableCell colSpan={invoiceTableColSpanBeforeQty} className="text-right">Page Total:</TableCell>
                         <TableCell className="text-center">{pageTotals.qty}</TableCell>
                         <TableCell className="text-right">₹{Math.round(pageTotals.discount).toLocaleString('en-IN')}</TableCell>
