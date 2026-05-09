@@ -295,13 +295,9 @@ export default function SaleOrderDashboard() {
         unit_price: item.unit_price,
         mrp: item.mrp || 0,
         discount_percent: item.discount_percent || 0,
-        discount_amount: item.discount_percent > 0
-          ? (item.unit_price * item.convert_qty * item.discount_percent / 100)
-          : 0,
         gst_percent: item.gst_percent || 0,
         line_total: calculateLineTotal(item, selectedOrder.tax_type),
         hsn_code: item.hsn_code || null,
-        uom: item.uom || 'NOS',
       }));
 
       const validItems = saleItems.filter(item => (item.quantity || 0) > 0);
