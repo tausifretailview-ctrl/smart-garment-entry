@@ -1,5 +1,5 @@
 import { useTheme } from "next-themes";
-import { Moon, Sun, Sparkles, Palette } from "lucide-react";
+import { Moon, Sun, Sparkles, Palette, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,39 +16,49 @@ export function ThemeToggle() {
   // Check for custom theme class on mount and restore from localStorage
   // Default to purple theme if no theme is saved
   useEffect(() => {
-    const savedCustomTheme = localStorage.getItem('custom-theme');
-    if (savedCustomTheme === 'indigo') {
-      document.documentElement.classList.remove('theme-purple');
-      document.documentElement.classList.add('theme-indigo');
-      setCustomTheme('indigo');
-    } else if (savedCustomTheme === 'purple' || !savedCustomTheme) {
-      // Default to purple theme
-      document.documentElement.classList.remove('theme-indigo');
-      document.documentElement.classList.add('theme-purple');
-      setCustomTheme('purple');
+    const savedCustomTheme = localStorage.getItem("custom-theme");
+    const stripCustom = () => {
+      document.documentElement.classList.remove("theme-indigo", "theme-purple", "theme-enterprise");
+    };
+    if (savedCustomTheme === "indigo") {
+      stripCustom();
+      document.documentElement.classList.add("theme-indigo");
+      setCustomTheme("indigo");
+    } else if (savedCustomTheme === "enterprise") {
+      stripCustom();
+      document.documentElement.classList.add("theme-enterprise");
+      setCustomTheme("enterprise");
+    } else if (savedCustomTheme === "purple" || !savedCustomTheme) {
+      stripCustom();
+      document.documentElement.classList.add("theme-purple");
+      setCustomTheme("purple");
       if (!savedCustomTheme) {
-        localStorage.setItem('custom-theme', 'purple');
-        setTheme('light');
+        localStorage.setItem("custom-theme", "purple");
+        setTheme("light");
       }
     }
   }, [setTheme]);
 
   const handleThemeChange = (newTheme: string) => {
-    // Remove all custom theme classes first
-    document.documentElement.classList.remove('theme-indigo', 'theme-purple');
-    localStorage.removeItem('custom-theme');
+    document.documentElement.classList.remove("theme-indigo", "theme-purple", "theme-enterprise");
+    localStorage.removeItem("custom-theme");
     setCustomTheme(null);
 
-    if (newTheme === 'indigo') {
-      setTheme('light');
-      document.documentElement.classList.add('theme-indigo');
-      localStorage.setItem('custom-theme', 'indigo');
-      setCustomTheme('indigo');
-    } else if (newTheme === 'purple') {
-      setTheme('light');
-      document.documentElement.classList.add('theme-purple');
-      localStorage.setItem('custom-theme', 'purple');
-      setCustomTheme('purple');
+    if (newTheme === "indigo") {
+      setTheme("light");
+      document.documentElement.classList.add("theme-indigo");
+      localStorage.setItem("custom-theme", "indigo");
+      setCustomTheme("indigo");
+    } else if (newTheme === "enterprise") {
+      setTheme("light");
+      document.documentElement.classList.add("theme-enterprise");
+      localStorage.setItem("custom-theme", "enterprise");
+      setCustomTheme("enterprise");
+    } else if (newTheme === "purple") {
+      setTheme("light");
+      document.documentElement.classList.add("theme-purple");
+      localStorage.setItem("custom-theme", "purple");
+      setCustomTheme("purple");
     } else {
       setTheme(newTheme);
     }
@@ -57,7 +67,15 @@ export function ThemeToggle() {
   const currentTheme = customTheme || theme;
 
   const getThemeDisplay = () => {
-    if (currentTheme === 'purple') {
+    if (currentTheme === "enterprise") {
+      return (
+        <>
+          <Building2 className="h-4 w-4 text-sky-600" />
+          <span className="hidden sm:inline">Enterprise Theme</span>
+        </>
+      );
+    }
+    if (currentTheme === "purple") {
       return (
         <>
           <Palette className="h-4 w-4 text-[#5B5FEF]" />
@@ -65,7 +83,7 @@ export function ThemeToggle() {
         </>
       );
     }
-    if (currentTheme === 'indigo') {
+    if (currentTheme === "indigo") {
       return (
         <>
           <Sparkles className="h-4 w-4 text-indigo-500" />
@@ -100,7 +118,7 @@ export function ThemeToggle() {
           {getThemeDisplay()}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="min-w-[13.5rem]">
         <DropdownMenuItem 
           onClick={() => handleThemeChange("dark")}
           className="gap-2 cursor-pointer"
@@ -124,6 +142,14 @@ export function ThemeToggle() {
           <Sparkles className="h-4 w-4 text-indigo-500" />
           <span>Classic Theme (Indigo)</span>
           {currentTheme === "indigo" && <span className="ml-auto text-primary">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => handleThemeChange("enterprise")}
+          className="gap-2 cursor-pointer"
+        >
+          <Building2 className="h-4 w-4 text-sky-600" />
+          <span>Enterprise Theme (Pro)</span>
+          {currentTheme === "enterprise" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
         <DropdownMenuItem 
           onClick={() => handleThemeChange("purple")}
