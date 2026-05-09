@@ -2165,11 +2165,11 @@ export default function POSSales() {
   };
 
   const flatDiscountAmount = flatDiscountMode === 'percent' 
-    ? (totals.subtotal * flatDiscountValue) / 100 
+    ? (totals.mrp * flatDiscountValue) / 100 
     : flatDiscountValue;
   const flatDiscountPercent = flatDiscountMode === 'percent' 
     ? flatDiscountValue 
-    : totals.subtotal > 0 ? (flatDiscountValue / totals.subtotal) * 100 : 0;
+    : totals.mrp > 0 ? (flatDiscountValue / totals.mrp) * 100 : 0;
   
   // Calculate amount before round-off (without roundOff in calculation)
   const amountBeforeRoundOff = totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
@@ -2226,8 +2226,9 @@ export default function POSSales() {
             ? 'Mix'
             : 'Cash';
   
-  // Calculate effective discount percentage for customer display (after final amount adjustment)
-  const effectiveDiscountPercent = totals.mrp > 0 ? ((totals.mrp - finalAmount) / totals.mrp) * 100 : 0;
+  // Discount display should represent total discount (item-wise + flat), not SR/round/credit adjustments.
+  const totalDiscountDisplay = totals.discount + flatDiscountAmount;
+  const effectiveDiscountPercent = totals.mrp > 0 ? (totalDiscountDisplay / totals.mrp) * 100 : 0;
 
   // Handle Estimate Print (no save, cart stays intact)
   const handleEstimatePrint = useCallback(() => {
@@ -5221,7 +5222,7 @@ export default function POSSales() {
                 <div className="w-px h-8 bg-white/20 shrink-0" />
                 <div className="text-center bg-green-500/90 rounded-md py-1.5 px-3 mx-2 shrink-0">
                   <div className="text-lg font-bold leading-tight">
-                    ₹{formatINR2(totals.mrp - totals.subtotal > 0 ? totals.mrp - totals.subtotal : totals.savings)} · Saves {totals.mrp > 0 ? `${(((totals.mrp - totals.subtotal) / totals.mrp) * 100).toFixed(0)}%` : ''}
+                    ₹{formatINR2(totalDiscountDisplay)} · Saves {totals.mrp > 0 ? `${((totalDiscountDisplay / totals.mrp) * 100).toFixed(0)}%` : ''}
                   </div>
                   <div className="text-[11px] font-semibold uppercase">Savings</div>
                 </div>
@@ -5240,7 +5241,7 @@ export default function POSSales() {
             
             {/* Discount */}
             <div className="text-center px-3">
-              <div className="text-xl font-extrabold leading-tight text-white">₹{formatINR2(totals.discount)}</div>
+              <div className="text-xl font-extrabold leading-tight text-white">₹{formatINR2(totalDiscountDisplay)}</div>
               <div className="text-xs text-white/90 uppercase font-bold tracking-wide">Discount</div>
             </div>
             
