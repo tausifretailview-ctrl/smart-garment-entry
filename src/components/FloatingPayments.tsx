@@ -30,6 +30,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
+import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 
@@ -125,7 +126,9 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
               <div className="flex gap-2 justify-end mt-2">
                 <Button size="sm" variant="outline" onClick={() => {
                   if (!receiptData?.customerPhone) { toast.error("No phone number"); return; }
-                  const msg = `*PAYMENT RECEIPT*\nReceipt: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate}\nCustomer: ${receiptData.customerName}\nPaid: ₹${Math.round(receiptData.paidAmount).toLocaleString('en-IN')}\nBalance: ₹${Math.round(receiptData.currentBalance).toLocaleString('en-IN')}\nMode: ${receiptData.paymentMethod?.toUpperCase()}`;
+                  const fmt = (n: number) => Math.round(n).toLocaleString("en-IN");
+                  const disc = whatsappPaymentReceiptDiscountLines(receiptData.discountAmount, receiptData.discountReason, fmt);
+                  const msg = `*PAYMENT RECEIPT*\nReceipt: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate}\nCustomer: ${receiptData.customerName}\nPaid: ₹${fmt(receiptData.paidAmount)}${disc}\nBalance: ₹${fmt(receiptData.currentBalance)}\nMode: ${receiptData.paymentMethod?.toUpperCase()}`;
                   const phone = receiptData.customerPhone.replace(/\D/g, '');
                   window.open(`https://wa.me/${phone.startsWith('91') ? phone : '91' + phone}?text=${encodeURIComponent(msg)}`, '_blank');
                 }}>

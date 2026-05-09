@@ -34,6 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
+import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { useReactToPrint } from "react-to-print";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
@@ -708,7 +709,9 @@ export default function Accounts() {
 
   const handleSendWhatsApp = () => {
     if (!receiptData || !receiptData.customerPhone) { toast.error("Customer phone number not available"); return; }
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${Math.round(receiptData.invoiceAmount).toLocaleString('en-IN')}\nPaid Amount: ₹${Math.round(receiptData.paidAmount).toLocaleString('en-IN')}\nBalance: ₹${Math.round(receiptData.currentBalance).toLocaleString('en-IN')}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n\nThank you for your payment!`;
+    const fmt = (n: number) => Math.round(n).toLocaleString("en-IN");
+    const disc = whatsappPaymentReceiptDiscountLines(receiptData.discountAmount, receiptData.discountReason, fmt);
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${fmt(receiptData.invoiceAmount)}\nPaid Amount: ₹${fmt(receiptData.paidAmount)}${disc}\nBalance: ₹${fmt(receiptData.currentBalance)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n\nThank you for your payment!`;
     const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
     const waUrl = `https://wa.me/${phoneNumber.startsWith('91') ? phoneNumber : '91' + phoneNumber}?text=${encodeURIComponent(message)}`;
     const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;

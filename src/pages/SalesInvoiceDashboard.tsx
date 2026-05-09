@@ -74,6 +74,7 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
 import { waitForPrintReady } from "@/utils/printReady";
+import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
   computeCustomerOutstanding,
   fetchCustomerBalanceSnapshot,
@@ -2312,7 +2313,13 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+    const payMode = String(receiptData.paymentMethod ?? receiptData.paymentMode ?? "").toUpperCase();
+    const disc = whatsappPaymentReceiptDiscountLines(
+      receiptData.discountAmount,
+      receiptData.discountReason,
+      (n) => n.toFixed(2)
+    );
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}${disc}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${payMode}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
     sendWhatsApp(receiptData.customerPhone, message);
   };

@@ -52,6 +52,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
+import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface SaleItem {
@@ -1312,7 +1313,9 @@ const POSDashboard = () => {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${Math.round(receiptData.invoiceAmount).toLocaleString('en-IN')}\nPaid Amount: ₹${Math.round(receiptData.paidAmount).toLocaleString('en-IN')}\nBalance: ₹${Math.round(receiptData.currentBalance).toLocaleString('en-IN')}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+    const fmt = (n: number) => Math.round(n).toLocaleString("en-IN");
+    const disc = whatsappPaymentReceiptDiscountLines(receiptData.discountAmount, receiptData.discountReason, fmt);
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${fmt(receiptData.invoiceAmount)}\nPaid Amount: ₹${fmt(receiptData.paidAmount)}${disc}\nBalance: ₹${fmt(receiptData.currentBalance)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
     sendWhatsApp(receiptData.customerPhone, message);
   };

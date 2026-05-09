@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 
 interface Invoice {
   id: string;
@@ -436,17 +437,19 @@ export default function PaymentsDashboard() {
   const handleSendReceiptWhatsApp = () => {
     if (!receiptData || !receiptData.customerPhone) return;
 
+    const fmtPaid = (n: number) => n.toLocaleString("en-IN");
+    const disc = whatsappPaymentReceiptDiscountLines(receiptData.discountAmount, receiptData.discountReason, fmtPaid);
     const message = `Dear ${receiptData.customerName},
 
 Thank you for your payment!
 
 Receipt No: ${receiptData.voucherNumber}
 Date: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd MMM yyyy') : '-'}
-Amount Paid: ₹${receiptData.paidAmount.toLocaleString('en-IN')}
+Amount Paid: ₹${fmtPaid(receiptData.paidAmount)}${disc}
 Payment Method: ${receiptData.paymentMethod.toUpperCase()}
 
 Invoice: ${receiptData.invoiceNumber}
-Current Balance: ₹${receiptData.currentBalance.toLocaleString('en-IN')}
+Current Balance: ₹${fmtPaid(receiptData.currentBalance)}
 
 Thank you for your business!`;
 

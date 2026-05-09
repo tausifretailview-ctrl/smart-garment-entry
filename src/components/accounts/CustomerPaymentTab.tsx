@@ -1761,12 +1761,18 @@ export function CustomerPaymentTab({
                             const customer = voucher.reference_type === 'customer'
                               ? customers?.find((c) => c.id === voucher.reference_id)
                               : (invoice?.customer_id ? customers?.find((c) => c.id === invoice.customer_id) : null);
+                            const paid = Number(voucher.total_amount) || 0;
+                            const discAmt = Number((voucher as any).discount_amount) || 0;
+                            const discReason = String((voucher as any).discount_reason || "");
+                            const invNet = invoice?.net_amount != null ? Number(invoice.net_amount) : paid + discAmt;
                             onShowReceipt({
                               voucherNumber: voucher.voucher_number, voucherDate: voucher.voucher_date,
                               customerName, customerPhone: customer?.phone || "", customerAddress: customer?.address || "",
                               invoiceNumber: voucher.description?.includes("Against Invoice") ? voucher.description.replace("Against Invoice: ", "") : voucher.description || "-",
-                              invoiceDate: voucher.voucher_date, invoiceAmount: voucher.total_amount,
-                              paidAmount: voucher.total_amount, paymentMethod: voucher.payment_method || "cash",
+                              invoiceDate: invoice?.sale_date || voucher.voucher_date,
+                              invoiceAmount: invNet,
+                              paidAmount: paid, discountAmount: discAmt, discountReason: discReason,
+                              paymentMethod: voucher.payment_method || "cash",
                               previousBalance: 0, currentBalance: 0
                             });
                           }}>
