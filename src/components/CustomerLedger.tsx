@@ -34,6 +34,7 @@ import {
   type VoucherLedgerRow,
   type SaleReturnLedgerRow,
 } from "@/utils/customerBalanceUtils";
+import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
@@ -167,6 +168,47 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     isSchool ? null : selectedCustomer?.id || null,
     organizationId || null
   );
+
+  /** Same closing balance as Customer Audit Report for the selected date window (business org only). */
+  const { data: ledgerAuditClosingBalance } = useQuery({
+    queryKey: [
+      "customer-ledger-audit-closing",
+      organizationId,
+      selectedCustomer?.id,
+      startDate ? format(startDate, "yyyy-MM-dd") : "all",
+      endDate ? format(endDate, "yyyy-MM-dd") : "all",
+    ],
+    queryFn: async () => {
+      if (!organizationId || !selectedCustomer?.id) return null;
+      const bundle = await fetchCustomerAuditBundle(supabase, organizationId, selectedCustomer.id);
+      const fromYmd = startDate ? format(startDate, "yyyy-MM-dd") : "1900-01-01";
+      const toYmd = endDate ? format(endDate, "yyyy-MM-dd") : "9999-12-31";
+      return computeAuditPeriodOutstanding(bundle, fromYmd, toYmd);
+    },
+    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
+    staleTime: 30_000,
+  });
+
+  const { data: cnAvailableFromNotes = 0 } = useQuery({
+    queryKey: ["customer-ledger-cn-available", organizationId, selectedCustomer?.id],
+    queryFn: async () => {
+      if (!organizationId || !selectedCustomer?.id) return 0;
+      const { data, error } = await supabase
+        .from("credit_notes")
+        .select("credit_amount, used_amount, status")
+        .eq("organization_id", organizationId)
+        .eq("customer_id", selectedCustomer.id)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data || []).reduce((sum: number, cn: any) => {
+        if (String(cn.status || "").toLowerCase() === "fully_used") return sum;
+        const bal = Math.max(0, Number(cn.credit_amount || 0) - Number(cn.used_amount || 0));
+        return sum + bal;
+      }, 0);
+    },
+    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
+    staleTime: 30_000,
+  });
 
   const { data: academicYears = [] } = useQuery({
     queryKey: ["customer-ledger-academic-years", organizationId],
@@ -2184,14 +2226,18 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   const effectiveBalance = useMemo(() => {
     if (!selectedCustomer) return 0;
-    // Keep header/summary aligned with the visible statement rows:
-    // use the last running balance from current (date-filtered) transactions.
-    if (transactions && transactions.length > 0) {
-      return Number(transactions[transactions.length - 1].balance || 0);
+    if (isSchool) {
+      if (transactions && transactions.length > 0) {
+        return Number(transactions[transactions.length - 1].balance || 0);
+      }
+      return authoritativeBalance;
     }
-    // Fallback when transaction list is empty/loading.
+    // Business: match Customer Audit Report (voucher_entries with deleted_at IS NULL, same running total).
+    if (ledgerAuditClosingBalance != null && !Number.isNaN(Number(ledgerAuditClosingBalance))) {
+      return Number(ledgerAuditClosingBalance);
+    }
     return authoritativeBalance;
-  }, [selectedCustomer, transactions, authoritativeBalance]);
+  }, [selectedCustomer, isSchool, transactions, authoritativeBalance, ledgerAuditClosingBalance]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -2423,8 +2469,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   }, [transactions]);
 
   const cnAvailable = useMemo(() => {
+    if (!isSchool) {
+      return Math.round(Number(cnAvailableFromNotes) || 0);
+    }
     return pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [pendingSaleReturns]);
+  }, [isSchool, cnAvailableFromNotes, pendingSaleReturns]);
 
   const handleApplyToInvoice = useCallback((sr: { reference: string }) => {
     toast.info(`Open Accounts -> Customer Payment to apply ${sr.reference} to an invoice.`);

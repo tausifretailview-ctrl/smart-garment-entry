@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { computeAuditFormulaOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -354,7 +355,7 @@ export function calculateCustomerInvoiceBalances(
   return customerBalances;
 }
 
-/** Full DB-backed snapshot for one customer (ledger-consistent). */
+/** Full DB-backed snapshot for one customer — aligned with Customer Audit Report / voucher_entries (non-deleted). */
 export async function fetchCustomerBalanceSnapshot(
   client: SupabaseClient,
   organizationId: string,
@@ -373,34 +374,8 @@ export async function fetchCustomerBalanceSnapshot(
   totalAdvanceApplied: number;
   totalCnApplied: number;
 }> {
-  const { data: customer, error: customerError } = await client
-    .from("customers")
-    .select("opening_balance")
-    .eq("id", customerId)
-    .single();
-
-  if (customerError) throw customerError;
-  const openingBalance = customer?.opening_balance || 0;
-
-  const { data: sales, error: salesError } = await client
-    .from("sales")
-    .select("id, net_amount, paid_amount, sale_return_adjust, payment_status")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .neq("payment_status", "cancelled")
-    .neq("payment_status", "hold");
-
-  if (salesError) throw salesError;
-
-  const { data: allVouchers, error: voucherError } = await client
-    .from("voucher_entries")
-    .select("reference_id, reference_type, total_amount, payment_method, description")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "receipt")
-    .is("deleted_at", null);
-
-  if (voucherError) throw voucherError;
+  const bundle = await fetchCustomerAuditBundle(client, organizationId, customerId);
+  const co = computeAuditFormulaOutstanding(bundle);
 
   const { data: adjustments, error: adjError } = await client
     .from("customer_balance_adjustments")
@@ -412,72 +387,29 @@ export async function fetchCustomerBalanceSnapshot(
   const adjustmentTotal =
     adjustments?.reduce((sum, adj) => sum + (adj.outstanding_difference || 0), 0) || 0;
 
-  const { data: advances, error: advError } = await client
-    .from("customer_advances")
-    .select("id, amount, used_amount")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId)
-    .in("status", ["active", "partially_used"]);
-
-  if (advError) throw advError;
-
-  const advanceIds = advances?.map((a) => a.id) || [];
-  let advanceRefundTotal = 0;
-  if (advanceIds.length > 0) {
-    const { data: advRefunds } = await client
-      .from("advance_refunds")
-      .select("refund_amount")
-      .in("advance_id", advanceIds);
-    advanceRefundTotal = advRefunds?.reduce((s, r) => s + (r.refund_amount || 0), 0) || 0;
-  }
-
-  const { data: saleReturns, error: srError } = await client
-    .from("sale_returns")
-    .select("id, net_amount, credit_status, linked_sale_id")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  if (srError) throw srError;
-
-  const { data: refundVouchers } = await client
-    .from("voucher_entries")
-    .select("total_amount")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "payment")
-    .eq("reference_type", "customer")
-    .eq("reference_id", customerId)
-    .is("deleted_at", null);
-  const refundsPaidTotal = refundVouchers?.reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
-
-  const co = computeCustomerOutstanding({
-    openingBalance,
-    customerId,
-    sales: sales || [],
-    vouchers: allVouchers || [],
-    adjustmentTotal,
-    advances: (advances || []).map((a) => ({
-      id: a.id,
-      amount: a.amount,
-      used_amount: a.used_amount,
-    })),
-    advanceRefundTotal,
-    saleReturns: saleReturns || [],
-    refundsPaidTotal,
-  });
+  const openingBalance = Number(bundle.customer.opening_balance || 0);
+  const totalSalesGross = Math.round(co.totalInvoiced);
+  const totalSaleReturnAdjustOnSales = Math.round(co.totalSaleReturnAdjust);
+  const totalSales = Math.round(co.totalInvoiced - co.totalSaleReturnAdjust);
+  const totalPaid = Math.round(
+    co.totalRealPayments + co.customerPaymentDebits + co.totalAdvanceUsed + co.unusedAdvance
+  );
+  const totalCashPaid = Math.round(co.receiptCredits + co.creditNoteCredits);
+  const totalAdvanceApplied = Math.round(co.totalAdvanceUsed);
+  const totalCnApplied = Math.round(co.creditNoteCredits);
 
   return {
-    balance: co.balance,
+    balance: Math.round(co.outstanding),
     openingBalance: Math.round(openingBalance),
-    totalSales: co.totalSales,
-    totalPaid: co.totalPaid,
-    adjustmentTotal: co.adjustmentTotal,
-    unusedAdvanceTotal: co.unusedAdvanceTotal,
-    saleReturnTotal: co.saleReturnTotal,
-    totalSalesGross: co.totalSalesGross,
-    totalSaleReturnAdjustOnSales: co.totalSaleReturnAdjustOnSales,
-    totalCashPaid: co.totalCashPaid,
-    totalAdvanceApplied: co.totalAdvanceApplied,
-    totalCnApplied: co.totalCnApplied,
+    totalSales,
+    totalPaid,
+    adjustmentTotal: Math.round(adjustmentTotal),
+    unusedAdvanceTotal: Math.round(co.unusedAdvance),
+    saleReturnTotal: 0,
+    totalSalesGross,
+    totalSaleReturnAdjustOnSales,
+    totalCashPaid,
+    totalAdvanceApplied,
+    totalCnApplied,
   };
 }
