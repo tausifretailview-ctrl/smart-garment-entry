@@ -692,7 +692,7 @@ const PurchaseReturnEntry = () => {
     }
   };
 
-  // Load items from a specific purchase bill
+  // Load items from a specific purchase bill (matches Purchase Entry "Supplier Invoice No" first, then software bill no)
   const loadBillByNumber = async () => {
     if (!returnData.original_bill_number.trim() || !currentOrganization) return;
     setLoadingBill(true);
@@ -700,24 +700,73 @@ const PurchaseReturnEntry = () => {
     setOriginalBillId('');
     try {
       const searchTerm = returnData.original_bill_number.trim();
-      const { data: bill, error } = await supabase
-        .from('purchase_bills')
-        .select(`id, supplier_id, supplier_name, is_dc_purchase, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`)
-        .eq('organization_id', currentOrganization.id)
-        .or(`software_bill_no.eq.${searchTerm},supplier_invoice_no.eq.${searchTerm}`)
-        .is('deleted_at', null)
-        .single();
+      const billSelect = `id, supplier_id, supplier_name, is_dc_purchase, bill_date, supplier_invoice_no, software_bill_no, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`;
 
-      if (error || !bill) {
-        toast({ title: 'Not Found', description: `No purchase bill found with number "${searchTerm}"`, variant: 'destructive' });
+      const baseQuery = () =>
+        supabase
+          .from("purchase_bills")
+          .select(billSelect)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+
+      const withSupplier = (q: ReturnType<typeof baseQuery>) =>
+        returnData.supplier_id ? q.eq("supplier_id", returnData.supplier_id) : q;
+
+      type PickOutcome =
+        | { status: "ok"; bill: Record<string, unknown> }
+        | { status: "ambiguous" }
+        | { status: "empty" };
+
+      const pickOne = async (q: ReturnType<typeof baseQuery>, ambiguousMsg: string): Promise<PickOutcome> => {
+        const scoped = withSupplier(q);
+        const { data: rows, error } = await scoped.order("bill_date", { ascending: false }).limit(2);
+        if (error) throw error;
+        if (!rows?.length) return { status: "empty" };
+        if (rows.length > 1 && !returnData.supplier_id) {
+          toast({ title: "Select supplier", description: ambiguousMsg, variant: "destructive" });
+          return { status: "ambiguous" };
+        }
+        return { status: "ok", bill: rows[0] as Record<string, unknown> };
+      };
+
+      let invPick = await pickOne(
+        baseQuery().eq("supplier_invoice_no", searchTerm),
+        `Several bills use supplier invoice "${searchTerm}". Choose the supplier, then Load Items again.`
+      );
+      if (invPick.status === "ambiguous") return;
+
+      let bill: Record<string, unknown> | null =
+        invPick.status === "ok" ? invPick.bill : null;
+
+      if (!bill) {
+        const softPick = await pickOne(
+          baseQuery().eq("software_bill_no", searchTerm),
+          `Several bills match software bill no "${searchTerm}". Choose the supplier, then Load Items again.`
+        );
+        if (softPick.status === "ambiguous") return;
+        bill = softPick.status === "ok" ? softPick.bill : null;
+      }
+
+      if (!bill) {
+        toast({
+          title: "Not Found",
+          description: returnData.supplier_id
+            ? `No purchase bill for this supplier with supplier invoice or software bill "${searchTerm}".`
+            : `No purchase bill with supplier invoice no. or software bill no. "${searchTerm}".`,
+          variant: "destructive",
+        });
         return;
       }
 
-      setOriginalBillId(bill.id);
+      setOriginalBillId(bill.id as string);
 
       // Auto-fill supplier if not already set
       if (!returnData.supplier_id && bill.supplier_id) {
-        setReturnData(prev => ({ ...prev, supplier_id: bill.supplier_id, supplier_name: bill.supplier_name }));
+        setReturnData((prev) => ({
+          ...prev,
+          supplier_id: bill.supplier_id as string,
+          supplier_name: (bill.supplier_name as string) || prev.supplier_name,
+        }));
       }
 
       // Auto-detect DC bill: delivery challan (no GST)
@@ -1293,10 +1342,10 @@ const PurchaseReturnEntry = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Original Bill Number</Label>
+                <Label>Supplier invoice no. (original purchase)</Label>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Enter bill no e.g. B032601 or supplier invoice no"
+                    placeholder="Same as Supplier Invoice No on Purchase Entry (or software bill no.)"
                     value={returnData.original_bill_number}
                     className="no-uppercase"
                     onChange={(e) => {
