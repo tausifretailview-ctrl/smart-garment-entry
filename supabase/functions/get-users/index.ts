@@ -47,22 +47,30 @@ serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    console.log("Verifying token...");
+    console.log("Verifying token claims...");
 
-    const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
-    let userId = userData?.user?.id;
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+    let userId = claimsData?.claims?.sub as string | undefined;
 
-    // Fallback for signing-key tokens where local claims verification is available.
-    if (userError || !userId) {
-      const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-      userId = claimsData?.claims?.sub as string | undefined;
-      if (claimsError || !userId) {
-        console.error("Auth error:", userError?.message ?? claimsError?.message ?? "Invalid token");
+    // Some clients call functions with only the project publishable key when no
+    // browser session is available. Treat those as unauthenticated before using
+    // getUser(), otherwise the auth API returns "Auth session missing!".
+    if ((claimsError || !userId) && token.split(".").length === 3) {
+      const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
+      userId = userData?.user?.id;
+      if (userError || !userId) {
+        console.error("Auth error:", claimsError?.message ?? userError?.message ?? "Invalid token");
         return new Response(
-          JSON.stringify({ error: "Unauthorized", details: userError?.message ?? claimsError?.message ?? "Invalid token" }),
+          JSON.stringify({ error: "Unauthorized", details: claimsError?.message ?? userError?.message ?? "Invalid token" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+    } else if (claimsError || !userId) {
+      console.error("Auth error: Login session required");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", details: "Login session required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const user = { id: userId };
