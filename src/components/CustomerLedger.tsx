@@ -2910,7 +2910,7 @@ Please clear your dues at the earliest. Thank you!`;
             }}
             className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
           >
-            {isProcessingRefund ? <><Loader2 className="h-4 w-4 mr-2 animate-spin />Processing...</> : 'Record Refund'}
+            {isProcessingRefund ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</> : 'Record Refund'}
           </Button>
         </DialogFooter>
       </DialogContent>
