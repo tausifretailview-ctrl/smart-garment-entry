@@ -242,7 +242,23 @@ export default function SalesInvoiceDashboard() {
     "sales_invoice_dashboard",
     defaultColumnSettings
   );
-  
+
+  /** Full column count must match header/body rows or colspan breaks table alignment (incl. optional phone). */
+  const invoiceTableColumnCount = useMemo(
+    () =>
+      9 +
+      (columnSettings.phone ? 1 : 0) +
+      (columnSettings.status ? 2 : 0) +
+      (columnSettings.delivery ? 1 : 0),
+    [columnSettings.phone, columnSettings.status, columnSettings.delivery]
+  );
+
+  /** Columns from checkbox through date (inclusive), before qty — for "Page total" label cell. */
+  const invoiceTableColSpanBeforeQty = useMemo(
+    () => 5 + (columnSettings.phone ? 1 : 0),
+    [columnSettings.phone]
+  );
+
   // Sale returns state
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
 
@@ -3009,9 +3025,9 @@ export default function SalesInvoiceDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-6 py-6 pb-24 lg:pb-6">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
       
-      <div className="w-full px-6 space-y-5">
+      <div className="w-full min-w-0 max-w-none space-y-5">
         <div className="flex items-center justify-between mb-1">
           <div>
             <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
@@ -3223,7 +3239,7 @@ export default function SalesInvoiceDashboard() {
         <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
           <div className="space-y-0">
             <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
-              <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   placeholder="Search by invoice, customer, barcode..."
@@ -3363,9 +3379,9 @@ export default function SalesInvoiceDashboard() {
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
-                <div className="w-full min-w-0 overflow-x-auto">
-                <Table className="w-full min-w-[1024px] table-fixed text-base [&_thead_th]:text-base [&_tbody_td]:text-[11px] sm:[&_tbody_td]:text-xs [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
-                  <TableHeader>
+                <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+                <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-[11px] sm:[&_tbody_td]:text-xs [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                  <TableHeader className="!static">
                     <TableRow>
                       <TableHead className="w-10 px-1">
                         <Checkbox
@@ -3390,7 +3406,7 @@ export default function SalesInvoiceDashboard() {
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground text-base">
+                        <TableCell colSpan={invoiceTableColumnCount} className="text-center py-8 text-muted-foreground text-base">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -3670,7 +3686,7 @@ export default function SalesInvoiceDashboard() {
                           </TableRow>
                           {expandedRows.has(invoice.id) && (
                             <TableRow>
-                              <TableCell colSpan={9 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="bg-muted/50 p-4 text-base">
+                              <TableCell colSpan={invoiceTableColumnCount} className="bg-muted/50 p-4 text-base">
                                 <div className="space-y-4">
                                   <div>
                                     <h4 className="font-semibold mb-2 text-base">Items:</h4>
@@ -3817,7 +3833,7 @@ export default function SalesInvoiceDashboard() {
                     {/* Page Totals Row */}
                     {paginatedInvoices.length > 0 && (
                       <TableRow className="bg-muted/70 font-semibold border-t-2 text-base">
-                        <TableCell colSpan={6} className="text-right">Page Total:</TableCell>
+                        <TableCell colSpan={invoiceTableColSpanBeforeQty} className="text-right">Page Total:</TableCell>
                         <TableCell className="text-center">{pageTotals.qty}</TableCell>
                         <TableCell className="text-right">₹{Math.round(pageTotals.discount).toLocaleString('en-IN')}</TableCell>
                         <TableCell>₹{Math.round(pageTotals.amount).toLocaleString('en-IN')}</TableCell>

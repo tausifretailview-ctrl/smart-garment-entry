@@ -55,7 +55,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               className={
                 isSalesInvoicePage
                   ? "flex-1 animate-fade-in relative z-[1] min-h-0 overflow-hidden"
-                  : "flex-1 animate-fade-in p-4 pb-20 lg:pb-10 relative z-[1]"
+                  : "flex-1 animate-fade-in px-2 sm:px-3 md:px-4 py-4 pb-20 lg:pb-10 relative z-[1] min-w-0"
               }
             >
               {children}
