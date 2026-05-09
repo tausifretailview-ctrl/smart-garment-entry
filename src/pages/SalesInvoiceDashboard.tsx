@@ -3395,7 +3395,7 @@ export default function SalesInvoiceDashboard() {
                       {columnSettings.phone && <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>}
                       <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
                       <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
-                      <TableHead className="text-right font-semibold w-[3.5rem] max-w-[4rem] px-1">Discount</TableHead>
+                      <TableHead className="text-right font-semibold w-[3.5rem] max-w-[4rem] px-1">DIS</TableHead>
                       <TableHead className="font-semibold w-[4.75rem] text-right">Amount</TableHead>
                       {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Pay Status</TableHead>}
                       {columnSettings.status && <TableHead className="text-right font-semibold w-[4.25rem] px-1">Balance</TableHead>}
@@ -3726,7 +3726,7 @@ export default function SalesInvoiceDashboard() {
                                           <TableHead className="font-semibold">Qty</TableHead>
                                           {showItemMrp && <TableHead className="font-semibold">MRP</TableHead>}
                                           <TableHead className="font-semibold">Price</TableHead>
-                                          <TableHead className="text-right font-semibold">Discount</TableHead>
+                                          <TableHead className="text-right font-semibold">DIS</TableHead>
                                           <TableHead className="text-right font-semibold">Total</TableHead>
                                         </TableRow>
                                       </TableHeader>
