@@ -64,6 +64,8 @@ interface ConversionItem {
   discount_percent: number;
   gst_percent: number;
   barcode: string;
+  color?: string;
+  uom?: string;
   hsn_code?: string;
 }
 
@@ -96,6 +98,20 @@ export default function SaleOrderDashboard() {
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_order');
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+
+  const calculateLineTotal = (item: ConversionItem, taxType: string) => {
+    const gross = (item.unit_price || 0) * (item.convert_qty || 0);
+    const discountPercent = item.discount_percent || 0;
+    const discAmount = discountPercent > 0
+      ? (gross * discountPercent) / 100
+      : 0;
+    const afterDisc = gross - discAmount;
+
+    if (taxType === "exclusive") {
+      return afterDisc + (afterDisc * (item.gst_percent || 0) / 100);
+    }
+    return afterDisc;
+  };
 
   // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
@@ -165,15 +181,16 @@ export default function SaleOrderDashboard() {
     const variantIds = order.sale_order_items.map((item: any) => item.variant_id);
     const { data: variants } = await supabase
       .from('product_variants')
-      .select('id, stock_qty')
+      .select('id, color, stock_qty')
       .in('id', variantIds);
 
-    const stockMap = new Map(variants?.map(v => [v.id, v.stock_qty]) || []);
+    const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
 
     const items: ConversionItem[] = order.sale_order_items
       .filter((item: any) => item.pending_qty > 0)
       .map((item: any) => {
-        const stockQty = stockMap.get(item.variant_id) || 0;
+        const variantMeta = variantMap.get(item.variant_id);
+        const stockQty = variantMeta?.stock_qty || 0;
         const maxConvert = Math.min(item.pending_qty, stockQty);
         return {
           id: item.id,
@@ -191,6 +208,8 @@ export default function SaleOrderDashboard() {
           discount_percent: item.discount_percent,
           gst_percent: item.gst_percent,
           barcode: item.barcode,
+          color: item.color || variantMeta?.color || null,
+          uom: item.uom || 'NOS',
           hsn_code: item.hsn_code,
         };
       });
@@ -270,17 +289,28 @@ export default function SaleOrderDashboard() {
         variant_id: item.variant_id,
         product_name: item.product_name,
         size: item.size,
-        barcode: item.barcode,
+        color: item.color || null,
+        barcode: item.barcode || null,
         quantity: item.convert_qty,
         unit_price: item.unit_price,
-        mrp: item.mrp,
-        discount_percent: item.discount_percent,
-        gst_percent: item.gst_percent,
-        line_total: item.unit_price * item.convert_qty * (1 - item.discount_percent / 100) * (1 + (selectedOrder.tax_type === "exclusive" ? item.gst_percent / 100 : 0)),
+        mrp: item.mrp || 0,
+        discount_percent: item.discount_percent || 0,
+        discount_amount: item.discount_percent > 0
+          ? (item.unit_price * item.convert_qty * item.discount_percent / 100)
+          : 0,
+        gst_percent: item.gst_percent || 0,
+        line_total: calculateLineTotal(item, selectedOrder.tax_type),
         hsn_code: item.hsn_code || null,
+        uom: item.uom || 'NOS',
       }));
 
-      const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);
+      const validItems = saleItems.filter(item => (item.quantity || 0) > 0);
+      if (validItems.length === 0) {
+        toast({ title: "Error", description: "No items with quantity > 0 to convert.", variant: "destructive" });
+        return;
+      }
+
+      const { error: itemsError } = await supabase.from('sale_items').insert(validItems);
       if (itemsError) throw itemsError;
 
       // Update sale order items fulfilled/pending qty

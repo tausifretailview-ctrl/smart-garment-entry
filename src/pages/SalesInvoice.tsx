@@ -1744,34 +1744,57 @@ export default function SalesInvoice() {
       setRoundOff(invoiceData.round_off || 0);
 
       if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
-        const transformedItems = invoiceData.sale_items.map((item: any) => {
-          const uom = productUomMap.get(item.product_id) || 'NOS';
-          const base: any = {
-            id: item.id,
-            productId: item.product_id,
-            variantId: item.variant_id,
-            productName: item.product_name,
-            size: item.size,
-            barcode: item.barcode || '',
-            color: item.color || '',
-            quantity: item.quantity,
-            box: '',
-            mrp: item.mrp,
-            salePrice: item.unit_price,
-            discountPercent: item.discount_percent,
-            discountAmount: 0,
-            gstPercent: item.gst_percent,
-            lineTotal: item.line_total,
-            hsnCode: item.hsn_code || '',
-            uom,
-          };
+        const transformedItems: any[] = invoiceData.sale_items.map((item: any) => ({
+          id: item.id || crypto.randomUUID(),
+          productId: item.product_id,
+          variantId: item.variant_id,
+          productName: item.product_name || 'Unknown Product',
+          size: item.size || '',
+          barcode: item.barcode || '',
+          color: item.color || '',
+          quantity: item.quantity || 0,
+          box: '',
+          mrp: item.mrp || 0,
+          salePrice: item.unit_price || 0,
+          discountPercent: item.discount_percent || 0,
+          discountAmount: item.discount_amount || 0,
+          gstPercent: item.gst_percent || 0,
+          lineTotal: item.line_total || 0,
+          hsnCode: item.hsn_code || '',
+          uom: item.uom || productUomMap.get(item.product_id) || 'NOS',
+        }));
+
+        const missingNames = transformedItems.filter((i) => !i.productName || i.productName === 'Unknown Product');
+        if (missingNames.length > 0) {
+          const variantIds = [...new Set(missingNames.map((i) => i.variantId).filter(Boolean))] as string[];
+          if (variantIds.length > 0) {
+            const { data: variants } = await supabase
+              .from('product_variants')
+              .select('id, product_id, size, color, barcode, products(product_name)')
+              .in('id', variantIds);
+            const varMap = new Map((variants || []).map((v: any) => [v.id, v]));
+            transformedItems.forEach((item) => {
+              const v: any = varMap.get(item.variantId);
+              if (!v) return;
+              const productNameFromVariant = (v.products as any)?.product_name || 'Unknown Product';
+              item.productName = item.productName && item.productName !== 'Unknown Product' ? item.productName : productNameFromVariant;
+              item.color = item.color || v.color || '';
+              item.barcode = item.barcode || v.barcode || '';
+              item.size = item.size || v.size || '';
+            });
+          }
+        }
+
+        const normalizedItems = transformedItems.map((base: any) => {
           const mult = getMtrMultiplier(base);
           const subTotal = base.salePrice * mult;
           const discAmt = (subTotal * (base.discountPercent || 0)) / 100;
-          base.lineTotal = subTotal - discAmt;
-          return base;
+          return {
+            ...base,
+            lineTotal: subTotal - discAmt,
+          };
         });
-        setLineItems(transformedItems);
+        setLineItems(normalizedItems);
         setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
           variantId: item.variant_id,
           quantity: item.quantity,
