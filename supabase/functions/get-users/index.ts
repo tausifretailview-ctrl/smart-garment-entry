@@ -12,35 +12,60 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    // Verify the requesting user is an admin
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify the requesting user with a user-context client. Edge functions do
+    // not have a browser session, so never validate auth from the admin client.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
       return new Response(
-        JSON.stringify({ error: "No authorization header" }),
+        JSON.stringify({ error: "Unauthorized", details: "Missing bearer token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const token = authHeader.replace("Bearer ", "");
+    const token = authHeader.replace("Bearer ", "").trim();
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", details: "Empty bearer token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (token === supabaseAnonKey) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", details: "Login session required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
     console.log("Verifying token...");
 
-    // Validate JWT using getClaims (works with signing-keys system)
-    const { data: claimsData, error: authError } = await supabaseAdmin.auth.getClaims(token);
+    const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
+    let userId = userData?.user?.id;
 
-    if (authError || !claimsData?.claims) {
-      console.error("Auth error:", authError?.message ?? "No claims");
-      return new Response(
-        JSON.stringify({ error: "Unauthorized", details: authError?.message ?? "Invalid token" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Fallback for signing-key tokens where local claims verification is available.
+    if (userError || !userId) {
+      const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+      userId = claimsData?.claims?.sub as string | undefined;
+      if (claimsError || !userId) {
+        console.error("Auth error:", userError?.message ?? claimsError?.message ?? "Invalid token");
+        return new Response(
+          JSON.stringify({ error: "Unauthorized", details: userError?.message ?? claimsError?.message ?? "Invalid token" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
-    const user = { id: claimsData.claims.sub as string };
+    const user = { id: userId };
     console.log("User verified:", user.id);
 
     // Check if user has admin, platform_admin, or manager role
