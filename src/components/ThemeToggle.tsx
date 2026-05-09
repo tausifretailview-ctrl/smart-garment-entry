@@ -8,8 +8,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 
-export function ThemeToggle() {
+type ThemeToggleProps = {
+  /** Merged into trigger button (e.g. match header row 2 / sidebar toolbar). */
+  className?: string;
+};
+
+export function ThemeToggle({ className }: ThemeToggleProps) {
   const { theme, setTheme } = useTheme();
   const [customTheme, setCustomTheme] = useState<string | null>(null);
 
@@ -113,7 +119,7 @@ export function ThemeToggle() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="gap-2 bg-card border-border hover:bg-accent"
+          className={cn("gap-2 bg-card border-border hover:bg-accent", className)}
         >
           {getThemeDisplay()}
         </Button>

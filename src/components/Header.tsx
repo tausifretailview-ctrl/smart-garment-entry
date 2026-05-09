@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState, useEffect } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingStockReport } from "@/components/FloatingPOSReports";
+import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -31,6 +32,7 @@ export const Header = () => {
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
+  const dashboardToolbar = useDashboardToolbarOptional();
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog
   useEffect(() => {
@@ -386,8 +388,8 @@ export const Header = () => {
         </div>
       </div>
 
-      {/* ROW 2: Action toolbar */}
-      <div className="sticky top-9 z-50 hidden lg:flex h-10 items-center px-3 gap-2 bg-sidebar/95 border-b border-sidebar-border text-sidebar-foreground">
+      {/* ROW 2: Action toolbar (+ optional dashboard: theme, period, Net Profit) */}
+      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-sidebar/95 border-b border-sidebar-border text-sidebar-foreground">
         {/* Split button: New Sale */}
         <div className="flex items-center">
           <Button
@@ -447,7 +449,16 @@ export const Header = () => {
           Size Stock
         </Button>
 
-        <div className="flex-1" />
+        {dashboardToolbar?.toolbar ? (
+          <>
+            <div className="w-px h-4 bg-sidebar-border shrink-0" />
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+              {dashboardToolbar.toolbar}
+            </div>
+          </>
+        ) : null}
+
+        <div className="flex-1 min-w-[4rem]" />
 
         {/* Organization name */}
         <span className="text-xs font-semibold text-sidebar-foreground/80 truncate max-w-[150px]" title={currentOrganization?.name || ""}>

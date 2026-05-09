@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 
 const QUICK_OPEN_PAGES = [
   { path: "", label: "Dashboard", icon: "Home", category: "Main" },
@@ -185,12 +184,6 @@ export function WindowTabsBar() {
           </div>
           <ScrollBar orientation="horizontal" className="h-1" />
         </ScrollArea>
-
-        {dashboardToolbar?.toolbar ? (
-          <div className="flex items-center gap-1.5 shrink-0 pl-2 ml-1 border-l border-border/80 max-w-[min(100%,420px)] overflow-x-auto">
-            {dashboardToolbar.toolbar}
-          </div>
-        ) : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
