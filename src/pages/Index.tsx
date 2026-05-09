@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -7,7 +7,8 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useIsLgUp } from "@/hooks/use-mobile";
+import { useDashboardToolbar } from "@/contexts/DashboardToolbarContext";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import { OwnerDashboard } from "@/components/mobile/OwnerDashboard";
@@ -326,6 +327,57 @@ const DesktopDashboard = () => {
     refetchOnWindowFocus: false,
   });
 
+  const isLgUp = useIsLgUp();
+  const { setToolbar } = useDashboardToolbar();
+
+  const dashboardTabsToolbar = useMemo(
+    () => (
+      <>
+        <ThemeToggle />
+        <div className="flex items-center gap-1.5 bg-card border border-border rounded-md px-1.5 shadow-sm h-7 shrink-0">
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+            <SelectTrigger className="w-[76px] h-7 border-0 shadow-none text-[11px] bg-transparent text-foreground px-0.5 gap-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="yearly">Yearly</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+          {isLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+          ) : (
+            <span className="text-[11px] font-medium text-primary whitespace-nowrap max-w-[5.5rem] truncate">
+              {dateLabel}
+            </span>
+          )}
+        </div>
+        <Button
+          variant="default"
+          size="sm"
+          className="h-7 text-[11px] px-2 shrink-0"
+          onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+        >
+          <TrendingUp className="h-3.5 w-3.5 mr-1" />
+          Net Profit
+        </Button>
+      </>
+    ),
+    [dateRange, isLoading, dateLabel, startDate, endDate, navigate]
+  );
+
+  useEffect(() => {
+    if (!isLgUp) {
+      setToolbar(null);
+      return;
+    }
+    setToolbar(dashboardTabsToolbar);
+    return () => setToolbar(null);
+  }, [isLgUp, setToolbar, dashboardTabsToolbar]);
+
   // Extract metrics from single RPC result
   const salesData = { total: dashStats?.total_sales || 0, count: dashStats?.invoice_count || 0, soldQty: dashStats?.sold_qty || 0 };
   const purchaseData = { total: dashStats?.total_purchase || 0, count: dashStats?.purchase_count || 0, purchaseQty: dashStats?.purchase_qty || 0 };
@@ -611,7 +663,7 @@ const DesktopDashboard = () => {
     <>
     <TooltipProvider>
     <div 
-      className="w-full px-6 py-4 space-y-4 bg-background min-h-full"
+      className="w-full px-4 sm:px-6 py-2 sm:py-3 space-y-2 sm:space-y-3 bg-background min-h-full"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -623,72 +675,90 @@ const DesktopDashboard = () => {
         title="Quick Actions"
       />
 
-      {/* Controls: theme, load/refresh, range, net profit (quick actions stay in app header toolbar) */}
-      <div className="flex flex-wrap items-center justify-end gap-2 pb-3 border-b border-border">
-        <ThemeToggle />
-        <Button
-          variant={hasLoaded ? "outline" : "default"}
-          size="sm"
-          onClick={handleRefreshAll}
-          disabled={isRefreshing || isLoading}
-          className={cn(
-            "h-9 text-sm",
-            hasLoaded
-              ? "border-border bg-card hover:bg-muted"
-              : "bg-primary text-primary-foreground hover:bg-primary/90"
-          )}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
-          {hasLoaded ? "Refresh" : "Load Data"}
-        </Button>
-        <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1 shadow-elevated">
-          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-          <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-            <SelectTrigger className="w-[100px] h-9 border-0 shadow-none text-sm bg-transparent text-foreground">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-popover border-border">
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
-              <SelectItem value="yearly">Yearly</SelectItem>
-              <SelectItem value="all">All Time</SelectItem>
-            </SelectContent>
-          </Select>
-          {isLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-          ) : (
-            <span className="text-xs font-medium text-primary">{dateLabel}</span>
-          )}
+      {/* lg+: theme / month / Net Profit sit in window tabs bar; here: refresh + status only */}
+      {!isLgUp ? (
+        <div className="flex flex-wrap items-center justify-end gap-2 pb-2 border-b border-border">
+          <ThemeToggle />
+          <Button
+            variant={hasLoaded ? "outline" : "default"}
+            size="sm"
+            onClick={handleRefreshAll}
+            disabled={isRefreshing || isLoading}
+            className={cn(
+              "h-8 text-xs",
+              hasLoaded
+                ? "border-border bg-card hover:bg-muted"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
+            {hasLoaded ? "Refresh" : "Load Data"}
+          </Button>
+          <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+              <SelectTrigger className="w-[92px] h-7 border-0 shadow-none text-xs bg-transparent text-foreground">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border-border">
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="yearly">Yearly</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+              </SelectContent>
+            </Select>
+            {isLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            ) : (
+              <span className="text-xs font-medium text-primary">{dateLabel}</span>
+            )}
+          </div>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+            className="h-8 text-xs"
+          >
+            <TrendingUp className="h-3.5 w-3.5 mr-1" />
+            Net Profit
+          </Button>
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-          className="h-9 text-sm"
-        >
-          <TrendingUp className="h-3.5 w-3.5 mr-1" />
-          Net Profit
-        </Button>
-      </div>
-
-      {/* Last Updated Indicator */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        {hasLoaded ? (
-          <>
-            <div className={cn("h-2 w-2 rounded-full", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
-            <span>
-              {isLoading ? "Loading..." : `Last updated: ${format(lastUpdated, "HH:mm:ss")}`}
-            </span>
-          </>
-        ) : (
-          <>
-            <div className="h-2 w-2 rounded-full bg-muted-foreground" />
-            <span className="text-muted-foreground">
-              Click <strong>Load Data</strong> to view dashboard
-            </span>
-          </>
-        )}
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70">
+          <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
+            {hasLoaded ? (
+              <>
+                <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
+                <span className="truncate">
+                  {isLoading ? "Loading..." : `Last updated: ${format(lastUpdated, "HH:mm:ss")}`}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />
+                <span className="truncate">
+                  Click <strong>Load Data</strong> to view dashboard
+                </span>
+              </>
+            )}
+          </div>
+          <Button
+            variant={hasLoaded ? "outline" : "default"}
+            size="sm"
+            onClick={handleRefreshAll}
+            disabled={isRefreshing || isLoading}
+            className={cn(
+              "h-7 text-xs shrink-0",
+              hasLoaded
+                ? "border-border bg-card hover:bg-muted"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
+            {hasLoaded ? "Refresh" : "Load Data"}
+          </Button>
+        </div>
+      )}
 
       {/* Main Content — Full Width */}
       <div className="space-y-4">

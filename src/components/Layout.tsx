@@ -15,6 +15,7 @@ import { useEscapeBack } from "@/hooks/useEscapeBack";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { useLocation } from "react-router-dom";
+import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -54,6 +55,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
   return (
     <ChatProvider>
+      <DashboardToolbarProvider>
       <SidebarProvider defaultOpen={false}>
         {/* Mobile offline indicator */}
         <OfflineIndicator />
@@ -95,6 +97,7 @@ export const Layout = ({ children }: LayoutProps) => {
         <FloatingChatButton />
         <StatusBar />
       </SidebarProvider>
+      </DashboardToolbarProvider>
     </ChatProvider>
   );
 };

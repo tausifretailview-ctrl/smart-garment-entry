@@ -38,6 +38,21 @@ export function useIsTablet() {
   return isTablet;
 }
 
+/** Desktop layout breakpoint aligned with Tailwind `lg:` (window tabs bar visible). */
+export function useIsLgUp() {
+  const [isLgUp, setIsLgUp] = React.useState(false);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setIsLgUp(mql.matches);
+    onChange();
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return isLgUp;
+}
+
 export function useIsIPad() {
   const [isIPad, setIsIPad] = React.useState(false);
 

@@ -11,6 +11,7 @@ import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { StatusBar } from "@/components/StatusBar";
 import { useLocation } from "react-router-dom";
+import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -23,6 +24,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const isSalesInvoicePage = /\/sales-invoice\/?$/.test(location.pathname);
   return (
     <ChatProvider>
+      <DashboardToolbarProvider>
       <SidebarProvider defaultOpen={!isSalesInvoicePage}>
         {/* Mobile offline indicator */}
         <OfflineIndicator />
@@ -71,6 +73,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         <FloatingChatButton />
         <StatusBar />
       </SidebarProvider>
+      </DashboardToolbarProvider>
     </ChatProvider>
   );
 };
