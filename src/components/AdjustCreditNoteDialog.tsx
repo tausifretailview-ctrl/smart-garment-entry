@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,7 @@ export function AdjustCreditNoteDialog({
 }: AdjustCreditNoteDialogProps) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [adjustmentType, setAdjustmentType] = useState<"bill" | "refund" | "outstanding">("bill");
   const [selectedBillId, setSelectedBillId] = useState<string>("");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
@@ -122,7 +123,9 @@ export function AdjustCreditNoteDialog({
 
         const adjustAmount = Math.min(creditAmount, selectedBill.pending_amount);
         const newPaidAmount = (selectedBill.paid_amount || 0) + adjustAmount;
-        const newStatus = newPaidAmount >= selectedBill.net_amount ? "paid" : "partial";
+        const newStatus =
+          newPaidAmount >= (selectedBill.net_amount || 0) - 0.01 ? "paid" : newPaidAmount > 0.01 ? "partial" : "unpaid";
+        const cnRemainder = Math.max(0, creditAmount - adjustAmount);
 
         // Update the bill
         const { error: billError } = await supabase
@@ -141,6 +144,7 @@ export function AdjustCreditNoteDialog({
           .update({
             credit_status: "adjusted",
             linked_bill_id: selectedBillId,
+            credit_available_balance: cnRemainder,
           })
           .eq("id", purchaseReturnId);
 
@@ -337,6 +341,15 @@ export function AdjustCreditNoteDialog({
           description: `Credit note adjusted to supplier outstanding balance. ₹${creditAmount.toFixed(2)} deducted.`,
         });
       }
+
+      queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["floating-supplier-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["unpaid-supplier-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
 
       onOpenChange(false);
       onSuccess?.();

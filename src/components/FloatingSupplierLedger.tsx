@@ -19,6 +19,7 @@ import { Printer, MessageCircle, Calendar, FileText, IndianRupee, Phone } from "
 import { cn } from "@/lib/utils";
 import { useReactToPrint } from "react-to-print";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { fetchSupplierBalanceSnapshot } from "@/utils/supplierBalanceUtils";
 
 interface FloatingSupplierLedgerProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ interface FloatingSupplierLedgerProps {
 interface Transaction {
   id: string;
   date: string;
-  type: "bill" | "payment" | "credit_note";
+  type: "bill" | "payment" | "credit_note" | "purchase_return";
   reference: string;
   description: string;
   debit: number;
@@ -76,10 +77,21 @@ export const FloatingSupplierLedger = ({
         .select("*")
         .eq("supplier_id", supplierId)
         .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false")
         .order("bill_date", { ascending: true });
       if (billsError) throw billsError;
 
       const billIds = bills?.map((b) => b.id) || [];
+
+      const { data: purchaseReturnsData } = await supabase
+        .from("purchase_returns" as any)
+        .select(
+          "id, return_number, return_date, net_amount, credit_status, credit_note_id, linked_bill_id, credit_available_balance, created_at"
+        )
+        .eq("supplier_id", supplierId)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("return_date", { ascending: true });
 
       // Voucher payments (bill-linked)
       let vouchersData: any[] = [];
@@ -125,19 +137,45 @@ export const FloatingSupplierLedger = ({
         .eq('voucher_type', 'receipt').is('deleted_at', null)
         .order('voucher_date', { ascending: true });
 
-      return { bills: bills || [], vouchersData, openingPayments: openingPayments || [], creditNotes: creditNotes || [], supplierRefunds: supplierRefunds || [], billIds };
+      return {
+        bills: bills || [],
+        vouchersData,
+        openingPayments: openingPayments || [],
+        creditNotes: creditNotes || [],
+        supplierRefunds: supplierRefunds || [],
+        billIds,
+        purchaseReturnsData: purchaseReturnsData || [],
+      };
     },
-    enabled: isOpen && !!supplierId,
+    enabled: isOpen && !!supplierId && !!organizationId,
+  });
+
+  const { data: balanceSnapshot } = useQuery({
+    queryKey: ["floating-supplier-balance-snap", organizationId, supplierId],
+    queryFn: () => fetchSupplierBalanceSnapshot(supabase, organizationId, supplierId),
+    enabled: isOpen && !!supplierId && !!organizationId,
   });
 
   // Build transactions (same logic as SupplierLedger)
   const transactions = useMemo<Transaction[]>(() => {
     if (!ledgerData || !supplier) return [];
 
-    const { bills, vouchersData, openingPayments, creditNotes, supplierRefunds, billIds } = ledgerData;
+    const { bills, vouchersData, openingPayments, creditNotes, supplierRefunds, billIds, purchaseReturnsData } =
+      ledgerData;
     const openingBalance = supplier.opening_balance || 0;
 
-    // voucher payments by bill
+    const creditNoteVoucherIds = new Set((creditNotes || []).map((cn: any) => cn.id));
+    const unreflectedReturns = (purchaseReturnsData || []).filter(
+      (pr: any) =>
+        (!pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)) &&
+        ["adjusted", "adjusted_outstanding", "refunded"].includes(pr.credit_status)
+    );
+    const pendingReturns = (purchaseReturnsData || []).filter(
+      (pr: any) =>
+        (!pr.credit_note_id || !creditNoteVoucherIds.has(pr.credit_note_id)) &&
+        (pr.credit_status === "pending" || !pr.credit_status)
+    );
+
     const voucherPaymentsByBillId: Record<string, number> = {};
     vouchersData.forEach((v: any) => {
       if (v.reference_id) {
@@ -145,9 +183,16 @@ export const FloatingSupplierLedger = ({
       }
     });
 
-    const allVouchers = [...vouchersData, ...openingPayments];
+    const billRefs = (bills || [])
+      .map((b: any) => b.software_bill_no || b.supplier_invoice_no)
+      .filter(Boolean);
+    const trueOpeningPayments = (openingPayments || []).filter(
+      (v: any) => !billRefs.some((r: string) => (v.description || "").includes(r))
+    );
+    const allVouchers = [...vouchersData, ...trueOpeningPayments];
+
     const allTransactions: Transaction[] = [];
-    let runningBalance = Math.round(openingBalance);
+    let runningBalance = openingBalance;
 
     if (openingBalance !== 0) {
       allTransactions.push({
@@ -157,7 +202,7 @@ export const FloatingSupplierLedger = ({
         reference: "Opening",
         description: "Opening Balance (Carried Forward)",
         debit: 0,
-        credit: runningBalance > 0 ? runningBalance : 0,
+        credit: openingBalance,
         balance: runningBalance,
       });
     }
@@ -167,12 +212,22 @@ export const FloatingSupplierLedger = ({
       ...allVouchers.map((v: any) => ({ date: v.voucher_date, type: "payment" as const, data: v })),
       ...(creditNotes || []).map((cn: any) => ({ date: cn.voucher_date, type: "credit_note" as const, data: cn })),
       ...(supplierRefunds || []).map((r: any) => ({ date: r.voucher_date, type: "refund_received" as const, data: r })),
+      ...(unreflectedReturns || []).map((pr: any) => ({
+        date: pr.return_date,
+        type: "purchase_return" as const,
+        data: pr,
+      })),
+      ...(pendingReturns || []).map((pr: any) => ({
+        date: pr.return_date,
+        type: "purchase_return_pending" as const,
+        data: pr,
+      })),
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     combined.forEach((item) => {
       if (item.type === "bill") {
         const bill = item.data as any;
-        runningBalance = Math.round(runningBalance + bill.net_amount);
+        runningBalance += bill.net_amount;
         allTransactions.push({
           id: bill.id,
           date: bill.bill_date,
@@ -186,9 +241,15 @@ export const FloatingSupplierLedger = ({
 
         const totalPaidOnBill = bill.paid_amount || 0;
         const voucherPmts = voucherPaymentsByBillId[bill.id] || 0;
-        const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPmts);
+        const billRef = bill.software_bill_no || bill.supplier_invoice_no || "";
+        const legacyVoucherPayments = billRef
+          ? (openingPayments || [])
+              .filter((v: any) => (v.description || "").includes(billRef))
+              .reduce((s: number, v: any) => s + (Number(v.total_amount) || 0), 0)
+          : 0;
+        const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPmts - legacyVoucherPayments);
         if (paidAtPurchase > 0) {
-          runningBalance = Math.round(runningBalance - paidAtPurchase);
+          runningBalance -= paidAtPurchase;
           allTransactions.push({
             id: `${bill.id}-payment-at-purchase`,
             date: bill.bill_date,
@@ -202,20 +263,30 @@ export const FloatingSupplierLedger = ({
         }
       } else if (item.type === "credit_note") {
         const cn = item.data as any;
-        runningBalance = Math.round(runningBalance - cn.total_amount);
+        const prLinked = (purchaseReturnsData || []).filter(
+          (pr: any) =>
+            pr.credit_note_id === cn.id && pr.credit_status === "adjusted" && pr.linked_bill_id
+        );
+        let cnEffect = Number(cn.total_amount) || 0;
+        if (prLinked.length > 0) {
+          if (prLinked.every((pr: any) => pr.credit_available_balance != null))
+            cnEffect = prLinked.reduce((s, pr: any) => s + (Number(pr.credit_available_balance) || 0), 0);
+          else cnEffect = 0;
+        }
+        runningBalance -= cnEffect;
         allTransactions.push({
           id: cn.id,
           date: cn.voucher_date,
           type: "credit_note",
           reference: cn.voucher_number,
           description: cn.description || "Supplier Credit Note (Purchase Return)",
-          debit: cn.total_amount,
+          debit: cnEffect,
           credit: 0,
           balance: runningBalance,
         });
       } else if (item.type === "refund_received") {
         const r = item.data as any;
-        runningBalance = Math.round(runningBalance - r.total_amount);
+        runningBalance -= r.total_amount;
         allTransactions.push({
           id: r.id,
           date: r.voucher_date,
@@ -226,10 +297,43 @@ export const FloatingSupplierLedger = ({
           credit: 0,
           balance: runningBalance,
         });
+      } else if (item.type === "purchase_return") {
+        const pr = item.data as any;
+        const amount = Number(pr.net_amount) || 0;
+        runningBalance -= amount;
+        let description = `Purchase Return - ${pr.return_number}`;
+        if (pr.credit_status === "adjusted_outstanding") description += ` (Adj. Outstanding)`;
+        else if (pr.credit_status === "adjusted") description += ` (Adj. Against Bill)`;
+        else if (pr.credit_status === "refunded") description += ` (Refunded)`;
+        else description += ` (Pending)`;
+        allTransactions.push({
+          id: `pr-${pr.id}`,
+          date: pr.return_date,
+          type: "credit_note",
+          reference: pr.return_number,
+          description,
+          debit: amount,
+          credit: 0,
+          balance: runningBalance,
+        });
+      } else if (item.type === "purchase_return_pending") {
+        const pr = item.data as any;
+        allTransactions.push({
+          id: `pr-pending-${pr.id}`,
+          date: pr.return_date,
+          type: "purchase_return",
+          reference: pr.return_number,
+          description: `Purchase Return - ${pr.return_number} (Pending — not adjusted)`,
+          debit: 0,
+          credit: 0,
+          balance: runningBalance,
+        });
       } else {
         const voucher = item.data as any;
-        runningBalance = Math.round(runningBalance - voucher.total_amount);
+        runningBalance -= voucher.total_amount;
         const isOpeningBalancePayment = !billIds.includes(voucher.reference_id);
+        const relatedBill = !isOpeningBalancePayment ? bills?.find((b: any) => b.id === voucher.reference_id) : null;
+        const billRef = relatedBill ? ` - for ${relatedBill.supplier_invoice_no || relatedBill.software_bill_no}` : "";
         allTransactions.push({
           id: voucher.id,
           date: voucher.voucher_date,
@@ -237,7 +341,7 @@ export const FloatingSupplierLedger = ({
           reference: voucher.voucher_number,
           description: isOpeningBalancePayment
             ? voucher.description || "Opening balance payment"
-            : voucher.description || "Payment made",
+            : (voucher.description || "Payment made") + billRef,
           debit: voucher.total_amount,
           credit: 0,
           balance: runningBalance,
@@ -253,9 +357,10 @@ export const FloatingSupplierLedger = ({
     const totalDebit = Math.round(transactions.reduce((sum, t) => sum + t.debit, 0));
     const totalCredit = Math.round(transactions.reduce((sum, t) => sum + t.credit, 0));
     const totalCreditNoteAdjust = Math.round(transactions.filter((t) => t.type === "credit_note").reduce((sum, t) => sum + t.debit, 0));
-    const finalBalance = transactions[transactions.length - 1]?.balance || 0;
+    const timelineBalance = transactions[transactions.length - 1]?.balance ?? 0;
+    const finalBalance = balanceSnapshot?.balance ?? timelineBalance;
     return { totalDebit, totalCredit, totalCreditNoteAdjust, finalBalance };
-  }, [transactions]);
+  }, [transactions, balanceSnapshot?.balance]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,

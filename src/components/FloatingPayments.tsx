@@ -30,6 +30,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
+import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
@@ -607,14 +608,21 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const { data: suppliersWithBalance } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
-      const { data: allSuppliers } = await supabase.from("suppliers").select("id, supplier_name, opening_balance, phone").eq("organization_id", organizationId).is("deleted_at", null).order("supplier_name");
-      const { data: allBills } = await supabase.from("purchase_bills").select("supplier_id, net_amount, paid_amount").eq("organization_id", organizationId).is("deleted_at", null);
-      const balances = new Map<string, number>();
-      allBills?.forEach((b: any) => {
-        if (b.supplier_id) balances.set(b.supplier_id, (balances.get(b.supplier_id) || 0) + Math.max(0, (b.net_amount || 0) - (b.paid_amount || 0)));
-      });
-      return allSuppliers?.filter((s: any) => ((s.opening_balance || 0) + (balances.get(s.id) || 0)) > 0)
-        .map((s: any) => ({ ...s, outstandingBalance: (s.opening_balance || 0) + (balances.get(s.id) || 0) })) || [];
+      const { data: allSuppliers } = await supabase
+        .from("suppliers")
+        .select("id, supplier_name, opening_balance, phone")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("supplier_name");
+      const balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
+      return (
+        allSuppliers
+          ?.filter((s: any) => (balanceMap.get(s.id)?.balance ?? 0) > 0.01)
+          .map((s: any) => ({
+            ...s,
+            outstandingBalance: balanceMap.get(s.id)?.balance ?? 0,
+          })) || []
+      );
     },
     enabled: !!organizationId,
   });
@@ -663,7 +671,8 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
           const newPaid = (bill.paid_amount || 0) + amountToApply;
-          const newStatus = newPaid >= (bill.net_amount || 0) ? 'completed' : 'partial';
+          const newStatus =
+            newPaid >= (bill.net_amount || 0) - 0.01 ? "paid" : newPaid > 0.01 ? "partial" : "unpaid";
           await supabase.from('purchase_bills').update({ paid_amount: newPaid, payment_status: newStatus }).eq('id', billId);
           processedBills.push({ bill, amountApplied: amountToApply });
           remainingAmount -= amountToApply;
@@ -700,6 +709,8 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
       resetForm();
     },

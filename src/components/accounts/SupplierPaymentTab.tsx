@@ -23,6 +23,7 @@ import {
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { fetchSupplierBalanceSnapshot, fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
 
@@ -66,93 +67,32 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
   const { data: suppliersWithBalance } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
-      const { data: allSuppliers, error: suppError } = await supabase.from("suppliers").select("*").eq("organization_id", organizationId).is("deleted_at", null).order("supplier_name");
-      if (suppError) throw suppError;
-      const { data: allBills, error: billsError } = await supabase.from("purchase_bills").select("supplier_id, net_amount, paid_amount").eq("organization_id", organizationId).is("deleted_at", null);
-      if (billsError) throw billsError;
-
-      // Fetch credit note vouchers for suppliers to subtract from outstanding
-      const { data: creditNoteVouchers, error: cnError } = await supabase.from("voucher_entries")
-        .select("reference_id, total_amount")
+      const { data: allSuppliers, error: suppError } = await supabase
+        .from("suppliers")
+        .select("*")
         .eq("organization_id", organizationId)
-        .eq("reference_type", "supplier")
-        .eq("voucher_type", "credit_note")
-        .is("deleted_at", null);
-      if (cnError) throw cnError;
-
-      const supplierBalances = new Map<string, number>();
-      allBills?.forEach((bill: any) => {
-        if (bill.supplier_id) {
-          const outstanding = Math.max(0, (bill.net_amount || 0) - (bill.paid_amount || 0));
-          supplierBalances.set(bill.supplier_id, (supplierBalances.get(bill.supplier_id) || 0) + outstanding);
-        }
-      });
-
-      // Subtract credit note amounts from supplier balances
-      const creditNoteAmounts = new Map<string, number>();
-      creditNoteVouchers?.forEach((v: any) => {
-        if (v.reference_id) {
-          creditNoteAmounts.set(v.reference_id, (creditNoteAmounts.get(v.reference_id) || 0) + (v.total_amount || 0));
-        }
-      });
-
-      return allSuppliers?.filter((s: any) => {
-        const ob = s.opening_balance || 0;
-        const bb = supplierBalances.get(s.id) || 0;
-        const cn = creditNoteAmounts.get(s.id) || 0;
-        return (ob + bb - cn) > 0;
-      }).map((s: any) => ({
-        ...s,
-        outstandingBalance: (s.opening_balance || 0) + (supplierBalances.get(s.id) || 0) - (creditNoteAmounts.get(s.id) || 0),
-      })) || [];
+        .is("deleted_at", null)
+        .order("supplier_name");
+      if (suppError) throw suppError;
+      const balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
+      return (
+        allSuppliers?.filter((s: any) => (balanceMap.get(s.id)?.balance ?? 0) > 0.01).map((s: any) => ({
+          ...s,
+          outstandingBalance: balanceMap.get(s.id)?.balance ?? 0,
+        })) || []
+      );
     },
     enabled: !!organizationId,
   });
 
   // Supplier balance
   const { data: supplierBalance } = useQuery({
-    queryKey: ["supplier-balance", referenceId],
+    queryKey: ["supplier-balance", organizationId, referenceId],
     queryFn: async () => {
-      const { data: bills } = await supabase.from("purchase_bills").select("id, net_amount, paid_amount").eq("supplier_id", referenceId).is("deleted_at", null);
-      const totalBills = bills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-      const totalPaidOnBills = bills?.reduce((sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
-
-      // Fetch voucher payments for this supplier
-      const { data: voucherPmts } = await supabase.from("voucher_entries")
-        .select("total_amount")
-        .eq("reference_type", "supplier")
-        .eq("reference_id", referenceId)
-        .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
-        .is("deleted_at", null);
-      const totalVoucherPaid = voucherPmts?.reduce((s, v) => s + (Number(v.total_amount) || 0), 0) || 0;
-
-      // Also fetch bill-linked voucher payments
-      const billIds = bills?.map(b => b.id) || [];
-      let billLinkedVoucherPaid = 0;
-      if (billIds.length > 0) {
-        const { data: billVouchers } = await supabase.from("voucher_entries")
-          .select("total_amount")
-          .eq("reference_type", "supplier")
-          .in("reference_id", billIds)
-          .or("voucher_type.eq.payment,voucher_type.eq.PAYMENT")
-          .is("deleted_at", null);
-        billLinkedVoucherPaid = billVouchers?.reduce((s, v) => s + (Number(v.total_amount) || 0), 0) || 0;
-      }
-      const totalVoucherAll = totalVoucherPaid + billLinkedVoucherPaid;
-      const totalPaid = Math.max(totalPaidOnBills, totalVoucherAll);
-
-      // Subtract credit note vouchers for this supplier
-      const { data: cnVouchers } = await supabase.from("voucher_entries")
-        .select("total_amount")
-        .eq("reference_type", "supplier")
-        .eq("reference_id", referenceId)
-        .eq("voucher_type", "credit_note")
-        .is("deleted_at", null);
-      const totalCN = cnVouchers?.reduce((sum, v) => sum + (v.total_amount || 0), 0) || 0;
-
-      return totalBills - totalPaid - totalCN;
+      const snap = await fetchSupplierBalanceSnapshot(supabase, organizationId, referenceId);
+      return snap.balance;
     },
-    enabled: !!referenceId,
+    enabled: !!referenceId && !!organizationId,
   });
 
   // Supplier bills
@@ -433,7 +373,9 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
       resetForm();
     },
     onError: (error: any) => {
@@ -510,6 +452,9 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     },
     onError: (error: any) => toast.error(error.message),

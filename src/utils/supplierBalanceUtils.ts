@@ -1,0 +1,272 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/**
+ * Single source of truth for supplier (payables) balance used by Supplier Ledger,
+ * Accounts supplier payment tab, and floating supplier payment.
+ *
+ * ## CN adjusted against bill (double-count fix)
+ * When "Adjust Credit Note" applies a return to a bill, `purchase_bills.paid_amount`
+ * increases AND a supplier-level `credit_note` voucher remains. Counting both would
+ * over-reduce payables. We subtract CN voucher amounts linked to `purchase_returns` rows
+ * with `credit_status = 'adjusted'` and `linked_bill_id` set (those amounts are already
+ * reflected in bill paid totals). If `credit_available_balance` is set on the return,
+ * only the portion already applied to the bill (`voucher_amount - remainder`) is netted.
+ *
+ * ## Refunds from supplier
+ * `voucher_type = 'receipt'` with `reference_type = 'supplier'` reduces net payable
+ * (cash/bank refund) and must be included in the list balance to match ledger running total.
+ */
+
+export type SupplierBalanceSnapshot = {
+  supplierId: string;
+  openingBalance: number;
+  totalPurchases: number;
+  totalPaid: number;
+  totalCreditNotesGross: number;
+  /** CN voucher amounts already netted into bill paid via Adjust CN → bill. */
+  creditNotesAppliedToBills: number;
+  totalCreditNotesNet: number;
+  unreflectedReturns: number;
+  refundsReceived: number;
+  /** Positive = amount owed to supplier (payable). */
+  balance: number;
+};
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+type VoucherPaymentRow = { reference_id: string | null; total_amount: number | null; description: string | null };
+type CreditNoteRow = { id: string; reference_id: string | null; total_amount: number | null };
+type PurchaseReturnRow = {
+  supplier_id: string;
+  net_amount: number | null;
+  credit_note_id: string | null;
+  credit_status: string | null;
+  linked_bill_id: string | null;
+  /** Remaining CN not yet applied to a bill; NULL = legacy “full apply” to linked bill. */
+  credit_available_balance: number | null;
+};
+type BillRow = {
+  id: string;
+  supplier_id: string | null;
+  net_amount: number | null;
+  paid_amount: number | null;
+  software_bill_no: string | null;
+  supplier_invoice_no: string | null;
+};
+
+function computeSnapshotForSupplier(
+  supplierId: string,
+  openingBalance: number,
+  purchaseBillsData: BillRow[],
+  voucherPayments: VoucherPaymentRow[],
+  creditNotes: CreditNoteRow[],
+  allPurchaseReturns: PurchaseReturnRow[],
+  refundsBySupplier: number
+): SupplierBalanceSnapshot {
+  const supplierBills = purchaseBillsData.filter((b) => b.supplier_id === supplierId);
+
+  const supplierCreditNotesGross = (creditNotes || [])
+    .filter((cn) => cn.reference_id === supplierId)
+    .reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0);
+
+  const cnById = new Map((creditNotes || []).map((cn) => [cn.id, cn]));
+  let creditNotesAppliedToBills = 0;
+  for (const pr of allPurchaseReturns || []) {
+    if (pr.supplier_id !== supplierId) continue;
+    if (pr.credit_status !== "adjusted" || !pr.linked_bill_id || !pr.credit_note_id) continue;
+    const v = cnById.get(pr.credit_note_id);
+    if (!v) continue;
+    const vn = Number(v.total_amount || 0);
+    const rem = pr.credit_available_balance;
+    if (rem == null || rem === undefined) creditNotesAppliedToBills += vn;
+    else creditNotesAppliedToBills += Math.max(0, vn - Number(rem));
+  }
+  creditNotesAppliedToBills = roundMoney(creditNotesAppliedToBills);
+  const totalCreditNotesNet = roundMoney(Math.max(0, supplierCreditNotesGross - creditNotesAppliedToBills));
+
+  const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn) => cn.id));
+  let unreflectedReturns = 0;
+  for (const pr of allPurchaseReturns || []) {
+    if (pr.supplier_id !== supplierId) continue;
+    const notLinked = !pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id);
+    const affectsBalance = ["adjusted", "adjusted_outstanding", "refunded"].includes(String(pr.credit_status || ""));
+    if (notLinked && affectsBalance) {
+      unreflectedReturns += Number(pr.net_amount) || 0;
+    }
+  }
+  unreflectedReturns = roundMoney(unreflectedReturns);
+
+  const supplierBillIds = supplierBills.map((b) => b.id);
+  const perBillVoucherMap = new Map<string, number>();
+  voucherPayments?.forEach((v: VoucherPaymentRow) => {
+    if (v.reference_id && supplierBillIds.includes(v.reference_id)) {
+      perBillVoucherMap.set(
+        v.reference_id,
+        (perBillVoucherMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
+      );
+    }
+  });
+
+  const totalPurchases = roundMoney(
+    supplierBills.reduce((sum: number, b: BillRow) => sum + (Number(b.net_amount) || 0), 0)
+  );
+
+  const totalPaidFromBills = roundMoney(
+    supplierBills.reduce((sum: number, b: BillRow) => {
+      const voucherPaid = perBillVoucherMap.get(b.id) || 0;
+      return sum + (voucherPaid > 0 ? voucherPaid : Number(b.paid_amount) || 0);
+    }, 0)
+  );
+
+  const billRefs = supplierBills
+    .map((b: BillRow) => b.software_bill_no || b.supplier_invoice_no)
+    .filter(Boolean) as string[];
+
+  const supplierLevelPayments = roundMoney(
+    (voucherPayments || [])
+      .filter((v: VoucherPaymentRow) => {
+        if (v.reference_id !== supplierId) return false;
+        const desc = (v.description || "") as string;
+        return !billRefs.some((r: string) => desc.includes(r));
+      })
+      .reduce((sum: number, v: VoucherPaymentRow) => sum + (Number(v.total_amount) || 0), 0)
+  );
+
+  const totalPaid = roundMoney(totalPaidFromBills + supplierLevelPayments);
+  const refundsReceived = roundMoney(refundsBySupplier || 0);
+
+  const balance = roundMoney(
+    openingBalance + totalPurchases - totalPaid - totalCreditNotesNet - unreflectedReturns - refundsReceived
+  );
+
+  return {
+    supplierId,
+    openingBalance: roundMoney(openingBalance),
+    totalPurchases,
+    totalPaid,
+    totalCreditNotesGross: roundMoney(supplierCreditNotesGross),
+    creditNotesAppliedToBills,
+    totalCreditNotesNet,
+    unreflectedReturns,
+    refundsReceived,
+    balance,
+  };
+}
+
+/** Fetch balance snapshots for all non-deleted suppliers in an organization (one round-trip batch). */
+export async function fetchSupplierBalanceSnapshotsForOrg(
+  client: SupabaseClient,
+  organizationId: string
+): Promise<Map<string, SupplierBalanceSnapshot>> {
+  const { data: suppliersData, error: suppliersError } = await client
+    .from("suppliers")
+    .select("id, opening_balance")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+
+  if (suppliersError) throw suppliersError;
+
+  const { data: purchaseBillsData, error: billsError } = await client
+    .from("purchase_bills")
+    .select("id, supplier_id, net_amount, paid_amount, software_bill_no, supplier_invoice_no")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .or("is_cancelled.is.null,is_cancelled.eq.false");
+
+  if (billsError) throw billsError;
+
+  const { data: voucherPayments, error: voucherError } = await client
+    .from("voucher_entries")
+    .select("reference_id, total_amount, description")
+    .eq("organization_id", organizationId)
+    .eq("reference_type", "supplier")
+    .eq("voucher_type", "payment")
+    .is("deleted_at", null);
+
+  if (voucherError) throw voucherError;
+
+  const { data: creditNotes, error: creditNoteError } = await client
+    .from("voucher_entries")
+    .select("id, reference_id, total_amount")
+    .eq("organization_id", organizationId)
+    .eq("reference_type", "supplier")
+    .eq("voucher_type", "credit_note")
+    .is("deleted_at", null);
+
+  if (creditNoteError) throw creditNoteError;
+
+  const { data: allPurchaseReturns, error: prError } = await (client as any)
+    .from("purchase_returns")
+    .select("supplier_id, net_amount, credit_note_id, credit_status, linked_bill_id, credit_available_balance")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+
+  if (prError) throw prError;
+
+  const { data: supplierReceipts, error: rcError } = await client
+    .from("voucher_entries")
+    .select("reference_id, total_amount")
+    .eq("organization_id", organizationId)
+    .eq("reference_type", "supplier")
+    .eq("voucher_type", "receipt")
+    .is("deleted_at", null);
+
+  if (rcError) throw rcError;
+
+  const refundsBySupplier = new Map<string, number>();
+  (supplierReceipts || []).forEach((r: { reference_id: string | null; total_amount: number | null }) => {
+    if (!r.reference_id) return;
+    refundsBySupplier.set(
+      r.reference_id,
+      (refundsBySupplier.get(r.reference_id) || 0) + (Number(r.total_amount) || 0)
+    );
+  });
+
+  const bills = (purchaseBillsData || []) as BillRow[];
+  const payments = (voucherPayments || []) as VoucherPaymentRow[];
+  const cns = (creditNotes || []) as CreditNoteRow[];
+  const prs = (allPurchaseReturns || []) as unknown as PurchaseReturnRow[];
+
+  const map = new Map<string, SupplierBalanceSnapshot>();
+  for (const supplier of suppliersData || []) {
+    const id = (supplier as { id: string }).id;
+    const ob = Number((supplier as { opening_balance?: number }).opening_balance || 0);
+    const snap = computeSnapshotForSupplier(
+      id,
+      ob,
+      bills,
+      payments,
+      cns,
+      prs,
+      refundsBySupplier.get(id) || 0
+    );
+    map.set(id, snap);
+  }
+
+  return map;
+}
+
+/** One supplier (e.g. payment form header). */
+export async function fetchSupplierBalanceSnapshot(
+  client: SupabaseClient,
+  organizationId: string,
+  supplierId: string
+): Promise<SupplierBalanceSnapshot> {
+  const map = await fetchSupplierBalanceSnapshotsForOrg(client, organizationId);
+  const snap = map.get(supplierId);
+  if (snap) return snap;
+  return {
+    supplierId,
+    openingBalance: 0,
+    totalPurchases: 0,
+    totalPaid: 0,
+    totalCreditNotesGross: 0,
+    creditNotesAppliedToBills: 0,
+    totalCreditNotesNet: 0,
+    unreflectedReturns: 0,
+    refundsReceived: 0,
+    balance: 0,
+  };
+}

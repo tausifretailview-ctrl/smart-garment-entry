@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -55,12 +55,14 @@ interface PurchaseReturn {
   credit_note_id?: string;
   credit_status?: string; // 'pending', 'adjusted', 'refunded'
   linked_bill_id?: string;
+  credit_available_balance?: number | null;
 }
 
 const PurchaseReturnDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -118,8 +120,8 @@ const PurchaseReturnDashboard = () => {
 
       const runReturnsQuery = async (withDcColumn: boolean) => {
         const selectFields = withDcColumn
-          ? "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, is_dc, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id"
-          : "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id";
+          ? "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, is_dc, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id, credit_available_balance"
+          : "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id, credit_available_balance";
 
         let query = supabase
           .from("purchase_returns" as any)
@@ -1118,12 +1120,24 @@ const PurchaseReturnDashboard = () => {
           purchaseReturnId={selectedReturnForAdjust.id}
           creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
           creditNoteNumber={selectedReturnForAdjust.return_number || ""}
-          creditAmount={selectedReturnForAdjust.net_amount}
+          creditAmount={
+            selectedReturnForAdjust.credit_available_balance != null &&
+            !Number.isNaN(Number(selectedReturnForAdjust.credit_available_balance))
+              ? Number(selectedReturnForAdjust.credit_available_balance)
+              : selectedReturnForAdjust.net_amount
+          }
           supplierId={selectedReturnForAdjust.supplier_id || ""}
           supplierName={selectedReturnForAdjust.supplier_name}
           onSuccess={() => {
             fetchReturns();
             setSelectedReturnForAdjust(null);
+            queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
+            queryClient.invalidateQueries({ queryKey: ["supplier-transactions"] });
+            queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+            queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+            queryClient.invalidateQueries({ queryKey: ["floating-supplier-ledger"] });
+            queryClient.invalidateQueries({ queryKey: ["floating-supplier-balance-snap"] });
+            queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
           }}
         />
       )}

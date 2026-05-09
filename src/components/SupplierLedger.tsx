@@ -6,14 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface SupplierLedgerProps {
   organizationId: string;
@@ -54,7 +56,6 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   const { data: suppliers, isLoading } = useQuery({
     queryKey: ["supplier-ledger", organizationId],
     queryFn: async () => {
-      // Fetch all suppliers
       const { data: suppliersData, error: suppliersError } = await supabase
         .from("suppliers")
         .select("*")
@@ -64,117 +65,20 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (suppliersError) throw suppliersError;
 
-      // Fetch all purchase bills
-      const { data: purchaseBillsData, error: billsError } = await supabase
-        .from("purchase_bills")
-        .select("id, supplier_id, net_amount, paid_amount, software_bill_no, supplier_invoice_no")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .or("is_cancelled.is.null,is_cancelled.eq.false");
+      const balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
 
-      if (billsError) throw billsError;
-
-      // Fetch voucher payments to suppliers
-      const { data: voucherPayments, error: voucherError } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, total_amount, description")
-        .eq("organization_id", organizationId)
-        .eq("reference_type", "supplier")
-        .eq("voucher_type", "payment")
-        .is("deleted_at", null);
-
-      if (voucherError) throw voucherError;
-
-      // Fetch credit notes (from purchase returns)
-      const { data: creditNotes, error: creditNoteError } = await supabase
-        .from("voucher_entries")
-        .select("id, reference_id, total_amount")
-        .eq("organization_id", organizationId)
-        .eq("reference_type", "supplier")
-        .eq("voucher_type", "credit_note")
-        .is("deleted_at", null);
-
-      if (creditNoteError) throw creditNoteError;
-
-      // Create a map of supplier ID -> total voucher payments
-      const supplierVoucherPayments = new Map<string, number>();
-      voucherPayments?.forEach((v: any) => {
-        const current = supplierVoucherPayments.get(v.reference_id) || 0;
-        supplierVoucherPayments.set(v.reference_id, current + (Number(v.total_amount) || 0));
-      });
-
-      // Create a map of supplier ID -> total credit notes
-      const supplierCreditNotes = new Map<string, number>();
-      creditNotes?.forEach((cn: any) => {
-        const current = supplierCreditNotes.get(cn.reference_id) || 0;
-        supplierCreditNotes.set(cn.reference_id, current + (Number(cn.total_amount) || 0));
-      });
-
-      // Fetch purchase returns without linked credit note vouchers for balance correction
-      const { data: allPurchaseReturns } = await supabase
-        .from("purchase_returns" as any)
-        .select("supplier_id, net_amount, credit_note_id, credit_status")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null);
-
-      const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn: any) => cn.id));
-      const unreflectedReturnsBySupplier = new Map<string, number>();
-      (allPurchaseReturns || []).forEach((pr: any) => {
-        const notLinked = !pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id);
-        const affectsBalance = ['adjusted', 'adjusted_outstanding', 'refunded'].includes(pr.credit_status);
-        if (notLinked && affectsBalance) {
-          const prev = unreflectedReturnsBySupplier.get(pr.supplier_id) || 0;
-          unreflectedReturnsBySupplier.set(pr.supplier_id, prev + (Number(pr.net_amount) || 0));
-        }
-      });
-
-      // Calculate totals per supplier
-      const supplierTotals = suppliersData.map((supplier: any) => {
-        const supplierBills = purchaseBillsData?.filter((b: any) => b.supplier_id === supplier.id) || [];
-        const totalPurchases = supplierBills.reduce((sum: number, b: any) => sum + (b.net_amount || 0), 0);
-        const totalPaidOnBills = supplierBills.reduce((sum: number, b: any) => sum + (b.paid_amount || 0), 0);
-        const voucherPaymentTotal = supplierVoucherPayments.get(supplier.id) || 0;
-        const supplierBillIds = supplierBills.map((b: any) => b.id);
-        const perBillVoucherMap = new Map<string, number>();
-        voucherPayments?.forEach((v: any) => {
-          if (supplierBillIds.includes(v.reference_id)) {
-            perBillVoucherMap.set(v.reference_id, (perBillVoucherMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-          }
-        });
-        const totalPaidFromBills = supplierBills.reduce((sum: number, b: any) => {
-          const voucherPaid = perBillVoucherMap.get(b.id) || 0;
-          return sum + (voucherPaid > 0 ? voucherPaid : (b.paid_amount || 0));
-        }, 0);
-        // Legacy vouchers reference supplier_id directly. To avoid double-counting,
-        // exclude any whose description names a bill we've already settled via paid_amount above.
-        const billRefs = supplierBills
-          .map((b: any) => b.software_bill_no || b.supplier_invoice_no)
-          .filter(Boolean) as string[];
-        const supplierLevelPayments = (voucherPayments || [])
-          .filter((v: any) => {
-            if (v.reference_id !== supplier.id) return false;
-            const desc = (v.description || '') as string;
-            // Skip vouchers that describe an existing bill — those are already in paid_amount
-            return !billRefs.some((r) => desc.includes(r));
-          })
-          .reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0);
-        const totalPaid = totalPaidFromBills + supplierLevelPayments;
-        const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
-        const unreflectedReturns = unreflectedReturnsBySupplier.get(supplier.id) || 0;
-        const openingBalance = supplier.opening_balance || 0;
-        const balance = openingBalance + totalPurchases - totalPaid - totalCreditNotes - unreflectedReturns;
-
+      return (suppliersData || []).map((supplier: any) => {
+        const snap = balanceMap.get(supplier.id);
+        const openingBalance = snap?.openingBalance ?? Number(supplier.opening_balance) || 0;
         return {
           ...supplier,
           opening_balance: openingBalance,
-          totalPurchases,
-          totalPaid,
-          totalCreditNotes: totalCreditNotes + unreflectedReturns,
-          balance,
+          totalPurchases: snap?.totalPurchases ?? 0,
+          totalPaid: snap?.totalPaid ?? 0,
+          totalCreditNotes: (snap?.totalCreditNotesNet ?? 0) + (snap?.unreflectedReturns ?? 0),
+          balance: snap?.balance ?? openingBalance,
         };
       });
-
-      return supplierTotals;
     },
     enabled: !!organizationId,
   });
@@ -282,7 +186,9 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       // Fetch purchase returns (direct, as fallback/supplement to credit_note vouchers)
       const { data: purchaseReturnsData } = await supabase
         .from("purchase_returns" as any)
-        .select("id, return_number, return_date, net_amount, credit_status, credit_note_id, created_at")
+        .select(
+          "id, return_number, return_date, net_amount, credit_status, credit_note_id, linked_bill_id, credit_available_balance, created_at"
+        )
         .eq("supplier_id", selectedSupplier.id)
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
@@ -426,15 +332,30 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           }
         } else if (item.type === 'credit_note') {
           const creditNote = item.data as any;
-          runningBalance -= creditNote.total_amount;
-          
+          const prLinked = (purchaseReturnsData || []).filter(
+            (pr: any) =>
+              pr.credit_note_id === creditNote.id &&
+              pr.credit_status === 'adjusted' &&
+              pr.linked_bill_id
+          );
+          let cnEffect = Number(creditNote.total_amount) || 0;
+          if (prLinked.length > 0) {
+            if (prLinked.every((pr: any) => pr.credit_available_balance != null))
+              cnEffect = prLinked.reduce(
+                (s, pr: any) => s + (Number(pr.credit_available_balance) || 0),
+                0
+              );
+            else cnEffect = 0;
+          }
+          runningBalance -= cnEffect;
+
           allTransactions.push({
             id: creditNote.id,
             date: creditNote.voucher_date,
             type: 'credit_note',
             reference: creditNote.voucher_number,
             description: creditNote.description || 'Supplier Credit Note (Purchase Return)',
-            debit: creditNote.total_amount,
+            debit: cnEffect,
             credit: 0,
             balance: runningBalance,
           });
@@ -549,6 +470,20 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     };
   }, [filteredSuppliers]);
 
+  const { data: supplierBillPaymentDrift } = useQuery({
+    queryKey: ["supplier-bill-payment-voucher-drift", organizationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("supplier_bill_payment_voucher_drift" as any)
+        .select("bill_id")
+        .eq("organization_id", organizationId)
+        .limit(1);
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+    enabled: !!organizationId,
+  });
+
   const handleExportToExcel = () => {
     if (!selectedSupplier || !transactions) return;
 
@@ -571,6 +506,18 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   if (selectedSupplier && transactions) {
     return (
       <div className="space-y-6">
+        {supplierBillPaymentDrift && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Bill payment sync check</AlertTitle>
+            <AlertDescription>
+              At least one purchase bill has a paid amount that does not match bill-linked payment vouchers. Query the
+              database view <span className="font-mono text-xs">supplier_bill_payment_voucher_drift</span> for this
+              organization to review rows. Credit-note adjustments use{" "}
+              <span className="font-mono text-xs">supplier_cn_bill_integrity_check</span>.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <Button
             variant="outline"
@@ -859,6 +806,18 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
   return (
     <div className="space-y-6">
+      {supplierBillPaymentDrift && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Bill payment sync check</AlertTitle>
+          <AlertDescription>
+            At least one purchase bill has a paid amount that does not match bill-linked payment vouchers. Query the
+            database view <span className="font-mono text-xs">supplier_bill_payment_voucher_drift</span> for this
+            organization to review rows. Credit-note adjustments use{" "}
+            <span className="font-mono text-xs">supplier_cn_bill_integrity_check</span>.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card 
@@ -909,7 +868,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       <Card>
         <CardHeader>
           <CardTitle>Supplier Ledger</CardTitle>
-          <CardDescription>View detailed transaction history for each supplier</CardDescription>
+          <CardDescription>
+            View detailed transaction history for each supplier. For SQL audits, use views{" "}
+            <span className="font-mono text-xs">supplier_bill_payment_voucher_drift</span> and{" "}
+            <span className="font-mono text-xs">supplier_cn_bill_integrity_check</span>.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
