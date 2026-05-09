@@ -362,7 +362,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               await safeSignOut(setSession, setUser);
             } else {
               toast.success("Session restored");
-              if (refreshData.session.user?.id !== sessionRef.current?.user?.id) {
+              if (refreshData.session.user?.id !== sessionRef.current?.user?.id || refreshData.session.access_token !== sessionRef.current?.access_token) {
                 setSession(refreshData.session);
                 setUser(refreshData.session.user);
               } else {
@@ -375,7 +375,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             if (!refreshError && refreshData.session) {
               console.log("Session proactively refreshed — still valid, no user action needed.");
-              if (refreshData.session.user?.id !== sessionRef.current?.user?.id) {
+              if (refreshData.session.user?.id !== sessionRef.current?.user?.id || refreshData.session.access_token !== sessionRef.current?.access_token) {
                 setSession(refreshData.session);
                 setUser(refreshData.session.user);
               } else {
