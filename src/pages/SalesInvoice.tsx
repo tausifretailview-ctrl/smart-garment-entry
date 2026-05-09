@@ -2291,6 +2291,7 @@ Thank you for choosing us!`;
     }
 
     setIsSaving(true);
+    let newSaleIdForRollback: string | null = null;
     try {
       if (editingInvoiceId) {
         // Update existing invoice - correct order for stock triggers:
@@ -2568,6 +2569,7 @@ Thank you for choosing us!`;
           .single();
 
         if (saleError) throw saleError;
+        newSaleIdForRollback = saleData.id;
 
         // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
         if (accountingEngineOn) {
@@ -2619,6 +2621,7 @@ Thank you for choosing us!`;
           .insert(saleItems);
 
         if (itemsError) throw itemsError;
+        newSaleIdForRollback = null;
 
         // Save financer details if provided
         if (financerDetails?.financer_name) {
@@ -2783,6 +2786,9 @@ Thank you for choosing us!`;
         setShowPrintDialog(true);
       }
     } catch (error: any) {
+      if (newSaleIdForRollback && !editingInvoiceId) {
+        await supabase.from('sales').delete().eq('id', newSaleIdForRollback);
+      }
       logError(
         {
           operation: 'sale_invoice_save',

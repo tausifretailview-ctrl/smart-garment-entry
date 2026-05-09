@@ -328,6 +328,7 @@ export const useSaveSale = () => {
 
     setIsSaving(true);
 
+    let insertedSaleIdForRollback: string | null = null;
     try {
       // Read cached settings (no extra round-trip)
       let saleNumber: string;
@@ -457,6 +458,7 @@ export const useSaveSale = () => {
         .single();
 
       if (saleError) throw saleError;
+      insertedSaleIdForRollback = sale.id;
 
       // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
       if (accountingEngineOn) {
@@ -528,6 +530,7 @@ export const useSaveSale = () => {
         .insert(saleItems);
 
       if (itemsError) throw itemsError;
+      insertedSaleIdForRollback = null;
 
       // Customer Account Statement — write double-entry ledger (fire-and-forget)
       if (saleData.customerId) {
@@ -812,6 +815,9 @@ export const useSaveSale = () => {
 
       return { ...sale, pointsAwarded };
     } catch (error: any) {
+      if (insertedSaleIdForRollback) {
+        await supabase.from('sales').delete().eq('id', insertedSaleIdForRollback);
+      }
       console.error('Error saving sale:', error);
       const isDuplicate = error?.code === '23505' || 
                           error?.message?.includes('duplicate key');
