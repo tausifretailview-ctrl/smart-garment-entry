@@ -3363,27 +3363,28 @@ export default function SalesInvoiceDashboard() {
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
-                <Table className="text-base [&_th]:text-base [&_td]:text-base">
+                <div className="w-full min-w-0 overflow-x-auto">
+                <Table className="w-full min-w-[1024px] table-fixed text-base [&_thead_th]:text-base [&_tbody_td]:text-[11px] sm:[&_tbody_td]:text-xs [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[50px]">
+                      <TableHead className="w-10 px-1">
                         <Checkbox
                           checked={selectedInvoices.size === (invoicesData?.length || 0) && invoicesData && invoicesData.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                      <TableHead className="font-semibold">Invoice No</TableHead>
-                      <TableHead className="font-semibold">Customer</TableHead>
-                      {columnSettings.phone && <TableHead className="font-semibold">Phone</TableHead>}
-                      <TableHead className="font-semibold">Date</TableHead>
-                      <TableHead className="text-center font-semibold">Qty</TableHead>
-                      <TableHead className="text-right font-semibold">Discount</TableHead>
-                      <TableHead className="font-semibold">Amount</TableHead>
-                      {columnSettings.status && <TableHead className="font-semibold">Pay Status</TableHead>}
-                      {columnSettings.status && <TableHead className="text-right font-semibold">Balance</TableHead>}
-                      {columnSettings.delivery && <TableHead className="font-semibold">Delivery</TableHead>}
-                      <TableHead className="text-right font-semibold">Actions</TableHead>
+                      <TableHead className="w-10 px-1"></TableHead>
+                      <TableHead className="font-semibold w-[20%] min-w-[11rem] xl:min-w-[13rem]">Invoice No</TableHead>
+                      <TableHead className="font-semibold w-[28%] min-w-[12rem] xl:min-w-[17rem]">Customer</TableHead>
+                      {columnSettings.phone && <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>}
+                      <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
+                      <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
+                      <TableHead className="text-right font-semibold w-[4.5rem] px-1">Discount</TableHead>
+                      <TableHead className="font-semibold w-[4.75rem] text-right">Amount</TableHead>
+                      {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Pay Status</TableHead>}
+                      {columnSettings.status && <TableHead className="text-right font-semibold w-[4.25rem] px-1">Balance</TableHead>}
+                      {columnSettings.delivery && <TableHead className="font-semibold w-[5rem] px-1">Delivery</TableHead>}
+                      <TableHead className="text-right font-semibold w-[8.5rem] lg:w-[9.5rem] px-1">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -3414,28 +3415,31 @@ export default function SalesInvoiceDashboard() {
                                 <ChevronDown className="h-4 w-4" />
                               )}
                             </TableCell>
-                            <TableCell className="font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5">
-                                  {invoice.sale_number}
+                            <TableCell
+                              className="font-medium w-[20%] min-w-[11rem] xl:min-w-[13rem] align-top"
+                              onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}
+                            >
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="break-words">{invoice.sale_number}</span>
                                   {invoiceLikelyMissingLines(invoice) && (
                                     <span title="Bill amount on file but quantity is 0 — line items may be missing or deleted. Open invoice to fix.">
-                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden />
+                                      <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" aria-hidden />
                                     </span>
                                   )}
                                   {invoice.payment_status === 'completed' && (
                                     <span title="Invoice is locked (Fully Paid)">
-                                      <Lock className="h-3.5 w-3.5 text-green-600" />
+                                      <Lock className="h-3 w-3 shrink-0 text-green-600" />
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-sm text-foreground/70">
+                                <span className="text-[10px] sm:text-[11px] text-foreground/70 tabular-nums">
                                   {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell 
-                              className="cursor-pointer text-blue-600 hover:underline"
+                            <TableCell
+                              className="cursor-pointer text-blue-600 hover:underline w-[28%] min-w-[12rem] xl:min-w-[17rem] align-top break-words hyphens-auto"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedCustomerForHistory({
@@ -3461,19 +3465,19 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
                               {(invoice.sale_return_adjust || 0) > 0 && (
-                                <span className="block text-sm text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
+                                <span className="block text-[10px] sm:text-[11px] text-amber-600 leading-tight">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
                               )}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {invoice.is_cancelled ? (
-                                  <Badge className="min-w-[80px] justify-center whitespace-nowrap bg-red-500 hover:bg-red-600 text-white text-sm px-2.5 py-0.5">
+                                  <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-[10px] sm:text-[11px] px-1.5 py-0.5 leading-tight">
                                     Cancelled
                                   </Badge>
                                 ) : (
                                   <Badge
-                                    className={`min-w-[80px] justify-center whitespace-nowrap text-sm px-2.5 py-0.5 ${
+                                    className={`min-w-0 max-w-full justify-center whitespace-normal text-center text-[10px] sm:text-[11px] px-1.5 py-0.5 leading-tight ${
                                       invoice.payment_status === 'completed'
                                         ? 'bg-green-500 hover:bg-green-600 text-white'
                                         : invoice.payment_status === 'partial'
@@ -3498,7 +3502,7 @@ export default function SalesInvoiceDashboard() {
                             {columnSettings.delivery && (
                               <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Badge 
-                                  className={`cursor-pointer text-sm px-2.5 py-0.5 ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
+                                  className={`cursor-pointer text-[10px] sm:text-[11px] px-1.5 py-0.5 leading-tight ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
                                   onClick={() => openStatusDialog(invoice)}
                                 >
                                   {getDeliveryLabel(invoice.delivery_status || 'undelivered')}
@@ -3825,6 +3829,7 @@ export default function SalesInvoiceDashboard() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
             {totalCount > 0 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
                 <div className="flex items-center gap-4">
