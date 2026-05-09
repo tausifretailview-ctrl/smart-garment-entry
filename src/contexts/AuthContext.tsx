@@ -147,8 +147,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         console.error("Token refresh error:", error);
       } else if (data.session) {
-        // Only update state if user actually changed (prevents re-render cascade on tab switch)
-        if (data.session.user?.id !== sessionRef.current?.user?.id) {
+        // Update state when user or token changes; edge functions need the latest rotated access token.
+        if (data.session.user?.id !== sessionRef.current?.user?.id || data.session.access_token !== sessionRef.current?.access_token) {
           setSession(data.session);
           setUser(data.session.user);
         } else {
@@ -237,10 +237,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        // Only update state if user ID actually changed (prevents cascade re-renders from TOKEN_REFRESHED)
+        // Only skip state updates when neither user nor access token changed.
+        // Keeping state in sync prevents edge functions from receiving revoked tokens.
         const newUserId = currentSession?.user?.id ?? null;
         const currentUserId = sessionRef.current?.user?.id ?? null;
-        if (newUserId !== currentUserId || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        const tokenChanged = currentSession?.access_token !== sessionRef.current?.access_token;
+        if (newUserId !== currentUserId || tokenChanged || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
           setSession(currentSession);
           setUser(currentSession?.user ?? null);
           setLoading(false);
