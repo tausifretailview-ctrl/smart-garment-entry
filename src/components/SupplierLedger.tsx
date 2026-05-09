@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
+import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,24 +53,26 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  // Fetch all suppliers with their transaction summary
-  const { data: suppliers, isLoading } = useQuery({
+  // Suppliers list + balances: keep list loading even if balance aggregation fails (RLS / schema).
+  const { data: ledgerData, isLoading } = useQuery({
     queryKey: ["supplier-ledger", organizationId],
     queryFn: async () => {
-      const { data: suppliersData, error: suppliersError } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .order("supplier_name");
+      const suppliersData = await fetchAllSuppliers(organizationId);
 
-      if (suppliersError) throw suppliersError;
+      let balanceMap: Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>;
+      let balanceSnapshotError: string | null = null;
+      try {
+        balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
+      } catch (e) {
+        console.error("Supplier ledger: balance snapshot failed", e);
+        balanceMap = new Map();
+        balanceSnapshotError =
+          e instanceof Error ? e.message : "Could not compute balances from bills and vouchers.";
+      }
 
-      const balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
-
-      return (suppliersData || []).map((supplier: any) => {
+      const suppliers = (suppliersData || []).map((supplier: any) => {
         const snap = balanceMap.get(supplier.id);
-          const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
+        const openingBalance = snap?.openingBalance ?? (Number(supplier.opening_balance) || 0);
         return {
           ...supplier,
           opening_balance: openingBalance,
@@ -79,9 +82,14 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           balance: snap?.balance ?? openingBalance,
         };
       });
+
+      return { suppliers, balanceSnapshotError };
     },
     enabled: !!organizationId,
   });
+
+  const suppliers = ledgerData?.suppliers;
+  const balanceSnapshotError = ledgerData?.balanceSnapshotError ?? null;
 
   // Fetch detailed transactions for selected supplier
   const { data: transactions } = useQuery({
@@ -518,6 +526,17 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             </AlertDescription>
           </Alert>
         )}
+        {balanceSnapshotError && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Supplier balances could not be loaded fully</AlertTitle>
+            <AlertDescription className="text-sm">
+              {balanceSnapshotError} Totals below may show only opening balance until bills/vouchers can be read. If you
+              use row-level security, allow select on <span className="font-mono text-xs">voucher_entries</span> and{" "}
+              <span className="font-mono text-xs">purchase_returns</span> for this role; ensure DB migrations are applied.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <Button
             variant="outline"
@@ -815,6 +834,17 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             database view <span className="font-mono text-xs">supplier_bill_payment_voucher_drift</span> for this
             organization to review rows. Credit-note adjustments use{" "}
             <span className="font-mono text-xs">supplier_cn_bill_integrity_check</span>.
+          </AlertDescription>
+        </Alert>
+      )}
+      {balanceSnapshotError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Supplier balances could not be loaded fully</AlertTitle>
+          <AlertDescription className="text-sm">
+            {balanceSnapshotError} Totals below may show only opening balance until bills/vouchers can be read. If you
+            use row-level security, allow select on <span className="font-mono text-xs">voucher_entries</span> and{" "}
+            <span className="font-mono text-xs">purchase_returns</span> for this role; ensure DB migrations are applied.
           </AlertDescription>
         </Alert>
       )}
