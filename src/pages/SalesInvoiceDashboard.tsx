@@ -3243,7 +3243,7 @@ export default function SalesInvoiceDashboard() {
                 </PopoverTrigger>
                 <PopoverContent className="w-[180px] p-2" align="start">
                   <div className="space-y-1">
-                    {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"}].map((s) => (
+                    {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"},{v:"cancelled",l:"Cancelled"}].map((s) => (
                       <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
                         <Checkbox
                           checked={paymentStatusFilter.includes(s.v)}
