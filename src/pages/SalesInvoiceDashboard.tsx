@@ -3014,17 +3014,17 @@ export default function SalesInvoiceDashboard() {
       <div className="w-full px-6 space-y-5">
         <div className="flex items-center justify-between mb-1">
           <div>
-            <h1 className="text-[26px] font-extrabold text-blue-600 tracking-tight leading-tight">
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
               Sales Invoice Dashboard
             </h1>
-            <p className="text-slate-400 text-[13px] mt-0.5">View and manage all sales invoices</p>
+            <p className="text-slate-400 text-base mt-0.5">View and manage all sales invoices</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-9 text-[13px] border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
+            <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
-            <Button onClick={() => navigate("/sales-invoice")} className="h-9 px-5 text-[13px] font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all">
+            <Button onClick={() => navigate("/sales-invoice")} className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all">
               New Invoice
             </Button>
             {selectedInvoices.size > 0 && (
@@ -3063,10 +3063,10 @@ export default function SalesInvoiceDashboard() {
                     <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <h3 className="text-[13px] font-bold text-amber-800">
+                    <h3 className="text-base font-bold text-amber-800">
                       Unsaved Sales Invoice Found
                     </h3>
-                    <CardDescription className="text-[12px] text-amber-700 font-medium mt-0.5">
+                    <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
                       {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
                       {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
                       {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
@@ -3084,7 +3084,7 @@ export default function SalesInvoiceDashboard() {
                         description: "The unsaved sales invoice has been removed",
                       });
                     }}
-                    className="gap-1.5 h-8 text-[12px] border-amber-300 text-amber-700 hover:bg-amber-100"
+                    className="gap-1.5 h-9 text-sm border-amber-300 text-amber-700 hover:bg-amber-100"
                   >
                     <X className="h-4 w-4" />
                     Discard
@@ -3094,7 +3094,7 @@ export default function SalesInvoiceDashboard() {
                     onClick={() => {
                       navigate("/sales-invoice", { state: { loadDraft: true } });
                     }}
-                    className="gap-1.5 h-8 text-[12px] bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
+                    className="gap-1.5 h-9 text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                   >
                     <Edit className="h-4 w-4" />
                     Resume Draft
@@ -3112,14 +3112,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Total Invoices</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Total Invoices</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <FileText className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.totalInvoices}</div>
-              <p className="text-xs text-white/65 mt-0.5">All invoices</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">{effectiveStats.totalInvoices}</div>
+              <p className="text-sm text-white/65 mt-0.5">All invoices</p>
             </CardContent>
           </Card>
 
@@ -3128,14 +3128,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Total Qty</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Total Qty</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Package className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.totalQty}</div>
-              <p className="text-xs text-white/65 mt-0.5">Items sold</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">{effectiveStats.totalQty}</div>
+              <p className="text-sm text-white/65 mt-0.5">Items sold</p>
             </CardContent>
           </Card>
 
@@ -3144,14 +3144,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Total Revenue</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Total Revenue</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <TrendingUp className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/65 mt-0.5">Sum of invoice amounts</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalAmount.toFixed(0)}</div>
+              <p className="text-sm text-white/65 mt-0.5">Sum of invoice amounts</p>
             </CardContent>
           </Card>
 
@@ -3160,14 +3160,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Total Discount</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Total Discount</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Percent className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
-              <p className="text-xs text-white/65 mt-0.5">Given</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.totalDiscount.toFixed(0)}</div>
+              <p className="text-sm text-white/65 mt-0.5">Given</p>
             </CardContent>
           </Card>
 
@@ -3176,14 +3176,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Pending Amount</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Pending Amount</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Clock className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/65 mt-0.5">Outstanding</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
+              <p className="text-sm text-white/65 mt-0.5">Outstanding</p>
             </CardContent>
           </Card>
 
@@ -3192,14 +3192,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("delivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Delivered</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Delivered</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <CheckCircle2 className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.deliveredCount}</div>
-              <p className="text-xs text-white/65 mt-0.5">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">{effectiveStats.deliveredCount}</div>
+              <p className="text-sm text-white/65 mt-0.5">₹{effectiveStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -3208,14 +3208,14 @@ export default function SalesInvoiceDashboard() {
             onClick={() => setDeliveryFilter("undelivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
-              <CardDescription className="text-sm font-medium text-white/80">Undelivered</CardDescription>
+              <CardDescription className="text-base font-medium text-white/80">Undelivered</CardDescription>
               <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
                 <Package className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
-              <div className="text-[19px] font-black text-white tabular-nums leading-tight truncate">{effectiveStats.undeliveredCount}</div>
-              <p className="text-xs text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">{effectiveStats.undeliveredCount}</div>
+              <p className="text-sm text-white/65 mt-0.5">₹{effectiveStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>
@@ -3223,17 +3223,17 @@ export default function SalesInvoiceDashboard() {
         <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
           <div className="space-y-0">
             <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
-              <div className="relative flex-1 min-w-[200px] max-w-[280px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9 text-[13px] border-slate-200 bg-slate-50 focus:bg-white"
+                  className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="w-[120px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[130px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3248,7 +3248,7 @@ export default function SalesInvoiceDashboard() {
                 <>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-[130px] justify-start text-left font-normal">
+                      <Button variant="outline" className="w-[140px] h-10 justify-start text-left font-normal text-base">
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {startDate ? format(startDate, 'dd/MM/yyyy') : 'From'}
                       </Button>
@@ -3264,7 +3264,7 @@ export default function SalesInvoiceDashboard() {
                   </Popover>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-[130px] justify-start text-left font-normal">
+                      <Button variant="outline" className="w-[140px] h-10 justify-start text-left font-normal text-base">
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {endDate ? format(endDate, 'dd/MM/yyyy') : 'To'}
                       </Button>
@@ -3282,7 +3282,7 @@ export default function SalesInvoiceDashboard() {
               )}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[155px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white justify-between">
+                  <Button variant="outline" className="w-[165px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white justify-between">
                     {paymentStatusFilter.length === 0 ? 'All Payments' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Selected`}
                     <ChevronDown className="h-3.5 w-3.5 opacity-50" />
                   </Button>
@@ -3290,7 +3290,7 @@ export default function SalesInvoiceDashboard() {
                 <PopoverContent className="w-[180px] p-2" align="start">
                   <div className="space-y-1">
                     {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"},{v:"cancelled",l:"Cancelled"}].map((s) => (
-                      <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                      <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-base">
                         <Checkbox
                           checked={paymentStatusFilter.includes(s.v)}
                           onCheckedChange={(checked) => {
@@ -3304,7 +3304,7 @@ export default function SalesInvoiceDashboard() {
                       </label>
                     ))}
                     {paymentStatusFilter.length > 0 && (
-                      <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => { setPaymentStatusFilter([]); setCurrentPage(1); }}>
+                      <Button variant="ghost" size="sm" className="w-full text-sm mt-1" onClick={() => { setPaymentStatusFilter([]); setCurrentPage(1); }}>
                         Clear All
                       </Button>
                     )}
@@ -3312,7 +3312,7 @@ export default function SalesInvoiceDashboard() {
                 </PopoverContent>
               </Popover>
               <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
-                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[155px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Delivery Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3324,7 +3324,7 @@ export default function SalesInvoiceDashboard() {
                 </SelectContent>
               </Select>
               <Select value={shopFilter} onValueChange={setShopFilter}>
-                <SelectTrigger className="w-[130px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[140px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Shop" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3335,7 +3335,7 @@ export default function SalesInvoiceDashboard() {
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-[145px] h-9 text-[13px] border-slate-200 bg-slate-50 hover:bg-white">
+                <SelectTrigger className="w-[155px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Billing User" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3351,7 +3351,7 @@ export default function SalesInvoiceDashboard() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-9 text-[13px] border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
+                  className="h-10 text-base border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
                   onClick={() => {
                     setBulkAdvanceCustomer(filteredCustomer);
                     setShowBulkAdvanceDialog(true);
@@ -3363,7 +3363,7 @@ export default function SalesInvoiceDashboard() {
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
-                <Table>
+                <Table className="text-base [&_th]:text-base [&_td]:text-base">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[50px]">
@@ -3373,23 +3373,23 @@ export default function SalesInvoiceDashboard() {
                         />
                       </TableHead>
                       <TableHead className="w-[50px]"></TableHead>
-                      <TableHead>Invoice No</TableHead>
-                      <TableHead>Customer</TableHead>
-                      {columnSettings.phone && <TableHead>Phone</TableHead>}
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-center">Qty</TableHead>
-                      <TableHead className="text-right">Discount</TableHead>
-                      <TableHead>Amount</TableHead>
-                      {columnSettings.status && <TableHead>Pay Status</TableHead>}
-                      {columnSettings.status && <TableHead className="text-right">Balance</TableHead>}
-                      {columnSettings.delivery && <TableHead>Delivery</TableHead>}
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="font-semibold">Invoice No</TableHead>
+                      <TableHead className="font-semibold">Customer</TableHead>
+                      {columnSettings.phone && <TableHead className="font-semibold">Phone</TableHead>}
+                      <TableHead className="font-semibold">Date</TableHead>
+                      <TableHead className="text-center font-semibold">Qty</TableHead>
+                      <TableHead className="text-right font-semibold">Discount</TableHead>
+                      <TableHead className="font-semibold">Amount</TableHead>
+                      {columnSettings.status && <TableHead className="font-semibold">Pay Status</TableHead>}
+                      {columnSettings.status && <TableHead className="text-right font-semibold">Balance</TableHead>}
+                      {columnSettings.delivery && <TableHead className="font-semibold">Delivery</TableHead>}
+                      <TableHead className="text-right font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground text-base">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -3429,7 +3429,7 @@ export default function SalesInvoiceDashboard() {
                                     </span>
                                   )}
                                 </div>
-                                <span className="text-xs text-foreground/70">
+                                <span className="text-sm text-foreground/70">
                                   {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
                                 </span>
                               </div>
@@ -3461,19 +3461,19 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
                               {(invoice.sale_return_adjust || 0) > 0 && (
-                                <span className="block text-xs text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
+                                <span className="block text-sm text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
                               )}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 {invoice.is_cancelled ? (
-                                  <Badge className="min-w-[80px] justify-center whitespace-nowrap bg-red-500 hover:bg-red-600 text-white">
+                                  <Badge className="min-w-[80px] justify-center whitespace-nowrap bg-red-500 hover:bg-red-600 text-white text-sm px-2.5 py-0.5">
                                     Cancelled
                                   </Badge>
                                 ) : (
                                   <Badge
-                                    className={`min-w-[80px] justify-center whitespace-nowrap ${
+                                    className={`min-w-[80px] justify-center whitespace-nowrap text-sm px-2.5 py-0.5 ${
                                       invoice.payment_status === 'completed'
                                         ? 'bg-green-500 hover:bg-green-600 text-white'
                                         : invoice.payment_status === 'partial'
@@ -3498,7 +3498,7 @@ export default function SalesInvoiceDashboard() {
                             {columnSettings.delivery && (
                               <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Badge 
-                                  className={`cursor-pointer ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
+                                  className={`cursor-pointer text-sm px-2.5 py-0.5 ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
                                   onClick={() => openStatusDialog(invoice)}
                                 >
                                   {getDeliveryLabel(invoice.delivery_status || 'undelivered')}
@@ -3666,10 +3666,10 @@ export default function SalesInvoiceDashboard() {
                           </TableRow>
                           {expandedRows.has(invoice.id) && (
                             <TableRow>
-                              <TableCell colSpan={9 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="bg-muted/50 p-4">
+                              <TableCell colSpan={9 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="bg-muted/50 p-4 text-base">
                                 <div className="space-y-4">
                                   <div>
-                                    <h4 className="font-semibold mb-2">Items:</h4>
+                                    <h4 className="font-semibold mb-2 text-base">Items:</h4>
                                     {(() => {
                                       const lineRows = loadedItems[invoice.id] ?? invoice.sale_items ?? [];
                                       const showMissingHint =
@@ -3678,14 +3678,14 @@ export default function SalesInvoiceDashboard() {
                                     <>
                                     {showMissingHint && (
                                       invoice.is_cancelled ? (
-                                        <div className="mb-3 rounded-md border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-3 py-2 text-sm text-red-900 dark:text-red-100 flex gap-2 items-start">
+                                        <div className="mb-3 rounded-md border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-3 py-2 text-base text-red-900 dark:text-red-100 flex gap-2 items-start">
                                           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                                           <span>
                                             Invoice cancelled{invoice.cancelled_at ? ` on ${format(new Date(invoice.cancelled_at), 'dd/MM/yyyy')}` : ''}. Items and stock have been reversed{invoice.cancelled_reason ? ` — reason: ${invoice.cancelled_reason}` : ''}.
                                           </span>
                                         </div>
                                       ) : (
-                                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-sm text-amber-900 dark:text-amber-100 flex gap-2 items-start">
+                                        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-base text-amber-900 dark:text-amber-100 flex gap-2 items-start">
                                           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                                           <span>
                                             No line items loaded for this invoice (inactive or never saved). Open <strong>Sales Invoice</strong> and edit this bill to re-enter products, or restore lines in the database.
@@ -3693,21 +3693,21 @@ export default function SalesInvoiceDashboard() {
                                         </div>
                                       )
                                     )}
-                                    <Table>
+                                    <Table className="text-base [&_th]:text-base [&_td]:text-base">
                                       <TableHeader>
                                         <TableRow>
-                                          <TableHead>Product</TableHead>
-                                          {showItemBrand && <TableHead>Brand</TableHead>}
-                                          {showItemColor && <TableHead>Color</TableHead>}
-                                          {showItemStyle && <TableHead>Style</TableHead>}
-                                          <TableHead>Size</TableHead>
-                                          {showItemBarcode && <TableHead>Barcode</TableHead>}
-                                          {showItemHsn && <TableHead>HSN</TableHead>}
-                                          <TableHead>Qty</TableHead>
-                                          {showItemMrp && <TableHead>MRP</TableHead>}
-                                          <TableHead>Price</TableHead>
-                                          <TableHead className="text-right">Discount</TableHead>
-                                          <TableHead className="text-right">Total</TableHead>
+                                          <TableHead className="font-semibold">Product</TableHead>
+                                          {showItemBrand && <TableHead className="font-semibold">Brand</TableHead>}
+                                          {showItemColor && <TableHead className="font-semibold">Color</TableHead>}
+                                          {showItemStyle && <TableHead className="font-semibold">Style</TableHead>}
+                                          <TableHead className="font-semibold">Size</TableHead>
+                                          {showItemBarcode && <TableHead className="font-semibold">Barcode</TableHead>}
+                                          {showItemHsn && <TableHead className="font-semibold">HSN</TableHead>}
+                                          <TableHead className="font-semibold">Qty</TableHead>
+                                          {showItemMrp && <TableHead className="font-semibold">MRP</TableHead>}
+                                          <TableHead className="font-semibold">Price</TableHead>
+                                          <TableHead className="text-right font-semibold">Discount</TableHead>
+                                          <TableHead className="text-right font-semibold">Total</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -3722,8 +3722,8 @@ export default function SalesInvoiceDashboard() {
                                               {showItemColor && <TableCell>{item.color || productsById?.[item.product_id]?.color || '-'}</TableCell>}
                                               {showItemStyle && <TableCell>{productsById?.[item.product_id]?.style || '-'}</TableCell>}
                                               <TableCell>{item.size}</TableCell>
-                                              {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
-                                              {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
+                                              {showItemBarcode && <TableCell className="text-sm font-mono">{item.barcode || '-'}</TableCell>}
+                                              {showItemHsn && <TableCell className="text-sm">{item.hsn_code || '-'}</TableCell>}
                                               <TableCell>{item.quantity}</TableCell>
                                               {showItemMrp && <TableCell>₹{item.mrp ? Math.round(item.mrp).toLocaleString('en-IN') : '-'}</TableCell>}
                                               <TableCell>₹{Math.round(itemGrossTotal).toLocaleString('en-IN')}</TableCell>
@@ -3744,17 +3744,17 @@ export default function SalesInvoiceDashboard() {
 
                                   {deliveryHistory[invoice.id] && deliveryHistory[invoice.id].length > 0 && (
                                     <div className="border-t pt-3">
-                                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                      <h4 className="font-semibold mb-2 flex items-center gap-2 text-base">
                                         <Package className="h-4 w-4" />
                                         Delivery History:
                                       </h4>
                                       <div className="space-y-1">
                                         {deliveryHistory[invoice.id].map((history: any, idx: number) => (
-                                          <div key={idx} className="text-sm flex gap-3 p-2 bg-background rounded">
+                                          <div key={idx} className="text-base flex gap-3 p-2 bg-background rounded">
                                             <span className="font-medium text-muted-foreground min-w-[90px]">
                                               {history.status_date ? format(new Date(history.status_date), 'dd/MM/yyyy') : '-'}
                                             </span>
-                                            <Badge className={`${getDeliveryBadgeClass(history.status)} text-xs`}>
+                                            <Badge className={`${getDeliveryBadgeClass(history.status)} text-sm px-2.5 py-0.5`}>
                                               {getDeliveryLabel(history.status)}
                                             </Badge>
                                             {history.narration && (
@@ -3768,22 +3768,22 @@ export default function SalesInvoiceDashboard() {
                                   
                                   {saleReturns[invoice.id] && saleReturns[invoice.id].length > 0 && (
                                     <div className="border-t pt-3">
-                                      <h4 className="font-semibold mb-2 text-orange-600">Linked Sale Returns:</h4>
-                                      <Table>
+                                      <h4 className="font-semibold mb-2 text-orange-600 text-base">Linked Sale Returns:</h4>
+                                      <Table className="text-base [&_th]:text-base [&_td]:text-base">
                                         <TableHeader>
                                           <TableRow>
-                                            <TableHead>Return No</TableHead>
-                                            <TableHead>Return Date</TableHead>
-                                            <TableHead>Customer</TableHead>
-                                            <TableHead className="text-right">Amount</TableHead>
-                                            <TableHead>Notes</TableHead>
+                                            <TableHead className="font-semibold">Return No</TableHead>
+                                            <TableHead className="font-semibold">Return Date</TableHead>
+                                            <TableHead className="font-semibold">Customer</TableHead>
+                                            <TableHead className="text-right font-semibold">Amount</TableHead>
+                                            <TableHead className="font-semibold">Notes</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                           {saleReturns[invoice.id].map((saleReturn: any) => (
                                             <TableRow key={saleReturn.id}>
                                               <TableCell>
-                                                <Badge variant="outline" className="text-orange-600">
+                                                <Badge variant="outline" className="text-orange-600 text-sm px-2.5 py-0.5">
                                                   {saleReturn.return_number || '-'}
                                                 </Badge>
                                               </TableCell>
@@ -3812,7 +3812,7 @@ export default function SalesInvoiceDashboard() {
                     )}
                     {/* Page Totals Row */}
                     {paginatedInvoices.length > 0 && (
-                      <TableRow className="bg-muted/70 font-semibold border-t-2">
+                      <TableRow className="bg-muted/70 font-semibold border-t-2 text-base">
                         <TableCell colSpan={6} className="text-right">Page Total:</TableCell>
                         <TableCell className="text-center">{pageTotals.qty}</TableCell>
                         <TableCell className="text-right">₹{Math.round(pageTotals.discount).toLocaleString('en-IN')}</TableCell>
@@ -3828,13 +3828,13 @@ export default function SalesInvoiceDashboard() {
             {totalCount > 0 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
                 <div className="flex items-center gap-4">
-                  <div className="text-[12px] text-slate-500">
+                  <div className="text-sm text-slate-500">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[12px] text-slate-500">Show:</span>
+                    <span className="text-sm text-slate-500">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-20 h-8">
+                      <SelectTrigger className="w-20 h-9 text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
@@ -3853,12 +3853,12 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
-                    className="h-8 text-[12px] px-3 border-slate-200"
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Previous
                   </Button>
                   <div className="flex items-center gap-2 px-3">
-                    <span className="text-[12px] text-slate-600 font-medium">
+                    <span className="text-sm text-slate-600 font-medium">
                       Page {currentPage} of {totalPages}
                     </span>
                   </div>
@@ -3867,7 +3867,7 @@ export default function SalesInvoiceDashboard() {
                     size="sm"
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
-                    className="h-8 text-[12px] px-3 border-slate-200"
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Next
                   </Button>
