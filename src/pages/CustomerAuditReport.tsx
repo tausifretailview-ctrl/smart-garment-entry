@@ -9,6 +9,7 @@ import {
   FileSearch,
   Printer,
   ShieldCheck,
+  XCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
@@ -140,6 +141,25 @@ export default function CustomerAuditReport() {
     });
   }, [auditBundle]);
 
+  const cancelledInvoices = useMemo(() => {
+    if (!auditBundle) return [];
+    return auditBundle.allSales
+      .filter((s: any) => {
+        const st = String(s.payment_status || "").toLowerCase();
+        const d = String(s.sale_date || "").slice(0, 10);
+        return (
+          (st === "cancelled" || s.is_cancelled === true) &&
+          fromYmd &&
+          toYmd &&
+          d >= fromYmd &&
+          d <= toYmd
+        );
+      })
+      .sort((a: any, b: any) =>
+        String(a.sale_date || "").localeCompare(String(b.sale_date || "")),
+      );
+  }, [auditBundle, fromYmd, toYmd]);
+
   const { openingCarried, displayRows, rowBalances } = useMemo(() => {
     if (!auditBundle || !fromYmd || !toYmd) {
       return { openingCarried: 0, displayRows: [] as AuditRow[], rowBalances: [] as number[] };
@@ -222,6 +242,20 @@ export default function CustomerAuditReport() {
     rows.push(["Advance applied to invoices", -math.totalAdvanceUsed]);
     rows.push(["Unused advance (net)", -math.unusedAdvance]);
     rows.push(["Outstanding (+ = Dr)", math.outstanding]);
+
+    if (cancelledInvoices.length > 0) {
+      rows.push([]);
+      rows.push(["Cancelled Invoices (excluded from balance)"]);
+      rows.push(["Date", "Invoice No", "Amount", "Cancelled Reason"]);
+      cancelledInvoices.forEach((inv: any) => {
+        rows.push([
+          String(inv.sale_date || "").slice(0, 10),
+          inv.sale_number || "—",
+          Number(inv.net_amount || 0),
+          inv.cancelled_reason || "No reason recorded",
+        ]);
+      });
+    }
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -489,6 +523,59 @@ export default function CustomerAuditReport() {
               </Table>
             </div>
           </Card>
+
+          {cancelledInvoices.length > 0 && (
+            <Card className="border-orange-200 bg-orange-50/40 dark:bg-orange-950/20">
+              <CardContent className="p-4 space-y-3">
+                <h3 className="font-semibold text-base flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                  <XCircle className="h-4 w-4" />
+                  Cancelled Invoices in Period ({cancelledInvoices.length})
+                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                    — excluded from balance calculation
+                  </span>
+                </h3>
+                <div className="overflow-x-auto">
+                  <Table className="border-collapse text-[13px]">
+                    <TableHeader>
+                      <TableRow className="bg-orange-100/60 dark:bg-orange-900/20">
+                        <TableHead className="border px-3 py-2 text-xs">Date</TableHead>
+                        <TableHead className="border px-3 py-2 text-xs">Invoice No</TableHead>
+                        <TableHead className="border px-3 py-2 text-xs text-right">Amount (₹)</TableHead>
+                        <TableHead className="border px-3 py-2 text-xs">Cancellation Reason</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cancelledInvoices.map((inv: any) => (
+                        <TableRow key={inv.id} className="opacity-75">
+                          <TableCell className="border px-3 py-1.5 whitespace-nowrap">
+                            {inv.sale_date
+                              ? format(
+                                  new Date(String(inv.sale_date).slice(0, 10) + "T12:00:00"),
+                                  "dd-MM-yyyy",
+                                )
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="border px-3 py-1.5 font-mono text-xs line-through decoration-orange-400">
+                            {inv.sale_number || "—"}
+                          </TableCell>
+                          <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums line-through decoration-orange-400">
+                            {fmt(Number(inv.net_amount || 0))}
+                          </TableCell>
+                          <TableCell className="border px-3 py-1.5 text-xs text-muted-foreground">
+                            {inv.cancelled_reason || "No reason recorded"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-xs text-orange-700/70 dark:text-orange-300/70">
+                  These invoices were cancelled by a user. Stock was restored and balances were not
+                  affected. They are shown here for audit transparency only.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {math && auditBundle && (
             <Card>

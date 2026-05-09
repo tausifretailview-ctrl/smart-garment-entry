@@ -1963,12 +1963,16 @@ export default function POSSales() {
       const mrpToUse = overridePrice?.mrp ?? masterMrp;
       const runtime = posRuntimeSettingsRef.current;
       const useMrpMode = runtime?.enable_mrp === true && runtime?.pos_barcode_price_mode === 'mrp';
-      const shouldApplyBarcodeMode = addSource === 'barcode';
-      const useMrpAsPrice = shouldApplyBarcodeMode && useMrpMode;
-      console.log('Scan settings at time of scan:', {
+      // Use MRP as the selling rate for all POS adds when the org setting is on — not only strict
+      // barcode matches. Name search / dropdown used to pass addSource "manual" and triggered sale
+      // price + implicit MRP-vs-rate discount (Rate override badge). Explicit price dialog = overridePrice.
+      const useMrpAsPrice = useMrpMode && !overridePrice;
+      console.log('POS price mode at add:', {
         pos_barcode_price_mode: runtime?.pos_barcode_price_mode,
         enable_mrp: runtime?.enable_mrp,
         useMrpMode,
+        addSource,
+        hasOverridePrice: !!overridePrice,
         product_mrp: mrpToUse,
         product_sale_price: salePrice,
         price_being_added: useMrpAsPrice ? mrpToUse : salePrice,

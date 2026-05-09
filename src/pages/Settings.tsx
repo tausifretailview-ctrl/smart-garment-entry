@@ -1855,8 +1855,9 @@ export default function Settings() {
                           POS Barcode Scan - Use MRP as Price
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Enabled: barcode scan adds MRP as selling price with no discount shown. Disabled:
-                          scan adds Sale Price and shows MRP vs Sale Price discount on POS.
+                          Enabled: every POS add (barcode, search, or product pick) uses MRP as the selling
+                          rate with no line discount. Disabled: uses Sale Price and shows MRP vs Sale Price
+                          discount on POS.
                         </p>
                       </div>
                       <Switch
@@ -1875,11 +1876,11 @@ export default function Settings() {
                     <div className="rounded-md bg-background p-2 text-xs">
                       {(settings.sale_settings?.pos_barcode_price_mode || 'sale_price') === 'mrp' ? (
                         <span className="text-blue-600">
-                          {"Scan barcode -> MRP added as price, no discount displayed."}
+                          {"POS adds use MRP as price; no MRP-vs-sale discount on lines."}
                         </span>
                       ) : (
                         <span className="text-green-600">
-                          {"Scan barcode -> Sale Price added, MRP discount is shown."}
+                          {"POS adds use Sale Price; MRP vs sale discount is shown when MRP is higher."}
                         </span>
                       )}
                     </div>
