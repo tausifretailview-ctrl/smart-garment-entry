@@ -43,20 +43,20 @@ serve(async (req) => {
 
     console.log("Verifying token...");
 
-    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
-    let userId = claimsData?.claims?.sub as string | undefined;
+    const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
+    let userId = userData?.user?.id;
 
-    // Fallback for projects/tokens where claims verification delegates to /user.
-    if (claimsError || !userId) {
-      const { data: userData, error: userError } = await supabaseUser.auth.getUser(token);
-      if (userError || !userData?.user) {
+    // Fallback for signing-key tokens where local claims verification is available.
+    if (userError || !userId) {
+      const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
+      userId = claimsData?.claims?.sub as string | undefined;
+      if (claimsError || !userId) {
         console.error("Auth error:", userError?.message ?? claimsError?.message ?? "Invalid token");
         return new Response(
           JSON.stringify({ error: "Unauthorized", details: userError?.message ?? claimsError?.message ?? "Invalid token" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      userId = userData.user.id;
     }
 
     const user = { id: userId };
