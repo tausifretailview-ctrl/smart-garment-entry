@@ -2716,7 +2716,7 @@ export default function SalesInvoiceDashboard() {
         ]} />
 
         <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
-          {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"}].map((s) => (
+          {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"},{v:"cancelled",l:"Cancelled"}].map((s) => (
             <button key={s.v} onClick={() => { setPaymentStatusFilter(s.v === 'all' ? [] : [s.v]); setCurrentPage(1); }}
               className={cn(
                 "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
@@ -3243,7 +3243,7 @@ export default function SalesInvoiceDashboard() {
                 </PopoverTrigger>
                 <PopoverContent className="w-[180px] p-2" align="start">
                   <div className="space-y-1">
-                    {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"}].map((s) => (
+                    {[{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Completed"},{v:"cancelled",l:"Cancelled"}].map((s) => (
                       <label key={s.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
                         <Checkbox
                           checked={paymentStatusFilter.includes(s.v)}
