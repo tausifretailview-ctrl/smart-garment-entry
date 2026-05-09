@@ -280,7 +280,7 @@ const AllUsersTable = ({ organizations }: { organizations: Organization[] }) => 
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["platform-all-users-details", session?.access_token],
+    queryKey: ["platform-all-users-details"],
     queryFn: async () => {
       if (!session?.access_token) throw new Error("Login session required");
       // Fetch users via edge function
