@@ -49,8 +49,10 @@ export const OrganizationSetup = () => {
   // Redirect to org-specific dashboard if user already has organizations
   useEffect(() => {
     if (user && !orgLoading && organizations.length > 0) {
-      const firstOrg = organizations[0];
-      navigate(`/${firstOrg.slug}`, { replace: true });
+      if (organizations.length === 1) {
+        const firstOrg = organizations[0];
+        navigate(`/${firstOrg.slug}`, { replace: true });
+      }
     }
   }, [user, organizations, orgLoading, navigate]);
 
@@ -233,6 +235,45 @@ export const OrganizationSetup = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Multi-org user: choose destination organization explicitly
+  if (user && organizations.length > 1) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+        <div className="w-full max-w-md space-y-4">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Building2 className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle>Select Organization</CardTitle>
+              <CardDescription>
+                You have access to multiple organizations. Choose one:
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {organizations.map((org) => (
+                <button
+                  key={org.id}
+                  onClick={() => {
+                    storeOrgSlug(org.slug);
+                    navigate(`/${org.slug}`, { replace: true });
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-primary/5 hover:border-primary/30 transition-all text-left"
+                >
+                  <div>
+                    <div className="font-semibold text-sm">{org.name}</div>
+                    <div className="text-xs text-muted-foreground">{org.slug}</div>
+                  </div>
+                  <span className="text-xs text-primary">→ Login</span>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
