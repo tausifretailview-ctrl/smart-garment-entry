@@ -96,6 +96,27 @@ const safeErrorString = (val: any): string => {
 const invoiceLikelyMissingLines = (inv: { net_amount?: number; total_qty?: number }) =>
   Number(inv.net_amount || 0) > 0 && Number(inv.total_qty || 0) === 0;
 
+/**
+ * Payment status filter for sales: cancelled is stored as payment_status and/or is_cancelled.
+ * When non-cancelled statuses are selected, exclude rows flagged is_cancelled so legacy bad rows
+ * do not appear under Pending/Paid.
+ */
+function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: string[]) {
+  if (paymentStatusFilter.length === 0) return query;
+  const hasCancelled = paymentStatusFilter.includes("cancelled");
+  const rest = paymentStatusFilter.filter((s) => s !== "cancelled");
+  if (hasCancelled && rest.length === 0) {
+    return query.or("payment_status.eq.cancelled,is_cancelled.eq.true");
+  }
+  if (hasCancelled && rest.length > 0) {
+    const inList = rest.join(",");
+    return query.or(
+      `and(payment_status.in.(${inList}),is_cancelled.eq.false),is_cancelled.eq.true,payment_status.eq.cancelled`,
+    );
+  }
+  return query.in("payment_status", rest).eq("is_cancelled", false);
+}
+
 interface ColumnSettings {
   [key: string]: boolean;
   phone: boolean;
@@ -488,7 +509,7 @@ export default function SalesInvoiceDashboard() {
         query = query.eq('delivery_status', deliveryFilter);
       }
       if (paymentStatusFilter.length > 0) {
-        query = query.in('payment_status', paymentStatusFilter);
+        query = applyPaymentStatusFilterToSalesQuery(query, paymentStatusFilter);
       }
       if (shopFilter !== 'all') {
         query = query.eq('shop_name', shopFilter);
@@ -603,6 +624,13 @@ export default function SalesInvoiceDashboard() {
       }
 
       const normalizedInvoices = invoices.map((inv: any) => {
+        const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
+        if (isInvCancelled) {
+          return { ...inv, payment_status: "cancelled" as const };
+        }
+        if (inv.payment_status === "hold") {
+          return { ...inv };
+        }
         const rec = reconcileSaleInvoiceDisplay({
           net_amount: inv.net_amount,
           sale_return_adjust: inv.sale_return_adjust,
@@ -775,26 +803,42 @@ export default function SalesInvoiceDashboard() {
         batchSplit.forEach((v, k) => splitBySale.set(k, v));
       }
 
-      const normalized = allInvoices
-        .filter((inv: any) => !inv?.is_cancelled && inv?.payment_status !== 'hold')
-        .map((inv: any) => {
-          const rec = reconcileSaleInvoiceDisplay({
-            net_amount: inv.net_amount,
-            sale_return_adjust: inv.sale_return_adjust,
-            paid_amount: inv.paid_amount,
-            split: splitBySale.get(inv.id) ?? null,
-          });
+      const normalized = allInvoices.map((inv: any) => {
+        if (inv?.is_cancelled || inv?.payment_status === "cancelled") {
+          return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
+        }
+        if (inv?.payment_status === "hold") {
+          const net = Number(inv.net_amount || 0);
+          const sr = Number(inv.sale_return_adjust || 0);
+          const paid = Number(inv.paid_amount || 0);
           return {
             ...inv,
-            paid_amount: rec.paid_amount,
-            outstanding: rec.outstanding,
-            payment_status: rec.payment_status,
+            outstanding: Math.max(0, net - sr - paid),
           };
+        }
+        const rec = reconcileSaleInvoiceDisplay({
+          net_amount: inv.net_amount,
+          sale_return_adjust: inv.sale_return_adjust,
+          paid_amount: inv.paid_amount,
+          split: splitBySale.get(inv.id) ?? null,
         });
+        return {
+          ...inv,
+          paid_amount: rec.paid_amount,
+          outstanding: rec.outstanding,
+          payment_status: rec.payment_status,
+        };
+      });
 
-      const filteredByStatus = paymentStatusFilter.length > 0
-        ? normalized.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
-        : normalized;
+      const filteredByStatus =
+        paymentStatusFilter.length > 0
+          ? normalized.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
+          : normalized.filter(
+              (inv: any) =>
+                !inv?.is_cancelled &&
+                inv?.payment_status !== "cancelled" &&
+                inv?.payment_status !== "hold",
+            );
 
       // Sum `net_amount` only — matches each row's "Amount" column. `sale_return_adjust`
       // is CN/S-R settlement shown under Disc (+S/R); it must not reduce revenue again
@@ -1240,7 +1284,9 @@ export default function SalesInvoiceDashboard() {
           .range(offset, offset + pageSize - 1);
 
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
-        if (paymentStatusFilter.length > 0) query = query.in('payment_status', paymentStatusFilter);
+        if (paymentStatusFilter.length > 0) {
+          query = applyPaymentStatusFilterToSalesQuery(query, paymentStatusFilter);
+        }
         if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
         if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
         if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
