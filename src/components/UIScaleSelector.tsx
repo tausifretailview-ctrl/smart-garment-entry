@@ -33,7 +33,12 @@ export function initUIScale() {
   applyScale(saved);
 }
 
-export const UIScaleSelector = () => {
+type UIScaleSelectorProps = {
+  /** Optional trigger styles (e.g. dark header row vs light sidebar). */
+  triggerClassName?: string;
+};
+
+export const UIScaleSelector = ({ triggerClassName }: UIScaleSelectorProps) => {
   const [scale, setScale] = useState<ScaleKey>(() => {
     return (localStorage.getItem("ui-scale") as ScaleKey) || "large";
   });
@@ -54,7 +59,10 @@ export const UIScaleSelector = () => {
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent hidden md:flex"
+          className={
+            triggerClassName ??
+            "h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent hidden md:flex"
+          }
           title="Display Scale"
         >
           <Monitor className="h-3.5 w-3.5" />

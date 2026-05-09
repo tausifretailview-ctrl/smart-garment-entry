@@ -86,6 +86,13 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        appHeader: {
+          DEFAULT: "hsl(var(--app-header-background))",
+          foreground: "hsl(var(--app-header-foreground))",
+          muted: "hsl(var(--app-header-muted))",
+          accent: "hsl(var(--app-header-accent))",
+          border: "hsl(var(--app-header-border))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

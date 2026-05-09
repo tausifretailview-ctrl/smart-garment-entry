@@ -14,6 +14,12 @@ All colors MUST be HSL.
 
     /* Chrome title bar — deep navy */
     --chrome: 222 55% 11%;
+    /* Top app header (row 1) — always classic navy strip on light themes */
+    --app-header-background: 222 47% 11%;
+    --app-header-foreground: 210 40% 98%;
+    --app-header-muted: 215 20% 72%;
+    --app-header-accent: 222 47% 18%;
+    --app-header-border: 222 47% 16%;
     /* Workspace canvas */
     --workspace: 220 27% 97%;
 
@@ -271,6 +277,13 @@ All colors MUST be HSL.
     --sidebar-border: 214 20% 82%;
     --sidebar-ring: 187 100% 42%;
     --sidebar-muted: 210 22% 92%;
+
+    /* Same branded title bar in dark mode */
+    --app-header-background: 222 47% 11%;
+    --app-header-foreground: 210 40% 98%;
+    --app-header-muted: 215 20% 72%;
+    --app-header-accent: 222 47% 18%;
+    --app-header-border: 222 47% 16%;
   }
 }
 

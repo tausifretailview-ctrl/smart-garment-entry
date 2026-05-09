@@ -86,11 +86,11 @@ export const Header = () => {
   return (
     <>
       {/* ROW 1: Title bar */}
-      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-sidebar border-b border-sidebar-border/50 text-sidebar-foreground">
+      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-app-header text-app-header-foreground border-b border-app-header-border shadow-sm">
         {/* Mobile menu trigger */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-sidebar-foreground/70">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent">
               <Menu className="h-4 w-4" />
             </Button>
           </SheetTrigger>
@@ -112,10 +112,10 @@ export const Header = () => {
           <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-[11px]">E</span>
           </div>
-          <span className="hidden sm:flex items-center gap-1.5">
-            <span className="text-sm font-bold text-sidebar-foreground">EzzyERP</span>
-            <span className="text-sidebar-foreground/30 text-sm">—</span>
-            <span className="text-xs text-sidebar-foreground/50 hidden md:block">Smart Inventory & Billing</span>
+            <span className="hidden sm:flex items-center gap-1.5">
+            <span className="text-sm font-bold text-app-header-foreground">EzzyERP</span>
+            <span className="text-app-header-foreground/35 text-sm">—</span>
+            <span className="text-xs text-app-header-muted hidden md:block">Smart Inventory & Billing</span>
           </span>
         </button>
 
@@ -124,7 +124,7 @@ export const Header = () => {
           {/* FILE */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 File
               </button>
             </DropdownMenuTrigger>
@@ -158,7 +158,7 @@ export const Header = () => {
           {/* VIEW */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 View
               </button>
             </DropdownMenuTrigger>
@@ -195,7 +195,7 @@ export const Header = () => {
           {/* TOOLS */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Tools
               </button>
             </DropdownMenuTrigger>
@@ -236,7 +236,7 @@ export const Header = () => {
           {/* REPORTS */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Reports
               </button>
             </DropdownMenuTrigger>
@@ -297,7 +297,7 @@ export const Header = () => {
           {/* HELP */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-white/95 hover:text-white hover:bg-sidebar-accent px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Help
               </button>
             </DropdownMenuTrigger>
@@ -326,10 +326,10 @@ export const Header = () => {
 
         {/* Search bar — grows to fill space */}
         <div className="hidden md:flex flex-1 max-w-xs mx-auto">
-          <div className="flex items-center w-full h-7 bg-sidebar-accent/60 border border-sidebar-border/60 rounded px-2.5 gap-2 cursor-pointer hover:border-sidebar-foreground/30 transition-colors">
-            <Search className="h-3.5 w-3.5 text-sidebar-foreground/40 flex-shrink-0" />
-            <span className="text-[12px] text-sidebar-foreground/35 flex-1">Search... (Ctrl+K)</span>
-            <ChevronDown className="h-3 w-3 text-sidebar-foreground/30 flex-shrink-0" />
+          <div className="flex items-center w-full h-7 bg-app-header-accent/75 border border-app-header-border/90 rounded px-2.5 gap-2 cursor-pointer hover:border-app-header-muted/80 transition-colors">
+            <Search className="h-3.5 w-3.5 text-app-header-muted flex-shrink-0" />
+            <span className="text-[12px] text-app-header-muted flex-1">Search... (Ctrl+K)</span>
+            <ChevronDown className="h-3 w-3 text-app-header-muted/80 flex-shrink-0" />
           </div>
         </div>
 
@@ -351,23 +351,23 @@ export const Header = () => {
                   });
                 }
               }}
-              className="h-7 px-2 gap-1.5 text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+              className="h-7 px-2 gap-1.5 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent"
               title="Install EzzyERP App"
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline text-[11px] font-medium">Install App</span>
             </Button>
           )}
-          <UIScaleSelector />
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent hidden md:flex">
+          <UIScaleSelector triggerClassName="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent hidden md:flex" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent hidden md:flex">
             <Bell className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent hidden md:flex">
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent hidden md:flex">
             <LayoutGrid className="h-3.5 w-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-sidebar-accent h-7 w-7">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-app-header-accent h-7 w-7 text-app-header-muted hover:text-app-header-foreground">
                 <Avatar className="h-6 w-6">
                   <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-bold">
                     {initials}
