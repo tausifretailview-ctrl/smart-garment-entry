@@ -2246,6 +2246,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     return authoritativeBalance;
   }, [selectedCustomer, isSchool, transactions, authoritativeBalance, ledgerAuditClosingBalance]);
 
+  useEffect(() => {
+    if (!selectedCustomer && showOverpaymentRefundDialog) {
+      setShowOverpaymentRefundDialog(false);
+    }
+  }, [selectedCustomer, showOverpaymentRefundDialog]);
+
   // Calculate summary statistics
   const summary = useMemo(() => {
     if (!filteredCustomers) return { totalCustomers: 0, totalOutstanding: 0, totalReceivable: 0 };
@@ -2794,17 +2800,138 @@ Please clear your dues at the earliest. Thank you!`;
     doc.save(`${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
   };
 
+  const overpaymentRefundDialog = (
+    <Dialog open={showOverpaymentRefundDialog} onOpenChange={setShowOverpaymentRefundDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Refund Overpayment</DialogTitle>
+          <DialogDescription>
+            Record a cash/UPI refund to {selectedCustomer?.customer_name ?? "customer"} for{' '}
+            ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')} credit balance.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>Refund Amount (₹)</Label>
+            <Input
+              type="number"
+              value={overpaymentRefundAmount}
+              onChange={(e) => setOverpaymentRefundAmount(e.target.value)}
+              placeholder={Math.abs(effectiveBalance).toFixed(2)}
+              className="no-uppercase"
+            />
+            <p className="text-xs text-muted-foreground">
+              Max refundable: ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Payment Mode</Label>
+            <Select value={overpaymentRefundMode} onValueChange={setOverpaymentRefundMode}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cash">Cash</SelectItem>
+                <SelectItem value="upi">UPI</SelectItem>
+                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                <SelectItem value="cheque">Cheque</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Note (Optional)</Label>
+            <Textarea
+              value={overpaymentRefundNote}
+              onChange={(e) => setOverpaymentRefundNote(e.target.value)}
+              placeholder="Reason for refund..."
+              rows={2}
+              className="no-uppercase"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowOverpaymentRefundDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={isProcessingRefund || !overpaymentRefundAmount || parseFloat(overpaymentRefundAmount) <= 0}
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!selectedCustomer || !organizationId) {
+                toast.error("No customer selected");
+                return;
+              }
+              const amount = parseFloat(overpaymentRefundAmount);
+              if (!amount || amount <= 0) {
+                toast.error("Please enter a valid refund amount");
+                return;
+              }
+              const maxRefundable = Math.abs(effectiveBalance);
+              if (amount > maxRefundable + 0.01) {
+                toast.error(`Cannot refund more than ₹${maxRefundable.toLocaleString('en-IN')}`);
+                return;
+              }
+              setIsProcessingRefund(true);
+              try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const voucherNum = `REFUND-${Date.now()}`;
+                const { error } = await supabase
+                  .from('voucher_entries')
+                  .insert({
+                    organization_id: organizationId,
+                    voucher_type: 'payment',
+                    voucher_number: voucherNum,
+                    voucher_date: new Date().toISOString().split('T')[0],
+                    reference_type: 'customer',
+                    reference_id: selectedCustomer.id,
+                    total_amount: amount,
+                    payment_method: overpaymentRefundMode,
+                    description: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
+                    created_by: user?.id || null,
+                  });
+                if (error) throw error;
+                toast.success(`Refund of ₹${amount.toLocaleString('en-IN')} recorded successfully`);
+                setShowOverpaymentRefundDialog(false);
+                setOverpaymentRefundAmount('');
+                setOverpaymentRefundNote('');
+                queryClient.invalidateQueries({ queryKey: ['customer-ledger-audit-closing'] });
+                queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
+                queryClient.invalidateQueries({ queryKey: ['customer-transactions'] });
+                queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+                queryClient.invalidateQueries({ queryKey: ['useCustomerBalance'] });
+              } catch (err: any) {
+                console.error('Refund error:', err);
+                toast.error(`Refund failed: ${err.message || 'Unknown error'}`);
+              } finally {
+                setIsProcessingRefund(false);
+              }
+            }}
+            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+          >
+            {isProcessingRefund ? <><Loader2 className="h-4 w-4 mr-2 animate-spin />Processing...</> : 'Record Refund'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (selectedCustomer) {
     const ledgerRows = transactions ?? [];
     const ledgerLoading = transactionsPending && ledgerRows.length === 0;
 
     return (
+      <>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSelectedCustomer(null)}
+            onClick={() => {
+              setShowOverpaymentRefundDialog(false);
+              setSelectedCustomer(null);
+            }}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Customers
@@ -3130,7 +3257,8 @@ Please clear your dues at the earliest. Thank you!`;
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      setOverpaymentRefundAmount('');
+                      const creditAmt = effectiveBalance < 0 ? Math.abs(effectiveBalance).toFixed(2) : '';
+                      setOverpaymentRefundAmount(creditAmt);
                       setOverpaymentRefundNote('');
                       setOverpaymentRefundMode('cash');
                       setShowOverpaymentRefundDialog(true);
@@ -3790,10 +3918,13 @@ Please clear your dues at the earliest. Thank you!`;
           />
         )}
       </div>
+      {overpaymentRefundDialog}
+      </>
     );
   }
 
   return (
+    <>
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -4224,117 +4355,8 @@ Please clear your dues at the earliest. Thank you!`;
           organizationId={organizationId}
         />
       )}
-
-      {/* Overpayment Refund Dialog */}
-      <Dialog open={showOverpaymentRefundDialog} onOpenChange={setShowOverpaymentRefundDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Refund Overpayment</DialogTitle>
-            <DialogDescription>
-              Record a cash/UPI refund to {selectedCustomer?.customer_name} for ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')} credit balance.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Refund Amount (₹)</Label>
-              <Input
-                type="number"
-                value={overpaymentRefundAmount}
-                onChange={(e) => setOverpaymentRefundAmount(e.target.value)}
-                placeholder={Math.abs(effectiveBalance).toString()}
-                className="no-uppercase"
-              />
-              <p className="text-xs text-muted-foreground">
-                Max refundable: ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Payment Mode</Label>
-              <Select value={overpaymentRefundMode} onValueChange={setOverpaymentRefundMode}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Note (Optional)</Label>
-              <Textarea
-                value={overpaymentRefundNote}
-                onChange={(e) => setOverpaymentRefundNote(e.target.value)}
-                placeholder="Reason for refund..."
-                rows={2}
-                className="no-uppercase"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowOverpaymentRefundDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={isProcessingRefund || !overpaymentRefundAmount || parseFloat(overpaymentRefundAmount) <= 0}
-              onClick={async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!selectedCustomer || !organizationId) {
-                  toast.error("No customer selected");
-                  return;
-                }
-                const amount = parseFloat(overpaymentRefundAmount);
-                if (!amount || amount <= 0) {
-                  toast.error("Please enter a valid refund amount");
-                  return;
-                }
-                setIsProcessingRefund(true);
-                try {
-                  const { data: { user } } = await supabase.auth.getUser();
-                  const voucherNum = `REFUND-${Date.now()}`;
-                  const { error } = await supabase
-                    .from('voucher_entries')
-                    .insert({
-                      organization_id: organizationId,
-                      voucher_type: 'payment',
-                      voucher_number: voucherNum,
-                      voucher_date: new Date().toISOString().split('T')[0],
-                      reference_type: 'customer',
-                      reference_id: selectedCustomer.id,
-                      total_amount: amount,
-                      payment_method: overpaymentRefundMode,
-                      description: overpaymentRefundNote || `Overpayment refund to ${selectedCustomer.customer_name}`,
-                      created_by: user?.id || null,
-                    });
-                  if (error) throw error;
-                  toast.success(`Refund of ₹${amount.toLocaleString('en-IN')} recorded successfully`);
-                  setShowOverpaymentRefundDialog(false);
-                  setOverpaymentRefundAmount('');
-                  setOverpaymentRefundNote('');
-                  queryClient.invalidateQueries({ queryKey: ['customer-ledger-audit-closing'] });
-                  queryClient.invalidateQueries({ queryKey: ['customer-transactions'] });
-                  queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
-                  queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
-                  queryClient.invalidateQueries({ queryKey: ['useCustomerBalance'] });
-                  queryClient.invalidateQueries({ queryKey: ['customer-ledger'] });
-                } catch (err: any) {
-                  console.error('Refund error:', err);
-                  toast.error(`Refund failed: ${err.message || 'Unknown error'}`);
-                } finally {
-                  setIsProcessingRefund(false);
-                }
-              }}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-            >
-              {isProcessingRefund ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</> : 'Record Refund'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {overpaymentRefundDialog}
     </div>
+    </>
   );
 }

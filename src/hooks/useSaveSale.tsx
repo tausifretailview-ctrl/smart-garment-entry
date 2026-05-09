@@ -182,17 +182,26 @@ export const useSaveSale = () => {
 
     const { data: pendingSRs } = await supabase
       .from('sale_returns')
-      .select('id, net_amount, gross_amount, gst_amount, credit_status, linked_sale_id, customer_id, customer_name, organization_id, refund_type, return_date, return_number, original_sale_number, notes, credit_note_id')
+      .select(
+        'id, net_amount, gross_amount, gst_amount, credit_status, linked_sale_id, credit_available_balance, customer_id, customer_name, organization_id, refund_type, return_date, return_number, original_sale_number, notes, credit_note_id'
+      )
       .eq('customer_id', params.customerId)
       .eq('organization_id', currentOrganization.id)
-      .or('credit_status.eq.pending,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
+      .or('credit_status.eq.pending,credit_status.eq.partially_adjusted,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
       .is('deleted_at', null)
       .order('return_date', { ascending: true });
 
     const targetAmount = roundMoney(params.adjustmentAmount);
+    const availableSrAmt = (sr: any) =>
+      roundMoney(
+        sr.credit_status === 'partially_adjusted' && sr.credit_available_balance != null
+          ? Number(sr.credit_available_balance)
+          : Number(sr.net_amount) || 0
+      );
+
     const sortedSRs = [...(pendingSRs || [])].sort((a: any, b: any) => {
-      const aAmt = roundMoney(Number(a.net_amount) || 0);
-      const bAmt = roundMoney(Number(b.net_amount) || 0);
+      const aAmt = availableSrAmt(a);
+      const bAmt = availableSrAmt(b);
       const aExact = Math.abs(aAmt - targetAmount) < 0.01 ? 1 : 0;
       const bExact = Math.abs(bAmt - targetAmount) < 0.01 ? 1 : 0;
       if (aExact !== bExact) return bExact - aExact;
@@ -202,23 +211,41 @@ export const useSaveSale = () => {
     let remaining = targetAmount;
     for (const sr of sortedSRs) {
       if (remaining <= 0) break;
-      const srAmt = roundMoney(Number(sr.net_amount) || 0);
+      const srAmt = availableSrAmt(sr);
       if (srAmt <= 0) continue;
 
       // Full consume
       if (remaining >= srAmt - 0.01) {
-        await supabase
-          .from('sale_returns')
-          .update({
-            credit_status: 'adjusted',
-            linked_sale_id: params.saleId,
-          })
-          .eq('id', sr.id);
+        const updateRow: Record<string, unknown> = {
+          credit_status: 'adjusted',
+          linked_sale_id: params.saleId,
+        };
+        if (sr.credit_status === 'partially_adjusted') {
+          updateRow.credit_available_balance = 0;
+        }
+        await supabase.from('sale_returns').update(updateRow).eq('id', sr.id);
         remaining = roundMoney(remaining - srAmt);
         continue;
       }
 
       // Mamta/Vasim reconciliation: allow partial consume by splitting row.
+      // Skip physical split for partially_adjusted rows (Adjust CN dialog already
+      // tracks remainder in credit_available_balance); reduce available only.
+      if (sr.credit_status === 'partially_adjusted') {
+        const consumeAmt = roundMoney(remaining);
+        const newAvail = roundMoney(srAmt - consumeAmt);
+        await supabase
+          .from('sale_returns')
+          .update({
+            credit_available_balance: newAvail,
+            credit_status: newAvail <= 0.01 ? 'adjusted' : 'partially_adjusted',
+            linked_sale_id: newAvail <= 0.01 ? params.saleId : (sr as { linked_sale_id?: string | null }).linked_sale_id,
+          })
+          .eq('id', sr.id);
+        remaining = 0;
+        break;
+      }
+
       const consumeAmt = roundMoney(remaining);
       const leftoverAmt = roundMoney(srAmt - consumeAmt);
       const srGross = roundMoney(Number(sr.gross_amount) || srAmt);
@@ -891,10 +918,83 @@ export const useSaveSale = () => {
       // Fetch current paid_amount to preserve partial payments during edit
       const { data: existingSale } = await supabase
         .from('sales')
-        .select('paid_amount, payment_status, sale_return_adjust')
+        .select('paid_amount, payment_status, sale_return_adjust, sale_number')
         .eq('id', saleId)
         .single();
       const existingPaidAmount = existingSale?.paid_amount || 0;
+
+      // Guard: if sale_return_adjust is being reduced, restore the linked SR(s)
+      const oldSRA = Number(existingSale?.sale_return_adjust || 0);
+      const newSRA = roundMoney(Number(saleData.saleReturnAdjust || 0));
+
+      if (oldSRA > 0 && newSRA < oldSRA - 0.01) {
+        const { data: linkedSRs } = await supabase
+          .from('sale_returns')
+          .select(
+            'id, net_amount, gross_amount, gst_amount, credit_status, customer_id, customer_name, organization_id, refund_type, return_date, return_number, original_sale_number, notes, credit_note_id'
+          )
+          .eq('linked_sale_id', saleId)
+          .in('credit_status', ['adjusted', 'partially_adjusted'])
+          .is('deleted_at', null);
+
+        if (linkedSRs && linkedSRs.length > 0) {
+          if (newSRA <= 0.01) {
+            for (const sr of linkedSRs) {
+              await supabase
+                .from('sale_returns')
+                .update({
+                  credit_status: 'pending',
+                  linked_sale_id: null,
+                  credit_available_balance: null,
+                })
+                .eq('id', sr.id);
+            }
+          } else {
+            const sr = linkedSRs[0];
+            const srAmt = roundMoney(Number(sr.net_amount) || 0);
+
+            if (srAmt > newSRA + 0.01) {
+              const ratio = srAmt > 0 ? newSRA / srAmt : 0;
+              const consumedGross = roundMoney((Number(sr.gross_amount) || srAmt) * ratio);
+              const consumedGst = roundMoney((Number(sr.gst_amount) || 0) * ratio);
+              const leftoverAmt = roundMoney(srAmt - newSRA);
+              const leftoverGross = roundMoney((Number(sr.gross_amount) || srAmt) - consumedGross);
+              const leftoverGst = roundMoney((Number(sr.gst_amount) || 0) - consumedGst);
+
+              await supabase
+                .from('sale_returns')
+                .update({
+                  net_amount: newSRA,
+                  gross_amount: consumedGross,
+                  gst_amount: consumedGst,
+                  credit_available_balance: 0,
+                  notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Reduced after invoice edit (was ${srAmt})`,
+                })
+                .eq('id', sr.id);
+
+              if (leftoverAmt > 0.01) {
+                await supabase.from('sale_returns').insert({
+                  organization_id: sr.organization_id,
+                  customer_id: sr.customer_id,
+                  customer_name: sr.customer_name,
+                  refund_type: sr.refund_type || 'credit_note',
+                  payment_method: (sr as { payment_method?: string | null }).payment_method ?? null,
+                  return_date: sr.return_date,
+                  return_number: null,
+                  original_sale_number: sr.original_sale_number || null,
+                  credit_note_id: sr.credit_note_id || null,
+                  credit_status: 'pending',
+                  linked_sale_id: null,
+                  gross_amount: leftoverGross,
+                  gst_amount: leftoverGst,
+                  net_amount: leftoverAmt,
+                  notes: `Pending balance after invoice ${existingSale?.sale_number || saleId} edit`,
+                } as any);
+              }
+            }
+          }
+        }
+      }
 
       // Calculate payment status and amounts
       let cashAmt = 0;

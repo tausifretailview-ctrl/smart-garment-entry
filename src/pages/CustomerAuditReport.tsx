@@ -9,6 +9,7 @@ import {
   FileSearch,
   Printer,
   ShieldCheck,
+  AlertTriangle,
   XCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -108,6 +109,33 @@ export default function CustomerAuditReport() {
     enabled: !!currentOrganization?.id && !!customerId && !!fromYmd && !!toYmd,
     queryFn: async () => {
       return fetchCustomerAuditBundle(supabase, currentOrganization!.id, customerId!);
+    },
+  });
+
+  const { data: srIntegrityDrift = [] } = useQuery({
+    queryKey: ["sr-invoice-integrity-check", currentOrganization?.id, customerId],
+    enabled: !!currentOrganization?.id && !!customerId,
+    queryFn: async () => {
+      const { data, error: qErr } = await (supabase as any)
+        .from("sr_invoice_integrity_check")
+        .select(
+          "sale_return_id, return_number, sr_net_amount, sale_number, invoice_sra, drift_amount, customer_name",
+        )
+        .eq("organization_id", currentOrganization!.id)
+        .eq("customer_id", customerId!);
+      if (qErr) {
+        if (qErr.code === "42P01" || qErr.message?.includes("does not exist")) return [];
+        throw qErr;
+      }
+      return (data || []) as Array<{
+        sale_return_id: string;
+        return_number: string | null;
+        sr_net_amount: number;
+        sale_number: string | null;
+        invoice_sra: number | null;
+        drift_amount: number;
+        customer_name: string | null;
+      }>;
     },
   });
 
@@ -573,6 +601,32 @@ export default function CustomerAuditReport() {
                   These invoices were cancelled by a user. Stock was restored and balances were not
                   affected. They are shown here for audit transparency only.
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {srIntegrityDrift.length > 0 && (
+            <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/25">
+              <CardContent className="p-4 space-y-2">
+                <h3 className="font-semibold text-base flex items-center gap-2 text-amber-800 dark:text-amber-200">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Sale return ↔ invoice mismatch ({srIntegrityDrift.length})
+                </h3>
+                <p className="text-xs text-amber-900/80 dark:text-amber-100/80">
+                  These linked sale returns are marked adjusted but their net amount does not match the
+                  invoice&apos;s sale return adjustment. Correct the data or re-apply credit so the
+                  customer&apos;s balance stays accurate.
+                </p>
+                <ul className="text-xs font-mono space-y-1 list-disc pl-4">
+                  {srIntegrityDrift.map((row) => (
+                    <li key={row.sale_return_id}>
+                      {row.return_number || row.sale_return_id.slice(0, 8)} → {row.sale_number || "—"}:
+                      drift ₹{fmt(Math.abs(Number(row.drift_amount)))}{" "}
+                      (SR ₹{fmt(Number(row.sr_net_amount))} vs inv. adjust ₹
+                      {fmt(Number(row.invoice_sra ?? 0))})
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}
