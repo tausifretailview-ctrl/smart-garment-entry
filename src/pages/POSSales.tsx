@@ -5277,8 +5277,8 @@ export default function POSSales() {
                   <Input 
                     type="number"
                     className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold rounded-l-none border-0" 
-                    value={flatDiscountValue ? flatDiscountValue.toFixed(2) : "0.00"}
-                    placeholder="0"
+                    value={flatDiscountValue === 0 ? "" : flatDiscountValue.toFixed(2)}
+                    placeholder=""
                     step="0.01"
                     onChange={(e) => handleFlatDiscountValueChange(parseFloat(e.target.value) || 0)}
                     onBlur={() => handleFlatDiscountValueChange(flatDiscountValue)}

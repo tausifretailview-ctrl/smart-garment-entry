@@ -60,7 +60,7 @@ export const MobilePOSBottomBar = ({
           <Input
             type="number"
             inputMode="decimal"
-            value={flatDiscountValue ? flatDiscountValue.toFixed(2) : "0.00"}
+            value={flatDiscountValue === 0 ? "" : flatDiscountValue.toFixed(2)}
             step="0.01"
             onChange={(e) => {
               const value = Number(e.target.value) || 0;

@@ -410,13 +410,13 @@ export function TabletPOSLayout({
               <Input
                 type="number"
                 className="h-11 text-[15px] rounded-lg"
-                value={flatDiscountValue ? flatDiscountValue.toFixed(2) : "0.00"}
+                value={flatDiscountValue === 0 ? "" : flatDiscountValue.toFixed(2)}
                 step="0.01"
                 onChange={(e) => {
                   const value = parseFloat(e.target.value) || 0;
                   onFlatDiscountValueChange(Math.round(value * 100) / 100);
                 }}
-                placeholder="0"
+                placeholder=""
                 inputMode="decimal"
                 enterKeyHint="done"
                 style={{ fontFamily: "'JetBrains Mono', monospace" }}
