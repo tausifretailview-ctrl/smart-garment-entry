@@ -5444,18 +5444,16 @@ export default function POSSales() {
             <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
             
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
-            <div className="text-right min-w-[140px] sm:min-w-[180px] shrink-0">
+            <div className="text-center shrink-0 min-w-[160px]">
               {totals.mrp > 0 && totals.mrp !== finalAmount && (
-                <div className="text-sm text-white/90 line-through font-bold leading-tight">
+                <div className="text-xs text-white/90 line-through font-bold leading-tight">
                   MRP ₹{formatINR2(totals.mrp)}
                 </div>
               )}
-              <div className="flex items-center justify-end gap-1">
-                <span className="text-base sm:text-lg text-white/90 uppercase font-bold tracking-wide">Net Amount</span>
-              </div>
-              <Input 
+              <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Net Amount</div>
+              <Input
                 type="number"
-                className={`!w-[220px] sm:!w-[280px] !h-16 sm:!h-20 text-right !text-6xl sm:!text-7xl !font-black bg-white border-0 rounded-md shadow-sm tabular-nums leading-none px-2 ${finalAmount < 0 ? '!text-orange-600' : '!text-emerald-700'}`}
+                className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md bg-white tabular-nums ${finalAmount < 0 ? 'text-orange-600' : 'text-emerald-700'}`}
                 value={Math.round(finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
