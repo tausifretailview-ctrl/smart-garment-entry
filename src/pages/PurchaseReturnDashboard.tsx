@@ -118,28 +118,42 @@ const PurchaseReturnDashboard = () => {
       const startIndex = (currentPage - 1) * pageSize;
       const endIndex = startIndex + pageSize - 1;
 
-      const runReturnsQuery = async (withDcColumn: boolean) => {
-        const selectFields = withDcColumn
-          ? "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, is_dc, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id, credit_available_balance"
-          : "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, linked_bill_id, credit_available_balance";
+      const isRecoverableSchemaError = (err: unknown) => {
+        const m = String((err as { message?: string })?.message || "").toLowerCase();
+        return (
+          (m.includes("column") && m.includes("does not exist")) ||
+          m.includes("could not find")
+        );
+      };
 
+      const SEL_CORE =
+        "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status";
+      const SEL_LINKED = `${SEL_CORE}, linked_bill_id`;
+      const SEL_CREDIT = `${SEL_LINKED}, credit_available_balance`;
+      const SEL_FULL = `${SEL_CREDIT}, is_dc`;
+
+      const runReturnsQuery = async (
+        selectFields: string,
+        filterMode: "is_dc" | "gst_amount"
+      ) => {
         let query = supabase
           .from("purchase_returns" as any)
           .select(selectFields, { count: "exact" })
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null);
 
-        if (withDcColumn) {
+        if (filterMode === "is_dc") {
           if (dcFilter === "dc") query = query.eq("is_dc", true);
           if (dcFilter === "gst") query = query.eq("is_dc", false);
         } else {
-          // Backward-compatible filtering when `is_dc` column is not available.
           if (dcFilter === "dc") query = query.eq("gst_amount", 0);
           if (dcFilter === "gst") query = query.gt("gst_amount", 0);
         }
 
         if (debouncedSearch) {
-          query = query.or(`supplier_name.ilike.%${debouncedSearch}%,original_bill_number.ilike.%${debouncedSearch}%,return_number.ilike.%${debouncedSearch}%`);
+          query = query.or(
+            `supplier_name.ilike.%${debouncedSearch}%,original_bill_number.ilike.%${debouncedSearch}%,return_number.ilike.%${debouncedSearch}%`
+          );
         }
         if (startDate) query = query.gte("return_date", startDate);
         if (endDate) query = query.lte("return_date", endDate);
@@ -148,29 +162,40 @@ const PurchaseReturnDashboard = () => {
         return await query;
       };
 
+      /** Try select tiers from richest to minimal so older DBs without migrations still load. */
+      const tiers: { fields: string; filterMode: "is_dc" | "gst_amount" }[] = [
+        { fields: SEL_FULL, filterMode: "is_dc" },
+        { fields: SEL_CREDIT, filterMode: "gst_amount" },
+        { fields: SEL_LINKED, filterMode: "gst_amount" },
+        { fields: SEL_CORE, filterMode: "gst_amount" },
+      ];
+
       let data: any[] | null = null;
       let count = 0;
-      const primary = await runReturnsQuery(true);
-      if (primary.error) {
-        const errMsg = (primary.error as any)?.message || "";
-        const missingDcColumn =
-          errMsg.includes("is_dc") &&
-          (errMsg.toLowerCase().includes("column") || errMsg.toLowerCase().includes("does not exist"));
+      let lastError: unknown = null;
 
-        if (!missingDcColumn) throw primary.error;
-
-        // Backward-compatible fallback for org DBs where migration isn't applied yet.
-        const fallback = await runReturnsQuery(false);
-        if (fallback.error) throw fallback.error;
-        data = ((fallback.data as any[]) || []).map((r: any) => ({
-          ...r,
-          is_dc: Number(r?.gst_amount || 0) === 0,
-        }));
-        count = fallback.count || 0;
-      } else {
-        data = (primary.data as any[]) || [];
-        count = primary.count || 0;
+      for (const tier of tiers) {
+        const res = await runReturnsQuery(tier.fields, tier.filterMode);
+        if (!res.error) {
+          data = (res.data as any[]) || [];
+          count = res.count || 0;
+          lastError = null;
+          break;
+        }
+        lastError = res.error;
+        if (!isRecoverableSchemaError(res.error)) throw res.error;
       }
+
+      if (lastError && !data) throw lastError;
+
+      data = (data || []).map((r: any) => ({
+        ...r,
+        linked_bill_id: r.linked_bill_id ?? null,
+        credit_available_balance: r.credit_available_balance ?? null,
+        is_dc:
+          r?.is_dc === true ||
+          (r?.is_dc == null && Number(r?.gst_amount || 0) === 0),
+      }));
       
       // Fetch total qty for returned items
       const returnIds = (data || []).map((r: any) => r.id);
