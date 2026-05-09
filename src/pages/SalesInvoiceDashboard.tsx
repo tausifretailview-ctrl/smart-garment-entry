@@ -2908,7 +2908,7 @@ export default function SalesInvoiceDashboard() {
               template={invoiceTemplate}
               showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
               showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
-              items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+              items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
                 size: item.size,
@@ -3615,7 +3615,7 @@ export default function SalesInvoiceDashboard() {
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {invoice.sale_items?.map((item: any) => {
+                                        {(loadedItems[invoice.id] || invoice.sale_items || []).map((item: any) => {
                                           const itemGrossTotal = item.unit_price * item.quantity;
                                           const itemDiscount = item.discount_percent > 0 ? (itemGrossTotal * item.discount_percent / 100) : 0;
                                           const itemAfterDiscount = itemGrossTotal - itemDiscount;
@@ -4223,7 +4223,7 @@ export default function SalesInvoiceDashboard() {
                 template={invoiceTemplate}
                 showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
                 showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
-              items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+              items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
                 size: item.size,
@@ -4291,7 +4291,7 @@ export default function SalesInvoiceDashboard() {
               template={invoiceTemplate}
               showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
               showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
-              items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+              items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
                 size: item.size,
