@@ -32,7 +32,6 @@ import {
   TrendingDown,
   Minus,
   Megaphone,
-  Plus,
   BarChart3,
   Calculator,
   Layers,
@@ -624,105 +623,52 @@ const DesktopDashboard = () => {
         title="Quick Actions"
       />
 
-      {/* Compact Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Smart Inventory Management System
-          </p>
+      {/* Controls: theme, load/refresh, range, net profit (quick actions stay in app header toolbar) */}
+      <div className="flex flex-wrap items-center justify-end gap-2 pb-3 border-b border-border">
+        <ThemeToggle />
+        <Button
+          variant={hasLoaded ? "outline" : "default"}
+          size="sm"
+          onClick={handleRefreshAll}
+          disabled={isRefreshing || isLoading}
+          className={cn(
+            "h-9 text-sm",
+            hasLoaded
+              ? "border-border bg-card hover:bg-muted"
+              : "bg-primary text-primary-foreground hover:bg-primary/90"
+          )}
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
+          {hasLoaded ? "Refresh" : "Load Data"}
+        </Button>
+        <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1 shadow-elevated">
+          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+            <SelectTrigger className="w-[100px] h-9 border-0 shadow-none text-sm bg-transparent text-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border">
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="yearly">Yearly</SelectItem>
+              <SelectItem value="all">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+          {isLoading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+          ) : (
+            <span className="text-xs font-medium text-primary">{dateLabel}</span>
+          )}
         </div>
-        
-        {/* Date Range Selector & Theme Toggle */}
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          
-          {/* Refresh Button */}
-           <Button
-            variant={hasLoaded ? "outline" : "default"}
-            size="sm"
-            onClick={handleRefreshAll}
-            disabled={isRefreshing || isLoading}
-            className={cn(
-              "h-9 text-sm",
-              hasLoaded
-                ? "border-border bg-card hover:bg-muted"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
-            {hasLoaded ? "Refresh" : "Load Data"}
-          </Button>
-          
-          <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1 shadow-elevated">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-            <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-              <SelectTrigger className="w-[100px] h-9 border-0 shadow-none text-sm bg-transparent text-foreground">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="quarterly">Quarterly</SelectItem>
-                <SelectItem value="yearly">Yearly</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-            {isLoading ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-            ) : (
-              <span className="text-xs font-medium text-primary">{dateLabel}</span>
-            )}
-          </div>
-          <Button 
-            variant="default" 
-            size="sm" 
-            onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-            className="h-9 text-sm"
-          >
-            <TrendingUp className="h-3.5 w-3.5 mr-1" />
-            Net Profit
-          </Button>
-        </div>
-      </div>
-      
-      {/* Command Toolbar */}
-      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-        <button
-          onClick={() => navigate("/pos-sales")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+          className="h-9 text-sm"
         >
-          <Plus className="h-3.5 w-3.5" /> New Sale
-        </button>
-        <button
-          onClick={() => navigate("/purchase-entry")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
-        >
-          <Package className="h-3.5 w-3.5" /> Purchase
-        </button>
-        <button
-          onClick={() => navigate("/stock-report")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
-        >
-          <BarChart3 className="h-3.5 w-3.5" /> Stock
-        </button>
-        <button
-          onClick={() => navigate("/accounts")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
-        >
-          <Calculator className="h-3.5 w-3.5" /> Accounts
-        </button>
-        <button
-          onClick={() => navigate("/daily-cashier-report")}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium border border-border bg-background hover:bg-muted transition-colors text-foreground"
-        >
-          <DollarSign className="h-3.5 w-3.5" /> Cashier
-        </button>
-        <div className="flex-1" />
-        <span className="text-xs text-muted-foreground hidden lg:block">
-          Quick actions — Ctrl+K to search
-        </span>
+          <TrendingUp className="h-3.5 w-3.5 mr-1" />
+          Net Profit
+        </Button>
       </div>
 
       {/* Last Updated Indicator */}
