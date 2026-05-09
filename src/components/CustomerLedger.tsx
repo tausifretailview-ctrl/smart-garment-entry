@@ -1522,6 +1522,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           .eq('organization_id', organizationId)
           .is('deleted_at', null)
           .neq('credit_status', 'pending')
+          .neq('credit_status', 'adjusted')
           .lt('return_date', startDateStr);
         (priorReturns || []).forEach((sr: any) => { effectiveOpeningBalance -= sr.net_amount || 0; });
       }
@@ -1868,6 +1869,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           });
         } else if (item.type === 'cn_adjustment') {
           const sr = item.data as any;
+          // Skip SRs absorbed into invoice net via sales.sale_return_adjust — same as
+          // buildAuditRows in customerAuditBundle (credit_status === 'adjusted').
+          // Crediting them here double-counts against the invoice line.
+          if (String(sr.credit_status || '').toLowerCase() === 'adjusted') {
+            return;
+          }
           const amount = sr.net_amount || 0;
           const appliedInfo = srAppliedMap[sr.id];
           const appliedAmount = appliedInfo?.applied || 0;
