@@ -45,6 +45,10 @@ interface SaleReturn {
   total_qty?: number;
   adjusted_sale_number?: string | null;
   adjusted_sale_type?: string | null;
+  /** Amount applied on linked invoice (from sales.sale_return_adjust). */
+  actual_adjusted_amt?: number;
+  /** Return net not yet applied when partial CN on invoice. */
+  remaining_cn_amt?: number;
 }
 
 interface SaleReturnItem {
@@ -70,7 +74,12 @@ const formatCreditStatusLabel = (ret: SaleReturn) => {
   if (ret.credit_status === "refunded") return "Refunded to Customer";
   if (ret.credit_status === "adjusted_outstanding") return "Adjusted to Customer Outstanding";
   if (ret.credit_status === "partially_adjusted") return "CN Partially Applied to Invoice(s)";
-  if (ret.credit_status === "adjusted" && ret.linked_sale_id) return "S/R Adjusted in Invoice";
+  if (ret.credit_status === "adjusted" && ret.linked_sale_id) {
+    const remaining = ret.remaining_cn_amt ?? 0;
+    if (remaining > 0)
+      return `S/R Partial — ₹${remaining.toLocaleString("en-IN")} CN Remaining`;
+    return "S/R Adjusted in Invoice";
+  }
   if (ret.credit_status === "adjusted") return "Credit Note Generated";
   if (ret.credit_status === "pending") return "Credit Note Pending";
   return "Pending";
@@ -232,24 +241,43 @@ export default function SaleReturnDashboard() {
 
       // Enrich returns
       const linkedSaleIds = [...new Set(returnsList.map(r => r.linked_sale_id).filter(Boolean))] as string[];
-      const linkedSaleMap: Record<string, { sale_number: string; sale_type: string | null }> = {};
+      const linkedSaleMap: Record<
+        string,
+        { sale_number: string; sale_type: string | null; sale_return_adjust: number }
+      > = {};
       if (linkedSaleIds.length > 0) {
         const { data: linkedSales } = await supabase
           .from("sales")
-          .select("id, sale_number, sale_type")
+          .select("id, sale_number, sale_type, sale_return_adjust")
           .in("id", linkedSaleIds);
         (linkedSales || []).forEach((s: any) => {
-          linkedSaleMap[s.id] = { sale_number: s.sale_number, sale_type: s.sale_type || null };
+          linkedSaleMap[s.id] = {
+            sale_number: s.sale_number,
+            sale_type: s.sale_type || null,
+            sale_return_adjust: Number(s.sale_return_adjust || 0),
+          };
         });
       }
 
-      const enriched = returnsList.map(r => ({
-        ...r,
-        customer_phone: r.customer_id ? customerPhoneMap[r.customer_id] || null : null,
-        total_qty: qtyMap[r.id] || 0,
-        adjusted_sale_number: r.linked_sale_id ? linkedSaleMap[r.linked_sale_id]?.sale_number || null : null,
-        adjusted_sale_type: r.linked_sale_id ? linkedSaleMap[r.linked_sale_id]?.sale_type || null : null,
-      }));
+      const enriched = returnsList.map((r) => {
+        const linked = r.linked_sale_id ? linkedSaleMap[r.linked_sale_id] : undefined;
+        const net = Number(r.net_amount || 0);
+        const sra = linked ? linked.sale_return_adjust : 0;
+        const actual_adjusted_amt = r.linked_sale_id
+          ? (linked ? sra : net)
+          : net;
+        const remaining_cn_amt =
+          r.linked_sale_id && linked ? Math.max(0, net - sra) : 0;
+        return {
+          ...r,
+          customer_phone: r.customer_id ? customerPhoneMap[r.customer_id] || null : null,
+          total_qty: qtyMap[r.id] || 0,
+          adjusted_sale_number: r.linked_sale_id ? linked?.sale_number || null : null,
+          adjusted_sale_type: r.linked_sale_id ? linked?.sale_type || null : null,
+          actual_adjusted_amt,
+          remaining_cn_amt,
+        };
+      });
 
       return { returns: enriched, totalCount: count || 0 };
     },
@@ -669,7 +697,14 @@ export default function SaleReturnDashboard() {
                             <span className="text-muted-foreground text-[13px]">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-medium">₹{ret.net_amount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          ₹{(ret.actual_adjusted_amt ?? ret.net_amount).toFixed(2)}
+                          {(ret.remaining_cn_amt ?? 0) > 0 && (
+                            <span className="block text-xs text-amber-600 font-normal">
+                              ₹{ret.remaining_cn_amt!.toFixed(2)} remaining
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {ret.refund_type === 'cash_refund' && (
                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
@@ -703,13 +738,15 @@ export default function SaleReturnDashboard() {
                             {(() => {
                               const status = ret.credit_status || "";
                               if (status === "refunded" || status === "adjusted_outstanding") return false;
-                              // "adjusted" with linked_sale_id means already applied to an invoice
-                              if (status === "adjusted" && ret.linked_sale_id) return false;
+                              if (status === "adjusted" && ret.linked_sale_id) {
+                                const remaining = ret.remaining_cn_amt ?? 0;
+                                if (remaining <= 0) return false;
+                              }
                               if (!ret.credit_note_id) return false;
                               const bal =
                                 ret.credit_available_balance != null && !Number.isNaN(Number(ret.credit_available_balance))
                                   ? Number(ret.credit_available_balance)
-                                  : Number(ret.net_amount) || 0;
+                                  : (ret.remaining_cn_amt ?? Number(ret.net_amount));
                               return bal > 0;
                             })() && (
                               <Button
@@ -833,12 +870,14 @@ export default function SaleReturnDashboard() {
             saleReturnId={selectedReturnForAdjust.id}
             creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
             returnNumber={selectedReturnForAdjust.return_number || "N/A"}
-            creditAmount={
-              selectedReturnForAdjust.credit_available_balance != null &&
-              !Number.isNaN(Number(selectedReturnForAdjust.credit_available_balance))
-                ? Number(selectedReturnForAdjust.credit_available_balance)
-                : selectedReturnForAdjust.net_amount
-            }
+            creditAmount={(() => {
+              const r = selectedReturnForAdjust;
+              if (r.credit_available_balance != null && !Number.isNaN(Number(r.credit_available_balance))) {
+                return Number(r.credit_available_balance);
+              }
+              if ((r.remaining_cn_amt ?? 0) > 0) return r.remaining_cn_amt!;
+              return r.net_amount;
+            })()}
             customerId={selectedReturnForAdjust.customer_id || ""}
             customerName={selectedReturnForAdjust.customer_name}
             onSuccess={() => refetchReturns()}

@@ -4231,7 +4231,7 @@ Please clear your dues at the earliest. Thank you!`;
           <DialogHeader>
             <DialogTitle>Refund Overpayment</DialogTitle>
             <DialogDescription>
-              Record a cash/UPI refund to {selectedCustomer?.customer_name} for ₹{Math.abs(selectedCustomer?.balance || 0).toLocaleString('en-IN')} overpaid balance.
+              Record a cash/UPI refund to {selectedCustomer?.customer_name} for ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')} credit balance.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -4241,11 +4241,11 @@ Please clear your dues at the earliest. Thank you!`;
                 type="number"
                 value={overpaymentRefundAmount}
                 onChange={(e) => setOverpaymentRefundAmount(e.target.value)}
-                placeholder={Math.abs(selectedCustomer?.balance || 0).toString()}
+                placeholder={Math.abs(effectiveBalance).toString()}
                 className="no-uppercase"
               />
               <p className="text-xs text-muted-foreground">
-                Max refundable: ₹{Math.abs(selectedCustomer?.balance || 0).toLocaleString('en-IN')}
+                Max refundable: ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')}
               </p>
             </div>
             <div className="space-y-2">
@@ -4315,10 +4315,12 @@ Please clear your dues at the earliest. Thank you!`;
                   setShowOverpaymentRefundDialog(false);
                   setOverpaymentRefundAmount('');
                   setOverpaymentRefundNote('');
-                  queryClient.invalidateQueries({ queryKey: ['customer-ledger'] });
-                  queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
+                  queryClient.invalidateQueries({ queryKey: ['customer-ledger-audit-closing'] });
                   queryClient.invalidateQueries({ queryKey: ['customer-transactions'] });
+                  queryClient.invalidateQueries({ queryKey: ['customer-balance'] });
                   queryClient.invalidateQueries({ queryKey: ['customers-with-balance'] });
+                  queryClient.invalidateQueries({ queryKey: ['useCustomerBalance'] });
+                  queryClient.invalidateQueries({ queryKey: ['customer-ledger'] });
                 } catch (err: any) {
                   console.error('Refund error:', err);
                   toast.error(`Refund failed: ${err.message || 'Unknown error'}`);
