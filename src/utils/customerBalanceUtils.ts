@@ -391,15 +391,18 @@ export async function fetchCustomerBalanceSnapshot(
   const totalSalesGross = Math.round(co.totalInvoiced);
   const totalSaleReturnAdjustOnSales = Math.round(co.totalSaleReturnAdjust);
   const totalSales = Math.round(co.totalInvoiced - co.totalSaleReturnAdjust);
+  // adjustmentTotal uses sign convention: negative outstanding_difference means
+  // outstanding was reduced (treated as a payment-equivalent credit). Include it
+  // in totalPaid (subtracting a negative adds to paid) and in balance.
   const totalPaid = Math.round(
-    co.totalRealPayments + co.customerPaymentDebits + co.totalAdvanceUsed + co.unusedAdvance
+    co.totalRealPayments + co.customerPaymentDebits + co.totalAdvanceUsed + co.unusedAdvance - adjustmentTotal
   );
   const totalCashPaid = Math.round(co.receiptCredits + co.creditNoteCredits);
   const totalAdvanceApplied = Math.round(co.totalAdvanceUsed);
   const totalCnApplied = Math.round(co.creditNoteCredits);
 
   return {
-    balance: Math.round(co.outstanding),
+    balance: Math.round(co.outstanding + adjustmentTotal),
     openingBalance: Math.round(openingBalance),
     totalSales,
     totalPaid,
