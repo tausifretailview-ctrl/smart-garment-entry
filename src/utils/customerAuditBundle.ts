@@ -302,10 +302,9 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
 
   const { data: balanceAdjustments, error: baErr } = await client
     .from("customer_balance_adjustments")
-    .select("outstanding_difference, adjustment_date, notes, reference_number")
+    .select("outstanding_difference, adjustment_date, reason")
     .eq("customer_id", customerId)
-    .eq("organization_id", orgId)
-    .is("deleted_at", null);
+    .eq("organization_id", orgId);
   if (baErr) throw baErr;
 
   return {
