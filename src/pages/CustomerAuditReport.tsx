@@ -149,12 +149,21 @@ export default function CustomerAuditReport() {
       const d = String(v.voucher_date || "").slice(0, 10);
       return d >= fromYmd && d <= toYmd;
     });
+    const adjustmentsInRange = ((auditBundle as any).balanceAdjustments || []).filter((a: any) => {
+      const d = String(a.adjustment_date || "").slice(0, 10);
+      return d >= fromYmd && d <= toYmd;
+    });
+    const adjustmentTotal = adjustmentsInRange.reduce(
+      (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
+      0,
+    );
     return computeCustomerOutstanding({
       openingBalance: Number(auditBundle.customer.opening_balance || 0),
       sales: salesInRange,
       voucherEntries: vouchersInRange,
       customerAdvances: auditBundle.advances,
       advanceRefunds: auditBundle.refunds,
+      adjustmentTotal,
     });
   }, [auditBundle, fromYmd, toYmd]);
 
