@@ -652,6 +652,14 @@ export default function CustomerAuditReport() {
                     <span>Opening Balance</span>
                     <span>₹ {fmt(math.openingBalance)}</span>
                   </div>
+                  {math.adjustmentTotal !== 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className={math.adjustmentTotal < 0 ? "text-green-600" : "text-red-600"}>
+                        ({math.adjustmentTotal < 0 ? "−" : "+"}) Balance Adjustments
+                      </span>
+                      <span>₹ {fmt(Math.abs(math.adjustmentTotal))}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-4">
                     <span>(+) Total Invoiced</span>
                     <span>₹ {fmt(math.totalInvoiced)}</span>
