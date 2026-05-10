@@ -29,6 +29,7 @@ export const computeCustomerOutstanding = (params: {
   }>;
   customerAdvances: Array<{ amount: number; used_amount: number; status: string }>;
   advanceRefunds: Array<{ refund_amount: number }>;
+  adjustmentTotal?: number;
 }) => {
   const validSales = params.sales.filter(
     (s) => !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
@@ -85,7 +86,8 @@ export const computeCustomerOutstanding = (params: {
     totalRealPayments -
     customerPaymentDebits -
     totalAdvanceUsed -
-    unusedAdvance;
+    unusedAdvance +
+    Number(params.adjustmentTotal || 0);
   // Applied + unused (net of refunds) = customer prepayments that reduce receivables.
 
   return {
@@ -101,6 +103,7 @@ export const computeCustomerOutstanding = (params: {
     totalAdvanceUsed,
     unusedAdvance,
     advanceRefundedTotal,
+    adjustmentTotal: Number(params.adjustmentTotal || 0),
     outstanding,
   };
 };

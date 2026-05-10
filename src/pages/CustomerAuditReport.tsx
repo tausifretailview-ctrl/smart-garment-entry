@@ -149,12 +149,21 @@ export default function CustomerAuditReport() {
       const d = String(v.voucher_date || "").slice(0, 10);
       return d >= fromYmd && d <= toYmd;
     });
+    const adjustmentsInRange = ((auditBundle as any).balanceAdjustments || []).filter((a: any) => {
+      const d = String(a.adjustment_date || "").slice(0, 10);
+      return d >= fromYmd && d <= toYmd;
+    });
+    const adjustmentTotal = adjustmentsInRange.reduce(
+      (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
+      0,
+    );
     return computeCustomerOutstanding({
       openingBalance: Number(auditBundle.customer.opening_balance || 0),
       sales: salesInRange,
       voucherEntries: vouchersInRange,
       customerAdvances: auditBundle.advances,
       advanceRefunds: auditBundle.refunds,
+      adjustmentTotal,
     });
   }, [auditBundle, fromYmd, toYmd]);
 
@@ -643,6 +652,14 @@ export default function CustomerAuditReport() {
                     <span>Opening Balance</span>
                     <span>₹ {fmt(math.openingBalance)}</span>
                   </div>
+                  {math.adjustmentTotal !== 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span className={math.adjustmentTotal < 0 ? "text-green-600" : "text-red-600"}>
+                        ({math.adjustmentTotal < 0 ? "−" : "+"}) Balance Adjustments
+                      </span>
+                      <span>₹ {fmt(Math.abs(math.adjustmentTotal))}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-4">
                     <span>(+) Total Invoiced</span>
                     <span>₹ {fmt(math.totalInvoiced)}</span>

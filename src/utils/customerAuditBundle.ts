@@ -300,6 +300,14 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     refunds = ar || [];
   }
 
+  const { data: balanceAdjustments, error: baErr } = await client
+    .from("customer_balance_adjustments")
+    .select("outstanding_difference, adjustment_date, notes, reference_number")
+    .eq("customer_id", customerId)
+    .eq("organization_id", orgId)
+    .is("deleted_at", null);
+  if (baErr) throw baErr;
+
   return {
     customer: customerRow,
     allSales: allSales || [],
@@ -307,6 +315,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     saleReturns: saleReturns || [],
     advances: advances || [],
     refunds,
+    balanceAdjustments: balanceAdjustments || [],
   };
 }
 
@@ -347,11 +356,16 @@ export function computeAuditFormulaOutstanding(bundle: CustomerAuditBundle): Ret
   const validSales = bundle.allSales.filter(
     (s: any) => !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
   );
+  const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
+    (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
+    0,
+  );
   return computeCustomerOutstanding({
     openingBalance: Number(bundle.customer.opening_balance || 0),
     sales: validSales,
     voucherEntries: bundle.vouchersMerged,
     customerAdvances: bundle.advances,
     advanceRefunds: bundle.refunds,
+    adjustmentTotal,
   });
 }
