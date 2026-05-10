@@ -47,8 +47,8 @@ export const MobilePOSBottomBar = ({
 
   const discountDisplay = flatDiscountValue > 0
     ? flatDiscountMode === 'percent'
-      ? `${flatDiscountValue.toFixed(2)}%`
-      : `₹${flatDiscountValue.toFixed(2)}`
+      ? `${flatDiscountValue}%`
+      : `₹${flatDiscountValue}`
     : null;
 
   return (
@@ -59,12 +59,23 @@ export const MobilePOSBottomBar = ({
           <Tag className="h-4 w-4 shrink-0" />
           <Input
             type="number"
-            inputMode="decimal"
-            value={flatDiscountValue === 0 ? "" : flatDiscountValue.toFixed(2)}
-            step="0.01"
+            inputMode="numeric"
+            value={flatDiscountValue === 0 ? "" : String(flatDiscountValue)}
+            step="1"
+            min={0}
             onChange={(e) => {
-              const value = Number(e.target.value) || 0;
-              onFlatDiscountValueChange(Math.round(value * 100) / 100);
+              const raw = e.target.value;
+              if (raw === "") {
+                onFlatDiscountValueChange(0);
+                return;
+              }
+              const n = parseFloat(raw);
+              if (!Number.isFinite(n)) return;
+              onFlatDiscountValueChange(n);
+            }}
+            onBlur={(e) => {
+              const n = parseFloat(e.target.value);
+              onFlatDiscountValueChange(Number.isFinite(n) ? Math.round(n) : 0);
             }}
             placeholder="Discount"
             className="h-8 w-32 bg-primary-foreground/20 border-primary-foreground/30 text-primary-foreground placeholder:text-primary-foreground/50 text-sm"

@@ -267,15 +267,16 @@ export default function POSSales() {
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posCartRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const normalizeDecimal2 = useCallback((value: number) => {
+  /** Whole numbers only — avoids controlled-input bugs (e.g. typing "10" stuck as "1.00" with toFixed(2)). */
+  const normalizeFlatDiscountInput = useCallback((value: number) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return 0;
-    return Math.round(parsed * 100) / 100;
+    return Math.round(parsed);
   }, []);
 
   const handleFlatDiscountValueChange = useCallback((value: number) => {
-    setFlatDiscountValue(normalizeDecimal2(value));
-  }, [normalizeDecimal2]);
+    setFlatDiscountValue(normalizeFlatDiscountInput(value));
+  }, [normalizeFlatDiscountInput]);
 
   const formatINR2 = useCallback((value: number) => {
     const parsed = Number(value);
@@ -5281,10 +5282,20 @@ export default function POSSales() {
                   <Input 
                     type="number"
                     className="w-24 h-10 bg-white text-foreground text-center text-lg font-semibold rounded-l-none border-0" 
-                    value={flatDiscountValue === 0 ? "" : flatDiscountValue.toFixed(2)}
+                    value={flatDiscountValue === 0 ? "" : String(flatDiscountValue)}
                     placeholder=""
-                    step="0.01"
-                    onChange={(e) => handleFlatDiscountValueChange(parseFloat(e.target.value) || 0)}
+                    step="1"
+                    min={0}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "" || raw === "-") {
+                        setFlatDiscountValue(0);
+                        return;
+                      }
+                      const n = parseFloat(raw);
+                      if (!Number.isFinite(n)) return;
+                      setFlatDiscountValue(Math.round(n));
+                    }}
                     onBlur={() => handleFlatDiscountValueChange(flatDiscountValue)}
                   />
                 </div>

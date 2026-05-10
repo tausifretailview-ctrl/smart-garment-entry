@@ -425,9 +425,14 @@ export function useSoftDelete() {
           await supabase.from("purchase_items").delete().eq("bill_id", id);
           await supabase.from("batch_stock").delete().eq("purchase_bill_id", id);
           break;
-        case "sales":
+        case "sales": {
+          const { error: commissionDelErr } = await (supabase.from("salesman_commissions" as any) as any)
+            .delete()
+            .eq("sale_id", id);
+          if (commissionDelErr) throw commissionDelErr;
           await supabase.from("sale_items").delete().eq("sale_id", id);
           break;
+        }
         case "sale_returns":
           await supabase.from("sale_return_items").delete().eq("return_id", id);
           break;
