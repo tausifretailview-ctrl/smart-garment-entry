@@ -56,6 +56,69 @@ type BillRow = {
   supplier_invoice_no: string | null;
 };
 
+/** PostgREST / Postgres “missing column” — retry with a simpler SELECT. */
+function isRecoverableSchemaError(err: unknown): boolean {
+  const m = String((err as { message?: string })?.message || "").toLowerCase();
+  return (
+    (m.includes("column") && m.includes("does not exist")) ||
+    m.includes("could not find") ||
+    (err as { code?: string })?.code === "42703"
+  );
+}
+
+function normalizePurchaseReturnRow(r: Record<string, unknown>): PurchaseReturnRow {
+  return {
+    supplier_id: String(r.supplier_id ?? ""),
+    net_amount: r.net_amount != null ? Number(r.net_amount) : null,
+    credit_note_id: (r.credit_note_id as string | null) ?? null,
+    credit_status: (r.credit_status as string | null) ?? null,
+    linked_bill_id: (r.linked_bill_id as string | null) ?? null,
+    credit_available_balance:
+      r.credit_available_balance != null ? Number(r.credit_available_balance) : null,
+  };
+}
+
+async function fetchPurchaseReturnsForBalance(client: SupabaseClient, organizationId: string): Promise<PurchaseReturnRow[]> {
+  const tiers = [
+    "supplier_id, net_amount, credit_note_id, credit_status, linked_bill_id, credit_available_balance",
+    "supplier_id, net_amount, credit_note_id, credit_status, linked_bill_id",
+    "supplier_id, net_amount, credit_note_id, credit_status",
+  ];
+  let lastErr: unknown;
+  for (const sel of tiers) {
+    const { data, error } = await (client as any)
+      .from("purchase_returns")
+      .select(sel)
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null);
+    if (!error) {
+      return ((data as any[]) || []).map((row) => normalizePurchaseReturnRow(row as Record<string, unknown>));
+    }
+    lastErr = error;
+    if (!isRecoverableSchemaError(error)) throw error;
+  }
+  throw lastErr;
+}
+
+async function fetchPurchaseBillsForBalance(client: SupabaseClient, organizationId: string): Promise<BillRow[]> {
+  const base = () =>
+    client
+      .from("purchase_bills")
+      .select("id, supplier_id, net_amount, paid_amount, software_bill_no, supplier_invoice_no")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null);
+
+  let res = await base().or("is_cancelled.is.null,is_cancelled.eq.false");
+  if (!res.error) return (res.data || []) as BillRow[];
+
+  if (isRecoverableSchemaError(res.error)) {
+    const fallback = await base();
+    if (fallback.error) throw fallback.error;
+    return (fallback.data || []) as BillRow[];
+  }
+  throw res.error;
+}
+
 function computeSnapshotForSupplier(
   supplierId: string,
   openingBalance: number,
@@ -168,14 +231,7 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
 
   if (suppliersError) throw suppliersError;
 
-  const { data: purchaseBillsData, error: billsError } = await client
-    .from("purchase_bills")
-    .select("id, supplier_id, net_amount, paid_amount, software_bill_no, supplier_invoice_no")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .or("is_cancelled.is.null,is_cancelled.eq.false");
-
-  if (billsError) throw billsError;
+  const bills = await fetchPurchaseBillsForBalance(client, organizationId);
 
   const { data: voucherPayments, error: voucherError } = await client
     .from("voucher_entries")
@@ -197,13 +253,7 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
 
   if (creditNoteError) throw creditNoteError;
 
-  const { data: allPurchaseReturns, error: prError } = await (client as any)
-    .from("purchase_returns")
-    .select("supplier_id, net_amount, credit_note_id, credit_status, linked_bill_id, credit_available_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  if (prError) throw prError;
+  const prsFromDb = await fetchPurchaseReturnsForBalance(client, organizationId);
 
   const { data: supplierReceipts, error: rcError } = await client
     .from("voucher_entries")
@@ -224,10 +274,9 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
     );
   });
 
-  const bills = (purchaseBillsData || []) as BillRow[];
   const payments = (voucherPayments || []) as VoucherPaymentRow[];
   const cns = (creditNotes || []) as CreditNoteRow[];
-  const prs = (allPurchaseReturns || []) as unknown as PurchaseReturnRow[];
+  const prs = prsFromDb;
 
   const map = new Map<string, SupplierBalanceSnapshot>();
   for (const supplier of suppliersData || []) {

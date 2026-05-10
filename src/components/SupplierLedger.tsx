@@ -530,10 +530,15 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Supplier balances could not be loaded fully</AlertTitle>
-            <AlertDescription className="text-sm">
-              {balanceSnapshotError} Totals below may show only opening balance until bills/vouchers can be read. If you
-              use row-level security, allow select on <span className="font-mono text-xs">voucher_entries</span> and{" "}
-              <span className="font-mono text-xs">purchase_returns</span> for this role; ensure DB migrations are applied.
+            <AlertDescription className="text-sm space-y-2">
+              <span className="block font-medium">{balanceSnapshotError}</span>
+              <span className="block text-muted-foreground">
+                Outstanding needs purchase bills plus supplier payment/credit-note vouchers from the database. If totals stay at zero:
+                run pending Supabase migrations; confirm your login is a member of this organization (User Rights / org access); in
+                Supabase RLS, ensure <span className="font-mono text-xs">SELECT</span> on{" "}
+                <span className="font-mono text-xs">voucher_entries</span> and{" "}
+                <span className="font-mono text-xs">purchase_returns</span> for your role; check the browser console for the exact error.
+              </span>
             </AlertDescription>
           </Alert>
         )}
@@ -841,10 +846,15 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Supplier balances could not be loaded fully</AlertTitle>
-          <AlertDescription className="text-sm">
-            {balanceSnapshotError} Totals below may show only opening balance until bills/vouchers can be read. If you
-            use row-level security, allow select on <span className="font-mono text-xs">voucher_entries</span> and{" "}
-            <span className="font-mono text-xs">purchase_returns</span> for this role; ensure DB migrations are applied.
+          <AlertDescription className="text-sm space-y-2">
+            <span className="block font-medium">{balanceSnapshotError}</span>
+            <span className="block text-muted-foreground">
+              Outstanding needs purchase bills plus supplier payment/credit-note vouchers from the database. If totals stay at zero:
+              run pending Supabase migrations; confirm your login is a member of this organization (User Rights / org access); in
+              Supabase RLS, ensure <span className="font-mono text-xs">SELECT</span> on{" "}
+              <span className="font-mono text-xs">voucher_entries</span> and{" "}
+              <span className="font-mono text-xs">purchase_returns</span> for your role; check the browser console for the exact error.
+            </span>
           </AlertDescription>
         </Alert>
       )}
