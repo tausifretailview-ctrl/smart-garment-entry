@@ -80,8 +80,8 @@ interface RetailTaxEzzyTemplateProps {
 }
 
 const MAX_ITEMS_PER_PAGE = 12;
-/** No filler rows — padding was forcing ~8 blank lines and pushing the footer to page 2 on A5. */
-const MIN_BLANK_ROWS = 0;
+/** Minimum product rows on the last page (incl. blanks) so A5 looks balanced with 1–2 lines. */
+const MIN_PRODUCT_TABLE_ROWS = 6;
 
 export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   businessName,
@@ -140,15 +140,18 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   for (let i = 0; i < items.length; i += MAX_ITEMS_PER_PAGE) {
     itemPages.push(items.slice(i, i + MAX_ITEMS_PER_PAGE));
   }
-  if (itemPages.length > 0) {
+  if (itemPages.length === 0) {
+    itemPages.push([]);
+  }
+  {
     const lastPage = itemPages[itemPages.length - 1];
-    const minRows = Math.max(lastPage.length, MIN_BLANK_ROWS);
-    while (lastPage.length < minRows && lastPage.length < MAX_ITEMS_PER_PAGE) {
+    const targetRows = Math.min(
+      MAX_ITEMS_PER_PAGE,
+      Math.max(lastPage.length, MIN_PRODUCT_TABLE_ROWS),
+    );
+    while (lastPage.length < targetRows) {
       lastPage.push(null);
     }
-  }
-  if (itemPages.length === 0) {
-    itemPages.push([null]);
   }
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
