@@ -212,6 +212,7 @@ export default function CustomerAuditReport() {
       vouchers: auditBundle.vouchersMerged,
       advances: auditBundle.advances,
       refunds: auditBundle.refunds,
+      balanceAdjustments: auditBundle.balanceAdjustments,
     });
   }, [auditBundle]);
 

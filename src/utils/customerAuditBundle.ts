@@ -23,6 +23,8 @@ export function buildAuditRows(params: {
   vouchers: any[];
   advances: any[];
   refunds: any[];
+  /** Same debit/credit rules as Customer Ledger adjustment rows. */
+  balanceAdjustments?: any[];
 }): AuditRow[] {
   const rows: AuditRow[] = [];
 
@@ -178,6 +180,26 @@ export function buildAuditRows(params: {
     });
   }
 
+  for (const adj of params.balanceAdjustments || []) {
+    const d = String(adj.adjustment_date || "").slice(0, 10);
+    const outDiff = Number(adj.outstanding_difference || 0);
+    const advDiff = Number(adj.advance_difference || 0);
+    const advanceConsumed = advDiff < 0 ? Math.abs(advDiff) : 0;
+    const netDebit = (outDiff > 0 ? outDiff : 0) + advanceConsumed;
+    const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
+    if (netDebit <= 0.005 && netCredit <= 0.005) continue;
+    rows.push({
+      id: `cba-${adj.id}`,
+      at: d,
+      type: "Balance Adjustment",
+      ref: "ADJ",
+      particulars: String(adj.reason || "Balance adjustment").trim(),
+      debit: netDebit,
+      credit: netCredit,
+      internal: false,
+    });
+  }
+
   rows.sort((a, b) => {
     if (a.at !== b.at) return a.at.localeCompare(b.at);
     return a.id.localeCompare(b.id);
@@ -302,7 +324,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
 
   const { data: balanceAdjustments, error: baErr } = await client
     .from("customer_balance_adjustments")
-    .select("outstanding_difference, adjustment_date, reason")
+    .select("id, outstanding_difference, advance_difference, adjustment_date, reason")
     .eq("customer_id", customerId)
     .eq("organization_id", orgId);
   if (baErr) throw baErr;
@@ -332,6 +354,7 @@ export function computeAuditPeriodOutstanding(
     vouchers: bundle.vouchersMerged,
     advances: bundle.advances,
     refunds: bundle.refunds,
+    balanceAdjustments: bundle.balanceAdjustments,
   });
 
   const ob = Number(bundle.customer.opening_balance || 0);

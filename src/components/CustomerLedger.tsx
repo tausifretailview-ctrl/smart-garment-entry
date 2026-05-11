@@ -55,6 +55,10 @@ interface Customer {
   totalPaid: number;
   balance: number;
   unusedAdvanceTotal?: number;
+  totalCashPaid?: number;
+  totalAdvanceApplied?: number;
+  totalCnApplied?: number;
+  adjustmentTotal?: number;
   // School-specific fields
   studentId?: string;
   admissionNumber?: string;
@@ -486,6 +490,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             totalSales,
             totalPaid: Math.round(totalPaidDisplay),
             balance,
+            totalCashPaid: Math.round(totalPaidDisplay),
+            totalAdvanceApplied: 0,
+            totalCnApplied: 0,
+            unusedAdvanceTotal: 0,
+            adjustmentTotal: 0,
             studentId: student.id,
             admissionNumber: student.admission_number,
             className: student.school_classes?.class_name || "",
@@ -502,6 +511,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             totalSales: 0,
             totalPaid: 0,
             balance: Math.round(customer.opening_balance || 0),
+            totalCashPaid: 0,
+            totalAdvanceApplied: 0,
+            totalCnApplied: 0,
+            unusedAdvanceTotal: 0,
+            adjustmentTotal: 0,
           });
         }
 
@@ -708,6 +722,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           totalPaid: co.totalPaid,
           balance: co.balance,
           unusedAdvanceTotal: Math.round(effectiveUnusedAdvances),
+          totalCashPaid: co.totalCashPaid || 0,
+          totalAdvanceApplied: co.totalAdvanceApplied || 0,
+          totalCnApplied: co.totalCnApplied || 0,
+          adjustmentTotal: co.adjustmentTotal || 0,
         };
       });
 
@@ -3163,98 +3181,102 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-0">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border-l-4 border-l-orange-400 overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
+                  <CardContent className="p-3">
+                    <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
                     <div className={cn(
-                      "text-xl font-bold tabular-nums",
+                      "text-lg font-bold tabular-nums",
                       selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400"
                     )}>
                       ₹{Math.abs(selectedCustomer.opening_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
                       {selectedCustomer.opening_balance > 0 ? "Receivable" : "Advance"}
                     </div>
                   </CardContent>
                 </Card>
               )}
               <Card className="border-l-4 border-l-blue-400 overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    {isSchool ? ((selectedCustomer as any).hasStructures === false ? 'Opening Balance' : 'Total Fees') : 'Total Sales'}
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {isSchool ? ((selectedCustomer as any).hasStructures === false ? "Opening Balance" : "Total Fees") : "Total Sales"}
                   </div>
-                  <div className="text-xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">
+                  <div className="text-lg font-bold text-blue-700 dark:text-blue-300 tabular-nums">
                     ₹{selectedCustomer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-emerald-400 overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    {isSchool ? 'Fees Paid' : 'Total Paid'}
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                    {isSchool ? "Fees Received" : "Cash/UPI Paid"}
                   </div>
-                  <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    ₹{selectedCustomer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="border-l-4 border-l-violet-400 overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Collection Rate</div>
-                  <div className="text-xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">
-                    {(() => {
-                      // For school: totalSales already represents full expected (structures OR imported balance)
-                      // For business: total expected = totalSales + opening_balance
-                      const totalExpected = isSchool
-                        ? selectedCustomer.totalSales
-                        : selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance);
-                      return totalExpected > 0
-                        ? ((selectedCustomer.totalPaid / totalExpected) * 100).toFixed(1)
-                        : '0.0';
-                    })()}%
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    ₹{(selectedCustomer.totalCashPaid ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
-              {/* FIX 5 — Single, unambiguous Returns / CR card */}
+              <Card className="border-l-4 border-l-purple-400 overflow-hidden">
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Adjusted</div>
+                  <div className="text-lg font-bold text-purple-600 dark:text-purple-300 tabular-nums">
+                    ₹{(selectedCustomer.totalAdvanceApplied ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-teal-400 overflow-hidden">
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Balance</div>
+                  <div className={cn(
+                    "text-lg font-bold tabular-nums",
+                    (selectedCustomer.unusedAdvanceTotal ?? 0) > 0 ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"
+                  )}>
+                    ₹{(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </div>
+                  {(selectedCustomer.unusedAdvanceTotal ?? 0) > 0 && (
+                    <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Available to apply</div>
+                  )}
+                </CardContent>
+              </Card>
               <Card className="border-l-4 border-l-amber-400 overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Returns / CR</div>
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Returns / CR</div>
                   {saleReturnsSummary.pending + saleReturnsSummary.partialPending > 0 ? (
                     <>
-                      <div className="text-xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">
+                      <div className="text-lg font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                         ₹{(saleReturnsSummary.pending + saleReturnsSummary.partialPending).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
-                      <div className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Pending adjustment</div>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Pending adjustment</div>
                     </>
                   ) : saleReturnsSummary.adjusted > 0 ? (
                     <>
-                      <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
+                      <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                         ₹{saleReturnsSummary.adjusted.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
-                      <div className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">Adjusted ✓</div>
+                      <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">Adjusted ✓</div>
                     </>
                   ) : (
                     <>
-                      <div className="text-xl font-bold text-muted-foreground tabular-nums">₹0.00</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">No returns</div>
+                      <div className="text-lg font-bold text-muted-foreground tabular-nums">₹0.00</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">No returns</div>
                     </>
                   )}
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-orange-400 overflow-hidden">
-                <CardContent className="p-4">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">CN Available</div>
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">CN Available</div>
                   <div className={cn(
-                    "text-xl font-bold tabular-nums",
+                    "text-lg font-bold tabular-nums",
                     cnAvailable > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
                   )}>
                     ₹{cnAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                   {cnAvailable > 0 && (
-                    <div className="text-xs text-orange-500 mt-0.5">Pending adjustment</div>
+                    <div className="text-[10px] text-orange-500 mt-0.5">Pending adjustment</div>
                   )}
                 </CardContent>
               </Card>
