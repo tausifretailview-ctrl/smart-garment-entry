@@ -44,6 +44,7 @@ export function buildAuditRows(
   for (const s of params.sales) {
     const st = String(s.payment_status || "").toLowerCase();
     if (st === "cancelled" || st === "hold") continue;
+    if ((s as any).is_cancelled === true) continue;
     const d = String(s.sale_date || "").slice(0, 10);
     const net = Number(s.net_amount || 0);
     const sn = String(s.sale_number || "").trim() || "—";
@@ -421,7 +422,9 @@ export function computeAuditPeriodOutstanding(
 /** Full-period (lifetime) outstanding — formula check vs running balance. */
 export function computeAuditFormulaOutstanding(bundle: CustomerAuditBundle): ReturnType<typeof computeCustomerOutstanding> {
   const validSales = bundle.allSales.filter(
-    (s: any) => !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
+    (s: any) =>
+      s.is_cancelled !== true &&
+      !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
   );
   const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
     (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
