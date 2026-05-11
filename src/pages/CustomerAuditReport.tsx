@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   XCircle,
+  Search,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
@@ -21,7 +22,13 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 import { computeCustomerOutstanding } from "@/utils/customerAuditMath";
-import { buildAuditRows, fetchCustomerAuditBundle, type AuditRow } from "@/utils/customerAuditBundle";
+import {
+  buildAuditRows,
+  computeAuditFormulaOutstanding,
+  fetchCustomerAuditBundle,
+  type AuditRow,
+} from "@/utils/customerAuditBundle";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -35,6 +42,13 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface CustomerOption {
   id: string;
@@ -51,8 +65,11 @@ function ymdBoundary(d: Date | undefined): string | null {
   return format(d, "yyyy-MM-dd");
 }
 
+type IntegrityRow = { source: string; amount: number; detail: string };
+
 export default function CustomerAuditReport() {
   const { currentOrganization } = useOrganization();
+  const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const preSelectedCustomerId = searchParams.get("customer");
 
@@ -71,6 +88,8 @@ export default function CustomerAuditReport() {
   const [fromDate, setFromDate] = useState<Date | undefined>(fyStart);
   const [toDate, setToDate] = useState<Date | undefined>(fyEnd);
   const [custOpen, setCustOpen] = useState(false);
+  const [integrityDialogOpen, setIntegrityDialogOpen] = useState(false);
+  const [integrityBreakdown, setIntegrityBreakdown] = useState<IntegrityRow[] | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = useReactToPrint({
@@ -110,6 +129,24 @@ export default function CustomerAuditReport() {
     queryFn: async () => {
       return fetchCustomerAuditBundle(supabase, currentOrganization!.id, customerId!);
     },
+  });
+
+  const { data: dbTrueBalance } = useQuery({
+    queryKey: ["customer-true-outstanding", customerId, currentOrganization?.id],
+    queryFn: async () => {
+      if (!customerId || !currentOrganization?.id) return null;
+      const { data, error } = await supabase.rpc("get_customer_true_outstanding", {
+        p_customer_id: customerId,
+        p_organization_id: currentOrganization.id,
+      });
+      if (error) {
+        console.error("Balance integrity check failed:", error);
+        return null;
+      }
+      return Number(data);
+    },
+    enabled: !!customerId && !!currentOrganization?.id,
+    staleTime: 30_000,
   });
 
   const { data: srIntegrityDrift = [] } = useQuery({
@@ -244,6 +281,36 @@ export default function CustomerAuditReport() {
   const card2Total =
     math != null ? math.totalRealPayments + math.totalAdvanceReceived : 0;
 
+  /** Lifetime audit formula (all-time); compare to DB RPC — not FY-scoped `math`. */
+  const lifetimeFormula = useMemo(() => {
+    if (!auditBundle) return null;
+    return computeAuditFormulaOutstanding(auditBundle);
+  }, [auditBundle]);
+
+  const runIntegrityCheck = async () => {
+    if (!customerId || !currentOrganization?.id) return;
+    const { data, error } = await supabase.rpc("reconcile_customer_balance", {
+      p_customer_id: customerId,
+      p_organization_id: currentOrganization.id,
+    });
+    if (error) {
+      toast({ title: "Check failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    const rows = (data || []) as Array<{ source: string; amount: string | number; detail: string }>;
+    setIntegrityBreakdown(
+      rows.map((r) => ({
+        source: r.source,
+        amount: Number(r.amount),
+        detail: r.detail,
+      })),
+    );
+    setIntegrityDialogOpen(true);
+  };
+
+  const integrityTotal =
+    integrityBreakdown?.reduce((s, r) => s + r.amount, 0) ?? null;
+
   const exportExcel = () => {
     if (!selectedCustomer || !math || !auditBundle) return;
     const rows: (string | number)[][] = [
@@ -341,6 +408,14 @@ export default function CustomerAuditReport() {
             >
               <FileDown className="h-4 w-4 mr-2" />
               Export Excel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void runIntegrityCheck()}
+              disabled={!selectedCustomer || !currentOrganization?.id}
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Integrity check
             </Button>
           </div>
         </div>
@@ -723,6 +798,30 @@ export default function CustomerAuditReport() {
             </Card>
           )}
 
+          {dbTrueBalance != null &&
+            lifetimeFormula != null &&
+            Math.abs(lifetimeFormula.outstanding - dbTrueBalance) > 1 && (
+              <Card className="border-red-300 bg-red-50/60 dark:bg-red-950/20">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-semibold text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Balance integrity warning
+                  </div>
+                  <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
+                    The lifetime audit formula shows ₹{fmt(Math.abs(lifetimeFormula.outstanding))}{" "}
+                    {lifetimeFormula.outstanding >= 0 ? "Dr" : "Cr"} but the database cross-check
+                    calculates ₹{fmt(Math.abs(dbTrueBalance))} {dbTrueBalance >= 0 ? "Dr" : "Cr"}.
+                    Difference: ₹{fmt(Math.abs(lifetimeFormula.outstanding - dbTrueBalance))}. This may
+                    indicate drift between SQL and the report formula. Use Integrity check for a
+                    component breakdown or contact support.
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-2">
+                    Integrity uses all-time totals; FY cards above are date-filtered.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
           <Card className="bg-muted/30">
             <CardContent className="p-4 text-sm text-muted-foreground">
               <p className="font-medium text-foreground mb-1">Compare with Customer Account Statement</p>
@@ -735,6 +834,56 @@ export default function CustomerAuditReport() {
             </CardContent>
           </Card>
         </div>
+
+        <Dialog open={integrityDialogOpen} onOpenChange={setIntegrityDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Balance integrity breakdown</DialogTitle>
+              <DialogDescription>
+                Lifetime components from the database (SUM(amount) = true outstanding per migration
+                comments). Positive amount increases net receivable (Dr).
+              </DialogDescription>
+            </DialogHeader>
+            {integrityBreakdown && integrityBreakdown.length > 0 ? (
+              <div className="space-y-3">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Source</TableHead>
+                      <TableHead className="text-right">Amount (₹)</TableHead>
+                      <TableHead>Detail</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {integrityBreakdown.map((row) => (
+                      <TableRow key={row.source}>
+                        <TableCell className="font-mono text-xs">{row.source}</TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">
+                          {fmt(Math.abs(row.amount))}
+                          {row.amount !== 0 ? ` ${row.amount >= 0 ? "Dr" : "Cr"}` : ""}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{row.detail}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-semibold bg-muted/50">
+                      <TableCell>Total (true balance)</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">
+                        {integrityTotal != null && (
+                          <>
+                            {fmt(Math.abs(integrityTotal))} {integrityTotal >= 0 ? "Dr" : "Cr"}
+                          </>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">SUM(amount)</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No data.</p>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

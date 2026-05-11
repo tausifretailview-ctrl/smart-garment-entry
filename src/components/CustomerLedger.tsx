@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, TrendingUp, BookOpen, Undo2, Loader2 } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -168,6 +168,25 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     isSchool ? null : selectedCustomer?.id || null,
     organizationId || null
   );
+
+  /** Lifetime outstanding from DB RPC (audit-formula SQL); compare to snapshot hook, not date-range header. */
+  const { data: dbTrueOutstanding } = useQuery({
+    queryKey: ["customer-true-outstanding-ledger", organizationId, selectedCustomer?.id],
+    queryFn: async () => {
+      if (!organizationId || !selectedCustomer?.id) return null;
+      const { data, error } = await supabase.rpc("get_customer_true_outstanding", {
+        p_customer_id: selectedCustomer.id,
+        p_organization_id: organizationId,
+      });
+      if (error) {
+        console.error("get_customer_true_outstanding:", error);
+        return null;
+      }
+      return Number(data);
+    },
+    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
+    staleTime: 30_000,
+  });
 
   /** Same closing balance as Customer Audit Report for the selected date window (business org only). */
   const { data: ledgerAuditClosingBalance } = useQuery({
@@ -3118,6 +3137,28 @@ Please clear your dues at the earliest. Thank you!`;
                     <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
+                {dbTrueOutstanding != null &&
+                  !isSchool &&
+                  Math.abs(authoritativeBalance - dbTrueOutstanding) > 1 && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-2 text-left max-w-[240px] ml-auto">
+                      <span className="inline-flex items-start gap-1 font-medium">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        Balance mismatch: database lifetime check ₹
+                        {Math.abs(dbTrueOutstanding).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                        })}{" "}
+                        {dbTrueOutstanding >= 0 ? "Dr" : "Cr"} vs snapshot balance ₹
+                        {Math.abs(authoritativeBalance).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                        })}{" "}
+                        {authoritativeBalance >= 0 ? "Dr" : "Cr"}.
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground font-normal mt-1">
+                        The large figure above may follow your date filter; this check is all-time vs
+                        the KPI snapshot.
+                      </span>
+                    </p>
+                  )}
               </div>
             </div>
           </CardHeader>
