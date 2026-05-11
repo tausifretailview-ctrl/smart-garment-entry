@@ -175,3 +175,75 @@ HAVING
   count(*) FILTER (WHERE su.journal_status = 'pending') > 0
   OR count(*) FILTER (WHERE su.journal_status IN ('failed', 'error')) > 0
 ORDER BY pending_rows DESC, failed_or_error_rows DESC, org_name, doc_type;
+
+-- TROUBLESHOOT: top failed/error rows with error message (all orgs, all doc types)
+WITH failures AS (
+  SELECT
+    'sales'::text AS doc_type,
+    s.organization_id,
+    s.id AS doc_id,
+    s.sale_number AS doc_number,
+    s.sale_date::date AS doc_date,
+    s.journal_status,
+    s.journal_error
+  FROM public.sales s
+  WHERE s.deleted_at IS NULL
+    AND s.is_cancelled = false
+    AND s.journal_status IN ('failed', 'error')
+
+  UNION ALL
+
+  SELECT
+    'purchase_bills'::text,
+    p.organization_id,
+    p.id,
+    p.software_bill_no AS doc_number,
+    p.bill_date::date AS doc_date,
+    p.journal_status,
+    p.journal_error
+  FROM public.purchase_bills p
+  WHERE p.deleted_at IS NULL
+    AND p.is_cancelled = false
+    AND p.journal_status IN ('failed', 'error')
+
+  UNION ALL
+
+  SELECT
+    'sale_returns'::text,
+    sr.organization_id,
+    sr.id,
+    sr.return_number AS doc_number,
+    sr.return_date::date AS doc_date,
+    sr.journal_status,
+    sr.journal_error
+  FROM public.sale_returns sr
+  WHERE sr.deleted_at IS NULL
+    AND sr.journal_status IN ('failed', 'error')
+
+  UNION ALL
+
+  SELECT
+    'purchase_returns'::text,
+    pr.organization_id,
+    pr.id,
+    pr.return_number AS doc_number,
+    pr.return_date::date AS doc_date,
+    pr.journal_status,
+    pr.journal_error
+  FROM public.purchase_returns pr
+  WHERE pr.deleted_at IS NULL
+    AND pr.journal_status IN ('failed', 'error')
+)
+SELECT
+  o.name AS org_name,
+  f.organization_id,
+  f.doc_type,
+  f.doc_id,
+  f.doc_number,
+  f.doc_date,
+  f.journal_status,
+  COALESCE(NULLIF(trim(f.journal_error), ''), '(no error text)') AS journal_error
+FROM failures f
+JOIN public.organizations o ON o.id = f.organization_id
+ORDER BY f.doc_date DESC NULLS LAST, org_name, f.doc_type
+LIMIT 50;
