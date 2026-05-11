@@ -103,6 +103,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   saleReturnAdjust = 0,
   igstAmount,
   totalTax,
+  roundOff = 0,
   grandTotal,
   termsConditions = [],
   notes,
@@ -129,6 +130,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
     }
     return value;
   };
+
+  const moneyEpsilon = 0.005;
+  const showDiscountRow = discount > moneyEpsilon;
+  const showSrRow = Math.abs(saleReturnAdjust) > moneyEpsilon;
+  const showRoundOffRow = Math.abs(roundOff) >= moneyEpsilon;
 
   const itemPages: (InvoiceItem | null)[][] = [];
   for (let i = 0; i < items.length; i += MAX_ITEMS_PER_PAGE) {
@@ -410,27 +416,46 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     </div>
                     <div className="w-[42%] shrink-0 border-slate-300">
                       <div className="flex justify-between border-b border-slate-300 px-2 py-1">
-                        <span>Sub Total</span>
+                        <span className="leading-tight">
+                          Sub Total{" "}
+                          <span className="block text-[8px] font-normal normal-case text-slate-600">(incl. GST)</span>
+                        </span>
                         <span>₹{fmt(subtotal)}</span>
                       </div>
+                      {showDiscountRow ? (
+                        <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                          <span>Discount</span>
+                          <span>- ₹{fmt(discount)}</span>
+                        </div>
+                      ) : null}
+                      {showSrRow ? (
+                        <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                          <span>S/R Adjust</span>
+                          <span>
+                            {saleReturnAdjust > 0
+                              ? `- ₹${fmt(saleReturnAdjust)}`
+                              : `+ ₹${fmt(-saleReturnAdjust)}`}
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex justify-between border-b border-slate-300 px-2 py-1">
-                        <span>Discount</span>
-                        <span>{discount > 0 ? `- ₹${fmt(discount)}` : `₹${fmt(0)}`}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-300 px-2 py-1">
-                        <span>S/R Adjust</span>
-                        <span>
-                          {saleReturnAdjust > 0
-                            ? `- ₹${fmt(saleReturnAdjust)}`
-                            : saleReturnAdjust < 0
-                              ? `+ ₹${fmt(-saleReturnAdjust)}`
-                              : `₹${fmt(0)}`}
+                        <span className="leading-tight">
+                          GST{" "}
+                          <span className="block text-[8px] font-normal normal-case text-slate-600">
+                            (included in Sub Total; not added again)
+                          </span>
                         </span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-300 px-2 py-1">
-                        <span>GST Amount</span>
                         <span>₹{fmt(totalTax)}</span>
                       </div>
+                      {showRoundOffRow ? (
+                        <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                          <span>Round Off</span>
+                          <span>
+                            {roundOff > 0 ? "+" : ""}
+                            ₹{fmt(roundOff)}
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="flex justify-between bg-slate-100 px-2 py-1.5 text-2xl font-bold text-slate-950">
                         <span>Bill Amount</span>
                         <span>₹{fmt(grandTotal)}</span>
