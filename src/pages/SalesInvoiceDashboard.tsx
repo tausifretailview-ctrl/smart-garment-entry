@@ -3398,7 +3398,7 @@ export default function SalesInvoiceDashboard() {
                       <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
                       <TableHead className="text-right font-semibold w-[3.5rem] max-w-[4rem] px-1">DIS</TableHead>
                       <TableHead className="font-semibold w-[4.75rem] text-right">Amount</TableHead>
-                      {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Pay Status</TableHead>}
+                      {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Status</TableHead>}
                       {columnSettings.status && <TableHead className="text-right font-semibold w-[4.25rem] px-1">Balance</TableHead>}
                       {columnSettings.delivery && <TableHead className="font-semibold w-[5rem] px-1">Delivery</TableHead>}
                       <TableHead className="text-right font-semibold w-[8.5rem] lg:w-[9.5rem] px-1">Actions</TableHead>
