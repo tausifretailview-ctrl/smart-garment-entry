@@ -472,15 +472,6 @@ export const Header = () => {
           <span className="text-xs font-medium text-success">Live</span>
           <span className="text-xs text-sidebar-foreground/40">· {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
         </div>
-
-        <div className="w-px h-4 bg-sidebar-border mx-1" />
-
-        {/* Date range selector */}
-        <Button variant="outline" className="h-7 px-2.5 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/40 border-sidebar-border hover:bg-sidebar-accent gap-1.5">
-          <span>📅</span>
-          Monthly
-          <ChevronDown className="h-3 w-3" />
-        </Button>
       </div>
 
       {/* Dialogs */}
