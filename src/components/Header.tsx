@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -289,6 +289,10 @@ export const Header = () => {
                 E-Invoice Report
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => orgNavigate("/customer-account-statement-audit")} className="cursor-pointer">
+                <FileText className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Account statement (audit)
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => orgNavigate("/customer-audit-report")} className="cursor-pointer">
                 <ShieldCheck className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Customer Audit Report

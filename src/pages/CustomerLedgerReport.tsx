@@ -1,8 +1,11 @@
+import { useSearchParams } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { CustomerLedger } from "@/components/CustomerLedger";
 
 export default function CustomerLedgerReport() {
   const { currentOrganization } = useOrganization();
+  const [searchParams] = useSearchParams();
+  const preSelectedCustomerId = searchParams.get("customer");
 
   if (!currentOrganization?.id) {
     return (
@@ -14,7 +17,10 @@ export default function CustomerLedgerReport() {
 
   return (
     <div className="space-y-4 p-4">
-      <CustomerLedger organizationId={currentOrganization.id} />
+      <CustomerLedger
+        organizationId={currentOrganization.id}
+        preSelectedCustomerId={preSelectedCustomerId}
+      />
     </div>
   );
 }

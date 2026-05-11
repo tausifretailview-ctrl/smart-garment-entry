@@ -78,6 +78,7 @@ export default function MobileReportsHub() {
       color: "text-purple-500",
       reports: [
         { icon: TrendingUp, label: "Profit Analysis", path: "/net-profit-analysis", desc: "Gross/Net profit" },
+        { icon: FileText, label: "Account statement (audit)", path: "/customer-account-statement-audit", desc: "Audit register for comparison" },
         { icon: ShieldCheck, label: "Customer Audit", path: "/customer-audit-report", desc: "Verified customer outstanding" },
         { icon: Receipt, label: "GST Report", path: "/gst-reports", desc: "GST summaries" },
       ]
