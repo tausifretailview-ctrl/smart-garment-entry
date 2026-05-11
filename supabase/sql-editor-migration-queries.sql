@@ -46,3 +46,132 @@ ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS item_notes TEXT DEFAULT N
 COMMENT ON COLUMN public.sale_items.item_notes IS 'Optional line-level description (design number, brand, barcode etc). Appears on invoice print.';
 
 -- If PostgREST still says "schema cache", wait ~1 min or: Dashboard → Settings → API → Reload schema (if available).
+
+-- =============================================================================
+-- Accounting historical backfill (ALL organizations) — preview + verify
+-- NOTE:
+-- - Run app-level backfill loop from UI/code (do NOT rebuild journal logic in SQL).
+-- - These SQL blocks are for safety checks before/after backfill.
+-- - Track both 'failed' and 'error' in journal_status.
+-- =============================================================================
+
+-- PREVIEW 1: Sales journal_status by organization
+SELECT
+  o.name AS org_name,
+  s.organization_id,
+  count(*) FILTER (WHERE s.journal_status = 'pending') AS pending_rows,
+  count(*) FILTER (WHERE s.journal_status = 'posted') AS posted_rows,
+  count(*) FILTER (WHERE s.journal_status IN ('failed', 'error')) AS failed_or_error_rows,
+  count(*) AS total_rows
+FROM public.sales s
+JOIN public.organizations o ON o.id = s.organization_id
+WHERE s.deleted_at IS NULL
+  AND s.is_cancelled = false
+GROUP BY o.name, s.organization_id
+ORDER BY pending_rows DESC, failed_or_error_rows DESC, org_name;
+
+-- PREVIEW 2: Purchase bills journal_status by organization
+SELECT
+  o.name AS org_name,
+  p.organization_id,
+  count(*) FILTER (WHERE p.journal_status = 'pending') AS pending_rows,
+  count(*) FILTER (WHERE p.journal_status = 'posted') AS posted_rows,
+  count(*) FILTER (WHERE p.journal_status IN ('failed', 'error')) AS failed_or_error_rows,
+  count(*) AS total_rows
+FROM public.purchase_bills p
+JOIN public.organizations o ON o.id = p.organization_id
+WHERE p.deleted_at IS NULL
+  AND p.is_cancelled = false
+GROUP BY o.name, p.organization_id
+ORDER BY pending_rows DESC, failed_or_error_rows DESC, org_name;
+
+-- PREVIEW 3: Sale returns journal_status by organization
+SELECT
+  o.name AS org_name,
+  sr.organization_id,
+  count(*) FILTER (WHERE sr.journal_status = 'pending') AS pending_rows,
+  count(*) FILTER (WHERE sr.journal_status = 'posted') AS posted_rows,
+  count(*) FILTER (WHERE sr.journal_status IN ('failed', 'error')) AS failed_or_error_rows,
+  count(*) AS total_rows
+FROM public.sale_returns sr
+JOIN public.organizations o ON o.id = sr.organization_id
+WHERE sr.deleted_at IS NULL
+GROUP BY o.name, sr.organization_id
+ORDER BY pending_rows DESC, failed_or_error_rows DESC, org_name;
+
+-- PREVIEW 4: Purchase returns journal_status by organization
+SELECT
+  o.name AS org_name,
+  pr.organization_id,
+  count(*) FILTER (WHERE pr.journal_status = 'pending') AS pending_rows,
+  count(*) FILTER (WHERE pr.journal_status = 'posted') AS posted_rows,
+  count(*) FILTER (WHERE pr.journal_status IN ('failed', 'error')) AS failed_or_error_rows,
+  count(*) AS total_rows
+FROM public.purchase_returns pr
+JOIN public.organizations o ON o.id = pr.organization_id
+WHERE pr.deleted_at IS NULL
+GROUP BY o.name, pr.organization_id
+ORDER BY pending_rows DESC, failed_or_error_rows DESC, org_name;
+
+-- VERIFY 1 (after backfill): one summary table for all four document types
+WITH status_union AS (
+  SELECT 'sales'::text AS doc_type, s.organization_id, s.journal_status
+  FROM public.sales s
+  WHERE s.deleted_at IS NULL AND s.is_cancelled = false
+  UNION ALL
+  SELECT 'purchase_bills'::text, p.organization_id, p.journal_status
+  FROM public.purchase_bills p
+  WHERE p.deleted_at IS NULL AND p.is_cancelled = false
+  UNION ALL
+  SELECT 'sale_returns'::text, sr.organization_id, sr.journal_status
+  FROM public.sale_returns sr
+  WHERE sr.deleted_at IS NULL
+  UNION ALL
+  SELECT 'purchase_returns'::text, pr.organization_id, pr.journal_status
+  FROM public.purchase_returns pr
+  WHERE pr.deleted_at IS NULL
+)
+SELECT
+  o.name AS org_name,
+  su.organization_id,
+  su.doc_type,
+  count(*) FILTER (WHERE su.journal_status = 'pending') AS pending_rows,
+  count(*) FILTER (WHERE su.journal_status = 'posted') AS posted_rows,
+  count(*) FILTER (WHERE su.journal_status IN ('failed', 'error')) AS failed_or_error_rows,
+  count(*) AS total_rows
+FROM status_union su
+JOIN public.organizations o ON o.id = su.organization_id
+GROUP BY o.name, su.organization_id, su.doc_type
+ORDER BY o.name, su.doc_type;
+
+-- VERIFY 2 (after backfill): only org/docs still needing attention
+WITH status_union AS (
+  SELECT 'sales'::text AS doc_type, s.organization_id, s.journal_status
+  FROM public.sales s
+  WHERE s.deleted_at IS NULL AND s.is_cancelled = false
+  UNION ALL
+  SELECT 'purchase_bills'::text, p.organization_id, p.journal_status
+  FROM public.purchase_bills p
+  WHERE p.deleted_at IS NULL AND p.is_cancelled = false
+  UNION ALL
+  SELECT 'sale_returns'::text, sr.organization_id, sr.journal_status
+  FROM public.sale_returns sr
+  WHERE sr.deleted_at IS NULL
+  UNION ALL
+  SELECT 'purchase_returns'::text, pr.organization_id, pr.journal_status
+  FROM public.purchase_returns pr
+  WHERE pr.deleted_at IS NULL
+)
+SELECT
+  o.name AS org_name,
+  su.organization_id,
+  su.doc_type,
+  count(*) FILTER (WHERE su.journal_status = 'pending') AS pending_rows,
+  count(*) FILTER (WHERE su.journal_status IN ('failed', 'error')) AS failed_or_error_rows
+FROM status_union su
+JOIN public.organizations o ON o.id = su.organization_id
+GROUP BY o.name, su.organization_id, su.doc_type
+HAVING
+  count(*) FILTER (WHERE su.journal_status = 'pending') > 0
+  OR count(*) FILTER (WHERE su.journal_status IN ('failed', 'error')) > 0
+ORDER BY pending_rows DESC, failed_or_error_rows DESC, org_name, doc_type;
