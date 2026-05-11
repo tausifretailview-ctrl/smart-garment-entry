@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet } from "lucide-react";
@@ -1164,6 +1164,16 @@ export function CustomerPaymentTab({
   const endIndex = startIndex + CUSTOMER_PAYMENTS_PER_PAGE;
   const paginatedPayments = customerPayments.slice(startIndex, endIndex);
 
+  const customerPaymentsGrandTotals = useMemo(() => {
+    let amount = 0;
+    let discount = 0;
+    for (const v of customerPayments) {
+      amount += Number(v.total_amount || 0);
+      discount += Number((v as { discount_amount?: number }).discount_amount || 0);
+    }
+    return { amount, discount, count: customerPayments.length };
+  }, [customerPayments]);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -1792,6 +1802,33 @@ export function CustomerPaymentTab({
                 );
               })}
             </TableBody>
+            {customerPaymentsGrandTotals.count > 0 ? (
+              <TableFooter>
+                <TableRow className="bg-muted/60 hover:bg-muted/60 border-t-2 border-t-foreground/10">
+                  {isAdmin ? <TableCell /> : null}
+                  <TableCell colSpan={4} className="text-right font-semibold text-foreground">
+                    Grand total
+                    <span className="ml-1.5 font-normal text-muted-foreground">
+                      ({customerPaymentsGrandTotals.count}{" "}
+                      {customerPaymentsGrandTotals.count === 1 ? "receipt" : "receipts"}
+                      {totalPages > 1 ? ", all pages" : ""})
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-bold tabular-nums text-foreground">
+                    ₹{customerPaymentsGrandTotals.amount.toFixed(2)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-xs tabular-nums font-semibold font-mono">
+                    {customerPaymentsGrandTotals.discount > 0.009
+                      ? `₹${customerPaymentsGrandTotals.discount.toFixed(2)}`
+                      : "—"}
+                  </TableCell>
+                  <TableCell />
+                  {isAdmin ? <TableCell /> : null}
+                </TableRow>
+              </TableFooter>
+            ) : null}
           </Table>
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
