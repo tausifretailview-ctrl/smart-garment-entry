@@ -80,8 +80,8 @@ interface RetailTaxEzzyTemplateProps {
 }
 
 const MAX_ITEMS_PER_PAGE = 12;
-/** Minimum product rows on the last page (incl. blanks) so A5 looks balanced with 1–2 lines. */
-const MIN_PRODUCT_TABLE_ROWS = 6;
+/** Minimum product rows on the last page (incl. blanks) for a balanced A5 table (~9–10 lines). */
+const MIN_PRODUCT_TABLE_ROWS = 10;
 
 export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   businessName,
@@ -120,6 +120,12 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   stampPosition = "bottom-right",
   stampSize = "medium",
   instagramLink,
+  paymentMethod,
+  cashAmount = 0,
+  cardAmount = 0,
+  upiAmount = 0,
+  creditAmount = 0,
+  paidAmount = 0,
 }) => {
   const fmt = (amount: number) => {
     const value = amountWithDecimal ? amount.toFixed(2) : Math.round(amount).toString();
@@ -189,6 +195,35 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   const stampDim = stampSizeMap[stampSize] || "72px";
 
   const docTitle = grandTotal < 0 ? "Credit note" : "Retail Tax Invoice";
+
+  const paymentMethodLabel = (() => {
+    const m = (paymentMethod || "").toLowerCase();
+    if (m === "upi") return "UPI";
+    if (m === "card") return "Card";
+    if (m === "credit" || m === "pay_later") return "Credit";
+    if (m === "mix" || m === "mixed") return "Mixed";
+    return "Cash";
+  })();
+
+  type PayLine = { label: string; amount: number };
+  const paymentLines: PayLine[] = [];
+  if (cashAmount > moneyEpsilon) paymentLines.push({ label: "Cash", amount: cashAmount });
+  if (upiAmount > moneyEpsilon) paymentLines.push({ label: "UPI", amount: upiAmount });
+  if (cardAmount > moneyEpsilon) paymentLines.push({ label: "Card", amount: cardAmount });
+  if (creditAmount > moneyEpsilon) paymentLines.push({ label: "Credit", amount: creditAmount });
+  const pmLower = (paymentMethod || "").toLowerCase();
+  const isSplitMethod = pmLower === "mix" || pmLower === "mixed" || pmLower === "multiple";
+  if (
+    paymentLines.length === 0 &&
+    !isSplitMethod &&
+    paidAmount > moneyEpsilon &&
+    Math.abs(paidAmount - grandTotal) < 0.02
+  ) {
+    paymentLines.push({ label: paymentMethodLabel, amount: paidAmount });
+  }
+  const hasPaymentPrintBlock = paymentLines.length > 0;
+  const remarkText = notes?.trim() ?? "";
+  const hasRemarkPrintBlock = remarkText.length > 0;
 
   type ColKey =
     | "sr"
@@ -432,21 +467,43 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                 </tbody>
               </table>
 
-              {isLastPage ? <div className="min-h-0 flex-1 print:flex-1" aria-hidden /> : null}
+              {isLastPage ? (
+                <div className="flex min-h-0 flex-1 flex-col print:flex-1">
+                  {hasPaymentPrintBlock || hasRemarkPrintBlock ? (
+                    <div className="shrink-0 border-x border-b border-slate-300 bg-slate-50 px-2 py-1.5 text-[10px] leading-snug text-slate-950 print:bg-white">
+                      {hasPaymentPrintBlock ? (
+                        <div>
+                          <div className="text-[9px] font-bold uppercase tracking-wide text-slate-800">Payment</div>
+                          <div className="mt-0.5 flex flex-col gap-0.5">
+                            {paymentLines.map((row) => (
+                              <div key={row.label} className="flex justify-between gap-2 font-semibold tabular-nums">
+                                <span>{row.label}</span>
+                                <span>₹{fmt(row.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      {hasRemarkPrintBlock ? (
+                        <div
+                          className={
+                            hasPaymentPrintBlock ? "mt-1.5 border-t border-dashed border-slate-300 pt-1.5" : ""
+                          }
+                        >
+                          <span className="font-bold">Remark:</span>{" "}
+                          <span className="whitespace-pre-wrap font-medium text-slate-800">{remarkText}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="min-h-0 flex-1 print:flex-1" aria-hidden />
+                </div>
+              ) : null}
 
               {isLastPage ? (
                 <div className="shrink-0 border-t border-slate-300 text-[9px]">
                   <div className="flex border-b border-slate-300">
-                    <div className="min-h-0 flex-1 border-r border-slate-300 p-1">
-                      {notes?.trim() && !/^\d+$/.test(notes.trim()) ? (
-                        <div>
-                          <span className="font-bold">Note:</span>{" "}
-                          <span className="italic text-slate-800">{notes}</span>
-                        </div>
-                      ) : (
-                        "\u00a0"
-                      )}
-                    </div>
+                    <div className="min-h-0 flex-1 border-r border-slate-300 p-1">{"\u00a0"}</div>
                     <div className="w-[42%] shrink-0 border-slate-300">
                       <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                         <span className="leading-tight">
@@ -553,11 +610,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                   </div>
 
                   <div className="relative flex min-h-0">
-                    <div className="flex-1 border-r border-slate-300 p-1 pr-1.5">
+                    <div className="flex-1 border-r border-slate-300 p-1.5 pr-2">
                       {termsConditions.length > 0 ? (
                         <div>
-                          <div className="text-[8px] font-bold underline">Terms &amp; Conditions</div>
-                          <ul className="mt-0.5 list-disc pl-2.5 text-[7px] leading-tight text-slate-900">
+                          <div className="text-[10px] font-bold underline">Terms &amp; Conditions</div>
+                          <ul className="mt-1 list-disc pl-3 text-[8px] leading-snug text-slate-900">
                             {termsConditions.map((t, i) => (
                               <li key={i}>{t}</li>
                             ))}
@@ -565,11 +622,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                         </div>
                       ) : null}
                       {declarationText ? (
-                        <div className="mt-0.5 text-[6px] leading-tight text-slate-700">{declarationText}</div>
+                        <div className="mt-1 text-[7px] leading-snug text-slate-700">{declarationText}</div>
                       ) : null}
-                      <div className="mt-0.5 text-[6px] text-slate-600">E. &amp; O.E.</div>
+                      <div className="mt-1 text-[7px] text-slate-600">E. &amp; O.E.</div>
                     </div>
-                    <div className="relative flex w-[38%] shrink-0 flex-col items-center justify-start p-1">
+                    <div className="relative flex w-[38%] shrink-0 flex-col items-center justify-start p-1.5">
                       {stampImageBase64 ? (
                         <img
                           src={stampImageBase64}
@@ -584,12 +641,12 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                           }}
                         />
                       ) : null}
-                      <div className="text-center text-[7px] font-bold">For {businessName}</div>
+                      <div className="text-center text-[9px] font-bold leading-tight">For {businessName}</div>
                       {qrCodeUrl ? (
                         <img
                           src={qrCodeUrl}
                           alt=""
-                          className="mt-0.5 h-[48px] w-[48px] border border-slate-300 object-contain"
+                          className="mt-1 h-[68px] w-[68px] border border-slate-300 object-contain"
                         />
                       ) : null}
                     </div>
