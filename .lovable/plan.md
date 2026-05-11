@@ -1,61 +1,139 @@
-## Investigation — AYESHA MERCHANT (Ella Noor)
+## Customer Account Integrity — Org-Wide Investigation & Repair Plan
 
-### Raw data from DB
-**Sales (3 invoices)**
-| Invoice | Net | Paid | sale_return_adjust | credit_applied | Status |
-|---|---|---|---|---|---|
-| INV/26-27/407 | 10,450 | 10,450 (cash) | 0 | 0 | Paid |
-| INV/26-27/574 | 3,100 | 0 | **3,100** | **3,100** | Pending (fully covered by CN) |
-| INV/26-27/585 | 3,100 | 0 | 0 | 0 | Pending |
+You are right: the Dania Ansari and MAULI FOOTWEAR cases are **symptoms**, not the disease. A scan of every organization confirms the same data classes are corrupted across the system.
 
-**Sale Returns**
-| SR | Net | credit_status | linked_sale_id |
+### What the org-wide scan shows (all orgs, non-deleted, non-cancelled)
+
+| Defect class | Orgs affected | Total rows | Money at risk |
 |---|---|---|---|
-| SR/26-27/23 | **3,850** | `adjusted` | INV/574 |
-| SR/26-27/22 | 6,600 | `pending` | — |
+| **Mis-tagged receipts** (`reference_type='customer'` but `reference_id` IS a `sales.id`) — the bug that hides ₹16,208 in MAULI's audit screen | 10 | **1,748 receipts** | **₹10.27 Cr** |
+| **`sales.paid_amount` ↔ voucher_entries drift** (per-invoice ABS difference > ₹1) | 27 | **18,948 sales** | **₹5.79 Cr absolute drift** |
+| **Duplicate / over-paid receipts** (sum of receipts on one bill exceeds the bill) | 4 | 13 invoices | ₹50,481 |
+| **Ghost / orphan receipts** (`reference_type='customer'`, no matching sale, customer opening = ₹0) | 6 | 27 receipts | ₹73,201 |
+| **Receipts with NULL reference** | 0 | 0 | — |
 
-**Voucher receipts**: only one — RCP/453 = ₹10,450 cash for INV/407.
+This is a structural ledger-integrity problem, not isolated data entry. Plan below covers detection, code hardening, repair tooling, and prevention — without changing customer-visible accounting math.
 
-### Correct math
-- Gross sales: 10,450 + 3,100 + 3,100 = **16,650** ✓ (matches dashboard "Total Sales")
-- Cash received: **10,450** ✓ (matches "Total Paid")
-- Sale returns issued: 3,850 + 6,600 = **10,450**
-- CN actually consumed against an invoice: only **3,100** (SR/23 → INV/574 via `sale_return_adjust`)
-- Outstanding invoice still pending: INV/585 = 3,100
-- **Net refund/CR owed to customer = (16,650 − 10,450 cash − 10,450 returns) × −1 = ₹4,250**
-  - Equivalent view: SR/23 leftover 750 + SR/22 6,600 − INV/585 3,100 = **₹4,250** (your number is correct)
+### Scope (what counts as "affecting a customer account")
 
-### What the dashboard is showing (wrong)
-- "₹3,500 credit balance — refund to customer" → **off by ₹750**
-- "Advance Balance ₹3,500" → fake; no row exists in `customer_advances`
-- "CN AVAILABLE ₹0.00" → wrong; SR/22 alone is ₹6,600 pending
-- "Returns/CR ₹6,600" → only counts SR/22; ignores 750 leftover from SR/23
+Every place an amount can move a customer's running balance:
 
-### Root cause
-SR/26-27/23 (₹3,850) was marked `credit_status='adjusted'` and linked to INV/574, but INV/574's `sale_return_adjust` is only ₹3,100. The remaining **₹750 of credit was never split into a leftover pending row** (the partial-consume split in `useSaveSale.tsx` lines 220–262 didn't run — likely because SR/23 was edited to 3,850 *after* INV/574 was saved, or the credit was force-marked via `AdjustCreditNoteDialog`).
+1. `sales` (Dr, gross `net_amount`)
+2. `sales.sale_return_adjust` (Cr inside the bill)
+3. `sale_returns` + `credit_notes` (Cr, separately or via adjustment)
+4. `voucher_entries` `voucher_type='receipt'` (Cr — cash/UPI/card/cheque/bank)
+5. `voucher_entries` `voucher_type='receipt'` with `payment_method='advance_adjustment'` (advance applied — memo, NOT cash)
+6. `voucher_entries` `voucher_type='receipt'` with `payment_method='credit_note_adjustment'` (CN applied — settles a sale return)
+7. `voucher_entries` `voucher_type='credit_note'` (Cr — direct CN)
+8. `voucher_entries` `voucher_type='payment'` `reference_type='customer'` (Dr — refund out / advance returned via voucher)
+9. `customer_advances` (unused balance Cr)
+10. `advance_refunds` (Dr — money returned to customer)
+11. `customer_balance_adjustments` (signed `outstanding_difference`)
+12. `customers.opening_balance` (Dr or Cr starting line)
 
-Downstream consequences:
-1. `CustomerLedger.tsx:1875` — when `credit_status === 'adjusted'`, the SR is **fully skipped** from the ledger on the assumption that the linked invoice's `net_amount` already absorbs it. For SR/23 this assumption is false (3,850 ≠ 3,100), so 750 of CR vanishes from the ledger.
-2. `useCustomerBalance` / `computeCustomerOutstanding` follow the same skip rule → customer balance under-credits by 750.
-3. The "₹3,500 advance" banner and "CN Available 0" derive from this same broken figure (16,650 − 10,450 cash − 3,850 (full SR/23) − net of SR/22 reservation logic), not from real `customer_advances`.
+Single-source formula already exists (`reconcile_customer_balances` RPC + `useCustomerBalance`) and is correct. Every defect found is in **input data**, **screen-fetch filters**, or **write-time tagging** — not the math.
 
-### Where the data integrity broke
-- `useSaveSale.tsx` line 209: `if (remaining >= srAmt - 0.01)` — full-consume branch should NOT have fired here (3,100 < 3,850), so the partial-split path should have created a 750 pending leftover row. It didn't, which means one of:
-  - SR/23 was originally ₹3,100, INV/574 consumed it fully, then SR/23 was later edited up to ₹3,850 without re-running the split.
-  - SR/23 was force-adjusted via `AdjustCreditNoteDialog.tsx:142` (sets `credit_status:'adjusted'` without splitting).
-  - INV/574 was edited and `sale_return_adjust` lowered without un-adjusting the SR.
+---
 
-### Proposed fix (for your approval — code changes deferred to build mode)
+### Phase 1 — Stop the bleeding in the read paths (code only, all UIs converge)
 
-**1. Data fix for AYESHA MERCHANT (one-time SQL)**
-   - Reduce `SR/26-27/23.net_amount` from 3,850 → 3,100 (the part actually consumed by INV/574), keep `credit_status='adjusted'`.
-   - Insert a new sibling sale_return row for the leftover ₹750: `credit_status='pending'`, `linked_sale_id=null`, `original_sale_number=SR/23`'s, same `customer_id`/`return_date`, `return_number=null`, notes "Pending balance after audit reconciliation".
-   - Result: refund calc will show ₹4,250, CN Available will show ₹7,350 (750 + 6,600 less INV/585 3,100 still pending = 4,250 net refundable).
+**Goal:** every report — Customer Ledger (classic), Customer Account Statement (audit), Customer Audit Report, mobile Customer Account, Field-Sales Outstanding, Customer Reconciliation — shows the same number for the same customer regardless of how legacy `reference_type` was tagged.
 
-**2. Long-term guards (separate follow-up)**
-   - `useSaveSale.tsx`: when an invoice's `sale_return_adjust` is reduced or invoice deleted, re-open the linked SR (set back to `pending` and restore unconsumed amount).
-   - `AdjustCreditNoteDialog`: when full-amount adjust is forced but invoice net < SR net, automatically split the leftover into a pending sibling row (mirror the logic from `useSaveSale.tsx:220-262`).
-   - Add a daily reconciliation check: for every `sale_returns` with `credit_status='adjusted'` and `linked_sale_id`, assert `net_amount == sales.sale_return_adjust`; surface drift in the audit report.
+1.1 In `src/utils/customerAuditBundle.ts → fetchCustomerAuditBundle`, add the missing 4th voucher fetch:
+```text
+voucher_entries
+  organization_id = orgId
+  voucher_type    = 'receipt'
+  reference_type  = 'customer'
+  reference_id    IN (saleIds)        ← legacy mis-tagged rows
+  deleted_at IS NULL
+```
+Merge into the existing `voucherById` Map (de-duped by id). This alone closes the ₹10.27 Cr "invisible receipts" gap on the audit screens.
 
-### Confirm
-Reply approve to proceed with **(1) the data fix for AYESHA MERCHANT only**. The long-term guards in (2) can be a separate task — say so if you want them bundled.
+1.2 Audit every other read path that classifies receipts by `reference_type` string and switch them to **id-match against `sales.id`** (rule already documented in `mem://features/accounts/customer-balance-logic`). Files to confirm/repair:
+- `src/hooks/useCustomerBalance.tsx`
+- `src/components/CustomerLedger.tsx` aggregation
+- `src/lib/customerLedger.ts`
+- `src/pages/CustomerLedgerPage.tsx`, `CustomerAccountStatementAuditPage.tsx`, `CustomerAuditReport.tsx`, `CustomerLedgerReport.tsx`, `CustomerReconciliation.tsx`
+- `src/pages/salesman/SalesmanOutstanding.tsx`, `SalesmanCustomerAccount.tsx`
+- `src/pages/portal/PortalAccount.tsx`, `PortalInvoices.tsx`
+- `src/pages/mobile/MobileAccountsPage.tsx`
+- `src/utils/supplierBalanceUtils.ts` (apply the same lesson on the supplier side, scope this phase to customers)
+
+1.3 Add a single shared classifier helper `classifyReceiptForCustomer(voucher, customerId, saleIds)` returning one of `sale_payment | opening_payment | advance_application | cn_application | unknown` and use it everywhere. This permanently kills the "classify by string" bug class.
+
+1.4 Customer Audit Report: surface a "**Drift / Anomalies**" section showing per-invoice `paid_amount` vs sum-of-receipts mismatch, duplicate/over-payment flags and unmatched receipts so the operator can see issues, not just a final number.
+
+### Phase 2 — Diagnostic surfaces (read-only, ship before any data fix)
+
+2.1 New page **Customer Ledger Health** (admin only) listing, per organization:
+- Mis-tagged receipts count + amount
+- Over-paid invoices count + ₹ excess
+- Ghost / orphan receipts
+- `sales.paid_amount` ↔ voucher drift > ₹1 list
+- Customers with `reconcile_customer_balances` differing from `useCustomerBalance` by > ₹1
+
+2.2 New SQL view `vw_customer_ledger_anomalies` powering the page (org-scoped). All queries already prototyped in this investigation.
+
+2.3 One-click "Open this customer's audit" deep-link from each anomaly row, pre-filtered to FY range.
+
+### Phase 3 — Write-side hardening (prevent future corruption)
+
+3.1 **Receipt entry path** (`POSContext`, sales payment dialog, advance application dialog, CN application dialog, payment receipt page). Enforce on the client AND in a DB trigger:
+- A `receipt` voucher MUST set `reference_type='sale'` whenever `reference_id` resolves to a `sales.id` row in the same organization.
+- A `receipt` voucher with `reference_type='customer'` MUST resolve to `customers.id` in the same organization (no sale id allowed).
+- `payment_method='advance_adjustment'` and `payment_method='credit_note_adjustment'` MUST have a sale `reference_id` (memo on a specific bill).
+- `total_amount > 0`, `discount_amount >= 0`, `total_amount + discount_amount` must not exceed the bill's outstanding for non-advance, non-CN receipts (configurable warning vs hard block per org).
+
+3.2 **`sales.paid_amount` recompute trigger.** After insert/update/soft-delete on `voucher_entries` for a sale, recompute `sales.paid_amount = SUM(non-advance, non-CN voucher.total_amount)` and `payment_status` using the same rule as `reconcileSaleInvoiceDisplay`. This eliminates the 18,948-row drift class permanently.
+
+3.3 **POS cash settlement.** When `paid_amount` is captured on the sale row but no `voucher_entries` row is created (current POS behaviour for full-cash sales), insert a synthetic receipt row inside the same transaction so the ledger source of truth is always vouchers, not the sale row.
+
+3.4 **Soft-delete cascade.** When a `voucher_entries` row is soft-deleted, fire the same recompute. When a sale is soft-deleted, soft-delete its receipts too (already partially done — verify everywhere).
+
+3.5 **Customer balance adjustment** writes must always insert a single signed row and update both `previous_outstanding` and `new_outstanding` from the live computed balance, never from a stale screen value.
+
+### Phase 4 — One-shot historical repair (after Phase 1 & 3 ship)
+
+Each step is its own migration, dry-run report first, executed only after the user reviews counts per org.
+
+4.1 **Re-tag mis-tagged receipts** — set `reference_type='sale'` on every `voucher_type='receipt'` row whose `reference_id` matches a `sales.id` in the same org (1,748 rows). Pure relabel; does not change any amount.
+
+4.2 **Soft-delete duplicate / over-payment receipts** — for each invoice where `SUM(receipt.total_amount) > net_amount - sale_return_adjust + ₹1`, present the candidate rows (newest, identical-amount, same description) for confirmation, then soft-delete.
+
+4.3 **Soft-delete ghost / orphan receipts** — receipts with `reference_type='customer'` whose `reference_id` is neither a sale nor a customer with non-zero opening or unconsumed advance.
+
+4.4 **Recompute `sales.paid_amount` and `payment_status`** for every sale (or those flagged as drifted) using the new trigger logic. Backfill `customer_ledger_entries` (the append-only log) so it matches the recomputed reality.
+
+4.5 **Run `reconcile_customer_balances`** for every org; record per-customer before/after delta into `customer_balance_repair_log` for audit.
+
+### Phase 5 — Verification
+
+5.1 Customer Ledger Health page must show **zero** rows in mis-tagged, ghost, over-paid and drift > ₹1 categories for every org.
+5.2 Pick 30 random customers across the 5 largest orgs; reconcile manually against printed/PDF receipts the operator has on file.
+5.3 MAULI FOOTWEAR final closing = ₹2,003 (only INV/26-27/350 open) — already proven in the previous round.
+5.4 Spot-check Dania Ansari, KS Footwear top-10 outstanding customers, and any customer where the user has previously raised a complaint.
+
+### Out of scope (call out, don't change here)
+
+- Reworking the supplier ledger — same disease likely exists; tackled in a follow-up using the same playbook.
+- Switching to `customer_ledger_entries` as the source of truth — currently it's append-only and not used for math; promotion is a separate epic.
+- Any change to the Master Reconciliation formula (it's correct; the data feeding it is not).
+
+### Deliverables / files touched (high-level)
+
+- New: `src/utils/classifyReceiptForCustomer.ts`, `src/pages/admin/CustomerLedgerHealth.tsx`, view `vw_customer_ledger_anomalies`, triggers `trg_voucher_recompute_sale_paid` and `trg_voucher_validate_reference`, repair migrations 4.1 → 4.4, log table `customer_balance_repair_log`.
+- Edited: `src/utils/customerAuditBundle.ts` (Phase 1.1), every read path listed in Phase 1.2, write paths in Phase 3.1, POS settlement in Phase 3.3.
+- Memory: extend `mem://features/accounts/customer-balance-logic` with the id-match invariant and the new triggers; add a constraint memory "Never classify receipts by `reference_type` string — always id-match."
+
+### Sequencing & approval gates
+
+```text
+Phase 1  →  ship behind no flag         (read-only, safe)
+Phase 2  →  ship                        (read-only diagnostics)
+Phase 3  →  ship triggers + write guards (with feature flag per org for 1 week)
+Phase 4  →  per-org, dry-run → user approves counts → execute migration
+Phase 5  →  health page green
+```
+
+If you approve this plan I'll start with **Phase 1.1 + the diagnostic queries packaged into a Health page** so you can see the full org-by-org damage list before any data is touched.
