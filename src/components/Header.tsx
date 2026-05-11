@@ -88,7 +88,7 @@ export const Header = () => {
   return (
     <>
       {/* ROW 1: Title bar */}
-      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-app-header text-app-header-foreground border-b border-app-header-border shadow-sm">
+      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[hsl(var(--app-header-background))] text-app-header-foreground border-b border-app-header-border shadow-sm">
         {/* Mobile menu trigger */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">
@@ -389,7 +389,7 @@ export const Header = () => {
       </div>
 
       {/* ROW 2: Action toolbar (+ optional dashboard: theme, period, Net Profit) */}
-      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-sidebar border-b border-sidebar-border text-sidebar-foreground">
+      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-[hsl(var(--sidebar-background))] border-b border-sidebar-border text-sidebar-foreground">
         {/* Split button: New Sale */}
         <div className="flex items-center">
           <Button
