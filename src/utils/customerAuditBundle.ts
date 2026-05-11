@@ -317,8 +317,33 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     vouchersSale = vs || [];
   }
 
+  // Phase 1.1: catch legacy mis-tagged receipts where reference_type='customer'
+  // but reference_id is actually one of this customer's sale ids. Classification
+  // downstream is by id-match, so simply pulling these rows into the bundle is
+  // enough — voucherById de-dupes by id.
+  let vouchersMistaggedSale: any[] = [];
+  if (saleIds.length > 0) {
+    const { data: vms, error: vmsErr } = await client
+      .from("voucher_entries")
+      .select(
+        "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method",
+      )
+      .eq("organization_id", orgId)
+      .eq("voucher_type", "receipt")
+      .eq("reference_type", "customer")
+      .in("reference_id", saleIds)
+      .is("deleted_at", null);
+    if (vmsErr) throw vmsErr;
+    vouchersMistaggedSale = vms || [];
+  }
+
   const voucherById = new Map<string, any>();
-  for (const v of [...(vouchersCustomer || []), ...vouchersSale, ...vouchersRefundBySr]) {
+  for (const v of [
+    ...(vouchersCustomer || []),
+    ...vouchersSale,
+    ...vouchersMistaggedSale,
+    ...vouchersRefundBySr,
+  ]) {
     voucherById.set(v.id, v);
   }
   const vouchersMerged = Array.from(voucherById.values());
