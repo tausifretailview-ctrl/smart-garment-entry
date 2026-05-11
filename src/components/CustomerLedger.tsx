@@ -2568,7 +2568,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         .select("id, voucher_date, voucher_number, reference_id, total_amount, description, payment_method, created_at")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
-        .eq("reference_type", "sale")
+        // Phase 1.2: include mis-tagged customer rows pointing at this customer's sales.
+        .in("reference_type", ["sale", "customer"])
         .in("payment_method", ["advance_adjustment", "credit_note_adjustment"])
         .is("deleted_at", null)
         .in("reference_id", saleIds.length > 0 ? saleIds : sentinel);

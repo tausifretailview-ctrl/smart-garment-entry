@@ -630,7 +630,9 @@ export default function SalesInvoiceDashboard() {
         .select('reference_id, total_amount, payment_method, description')
         .eq('organization_id', currentOrganization.id)
         .eq('voucher_type', 'receipt')
-        .eq('reference_type', 'sale')
+        // Phase 1.2: also catch legacy mis-tagged rows (reference_type='customer'
+        // pointing at a sale id). saleIds filter keeps true customer rows out.
+        .in('reference_type', ['sale', 'customer'])
         .is('deleted_at', null)
         .in('reference_id', saleIds);
       if (receiptErr) throw receiptErr;
@@ -842,7 +844,8 @@ export default function SalesInvoiceDashboard() {
           .select('reference_id, total_amount, payment_method, description')
           .eq('organization_id', currentOrganization.id)
           .eq('voucher_type', 'receipt')
-          .eq('reference_type', 'sale')
+          // Phase 1.2: include mis-tagged customer rows that point at sale ids.
+          .in('reference_type', ['sale', 'customer'])
           .is('deleted_at', null)
           .in('reference_id', batch);
         if (receiptErr) throw receiptErr;
@@ -2003,7 +2006,8 @@ export default function SalesInvoiceDashboard() {
             .select("total_amount")
             .eq("organization_id", currentOrganization?.id)
             .eq("voucher_type", "receipt")
-            .eq("reference_type", "sale")
+            // Phase 1.2: include mis-tagged customer rows for the customer's sales.
+            .in("reference_type", ["sale", "customer"])
             .eq("payment_method", "credit_note_adjustment")
             .in("reference_id", saleIds)
             .is("deleted_at", null);
@@ -2330,7 +2334,8 @@ export default function SalesInvoiceDashboard() {
         .select('total_amount')
         .eq('organization_id', currentOrganization?.id)
         .eq('voucher_type', 'receipt')
-        .eq('reference_type', 'sale')
+        // Phase 1.2: include mis-tagged customer rows for this exact sale id.
+        .in('reference_type', ['sale', 'customer'])
         .eq('reference_id', selectedInvoiceForPayment.id)
         .is('deleted_at', null);
       if (saleReceiptsError) throw saleReceiptsError;

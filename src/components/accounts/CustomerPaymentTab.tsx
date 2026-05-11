@@ -211,7 +211,8 @@ export function CustomerPaymentTab({
         .select("reference_id, total_amount")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
-        .eq("reference_type", "sale")
+        // Phase 1.2: include mis-tagged customer rows for this customer's sale ids.
+        .in("reference_type", ["sale", "customer"])
         .is("deleted_at", null)
         .in("reference_id", saleIds);
       if (vouchersError) throw vouchersError;
@@ -290,7 +291,8 @@ export function CustomerPaymentTab({
         .select("reference_id, total_amount")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
-        .eq("reference_type", "sale")
+        // Phase 1.2: include mis-tagged customer rows for this customer's sale ids.
+        .in("reference_type", ["sale", "customer"])
         .is("deleted_at", null)
         .in("reference_id", saleIds);
       if (error) throw error;
