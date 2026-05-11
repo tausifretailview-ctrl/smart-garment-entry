@@ -1794,6 +1794,7 @@ export default function POSSales() {
     // If we have a pre-identified product (from barcode scan), use it directly
     if (quickServiceProductForAdd) {
       const { product, variant } = quickServiceProductForAdd;
+      const baseServiceGst = product.sale_gst_percent || product.gst_per || 0;
       const newItem: CartItem = {
         id: `service-${variant.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         barcode: variant.barcode || code,
@@ -1803,7 +1804,7 @@ export default function POSSales() {
         quantity,
         mrp,
         originalMrp: null,
-        gstPer: product.gst_per || 0,
+        gstPer: applyGarmentGstRule(mrp, baseServiceGst, garmentGstSettings),
         discountPercent: 0,
         discountAmount: 0,
         unitCost: mrp,
@@ -1828,6 +1829,7 @@ export default function POSSales() {
     let productName = `Service Item ${code}`;
     let productId = '';
     let variantId = '';
+    let matchedServiceGst = 0;
     if (productsData) {
       for (const product of productsData) {
         const variantMatch = product.product_variants?.find((v: any) => 
@@ -1837,6 +1839,7 @@ export default function POSSales() {
           productName = product.product_name;
           productId = product.id;
           variantId = variantMatch.id;
+          matchedServiceGst = Number(product.sale_gst_percent || product.gst_per || 0);
           break;
         }
       }
@@ -1859,7 +1862,7 @@ export default function POSSales() {
       quantity,
       mrp,
       originalMrp: null,
-      gstPer: 0,
+      gstPer: applyGarmentGstRule(mrp, matchedServiceGst, garmentGstSettings),
       discountPercent: 0,
       discountAmount: 0,
       unitCost: mrp,
@@ -1876,7 +1879,7 @@ export default function POSSales() {
     setShowQuickServiceDialog(false);
     setQuickServiceCode("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
-  }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd, bumpCartHighlight]);
+  }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings]);
 
   const addItemToCart = async (
     product: any,
