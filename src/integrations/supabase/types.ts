@@ -7609,6 +7609,23 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_customer_ledger_anomalies: {
+        Args: never
+        Returns: {
+          ghost_receipts_amount: number
+          ghost_receipts_count: number
+          mistagged_receipts_amount: number
+          mistagged_receipts_count: number
+          null_ref_receipts_amount: number
+          null_ref_receipts_count: number
+          organization_id: string
+          organization_name: string
+          overpaid_amount: number
+          overpaid_count: number
+          paid_drift_amount: number
+          paid_drift_count: number
+        }[]
+      }
       get_customer_ledger_statement: {
         Args: {
           p_customer_id: string
