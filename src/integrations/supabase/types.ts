@@ -7932,18 +7932,6 @@ export type Database = {
           total_sale_returns: number
         }[]
       }
-      get_customer_true_outstanding: {
-        Args: { p_customer_id: string; p_organization_id: string }
-        Returns: number
-      }
-      reconcile_customer_balance: {
-        Args: { p_customer_id: string; p_organization_id: string }
-        Returns: {
-          amount: number
-          detail: string
-          source: string
-        }[]
-      }
       reconcile_variant_stock_qty: {
         Args: { p_variant_id: string }
         Returns: Json
