@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { WindowTabsProvider } from "@/contexts/WindowTabsContext";
@@ -203,6 +203,27 @@ function NonOrgRedirect({ path }: { path: string }) {
   return <Navigate to="/organization-setup" replace />;
 }
 
+/** Same as NonOrgRedirect but preserves a path suffix after the prefix (e.g. /sale-return-entry/:id). */
+function NonOrgRedirectWithTail({ pathPrefix }: { pathPrefix: string }) {
+  const params = useParams();
+  const tail = (params["*"] as string | undefined)?.replace(/^\/+/, "") ?? "";
+  const savedOrgSlug = getStoredOrgSlug();
+  if (savedOrgSlug) {
+    const suffix = tail ? `/${tail}` : "";
+    return <Navigate to={`/${savedOrgSlug}/${pathPrefix}${suffix}`} replace />;
+  }
+  return <Navigate to="/organization-setup" replace />;
+}
+
+/** Legacy dashboard URL → canonical sale returns route under org. */
+function NonOrgLegacySaleReturnDashboardRedirect() {
+  const savedOrgSlug = getStoredOrgSlug();
+  if (savedOrgSlug) {
+    return <Navigate to={`/${savedOrgSlug}/sale-returns`} replace />;
+  }
+  return <Navigate to="/organization-setup" replace />;
+}
+
 // Startup health check: clear corrupted auth tokens before React mounts
 (function cleanupCorruptedAuthTokens() {
   try {
@@ -289,6 +310,9 @@ const App = () => {
               <Route path="/purchase-return-entry" element={<NonOrgRedirect path="purchase-return-entry" />} />
               <Route path="/payments-dashboard" element={<NonOrgRedirect path="payments-dashboard" />} />
               <Route path="/accounts" element={<NonOrgRedirect path="accounts" />} />
+              <Route path="/sale-returns" element={<NonOrgRedirect path="sale-returns" />} />
+              <Route path="/sale-return-entry/*" element={<NonOrgRedirectWithTail pathPrefix="sale-return-entry" />} />
+              <Route path="/sale-return-dashboard" element={<NonOrgLegacySaleReturnDashboardRedirect />} />
               
               {/* Platform admin route */}
               <Route

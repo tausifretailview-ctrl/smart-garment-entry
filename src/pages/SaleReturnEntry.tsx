@@ -6,7 +6,8 @@ import {
   recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -66,7 +67,7 @@ interface ReturnItem {
 }
 
 export default function SaleReturnEntry() {
-  const navigate = useNavigate();
+  const { orgNavigate } = useOrgNavigation();
   const { editId } = useParams<{ editId?: string }>();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -175,7 +176,7 @@ export default function SaleReturnEntry() {
 
       if (returnError || !returnData) {
         toast({ title: "Error", description: "Sale return not found", variant: "destructive" });
-        navigate("/sale-returns");
+        orgNavigate("/sale-returns");
         return;
       }
 
@@ -963,7 +964,7 @@ export default function SaleReturnEntry() {
         }
       }
 
-      navigate("/sale-returns");
+      orgNavigate("/sale-returns");
     } catch (error) {
       logError(
         {
@@ -1013,7 +1014,7 @@ export default function SaleReturnEntry() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate('/sale-returns')}
+          onClick={() => orgNavigate('/sale-returns')}
           className="h-9 px-4 text-sm font-medium border-border"
         >
           ← Back to Dashboard
@@ -1473,7 +1474,7 @@ export default function SaleReturnEntry() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/sale-returns')}
+            onClick={() => orgNavigate('/sale-returns')}
             className="h-9 px-5 text-sm font-medium"
           >
             Cancel

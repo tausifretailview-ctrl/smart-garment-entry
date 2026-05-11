@@ -71,6 +71,7 @@ const BACK_MAP: Record<string, string> = {
   "sale-order-dashboard":     "/",
   "products":                 "/",
   "advance-bookings":         "/",
+  "sale-returns":               "/",
   "sale-return-dashboard":    "/",
   "purchase-return-dashboard": "/",
   "purchase-orders":          "/",

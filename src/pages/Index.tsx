@@ -815,7 +815,7 @@ const DesktopDashboard = () => {
               value={saleReturnData?.total || 0}
               icon={RotateCcw}
               accentColor="bg-amber-500"
-              onClick={() => navigate("/sale-return-dashboard")}
+              onClick={() => navigate("/sale-returns")}
               tooltip="Total sale return amount. Click to view Sale Returns."
               isCurrency
             />
@@ -824,7 +824,7 @@ const DesktopDashboard = () => {
               value={saleReturnData?.returnQty || 0}
               icon={RotateCcw}
               accentColor="bg-slate-500"
-              onClick={() => navigate("/sale-return-dashboard")}
+              onClick={() => navigate("/sale-returns")}
               tooltip="Total sale return quantity. Click to view Sale Returns."
             />
             <AnimatedMetricCard

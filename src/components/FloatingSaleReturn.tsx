@@ -18,6 +18,7 @@ import {
   recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -81,6 +82,7 @@ export const FloatingSaleReturn = ({
   onReturnSaved,
 }: FloatingSaleReturnProps) => {
   const { toast } = useToast();
+  const { getOrgPath } = useOrgNavigation();
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -940,7 +942,7 @@ export const FloatingSaleReturn = ({
               {effectiveCustomerName && <span className="text-sm font-normal text-muted-foreground">— {effectiveCustomerName}</span>}
             </DialogTitle>
             <a
-              href="/sale-returns"
+              href={getOrgPath("/sale-returns")}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-primary underline-offset-2 hover:underline mr-6 shrink-0"
