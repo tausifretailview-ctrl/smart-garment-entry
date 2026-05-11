@@ -80,8 +80,8 @@ interface RetailTaxEzzyTemplateProps {
 }
 
 const MAX_ITEMS_PER_PAGE = 12;
-const TARGET_ROWS = 8;
-const MIN_BLANK_ROWS = 2;
+/** No filler rows — padding was forcing ~8 blank lines and pushing the footer to page 2 on A5. */
+const MIN_BLANK_ROWS = 0;
 
 export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   businessName,
@@ -142,13 +142,13 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   }
   if (itemPages.length > 0) {
     const lastPage = itemPages[itemPages.length - 1];
-    const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
+    const minRows = Math.max(lastPage.length, MIN_BLANK_ROWS);
     while (lastPage.length < minRows && lastPage.length < MAX_ITEMS_PER_PAGE) {
       lastPage.push(null);
     }
   }
   if (itemPages.length === 0) {
-    itemPages.push(Array(MIN_BLANK_ROWS).fill(null));
+    itemPages.push([null]);
   }
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
@@ -274,11 +274,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
         return (
           <div
             key={pageIndex}
-            className="retail-tax-ezzy-page mb-4 box-border w-[148mm] min-h-[210mm] border border-slate-300 bg-white p-[5mm] print:mb-0"
+            className="retail-tax-ezzy-page mb-4 box-border w-[148mm] min-h-0 bg-white px-[3mm] py-[3mm] print:mb-0 print:px-[2mm] print:py-[2mm]"
           >
-            <div className="flex h-full min-h-0 flex-col border-2 border-slate-300">
+            <div className="flex min-h-0 flex-col border border-slate-300">
               {/* Header */}
-              <div className="relative border-b-2 border-slate-300 px-2 py-1.5 text-center">
+              <div className="relative border-b border-slate-300 px-2 py-1 text-center">
                 {logoUrl ? (
                   <img
                     src={logoUrl}
@@ -286,7 +286,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     className="absolute left-2 top-1/2 max-h-[52px] max-w-[100px] -translate-y-1/2 object-contain"
                   />
                 ) : null}
-                <div className="text-lg font-black tracking-wide text-slate-950">{businessName}</div>
+                <div className="text-base font-black tracking-wide text-slate-950">{businessName}</div>
                 <div className="mt-0.5 text-[9px] font-semibold leading-snug text-slate-800">{address}</div>
                 <div className="text-[9px] font-semibold text-slate-800">
                   {mobile ? `Mob: ${mobile}` : ""}
@@ -309,7 +309,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                 ) : null}
               </div>
 
-              <div className="border-b-2 border-slate-300 py-1 text-center text-sm font-bold uppercase tracking-wide text-slate-950">
+              <div className="border-b border-slate-300 py-0.5 text-center text-xs font-bold uppercase tracking-wide text-slate-950">
                 {itemPages.length > 1
                   ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
                   : docTitle}
@@ -342,7 +342,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                 </div>
               </div>
 
-              <table className="w-full flex-1 border-collapse table-fixed text-slate-950">
+              <table className="w-full border-collapse table-fixed text-slate-950">
                 <colgroup>
                   {colDefs.map((c) => (
                     <col key={c.key} style={{ width: c.width }} />
@@ -362,7 +362,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     if (item) srCounter++;
                     const srNo = item ? pageStartSr + srCounter : null;
                     return (
-                      <tr key={idx} className="min-h-[20px]">
+                      <tr key={idx} className="min-h-0">
                         {colDefs.map((c) => (
                           <td
                             key={c.key}
@@ -402,9 +402,9 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
               </table>
 
               {isLastPage ? (
-                <div className="mt-auto border-t-2 border-slate-300 text-[10px]">
+                <div className="mt-auto border-t border-slate-300 text-[9px]">
                   <div className="flex border-b border-slate-300">
-                    <div className="min-h-[48px] flex-1 border-r border-slate-300 p-1.5">
+                    <div className="min-h-0 flex-1 border-r border-slate-300 p-1">
                       {notes?.trim() && !/^\d+$/.test(notes.trim()) ? (
                         <div>
                           <span className="font-bold">Note:</span>{" "}
@@ -415,21 +415,21 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                       )}
                     </div>
                     <div className="w-[42%] shrink-0 border-slate-300">
-                      <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                      <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                         <span className="leading-tight">
                           Sub Total{" "}
-                          <span className="block text-[8px] font-normal normal-case text-slate-600">(incl. GST)</span>
+                          <span className="block text-[7px] font-normal normal-case text-slate-600">(incl. GST)</span>
                         </span>
                         <span>₹{fmt(subtotal)}</span>
                       </div>
                       {showDiscountRow ? (
-                        <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                        <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                           <span>Discount</span>
                           <span>- ₹{fmt(discount)}</span>
                         </div>
                       ) : null}
                       {showSrRow ? (
-                        <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                        <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                           <span>S/R Adjust</span>
                           <span>
                             {saleReturnAdjust > 0
@@ -438,17 +438,15 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                           </span>
                         </div>
                       ) : null}
-                      <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                      <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                         <span className="leading-tight">
                           GST{" "}
-                          <span className="block text-[8px] font-normal normal-case text-slate-600">
-                            (included in Sub Total; not added again)
-                          </span>
+                          <span className="text-[7px] font-normal normal-case text-slate-600"> (incl. in Sub Total)</span>
                         </span>
                         <span>₹{fmt(totalTax)}</span>
                       </div>
                       {showRoundOffRow ? (
-                        <div className="flex justify-between border-b border-slate-300 px-2 py-1">
+                        <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                           <span>Round Off</span>
                           <span>
                             {roundOff > 0 ? "+" : ""}
@@ -456,17 +454,17 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                           </span>
                         </div>
                       ) : null}
-                      <div className="flex justify-between bg-slate-100 px-2 py-1.5 text-2xl font-bold text-slate-950">
-                        <span>Bill Amount</span>
+                      <div className="flex justify-between bg-slate-100 px-1.5 py-1 text-sm font-semibold text-slate-950">
+                        <span>Total</span>
                         <span>₹{fmt(grandTotal)}</span>
                       </div>
                     </div>
                   </div>
 
                   {showGSTBreakdown && hasGSTData ? (
-                    <div className="border-b border-slate-300 p-1.5">
-                      <div className="mb-1 text-[9px] font-bold uppercase text-slate-950">GST summary (slab)</div>
-                      <table className="w-full border-collapse text-[9px]">
+                    <div className="border-b border-slate-300 p-1">
+                      <div className="mb-0.5 text-[8px] font-bold uppercase text-slate-950">GST summary (slab)</div>
+                      <table className="w-full border-collapse text-[8px]">
                         <thead>
                           <tr className="bg-slate-100">
                             <th className="border border-slate-300 px-1 py-0.5">Tax Slab (%)</th>
@@ -517,16 +515,16 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     </div>
                   ) : null}
 
-                  <div className="border-b border-slate-300 p-1.5 text-[9px] font-semibold leading-snug">
+                  <div className="border-b border-slate-300 px-1 py-0.5 text-[8px] font-semibold leading-tight">
                     <span className="font-bold">Amount in words:</span> {numberToWords(grandTotal)}
                   </div>
 
-                  <div className="relative flex min-h-[56px]">
-                    <div className="flex-1 border-r border-slate-300 p-1.5 pr-2">
+                  <div className="relative flex min-h-0">
+                    <div className="flex-1 border-r border-slate-300 p-1 pr-1.5">
                       {termsConditions.length > 0 ? (
                         <div>
-                          <div className="text-[9px] font-bold underline">Terms &amp; Conditions</div>
-                          <ul className="mt-0.5 list-disc pl-3 text-[8px] leading-relaxed text-slate-900">
+                          <div className="text-[8px] font-bold underline">Terms &amp; Conditions</div>
+                          <ul className="mt-0.5 list-disc pl-2.5 text-[7px] leading-tight text-slate-900">
                             {termsConditions.map((t, i) => (
                               <li key={i}>{t}</li>
                             ))}
@@ -534,11 +532,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                         </div>
                       ) : null}
                       {declarationText ? (
-                        <div className="mt-1 text-[7px] leading-snug text-slate-700">{declarationText}</div>
+                        <div className="mt-0.5 text-[6px] leading-tight text-slate-700">{declarationText}</div>
                       ) : null}
-                      <div className="mt-1 text-[7px] text-slate-600">E. &amp; O.E.</div>
+                      <div className="mt-0.5 text-[6px] text-slate-600">E. &amp; O.E.</div>
                     </div>
-                    <div className="relative flex w-[38%] shrink-0 flex-col items-center justify-start p-1.5">
+                    <div className="relative flex w-[38%] shrink-0 flex-col items-center justify-start p-1">
                       {stampImageBase64 ? (
                         <img
                           src={stampImageBase64}
@@ -553,19 +551,19 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                           }}
                         />
                       ) : null}
-                      <div className="text-center text-[8px] font-bold">For {businessName}</div>
+                      <div className="text-center text-[7px] font-bold">For {businessName}</div>
                       {qrCodeUrl ? (
                         <img
                           src={qrCodeUrl}
                           alt=""
-                          className="mt-1 h-[72px] w-[72px] border border-slate-300 object-contain"
+                          className="mt-0.5 h-[48px] w-[48px] border border-slate-300 object-contain"
                         />
                       ) : null}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="flex border-t-2 border-slate-300 bg-slate-50 text-[10px] font-bold">
+                <div className="flex border-t border-slate-300 bg-slate-50 text-[9px] font-bold">
                   <div className="flex-1 border-r border-slate-300 p-1.5">&nbsp;</div>
                   <div className="flex w-[42%] justify-between p-1.5">
                     <span>Page total</span>
@@ -581,12 +579,14 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
       <style>{`
         @media print {
           body { margin: 0; padding: 0; background: #fff; }
-          @page { size: A5 portrait; margin: 5mm; }
+          @page { size: A5 portrait; margin: 4mm; }
           .retail-tax-ezzy-page {
             width: 148mm !important;
-            min-height: 210mm !important;
+            min-height: 0 !important;
+            height: auto !important;
             margin: 0 !important;
-            border: 1px solid #cbd5e1 !important;
+            border: none !important;
+            box-shadow: none !important;
           }
           * {
             -webkit-print-color-adjust: exact;
