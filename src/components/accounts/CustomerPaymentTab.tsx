@@ -1132,6 +1132,11 @@ export function CustomerPaymentTab({
   const allCustomerPayments = vouchers
     ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "sale" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
     .sort((a, b) => new Date(b.voucher_date).getTime() - new Date(a.voucher_date).getTime()) || [];
+  const formatEntryDateTime = (value: string | null | undefined) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
+  };
   
   const customerPayments = allCustomerPayments.filter((v) => {
     // Payment method filter
@@ -1688,6 +1693,7 @@ export function CustomerPaymentTab({
                 {isAdmin && <TableHead className="w-10"></TableHead>}
                 <TableHead>Voucher No</TableHead>
                 <TableHead>Payment Date</TableHead>
+                <TableHead>Entry Date &amp; Time</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Method</TableHead>
@@ -1725,6 +1731,7 @@ export function CustomerPaymentTab({
                     )}
                     <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                     <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                    <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                     <TableCell>{customerName}</TableCell>
                     <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
                     <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>

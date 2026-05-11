@@ -37,6 +37,11 @@ interface EmployeeSalaryTabProps {
 
 export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTabProps) {
   const queryClient = useQueryClient();
+  const formatEntryDateTime = (value: string | null | undefined) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
+  };
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
   const [referenceId, setReferenceId] = useState("");
   const [amount, setAmount] = useState("");
@@ -277,6 +282,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
               <TableRow>
                 <TableHead>Voucher No</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Entry Date &amp; Time</TableHead>
                 <TableHead>Employee</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Description</TableHead>
@@ -288,6 +294,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
                 <TableRow key={voucher.id}>
                   <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                   <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                  <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                   <TableCell>
                     {employees?.find((e) => e.id === voucher.reference_id)?.employee_name || "-"}
                   </TableCell>

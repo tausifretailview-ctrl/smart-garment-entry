@@ -36,6 +36,11 @@ const PAYMENT_METHODS = [
 
 export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
   const queryClient = useQueryClient();
+  const formatEntryDateTime = (value: string | null | undefined) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
+  };
 
   // Form state
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -697,6 +702,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
                 <TableRow>
                   <TableHead className="text-xs w-[120px]">Voucher No</TableHead>
                   <TableHead className="text-xs w-[90px]">Date</TableHead>
+                  <TableHead className="text-xs w-[150px]">Entry Dt/Time</TableHead>
                   <TableHead className="text-xs">Category</TableHead>
                   <TableHead className="text-xs">Narration</TableHead>
                   <TableHead className="text-xs w-[80px]">Payment</TableHead>
@@ -706,14 +712,15 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-xs py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">Loading...</TableCell></TableRow>
                 ) : filteredExpenses.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center text-xs py-8 text-muted-foreground">No expenses found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">No expenses found</TableCell></TableRow>
                 ) : (
                   filteredExpenses.map((v) => (
                     <TableRow key={v.id}>
                       <TableCell className="text-xs font-medium">{v.voucher_number}</TableCell>
                       <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-xs">{formatEntryDateTime(v.created_at)}</TableCell>
                       <TableCell className="text-xs">{v.category || v.description || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[200px] truncate">{v.description || "—"}</TableCell>
                       <TableCell className="text-xs capitalize">{(v.payment_method || "cash").replace("_", " ")}</TableCell>
@@ -730,7 +737,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
                 )}
                 {filteredExpenses.length > 0 && (
                   <TableRow className="bg-muted/50 font-semibold">
-                    <TableCell colSpan={5} className="text-xs text-right">Total ({filteredExpenses.length} entries)</TableCell>
+                    <TableCell colSpan={6} className="text-xs text-right">Total ({filteredExpenses.length} entries)</TableCell>
                     <TableCell className="text-xs text-right tabular-nums">₹{filteredExpenses.reduce((s, v) => s + Number(v.total_amount || 0), 0).toLocaleString("en-IN")}</TableCell>
                     <TableCell />
                   </TableRow>

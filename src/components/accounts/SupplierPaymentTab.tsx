@@ -475,6 +475,11 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           (v.description || "").toLowerCase().includes(paymentSearchTerm.toLowerCase());
       })
     : allSupplierPayments;
+  const formatEntryDateTime = (value: string | null | undefined) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
+  };
   const totalPaymentPages = Math.ceil(supplierPayments.length / PAYMENTS_PER_PAGE);
   const startIdx = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
   const endIdx = startIdx + PAYMENTS_PER_PAGE;
@@ -795,6 +800,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                 {isAdmin && <TableHead className="w-10"></TableHead>}
                 <TableHead>Voucher No</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Entry Date &amp; Time</TableHead>
                 <TableHead>Supplier</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Method</TableHead>
@@ -821,6 +827,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
                     )}
                     <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                     <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                    <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                     <TableCell>{supplierName}</TableCell>
                     <TableCell className="tabular-nums">₹{Number(voucher.total_amount || 0).toFixed(2)}</TableCell>
                     <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>

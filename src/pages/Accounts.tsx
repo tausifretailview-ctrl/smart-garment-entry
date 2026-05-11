@@ -464,7 +464,7 @@ export default function Accounts() {
       while (hasMore) {
         const { data, error } = await supabase
           .from("voucher_entries")
-          .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason")
+          .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at")
           .eq("organization_id", currentOrganization?.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })

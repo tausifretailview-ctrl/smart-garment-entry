@@ -7,6 +7,12 @@ interface VoucherEntryTabProps {
 }
 
 export function VoucherEntryTab({ vouchers }: VoucherEntryTabProps) {
+  const formatEntryDateTime = (value: string | null | undefined) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -21,6 +27,7 @@ export function VoucherEntryTab({ vouchers }: VoucherEntryTabProps) {
                 <TableHead>Voucher No</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Date</TableHead>
+                <TableHead>Entry Date &amp; Time</TableHead>
                 <TableHead>Reference</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Description</TableHead>
@@ -32,6 +39,7 @@ export function VoucherEntryTab({ vouchers }: VoucherEntryTabProps) {
                   <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                   <TableCell className="uppercase">{voucher.voucher_type}</TableCell>
                   <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                  <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                   <TableCell className="capitalize">{voucher.reference_type || "-"}</TableCell>
                   <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
                   <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
