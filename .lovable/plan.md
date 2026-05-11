@@ -89,6 +89,24 @@ Migration `20260511_phase3_customer_ledger_hardening` applied:
 - 2 residual advance over-consumption customers (data correction, not code).
 - Sale `paid_amount` drift recomputation across the org.
 
+---
+
+## Phase 4 — Historical receipt backfill (DONE)
+
+Strategy chosen: **Orphans + backfill missing receipts** (preserve `sales.paid_amount` as the authoritative figure; treat missing voucher rows as the bug).
+
+1. Soft-deleted **5 truly orphan** receipt voucher_entries (RCP/25-26/1369, VCH/25-26/13, RCP/25-26/1412, RCP/25-26/11, RCP/25-26/34) — `reference_id` matched neither a sale nor a customer.
+2. Inserted **20,015 backfill receipts** (`voucher_number = 'BCK/<sale-id>/<hash>'`, `reference_type='sale'`) for legacy POS sales where `sales.paid_amount` exceeded the existing voucher receipt sum by > Re 1. Each backfill uses `sale_date` and the sale's `payment_method` (default `cash`).
+
+### Verification
+- Orphan voucher rows: **5 → 0** ✅
+- Sales over-paid (paid_amount > voucher_sum): **20,015 → 0** ✅
+- Sales under-paid (voucher_sum > paid_amount): **722** — intentionally deferred. These are likely duplicate or over-collected receipts; need per-row human review, not blanket recompute.
+
+### Out of scope (queued for Phase 5 if needed)
+- 722 under-paid sales — case-by-case audit per org via the Ledger Health page.
+- Orphan customer-keyed voucher rows in legacy data outside the receipt voucher_type (none currently flagged).
+
 ### Files touched (technical detail)
 - New migration: soft-delete RCP/25-26/40, RCP/26-27/139; recompute INV/25-26/314.
 - New migration: `CREATE OR REPLACE FUNCTION reconcile_customer_balances(...)` with id-match rewrite, plus the new `vw_customer_ledger_anomalies` view.
