@@ -2819,6 +2819,11 @@ export default function SalesInvoiceDashboard() {
           { label: "Invoices", value: String(effectiveStats.totalInvoices), color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Qty", value: String(effectiveStats.totalQty), color: "text-emerald-600", bg: "bg-emerald-50" },
         ]} />
+        {filteredCustomer && (
+          <p className="px-4 pt-1 text-[10px] text-muted-foreground leading-snug">
+            Pending is the sum of invoice dues. Unused advance (Adjust Advance) reduces this total only after you apply it per invoice.
+          </p>
+        )}
 
         <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
           {[{v:"all",l:"All"},{v:"pending",l:"Pending"},{v:"partial",l:"Partial"},{v:"completed",l:"Paid"},{v:"cancelled",l:"Cancelled"}].map((s) => (
@@ -3244,6 +3249,11 @@ export default function SalesInvoiceDashboard() {
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
               <p className="text-sm text-white/65 mt-0.5">Outstanding</p>
+              {filteredCustomer && (
+                <p className="text-[10px] text-white/55 leading-snug mt-1.5 border-t border-white/15 pt-1.5">
+                  Sum of invoice balances due. Unused advance (Adjust Advance) is not included until you apply it per invoice via Record Payment → From Advance or Accounts → Customer Payment.
+                </p>
+              )}
             </CardContent>
           </Card>
 
