@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
+import { PlatformLedgerHealth } from "@/components/PlatformLedgerHealth";
 import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -835,6 +836,7 @@ export default function PlatformAdmin() {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="whatsapp">WhatsApp API</TabsTrigger>
             <TabsTrigger value="whatsapp-logs">WhatsApp Logs</TabsTrigger>
+            <TabsTrigger value="ledger-health">Ledger Health</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -846,6 +848,11 @@ export default function PlatformAdmin() {
           {/* WhatsApp Logs Tab */}
           <TabsContent value="whatsapp-logs" className="space-y-4">
             <PlatformWhatsAppLogs />
+          </TabsContent>
+
+          {/* Customer Ledger Health Tab */}
+          <TabsContent value="ledger-health" className="space-y-4">
+            <PlatformLedgerHealth />
           </TabsContent>
 
           {/* Organizations Tab */}
