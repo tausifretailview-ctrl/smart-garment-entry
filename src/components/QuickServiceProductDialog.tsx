@@ -14,7 +14,12 @@ interface QuickServiceProductDialogProps {
   onOpenChange: (open: boolean) => void;
   serviceCode: string;
   productName?: string;
-  onAdd: (data: { code: string; quantity: number; mrp: number }) => void;
+  onAdd: (data: {
+    code: string;
+    quantity: number;
+    mrp: number;
+    description?: string;
+  }) => void;
 }
 
 export const QuickServiceProductDialog = ({
@@ -26,14 +31,17 @@ export const QuickServiceProductDialog = ({
 }: QuickServiceProductDialogProps) => {
   const [quantity, setQuantity] = useState(1);
   const [mrp, setMrp] = useState<string>("");
+  const [description, setDescription] = useState("");
+  const quantityInputRef = useRef<HTMLInputElement>(null);
   const mrpInputRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus MRP field when dialog opens
   useEffect(() => {
     if (open) {
       setQuantity(1);
       setMrp("");
-      setTimeout(() => mrpInputRef.current?.focus(), 100);
+      setDescription("");
+      setTimeout(() => quantityInputRef.current?.focus(), 100);
     }
   }, [open]);
 
@@ -41,10 +49,29 @@ export const QuickServiceProductDialog = ({
     const mrpValue = parseFloat(mrp);
     if (!mrpValue || mrpValue <= 0) return;
     if (quantity <= 0) return;
-    onAdd({ code: serviceCode, quantity, mrp: mrpValue });
+    onAdd({
+      code: serviceCode,
+      quantity,
+      mrp: mrpValue,
+      description: description.trim() || undefined,
+    });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleQuantityKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      mrpInputRef.current?.focus();
+    }
+  };
+
+  const handleMrpKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      descriptionRef.current?.focus();
+    }
+  };
+
+  const handleDescriptionKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleSubmit();
@@ -64,11 +91,12 @@ export const QuickServiceProductDialog = ({
           <div>
             <Label className="text-xs">Quantity</Label>
             <Input
+              ref={quantityInputRef}
               type="number"
               min={1}
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleQuantityKeyDown}
               className="h-9 mt-1"
             />
           </div>
@@ -81,8 +109,22 @@ export const QuickServiceProductDialog = ({
               step="0.01"
               value={mrp}
               onChange={(e) => setMrp(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleMrpKeyDown}
               placeholder="Enter price"
+              className="h-9 mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">
+              Description <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              ref={descriptionRef}
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onKeyDown={handleDescriptionKeyDown}
+              placeholder="Design no, brand, barcode..."
               className="h-9 mt-1"
             />
           </div>

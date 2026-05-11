@@ -27,6 +27,7 @@ interface MinimalTemplateProps {
     mrp?: number;
     discPercent?: number;
     total: number;
+    itemNotes?: string;
   }>;
   subtotal: number;
   discount: number;
@@ -61,6 +62,7 @@ interface MinimalTemplateProps {
 
 interface GroupedItem {
   particulars: string;
+  itemNotes?: string;
   color?: string;
   brand?: string;
   style?: string;
@@ -145,6 +147,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
     if (!enableWholesaleGrouping) {
       return items.map(item => ({
         particulars: item.particulars,
+        itemNotes: item.itemNotes,
         color: item.color,
         brand: item.brand,
         style: item.style,
@@ -161,6 +164,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
+          itemNotes: item.itemNotes,
           color: item.color,
           brand: item.brand,
           style: item.style,
@@ -169,6 +173,9 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
           totalQty: 0,
           totalAmount: 0,
         };
+      }
+      if (item.itemNotes && !grouped[key].itemNotes) {
+        grouped[key].itemNotes = item.itemNotes;
       }
       const existingSize = grouped[key].sizeQtyList.find(sq => sq.size === item.size);
       if (existingSize) {
@@ -279,6 +286,9 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
               <tr key={index} style={{ borderBottom: '1px solid #ddd' }}>
                 <td style={{ padding: '10px 0' }}>
                   <div>{item.particulars}</div>
+                  {item.itemNotes ? (
+                    <div style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic', marginTop: '2px' }}>{item.itemNotes}</div>
+                  ) : null}
                   {productDetails && (
                     <div style={{ fontSize: '8pt', color: '#666', marginTop: '2px' }}>{productDetails}</div>
                   )}

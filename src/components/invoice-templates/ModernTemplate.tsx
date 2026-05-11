@@ -31,6 +31,7 @@ interface ModernTemplateProps {
     discPercent?: number;
     total: number;
     gstPercent?: number;
+    itemNotes?: string;
   }>;
   subtotal: number;
   discount: number;
@@ -331,6 +332,9 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
                   <td style={{ ...cellStyle, textAlign: 'center' }}>{item.sr}</td>
                   <td style={cellStyle}>
                     <div style={{ fontWeight: '500' }}>{item.particulars}</div>
+                    {item.itemNotes ? (
+                      <div style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic' }}>{item.itemNotes}</div>
+                    ) : null}
                     <div style={{ fontSize: '8pt', color: '#666' }}>
                       {formatSizeVariants(item)}
                     </div>

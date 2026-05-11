@@ -204,6 +204,7 @@ export default function PublicInvoiceView() {
       style: "",
       gstPercent: item.gst_percent || 0,
       discountPercent: item.discount_percent ?? 0,
+      itemNotes: item.item_notes || "",
     })),
     subtotal: sale.gross_amount,
     discount: sale.discount_amount + sale.flat_discount_amount,

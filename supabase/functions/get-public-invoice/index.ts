@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     // Fetch sale with items - include all display-relevant fields
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .select('id, sale_number, sale_date, customer_name, customer_id, customer_phone, customer_address, gross_amount, discount_amount, flat_discount_amount, round_off, net_amount, payment_method, terms_conditions, organization_id, salesman, notes, cash_amount, card_amount, upi_amount, paid_amount, credit_applied, sale_return_adjust, einvoice_qr_code, points_redeemed_amount, sale_items (id, product_name, barcode, size, mrp, quantity, unit_price, line_total, discount_percent, hsn_code, gst_percent, color)')
+      .select('id, sale_number, sale_date, customer_name, customer_id, customer_phone, customer_address, gross_amount, discount_amount, flat_discount_amount, round_off, net_amount, payment_method, terms_conditions, organization_id, salesman, notes, cash_amount, card_amount, upi_amount, paid_amount, credit_applied, sale_return_adjust, einvoice_qr_code, points_redeemed_amount, sale_items (id, product_name, barcode, size, mrp, quantity, unit_price, line_total, discount_percent, hsn_code, gst_percent, color, item_notes)')
       .eq('id', saleId)
       .is('deleted_at', null)
       .maybeSingle()

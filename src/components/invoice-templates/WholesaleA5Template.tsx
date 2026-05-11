@@ -18,6 +18,7 @@ interface InvoiceItem {
   color?: string;
   style?: string;
   gstPercent?: number;
+  itemNotes?: string;
 }
 
 interface WholesaleA5TemplateProps {
@@ -275,7 +276,12 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
           {items.map((item, idx) => (
             <tr key={idx}>
               <td style={{ border: cellBorder, padding: '1mm', textAlign: 'center' }}>{idx + 1}</td>
-              <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'center' }}>{item.particulars}</td>
+              <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'center' }}>
+                <div>{item.particulars}</div>
+                {item.itemNotes ? (
+                  <div style={{ fontSize: '7pt', color: '#666', fontStyle: 'italic', marginTop: '1px' }}>{item.itemNotes}</div>
+                ) : null}
+              </td>
               {showBarcode && (
                 <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'center', fontSize: '7.5pt' }}>{item.barcode || ''}</td>
               )}

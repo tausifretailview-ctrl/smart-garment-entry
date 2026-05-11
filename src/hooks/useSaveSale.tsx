@@ -28,6 +28,7 @@ interface CartItem {
   productId: string;
   variantId: string;
   hsnCode?: string;
+  itemNotes?: string | null;
 }
 
 interface SaleData {
@@ -549,6 +550,7 @@ export const useSaveSale = () => {
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
           is_dc_item: (item as any).isDcProduct === true,
+          item_notes: (item as any).itemNotes || null,
         };
       });
 
@@ -1097,6 +1099,7 @@ export const useSaveSale = () => {
           round_off_share: Math.round(roundOffShare * 100) / 100,
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+          item_notes: (item as any).itemNotes || null,
         };
       });
 
@@ -1575,6 +1578,7 @@ export const useSaveSale = () => {
           round_off_share: Math.round(roundOffShare * 100) / 100,
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+          item_notes: (item as any).itemNotes || null,
         };
       });
 

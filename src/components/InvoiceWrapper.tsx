@@ -38,6 +38,7 @@ interface InvoiceItem {
   style?: string;
   gstPercent?: number;
   discountPercent?: number;
+  itemNotes?: string;
 }
 
 interface InvoiceWrapperProps {
@@ -394,6 +395,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             items={props.items.map((item, idx) => ({
               sr: idx + 1,
               particulars: item.particulars,
+              itemNotes: item.itemNotes,
               barcode: item.barcode,
               qty: item.qty,
               rate: item.rate,

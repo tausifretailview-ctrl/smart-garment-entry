@@ -27,6 +27,7 @@ interface ClassicTemplateProps {
     mrp?: number;
     discPercent?: number;
     total: number;
+    itemNotes?: string;
   }>;
   subtotal: number;
   discount: number;
@@ -67,6 +68,7 @@ interface ClassicTemplateProps {
 
 interface GroupedItem {
   particulars: string;
+  itemNotes?: string;
   color?: string;
   brand?: string;
   style?: string;
@@ -158,6 +160,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
     if (!enableWholesaleGrouping) {
       return items.map(item => ({
         particulars: item.particulars,
+        itemNotes: item.itemNotes,
         color: item.color,
         brand: item.brand,
         style: item.style,
@@ -174,6 +177,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
+          itemNotes: item.itemNotes,
           color: item.color,
           brand: item.brand,
           style: item.style,
@@ -182,6 +186,9 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
           totalQty: 0,
           totalAmount: 0,
         };
+      }
+      if (item.itemNotes && !grouped[key].itemNotes) {
+        grouped[key].itemNotes = item.itemNotes;
       }
       const existingSize = grouped[key].sizeQtyList.find(sq => sq.size === item.size);
       if (existingSize) {
@@ -328,6 +335,9 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                   <td style={{ padding: '10px' }}>{index + 1}</td>
                   <td style={{ padding: '10px' }}>
                     <div style={{ fontWeight: 500 }}>{item.particulars}</div>
+                    {item.itemNotes ? (
+                      <div style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic', marginTop: '2px' }}>{item.itemNotes}</div>
+                    ) : null}
                     {productDetails && (
                       <div style={{ fontSize: '8pt', color: '#666', marginTop: '2px' }}>{productDetails}</div>
                     )}

@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 interface ThermalItem {
   sr: number;
   particulars: string;
+  itemNotes?: string;
   barcode?: string;
   qty: number;
   rate: number;
@@ -266,6 +267,11 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
             <div style={{ fontWeight: 800, lineHeight: '1.3', wordBreak: 'break-word', fontSize: '11.5px' }}>
               {item.particulars}
             </div>
+            {item.itemNotes ? (
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#444', fontStyle: 'italic', lineHeight: 1.25 }}>
+                {item.itemNotes}
+              </div>
+            ) : null}
             {item.barcode && (
               <div style={{ fontSize: '13px', fontWeight: 900, color: '#000' }}>BC: {item.barcode}</div>
             )}

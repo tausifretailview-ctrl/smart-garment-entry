@@ -15,10 +15,12 @@ interface WholesaleItem {
   gst_percent?: number; // Alternative field name from database
   discountPercent?: number;
   total: number;
+  itemNotes?: string;
 }
 
 interface GroupedItem {
   particulars: string;
+  itemNotes?: string;
   brand?: string;
   color?: string;
   style?: string;
@@ -153,6 +155,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         const gstAmt = (item.total * gstPct) / (100 + gstPct);
         return {
           particulars: item.particulars,
+          itemNotes: item.itemNotes,
           brand: item.brand,
           color: item.color,
           style: item.style,
@@ -176,6 +179,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
+          itemNotes: item.itemNotes,
           brand: item.brand,
           color: item.color,
           style: item.style,
@@ -189,6 +193,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           totalQty: 0,
           totalAmount: 0,
         };
+      }
+      if (item.itemNotes && !grouped[key].itemNotes) {
+        grouped[key].itemNotes = item.itemNotes;
       }
       const existingSize = grouped[key].sizeQtyList.find((sq) => sq.size === item.size);
       if (existingSize) {
@@ -438,6 +445,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <td style={{ ...cellStyle, textAlign: "center" }}>{startIndex + index + 1}</td>
             <td style={cellStyle}>
               <div style={{ fontWeight: "700", fontSize: isA5 ? "6.5pt" : "8pt" }}>{item.particulars}</div>
+              {item.itemNotes ? (
+                <div style={{ fontSize: isA5 ? "5.5pt" : "7pt", color: "#666", fontStyle: "italic", marginTop: "1px" }}>
+                  {item.itemNotes}
+                </div>
+              ) : null}
               {item.color && <div style={{ fontSize: isA5 ? "5.5pt" : "7pt", color: "#555", fontStyle: "italic" }}>{item.color}</div>}
             </td>
             <td style={{ ...cellStyle, textAlign: "center", fontSize: isA5 ? "6.5pt" : "7.5pt" }}>{item.hsn || '-'}</td>

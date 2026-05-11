@@ -19,6 +19,7 @@ interface InvoiceItem {
   style?: string;
   gstPercent?: number;
   discountPercent?: number;
+  itemNotes?: string;
 }
 
 interface RetailTaxEzzyTemplateProps {
@@ -230,9 +231,12 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
         );
       case "description":
         return (
-          <span className="block truncate" title={item.particulars}>
+          <span className="block truncate" title={[item.particulars, item.itemNotes].filter(Boolean).join(" — ")}>
             {item.particulars}
             {item.color ? <span className="text-slate-600"> ({item.color})</span> : null}
+            {item.itemNotes ? (
+              <span className="mt-0.5 block truncate text-[8px] italic text-slate-600">{item.itemNotes}</span>
+            ) : null}
           </span>
         );
       case "hsn":

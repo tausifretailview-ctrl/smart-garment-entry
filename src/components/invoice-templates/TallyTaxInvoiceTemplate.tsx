@@ -17,6 +17,7 @@ interface InvoiceItem {
   style?: string;
   gstPercent?: number;
   discountPercent?: number;
+  itemNotes?: string;
 }
 
 interface TallyTaxInvoiceTemplateProps {
@@ -564,6 +565,9 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     </td>
                     <td style={{ ...cellNoRowBorder, verticalAlign: "top" }}>
                       <div style={{ fontWeight: "bold", fontSize: "11px", lineHeight: "1.4" }}>{item.particulars}</div>
+                      {item.itemNotes ? (
+                        <div style={{ fontSize: "9px", color: "#666", fontStyle: "italic", marginTop: "2px" }}>{item.itemNotes}</div>
+                      ) : null}
                       {item.color && (
                         <div style={{ fontSize: "9px", color: "#444", marginTop: "1px" }}>
                           <strong>Color:</strong> {item.color}

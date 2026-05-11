@@ -119,6 +119,7 @@ interface CartItem {
   isDcProduct?: boolean; // DC (Direct Cash) product flag
   uom?: string;
   showDiscount?: boolean;
+  itemNotes?: string | null;
 }
 
 interface POSBarcodeRuntimeSettings {
@@ -160,6 +161,7 @@ function mapPosPrintItem(item: any, index: number) {
     total: item.netAmount,
     gstPercent: item.gstPer || 0,
     discountPercent: item.discountPercent || 0,
+    itemNotes: item.itemNotes || "",
   };
 }
 
@@ -553,6 +555,7 @@ export default function POSSales() {
           productId: item.product_id,
           variantId: item.variant_id,
           hsnCode: item.hsn_code || '',
+          itemNotes: (item as any).item_notes || null,
         }));
 
         setItems(cartItems);
@@ -1787,7 +1790,7 @@ export default function POSSales() {
     }
   }
 
-  const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
+  const handleQuickServiceAdd = useCallback(({ code, quantity, mrp, description }: { code: string; quantity: number; mrp: number; description?: string }) => {
     // If we have a pre-identified product (from barcode scan), use it directly
     if (quickServiceProductForAdd) {
       const { product, variant } = quickServiceProductForAdd;
@@ -1809,6 +1812,7 @@ export default function POSSales() {
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
         productType: 'service',
+        itemNotes: description || null,
       };
       setItems(prev => [...prev, newItem]);
       bumpCartHighlight(newItem.id);
@@ -1864,6 +1868,7 @@ export default function POSSales() {
       variantId,
       hsnCode: '',
       productType: 'service',
+      itemNotes: description || null,
     };
     setItems(prev => [...prev, newItem]);
     bumpCartHighlight(newItem.id);
@@ -3295,6 +3300,7 @@ export default function POSSales() {
       netAmount: Number(item.line_total),
       productId: item.product_id,
       variantId: item.variant_id,
+      itemNotes: item.item_notes || null,
     }));
 
     setItems(loadedItems);
@@ -5564,6 +5570,7 @@ export default function POSSales() {
                 items={items.map((item, index) => ({
                   sr: index + 1,
                   particulars: item.productName,
+                  itemNotes: item.itemNotes || "",
                   size: item.size,
                   barcode: item.barcode,
                   hsn: item.hsnCode || "",

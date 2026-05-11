@@ -16,6 +16,7 @@ interface InvoiceItem {
   color?: string;
   style?: string;
   discountPercent?: number;
+  itemNotes?: string;
 }
 
 interface RetailTemplateProps {
@@ -352,6 +353,11 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                                   ({[item.brand, item.size, item.color].filter(Boolean).join(" | ")})
                                 </span>
                               )}
+                              {item.itemNotes ? (
+                                <div style={{ fontSize: "9px", color: "#666", fontStyle: "italic", marginTop: "2px" }}>
+                                  {item.itemNotes}
+                                </div>
+                              ) : null}
                             </>
                           ) : "\u00A0"}
                         </td>

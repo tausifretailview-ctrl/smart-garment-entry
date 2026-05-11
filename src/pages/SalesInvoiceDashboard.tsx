@@ -3002,6 +3002,7 @@ export default function SalesInvoiceDashboard() {
                 style: item.products?.style || "",
                 gstPercent: item.gst_percent || 0,
                 discountPercent: item.discount_percent || 0,
+                itemNotes: item.item_notes || "",
               })) || []}
               subTotal={invoiceToPrint.gross_amount}
               discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
@@ -4360,6 +4361,7 @@ export default function SalesInvoiceDashboard() {
                 style: item.products?.style || "",
                 gstPercent: item.gst_percent || 0,
                 discountPercent: item.discount_percent || 0,
+                itemNotes: item.item_notes || "",
               })) || []}
                 subTotal={invoiceToPrint.gross_amount}
                 discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
@@ -4415,6 +4417,7 @@ export default function SalesInvoiceDashboard() {
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                itemNotes: item.item_notes || "",
                 size: item.size,
                 barcode: item.barcode || "",
                 hsn: item.hsn_code || "",

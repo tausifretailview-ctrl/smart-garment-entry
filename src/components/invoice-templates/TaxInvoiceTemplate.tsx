@@ -16,10 +16,12 @@ interface InvoiceItem {
   color?: string;
   style?: string;
   discountPercent?: number;
+  itemNotes?: string;
 }
 
 interface GroupedItem {
   particulars: string;
+  itemNotes?: string;
   color?: string;
   brand?: string;
   style?: string;
@@ -175,6 +177,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
     if (!enableWholesaleGrouping) {
       return items.map(item => ({
         particulars: item.particulars,
+        itemNotes: item.itemNotes,
         color: item.color,
         brand: item.brand,
         style: item.style,
@@ -191,6 +194,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
+          itemNotes: item.itemNotes,
           color: item.color,
           brand: item.brand,
           style: item.style,
@@ -199,6 +203,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
           totalQty: 0,
           totalAmount: 0,
         };
+      }
+      if (item.itemNotes && !grouped[key].itemNotes) {
+        grouped[key].itemNotes = item.itemNotes;
       }
       const existingSize = grouped[key].sizeQtyList.find(sq => sq.size === item.size);
       if (existingSize) {
@@ -356,6 +363,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
                 <td style={{ padding: '4px', border: `1px solid ${colors.primary}` }}>
                   {item.particulars}
                   {!enableWholesaleGrouping && items[index]?.size && ` (${items[index].size})`}
+                  {item.itemNotes ? (
+                    <div style={{ fontSize: '7px', color: '#666', fontStyle: 'italic', marginTop: '2px' }}>{item.itemNotes}</div>
+                  ) : null}
                   {wholesaleDetails.length > 0 && (
                     <div style={{ fontSize: '7px', color: colors.secondary }}>{wholesaleDetails.join(' | ')}</div>
                   )}

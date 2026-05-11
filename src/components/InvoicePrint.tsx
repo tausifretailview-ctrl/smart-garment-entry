@@ -17,6 +17,7 @@ interface InvoiceItem {
   rate: number;
   total: number;
   uom?: string;
+  itemNotes?: string;
 }
 
 interface InvoicePrintProps {
@@ -249,6 +250,9 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                 <td>{item.sr}</td>
                 <td>
                   <div>{item.particulars}</div>
+                  {item.itemNotes && (
+                    <div className="text-xs text-gray-600 italic">{item.itemNotes}</div>
+                  )}
                   {showProductDetails && displayShowBarcode && <div className="barcode-text"><strong>BC:{item.barcode}</strong></div>}
                 </td>
                 {showProductDetails && (

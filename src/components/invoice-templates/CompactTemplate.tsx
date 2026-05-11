@@ -15,10 +15,12 @@ interface InvoiceItem {
   category?: string;
   color?: string;
   style?: string;
+  itemNotes?: string;
 }
 
 interface GroupedItem {
   particulars: string;
+  itemNotes?: string;
   color?: string;
   brand?: string;
   style?: string;
@@ -150,6 +152,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
     if (!enableWholesaleGrouping) {
       return items.map(item => ({
         particulars: item.particulars,
+        itemNotes: item.itemNotes,
         color: item.color,
         brand: item.brand,
         style: item.style,
@@ -166,6 +169,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
+          itemNotes: item.itemNotes,
           color: item.color,
           brand: item.brand,
           style: item.style,
@@ -174,6 +178,9 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
           totalQty: 0,
           totalAmount: 0,
         };
+      }
+      if (item.itemNotes && !grouped[key].itemNotes) {
+        grouped[key].itemNotes = item.itemNotes;
       }
       const existingSize = grouped[key].sizeQtyList.find(sq => sq.size === item.size);
       if (existingSize) {
@@ -269,6 +276,9 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
               <tr key={index} style={{ borderBottom: index === groupedItems.length - 1 ? `1px solid ${colors.primary}` : '1px dotted #ccc' }}>
                 <td style={{ padding: '3px 2px' }}>
                   {item.particulars}
+                  {item.itemNotes ? (
+                    <div style={{ fontSize: '7px', color: '#666', fontStyle: 'italic' }}>{item.itemNotes}</div>
+                  ) : null}
                   {wholesaleDetails.length > 0 && (
                     <div style={{ fontSize: '7px', color: colors.secondary }}>{wholesaleDetails.join(' | ')}</div>
                   )}

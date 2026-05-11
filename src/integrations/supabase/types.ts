@@ -4432,6 +4432,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           is_dc_item: boolean | null
+          item_notes: string | null
           line_total: number
           mrp: number
           net_after_discount: number
@@ -4457,6 +4458,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           is_dc_item?: boolean | null
+          item_notes?: string | null
           line_total: number
           mrp: number
           net_after_discount?: number
@@ -4482,6 +4484,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           is_dc_item?: boolean | null
+          item_notes?: string | null
           line_total?: number
           mrp?: number
           net_after_discount?: number

@@ -18,6 +18,7 @@ interface InvoiceItem {
   style?: string;
   gstPercent?: number;
   discountPercent?: number;
+  itemNotes?: string;
 }
 
 interface RetailERPTemplateProps {
@@ -470,6 +471,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
                                     {item.particulars}
                                     {item.color && <span style={{ fontSize: "9px", marginLeft: "3px" }}>({item.color})</span>}
+                                    {item.itemNotes ? (
+                                      <span style={{ display: "block", fontSize: "8px", color: "#666", fontStyle: "italic", whiteSpace: "normal" }}>
+                                        {item.itemNotes}
+                                      </span>
+                                    ) : null}
                                   </span>
                                 );
                                 break;
