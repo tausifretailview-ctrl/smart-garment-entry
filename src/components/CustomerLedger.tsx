@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
@@ -2525,6 +2526,99 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     return pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0);
   }, [isSchool, cnAvailableFromNotes, pendingSaleReturns]);
 
+  type LedgerAllocationRow = {
+    id: string;
+    voucher_date: string;
+    voucher_number: string;
+    reference_id: string;
+    sale_number: string;
+    amount: number;
+    description: string;
+  };
+
+  const { data: advanceCnAdjustmentsData, isPending: advanceCnAllocPending } = useQuery({
+    queryKey: [
+      "customer-ledger-advance-cn-allocations",
+      organizationId,
+      selectedCustomer?.id,
+      isSchool,
+      startDate ? format(startDate, "yyyy-MM-dd") : null,
+      endDate ? format(endDate, "yyyy-MM-dd") : null,
+    ],
+    queryFn: async (): Promise<{ advanceRows: LedgerAllocationRow[]; cnRows: LedgerAllocationRow[] }> => {
+      if (!organizationId || !selectedCustomer?.id || isSchool) {
+        return { advanceRows: [], cnRows: [] };
+      }
+      const custId = selectedCustomer.id;
+      const { data: salesRows, error: salesErr } = await supabase
+        .from("sales")
+        .select("id, sale_number")
+        .eq("customer_id", custId)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .neq("payment_status", "hold");
+      if (salesErr) throw salesErr;
+      const saleIds = (salesRows || []).map((s: { id: string }) => s.id).filter(Boolean);
+      const saleNumById = new Map<string, string>(
+        (salesRows || []).map((s: { id: string; sale_number: string | null }) => [s.id, String(s.sale_number || "").trim() || "—"]),
+      );
+      const sentinel = ["00000000-0000-0000-0000-000000000000"];
+      let vq = supabase
+        .from("voucher_entries")
+        .select("id, voucher_date, voucher_number, reference_id, total_amount, description, payment_method, created_at")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "receipt")
+        .eq("reference_type", "sale")
+        .in("payment_method", ["advance_adjustment", "credit_note_adjustment"])
+        .is("deleted_at", null)
+        .in("reference_id", saleIds.length > 0 ? saleIds : sentinel);
+      if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
+      if (endDate) vq = vq.lte("voucher_date", format(endDate, "yyyy-MM-dd"));
+      const { data: vouchers, error: vErr } = await vq.order("voucher_date", { ascending: true });
+      if (vErr) throw vErr;
+      const mapRow = (v: any): LedgerAllocationRow => ({
+        id: String(v.id),
+        voucher_date: String(v.voucher_date || "").slice(0, 10),
+        voucher_number: String(v.voucher_number || "").trim() || "—",
+        reference_id: String(v.reference_id || ""),
+        sale_number: saleNumById.get(String(v.reference_id)) || "—",
+        amount: Math.round((Number(v.total_amount) || 0) * 100) / 100,
+        description: String(v.description || "").trim(),
+      });
+      const advanceRows: LedgerAllocationRow[] = [];
+      const cnRows: LedgerAllocationRow[] = [];
+      for (const v of vouchers || []) {
+        const pm = String(v.payment_method || "").toLowerCase();
+        if (pm === "advance_adjustment") advanceRows.push(mapRow(v));
+        else if (pm === "credit_note_adjustment") cnRows.push(mapRow(v));
+      }
+      return { advanceRows, cnRows };
+    },
+    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
+    staleTime: 30_000,
+  });
+
+  const advanceAllocRows = advanceCnAdjustmentsData?.advanceRows ?? [];
+  const cnAllocRows = advanceCnAdjustmentsData?.cnRows ?? [];
+
+  const advanceAllocSummary = useMemo(() => {
+    const total = advanceAllocRows.reduce((s, r) => s + r.amount, 0);
+    const invoiceCount = new Set(advanceAllocRows.map((r) => r.reference_id).filter(Boolean)).size;
+    return { total, invoiceCount };
+  }, [advanceAllocRows]);
+
+  const cnAllocSummary = useMemo(() => {
+    const total = cnAllocRows.reduce((s, r) => s + r.amount, 0);
+    const invoiceCount = new Set(cnAllocRows.map((r) => r.reference_id).filter(Boolean)).size;
+    return { total, invoiceCount };
+  }, [cnAllocRows]);
+
+  useEffect(() => {
+    if (isSchool && (activeTab === "advance-adjusted" || activeTab === "cn-adjusted")) {
+      setActiveTab("transactions");
+    }
+  }, [isSchool, activeTab]);
+
   const handleApplyToInvoice = useCallback((sr: { reference: string }) => {
     toast.info(
       `Apply ${sr.reference}: use Sale Returns → Adjust Credit Note, Accounts → Customer Payment, or Sales Invoice → From Credit Note (CN) once the return is saved.`,
@@ -2835,6 +2929,84 @@ Please clear your dues at the earliest. Thank you!`;
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
+
+    if (!isSchool && (advanceAllocRows.length > 0 || cnAllocRows.length > 0)) {
+      doc.addPage();
+      yPos = 18;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Advance & credit note applied to invoices", margin, yPos);
+      yPos += 6;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      const periodPdf =
+        startDate || endDate
+          ? `${startDate ? format(startDate, "dd MMM yyyy") : "Start"} — ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`
+          : "Full period (no date filter)";
+      doc.text(`Voucher date range: ${periodPdf}`, margin, yPos);
+      yPos += 8;
+
+      const allocCols = [22, 24, 22, 22, 88] as const;
+      const drawAllocBlock = (sectionTitle: string, rows: typeof advanceAllocRows) => {
+        if (rows.length === 0) return;
+        if (yPos > 255) {
+          doc.addPage();
+          yPos = 18;
+        }
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text(sectionTitle, margin, yPos);
+        yPos += 5;
+        doc.setFontSize(7);
+        const h = ["Date", "Voucher", "Invoice", "Amount", "Description"];
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, yPos - 3, pageWidth - margin * 2, 6, "F");
+        let x = margin;
+        h.forEach((label, i) => {
+          doc.text(label, x + 1, yPos + 1);
+          x += allocCols[i];
+        });
+        yPos += 7;
+        doc.setFont("helvetica", "normal");
+        rows.forEach((r) => {
+          if (yPos > 278) {
+            doc.addPage();
+            yPos = 18;
+          }
+          const dStr = r.voucher_date ? format(new Date(`${r.voucher_date}T12:00:00`), "dd/MM/yy") : "—";
+          const desc = r.description.length > 55 ? `${r.description.slice(0, 52)}...` : r.description;
+          const cells = [
+            dStr,
+            r.voucher_number,
+            r.sale_number,
+            `Rs. ${r.amount.toLocaleString("en-IN")}`,
+            desc || "—",
+          ];
+          x = margin;
+          cells.forEach((cell, i) => {
+            doc.text(String(cell), x + 1, yPos);
+            x += allocCols[i];
+          });
+          yPos += 5;
+        });
+        yPos += 4;
+      };
+
+      drawAllocBlock("Advance applied to invoices", advanceAllocRows);
+      drawAllocBlock("Credit note applied to invoices", cnAllocRows);
+
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      const advFoot = `Unused advance (bookings): Rs. ${(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN")}`;
+      const cnFoot = `CN available (notes): Rs. ${cnAvailable.toLocaleString("en-IN")}`;
+      if (yPos > 272) {
+        doc.addPage();
+        yPos = 18;
+      }
+      doc.text(advFoot, margin, yPos);
+      yPos += 4;
+      doc.text(cnFoot, margin, yPos);
+    }
 
     doc.save(`${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
   };
@@ -3338,20 +3510,33 @@ Please clear your dues at the earliest. Thank you!`;
 
             <div className="my-4" />
 
+            <TooltipProvider delayDuration={300}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-4 h-10 bg-muted/60 rounded-xl p-1">
-                <TabsTrigger value="transactions" className="flex items-center gap-2 rounded-lg text-sm font-medium">
+              <TabsList className="flex w-full max-w-full flex-nowrap overflow-x-auto gap-1 mb-4 min-h-10 bg-muted/60 rounded-xl p-1">
+                <TabsTrigger value="transactions" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
                   <FileText className="h-4 w-4" />
                   Transactions
                 </TabsTrigger>
-                <TabsTrigger value="payments" className="flex items-center gap-2 rounded-lg text-sm font-medium">
+                <TabsTrigger value="payments" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
                   <IndianRupee className="h-4 w-4" />
                   Payment History
                 </TabsTrigger>
-                <TabsTrigger value="unapplied" className="flex items-center gap-2 rounded-lg text-sm font-medium">
+                <TabsTrigger value="unapplied" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
                   <AlertCircle className="h-4 w-4" />
                   Unapplied
                 </TabsTrigger>
+                {!isSchool && (
+                  <>
+                    <TabsTrigger value="advance-adjusted" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                      <Wallet className="h-4 w-4" />
+                      Advance adjusted
+                    </TabsTrigger>
+                    <TabsTrigger value="cn-adjusted" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                      <BookOpen className="h-4 w-4" />
+                      CN adjusted
+                    </TabsTrigger>
+                  </>
+                )}
               </TabsList>
 
               <TabsContent value="transactions">
@@ -3973,7 +4158,200 @@ Please clear your dues at the earliest. Thank you!`;
                   );
                 })()}
               </TabsContent>
+
+              {!isSchool && (
+                <>
+                  <TabsContent value="advance-adjusted" className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Card className="border-l-4 border-l-teal-500 overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Total applied (period)</div>
+                          <div className="text-lg font-bold text-teal-700 dark:text-teal-400">
+                            ₹{advanceAllocSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-l-4 border-l-slate-500 overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Invoices touched</div>
+                          <div className="text-lg font-bold">{advanceAllocSummary.invoiceCount}</div>
+                          <div className="text-xs text-muted-foreground">Distinct sale</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-l-4 border-l-blue-500 overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Voucher date range</div>
+                          <div className="text-sm font-medium leading-snug">
+                            {startDate ? format(startDate, "dd MMM yyyy") : "All"} — {endDate ? format(endDate, "dd MMM yyyy") : "Today"}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher no.</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice no.</TableHead>
+                            <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-teal-600">Amount</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 min-w-[120px]">Description</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {advanceCnAllocPending ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                                <Loader2 className="h-6 w-6 animate-spin inline align-middle mr-2 text-primary" />
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : advanceAllocRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                                No advance adjustments in this period
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            advanceAllocRows.map((row) => (
+                              <TableRow key={row.id}>
+                                <TableCell className="text-sm tabular-nums whitespace-nowrap">
+                                  {row.voucher_date ? format(new Date(`${row.voucher_date}T12:00:00`), "dd MMM yyyy") : "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="font-mono text-xs bg-primary/5">
+                                    {row.voucher_number}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">{row.sale_number}</TableCell>
+                                <TableCell className="text-right font-medium text-teal-700 dark:text-teal-400">
+                                  ₹{row.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground max-w-[280px]">
+                                  {row.description.length > 64 ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-default line-clamp-2">{row.description.slice(0, 64)}…</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-sm">
+                                        <p className="text-xs whitespace-pre-wrap">{row.description}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    row.description || "—"
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <p className="text-sm text-muted-foreground border-t pt-3">
+                      Unused advance (bookings):{" "}
+                      <span className="font-semibold text-foreground">
+                        ₹{(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </p>
+                  </TabsContent>
+
+                  <TabsContent value="cn-adjusted" className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Card className="border-l-4 border-l-purple-500 overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Total applied (period)</div>
+                          <div className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                            ₹{cnAllocSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-l-4 border-l-slate-500 overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Invoices touched</div>
+                          <div className="text-lg font-bold">{cnAllocSummary.invoiceCount}</div>
+                          <div className="text-xs text-muted-foreground">Distinct sale</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-l-4 border-l-blue-500 overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Voucher date range</div>
+                          <div className="text-sm font-medium leading-snug">
+                            {startDate ? format(startDate, "dd MMM yyyy") : "All"} — {endDate ? format(endDate, "dd MMM yyyy") : "Today"}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher no.</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice no.</TableHead>
+                            <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-purple-600">Amount</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 min-w-[120px]">Description</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {advanceCnAllocPending ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                                <Loader2 className="h-6 w-6 animate-spin inline align-middle mr-2 text-primary" />
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : cnAllocRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                                No credit note adjustments in this period
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            cnAllocRows.map((row) => (
+                              <TableRow key={row.id}>
+                                <TableCell className="text-sm tabular-nums whitespace-nowrap">
+                                  {row.voucher_date ? format(new Date(`${row.voucher_date}T12:00:00`), "dd MMM yyyy") : "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="font-mono text-xs bg-primary/5">
+                                    {row.voucher_number}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">{row.sale_number}</TableCell>
+                                <TableCell className="text-right font-medium text-purple-700 dark:text-purple-400">
+                                  ₹{row.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground max-w-[280px]">
+                                  {row.description.length > 64 ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-default line-clamp-2">{row.description.slice(0, 64)}…</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-sm">
+                                        <p className="text-xs whitespace-pre-wrap">{row.description}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    row.description || "—"
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <p className="text-sm text-muted-foreground border-t pt-3">
+                      CN available:{" "}
+                      <span className="font-semibold text-foreground">
+                        ₹{cnAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </p>
+                  </TabsContent>
+                </>
+              )}
             </Tabs>
+            </TooltipProvider>
           </CardContent>
         </Card>
         {customerForHistory && (
