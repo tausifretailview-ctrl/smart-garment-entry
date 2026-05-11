@@ -7932,6 +7932,10 @@ export type Database = {
         Args: { p_days: number; p_org_id: string }
         Returns: number
       }
+      recompute_customer_advances_used: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: undefined
+      }
       reconcile_customer_balances: {
         Args: { p_organization_id: string }
         Returns: {
