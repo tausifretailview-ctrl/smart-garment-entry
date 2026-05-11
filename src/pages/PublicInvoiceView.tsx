@@ -17,6 +17,7 @@ import { TaxInvoiceTemplate } from "@/components/invoice-templates/TaxInvoiceTem
 import { TallyTaxInvoiceTemplate } from "@/components/invoice-templates/TallyTaxInvoiceTemplate";
 import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
 import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
+import { RetailTaxEzzyTemplate } from "@/components/invoice-templates/RetailTaxEzzyTemplate";
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
@@ -202,6 +203,7 @@ export default function PublicInvoiceView() {
       color: item.color || "",
       style: "",
       gstPercent: item.gst_percent || 0,
+      discountPercent: item.discount_percent ?? 0,
     })),
     subtotal: sale.gross_amount,
     discount: sale.discount_amount + sale.flat_discount_amount,
@@ -294,6 +296,7 @@ export default function PublicInvoiceView() {
       case 'tally-tax-invoice': return <TallyTaxInvoiceTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} />;
+      case 'retail-tax-ezzy': return <RetailTaxEzzyTemplate {...templateProps} />;
       case 'wholesale-a5': return <WholesaleA5Template {...templateProps} />;
       case 'professional':
       default: return <ProfessionalTemplate {...templateProps} />;
@@ -316,7 +319,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-tax-ezzy' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;
