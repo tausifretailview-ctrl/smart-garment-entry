@@ -36,3 +36,13 @@ FROM supabase_migrations.schema_migrations;
 -- INSERT INTO supabase_migrations.schema_migrations (version, name)
 -- VALUES ('20260506000000', 'add_dc_to_purchase_returns')
 -- ON CONFLICT DO NOTHING;
+
+-- -----------------------------------------------------------------------------
+-- RUN ONCE (POS save error: item_notes / schema cache) — 20260211120000
+-- Supabase Dashboard → SQL Editor → paste → Run. Safe to re-run (IF NOT EXISTS).
+-- -----------------------------------------------------------------------------
+ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS item_notes TEXT DEFAULT NULL;
+
+COMMENT ON COLUMN public.sale_items.item_notes IS 'Optional line-level description (design number, brand, barcode etc). Appears on invoice print.';
+
+-- If PostgREST still says "schema cache", wait ~1 min or: Dashboard → Settings → API → Reload schema (if available).
