@@ -88,11 +88,11 @@ export const Header = () => {
   return (
     <>
       {/* ROW 1: Title bar */}
-      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-app-header-foreground border-b border-[#1b3a97] shadow-sm">
+      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-white border-b border-[#1b3a97] shadow-sm">
         {/* Mobile menu trigger */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:text-white hover:bg-white/10">
               <Menu className="h-4 w-4" />
             </Button>
           </SheetTrigger>
@@ -115,9 +115,9 @@ export const Header = () => {
             <span className="text-white font-bold text-[11px]">E</span>
           </div>
             <span className="hidden sm:flex items-center gap-1.5">
-            <span className="text-sm font-bold text-app-header-foreground">EzzyERP</span>
-            <span className="text-app-header-foreground/35 text-sm">—</span>
-            <span className="text-xs text-app-header-muted hidden md:block">Smart Inventory & Billing</span>
+            <span className="text-sm font-bold text-white">EzzyERP</span>
+            <span className="text-white/45 text-sm">—</span>
+            <span className="text-xs text-white/85 hidden md:block">Smart Inventory & Billing</span>
           </span>
         </button>
 
@@ -126,7 +126,7 @@ export const Header = () => {
           {/* FILE */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 File
               </button>
             </DropdownMenuTrigger>
@@ -160,7 +160,7 @@ export const Header = () => {
           {/* VIEW */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 View
               </button>
             </DropdownMenuTrigger>
@@ -197,7 +197,7 @@ export const Header = () => {
           {/* TOOLS */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Tools
               </button>
             </DropdownMenuTrigger>
@@ -238,7 +238,7 @@ export const Header = () => {
           {/* REPORTS */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Reports
               </button>
             </DropdownMenuTrigger>
@@ -299,7 +299,7 @@ export const Header = () => {
           {/* HELP */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="text-[14px] font-semibold text-app-header-foreground hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
+              <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
                 Help
               </button>
             </DropdownMenuTrigger>
@@ -329,9 +329,9 @@ export const Header = () => {
         {/* Search bar — grows to fill space */}
         <div className="hidden md:flex flex-1 max-w-xs mx-auto">
           <div className="flex items-center w-full h-7 bg-[#1a2d73] border border-[#3c57b8] rounded px-2.5 gap-2 cursor-pointer hover:border-[#5b74cf] transition-colors">
-            <Search className="h-3.5 w-3.5 text-app-header-muted flex-shrink-0" />
-            <span className="text-[12px] text-app-header-muted flex-1">Search... (Ctrl+K)</span>
-            <ChevronDown className="h-3 w-3 text-app-header-muted/80 flex-shrink-0" />
+            <Search className="h-3.5 w-3.5 text-white/85 flex-shrink-0" />
+            <span className="text-[12px] text-white/85 flex-1">Search... (Ctrl+K)</span>
+            <ChevronDown className="h-3 w-3 text-white/75 flex-shrink-0" />
           </div>
         </div>
 
@@ -353,23 +353,23 @@ export const Header = () => {
                   });
                 }
               }}
-              className="h-7 px-2 gap-1.5 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent"
+              className="h-7 px-2 gap-1.5 text-white/90 hover:text-white hover:bg-white/10"
               title="Install EzzyERP App"
             >
               <Download className="h-3.5 w-3.5" />
               <span className="hidden sm:inline text-[11px] font-medium">Install App</span>
             </Button>
           )}
-          <UIScaleSelector triggerClassName="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent hidden md:flex" />
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent hidden md:flex">
+          <UIScaleSelector triggerClassName="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex">
             <Bell className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-app-header-muted hover:text-app-header-foreground hover:bg-app-header-accent hidden md:flex">
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex">
             <LayoutGrid className="h-3.5 w-3.5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-app-header-accent h-7 w-7 text-app-header-muted hover:text-app-header-foreground">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-white/10 h-7 w-7 text-white/90 hover:text-white">
                 <Avatar className="h-6 w-6">
                   <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-bold">
                     {initials}
