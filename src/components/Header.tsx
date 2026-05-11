@@ -389,7 +389,7 @@ export const Header = () => {
       </div>
 
       {/* ROW 2: Action toolbar (+ optional dashboard: theme, period, Net Profit) */}
-      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-sidebar/95 border-b border-sidebar-border text-sidebar-foreground">
+      <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-sidebar border-b border-sidebar-border text-sidebar-foreground">
         {/* Split button: New Sale */}
         <div className="flex items-center">
           <Button
