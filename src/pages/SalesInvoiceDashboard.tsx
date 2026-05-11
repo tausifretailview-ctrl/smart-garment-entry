@@ -117,6 +117,18 @@ function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: s
   return query.in("payment_status", rest).eq("is_cancelled", false);
 }
 
+/**
+ * When invoice search unions `sale_items` (product/barcode/size/color), very short letter
+ * queries (e.g. "SHE") match accidental substrings in product text and show unrelated invoices.
+ * Use line-item union only for longer text or long numeric strings (barcode-style).
+ */
+function shouldUnionSaleItemsForInvoiceSearch(searchStr: string): boolean {
+  const t = searchStr.trim();
+  if (!t) return false;
+  if (/^\d+$/.test(t)) return t.length >= 8;
+  return /[A-Za-z]/.test(t) && t.length >= 4;
+}
+
 interface ColumnSettings {
   [key: string]: boolean;
   phone: boolean;
@@ -542,35 +554,36 @@ export default function SalesInvoiceDashboard() {
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
 
-        // Step 1: search sale_items for barcode / product name
-        const { data: matchingItems } = await (supabase as any)
-          .from('sale_items')
-          .select('sale_id')
-          .is('deleted_at', null)
-          .or(
-            `barcode.ilike.%${searchStr}%,` +
-            `product_name.ilike.%${searchStr}%,` +
-            `size.ilike.%${searchStr}%,` +
-            `color.ilike.%${searchStr}%`
-          )
-          .limit(300);
-
-        const matchingSaleIds = [
-          ...new Set(
-            (matchingItems || [])
-              .map((i: any) => i.sale_id)
-              .filter(Boolean)
-          )
-        ] as string[];
-
         const saleTextFilter =
           `sale_number.ilike.%${searchStr}%,` +
           `customer_name.ilike.%${searchStr}%,` +
           `customer_phone.ilike.%${searchStr}%,` +
           `salesman.ilike.%${searchStr}%`;
 
+        let matchingSaleIds: string[] = [];
+        if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
+          const { data: matchingItems } = await (supabase as any)
+            .from('sale_items')
+            .select('sale_id')
+            .is('deleted_at', null)
+            .or(
+              `barcode.ilike.%${searchStr}%,` +
+              `product_name.ilike.%${searchStr}%,` +
+              `size.ilike.%${searchStr}%,` +
+              `color.ilike.%${searchStr}%`
+            )
+            .limit(300);
+
+          matchingSaleIds = [
+            ...new Set(
+              (matchingItems || [])
+                .map((i: any) => i.sale_id)
+                .filter(Boolean)
+            ),
+          ] as string[];
+        }
+
         if (matchingSaleIds.length > 0) {
-          // Get sale IDs matching text search
           const { data: textMatches } = await supabase
             .from('sales')
             .select('id')
@@ -760,24 +773,28 @@ export default function SalesInvoiceDashboard() {
 
         if (debouncedSearch) {
           const searchStr = debouncedSearch.trim();
-          const { data: matchingItems } = await (supabase as any)
-            .from('sale_items')
-            .select('sale_id')
-            .is('deleted_at', null)
-            .or(
-              `barcode.ilike.%${searchStr}%,` +
-              `product_name.ilike.%${searchStr}%,` +
-              `size.ilike.%${searchStr}%,` +
-              `color.ilike.%${searchStr}%`
-            )
-            .limit(1000);
-
-          const matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))] as string[];
           const saleTextFilter =
             `sale_number.ilike.%${searchStr}%,` +
             `customer_name.ilike.%${searchStr}%,` +
             `customer_phone.ilike.%${searchStr}%,` +
             `salesman.ilike.%${searchStr}%`;
+
+          let matchingSaleIds: string[] = [];
+          if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
+            const { data: matchingItems } = await (supabase as any)
+              .from('sale_items')
+              .select('sale_id')
+              .is('deleted_at', null)
+              .or(
+                `barcode.ilike.%${searchStr}%,` +
+                `product_name.ilike.%${searchStr}%,` +
+                `size.ilike.%${searchStr}%,` +
+                `color.ilike.%${searchStr}%`
+              )
+              .limit(1000);
+
+            matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))] as string[];
+          }
 
           if (matchingSaleIds.length > 0) {
             const { data: textMatches } = await supabase
