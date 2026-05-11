@@ -21,6 +21,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { cn } from "@/lib/utils";
+import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -190,87 +191,16 @@ export function AdjustCustomerCreditNoteDialog({
   );
 
   const ensureCreditNoteIdForReturn = useCallback(async (): Promise<string | null> => {
-    const existingFromProps = String(creditNoteId || "").trim();
-
-    if (existingFromProps) {
-      const { data: existingCn, error: existingCnError } = await supabase
-        .from("credit_notes")
-        .select("id")
-        .eq("id", existingFromProps)
-        .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (existingCnError) throw existingCnError;
-      if (existingCn?.id) return existingCn.id;
-    }
-
-    const { data: sr, error: srError } = await supabase
-      .from("sale_returns")
-      .select("id, organization_id, customer_id, customer_name, return_number, return_date, net_amount, linked_sale_id, credit_note_id")
-      .eq("id", saleReturnId)
-      .eq("organization_id", currentOrganization!.id)
-      .single();
-    if (srError) throw srError;
-
-    const srLinkedCreditNoteId = String((sr as any)?.credit_note_id || "").trim();
-    if (srLinkedCreditNoteId) {
-      const { data: linkedCn, error: linkedCnError } = await supabase
-        .from("credit_notes")
-        .select("id")
-        .eq("id", srLinkedCreditNoteId)
-        .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (linkedCnError) throw linkedCnError;
-      if (linkedCn?.id) return linkedCn.id;
-    }
-
-    const { data: creditNoteNumber, error: numberError } = await supabase.rpc(
-      "generate_credit_note_number",
-      { p_organization_id: currentOrganization!.id }
-    );
-    if (numberError) throw numberError;
-
-    const { data: newCN, error: createError } = await supabase
-      .from("credit_notes")
-      .insert({
-        organization_id: currentOrganization!.id,
-        credit_note_number: creditNoteNumber,
-        sale_id: (sr as any)?.linked_sale_id || null,
-        customer_id: (sr as any)?.customer_id || null,
-        customer_name: (sr as any)?.customer_name || customerName || "Walk-in Customer",
-        credit_amount: Math.max(
-          0,
-          Number((sr as any)?.net_amount ?? creditAmount ?? 0)
-        ),
-        used_amount: 0,
-        status: "active",
-        issue_date: (sr as any)?.return_date || format(new Date(), "yyyy-MM-dd"),
-        notes: `Credit note from sale return ${(sr as any)?.return_number || returnNumber || saleReturnId}`,
-      } as any)
-      .select("id")
-      .single();
-    if (createError) throw createError;
-
-    const createdId = (newCN as any)?.id;
-    if (!createdId) return null;
-
-    const { error: linkError } = await supabase
-      .from("sale_returns")
-      .update({ credit_note_id: createdId })
-      .eq("id", saleReturnId)
-      .eq("organization_id", currentOrganization!.id);
-    if (linkError) throw linkError;
-
-    return createdId;
-  }, [
-    creditAmount,
-    creditNoteId,
-    currentOrganization,
-    customerName,
-    returnNumber,
-    saleReturnId,
-  ]);
+    if (!currentOrganization?.id) return null;
+    return ensureCreditNoteForSaleReturn(supabase, {
+      organizationId: currentOrganization.id,
+      saleReturnId,
+      creditNoteIdHint: creditNoteId,
+      customerNameFallback: customerName,
+      returnNumberFallback: returnNumber,
+      creditAmountFallback: creditAmount,
+    });
+  }, [creditAmount, creditNoteId, currentOrganization, customerName, returnNumber, saleReturnId]);
 
   /** Multi-invoice CN apply: one `adjust_invoice_balance` RPC per row (types pending regen). */
   const applyInvoiceAllocationsViaRpc = async (

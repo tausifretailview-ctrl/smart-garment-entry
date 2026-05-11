@@ -82,6 +82,20 @@ import {
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
+import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
+
+/** Pool amount for "From Credit Note" balance (per sale return row). */
+function saleReturnCnPoolRow(r: { net_amount?: number | null; credit_status?: string | null; credit_available_balance?: number | null }): number {
+  const raw = r.credit_available_balance;
+  if (raw != null && raw !== "" && !Number.isNaN(Number(raw))) {
+    return Math.max(0, Number(raw));
+  }
+  const st = String(r.credit_status || "").toLowerCase();
+  if (st === "pending" || st === "partially_adjusted" || st === "adjusted") {
+    return Math.max(0, Number(r.net_amount || 0));
+  }
+  return 0;
+}
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -1952,64 +1966,56 @@ export default function SalesInvoiceDashboard() {
       setIsFetchingCN(true);
       try {
         const { data: returns } = await supabase
-          .from('sale_returns')
-          .select('id, return_number, net_amount, credit_status, linked_sale_id, return_date')
-          .eq('organization_id', currentOrganization?.id)
-          .eq('customer_id', selectedInvoiceForPayment.customer_id)
-          .is('deleted_at', null)
-          // Only APPROVED / adjusted sale returns become usable Credit Note balance.
-          // 'pending' returns still appear in the customer ledger as a pending
-          // adjustment but must NOT be selectable for "From Credit Note (CN)"
-          // payment mode until they are explicitly adjusted/approved.
-          .eq('credit_status', 'adjusted')
-          .order('return_date', { ascending: true });
+          .from("sale_returns")
+          .select(
+            "id, return_number, net_amount, credit_status, linked_sale_id, return_date, credit_available_balance, refund_type",
+          )
+          .eq("organization_id", currentOrganization?.id)
+          .eq("customer_id", selectedInvoiceForPayment.customer_id)
+          .is("deleted_at", null)
+          .in("credit_status", ["pending", "partially_adjusted", "adjusted"])
+          .order("return_date", { ascending: true });
 
-        // Total credit notional value from all pending/adjusted SRs for this customer.
-        // We treat a sale return as a free-standing credit-note balance regardless of
-        // whether it's already been linked to an invoice. Already-consumed amounts
-        // are subtracted via the sum of credit_note_adjustment vouchers below.
-        const totalCN = (returns || []).reduce(
-          (sum: number, r: any) => sum + (Number(r.net_amount) || 0),
-          0
-        );
+        const eligible = (returns || []).filter((r: any) => {
+          const st = String(r.credit_status || "").toLowerCase();
+          if (st === "refunded" || st === "adjusted_outstanding") return false;
+          const rtRaw = r.refund_type;
+          const isCnRefund = rtRaw == null || String(rtRaw).trim() === "" || String(rtRaw).toLowerCase() === "credit_note";
+          if (!isCnRefund) return false;
+          return saleReturnCnPoolRow(r) > 0.005;
+        });
+
+        const totalCN = eligible.reduce((sum: number, r: any) => sum + saleReturnCnPoolRow(r), 0);
 
         // Sum of CN adjustments already applied for this customer's invoices.
-        // We look up customer's sale ids first, then sum credit_note_adjustment
-        // receipt vouchers against them.
         const { data: customerSales } = await supabase
-          .from('sales')
-          .select('id')
-          .eq('organization_id', currentOrganization?.id)
-          .eq('customer_id', selectedInvoiceForPayment.customer_id)
-          .is('deleted_at', null);
+          .from("sales")
+          .select("id")
+          .eq("organization_id", currentOrganization?.id)
+          .eq("customer_id", selectedInvoiceForPayment.customer_id)
+          .is("deleted_at", null);
         const saleIds = (customerSales || []).map((s: any) => s.id);
 
         let usedCN = 0;
         if (saleIds.length > 0) {
           const { data: cnVouchers } = await supabase
-            .from('voucher_entries')
-            .select('total_amount')
-            .eq('organization_id', currentOrganization?.id)
-            .eq('voucher_type', 'receipt')
-            .eq('reference_type', 'sale')
-            .eq('payment_method', 'credit_note_adjustment')
-            .in('reference_id', saleIds)
-            .is('deleted_at', null);
-          usedCN = (cnVouchers || []).reduce(
-            (sum: number, v: any) => sum + (Number(v.total_amount) || 0),
-            0
-          );
+            .from("voucher_entries")
+            .select("total_amount")
+            .eq("organization_id", currentOrganization?.id)
+            .eq("voucher_type", "receipt")
+            .eq("reference_type", "sale")
+            .eq("payment_method", "credit_note_adjustment")
+            .in("reference_id", saleIds)
+            .is("deleted_at", null);
+          usedCN = (cnVouchers || []).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0);
         }
 
         const totalAvailable = Math.max(0, totalCN - usedCN);
 
-        // Pick the oldest SR that still has a notional remaining balance to
-        // attach to this application (FIFO). Allocate usedCN against the
-        // chronological list to find the first not-yet-fully-consumed SR.
         let remainingUsed = usedCN;
         let bestReturnId: string | null = null;
-        for (const r of (returns || [])) {
-          const amt = Number(r.net_amount) || 0;
+        for (const r of eligible) {
+          const amt = saleReturnCnPoolRow(r);
           if (remainingUsed >= amt) {
             remainingUsed -= amt;
             continue;
@@ -2020,10 +2026,15 @@ export default function SalesInvoiceDashboard() {
 
         setAvailableCNBalance(totalAvailable);
         setSelectedCNReturnId(bestReturnId);
-        const pendingAmount = Math.max(0, selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0) - (selectedInvoiceForPayment.sale_return_adjust || 0));
+        const pendingAmount = Math.max(
+          0,
+          selectedInvoiceForPayment.net_amount -
+            (selectedInvoiceForPayment.paid_amount || 0) -
+            (selectedInvoiceForPayment.sale_return_adjust || 0),
+        );
         setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
       } catch (error) {
-        console.error('Failed to fetch CN balance:', error);
+        console.error("Failed to fetch CN balance:", error);
         setAvailableCNBalance(0);
       } finally {
         setIsFetchingCN(false);
@@ -2086,18 +2097,22 @@ export default function SalesInvoiceDashboard() {
         id: string;
         credit_status: string;
         linked_sale_id: string | null;
+        credit_available_balance: number | null;
       } | null = null;
       if (isCreditNoteMode && selectedCNReturnId) {
         const { data: srPre } = await supabase
           .from("sale_returns")
-          .select("credit_status, linked_sale_id")
+          .select("credit_status, linked_sale_id, credit_available_balance")
           .eq("id", selectedCNReturnId)
           .maybeSingle();
         if (srPre) {
+          const cab = (srPre as { credit_available_balance?: number | null }).credit_available_balance;
           saleReturnSnapshot = {
             id: selectedCNReturnId,
             credit_status: String((srPre as { credit_status?: string }).credit_status || "pending"),
             linked_sale_id: (srPre as { linked_sale_id?: string | null }).linked_sale_id ?? null,
+            credit_available_balance:
+              cab != null && !Number.isNaN(Number(cab)) ? Number(cab) : null,
           };
         }
       }
@@ -2117,23 +2132,33 @@ export default function SalesInvoiceDashboard() {
         : newPaidAmount > 0 || newCNAdjust > 0 ? 'partial' : 'pending';
 
       if (isCreditNoteMode) {
-        // Credit note adjustment: update sale_return_adjust + status only (no payment_method change)
         if (selectedCNReturnId) {
-          // Only set linked_sale_id if not already linked, to avoid clobbering
-          // a prior link when the SR is being partially re-applied.
-          const { data: existingSR } = await supabase
-            .from('sale_returns')
-            .select('linked_sale_id')
-            .eq('id', selectedCNReturnId)
+          await ensureCreditNoteForSaleReturn(supabase, {
+            organizationId: currentOrganization!.id,
+            saleReturnId: selectedCNReturnId,
+            customerNameFallback: selectedInvoiceForPayment.customer_name,
+          });
+
+          const { data: srRow } = await supabase
+            .from("sale_returns")
+            .select("net_amount, credit_available_balance, linked_sale_id")
+            .eq("id", selectedCNReturnId)
             .maybeSingle();
-          const updatePayload: any = { credit_status: 'adjusted' };
-          if (!existingSR?.linked_sale_id) {
+          const net = Number(srRow?.net_amount || 0);
+          const baseline =
+            srRow?.credit_available_balance != null && !Number.isNaN(Number(srRow.credit_available_balance))
+              ? Number(srRow.credit_available_balance)
+              : net;
+          const remaining = Math.max(0, Math.round((baseline - amount) * 100) / 100);
+          const nextStatus = remaining <= 0.01 ? "adjusted" : "partially_adjusted";
+          const updatePayload: Record<string, unknown> = {
+            credit_status: nextStatus,
+            credit_available_balance: remaining,
+          };
+          if (!srRow?.linked_sale_id) {
             updatePayload.linked_sale_id = selectedInvoiceForPayment.id;
           }
-          await supabase
-            .from('sale_returns')
-            .update(updatePayload)
-            .eq('id', selectedCNReturnId);
+          await supabase.from("sale_returns").update(updatePayload).eq("id", selectedCNReturnId);
         }
 
         const { error: updateError } = await supabase
@@ -2283,6 +2308,7 @@ export default function SalesInvoiceDashboard() {
               .update({
                 credit_status: saleReturnSnapshot.credit_status,
                 linked_sale_id: saleReturnSnapshot.linked_sale_id,
+                credit_available_balance: saleReturnSnapshot.credit_available_balance,
               })
               .eq("id", saleReturnSnapshot.id);
           }
@@ -4242,8 +4268,8 @@ export default function SalesInvoiceDashboard() {
                         Available CN Balance: ₹{Math.round(availableCNBalance).toLocaleString('en-IN')}
                       </Badge>
                     ) : (
-                      <Badge variant="destructive" className="gap-1">
-                        No credit note balance available for this customer
+                      <Badge variant="destructive" className="gap-1 max-w-full whitespace-normal h-auto py-1.5 text-left font-normal">
+                        No usable sale-return CN balance for this customer. Use Sale Returns → Adjust Credit Note, or Accounts → Customer Payment, then try again.
                       </Badge>
                     )}
                   </div>

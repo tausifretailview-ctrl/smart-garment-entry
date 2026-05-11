@@ -2526,7 +2526,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   }, [isSchool, cnAvailableFromNotes, pendingSaleReturns]);
 
   const handleApplyToInvoice = useCallback((sr: { reference: string }) => {
-    toast.info(`Open Accounts -> Customer Payment to apply ${sr.reference} to an invoice.`);
+    toast.info(
+      `Apply ${sr.reference}: use Sale Returns → Adjust Credit Note, Accounts → Customer Payment, or Sales Invoice → From Credit Note (CN) once the return is saved.`,
+    );
   }, []);
 
   // Send ledger summary via WhatsApp
@@ -3838,6 +3840,9 @@ Please clear your dues at the earliest. Thank you!`;
                         <h3 className="text-sm font-semibold text-orange-600 mb-2">
                           Pending Credit Notes
                         </h3>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Not yet in Accounts CN balance — use Sale Returns → Adjust Credit Note (creates the official CN on first apply) or Accounts → Customer Payment.
+                        </p>
                         {pendingSaleReturns.map((sr) => (
                           <div key={sr.id} className="flex justify-between items-center p-3 bg-orange-50 rounded-lg mb-2">
                             <div>

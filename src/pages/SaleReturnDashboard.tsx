@@ -755,11 +755,12 @@ export default function SaleReturnDashboard() {
                             {(() => {
                               const status = ret.credit_status || "";
                               if (status === "refunded" || status === "adjusted_outstanding") return false;
+                              const isCnRefund = ret.refund_type === "credit_note" || !ret.refund_type;
+                              if (!isCnRefund || !ret.customer_id) return false;
                               if (status === "adjusted" && ret.linked_sale_id) {
                                 const remaining = ret.remaining_cn_amt ?? 0;
                                 if (remaining <= 0) return false;
                               }
-                              if (!ret.credit_note_id) return false;
                               const bal =
                                 ret.credit_available_balance != null && !Number.isNaN(Number(ret.credit_available_balance))
                                   ? Number(ret.credit_available_balance)
@@ -773,7 +774,7 @@ export default function SaleReturnDashboard() {
                                   setSelectedReturnForAdjust(ret);
                                   setShowAdjustDialog(true);
                                 }}
-                                title="Adjust Credit Note"
+                                title="Adjust credit note (creates official CN on first apply if needed)"
                               >
                                 <CreditCard className="h-4 w-4 text-purple-600" />
                               </Button>
