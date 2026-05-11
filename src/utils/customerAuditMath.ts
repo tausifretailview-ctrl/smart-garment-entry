@@ -49,7 +49,7 @@ export type ComputeCustomerOutstandingOptions = {
 export const computeCustomerOutstanding = (
   params: {
     openingBalance: number;
-    sales: Array<{ net_amount: number; sale_return_adjust?: number; payment_status?: string }>;
+    sales: Array<{ net_amount: number; sale_return_adjust?: number; payment_status?: string; is_cancelled?: boolean }>;
     voucherEntries: Array<{
       voucher_type: string;
       reference_type: string;
@@ -65,7 +65,9 @@ export const computeCustomerOutstanding = (
   options?: ComputeCustomerOutstandingOptions,
 ) => {
   const validSales = params.sales.filter(
-    (s) => !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
+    (s) =>
+      s.is_cancelled !== true &&
+      !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
   );
 
   const totalInvoiced = validSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
