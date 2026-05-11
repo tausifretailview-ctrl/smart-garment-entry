@@ -48,6 +48,7 @@ import { useState, useEffect, useRef } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -163,7 +164,12 @@ export function AppSidebar() {
       <SidebarContent className="font-sans text-base font-semibold text-sidebar-foreground pt-0 mt-0 space-y-0.5">
         {/* Organization Context Badge */}
         {currentOrganization && (
-          <div className="border-b border-sidebar-border py-2 px-3 flex items-center gap-2 min-h-[40px]">
+          <div
+            className={cn(
+              "border-b border-sidebar-border py-2 px-3 flex items-center gap-2 min-h-[40px]",
+              !open && "justify-center px-2",
+            )}
+          >
             <Building2 className="h-5 w-5 text-primary flex-shrink-0" />
             {open && (
               <span className="text-sm font-bold truncate text-sidebar-foreground">
@@ -1135,7 +1141,7 @@ export function AppSidebar() {
         <SidebarGroup className="mt-auto pb-2 border-t border-sidebar-border pt-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <div className="flex items-center gap-2 px-2">
+              <div className={cn("flex items-center gap-2 px-2", !open && "justify-center w-full px-0")}>
                 <UIScaleSelector />
                 {open && (
                   <span className="text-sm font-semibold text-muted-foreground">Display</span>
@@ -1148,7 +1154,7 @@ export function AppSidebar() {
                 className="text-sidebar-foreground hover:bg-sidebar-accent cursor-pointer opacity-60 hover:opacity-100 transition-opacity"
                 title={isLocked ? "Collapse sidebar" : "Lock sidebar open"}
               >
-                <div className="flex items-center gap-2">
+                <div className={cn("flex items-center gap-2", !open && "justify-center w-full")}>
                   {isLocked ? (
                     <ChevronsLeft className="h-4 w-4 sidebar-icon text-primary flex-shrink-0" />
                   ) : (

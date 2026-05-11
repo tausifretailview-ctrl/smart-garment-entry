@@ -361,9 +361,10 @@ const SidebarGroupLabel = React.forwardRef<HTMLDivElement, React.ComponentProps<
         ref={ref}
         data-sidebar="group-label"
         className={cn(
-          "flex h-9 shrink-0 items-center rounded-md px-2 text-[13px] uppercase tracking-wider font-semibold text-sidebar-foreground outline-none ring-sidebar-ring transition-[margin,opa] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
-          "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
+          "flex h-9 shrink-0 items-center rounded-md px-2 text-[13px] uppercase tracking-wider font-semibold text-sidebar-foreground outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
           className,
+          // After merged consumer classes (e.g. justify-between) so icon rail stays centered and one row per group.
+          "group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:!justify-center group-data-[collapsible=icon]:!px-0 group-data-[collapsible=icon]:py-0",
         )}
         {...props}
       />
@@ -450,7 +451,11 @@ const SidebarMenuButton = React.forwardRef<
       data-sidebar="menu-button"
       data-size={size}
       data-active={isActive}
-      className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      className={cn(
+        sidebarMenuButtonVariants({ variant, size }),
+        className,
+        "group-data-[collapsible=icon]:!justify-center",
+      )}
       {...props}
     />
   );
