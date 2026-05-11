@@ -269,6 +269,32 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
 
   return (
     <div className="retail-tax-ezzy-print-root retail-tax-ezzy-all-pages text-slate-950">
+      <style>{`
+        @media print {
+          body { margin: 0; padding: 0; background: #fff; }
+          @page { size: A5 portrait; margin: 4mm; }
+          .retail-tax-ezzy-page {
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            height: auto !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+          }
+          .retail-tax-ezzy-sheet-inner--last {
+            min-height: 198mm !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .retail-tax-ezzy-all-pages > .retail-tax-ezzy-page:not(:last-of-type) {
+            page-break-after: always;
+            break-after: page;
+          }
+        }
+      `}</style>
       {itemPages.map((pageItems, pageIndex) => {
         const isLastPage = pageIndex === itemPages.length - 1;
         const pageStartSr = pageIndex * MAX_ITEMS_PER_PAGE;
@@ -277,9 +303,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
         return (
           <div
             key={pageIndex}
-            className="retail-tax-ezzy-page mb-4 box-border w-[148mm] min-h-0 bg-white px-[3mm] py-[3mm] print:mb-0 print:px-[2mm] print:py-[2mm]"
+            className="retail-tax-ezzy-page mb-4 box-border w-[148mm] min-h-0 bg-white px-[3mm] py-[3mm] print:mb-0 print:w-full print:px-[2mm] print:py-[2mm]"
           >
-            <div className="flex min-h-0 flex-col border border-slate-300">
+            <div
+              className={`flex flex-col border border-slate-300 ${isLastPage ? "retail-tax-ezzy-sheet-inner--last" : "min-h-0"}`}
+            >
               {/* Header */}
               <div className="relative border-b border-slate-300 px-2 py-1 text-center">
                 {logoUrl ? (
@@ -318,7 +346,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                   : docTitle}
               </div>
 
-              <div className="flex border-b-2 border-slate-300 text-[10px] leading-snug">
+              <div className="flex border-b border-slate-300 text-[10px] leading-snug">
                 <div className="flex-1 border-r border-slate-300 p-1.5">
                   <div className="text-[8px] font-bold">Bill To</div>
                   <div className="font-bold">{customerName || "Walk-in Customer"}</div>
@@ -404,8 +432,10 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                 </tbody>
               </table>
 
+              {isLastPage ? <div className="min-h-0 flex-1 print:flex-1" aria-hidden /> : null}
+
               {isLastPage ? (
-                <div className="mt-auto border-t border-slate-300 text-[9px]">
+                <div className="shrink-0 border-t border-slate-300 text-[9px]">
                   <div className="flex border-b border-slate-300">
                     <div className="min-h-0 flex-1 border-r border-slate-300 p-1">
                       {notes?.trim() && !/^\d+$/.test(notes.trim()) ? (
@@ -578,29 +608,6 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
           </div>
         );
       })}
-
-      <style>{`
-        @media print {
-          body { margin: 0; padding: 0; background: #fff; }
-          @page { size: A5 portrait; margin: 4mm; }
-          .retail-tax-ezzy-page {
-            width: 148mm !important;
-            min-height: 0 !important;
-            height: auto !important;
-            margin: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-          }
-          * {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .retail-tax-ezzy-all-pages .retail-tax-ezzy-page:not(:last-child) {
-            page-break-after: always;
-            break-after: page;
-          }
-        }
-      `}</style>
     </div>
   );
 };
