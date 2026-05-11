@@ -527,7 +527,10 @@ export default function Accounts() {
           .select("reference_id, total_amount")
           .eq("organization_id", currentOrganization.id)
           .eq("voucher_type", "receipt")
-          .eq("reference_type", "sale")
+          // Phase 1.2: include legacy mis-tagged receipts (reference_type='customer'
+          // pointing at a sale id). voucherPaidBySale is keyed by reference_id and
+          // joined to salesRows by sale.id, so true customer-keyed rows are ignored.
+          .in("reference_type", ["sale", "customer"])
           .is("deleted_at", null)
           .range(voucherOffset, voucherOffset + PAGE_SIZE - 1);
         if (error) throw error;

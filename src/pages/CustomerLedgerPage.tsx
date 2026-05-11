@@ -281,7 +281,10 @@ export default function CustomerLedgerPage() {
           )
           .eq("organization_id", currentOrganization!.id)
           .eq("voucher_type", "receipt")
-          .eq("reference_type", "sale")
+          // Phase 1.2: include legacy mis-tagged rows where reference_type='customer'
+          // but reference_id is one of this customer's sale ids. Safe — saleIds filter
+          // prevents true opening-balance rows from being pulled in.
+          .in("reference_type", ["sale", "customer"])
           .in("reference_id", saleIds)
           .is("deleted_at", null);
         if (fromDate) veSaleQ = veSaleQ.gte("voucher_date", format(fromDate, "yyyy-MM-dd"));
