@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeCustomerOutstanding, isAdvanceApplicationVoucher } from "@/utils/customerAuditMath";
+import {
+  computeCustomerOutstanding,
+  isAdvanceApplicationVoucher,
+  isReceiptMemoApplicationLedgerAligned,
+} from "@/utils/customerAuditMath";
 
 export interface AuditRow {
   id: string;
@@ -16,16 +20,25 @@ export function voucherCreditAmount(v: { total_amount?: number | null; discount_
   return Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0));
 }
 
+export type BuildAuditRowsOptions = {
+  /** When true, sale/customer advance & CN application receipts are memo-only (matches CustomerLedgerPage). */
+  ledgerAlignedApplicationReceipts?: boolean;
+};
+
 /** Same row construction as Customer Audit Report (single source of truth). */
-export function buildAuditRows(params: {
-  sales: any[];
-  saleReturns: any[];
-  vouchers: any[];
-  advances: any[];
-  refunds: any[];
-  /** Same debit/credit rules as Customer Ledger adjustment rows. */
-  balanceAdjustments?: any[];
-}): AuditRow[] {
+export function buildAuditRows(
+  params: {
+    sales: any[];
+    saleReturns: any[];
+    vouchers: any[];
+    advances: any[];
+    refunds: any[];
+    /** Same debit/credit rules as Customer Ledger adjustment rows. */
+    balanceAdjustments?: any[];
+  },
+  options?: BuildAuditRowsOptions,
+): AuditRow[] {
+  const useLedgerAlignedApps = options?.ledgerAlignedApplicationReceipts === true;
   const rows: AuditRow[] = [];
 
   for (const s of params.sales) {
@@ -82,13 +95,20 @@ export function buildAuditRows(params: {
     const vt = String(v.voucher_type || "").toLowerCase();
     const refT = String(v.reference_type || "").toLowerCase();
 
-    if (vt === "receipt" && refT === "sale" && isAdvanceApplicationVoucher(v)) {
+    const receiptMemoApplication = useLedgerAlignedApps
+      ? isReceiptMemoApplicationLedgerAligned(v)
+      : refT === "sale" && isAdvanceApplicationVoucher(v);
+    if (vt === "receipt" && receiptMemoApplication) {
+      const defPart =
+        String(v.payment_method || "").toLowerCase() === "credit_note_adjustment"
+          ? "Credit note applied to invoice"
+          : "Advance applied to invoice";
       rows.push({
         id: `ve-adv-${v.id}`,
         at: d,
         type: "Internal Transfer",
         ref: vn,
-        particulars: String(v.description || "Advance applied to invoice").trim(),
+        particulars: String(v.description || defPart).trim(),
         debit: 0,
         credit: 0,
         internal: true,

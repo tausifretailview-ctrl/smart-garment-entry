@@ -127,26 +127,32 @@ export default function CustomerAccountStatementAuditPage() {
       (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
       0,
     );
-    return computeCustomerOutstanding({
-      openingBalance: Number(auditBundle.customer.opening_balance || 0),
-      sales: salesInRange,
-      voucherEntries: vouchersInRange,
-      customerAdvances: auditBundle.advances,
-      advanceRefunds: auditBundle.refunds,
-      adjustmentTotal,
-    });
+    return computeCustomerOutstanding(
+      {
+        openingBalance: Number(auditBundle.customer.opening_balance || 0),
+        sales: salesInRange,
+        voucherEntries: vouchersInRange,
+        customerAdvances: auditBundle.advances,
+        advanceRefunds: auditBundle.refunds,
+        adjustmentTotal,
+      },
+      { ledgerAlignedApplicationReceipts: true },
+    );
   }, [auditBundle, fromYmd, toYmd]);
 
   const allRows = useMemo(() => {
     if (!auditBundle) return [];
-    return buildAuditRows({
-      sales: auditBundle.allSales,
-      saleReturns: auditBundle.saleReturns,
-      vouchers: auditBundle.vouchersMerged,
-      advances: auditBundle.advances,
-      refunds: auditBundle.refunds,
-      balanceAdjustments: auditBundle.balanceAdjustments,
-    });
+    return buildAuditRows(
+      {
+        sales: auditBundle.allSales,
+        saleReturns: auditBundle.saleReturns,
+        vouchers: auditBundle.vouchersMerged,
+        advances: auditBundle.advances,
+        refunds: auditBundle.refunds,
+        balanceAdjustments: auditBundle.balanceAdjustments,
+      },
+      { ledgerAlignedApplicationReceipts: true },
+    );
   }, [auditBundle]);
 
   const { openingCarried, displayRows, rowBalances } = useMemo(() => {
