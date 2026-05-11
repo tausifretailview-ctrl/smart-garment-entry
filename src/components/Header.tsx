@@ -88,7 +88,7 @@ export const Header = () => {
   return (
     <>
       {/* ROW 1: Title bar */}
-      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[hsl(var(--app-header-background))] text-app-header-foreground border-b border-app-header-border shadow-sm">
+      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-app-header text-app-header-foreground border-b border-app-header-border shadow-sm">
         {/* Mobile menu trigger */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">
