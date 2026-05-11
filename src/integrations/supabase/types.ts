@@ -4980,7 +4980,7 @@ export type Database = {
             foreignKeyName: "sale_returns_credit_note_id_fkey"
             columns: ["credit_note_id"]
             isOneToOne: false
-            referencedRelation: "voucher_entries"
+            referencedRelation: "credit_notes"
             referencedColumns: ["id"]
           },
           {
