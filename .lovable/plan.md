@@ -65,6 +65,30 @@ After the rewrite, `total_cash_payments` for SHEHNAZ HALAI must be ≥ ₹41,750
 - Org-wide bulk relabel of the 1,748 mis-tagged rows and 18,948 drifted sales — Phase 4 historical repair.
 - Write-side guards (CHECK / triggers preventing future mis-tags) — Phase 3.
 
+---
+
+## Phase 3 — Write-side hardening (DONE)
+
+Migration `20260511_phase3_customer_ledger_hardening` applied:
+
+1. **`trg_normalize_voucher_reference_type`** (BEFORE INSERT/UPDATE on `voucher_entries`) — auto-rewrites `reference_type='customer'` to `'sale'` when `reference_id` matches `sales.id`. Future writes from POS exchange refunds (`useSaveSale`), Payments dashboard, Bulk advance adjust, and sale-return refunds can no longer create mis-tagged rows.
+2. **`recompute_customer_advances_used(org, customer)`** + **`trg_sync_customer_advances_used`** (AFTER INSERT/UPDATE/DELETE on `voucher_entries`) — keeps `customer_advances.used_amount` and `status` (active/partially_used/used) in sync FIFO whenever an `advance_adjustment` receipt changes. Handles both sale-linked and customer-keyed advance receipts.
+3. **One-shot backfill** — relabeled 1,749 mis-tagged rows; recomputed `used_amount` for every customer with advances.
+
+### Verification
+- Mis-tagged rows: **1,749 → 0** ✅
+- Customers with `used_amount` drift > ₹1: **70 → 2** (₹3,64,785 → ₹8,500) ✅
+- 14 orphan `reference_type='customer'` rows (no sale, no customer match) remain — Phase 4 cleanup.
+- 2 residual drift customers (ELLA NOOR / SANOBER ₹500, Naseem Jahid −₹8,000) are real legacy data issues, not algorithm bugs:
+  - SANOBER: receipts attributed to a sale whose `customer_id` ≠ advance's `customer_id`.
+  - Naseem Jahid: ₹26,800 in advance-funded receipts but only ₹18,800 in `customer_advances.amount` — over-consumption capped by recompute.
+  Both flagged for Phase 4 manual review.
+
+### Out of scope for Phase 3 (queued for Phase 4)
+- 14 orphan voucher rows (no matching sale or customer).
+- 2 residual advance over-consumption customers (data correction, not code).
+- Sale `paid_amount` drift recomputation across the org.
+
 ### Files touched (technical detail)
 - New migration: soft-delete RCP/25-26/40, RCP/26-27/139; recompute INV/25-26/314.
 - New migration: `CREATE OR REPLACE FUNCTION reconcile_customer_balances(...)` with id-match rewrite, plus the new `vw_customer_ledger_anomalies` view.
