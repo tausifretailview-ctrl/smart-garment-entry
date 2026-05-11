@@ -88,7 +88,7 @@ export const Header = () => {
   return (
     <>
       {/* ROW 1: Title bar */}
-      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-app-header text-app-header-foreground border-b border-app-header-border shadow-sm">
+      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-app-header-foreground border-b border-[#1b3a97] shadow-sm">
         {/* Mobile menu trigger */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">
@@ -328,7 +328,7 @@ export const Header = () => {
 
         {/* Search bar — grows to fill space */}
         <div className="hidden md:flex flex-1 max-w-xs mx-auto">
-          <div className="flex items-center w-full h-7 bg-app-header-accent/75 border border-app-header-border/90 rounded px-2.5 gap-2 cursor-pointer hover:border-app-header-muted/80 transition-colors">
+          <div className="flex items-center w-full h-7 bg-[#1a2d73] border border-[#3c57b8] rounded px-2.5 gap-2 cursor-pointer hover:border-[#5b74cf] transition-colors">
             <Search className="h-3.5 w-3.5 text-app-header-muted flex-shrink-0" />
             <span className="text-[12px] text-app-header-muted flex-1">Search... (Ctrl+K)</span>
             <ChevronDown className="h-3 w-3 text-app-header-muted/80 flex-shrink-0" />
