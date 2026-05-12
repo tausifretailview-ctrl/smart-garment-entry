@@ -86,8 +86,8 @@ import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleRe
 
 /** Pool amount for "From Credit Note" balance (per sale return row). */
 function saleReturnCnPoolRow(r: { net_amount?: number | null; credit_status?: string | null; credit_available_balance?: number | null }): number {
-  const raw = r.credit_available_balance;
-  if (raw != null && raw !== "" && !Number.isNaN(Number(raw))) {
+  const raw = r.credit_available_balance as number | string | null | undefined;
+  if (raw != null && (raw as unknown) !== "" && !Number.isNaN(Number(raw))) {
     return Math.max(0, Number(raw));
   }
   const st = String(r.credit_status || "").toLowerCase();
