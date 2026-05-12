@@ -38,10 +38,13 @@ export const QuickServiceProductDialog = ({
 
   useEffect(() => {
     if (open) {
-      setQuantity(1);
       setMrp("");
       setDescription("");
-      setTimeout(() => quantityInputRef.current?.focus(), 100);
+      setQuantity(1);
+      setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 100);
     }
   }, [open]);
 
@@ -97,6 +100,7 @@ export const QuickServiceProductDialog = ({
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
               onKeyDown={handleQuantityKeyDown}
+            onFocus={(e) => e.currentTarget.select()}
               className="h-9 mt-1"
             />
           </div>
