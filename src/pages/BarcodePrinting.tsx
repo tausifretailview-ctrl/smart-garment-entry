@@ -1663,10 +1663,6 @@ export default function BarcodePrinting() {
               thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
             }));
-            const preferredTab: "standard" | "precision" = routeRequestedTab || settingsDefaultBarTab;
-            if (preferredTab === "precision") {
-              setActiveBarTab("precision");
-            }
             // Set name without "preset:" prefix — Fix 1 in settings sync will correct if needed
             if (!localStoragePresetName) {
               setActivePrecisionTemplateName(presetToLoad.name);
