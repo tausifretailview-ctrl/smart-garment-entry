@@ -179,7 +179,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     queryKey: ["customer-true-outstanding-ledger", organizationId, selectedCustomer?.id],
     queryFn: async () => {
       if (!organizationId || !selectedCustomer?.id) return null;
-      const { data, error } = await supabase.rpc("get_customer_true_outstanding", {
+      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
         p_customer_id: selectedCustomer.id,
         p_organization_id: organizationId,
       });
