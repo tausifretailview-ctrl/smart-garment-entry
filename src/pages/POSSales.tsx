@@ -2933,6 +2933,11 @@ export default function POSSales() {
       try {
         const billNet = Number((result as any).net_amount ?? 0);
         const alreadyLinkedCn = (result as any).credit_note_id;
+        const srAdjOnBill = Number(saleData.saleReturnAdjust ?? 0);
+        // When S/R adjust absorbed part of a return-linked CN, consumeSaleReturnAdjustments
+        // already shrinks that CN — do not mint a second CN on the sale for the same remainder.
+        const skipAutoCnBecauseSrAdjust =
+          srAdjOnBill > 0.01 && billNet < 0 && customerId && !alreadyLinkedCn;
         if (
           !isCreditNote &&
           !isRefund &&
@@ -2940,7 +2945,8 @@ export default function POSSales() {
           billNet < 0 &&
           customerId &&
           !alreadyLinkedCn &&
-          currentOrganization?.id
+          currentOrganization?.id &&
+          !skipAutoCnBecauseSrAdjust
         ) {
           const autoCnAmount = Math.abs(billNet);
           const autoCn = await createCreditNote({

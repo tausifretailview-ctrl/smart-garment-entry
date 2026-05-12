@@ -41,7 +41,9 @@ export async function ensureCreditNoteForSaleReturn(
 
   const { data: sr, error: srError } = await client
     .from("sale_returns")
-    .select("id, organization_id, customer_id, customer_name, return_number, return_date, net_amount, linked_sale_id, credit_note_id")
+    .select(
+      "id, organization_id, customer_id, customer_name, return_number, return_date, net_amount, linked_sale_id, credit_note_id, credit_available_balance",
+    )
     .eq("id", saleReturnId)
     .eq("organization_id", organizationId)
     .single();
@@ -72,7 +74,15 @@ export async function ensureCreditNoteForSaleReturn(
     return_date?: string | null;
     net_amount?: number | null;
     linked_sale_id?: string | null;
+    credit_available_balance?: number | null;
+    credit_status?: string | null;
   };
+
+  const cabRaw = row.credit_available_balance;
+  const cabN = cabRaw != null && !Number.isNaN(Number(cabRaw)) ? Number(cabRaw) : null;
+  const netN = Number(row.net_amount ?? creditAmountFallback ?? 0);
+  /** Match AdjustCustomerCreditNoteDialog: remainder after partial adjust is in credit_available_balance. */
+  const insertAmount = Math.max(0, cabN != null ? cabN : netN);
 
   const { data: newCN, error: createError } = await client
     .from("credit_notes")
@@ -82,7 +92,7 @@ export async function ensureCreditNoteForSaleReturn(
       sale_id: row.linked_sale_id || null,
       customer_id: row.customer_id || null,
       customer_name: row.customer_name || customerNameFallback || "Walk-in Customer",
-      credit_amount: Math.max(0, Number(row.net_amount ?? creditAmountFallback ?? 0)),
+      credit_amount: insertAmount,
       used_amount: 0,
       status: "active",
       issue_date: row.return_date || format(new Date(), "yyyy-MM-dd"),

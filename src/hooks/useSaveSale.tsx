@@ -174,6 +174,52 @@ export const useSaveSale = () => {
     await writePaymentVoucher(params.roundOffRemainder, 'round_off', `Round off adjustment for POS exchange ${params.saleNumber}`);
   };
 
+  const markCreditNoteFullyUsedForSrAdjust = async (cnId: string) => {
+    if (!currentOrganization?.id) return;
+    const { data: note } = await supabase
+      .from("credit_notes")
+      .select("credit_amount, used_amount")
+      .eq("id", cnId)
+      .eq("organization_id", currentOrganization.id)
+      .maybeSingle();
+    if (!note) return;
+    const ca = Number((note as { credit_amount?: number }).credit_amount) || 0;
+    await supabase
+      .from("credit_notes")
+      .update({
+        used_amount: ca,
+        status: "fully_used",
+      } as Record<string, unknown>)
+      .eq("id", cnId)
+      .eq("organization_id", currentOrganization.id);
+  };
+
+  /** After POS S/R adjust, shrink CN face value to remaining credit (return − absorbed on bill). */
+  const setLinkedCreditNoteAmount = async (cnId: string, newCreditAmount: number) => {
+    if (!currentOrganization?.id || newCreditAmount < 0) return;
+    const rounded = roundMoney(newCreditAmount);
+    const { data: note } = await supabase
+      .from("credit_notes")
+      .select("used_amount")
+      .eq("id", cnId)
+      .eq("organization_id", currentOrganization.id)
+      .maybeSingle();
+    const ua = Number((note as { used_amount?: number } | null)?.used_amount) || 0;
+    const creditAmount = Math.max(rounded, ua);
+    if (creditAmount <= 0.01) {
+      await markCreditNoteFullyUsedForSrAdjust(cnId);
+      return;
+    }
+    await supabase
+      .from("credit_notes")
+      .update({
+        credit_amount: creditAmount,
+        status: "active",
+      } as Record<string, unknown>)
+      .eq("id", cnId)
+      .eq("organization_id", currentOrganization.id);
+  };
+
   const consumeSaleReturnAdjustments = async (params: {
     customerId: string;
     saleId: string;
@@ -225,6 +271,10 @@ export const useSaveSale = () => {
           updateRow.credit_available_balance = 0;
         }
         await supabase.from('sale_returns').update(updateRow).eq('id', sr.id);
+        const cnIdFull = String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
+        if (cnIdFull) {
+          await markCreditNoteFullyUsedForSrAdjust(cnIdFull);
+        }
         remaining = roundMoney(remaining - srAmt);
         continue;
       }
@@ -243,6 +293,14 @@ export const useSaveSale = () => {
             linked_sale_id: newAvail <= 0.01 ? params.saleId : (sr as { linked_sale_id?: string | null }).linked_sale_id,
           })
           .eq('id', sr.id);
+        const cnIdPartial = String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
+        if (cnIdPartial) {
+          if (newAvail <= 0.01) {
+            await markCreditNoteFullyUsedForSrAdjust(cnIdPartial);
+          } else {
+            await setLinkedCreditNoteAmount(cnIdPartial, newAvail);
+          }
+        }
         remaining = 0;
         break;
       }
@@ -257,6 +315,9 @@ export const useSaveSale = () => {
       const leftoverGross = roundMoney(srGross - consumedGross);
       const leftoverGst = roundMoney(srGst - consumedGst);
 
+      const cnIdSplit = String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
+      const clearCnFromConsumedRow = Boolean(cnIdSplit && leftoverAmt > 0.01);
+
       await supabase
         .from('sale_returns')
         .update({
@@ -266,7 +327,8 @@ export const useSaveSale = () => {
           credit_status: 'adjusted',
           linked_sale_id: params.saleId,
           notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Partially adjusted in POS sale`,
-        })
+          ...(clearCnFromConsumedRow ? { credit_note_id: null } : {}),
+        } as Record<string, unknown>)
         .eq('id', sr.id);
 
       if (leftoverAmt > 0.01) {
@@ -279,7 +341,7 @@ export const useSaveSale = () => {
           return_date: sr.return_date,
           return_number: null,
           original_sale_number: sr.original_sale_number || null,
-          credit_note_id: sr.credit_note_id || null,
+          credit_note_id: cnIdSplit || null,
           credit_status: 'pending',
           linked_sale_id: null,
           gross_amount: leftoverGross,
@@ -287,6 +349,11 @@ export const useSaveSale = () => {
           net_amount: leftoverAmt,
           notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Pending balance after partial POS adjustment`,
         } as any);
+        if (cnIdSplit) {
+          await setLinkedCreditNoteAmount(cnIdSplit, leftoverAmt);
+        }
+      } else if (cnIdSplit) {
+        await markCreditNoteFullyUsedForSrAdjust(cnIdSplit);
       }
 
       remaining = 0;
