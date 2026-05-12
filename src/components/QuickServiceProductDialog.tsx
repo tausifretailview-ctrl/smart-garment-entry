@@ -100,6 +100,7 @@ export const QuickServiceProductDialog = ({
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
               onKeyDown={handleQuantityKeyDown}
+            onFocus={(e) => e.currentTarget.select()}
               className="h-9 mt-1"
             />
           </div>
