@@ -231,25 +231,25 @@ type QuantityMode = "manual" | "lastPurchase" | "byBill";
 const sheetPresets = {
   // ===== A4 Sheet Presets =====
   // Small Labels
-  novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm", category: "a4" },
-  a4_80sheet: { cols: 10, width: "26mm", height: "14mm", gap: "0.5mm", category: "a4" },
-  novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm", category: "a4" },
-  a4_65sheet: { cols: 5, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
+  novajet48: { cols: 8, rows: 6, width: "33mm", height: "19mm", gap: "1mm", category: "a4" },
+  a4_80sheet: { cols: 10, rows: 20, width: "26mm", height: "14mm", gap: "0.5mm", category: "a4" },
+  novajet65: { cols: 5, rows: 13, width: "38mm", height: "21mm", gap: "1mm", category: "a4" },
+  a4_65sheet: { cols: 5, rows: 12, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
   
   // Medium Labels
   novajet40: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
   a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
   a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0.6mm", category: "a4" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
-  a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
-  a4_36sheet: { cols: 4, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
-  a4_32sheet: { cols: 4, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
-  a4_35square: { cols: 5, width: "35mm", height: "35mm", gap: "2mm", category: "a4" },
+  a4_12x4: { cols: 4, rows: 12, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
+  a4_36sheet: { cols: 4, rows: 9, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
+  a4_32sheet: { cols: 4, rows: 8, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
+  a4_35square: { cols: 5, rows: 7, width: "35mm", height: "35mm", gap: "2mm", category: "a4" },
   
   // Large Labels
-  a4_24sheet: { cols: 3, width: "70mm", height: "35mm", gap: "1mm", category: "a4" },
-  a4_21sheet: { cols: 3, width: "63.5mm", height: "38.1mm", gap: "1mm", category: "a4" },
-  a4_20sheet: { cols: 2, width: "100mm", height: "50mm", gap: "1mm", category: "a4" },
+  a4_24sheet: { cols: 3, rows: 8, width: "70mm", height: "35mm", gap: "1mm", category: "a4" },
+  a4_21sheet: { cols: 3, rows: 7, width: "63.5mm", height: "38.1mm", gap: "1mm", category: "a4" },
+  a4_20sheet: { cols: 2, rows: 10, width: "100mm", height: "50mm", gap: "1mm", category: "a4" },
 
   // ===== Thermal Roll Presets (1UP - Single Column) =====
   // Extra Small
@@ -3262,8 +3262,8 @@ export default function BarcodePrinting() {
             grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
             grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
             gap: ${dimensions.gap}mm;
-            margin-top: ${topOffset * 3.78}px;
-            margin-left: ${leftOffset * 3.78}px;
+            margin-top: ${topOffset}mm;
+            margin-left: ${leftOffset}mm;
             margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
           `;
         }
@@ -5994,7 +5994,7 @@ export default function BarcodePrinting() {
           #printArea .label-cell {
             page-break-inside: avoid;
             break-inside: avoid-page;
-            overflow: visible !important;
+            overflow: ${isThermal1Up() || hasAbsolutePositioning(labelConfig) ? "visible" : "hidden"} !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             ${isThermal1Up() ? `
@@ -6007,7 +6007,6 @@ export default function BarcodePrinting() {
               min-height: ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm !important;
               padding: 0 !important;
               margin: 0 !important;
-              overflow: visible !important;
               box-sizing: border-box !important;
             ` : ''}
           }
