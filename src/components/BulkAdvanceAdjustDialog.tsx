@@ -97,6 +97,15 @@ export function BulkAdvanceAdjustDialog({
     setIsProcessing(true);
 
     try {
+      // Hard guard: re-verify available advance balance from customer_advances at write time.
+      const liveAdvanceBalance = await getAvailableAdvanceBalance(customerId);
+      if (totalAllocated > liveAdvanceBalance + 0.01) {
+        toast.error(
+          `Insufficient advance balance. Customer has only ₹${liveAdvanceBalance.toLocaleString("en-IN")} unused advance.`,
+        );
+        return;
+      }
+
       // Update each invoice
       for (const inv of invoices) {
         if (inv.allocate <= 0) continue;
@@ -129,22 +138,21 @@ export function BulkAdvanceAdjustDialog({
           voucher_number: voucherNum,
           voucher_type: "receipt",
           voucher_date: format(new Date(), "yyyy-MM-dd"),
-          reference_type: "customer",
+          reference_type: "sale",
           reference_id: inv.id,
           total_amount: inv.allocate,
+          payment_method: "advance_adjustment",
           description: `Adjusted from advance balance for invoice ${inv.sale_number}`,
           created_by: userId,
         });
         if (vErr) throw vErr;
       }
 
-      // Apply advance deduction (FIFO) - only for booking-based advances
-      const bookingBalance = await getAvailableAdvanceBalance(customerId);
-      const bookingDeduction = Math.min(totalAllocated, bookingBalance);
-      if (bookingDeduction > 0) {
+      // Apply advance deduction (FIFO) for the FULL allocated amount (the guard above ensures it fits).
+      if (totalAllocated > 0) {
         await applyAdvance.mutateAsync({
           customerId,
-          amountToApply: bookingDeduction,
+          amountToApply: totalAllocated,
         });
       }
 
