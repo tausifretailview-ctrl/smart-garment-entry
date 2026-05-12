@@ -235,7 +235,7 @@ interface BillBarcodeSettings {
   precision_a4_rows?: number;
   precision_print_mode?: 'thermal' | 'a4';
   precision_label_config?: any; // LabelDesignConfig stored as JSON
-  barcode_default_print_tab?: 'standard' | 'precision';
+  barcode_default_print_tab?: 'standard' | 'precision' | 'auto';
   // Stamp / Signature Settings
   stamp_image_base64?: string;
   stamp_position?: 'bottom-right' | 'bottom-left';
