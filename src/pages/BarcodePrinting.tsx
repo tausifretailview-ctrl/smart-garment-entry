@@ -1236,7 +1236,7 @@ export default function BarcodePrinting() {
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
-  const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision">("standard");
+  const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
   const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
     try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
   });
@@ -1248,6 +1248,10 @@ export default function BarcodePrinting() {
     } catch {}
   };
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether we've resolved the initial default tab for the current org.
+  // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
+  // otherwise prefer Precision Pro (thermal/barcode printer workflow).
+  const hasResolvedDefaultTabRef = useRef(false);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     return (dbDefaultFormat as any)?.defaultTemplate || null;
@@ -1496,10 +1500,77 @@ export default function BarcodePrinting() {
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
+    hasResolvedDefaultTabRef.current = false;
     setPrecisionConfigReady(false);
     settingsFullyLoadedRef.current = false;
     setSettingsLoading(true);
   }, [currentOrganization?.id]);
+
+  // Resolve the initial barcode-printing tab once per organization.
+  // Rule:
+  //   1. If a route caller (e.g. Purchase Dashboard) explicitly requested a
+  //      tab, honour that.
+  //   2. Else if the user has a saved A4 sheet design as the standard default
+  //      → open Standard Printing (Laser printer A4 workflow).
+  //   3. Else if Precision Pro is enabled or any printer preset is the default
+  //      → open Precision Pro (thermal/barcode printer workflow).
+  //   4. Else fall back to Standard.
+  useEffect(() => {
+    if (hasResolvedDefaultTabRef.current) return;
+    if (settingsLoading || isLoadingSettings) return;
+    if (!precisionConfigReady) return;
+
+    const isA4SheetType = (st: unknown): boolean => {
+      if (typeof st !== "string") return false;
+      if (st.startsWith("a4_")) return true;
+      if (st === "custom") {
+        const dim: any = (dbDefaultFormat as any)?.customDimensions;
+        // Treat custom dimensions whose page width is roughly A4 (210mm) as A4.
+        if (dim && Number(dim.width) > 0 && Number(dim.cols) > 0) {
+          const totalWidth = Number(dim.width) * Number(dim.cols) + Number(dim.gap || 0) * (Number(dim.cols) - 1);
+          if (totalWidth >= 180 && totalWidth <= 230) return true;
+        }
+      }
+      return false;
+    };
+
+    const ddf = dbDefaultFormat as any;
+    const hasA4Default = !!ddf && isA4SheetType(ddf.sheetType);
+    const hasDefaultPreset = Array.isArray(dbPresets) && dbPresets.some((p: any) => p?.isDefault);
+    const precisionEnabled = precisionSettings.enabled === true;
+    // Manual override saved in Settings → Barcode tab. "auto" / unset means use rules below.
+    const manualOverride: "standard" | "precision" | null =
+      settingsDefaultBarTab === "standard" || settingsDefaultBarTab === "precision"
+        ? settingsDefaultBarTab
+        : null;
+
+    let resolved: "standard" | "precision";
+    if (routeRequestedTab) {
+      resolved = routeRequestedTab;
+    } else if (manualOverride === "precision" && (precisionEnabled || hasDefaultPreset)) {
+      resolved = "precision";
+    } else if (manualOverride === "standard") {
+      resolved = "standard";
+    } else if (hasA4Default) {
+      resolved = "standard";
+    } else if (hasDefaultPreset || precisionEnabled) {
+      resolved = "precision";
+    } else {
+      resolved = "standard";
+    }
+
+    hasResolvedDefaultTabRef.current = true;
+    setActiveBarTab(resolved);
+  }, [
+    settingsLoading,
+    isLoadingSettings,
+    precisionConfigReady,
+    routeRequestedTab,
+    dbDefaultFormat,
+    dbPresets,
+    precisionSettings.enabled,
+    settingsDefaultBarTab,
+  ]);
 
   // Debounced auto-save for precision designer changes
   useEffect(() => {
@@ -1588,10 +1659,13 @@ export default function BarcodePrinting() {
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
           const bbs = data.bill_barcode_settings as any;
-          const configuredDefaultTab: "standard" | "precision" =
-            bbs.barcode_default_print_tab === "precision" ? "precision" : "standard";
+          const configuredDefaultTab: "standard" | "precision" | "auto" =
+            bbs.barcode_default_print_tab === "precision"
+              ? "precision"
+              : bbs.barcode_default_print_tab === "standard"
+              ? "standard"
+              : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
-          const preferredTab: "standard" | "precision" = routeRequestedTab || configuredDefaultTab;
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
@@ -1607,11 +1681,6 @@ export default function BarcodePrinting() {
             // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
             labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
           }));
-          if (preferredTab === "precision" && bbs.precision_pro_enabled === true) {
-            setActiveBarTab("precision");
-          } else {
-            setActiveBarTab("standard");
-          }
         }
       } catch (error) {
         console.error("Failed to fetch business name:", error);
@@ -1665,10 +1734,6 @@ export default function BarcodePrinting() {
               thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
             }));
-            const preferredTab: "standard" | "precision" = routeRequestedTab || settingsDefaultBarTab;
-            if (preferredTab === "precision") {
-              setActiveBarTab("precision");
-            }
             // Set name without "preset:" prefix — Fix 1 in settings sync will correct if needed
             if (!localStoragePresetName) {
               setActivePrecisionTemplateName(presetToLoad.name);
