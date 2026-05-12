@@ -1994,7 +1994,7 @@ const POSDashboard = () => {
                     className="w-40"
                     aria-label="Sale date"
                   />
-                ) : (
+                ) : periodFilter === 'custom' ? (
                   <>
                     <Input
                       type="date"
@@ -2017,6 +2017,29 @@ const POSDashboard = () => {
                       aria-label="End date"
                     />
                   </>
+                ) : (
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      const [y, mo, da] = v.split('-').map(Number);
+                      const d = new Date(y, mo - 1, da);
+                      if (periodFilter === 'monthly') {
+                        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+                        setStartDate(format(monthStart, 'yyyy-MM-dd'));
+                        setEndDate(v);
+                      } else {
+                        const quarterMonth = Math.floor(d.getMonth() / 3) * 3;
+                        const quarterStart = new Date(d.getFullYear(), quarterMonth, 1);
+                        setStartDate(format(quarterStart, 'yyyy-MM-dd'));
+                        setEndDate(v);
+                      }
+                    }}
+                    className="w-40"
+                    aria-label={periodFilter === 'monthly' ? 'Month up to date' : 'Quarter up to date'}
+                  />
                 ))}
               <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
                 <SelectTrigger className="w-40">
