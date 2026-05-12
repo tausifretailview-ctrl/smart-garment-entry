@@ -188,6 +188,19 @@ const DEFAULT_POS_COLUMNS = {
   modify: true,
 };
 
+/** Local calendar yyyy-MM-dd as start/end instants (avoids timestamptz vs `YYYY-MM-DDT00:00:00` mismatch). */
+function localDayStartUtcIso(ymd: string): string | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+function localDayEndUtcIso(ymd: string): string | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+}
+
 const POSDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -416,8 +429,10 @@ const POSDashboard = () => {
         // Server-side date filter for performance — avoids loading entire history.
         // sale_date is timestamptz, so use full-day bounds to include sales saved
         // later in the day (otherwise lte("2026-04-25") excludes 2026-04-25 05:35:56).
-        if (startDate) query = query.gte("sale_date", `${startDate}T00:00:00`);
-        if (endDate) query = query.lte("sale_date", `${endDate}T23:59:59.999`);
+        const startIso = localDayStartUtcIso(startDate);
+        const endIso = localDayEndUtcIso(endDate);
+        if (startIso) query = query.gte("sale_date", startIso);
+        if (endIso) query = query.lte("sale_date", endIso);
 
         const { data, error } = await query
           .order("sale_date", { ascending: false })

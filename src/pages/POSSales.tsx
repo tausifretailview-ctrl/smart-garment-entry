@@ -248,6 +248,8 @@ export default function POSSales() {
   const productCommandListRef = useRef<HTMLDivElement | null>(null);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
+  /** When an invoice is loaded for view/edit, show its stored time in the footer; cleared for new bills. */
+  const [footerLoadedInvoiceTime, setFooterLoadedInvoiceTime] = useState<string | null>(null);
   const isInitializingEditRef = useRef(false);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
@@ -772,7 +774,7 @@ export default function POSSales() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving]);
 
-  // Apply defaults when settings are loaded
+  // Apply defaults when settings are loaded (do not override active cart / loaded invoice)
   useEffect(() => {
     if (settingsData && (settingsData as any).sale_settings) {
       const saleSettings = (settingsData as any).sale_settings;
@@ -780,11 +782,15 @@ export default function POSSales() {
         handleFlatDiscountValueChange(saleSettings.default_discount);
         setFlatDiscountMode('percent');
       }
-      if (saleSettings.default_payment_method) {
+      if (
+        saleSettings.default_payment_method &&
+        !currentSaleId &&
+        items.length === 0
+      ) {
         setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
       }
     }
-  }, [settingsData]);
+  }, [settingsData, currentSaleId, items.length]);
 
   // Update date and time every second
   useEffect(() => {
@@ -877,6 +883,7 @@ export default function POSSales() {
     if (!currentSaleId) {
       hasManuallyAddedNewItemRef.current = false;
       isInitializingEditRef.current = false;
+      setFooterLoadedInvoiceTime(null);
     }
   }, [currentSaleId, setIsEditing]);
 
@@ -3373,6 +3380,11 @@ export default function POSSales() {
       setPaymentMethod(sale.payment_method as any);
     }
 
+    const rawInvoiceTs = sale.sale_date ?? sale.created_at;
+    setFooterLoadedInvoiceTime(
+      rawInvoiceTs ? format(new Date(rawInvoiceTs), "dd/MM/yyyy HH:mm:ss") : null,
+    );
+
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
     isInitializingEditRef.current = false;
@@ -5303,6 +5315,20 @@ export default function POSSales() {
             <div className="text-center px-3">
               <div className="text-xl font-extrabold leading-tight text-white">₹{formatINR2(totalDiscountDisplay)}</div>
               <div className="text-xs text-white/90 uppercase font-bold tracking-wide">Discount</div>
+            </div>
+
+            <div className="w-px h-8 bg-white/20 shrink-0" />
+
+            {/* Invoice / wall clock — uses same 1s tick as print date */}
+            <div className="text-center px-2 shrink-0 min-w-[7.5rem]">
+              <div className="text-[11px] text-white/70 uppercase tracking-wider font-semibold">
+                {footerLoadedInvoiceTime && currentSaleId ? "Invoice time" : "Time"}
+              </div>
+              <div className="text-sm font-extrabold text-white tabular-nums leading-tight mt-0.5 whitespace-nowrap">
+                {footerLoadedInvoiceTime && currentSaleId
+                  ? footerLoadedInvoiceTime
+                  : format(currentDateTime, "HH:mm:ss")}
+              </div>
             </div>
             
             {/* Invoice payment mode indicator (helps identify Edit/Last/Previous invoice mode) */}
