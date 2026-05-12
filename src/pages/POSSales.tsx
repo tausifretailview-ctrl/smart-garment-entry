@@ -3311,7 +3311,12 @@ export default function POSSales() {
     // Restore flat discount - detect if it was saved as amount or percent mode
     const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
     const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
-    if (savedFlatPercent > 0) {
+    // If percent has long decimals (e.g. 10.2564), it was derived from amount mode.
+    // Prefer amount mode in that case to preserve the user's original ₹ entry.
+    const percentLooksClean =
+      savedFlatPercent > 0 &&
+      Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
+    if (percentLooksClean) {
       handleFlatDiscountValueChange(savedFlatPercent);
       setFlatDiscountMode('percent');
     } else if (savedFlatAmount > 0) {
@@ -3328,7 +3333,12 @@ export default function POSSales() {
     const savedRoundOff = Number(sale.round_off) || 0;
     setRoundOff(savedRoundOff);
     setIsManualRoundOff(true);
-    
+
+    // Restore payment method so mix-payment bills reopen as Mix (not default Cash)
+    if (sale.payment_method) {
+      setPaymentMethod(sale.payment_method as any);
+    }
+
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
     isInitializingEditRef.current = false;
