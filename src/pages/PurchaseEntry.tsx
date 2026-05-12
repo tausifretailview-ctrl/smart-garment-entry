@@ -58,7 +58,7 @@ import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { logError } from "@/lib/errorLogger";
+import { logError, extractErrorInfo } from "@/lib/errorLogger";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -3304,11 +3304,12 @@ const PurchaseEntry = () => {
         itemCount: lineItems.length,
         isEdit: isEditMode,
       });
+      const info = extractErrorInfo(error);
       toast({
         title: "Bill Save Failed — Draft Preserved",
-        description: `${error?.message || "Unknown error"}. Your data is safe in draft. Please try again.`,
+        description: `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.`,
         variant: "destructive",
-        duration: 10000,
+        duration: 12000,
       });
     } finally {
       setLoading(false);
