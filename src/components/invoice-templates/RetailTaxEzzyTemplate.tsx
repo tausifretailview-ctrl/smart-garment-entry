@@ -197,7 +197,8 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
     .map(Number)
     .sort((a, b) => a - b);
   const hasGSTData = gstRates.length > 0;
-
+  const multiGstSlab = gstRates.length > 1;
+  const gstTableCellPad = multiGstSlab ? "px-0.5 py-px" : "px-0.5 py-0.5";
   const stampSizeMap: Record<string, string> = { small: "48px", medium: "72px", large: "96px" };
   const stampDim = stampSizeMap[stampSize] || "72px";
 
@@ -516,10 +517,12 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     <div className="min-h-0 flex-1 border-r border-slate-300 p-0.5 align-top">
                       {showGSTBreakdown && hasGSTData ? (
                         <div>
-                          <div className="mb-0.5 text-[8px] font-bold uppercase leading-tight text-slate-950">
+                          <div className="mb-0.5 text-[9px] font-medium uppercase leading-tight text-slate-950">
                             GST summary (slab)
                           </div>
-                          <table className="w-full table-fixed border-collapse text-[8px] leading-tight">
+                          <table
+                            className={`w-full table-fixed border-collapse text-[9px] font-normal ${multiGstSlab ? "leading-none" : "leading-tight"}`}
+                          >
                             <colgroup>
                               <col className="w-[12%]" />
                               <col className="w-[26%]" />
@@ -538,18 +541,32 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                             </colgroup>
                             <thead>
                               <tr className="bg-slate-100">
-                                <th className="border border-slate-300 px-0.5 py-0.5 text-center">%</th>
-                                <th className="border border-slate-300 px-0.5 py-0.5 text-center">Taxable</th>
+                                <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                  %
+                                </th>
+                                <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                  Taxable
+                                </th>
                                 {isInterState ? (
                                   <>
-                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">IGST</th>
-                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">Tax</th>
+                                    <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                      IGST
+                                    </th>
+                                    <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                      Tax
+                                    </th>
                                   </>
                                 ) : (
                                   <>
-                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">CGST</th>
-                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">SGST</th>
-                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">Tax</th>
+                                    <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                      CGST
+                                    </th>
+                                    <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                      SGST
+                                    </th>
+                                    <th className={`border border-slate-300 ${gstTableCellPad} text-center font-medium`}>
+                                      Tax
+                                    </th>
                                   </>
                                 )}
                               </tr>
@@ -560,28 +577,28 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                                 const slabTotal = isInterState ? row.igst : row.cgst + row.sgst;
                                 return (
                                   <tr key={rate}>
-                                    <td className="border border-slate-300 px-0.5 py-0.5 text-center">{rate}%</td>
-                                    <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                    <td className={`border border-slate-300 ${gstTableCellPad} text-center`}>{rate}%</td>
+                                    <td className={`border border-slate-300 ${gstTableCellPad} text-right tabular-nums`}>
                                       {fmt(row.taxableValue)}
                                     </td>
                                     {isInterState ? (
                                       <>
-                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                        <td className={`border border-slate-300 ${gstTableCellPad} text-right tabular-nums`}>
                                           {fmt(row.igst)}
                                         </td>
-                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right font-semibold tabular-nums">
+                                        <td className={`border border-slate-300 ${gstTableCellPad} text-right font-medium tabular-nums`}>
                                           {fmt(slabTotal)}
                                         </td>
                                       </>
                                     ) : (
                                       <>
-                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                        <td className={`border border-slate-300 ${gstTableCellPad} text-right tabular-nums`}>
                                           {fmt(row.cgst)}
                                         </td>
-                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                        <td className={`border border-slate-300 ${gstTableCellPad} text-right tabular-nums`}>
                                           {fmt(row.sgst)}
                                         </td>
-                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right font-semibold tabular-nums">
+                                        <td className={`border border-slate-300 ${gstTableCellPad} text-right font-medium tabular-nums`}>
                                           {fmt(slabTotal)}
                                         </td>
                                       </>
