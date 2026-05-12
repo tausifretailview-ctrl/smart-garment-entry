@@ -135,7 +135,7 @@ export default function CustomerAuditReport() {
     queryKey: ["customer-true-outstanding", customerId, currentOrganization?.id],
     queryFn: async () => {
       if (!customerId || !currentOrganization?.id) return null;
-      const { data, error } = await supabase.rpc("get_customer_true_outstanding", {
+      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
         p_customer_id: customerId,
         p_organization_id: currentOrganization.id,
       });
@@ -290,7 +290,7 @@ export default function CustomerAuditReport() {
 
   const runIntegrityCheck = async () => {
     if (!customerId || !currentOrganization?.id) return;
-    const { data, error } = await supabase.rpc("reconcile_customer_balance", {
+    const { data, error } = await (supabase.rpc as any)("reconcile_customer_balance", {
       p_customer_id: customerId,
       p_organization_id: currentOrganization.id,
     });
