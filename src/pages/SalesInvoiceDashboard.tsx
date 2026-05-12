@@ -2117,7 +2117,7 @@ export default function SalesInvoiceDashboard() {
       const isCreditNoteMode = paymentMode === "credit_note";
       const bookingDeductionForRollback =
         !isCreditNoteMode && paymentMode === "advance" && selectedInvoiceForPayment.customer_id
-          ? Math.min(amount, advanceFromBookings)
+          ? amount
           : 0;
 
       let saleReturnSnapshot: {
