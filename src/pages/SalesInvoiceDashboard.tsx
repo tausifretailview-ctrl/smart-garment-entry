@@ -971,75 +971,10 @@ export default function SalesInvoiceDashboard() {
       const fetchCombinedBalance = async () => {
         try {
           const customerId = filteredCustomer.id;
-          const orgId = currentOrganization.id;
           const bookingBalance = await getAvailableAdvanceBalance(customerId);
-          
-          // Also compute credit/overpayment balance
-          const [
-            { data: customerData },
-            { data: customerSales },
-            { data: customerReturns },
-            { data: customerAdjustments },
-            { data: customerVouchers },
-            { data: refundVouchers },
-            { data: customerAdvancesForBal },
-          ] = await Promise.all([
-            supabase.from('customers').select('opening_balance').eq('id', customerId).single(),
-            supabase.from('sales').select('id, net_amount, paid_amount, sale_return_adjust, payment_status')
-              .eq('organization_id', orgId).eq('customer_id', customerId)
-              .is('deleted_at', null).not('payment_status', 'in', '("cancelled","hold")'),
-            supabase.from('sale_returns').select('net_amount, credit_status, linked_sale_id')
-              .eq('organization_id', orgId).eq('customer_id', customerId).is('deleted_at', null),
-            supabase.from('customer_balance_adjustments').select('outstanding_difference')
-              .eq('organization_id', orgId).eq('customer_id', customerId),
-            supabase.from('voucher_entries').select('reference_id, total_amount, reference_type, voucher_type, description, payment_method')
-              .eq('organization_id', orgId).eq('voucher_type', 'receipt').is('deleted_at', null),
-            supabase.from('voucher_entries').select('reference_id, total_amount')
-              .eq('organization_id', orgId).eq('voucher_type', 'payment')
-              .eq('reference_type', 'customer').eq('reference_id', customerId).is('deleted_at', null),
-            supabase.from('customer_advances').select('id, amount, used_amount')
-              .eq('organization_id', orgId).eq('customer_id', customerId)
-              .in('status', ['active', 'partially_used']),
-          ]);
-
-          const openingBalance = customerData?.opening_balance || 0;
-          const adjustmentTotal = (customerAdjustments || []).reduce((s: number, a: any) => s + (a.outstanding_difference || 0), 0);
-          const refundsPaidTotal = (refundVouchers || []).reduce((s: number, v: any) => s + (v.total_amount || 0), 0);
-
-          const advanceIds = (customerAdvancesForBal || []).map((a: any) => a.id).filter(Boolean);
-          let advanceRefundTotal = 0;
-          if (advanceIds.length > 0) {
-            const { data: advRefRows } = await supabase
-              .from('advance_refunds')
-              .select('refund_amount')
-              .in('advance_id', advanceIds);
-            advanceRefundTotal = (advRefRows || []).reduce((s: number, r: any) => s + (Number(r.refund_amount) || 0), 0);
-          }
-
-          const co = computeCustomerOutstanding({
-            openingBalance,
-            customerId,
-            sales: customerSales || [],
-            vouchers: (customerVouchers || []) as any[],
-            adjustmentTotal,
-            advances: (customerAdvancesForBal || []).map((a: any) => ({
-              id: a.id,
-              amount: a.amount,
-              used_amount: a.used_amount,
-            })),
-            advanceRefundTotal,
-            saleReturns: (customerReturns || []) as any[],
-            refundsPaidTotal,
-          });
-
-          const balance = co.balance;
-          
-          let creditBalance = 0;
-          if (balance < 0) {
-            creditBalance = Math.max(0, Math.abs(balance) - bookingBalance);
-          }
-          
-          setBulkAdvanceBalance(bookingBalance + creditBalance);
+          // Only true unused advance bookings are spendable. Customer overpayments / refund liabilities
+          // must be returned via Refund or converted into an explicit Advance booking — not silently re-spent.
+          setBulkAdvanceBalance(bookingBalance);
         } catch {
           setBulkAdvanceBalance(0);
         }
