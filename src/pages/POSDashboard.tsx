@@ -115,6 +115,64 @@ interface Sale {
   customers?: { gst_number?: string | null } | null;
 }
 
+const SETTLEMENT_EPS = 0.01;
+
+function isHoldLikeSale(sale: Sale): boolean {
+  if (sale.payment_status === "hold") return true;
+  return (
+    sale.payment_status === "pending" &&
+    typeof sale.sale_number === "string" &&
+    sale.sale_number.startsWith("Hold/") &&
+    sale.payment_method === "pay_later"
+  );
+}
+
+/** Net payable for settlement (matches Sales Records amount column logic). */
+function getSettlementNetAmount(sale: Sale): number {
+  const discountTotal =
+    (sale.discount_amount || 0) +
+    (sale.flat_discount_amount || 0) +
+    ((sale as { points_redeemed_amount?: number }).points_redeemed_amount || 0);
+  const srAdjust = Number(sale.sale_return_adjust || 0);
+  const baseBillBeforeSR =
+    Number(sale.gross_amount || 0) - discountTotal + Number(sale.round_off || 0);
+  if (srAdjust > 0 && Number(sale.net_amount || 0) === 0) {
+    return Math.round((baseBillBeforeSR - srAdjust) * 100) / 100;
+  }
+  return Math.round((Number(sale.net_amount || 0)) * 100) / 100;
+}
+
+function mixTenderTotal(sale: Sale): number {
+  return Math.round(
+    ((Number(sale.cash_amount) || 0) +
+      (Number(sale.card_amount) || 0) +
+      (Number(sale.upi_amount) || 0)) *
+      100,
+  ) / 100;
+}
+
+/**
+ * `sync_sale_payment_status_from_receipts` can set paid_amount from receipt rows only; mix POS
+ * bills store full tender in cash/card/uppi — reconcile so Paid/Balance match those columns.
+ */
+function getEffectivePaidAmountForDashboard(sale: Sale): number {
+  const stored = Math.round((Number(sale.paid_amount) || 0) * 100) / 100;
+  if (isHoldLikeSale(sale)) return stored;
+  const method = (sale.payment_method || "").toLowerCase();
+  if (method !== "multiple") return stored;
+  const tender = mixTenderTotal(sale);
+  const cap = Math.max(0, getSettlementNetAmount(sale));
+  if (tender <= SETTLEMENT_EPS) return Math.min(cap, stored);
+  return Math.min(cap, Math.max(stored, tender));
+}
+
+function isPaidCompletedForDashboard(sale: Sale): boolean {
+  if (isHoldLikeSale(sale)) return false;
+  const net = getSettlementNetAmount(sale);
+  const paid = getEffectivePaidAmountForDashboard(sale);
+  return paid >= net - SETTLEMENT_EPS;
+}
+
 // Default columns - defined OUTSIDE component to prevent re-render loops
 const DEFAULT_POS_COLUMNS = {
   phone: false,  // Hidden by default
@@ -157,17 +215,6 @@ const POSDashboard = () => {
   // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
   const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
 
-  const isHoldLikeSale = (sale: Sale) => {
-    if (sale.payment_status === "hold") return true;
-    return (
-      sale.payment_status === "pending" &&
-      typeof sale.sale_number === "string" &&
-      sale.sale_number.startsWith("Hold/") &&
-      sale.payment_method === "pay_later"
-    );
-  };
-
-  // Fetch org users for billing user filter
   const { data: orgUsers = [] } = useQuery({
     queryKey: ["org-users-filter", currentOrganization?.id],
     queryFn: async () => {
@@ -1106,7 +1153,9 @@ const POSDashboard = () => {
 
   const openPaymentDialog = (sale: Sale) => {
     setSelectedSaleForPayment(sale);
-    const pending = Math.round(sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0));
+    const pending = Math.round(
+      sale.net_amount - getEffectivePaidAmountForDashboard(sale) - (Number(sale.sale_return_adjust) || 0),
+    );
     setPaidAmount(pending !== 0 ? pending.toString() : "");
     setPaymentDate(new Date());
     setPaymentMode("cash");
@@ -1142,9 +1191,11 @@ const POSDashboard = () => {
       return;
     }
 
-    const currentPaid = selectedSaleForPayment.paid_amount || 0;
+    const currentPaid = getEffectivePaidAmountForDashboard(selectedSaleForPayment);
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
-    const pendingAmount = Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust);
+    const pendingAmount = Math.round(
+      selectedSaleForPayment.net_amount - currentPaid - (Number(currentCNAdjust) || 0),
+    );
 
     if (amount > pendingAmount) {
       toast({
@@ -1401,10 +1452,21 @@ const POSDashboard = () => {
       totalAmount: nonHoldSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
       totalDiscount: nonHoldSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
       netSale: nonHoldSales.reduce((sum, sale) => sum + (sale.net_amount || 0), 0),
-      completedCount: nonHoldSales.filter(sale => sale.payment_status === 'completed').length,
-      completedAmount: nonHoldSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
-      pendingCount: nonHoldSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,
-      pendingAmount: nonHoldSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
+      completedCount: nonHoldSales.filter((sale) => isPaidCompletedForDashboard(sale)).length,
+      completedAmount: nonHoldSales
+        .filter((sale) => isPaidCompletedForDashboard(sale))
+        .reduce((sum, sale) => sum + sale.net_amount, 0),
+      pendingCount: nonHoldSales.filter((sale) => !isPaidCompletedForDashboard(sale) && !isHoldLikeSale(sale)).length,
+      pendingAmount: nonHoldSales
+        .filter((sale) => !isPaidCompletedForDashboard(sale))
+        .reduce(
+          (sum, sale) =>
+            sum +
+            (sale.net_amount -
+              getEffectivePaidAmountForDashboard(sale) -
+              (sale.sale_return_adjust || 0)),
+          0,
+        ),
       holdCount: holdSales.length,
       holdAmount: holdSales.reduce((sum, sale) => sum + sale.net_amount, 0),
       refundCount: nonHoldSales.filter(sale => (sale.refund_amount || 0) > 0).length,
@@ -1415,7 +1477,14 @@ const POSDashboard = () => {
       totalCash: nonHoldSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
       totalCard: nonHoldSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
       totalUpi: nonHoldSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
-      totalBalance: nonHoldSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0) - (sale.sale_return_adjust || 0)), 0),
+      totalBalance: nonHoldSales.reduce(
+        (sum, sale) =>
+          sum +
+          (sale.net_amount -
+            getEffectivePaidAmountForDashboard(sale) -
+            (sale.sale_return_adjust || 0)),
+        0,
+      ),
       totalSaleReturnAdjust: nonHoldSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
       totalRoundOff: nonHoldSales.reduce((sum, sale) => sum + (sale.round_off || 0), 0),
       // Bill counts by payment method
@@ -1444,8 +1513,11 @@ const POSDashboard = () => {
       'Gross Amount': sale.gross_amount || 0,
       'Discount': (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
       'Net Amount': sale.net_amount || 0,
-      'Paid Amount': sale.paid_amount || 0,
-      'Balance': (sale.net_amount || 0) - (sale.paid_amount || 0),
+      'Paid Amount': getEffectivePaidAmountForDashboard(sale),
+      'Balance':
+        sale.net_amount -
+        getEffectivePaidAmountForDashboard(sale) -
+        (sale.sale_return_adjust || 0),
       'Cash': sale.cash_amount || 0,
       'Card': sale.card_amount || 0,
       'UPI': sale.upi_amount || 0,
@@ -2279,7 +2351,7 @@ const POSDashboard = () => {
                               {sale.upi_amount ? `₹${Math.round(sale.upi_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              ₹{Math.round(sale.paid_amount || 0).toLocaleString('en-IN')}
+                              ₹{Math.round(getEffectivePaidAmountForDashboard(sale)).toLocaleString('en-IN')}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
@@ -2296,12 +2368,13 @@ const POSDashboard = () => {
                                   srAdjust > 0 && Number(sale.net_amount || 0) === 0
                                     ? (baseBillBeforeSR - srAdjust)
                                     : Number(sale.net_amount || 0);
+                                const ep = getEffectivePaidAmountForDashboard(sale);
                                 const esb = isHoldLikeSale(sale) ? 'hold'
-                                  : (sale.paid_amount || 0) >= effectiveNetAmount ? 'completed'
-                                  : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
+                                  : ep >= effectiveNetAmount - SETTLEMENT_EPS ? 'completed'
+                                  : ep > 0 ? 'partial' : 'pending';
                                 return esb !== 'completed' ? (
                                   <span className="font-semibold text-orange-600">
-                                    ₹{Math.round(effectiveNetAmount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
+                                    ₹{Math.round(effectiveNetAmount - ep).toLocaleString('en-IN')}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
@@ -2389,9 +2462,13 @@ const POSDashboard = () => {
                             {columnSettings.status && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {(() => {
-                                  const es = isHoldLikeSale(sale) ? 'hold'
-                                    : (sale.paid_amount || 0) >= sale.net_amount ? 'completed'
-                                    : (sale.paid_amount || 0) > 0 ? 'partial' : 'pending';
+                                  const es = isHoldLikeSale(sale)
+                                    ? "hold"
+                                    : isPaidCompletedForDashboard(sale)
+                                      ? "completed"
+                                      : getEffectivePaidAmountForDashboard(sale) > 0
+                                        ? "partial"
+                                        : "pending";
                                   return (
                                     <Badge 
                                       className={`min-w-[60px] justify-center whitespace-nowrap text-xs px-1.5 py-0 ${
@@ -2430,7 +2507,7 @@ const POSDashboard = () => {
                             )}
                             <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-0.5">
-                                {((sale.paid_amount || 0) < sale.net_amount && sale.payment_status !== 'hold') && (
+                                {(!isPaidCompletedForDashboard(sale) && sale.payment_status !== 'hold') && (
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
@@ -2872,7 +2949,7 @@ const POSDashboard = () => {
               cardAmount={previewSale.card_amount}
               upiAmount={previewSale.upi_amount}
               creditAmount={previewSale.credit_amount}
-              paidAmount={previewSale.paid_amount}
+              paidAmount={getEffectivePaidAmountForDashboard(previewSale)}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
               financerDetails={previewFinancerDetails}
@@ -3049,7 +3126,7 @@ const POSDashboard = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Already Paid:</span>
-                <span className="font-medium">₹{Math.round(selectedSaleForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
+                <span className="font-medium">₹{Math.round(selectedSaleForPayment ? getEffectivePaidAmountForDashboard(selectedSaleForPayment) : 0).toLocaleString('en-IN')}</span>
               </div>
               {(selectedSaleForPayment?.sale_return_adjust || 0) > 0 && (
                 <div className="flex justify-between">
@@ -3059,8 +3136,8 @@ const POSDashboard = () => {
               )}
               <div className="flex justify-between font-semibold border-t pt-1">
                 <span>Pending:</span>
-                <span className={((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0)) < 0 ? "text-emerald-600" : "text-destructive"}>
-                  ₹{Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0) - (selectedSaleForPayment?.sale_return_adjust || 0)).toLocaleString('en-IN')}
+                <span className={((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment ? getEffectivePaidAmountForDashboard(selectedSaleForPayment) : 0) - (selectedSaleForPayment?.sale_return_adjust || 0)) < 0 ? "text-emerald-600" : "text-destructive"}>
+                  ₹{Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment ? getEffectivePaidAmountForDashboard(selectedSaleForPayment) : 0) - (selectedSaleForPayment?.sale_return_adjust || 0)).toLocaleString('en-IN')}
                 </span>
               </div>
             </div>
