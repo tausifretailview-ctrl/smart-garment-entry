@@ -31,7 +31,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface CustomerOption {
   id: string;
@@ -182,6 +182,17 @@ export default function CustomerAccountStatementAuditPage() {
 
   const finalOutstanding =
     displayRows.length > 0 ? (rowBalances[rowBalances.length - 1] ?? openingCarried) : openingCarried;
+
+  const { totalDebit, totalCredit } = useMemo(() => {
+    let d = 0;
+    let c = 0;
+    for (const r of displayRows) {
+      if (r.internal) continue;
+      d += r.debit || 0;
+      c += r.credit || 0;
+    }
+    return { totalDebit: d, totalCredit: c };
+  }, [displayRows]);
 
   const customerQuery = customerId ? `?customer=${encodeURIComponent(customerId)}` : "";
 
@@ -444,13 +455,13 @@ export default function CustomerAccountStatementAuditPage() {
               <Table className="border-collapse text-[13px]">
                 <TableHeader>
                   <TableRow className="bg-slate-100 dark:bg-muted/40">
-                    <TableHead className="border px-3 py-2 text-xs">Date</TableHead>
-                    <TableHead className="border px-3 py-2 text-xs">Type</TableHead>
-                    <TableHead className="border px-3 py-2 text-xs">VCH/REF NO</TableHead>
-                    <TableHead className="border px-3 py-2 text-xs">Particulars</TableHead>
-                    <TableHead className="border px-3 py-2 text-xs text-right">Debit (₹)</TableHead>
-                    <TableHead className="border px-3 py-2 text-xs text-right">Credit (₹)</TableHead>
-                    <TableHead className="border px-3 py-2 text-xs text-right">Balance (₹)</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs !text-black dark:!text-white">Date</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs !text-black dark:!text-white">Type</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs !text-black dark:!text-white">VCH/REF NO</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs !text-black dark:!text-white">Particulars</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs text-right !text-black dark:!text-white">Debit (₹)</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs text-right !text-black dark:!text-white">Credit (₹)</TableHead>
+                    <TableHead className="border px-3 py-2 text-xs text-right !text-black dark:!text-white">Balance (₹)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -509,6 +520,24 @@ export default function CustomerAccountStatementAuditPage() {
                     })
                   )}
                 </TableBody>
+                {selectedCustomer && !isFetching && displayRows.length > 0 && (
+                  <TableFooter>
+                    <TableRow className="bg-slate-100 dark:bg-muted/40 font-bold">
+                      <TableCell colSpan={4} className="border px-3 py-2 text-right uppercase text-xs tracking-wide">
+                        Grand Total
+                      </TableCell>
+                      <TableCell className="border px-3 py-2 text-right font-mono tabular-nums">
+                        {fmt(totalDebit)}
+                      </TableCell>
+                      <TableCell className="border px-3 py-2 text-right font-mono tabular-nums">
+                        {fmt(totalCredit)}
+                      </TableCell>
+                      <TableCell className="border px-3 py-2 text-right font-mono tabular-nums">
+                        {fmt(Math.abs(finalOutstanding))} {finalOutstanding >= 0 ? "Dr" : "Cr"}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
             </div>
           </Card>
