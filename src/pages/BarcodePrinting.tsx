@@ -1659,8 +1659,12 @@ export default function BarcodePrinting() {
         // Load precision pro settings (use merge to avoid overwriting preset-loaded labelConfig)
         if (data?.bill_barcode_settings && typeof data.bill_barcode_settings === 'object') {
           const bbs = data.bill_barcode_settings as any;
-          const configuredDefaultTab: "standard" | "precision" =
-            bbs.barcode_default_print_tab === "precision" ? "precision" : "standard";
+          const configuredDefaultTab: "standard" | "precision" | "auto" =
+            bbs.barcode_default_print_tab === "precision"
+              ? "precision"
+              : bbs.barcode_default_print_tab === "standard"
+              ? "standard"
+              : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
           setPrecisionSettings(prev => ({
             ...prev,
