@@ -38,10 +38,13 @@ export const QuickServiceProductDialog = ({
 
   useEffect(() => {
     if (open) {
-      setQuantity(1);
       setMrp("");
       setDescription("");
-      setTimeout(() => quantityInputRef.current?.focus(), 100);
+      setQuantity(1);
+      setTimeout(() => {
+        quantityInputRef.current?.focus();
+        quantityInputRef.current?.select();
+      }, 100);
     }
   }, [open]);
 
