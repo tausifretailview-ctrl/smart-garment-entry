@@ -530,7 +530,7 @@ export default function SalesInvoiceDashboard() {
   }, [periodFilter, startDate, endDate]);
 
   // Server-side paginated query — NO sale_items, explicit columns
-  const { data: invoicesResult, isLoading, refetch, error: invoicesError } = useQuery({
+  const { data: invoicesResult, isLoading, refetch, error: invoicesError, dataUpdatedAt: invoicesUpdatedAt } = useQuery({
     queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, userFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
     queryFn: async () => {
       if (!currentOrganization?.id) return { data: [], count: 0 };
@@ -1048,7 +1048,7 @@ export default function SalesInvoiceDashboard() {
     } else {
       setBulkAdvanceBalance(0);
     }
-  }, [filteredCustomer?.id, currentOrganization?.id, invoicesResult?.dataUpdatedAt]);
+  }, [filteredCustomer?.id, currentOrganization?.id, invoicesUpdatedAt]);
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
