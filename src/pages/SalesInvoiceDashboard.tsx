@@ -2072,6 +2072,29 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
+    // Hard guard: re-verify available advance balance from customer_advances at write time.
+    if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
+      try {
+        const liveAdvanceBalance = await getAvailableAdvanceBalance(selectedInvoiceForPayment.customer_id);
+        if (amount > liveAdvanceBalance + 0.01) {
+          toast({
+            title: "Insufficient Advance Balance",
+            description: `Customer has only ₹${liveAdvanceBalance.toFixed(2)} unused advance. Cannot adjust ₹${amount.toFixed(2)}.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (advErr) {
+        console.error("Advance balance check failed:", advErr);
+        toast({
+          title: "Error",
+          description: "Could not verify advance balance. Please retry.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsRecordingPayment(true);
     try {
       const saleSnapshot = {
