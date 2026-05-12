@@ -490,7 +490,11 @@ export default function POSSales() {
       setCustomerPhone(sale.customer_phone || "");
       const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
       const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
-      if (savedFlatPercent > 0) {
+      // If percent has long decimals (e.g. 10.2564), it was derived from amount mode.
+      const percentLooksClean =
+        savedFlatPercent > 0 &&
+        Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
+      if (percentLooksClean) {
         handleFlatDiscountValueChange(savedFlatPercent);
         setFlatDiscountMode('percent');
       } else if (savedFlatAmount > 0) {
