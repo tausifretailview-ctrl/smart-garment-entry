@@ -1248,6 +1248,10 @@ export default function BarcodePrinting() {
     } catch {}
   };
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tracks whether we've resolved the initial default tab for the current org.
+  // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
+  // otherwise prefer Precision Pro (thermal/barcode printer workflow).
+  const hasResolvedDefaultTabRef = useRef(false);
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
     return (dbDefaultFormat as any)?.defaultTemplate || null;
