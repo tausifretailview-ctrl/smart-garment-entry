@@ -5337,6 +5337,22 @@ export default function POSSales() {
                     placeholder="0"
                     onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
                     step="0.01"
+                    onBlur={(e) => {
+                      const requested = parseFloat(e.target.value) || 0;
+                      if (!customerId || requested <= 0) return;
+                      const available = pendingSaleReturnCredits.reduce(
+                        (s, sr) => s + (Number(sr.net_amount) || 0),
+                        0
+                      );
+                      if (requested > available + 0.01) {
+                        toast.warning(
+                          available > 0
+                            ? `Maximum S/R credit available: ₹${available.toFixed(2)}`
+                            : "No pending Sale Return credit for this customer"
+                        );
+                        setSaleReturnAdjust(Math.max(0, Math.round(available * 100) / 100));
+                      }
+                    }}
                   />
                   {customerId && pendingSaleReturnCredits.length > 0 && (
                     <Popover open={showSRCreditDropdown} onOpenChange={setShowSRCreditDropdown}>
