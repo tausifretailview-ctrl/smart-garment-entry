@@ -1538,10 +1538,19 @@ export default function BarcodePrinting() {
     const hasA4Default = !!ddf && isA4SheetType(ddf.sheetType);
     const hasDefaultPreset = Array.isArray(dbPresets) && dbPresets.some((p: any) => p?.isDefault);
     const precisionEnabled = precisionSettings.enabled === true;
+    // Manual override saved in Settings → Barcode tab. "auto" / unset means use rules below.
+    const manualOverride: "standard" | "precision" | null =
+      settingsDefaultBarTab === "standard" || settingsDefaultBarTab === "precision"
+        ? settingsDefaultBarTab
+        : null;
 
     let resolved: "standard" | "precision";
     if (routeRequestedTab) {
       resolved = routeRequestedTab;
+    } else if (manualOverride === "precision" && (precisionEnabled || hasDefaultPreset)) {
+      resolved = "precision";
+    } else if (manualOverride === "standard") {
+      resolved = "standard";
     } else if (hasA4Default) {
       resolved = "standard";
     } else if (hasDefaultPreset || precisionEnabled) {
@@ -1560,6 +1569,7 @@ export default function BarcodePrinting() {
     dbDefaultFormat,
     dbPresets,
     precisionSettings.enabled,
+    settingsDefaultBarTab,
   ]);
 
   // Debounced auto-save for precision designer changes
