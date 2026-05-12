@@ -512,8 +512,90 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
 
               {isLastPage ? (
                 <div className="shrink-0 border-t border-slate-300 text-[9px]">
-                  <div className="flex border-b border-slate-300">
-                    <div className="min-h-0 flex-1 border-r border-slate-300 p-1">{"\u00a0"}</div>
+                  <div className="flex border-b border-slate-300 items-start">
+                    <div className="min-h-0 flex-1 border-r border-slate-300 p-0.5 align-top">
+                      {showGSTBreakdown && hasGSTData ? (
+                        <div>
+                          <div className="mb-0.5 text-[8px] font-bold uppercase leading-tight text-slate-950">
+                            GST summary (slab)
+                          </div>
+                          <table className="w-full table-fixed border-collapse text-[8px] leading-tight">
+                            <colgroup>
+                              <col className="w-[12%]" />
+                              <col className="w-[26%]" />
+                              {isInterState ? (
+                                <>
+                                  <col className="w-[31%]" />
+                                  <col className="w-[31%]" />
+                                </>
+                              ) : (
+                                <>
+                                  <col className="w-[20%]" />
+                                  <col className="w-[20%]" />
+                                  <col className="w-[22%]" />
+                                </>
+                              )}
+                            </colgroup>
+                            <thead>
+                              <tr className="bg-slate-100">
+                                <th className="border border-slate-300 px-0.5 py-0.5 text-center">%</th>
+                                <th className="border border-slate-300 px-0.5 py-0.5 text-center">Taxable</th>
+                                {isInterState ? (
+                                  <>
+                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">IGST</th>
+                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">Tax</th>
+                                  </>
+                                ) : (
+                                  <>
+                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">CGST</th>
+                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">SGST</th>
+                                    <th className="border border-slate-300 px-0.5 py-0.5 text-center">Tax</th>
+                                  </>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {gstRates.map((rate) => {
+                                const row = gstBreakup[rate];
+                                const slabTotal = isInterState ? row.igst : row.cgst + row.sgst;
+                                return (
+                                  <tr key={rate}>
+                                    <td className="border border-slate-300 px-0.5 py-0.5 text-center">{rate}%</td>
+                                    <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                      {fmt(row.taxableValue)}
+                                    </td>
+                                    {isInterState ? (
+                                      <>
+                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                          {fmt(row.igst)}
+                                        </td>
+                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right font-semibold tabular-nums">
+                                          {fmt(slabTotal)}
+                                        </td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                          {fmt(row.cgst)}
+                                        </td>
+                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right tabular-nums">
+                                          {fmt(row.sgst)}
+                                        </td>
+                                        <td className="border border-slate-300 px-0.5 py-0.5 text-right font-semibold tabular-nums">
+                                          {fmt(slabTotal)}
+                                        </td>
+                                      </>
+                                    )}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        "\u00a0"
+                      )}
+                    </div>
                     <div className="w-[42%] shrink-0 border-slate-300">
                       <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                         <span className="leading-tight">
@@ -560,60 +642,6 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                       </div>
                     </div>
                   </div>
-
-                  {showGSTBreakdown && hasGSTData ? (
-                    <div className="border-b border-slate-300 p-1">
-                      <div className="mb-0.5 text-[10px] font-bold uppercase text-slate-950">GST summary (slab)</div>
-                      <table className="w-full border-collapse text-[10px]">
-                        <thead>
-                          <tr className="bg-slate-100">
-                            <th className="border border-slate-300 px-1 py-0.5">Tax Slab (%)</th>
-                            <th className="border border-slate-300 px-1 py-0.5">Taxable Value</th>
-                            {isInterState ? (
-                              <>
-                                <th className="border border-slate-300 px-1 py-0.5">IGST</th>
-                                <th className="border border-slate-300 px-1 py-0.5">Total Tax</th>
-                              </>
-                            ) : (
-                              <>
-                                <th className="border border-slate-300 px-1 py-0.5">CGST</th>
-                                <th className="border border-slate-300 px-1 py-0.5">SGST</th>
-                                <th className="border border-slate-300 px-1 py-0.5">Total Tax</th>
-                              </>
-                            )}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {gstRates.map((rate) => {
-                            const row = gstBreakup[rate];
-                            const slabTotal = isInterState ? row.igst : row.cgst + row.sgst;
-                            return (
-                              <tr key={rate}>
-                                <td className="border border-slate-300 px-1 py-0.5 text-center">{rate}%</td>
-                                <td className="border border-slate-300 px-1 py-0.5 text-right">{fmt(row.taxableValue)}</td>
-                                {isInterState ? (
-                                  <>
-                                    <td className="border border-slate-300 px-1 py-0.5 text-right">{fmt(row.igst)}</td>
-                                    <td className="border border-slate-300 px-1 py-0.5 text-right font-semibold">
-                                      {fmt(slabTotal)}
-                                    </td>
-                                  </>
-                                ) : (
-                                  <>
-                                    <td className="border border-slate-300 px-1 py-0.5 text-right">{fmt(row.cgst)}</td>
-                                    <td className="border border-slate-300 px-1 py-0.5 text-right">{fmt(row.sgst)}</td>
-                                    <td className="border border-slate-300 px-1 py-0.5 text-right font-semibold">
-                                      {fmt(slabTotal)}
-                                    </td>
-                                  </>
-                                )}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
 
                   <div className="border-b border-slate-300 px-1 py-0.5 text-[8px] font-semibold leading-tight">
                     <span className="font-bold">Amount in words:</span> {numberToWords(grandTotal)}
