@@ -429,7 +429,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       storeOrgSlug(orgSlug); // persist to all layers including cookie
     }
     
-    await supabase.auth.signOut();
+    // Use local scope so signing out in one Chrome tab/device does NOT
+    // revoke refresh tokens for other open tabs/devices (which would
+    // cause them to auto-logout while the user is still working).
+    await supabase.auth.signOut({ scope: 'local' });
     setUser(null);
     setSession(null);
   };
