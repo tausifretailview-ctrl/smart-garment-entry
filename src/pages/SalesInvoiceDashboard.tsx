@@ -2215,7 +2215,7 @@ export default function SalesInvoiceDashboard() {
 
         // If payment mode is advance, apply advance deduction using FIFO (only for booking-based advances)
         if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
-          const bookingDeduction = Math.min(amount, advanceFromBookings);
+          const bookingDeduction = amount;
           if (bookingDeduction > 0) {
             await applyAdvance.mutateAsync({
               customerId: selectedInvoiceForPayment.customer_id,
