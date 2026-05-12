@@ -1595,7 +1595,6 @@ export default function BarcodePrinting() {
           const configuredDefaultTab: "standard" | "precision" =
             bbs.barcode_default_print_tab === "precision" ? "precision" : "standard";
           setSettingsDefaultBarTab(configuredDefaultTab);
-          const preferredTab: "standard" | "precision" = routeRequestedTab || configuredDefaultTab;
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
@@ -1611,11 +1610,6 @@ export default function BarcodePrinting() {
             // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
             labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
           }));
-          if (preferredTab === "precision" && bbs.precision_pro_enabled === true) {
-            setActiveBarTab("precision");
-          } else {
-            setActiveBarTab("standard");
-          }
         }
       } catch (error) {
         console.error("Failed to fetch business name:", error);
