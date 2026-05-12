@@ -255,6 +255,30 @@ export default function POSSales() {
   const [showPrintConfirmDialog, setShowPrintConfirmDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
+  const mixPaymentInitialBreakdown = useMemo(() => {
+    if (
+      !currentSaleId ||
+      !savedInvoiceData?.saleId ||
+      String(savedInvoiceData.saleId) !== String(currentSaleId)
+    ) {
+      return null;
+    }
+    return {
+      cashAmount: Number(savedInvoiceData.cashAmount) || 0,
+      cardAmount: Number(savedInvoiceData.cardAmount) || 0,
+      upiAmount: Number(savedInvoiceData.upiAmount) || 0,
+      bankAmount: Number(savedInvoiceData.bankAmount) || 0,
+      financeAmount: Number(savedInvoiceData.financeAmount) || 0,
+    };
+  }, [
+    currentSaleId,
+    savedInvoiceData?.saleId,
+    savedInvoiceData?.cashAmount,
+    savedInvoiceData?.cardAmount,
+    savedInvoiceData?.upiAmount,
+    savedInvoiceData?.bankAmount,
+    savedInvoiceData?.financeAmount,
+  ]);
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -3930,6 +3954,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={finalAmount}
           creditApplied={creditApplied}
+          initialBreakdown={mixPaymentInitialBreakdown}
           onSave={handleMixPaymentSave}
         />
         <FloatingSaleReturn
@@ -4057,6 +4082,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={finalAmount}
           creditApplied={creditApplied}
+          initialBreakdown={mixPaymentInitialBreakdown}
           onSave={handleMixPaymentSave}
         />
 
@@ -5903,6 +5929,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={finalAmount}
           creditApplied={creditApplied}
+          initialBreakdown={mixPaymentInitialBreakdown}
           onSave={handleMixPaymentSave}
         />
 

@@ -12,11 +12,21 @@ import { Label } from "@/components/ui/label";
 import { Banknote, CreditCard, Smartphone, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export type MixPaymentInitialBreakdown = {
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  bankAmount?: number;
+  financeAmount?: number;
+};
+
 interface MixPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   billAmount: number;
   creditApplied?: number;
+  /** When re-opening Mix Pay on an edited POS invoice, prefill tender rows from DB / saved snapshot. */
+  initialBreakdown?: MixPaymentInitialBreakdown | null;
   onSave: (paymentData: {
     cashAmount: number;
     cardAmount: number;
@@ -36,6 +46,7 @@ export function MixPaymentDialog({
   onOpenChange,
   billAmount,
   creditApplied = 0,
+  initialBreakdown = null,
   onSave,
 }: MixPaymentDialogProps) {
   const [cashAmount, setCashAmount] = useState(0);
@@ -52,7 +63,7 @@ export function MixPaymentDialog({
   const creditBalance = isRefundMode ? 0 : Math.max(0, billAmount - totalPaid);
   const balanceAmount = isRefundMode ? 0 : billAmount - totalPaid;
 
-  // Reset amounts when dialog closes or opens in refund mode
+  // On close: clear. On open (normal mode): restore saved mix tender from initialBreakdown (edit POS / revisit).
   useEffect(() => {
     if (!open) {
       setCashAmount(0);
@@ -61,12 +72,20 @@ export function MixPaymentDialog({
       setBankAmount(0);
       setFinanceAmount(0);
       setRefundAmount(0);
-      setRefundMode('cash');
-    } else if (isRefundMode) {
-      // Pre-fill refund amount in refund mode
-      setRefundAmount(refundRequired);
+      setRefundMode("cash");
+      return;
     }
-  }, [open, isRefundMode, refundRequired]);
+    if (isRefundMode) {
+      setRefundAmount(refundRequired);
+      return;
+    }
+    const init = initialBreakdown;
+    setCashAmount(Number(init?.cashAmount) || 0);
+    setCardAmount(Number(init?.cardAmount) || 0);
+    setUpiAmount(Number(init?.upiAmount) || 0);
+    setBankAmount(Number(init?.bankAmount) || 0);
+    setFinanceAmount(Number(init?.financeAmount) || 0);
+  }, [open, isRefundMode, refundRequired, initialBreakdown]);
 
   const handleSave = (issueCreditNote: boolean = false) => {
     if (isRefundMode) {
