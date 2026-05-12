@@ -302,6 +302,14 @@ const POSDashboard = () => {
         setStartDate('');
         setEndDate('');
         break;
+      case 'custom':
+        // Keep current range; ensure end is not before start
+        if (startDate && endDate && startDate > endDate) {
+          setEndDate(startDate);
+        }
+        if (!startDate) setStartDate(todayStr);
+        if (!endDate) setEndDate(startDate || todayStr);
+        break;
     }
   };
   
@@ -1969,29 +1977,47 @@ const POSDashboard = () => {
                   <SelectItem value="daily">Daily</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPeriodFilter('custom');
-                }}
-                className="w-40"
-                placeholder="Start Date"
-              />
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPeriodFilter('custom');
-                }}
-                className="w-40"
-                placeholder="End Date"
-              />
+              {periodFilter !== 'all' &&
+                (periodFilter === 'daily' ? (
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setStartDate(v);
+                      setEndDate(v);
+                    }}
+                    className="w-40"
+                    aria-label="Sale date"
+                  />
+                ) : (
+                  <>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        setPeriodFilter('custom');
+                      }}
+                      className="w-40"
+                      aria-label="Start date"
+                    />
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => {
+                        setEndDate(e.target.value);
+                        setPeriodFilter('custom');
+                      }}
+                      className="w-40"
+                      aria-label="End date"
+                    />
+                  </>
+                ))}
               <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Payment Method" />
