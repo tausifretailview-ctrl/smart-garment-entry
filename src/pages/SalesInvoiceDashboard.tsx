@@ -1048,7 +1048,7 @@ export default function SalesInvoiceDashboard() {
     } else {
       setBulkAdvanceBalance(0);
     }
-  }, [filteredCustomer?.id, currentOrganization?.id]);
+  }, [filteredCustomer?.id, currentOrganization?.id, invoicesResult?.dataUpdatedAt]);
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
