@@ -76,7 +76,6 @@ import { cn } from "@/lib/utils";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
-  computeCustomerOutstanding,
   fetchCustomerBalanceSnapshot,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
