@@ -1500,10 +1500,67 @@ export default function BarcodePrinting() {
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
     hasLoadedPrecisionConfigRef.current = false;
+    hasResolvedDefaultTabRef.current = false;
     setPrecisionConfigReady(false);
     settingsFullyLoadedRef.current = false;
     setSettingsLoading(true);
   }, [currentOrganization?.id]);
+
+  // Resolve the initial barcode-printing tab once per organization.
+  // Rule:
+  //   1. If a route caller (e.g. Purchase Dashboard) explicitly requested a
+  //      tab, honour that.
+  //   2. Else if the user has a saved A4 sheet design as the standard default
+  //      → open Standard Printing (Laser printer A4 workflow).
+  //   3. Else if Precision Pro is enabled or any printer preset is the default
+  //      → open Precision Pro (thermal/barcode printer workflow).
+  //   4. Else fall back to Standard.
+  useEffect(() => {
+    if (hasResolvedDefaultTabRef.current) return;
+    if (settingsLoading || isLoadingSettings) return;
+    if (!precisionConfigReady) return;
+
+    const isA4SheetType = (st: unknown): boolean => {
+      if (typeof st !== "string") return false;
+      if (st.startsWith("a4_")) return true;
+      if (st === "custom") {
+        const dim: any = (dbDefaultFormat as any)?.customDimensions;
+        // Treat custom dimensions whose page width is roughly A4 (210mm) as A4.
+        if (dim && Number(dim.width) > 0 && Number(dim.cols) > 0) {
+          const totalWidth = Number(dim.width) * Number(dim.cols) + Number(dim.gap || 0) * (Number(dim.cols) - 1);
+          if (totalWidth >= 180 && totalWidth <= 230) return true;
+        }
+      }
+      return false;
+    };
+
+    const ddf = dbDefaultFormat as any;
+    const hasA4Default = !!ddf && isA4SheetType(ddf.sheetType);
+    const hasDefaultPreset = Array.isArray(dbPresets) && dbPresets.some((p: any) => p?.isDefault);
+    const precisionEnabled = precisionSettings.enabled === true;
+
+    let resolved: "standard" | "precision";
+    if (routeRequestedTab) {
+      resolved = routeRequestedTab;
+    } else if (hasA4Default) {
+      resolved = "standard";
+    } else if (hasDefaultPreset || precisionEnabled) {
+      resolved = "precision";
+    } else {
+      resolved = "standard";
+    }
+
+    hasResolvedDefaultTabRef.current = true;
+    setActiveBarTab(resolved);
+  }, [
+    settingsLoading,
+    isLoadingSettings,
+    precisionConfigReady,
+    routeRequestedTab,
+    dbDefaultFormat,
+    dbPresets,
+    precisionSettings.enabled,
+  ]);
 
   // Debounced auto-save for precision designer changes
   useEffect(() => {
