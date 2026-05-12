@@ -137,6 +137,13 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
     return value;
   };
 
+  /** POS often sends placeholder "Standard" when no size was entered — show "None" for clarity. */
+  const formatSizeDisplay = (raw: string | undefined) => {
+    const s = (raw ?? "").trim();
+    if (!s || s.toLowerCase() === "standard") return "None";
+    return s;
+  };
+
   const moneyEpsilon = 0.005;
   const showDiscountRow = discount > moneyEpsilon;
   const showSrRow = Math.abs(saleReturnAdjust) > moneyEpsilon;
@@ -286,7 +293,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
       case "hsn":
         return item.hsn || "—";
       case "size":
-        return item.size || "—";
+        return formatSizeDisplay(item.size);
       case "qty":
         return item.qty;
       case "rate":
@@ -395,14 +402,12 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     Date: {invoiceDate.toLocaleDateString("en-IN")}
                     {invoiceTime ? ` ${invoiceTime}` : ""}
                   </div>
+                  <div className="border-b border-slate-300 p-1.5 font-semibold">
+                    <span className="font-semibold">Salesperson:</span> {salesman?.trim() || "—"}
+                  </div>
                   {gstNumber ? (
                     <div className="border-b border-slate-300 p-1.5">
                       <span className="font-semibold">State Code:</span> {gstNumber.substring(0, 2)}
-                    </div>
-                  ) : null}
-                  {salesman ? (
-                    <div className="p-1.5">
-                      <span className="font-semibold">Salesman:</span> {salesman}
                     </div>
                   ) : null}
                 </div>
@@ -553,8 +558,8 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
 
                   {showGSTBreakdown && hasGSTData ? (
                     <div className="border-b border-slate-300 p-1">
-                      <div className="mb-0.5 text-[8px] font-bold uppercase text-slate-950">GST summary (slab)</div>
-                      <table className="w-full border-collapse text-[8px]">
+                      <div className="mb-0.5 text-[10px] font-bold uppercase text-slate-950">GST summary (slab)</div>
+                      <table className="w-full border-collapse text-[10px]">
                         <thead>
                           <tr className="bg-slate-100">
                             <th className="border border-slate-300 px-1 py-0.5">Tax Slab (%)</th>
