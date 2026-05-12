@@ -534,9 +534,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
 
                   {/* Simplified Totals — No GST Breakup */}
-                  <div style={{ display: "flex", borderBottom: B }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "60% 40%", borderBottom: B }}>
                     {/* Left — Notes / empty */}
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px" }}>
+                    <div style={{ borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px" }}>
                       {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
                         <div style={{ fontSize: isA4 ? "10px" : "8px" }}>
                           <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
@@ -544,7 +544,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       )}
                     </div>
                     {/* Right — Totals */}
-                    <div style={{ width: "40%", fontSize: fsTotals, color: "#111" }}>
+                    <div style={{ fontSize: fsTotals, color: "#111" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                         <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
                       </div>
