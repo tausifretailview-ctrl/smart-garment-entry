@@ -1236,7 +1236,7 @@ export default function BarcodePrinting() {
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
-  const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision">("standard");
+  const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
   const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
     try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
   });
