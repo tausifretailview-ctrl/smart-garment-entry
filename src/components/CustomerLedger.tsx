@@ -3356,7 +3356,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-0">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border-l-4 border-l-orange-400 overflow-hidden">
@@ -3400,6 +3400,15 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="text-lg font-bold text-purple-600 dark:text-purple-300 tabular-nums">
                     ₹{(selectedCustomer.totalAdvanceApplied ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-indigo-400 overflow-hidden">
+                <CardContent className="p-3">
+                  <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Received</div>
+                  <div className="text-lg font-bold text-indigo-600 dark:text-indigo-300 tabular-nums">
+                    ₹{((selectedCustomer.totalAdvanceApplied ?? 0) + (selectedCustomer.unusedAdvanceTotal ?? 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Applied + Unused</div>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-teal-400 overflow-hidden">
