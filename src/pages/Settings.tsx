@@ -4386,8 +4386,8 @@ export default function Settings() {
                 <div className="space-y-2">
                   <Label htmlFor="barcode_default_print_tab">Default Barcode Printing Tab</Label>
                   <Select
-                    value={settings.bill_barcode_settings?.barcode_default_print_tab || "standard"}
-                    onValueChange={(value: 'standard' | 'precision') =>
+                    value={settings.bill_barcode_settings?.barcode_default_print_tab || "auto"}
+                    onValueChange={(value: 'standard' | 'precision' | 'auto') =>
                       setSettings({
                         ...settings,
                         bill_barcode_settings: {
@@ -4401,12 +4401,13 @@ export default function Settings() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="auto">Auto (recommended)</SelectItem>
                       <SelectItem value="standard">Standard Printing</SelectItem>
                       <SelectItem value="precision">Precision Pro</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Purchase barcode print actions can still force Standard Printing when needed.
+                    Auto opens <b>Standard Printing</b> when an A4 sheet label design is saved as default (Laser printer), otherwise opens <b>Precision Pro</b> (thermal/barcode printer). Purchase barcode print actions can still force a specific tab.
                   </p>
                 </div>
                  <div className="space-y-2">
