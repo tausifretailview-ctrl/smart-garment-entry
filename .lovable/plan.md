@@ -1,66 +1,70 @@
-## Problem
+## Goal
 
-In the **KS Footwear** organisation, invoices show **"Invoice - pending"** in the Customer Ledger and on the Sales Dashboard even though receipts (RCP vouchers) have been recorded against them. The same data shows the invoice payment as a separate credit row, so the customer balance is correct, only the **status label** is wrong.
+Make the **Barcode Printing** page open the right tab automatically based on what the user has saved as their default:
 
-### Root cause (verified in DB)
+- If the user has saved a default **A4 Sheet** label design (Laser printer) in the Standard tab → open **Standard Printing** tab.
+- Otherwise → open **Precision Pro** tab (used for thermal / barcode printers).
 
-Investigation of `voucher_entries` ↔ `sales` for KS Footwear shows:
-
-- **686 invoices** are flagged `payment_status = 'pending'` and `paid_amount = 0`, but they have one or more receipt vouchers (`voucher_type = 'receipt'`, `reference_type = 'sale'`) pointing at them.
-- **610 of those 686** have receipts ≥ invoice amount (should be `completed`).
-- **76 of 686** have partial receipts (should be `partial`).
-
-The current code in `CustomerPaymentTab.tsx` *does* update `sales.paid_amount` / `payment_status` after inserting the receipt voucher, but a large historical batch never got that follow-up update — most likely created before the update logic existed, via a bulk allocation, an import, or a partially-failed transaction. The ledger renders status straight from `sales.payment_status`, so it shows "pending".
-
-This is a **data + safety-net fix** only. No UI logic changes.
+This replaces the static `barcode_default_print_tab` setting that currently always wins. Direct navigations from other pages (e.g. Purchase Dashboard's "Print Labels" button) that explicitly request a tab continue to override.
 
 ---
 
-## Fix Plan
+## Current behaviour (for reference)
 
-### 1. One-time backfill migration (KS Footwear scope)
+In `src/pages/BarcodePrinting.tsx`:
 
-Create a SQL migration that, for the KS Footwear organization only, recomputes `paid_amount` and `payment_status` on every non-deleted, non-cancelled, non-hold sale based on the sum of its receipt vouchers + sale-return adjustments.
+- A setting `bill_barcode_settings.barcode_default_print_tab` (`"standard" | "precision"`) decides the tab.
+- Two effects compete to set `activeBarTab`:
+  1. After loading `bill_barcode_settings` (lines ~1591–1614).
+  2. After loading printer presets — if a default preset exists, it auto-loads it and forces `precision` (lines ~1668–1671).
+- Result: a user who has chosen an A4 sheet design as their standard default still lands on Precision Pro whenever any printer preset is marked default, or whenever `barcode_default_print_tab` was last set to `precision`.
 
-Logic per sale:
+---
+
+## Fix
+
+### 1. Derive the default tab from real defaults, not a separate flag
+
+After settings + presets finish loading, compute the effective default tab:
 
 ```text
-receipt_total  = SUM(ve.total_amount + COALESCE(ve.discount_amount,0))
-                 WHERE ve.reference_id = sale.id
-                   AND ve.voucher_type = 'receipt'
-payable_cap    = GREATEST(0, net_amount - sale_return_adjust)
-new_paid       = LEAST(payable_cap, receipt_total)
-new_status     = 'completed' if (new_paid + sale_return_adjust) >= net_amount - 1
-                 else 'partial' if new_paid > 0
-                 else 'pending'
+if routeRequestedTab → use it (unchanged)
+else if standard tab has a usable A4 default (see rule below) → "standard"
+else if any precision printer preset is marked default OR precision_pro_enabled → "precision"
+else → "standard"
 ```
 
-Only writes a row when the recomputed values differ from current (≥ ₹1 tolerance), and skips `cancelled` / `hold` / soft-deleted sales. Scoped strictly by `organization_id = <KS Footwear org id>` per the project's "Scoped Mutations" rule.
+"Standard A4 default exists" = `dbDefaultFormat` is loaded **and** its `sheetType` is one of the A4 sheet types (any value starting with `a4_`, plus `custom` when its dimensions describe an A4 layout). The standard tab already keys off `dbDefaultFormat`, so we just inspect the same object.
 
-### 2. Safety-net database trigger (all orgs)
+### 2. Apply it in one place
 
-Add an `AFTER INSERT / UPDATE / DELETE` trigger on `voucher_entries` for rows where `voucher_type = 'receipt'` AND `reference_type = 'sale'`. The trigger recomputes `sales.paid_amount` and `payment_status` for the affected `reference_id` using the same formula above.
+- Remove the early `setActiveBarTab(...)` inside the settings-load effect (lines ~1610–1614).
+- Remove the "force precision when a default preset auto-loads" branch (lines ~1668–1671).
+- Add a single new effect that runs once `settingsFullyLoadedRef.current` flips true and `dbDefaultFormat` / `dbPresets` are known, and sets `activeBarTab` per the rule above. This effect must respect `routeRequestedTab` and must not re-fire on every render (use a `hasResolvedDefaultTabRef` guard, mirrored on org change like the existing refs).
 
-This guarantees that any future flow (bulk allocation, import, manual SQL, future UI) keeps the sale's status in sync with its receipts — no more silent drift.
+### 3. Settings page wording
 
-### 3. Verification
+In `src/pages/Settings.tsx`, the existing dropdown that writes `barcode_default_print_tab` becomes a manual override. Either:
+- Keep the field but relabel it "Default tab override (Auto = use the saved A4 sheet design when present)" and add an "Auto" option that stores `null`. Auto is the new default.
 
-After the migration runs, re-query KS Footwear to confirm the count of `pending` sales with receipts drops to 0, and spot-check the Customer Ledger page to confirm the **"Invoice - completed / partial"** status now displays correctly.
+(No DB migration needed — the column already accepts the value.)
+
+### 4. Verification
+
+- A4 sheet default saved → opening Barcode Printing from the sidebar lands on **Standard Printing** with the A4 design ready.
+- No A4 default saved (or only thermal preset is default) → opening lands on **Precision Pro**.
+- Purchase Dashboard "Print Labels" still routes to whichever tab it explicitly passes via `location.state.openTab`.
+- Switching organisations resets the resolution refs so the new org's defaults are honoured.
 
 ---
 
-## Technical details
+## Technical notes
 
-**Files / artifacts**
-
-- New migration: `supabase/migrations/<ts>_ks_footwear_payment_status_backfill_and_trigger.sql`
-  - `UPDATE public.sales ... WHERE organization_id = '<KS Footwear id>' ...` (one statement, set-based, uses a CTE summing receipts).
-  - `CREATE OR REPLACE FUNCTION public.sync_sale_payment_status_from_receipts()` returning trigger.
-  - `CREATE TRIGGER trg_sync_sale_payment_status_from_receipts AFTER INSERT OR UPDATE OR DELETE ON public.voucher_entries`.
-
-**No frontend code changes.** The Customer Ledger and Sales Dashboard already render whatever `sales.payment_status` says — once the column is correct, the UI will show "completed" / "partial" automatically.
+**Files**
+- `src/pages/BarcodePrinting.tsx` — single tab-resolution effect, remove competing setters.
+- `src/pages/Settings.tsx` — add "Auto" option and update label/help text on the existing dropdown.
 
 **Out of scope**
-- No change to balance math (already correct).
-- No change to existing voucher rows.
-- No data changes for any other organisation.
+- No changes to label rendering, calibration, or printing logic.
+- No DB schema changes.
+- No changes to how Purchase Dashboard or other callers request a specific tab.
