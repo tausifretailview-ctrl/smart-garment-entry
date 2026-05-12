@@ -201,6 +201,17 @@ function localDayEndUtcIso(ymd: string): string | null {
   return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
 }
 
+/** Calendar yyyy-MM-dd for a sale row (handles date-only strings without UTC midnight shift). */
+function saleRowCalendarYmd(sale: { sale_date?: string | null; created_at?: string | null }): string {
+  const raw = sale.sale_date || sale.created_at;
+  if (!raw) return "";
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const dt = new Date(s);
+  if (Number.isNaN(dt.getTime())) return "";
+  return format(dt, "yyyy-MM-dd");
+}
+
 const POSDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -254,7 +265,7 @@ const POSDashboard = () => {
   // Default userFilter: admins see all users; non-admins default to themselves
   useEffect(() => {
     if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
-      if (orgUsers.length === 1 || organizationRole === "admin") {
+      if (orgUsers.length === 1 || organizationRole === "admin" || organizationRole === "manager") {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
@@ -1417,9 +1428,8 @@ const POSDashboard = () => {
       // When user is actively searching, bypass date range filter
       const hasSearchQuery = searchLower.length > 0;
       
-      // Convert sale_date to local date for comparison
-      const saleLocalDate = new Date(sale.sale_date);
-      const saleDateStr = format(saleLocalDate, 'yyyy-MM-dd');
+      // Compare using the same calendar-day rules as the server-side range (see localDayStartUtcIso).
+      const saleDateStr = saleRowCalendarYmd(sale);
       const startDateStr = startDate ? startDate : null;
       const endDateStr = endDate ? endDate : null;
 
@@ -1449,7 +1459,11 @@ const POSDashboard = () => {
         (creditNoteFilter === "with_credit_note" && (sale.credit_note_id || (sale.credit_amount || 0) > 0)) ||
         (creditNoteFilter === "without_credit_note" && !sale.credit_note_id && (sale.credit_amount || 0) <= 0);
 
-      const matchesUser = userFilter === "all" || userFilter === "__pending__" || sale.created_by === userFilter;
+      const matchesUser =
+        userFilter === "all" ||
+        userFilter === "__pending__" ||
+        !sale.created_by ||
+        sale.created_by === userFilter;
 
       const isCancelled = !!sale.is_cancelled;
       const matchesCancel =
