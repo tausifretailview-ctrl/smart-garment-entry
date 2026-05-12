@@ -479,12 +479,17 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                       {hasPaymentPrintBlock ? (
                         <div>
                           <div className="text-[9px] font-bold uppercase tracking-wide text-slate-800">Payment</div>
-                          <div className="mt-0.5 flex flex-col gap-0.5">
-                            {paymentLines.map((row) => (
-                              <div key={row.label} className="flex justify-between gap-2 font-semibold tabular-nums">
-                                <span>{row.label}</span>
+                          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 font-semibold tabular-nums leading-tight">
+                            {paymentLines.map((row, idx) => (
+                              <span key={row.label} className="inline-flex items-baseline gap-1 whitespace-nowrap">
+                                {idx > 0 ? (
+                                  <span className="font-normal text-slate-400" aria-hidden>
+                                    ·
+                                  </span>
+                                ) : null}
+                                <span className="text-slate-800">{row.label}</span>
                                 <span>₹{fmt(row.amount)}</span>
-                              </div>
+                              </span>
                             ))}
                           </div>
                         </div>
