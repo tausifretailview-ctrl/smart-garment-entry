@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Plus, ChevronUp, ChevronDown, Home, Grid3X3 } from "lucide-react";
+import { X, Plus, ChevronUp, ChevronDown, Home, Grid3X3, FileText } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,9 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
+import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 const QUICK_OPEN_PAGES = [
   { path: "", label: "Dashboard", icon: "Home", category: "Main" },
@@ -53,7 +56,16 @@ export function WindowTabsBar() {
     toggleTabsBarVisibility 
   } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
+  const { isSchool } = useSchoolFeatures();
+  const { hasMenuAccess, permissions } = useUserPermissions();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
+  const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
+
+  const canQuickCustomerStatement =
+    !isSchool &&
+    (permissions === null ||
+      hasMenuAccess("customer_account_statement") ||
+      hasMenuAccess("customer_ledger"));
 
   if (openWindows.length === 0) return null;
 
@@ -132,6 +144,25 @@ export function WindowTabsBar() {
             <p>Quick Size Stock Check (Ctrl+G)</p>
           </TooltipContent>
         </Tooltip>
+
+        {canQuickCustomerStatement && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-6 gap-1 px-1.5 shrink-0"
+                onClick={() => setCustomerStatementOpen(true)}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline text-[11px]">Customer Statement</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Search customers, balances, open audit statement</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         <div className="w-px h-5 bg-border mx-1" />
 
@@ -233,6 +264,10 @@ export function WindowTabsBar() {
 
       {/* Size Stock Dialog */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
+      <CustomerStatementFloatingDialog
+        open={customerStatementOpen}
+        onOpenChange={setCustomerStatementOpen}
+      />
     </div>
   );
 }
