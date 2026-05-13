@@ -109,6 +109,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
   const selected = useMemo(() => customers.find((c) => c.id === selectedId) ?? null, [customers, selectedId]);
 
   const snapshot = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
+  const orgId = currentOrganization?.id ?? "";
 
   // Use the SAME receivable basis as the left list / audit register so the
   // headline doesn't drift from the customer ledger figure.
@@ -124,8 +125,6 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
     onOpenChange(false);
     orgNavigate(`/customer-account-statement-audit?customer=${encodeURIComponent(selectedId)}`);
   };
-
-  const orgId = currentOrganization?.id ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
