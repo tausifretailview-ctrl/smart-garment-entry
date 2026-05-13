@@ -50,10 +50,11 @@ export function buildAuditRows(
     const net = Number(s.net_amount || 0);
     const sn = String(s.sale_number || "").trim() || "—";
     const sra = Number(s.sale_return_adjust || 0);
-    // sales.net_amount is stored POST-adjust. To keep the running balance correct
-    // when we also push a separate "Sale return adjust" credit row below, the
-    // Sale debit must be GROSS (net + sra). Net effect on balance = net Dr.
-    const debitForDisplay = sra > 0.005 ? net + sra : net;
+    // sales.net_amount is already POST-adjust (actual invoice value owed by
+    // customer). Show that net figure as the Sale debit and DO NOT emit a
+    // separate "Sale return adjust" credit row — the return is already netted
+    // into the invoice. The SR line itself (below) accounts for any surplus.
+    const debitForDisplay = net;
     rows.push({
       id: `sale-${s.id}`,
       at: d,
@@ -64,18 +65,6 @@ export function buildAuditRows(
       credit: 0,
       internal: false,
     });
-    if (sra > 0.005) {
-      rows.push({
-        id: `sra-${s.id}`,
-        at: d,
-        type: "Sale return adjust",
-        ref: sn,
-        particulars: `Sale return / credit adjusted to ${sn}`,
-        debit: 0,
-        credit: sra,
-        internal: false,
-      });
-    }
   }
 
   for (const sr of params.saleReturns) {
