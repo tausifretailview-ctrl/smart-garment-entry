@@ -80,15 +80,22 @@ export function buildAuditRows(
 
   for (const sr of params.saleReturns) {
     const cs = String(sr.credit_status || "").toLowerCase();
-    if (cs === "adjusted") continue;
+    const linked = String((sr as { linked_sale_id?: string | null }).linked_sale_id || "").trim();
+    // Absorbed into an invoice via `sales.sale_return_adjust` / POS — omit duplicate SR credit.
+    // `adjusted` with no `linked_sale_id`: CN generated but not tied to a sale — must still show credit.
+    if (cs === "adjusted" && linked) continue;
     const d = String(sr.return_date || "").slice(0, 10);
     const rn = String(sr.return_number || "").trim() || "—";
+    const baseParticulars =
+      String((sr as { notes?: string | null }).notes || "").trim() || `Sale return / credit note ${rn}`;
+    const particulars =
+      cs === "adjusted" && !linked ? `${baseParticulars} — CN not linked to an invoice` : baseParticulars;
     rows.push({
-      id: `sr-${sr.id}`,
+      id: `sr-${(sr as { id: string }).id}`,
       at: d,
       type: "Sale Return",
       ref: rn,
-      particulars: String(sr.notes || "").trim() || `Sale return / credit note ${rn}`,
+      particulars,
       debit: 0,
       credit: Number(sr.net_amount || 0),
       internal: false,

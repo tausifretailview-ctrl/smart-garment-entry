@@ -16,78 +16,6 @@ export type ActivityCategory =
   | "adjustment"
   | "memo";
 
-/** Sale returns absorbed into an invoice (POS) — omit duplicate credit (matches buildAuditRows). */
-function skipSaleReturnInBaseAudit(sr: { credit_status?: string | null; linked_sale_id?: string | null }): boolean {
-  const cs = String(sr.credit_status || "").toLowerCase();
-  if (cs !== "adjusted") return false;
-  return Boolean(String(sr.linked_sale_id || "").trim());
-}
-
-/**
- * `credit_status = adjusted` with no `linked_sale_id`: CN exists but not tied to a sale — must still
- * credit AR (CustomerLedgerPage parity). `buildAuditRows` drops all `adjusted`; we append these.
- */
-function appendAdjustedUnlinkedSaleReturns(bundle: CustomerAuditBundle, rows: AuditRow[]): AuditRow[] {
-  const extra: AuditRow[] = [];
-  for (const sr of bundle.saleReturns || []) {
-    if (skipSaleReturnInBaseAudit(sr)) continue;
-    const cs = String(sr.credit_status || "").toLowerCase();
-    if (cs !== "adjusted") continue;
-    if (String(sr.linked_sale_id || "").trim()) continue;
-    const d = String(sr.return_date || "").slice(0, 10);
-    const rn = String(sr.return_number || "").trim() || "—";
-    const net = Number(sr.net_amount || 0);
-    if (net <= 0) continue;
-    extra.push({
-      id: `sr-adj-unlinked-${(sr as { id: string }).id}`,
-      at: d,
-      type: "Sale Return",
-      ref: rn,
-      particulars:
-        (String((sr as { notes?: string | null }).notes || "").trim() ||
-          `Sale return / credit note ${rn}`) + " — CN not linked to an invoice",
-      debit: 0,
-      credit: net,
-      internal: false,
-    });
-  }
-  if (extra.length === 0) return rows;
-  return [...rows, ...extra].sort((a, b) => {
-    if (a.at !== b.at) return a.at.localeCompare(b.at);
-    return a.id.localeCompare(b.id);
-  });
-}
-
-function buildMergedAuditRowsForActivity(bundle: CustomerAuditBundle): AuditRow[] {
-  const base = buildAuditRows(
-    {
-      sales: bundle.allSales,
-      saleReturns: (bundle.saleReturns || []).filter((sr) => !skipSaleReturnInBaseAudit(sr)),
-      vouchers: bundle.vouchersMerged,
-      advances: bundle.advances,
-      refunds: bundle.refunds,
-      balanceAdjustments: bundle.balanceAdjustments,
-    },
-    { ledgerAlignedApplicationReceipts: true },
-  );
-  return appendAdjustedUnlinkedSaleReturns(bundle, base);
-}
-
-function auditTypeToCategory(r: AuditRow): ActivityCategory {
-  const t = String(r.type || "").toLowerCase();
-  if (t === "sale") return "invoice";
-  if (t === "sale return adjust") return "invoice_return_credit";
-  if (t === "sale return") return "return";
-  if (t === "receipt") return "payment";
-  if (t === "credit note") return "credit_note";
-  if (t === "payment") return "refund_to_customer";
-  if (t === "advance booking") return "advance";
-  if (t === "advance refund") return "advance_refund";
-  if (t === "balance adjustment") return "adjustment";
-  if (t === "internal transfer") return "memo";
-  return "adjustment";
-}
-
 export function activityCategoryLabel(c: ActivityCategory): string {
   switch (c) {
     case "opening":
@@ -117,6 +45,21 @@ export function activityCategoryLabel(c: ActivityCategory): string {
   }
 }
 
+function auditTypeToCategory(r: AuditRow): ActivityCategory {
+  const t = String(r.type || "").toLowerCase();
+  if (t === "sale") return "invoice";
+  if (t === "sale return adjust") return "invoice_return_credit";
+  if (t === "sale return") return "return";
+  if (t === "receipt") return "payment";
+  if (t === "credit note") return "credit_note";
+  if (t === "payment") return "refund_to_customer";
+  if (t === "advance booking") return "advance";
+  if (t === "advance refund") return "advance_refund";
+  if (t === "balance adjustment") return "adjustment";
+  if (t === "internal transfer") return "memo";
+  return "adjustment";
+}
+
 export interface ActivityRow {
   id: string;
   at: string;
@@ -133,9 +76,19 @@ export interface ActivityRow {
   runningBalanceOwed: number;
 }
 
-/** Full lifetime activity rows (same ordering as audit), with running balance. */
+/** Full lifetime activity rows (same as `buildAuditRows`), with running balance. */
 export function buildCustomerActivityRows(bundle: CustomerAuditBundle): ActivityRow[] {
-  const merged = buildMergedAuditRowsForActivity(bundle);
+  const merged = buildAuditRows(
+    {
+      sales: bundle.allSales,
+      saleReturns: bundle.saleReturns,
+      vouchers: bundle.vouchersMerged,
+      advances: bundle.advances,
+      refunds: bundle.refunds,
+      balanceAdjustments: bundle.balanceAdjustments,
+    },
+    { ledgerAlignedApplicationReceipts: true },
+  );
   const ob = Number(bundle.customer.opening_balance || 0);
   let running = ob;
   const out: ActivityRow[] = [];
@@ -177,7 +130,9 @@ export function verifyActivityMatchesSnapshot(
   snapshotBalance: number,
 ): ActivitySnapshotCheck {
   const rows = buildCustomerActivityRows(bundle);
-  const closingFromActivity = rows.length ? rows[rows.length - 1]!.runningBalanceOwed : Number(bundle.customer.opening_balance || 0);
+  const closingFromActivity = rows.length
+    ? rows[rows.length - 1]!.runningBalanceOwed
+    : Number(bundle.customer.opening_balance || 0);
   const delta = Math.round((closingFromActivity - snapshotBalance) * 100) / 100;
   return {
     closingFromActivity,
