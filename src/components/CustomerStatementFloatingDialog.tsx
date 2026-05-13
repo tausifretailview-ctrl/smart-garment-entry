@@ -110,6 +110,15 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
 
   const snapshot = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
 
+  // Use the SAME receivable basis as the left list / audit register so the
+  // headline doesn't drift from the customer ledger figure.
+  const auditAlignedBalance = useMemo(() => {
+    if (!selected || !orgId) return 0;
+    return getCustomerBalance(toBalanceCustomer(selected, orgId));
+  }, [selected, orgId, getCustomerBalance]);
+  const auditAlignedAdv = selected ? getCustomerAdvance(selected.id) : 0;
+  const auditAlignedCn = selected ? getCustomerCreditNote(selected.id) : 0;
+
   const openAuditPage = () => {
     if (!selectedId) return;
     onOpenChange(false);
@@ -284,15 +293,15 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                         <span
                           className={cn(
                             "font-bold tabular-nums",
-                            snapshot.balance > 0.005
+                            auditAlignedBalance > 0.005
                               ? "text-red-600 dark:text-red-400"
-                              : snapshot.balance < -0.005
+                              : auditAlignedBalance < -0.005
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : "",
                           )}
                         >
-                          ₹{inr.format(Math.abs(snapshot.balance))}
-                          {snapshot.balance > 0.005 ? " Dr" : snapshot.balance < -0.005 ? " Cr" : ""}
+                          ₹{inr.format(Math.abs(auditAlignedBalance))}
+                          {auditAlignedBalance > 0.005 ? " Dr" : auditAlignedBalance < -0.005 ? " Cr" : ""}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground border-t pt-2">
@@ -302,10 +311,16 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                         <span className="text-right tabular-nums">₹{inr.format(snapshot.totalSales)}</span>
                         <span>Total paid</span>
                         <span className="text-right tabular-nums">₹{inr.format(snapshot.totalPaid)}</span>
-                        {snapshot.unusedAdvanceTotal > 0.005 && (
+                        {auditAlignedAdv > 0.005 && (
                           <>
                             <span>Unused advance</span>
-                            <span className="text-right tabular-nums">₹{inr.format(snapshot.unusedAdvanceTotal)}</span>
+                            <span className="text-right tabular-nums">₹{inr.format(auditAlignedAdv)}</span>
+                          </>
+                        )}
+                        {auditAlignedCn > 0.005 && (
+                          <>
+                            <span>Pending credit note</span>
+                            <span className="text-right tabular-nums">₹{inr.format(auditAlignedCn)}</span>
                           </>
                         )}
                       </div>
