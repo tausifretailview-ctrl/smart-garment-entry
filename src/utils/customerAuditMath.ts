@@ -83,6 +83,7 @@ export const computeCustomerOutstanding = (
   );
 
   const voucherCredit = (v: { total_amount?: number; discount_amount?: number | null }) =>
+    // Receipt: cash in total_amount + CD in discount_amount (Customer Payment RCP convention).
     Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0));
 
   const useLedgerAlignedApps = options?.ledgerAlignedApplicationReceipts === true;

@@ -16,6 +16,7 @@ export interface AuditRow {
   internal: boolean;
 }
 
+/** Receipt credit to customer / AR: cash (`total_amount`) + settlement discount (`discount_amount`). */
 export function voucherCreditAmount(v: { total_amount?: number | null; discount_amount?: number | null }) {
   return Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0));
 }

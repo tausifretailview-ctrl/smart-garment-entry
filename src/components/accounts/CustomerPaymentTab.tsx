@@ -208,7 +208,7 @@ export function CustomerPaymentTab({
 
       const { data: voucherRows, error: vouchersError } = await supabase
         .from("voucher_entries")
-        .select("reference_id, total_amount")
+        .select("reference_id, total_amount, discount_amount")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
         // Phase 1.2: include mis-tagged customer rows for this customer's sale ids.
@@ -220,7 +220,8 @@ export function CustomerPaymentTab({
       const voucherPaidBySale = new Map<string, number>();
       (voucherRows || []).forEach((v: any) => {
         if (!v.reference_id) return;
-        voucherPaidBySale.set(v.reference_id, (voucherPaidBySale.get(v.reference_id) || 0) + Number(v.total_amount || 0));
+        const credit = Number(v.total_amount || 0) + Number(v.discount_amount || 0);
+        voucherPaidBySale.set(v.reference_id, (voucherPaidBySale.get(v.reference_id) || 0) + credit);
       });
 
       // KS Footwear payment-status sync (Apr 2026):
@@ -288,7 +289,7 @@ export function CustomerPaymentTab({
       if (!organizationId || saleIds.length === 0) return new Map<string, number>();
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("reference_id, total_amount")
+        .select("reference_id, total_amount, discount_amount")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
         // Phase 1.2: include mis-tagged customer rows for this customer's sale ids.
@@ -299,7 +300,8 @@ export function CustomerPaymentTab({
       const map = new Map<string, number>();
       (data || []).forEach((v: any) => {
         if (!v.reference_id) return;
-        map.set(v.reference_id, (map.get(v.reference_id) || 0) + Number(v.total_amount || 0));
+        const credit = Number(v.total_amount || 0) + Number(v.discount_amount || 0);
+        map.set(v.reference_id, (map.get(v.reference_id) || 0) + credit);
       });
       return map;
     },
@@ -321,15 +323,15 @@ export function CustomerPaymentTab({
       if (ob <= 0) return 0;
       const { data: vouchersData } = await supabase
         .from("voucher_entries")
-        .select("total_amount")
+        .select("total_amount, discount_amount")
         .eq("organization_id", organizationId)
         .eq("voucher_type", "receipt")
         .eq("reference_type", "customer")
         .eq("reference_id", referenceId)
         .is("deleted_at", null);
       const paid = (vouchersData || []).reduce(
-        (s: number, v: any) => s + Number(v.total_amount || 0),
-        0
+        (s: number, v: any) => s + Number(v.total_amount || 0) + Number(v.discount_amount || 0),
+        0,
       );
       return Math.max(0, ob - paid);
     },
@@ -693,7 +695,7 @@ export function CustomerPaymentTab({
             reference_type: 'customer',
             reference_id: referenceId,
             description: `Opening Balance Payment${paymentDetails}${obDiscSuffix}`,
-            total_amount: openingBalanceApplied,
+            total_amount: openingBalanceCash,
             discount_amount: openingBalanceDiscount,
             discount_reason: openingBalanceDiscount > 0 ? discountReason || null : null,
             payment_method: paymentMethod,
@@ -709,7 +711,7 @@ export function CustomerPaymentTab({
               await recordCustomerReceiptJournalEntry(
                 obVoucher.id,
                 organizationId,
-                Number(obVoucher.total_amount || 0),
+                Number(obVoucher.total_amount || 0) + Number(obVoucher.discount_amount || 0),
                 Number(obVoucher.discount_amount || 0),
                 paymentMethod,
                 obVoucher.voucher_date as string,
@@ -762,7 +764,7 @@ export function CustomerPaymentTab({
             reference_type: 'sale',
             reference_id: processed.invoice.id,
             description: invoiceDescription + invoiceDiscountSuffix,
-            total_amount: processed.amountApplied,
+            total_amount: processed.cashApplied,
             discount_amount: processed.discountApplied,
             discount_reason: processed.discountApplied > 0 ? discountReason || null : null,
             payment_method: paymentMethod,
@@ -778,7 +780,7 @@ export function CustomerPaymentTab({
               await recordCustomerReceiptJournalEntry(
                 voucher.id,
                 organizationId,
-                Number(voucher.total_amount || 0),
+                Number(voucher.total_amount || 0) + Number(voucher.discount_amount || 0),
                 Number(voucher.discount_amount || 0),
                 paymentMethod,
                 voucher.voucher_date as string,
@@ -816,7 +818,7 @@ export function CustomerPaymentTab({
           }
         }
       } else {
-        const fullSettlement = paymentAmount + discountValue;
+        // total_amount = cash/collected only; discount_amount = CD/waiver. Settlement = sum (matches multi-invoice rows).
         const { data: voucher, error: voucherError } = await supabase.from("voucher_entries").insert({
           organization_id: organizationId,
           voucher_number: voucherNumber,
@@ -825,7 +827,7 @@ export function CustomerPaymentTab({
           reference_type: isOpeningBalancePayment ? 'customer' : 'sale',
           reference_id: isOpeningBalancePayment ? referenceId : processedInvoices[0]?.invoice.id || referenceId,
           description: finalDescription + discountSuffix,
-          total_amount: fullSettlement,
+          total_amount: paymentAmount,
           discount_amount: discountValue,
           discount_reason: discountReason || null,
           payment_method: paymentMethod,
@@ -841,7 +843,7 @@ export function CustomerPaymentTab({
             await recordCustomerReceiptJournalEntry(
               voucher.id,
               organizationId,
-              Number(voucher.total_amount || 0),
+              Number(voucher.total_amount || 0) + Number(voucher.discount_amount || 0),
               Number(voucher.discount_amount || 0),
               paymentMethod,
               voucher.voucher_date as string,
@@ -999,7 +1001,8 @@ export function CustomerPaymentTab({
     mutationFn: async (payment: any) => {
       const voucherId = payment.id;
       const saleId = payment.reference_type === "sale" ? payment.reference_id : null;
-      const paymentAmount = Number(payment.total_amount);
+      const discRev = Number((payment as { discount_amount?: number }).discount_amount || 0);
+      const paymentAmount = Number(payment.total_amount) + discRev;
       const pm = String(payment.payment_method || "").toLowerCase();
       const isAdvanceApplication = pm === "advance_adjustment";
       const isCreditNoteApplication = pm === "credit_note_adjustment";

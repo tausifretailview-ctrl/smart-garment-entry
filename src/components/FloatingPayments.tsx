@@ -170,14 +170,15 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
     queryFn: async () => {
       const allCustomers = await fetchAllCustomers(organizationId);
       const allSales = await fetchAllSalesSummary(organizationId);
-      const { data: allVouchers } = await supabase.from('voucher_entries').select('reference_id, reference_type, total_amount').eq('organization_id', organizationId).eq('voucher_type', 'receipt').is('deleted_at', null);
+      const { data: allVouchers } = await supabase.from('voucher_entries').select('reference_id, reference_type, total_amount, discount_amount').eq('organization_id', organizationId).eq('voucher_type', 'receipt').is('deleted_at', null);
       const invoiceVoucherPayments = new Map<string, number>();
       const customerOpeningBalancePayments = new Map<string, number>();
       const saleIdSet = new Set(allSales.map((s: any) => s.id));
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
-        if (saleIdSet.has(v.reference_id)) invoiceVoucherPayments.set(v.reference_id, (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-        else if (v.reference_type === 'customer') customerOpeningBalancePayments.set(v.reference_id, (customerOpeningBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+        const amt = Number(v.total_amount || 0) + Number(v.discount_amount || 0);
+        if (saleIdSet.has(v.reference_id)) invoiceVoucherPayments.set(v.reference_id, (invoiceVoucherPayments.get(v.reference_id) || 0) + amt);
+        else if (v.reference_type === 'customer') customerOpeningBalancePayments.set(v.reference_id, (customerOpeningBalancePayments.get(v.reference_id) || 0) + amt);
       });
       const customerBalances = calculateCustomerInvoiceBalances(allSales, invoiceVoucherPayments);
       return allCustomers.filter((c: any) => {
@@ -211,8 +212,8 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
       const ob = cust?.opening_balance || 0;
       const { data: sales } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null);
       const invoiceOutstanding = sales?.reduce((sum, s) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0) || 0;
-      const { data: obPayments } = await supabase.from("voucher_entries").select("total_amount, reference_id").eq("organization_id", organizationId).eq("voucher_type", "receipt").eq("reference_type", "customer").is("deleted_at", null);
-      const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0;
+      const { data: obPayments } = await supabase.from("voucher_entries").select("total_amount, discount_amount, reference_id").eq("organization_id", organizationId).eq("voucher_type", "receipt").eq("reference_type", "customer").is("deleted_at", null);
+      const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (Number(p.total_amount) || 0) + (Number((p as { discount_amount?: number }).discount_amount) || 0), 0) || 0;
       return ob + invoiceOutstanding - obPaid;
     },
     enabled: !!referenceId,
