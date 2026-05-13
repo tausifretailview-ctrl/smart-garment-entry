@@ -48,17 +48,21 @@ export function buildAuditRows(
     const d = String(s.sale_date || "").slice(0, 10);
     const net = Number(s.net_amount || 0);
     const sn = String(s.sale_number || "").trim() || "—";
+    const sra = Number(s.sale_return_adjust || 0);
+    // sales.net_amount is stored POST-adjust. To keep the running balance correct
+    // when we also push a separate "Sale return adjust" credit row below, the
+    // Sale debit must be GROSS (net + sra). Net effect on balance = net Dr.
+    const debitForDisplay = sra > 0.005 ? net + sra : net;
     rows.push({
       id: `sale-${s.id}`,
       at: d,
       type: "Sale",
       ref: sn,
       particulars: `Invoice ${sn}`,
-      debit: net,
+      debit: debitForDisplay,
       credit: 0,
       internal: false,
     });
-    const sra = Number(s.sale_return_adjust || 0);
     if (sra > 0.005) {
       rows.push({
         id: `sra-${s.id}`,

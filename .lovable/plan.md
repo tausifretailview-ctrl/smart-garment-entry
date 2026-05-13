@@ -1,56 +1,69 @@
+## Problem
 
-## Investigation Result — ELLA NOOR Organization
+Faiza Sheikh (Ella Noor) — actual closing balance should be **₹8,900 Cr**, but two screens show wrong values:
 
-I scanned every customer in ELLA NOOR for "advance adjustment" receipts that exceed the customer's actual advance balance. Besides Faiza Sheikh (already fixed), **2 more customers** are affected by the same defect.
+1. **Sales Invoice Dashboard** — per-row "Balance" column shows ₹4,600 for `INV/26-27/473` even though status is **Paid** (settled by adjusting ₹4,600 from a credit note).
+2. **Customer Account Statement (Audit) ledger** — closing shows **₹13,500 Cr** instead of **₹8,900 Cr**. The "Sale Return Adjust" memo row is silently subtracted from the running balance even though `sales.net_amount` is already stored post-adjust — so the ₹4,600 credit gets counted twice.
 
-### Affected Customers
+## Root cause
 
-**1. Naseem Jahid — ₹8,000 phantom adjustment**
+DB values for `INV/26-27/473`: `net_amount = 4600`, `paid_amount = 0`, `sale_return_adjust = 4600`.
+`net_amount` is **already post-adjust** (the bill's true value after applying ₹4,600 from CN). So:
 
-Real advances received:
-- ADV/25-26/0281 — ₹1,100 (fully used)
-- ADV/25-26/0662 — ₹17,700 (fully used)
-- **Total real advance = ₹18,800, all consumed**
+- **`SalesInvoiceDashboard.tsx` line 3460** computes per-row Balance as `net_amount - paid_amount` and forgets `- sale_return_adjust`. Every other balance/pending calculation in the same file (lines 1230, 1303, 1791, 1819, 1927, 2742, 2857) correctly subtracts `sale_return_adjust`. This single row-render is the outlier.
 
-Advance-adjustment receipts created against sales:
-| Voucher | Sale | Amount | Date |
-|---|---|---|---|
-| RCP/25-26/726 | INV/25-26/203 | ₹3,300 | 2026-03-02 |
-| RCP/25-26/727 | INV/25-26/525 | ₹14,400 | 2026-03-02 |
-| RCP/26-27/674 | INV/26-27/611 | ₹3,200 | 2026-05-07 |
-| RCP/26-27/717 | INV/26-27/386 | ₹5,900 | 2026-05-09 |
-| **Total adjusted** |  | **₹26,800** |  |
+- **`customerAuditBundle.ts` lines 51–73** pushes a Sale debit row of `net_amount` (post-adjust = 4600) **and** a "Sale return adjust" credit row of `sra` (= 4600). Both rows feed the running balance in `CustomerAccountStatementAuditPage.tsx`, so the bill's true Dr (4600) is fully cancelled by the memo Cr (4600), and the original SR credit row (13,500 Cr) is left un-offset → closing inflates by 4,600.
 
-Excess = 26,800 − 18,800 = **₹8,000 phantom**. The two newest receipts (RCP/26-27/674 ₹3,200 + RCP/26-27/717 ₹5,900 = ₹9,100) are the suspect entries created after both real advances were already exhausted. The likely correction is to reverse those two and (if needed) trim one to fit available balance.
+The same double-count infects `computeCustomerOutstanding` in `customerAuditMath.ts` (`totalInvoiced - totalSaleReturnAdjust` while `totalInvoiced` is already net).
 
-**2. Moshin Khan — ₹3,950 phantom adjustment**
+## Fix
 
-- Real advances received: **₹0** (no row in `customer_advances`)
-- RCP/26-27/359 against INV/25-26/1433 — ₹3,950 on 2026-04-23 — **fully phantom**
+### 1. Sales Invoice Dashboard — per-row Balance
+`src/pages/SalesInvoiceDashboard.tsx` line 3460: subtract `sale_return_adjust` and clamp at 0, matching the rest of the file.
 
-### Root cause
-Same defect already fixed for Faiza Sheikh: the old Sales Dashboard / Bulk Adjust / Customer Payment screens computed "Available Advance" as `bookingBalance + creditBalance` (mixing ledger overpayment with booked advances) and never re-checked `customer_advances.amount − used_amount` at write time. The frontend guard is now in place going forward, but the historical bad rows remain in the database.
+```tsx
+₹{invoice.is_cancelled ? 0 : Math.round(Math.max(0,
+   (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)
+)).toLocaleString('en-IN')}
+```
 
-### Proposed cleanup (requires your approval)
+Result for `INV/26-27/473`: 4600 − 0 − 4600 = **₹0** (matches Paid status).
 
-For each phantom voucher I will, in one transaction:
-1. Soft-delete the voucher (`voucher_entries.deleted_at = now()`).
-2. Reverse its accounting journal lines.
-3. Reset the impacted sale to `paid_amount = 0` (or reduce by the reversed amount), `payment_status = 'pending'`, `payment_method = 'pay_later'`.
-4. Leave real `customer_advances` rows untouched.
+### 2. Customer Account Statement (Audit) ledger — Tally-style display
+`src/utils/customerAuditBundle.ts` `buildAuditRows`:
+- When `sale_return_adjust > 0`, push the Sale debit as **gross** (`net_amount + sra`) so the subsequent "Sale return adjust" credit row brings it back down to the actual `net_amount`. Net effect on running balance = `net_amount` Dr (correct).
+- Keep the credit row visible for transparency (Tally-style "Less: SR adjust").
 
-Specifically:
-- **Moshin Khan:** reverse RCP/26-27/359 entirely → INV/25-26/1433 becomes pending ₹3,950.
-- **Naseem Jahid:** reverse RCP/26-27/717 (₹5,900) and RCP/26-27/674 (₹3,200) → INV/26-27/386 and INV/26-27/611 become pending. Net excess removed = ₹9,100; remaining ₹1,100 over-allocation (since true excess is ₹8,000) means after reversal Naseem will have ₹1,100 unused advance which can be re-applied later if needed. Alternative: reverse only RCP/26-27/717 (₹5,900) and trim RCP/26-27/674 from ₹3,200 to ₹1,100 to leave zero remaining advance — please tell me which you prefer.
+```ts
+const sra = Number(s.sale_return_adjust || 0);
+const grossForDisplay = net + sra;
+rows.push({ ... debit: grossForDisplay, credit: 0, ... });
+if (sra > 0.005) {
+  rows.push({ ... debit: 0, credit: sra, particulars: `Sale return / credit adjusted to ${sn}` ... });
+}
+```
 
-### Out of scope
-- No code changes (frontend guard already deployed).
-- No changes to other organizations (this audit is ELLA NOOR only).
-- I will run the same scan org-wide if you ask.
+### 3. Outstanding math
+`src/utils/customerAuditMath.ts` `computeCustomerOutstanding`: change `totalInvoiced` to use **gross** (`net_amount + sale_return_adjust`) so subtracting `totalSaleReturnAdjust` is mathematically consistent with the new ledger display. Final outstanding for Faiza Sheikh:
 
-### Question for you
-For **Naseem Jahid**, which cleanup do you want?
-- **A)** Reverse both RCP/26-27/717 and RCP/26-27/674 (simplest; leaves both invoices pending and ₹1,100 of advance free for future use).
-- **B)** Reverse RCP/26-27/717 (₹5,900) and trim RCP/26-27/674 to ₹1,100 (uses the last ₹1,100 of legitimate balance against INV/26-27/611, leaves only INV/26-27/386 pending).
+```
+0 + (13500 + 9200) − 4600 − 13500(receipt) − 13500(adv used) − 0(unused) + 0
+= 22700 − 4600 − 13500 − 13500 = -8900 → 8900 Cr ✓
+```
 
-Reply with A or B (and confirm Moshin Khan reversal) and I will execute the cleanup.
+(Matches the corrected ledger closing.)
+
+### 4. Investigate Ella Noor org for similar drift
+Run a verification query after the fix to list all customers in Ella Noor where `compute(closing) ≠ ledger(closing)` so the user can spot any remaining advance-adjustment ghosts. Display top mismatches in chat (no DB writes).
+
+## Out of scope
+
+- No DB migration. Underlying `sales.net_amount` and `sale_return_adjust` are correct; only display/aggregation logic is wrong.
+- `CustomerLedger.tsx` (the legacy ledger view) already handles this correctly (line 1672–1677 comment) and is not touched.
+- No changes to advance-application logic — Faiza's advance (13,500) was correctly consumed by `INV/25-26/1372`.
+
+## Files
+
+- `src/pages/SalesInvoiceDashboard.tsx` (1 line)
+- `src/utils/customerAuditBundle.ts` (~10 lines)
+- `src/utils/customerAuditMath.ts` (~3 lines)
