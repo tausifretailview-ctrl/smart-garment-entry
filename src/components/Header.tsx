@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText, Scale } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -18,10 +18,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { FloatingStockReport } from "@/components/FloatingPOSReports";
 import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
+import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -31,8 +34,16 @@ export const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
+  const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const dashboardToolbar = useDashboardToolbarOptional();
+  const { isSchool } = useSchoolFeatures();
+  const { hasMenuAccess, permissions } = useUserPermissions();
+  const canQuickCustomerStatement =
+    !isSchool &&
+    (permissions === null ||
+      hasMenuAccess("customer_account_statement") ||
+      hasMenuAccess("customer_ledger"));
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog
   useEffect(() => {
@@ -67,19 +78,40 @@ export const Header = () => {
 
   const initials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
-  const quickActions = [
-    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "" },
-    { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "" },
-    { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock" },
-    { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock" },
-    { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "" },
-  ];
+  const quickActions = useMemo(() => {
+    const base: {
+      icon: typeof ShoppingCart;
+      label: string;
+      path: string;
+      isDialog: boolean;
+      shortcut?: string;
+      dialogKey: string;
+    }[] = [
+      { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "" },
+      { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "" },
+      { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock" },
+      { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock" },
+    ];
+    if (canQuickCustomerStatement) {
+      base.push({
+        icon: Scale,
+        label: "Account statement (audit)",
+        path: "",
+        isDialog: true,
+        dialogKey: "customerStatement",
+      });
+    }
+    base.push({ icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "" });
+    return base;
+  }, [canQuickCustomerStatement]);
 
-  const handleQuickAction = (action: typeof quickActions[0]) => {
+  const handleQuickAction = (action: (typeof quickActions)[0]) => {
     if (action.dialogKey === "sizeStock") {
       setSizeStockOpen(true);
     } else if (action.dialogKey === "quickStock") {
       setQuickStockOpen(true);
+    } else if (action.dialogKey === "customerStatement") {
+      setCustomerStatementOpen(true);
     } else {
       orgNavigate(action.path);
     }
@@ -289,7 +321,10 @@ export const Header = () => {
                 E-Invoice Report
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => orgNavigate("/customer-account-statement-audit")} className="cursor-pointer">
+              <DropdownMenuItem
+                onClick={() => setCustomerStatementOpen(true)}
+                className="cursor-pointer"
+              >
                 <FileText className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Account statement (audit)
               </DropdownMenuItem>
@@ -452,6 +487,18 @@ export const Header = () => {
           <LayoutGrid className="h-3.5 w-3.5" />
           Size Stock
         </Button>
+        {canQuickCustomerStatement && (
+          <Button
+            onClick={() => setCustomerStatementOpen(true)}
+            variant="outline"
+            className="h-7 px-2.5 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/40 border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground gap-1.5"
+            title="Search customers, balances, open audit statement"
+          >
+            <Scale className="h-3.5 w-3.5" />
+            <span className="hidden xl:inline">Account statement (audit)</span>
+            <span className="xl:hidden">Stmt (audit)</span>
+          </Button>
+        )}
 
         {dashboardToolbar?.toolbar ? (
           <>
@@ -481,6 +528,7 @@ export const Header = () => {
       {/* Dialogs */}
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
+      <CustomerStatementFloatingDialog open={customerStatementOpen} onOpenChange={setCustomerStatementOpen} />
     </>
   );
 };

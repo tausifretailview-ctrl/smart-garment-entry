@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Plus, ChevronUp, ChevronDown, Home, Grid3X3, FileText } from "lucide-react";
+import { X, Plus, ChevronUp, ChevronDown, Home, Grid3X3, Scale } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
@@ -151,15 +151,15 @@ export function WindowTabsBar() {
               <Button
                 variant="ghost"
                 size="xs"
-                className="h-6 gap-1 px-1.5 shrink-0"
+                className="h-6 gap-1 px-1.5 shrink-0 text-primary"
                 onClick={() => setCustomerStatementOpen(true)}
               >
-                <FileText className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline text-[11px]">Customer Statement</span>
+                <Scale className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline text-[11px]">Stmt (audit)</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p>Search customers, balances, open audit statement</p>
+              <p>Account statement (audit) — quick lookup</p>
             </TooltipContent>
           </Tooltip>
         )}
