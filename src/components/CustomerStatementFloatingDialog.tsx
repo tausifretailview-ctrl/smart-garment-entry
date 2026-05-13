@@ -7,8 +7,9 @@ import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useCustomerBalances } from "@/hooks/useCustomerSearch";
-import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import { fetchCustomerAuditBundle, buildAuditRows } from "@/utils/customerAuditBundle";
+import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -108,15 +109,45 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
 
   const selected = useMemo(() => customers.find((c) => c.id === selectedId) ?? null, [customers, selectedId]);
 
-  const snapshot = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
   const orgId = currentOrganization?.id ?? "";
 
-  // Use the SAME receivable basis as the left list / audit register so the
-  // headline doesn't drift from the customer ledger figure.
-  const auditAlignedBalance = useMemo(() => {
-    if (!selected || !orgId) return 0;
-    return getCustomerBalance(toBalanceCustomer(selected, orgId));
-  }, [selected, orgId, getCustomerBalance]);
+  // Compute closing balance using the SAME row pipeline as the
+  // Customer Account Statement (audit) page so the headline figure
+  // matches the audit register's closing balance exactly.
+  const { data: auditBundle, isFetching: snapshotLoading } = useQuery({
+    queryKey: ["customer-statement-floating-audit", orgId, selectedId],
+    enabled: open && !!orgId && !!selectedId,
+    queryFn: () => fetchCustomerAuditBundle(supabase, orgId, selectedId!),
+    staleTime: 30 * 1000,
+  });
+
+  const snapshot = useMemo(() => {
+    if (!auditBundle) {
+      return { closing: 0, opening: 0, debit: 0, credit: 0 };
+    }
+    const opening = Number(auditBundle.customer.opening_balance || 0);
+    const rows = buildAuditRows(
+      {
+        sales: auditBundle.allSales,
+        saleReturns: auditBundle.saleReturns,
+        vouchers: auditBundle.vouchersMerged,
+        advances: auditBundle.advances,
+        refunds: auditBundle.refunds,
+        balanceAdjustments: (auditBundle as any).balanceAdjustments,
+      },
+      { ledgerAlignedApplicationReceipts: true },
+    );
+    let debit = 0;
+    let credit = 0;
+    for (const r of rows) {
+      if (r.internal) continue;
+      debit += r.debit || 0;
+      credit += r.credit || 0;
+    }
+    return { closing: opening + debit - credit, opening, debit, credit };
+  }, [auditBundle]);
+
+  const auditAlignedBalance = snapshot.closing;
   const auditAlignedAdv = selected ? getCustomerAdvance(selected.id) : 0;
   const auditAlignedCn = selected ? getCustomerCreditNote(selected.id) : 0;
 
@@ -279,7 +310,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   </div>
                 </div>
 
-                {snapshot.isLoading ? (
+                {snapshotLoading ? (
                   <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading balance snapshot…
@@ -288,7 +319,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   <Card className="shrink-0">
                     <CardContent className="p-3 space-y-2 text-sm">
                       <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">Outstanding (snapshot)</span>
+                        <span className="text-muted-foreground">Closing balance (audit)</span>
                         <span
                           className={cn(
                             "font-bold tabular-nums",
@@ -305,24 +336,32 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                       </div>
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground border-t pt-2">
                         <span>Opening</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.openingBalance)}</span>
-                        <span>Net sales</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.totalSales)}</span>
-                        <span>Total paid</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.totalPaid)}</span>
+                        <span className="text-right tabular-nums">₹{inr.format(snapshot.opening)}</span>
+                        <span>Total billed (Dr)</span>
+                        <span className="text-right tabular-nums">₹{inr.format(snapshot.debit)}</span>
+                        <span>Total received / returned (Cr)</span>
+                        <span className="text-right tabular-nums">₹{inr.format(snapshot.credit)}</span>
                         {auditAlignedAdv > 0.005 && (
                           <>
                             <span>Unused advance</span>
-                            <span className="text-right tabular-nums">₹{inr.format(auditAlignedAdv)}</span>
+                            <span className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                              ₹{inr.format(auditAlignedAdv)}
+                            </span>
                           </>
                         )}
                         {auditAlignedCn > 0.005 && (
                           <>
                             <span>Pending credit note</span>
-                            <span className="text-right tabular-nums">₹{inr.format(auditAlignedCn)}</span>
+                            <span className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                              ₹{inr.format(auditAlignedCn)}
+                            </span>
                           </>
                         )}
                       </div>
+                      <p className="text-[10px] text-muted-foreground border-t pt-1.5">
+                        Same closing as the Customer Account Statement (audit). Open the audit register for the full
+                        Dr/Cr ledger with running balance.
+                      </p>
                     </CardContent>
                   </Card>
                 )}
