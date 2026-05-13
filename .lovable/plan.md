@@ -1,69 +1,103 @@
-## Problem
+## Bug — Naseem Jahid (Ella Noor)
 
-Faiza Sheikh (Ella Noor) — actual closing balance should be **₹8,900 Cr**, but two screens show wrong values:
+When a Sale Return (SR/25-26/57, ₹14,400) is created and **auto-adjusted** ₹5,900 against linked invoice INV/26-27/386, the system does two things at the same time:
 
-1. **Sales Invoice Dashboard** — per-row "Balance" column shows ₹4,600 for `INV/26-27/473` even though status is **Paid** (settled by adjusting ₹4,600 from a credit note).
-2. **Customer Account Statement (Audit) ledger** — closing shows **₹13,500 Cr** instead of **₹8,900 Cr**. The "Sale Return Adjust" memo row is silently subtracted from the running balance even though `sales.net_amount` is already stored post-adjust — so the ₹4,600 credit gets counted twice.
+1. Reduces `sale_returns.credit_available_balance` from 14,400 → **8,500**.
+2. Writes a `credit_note_adjustment` voucher of **5,900** against INV/26-27/386.
 
-## Root cause
+Both correctly represent the **same ₹5,900**. But the "Record Payment → From Credit Note (CN)" dialog subtracts them **twice**, and the Customer Ledger "CN Available" card reads from a third out-of-sync source (`credit_notes.used_amount`). That produces every wrong number the user reported:
 
-DB values for `INV/26-27/473`: `net_amount = 4600`, `paid_amount = 0`, `sale_return_adjust = 4600`.
-`net_amount` is **already post-adjust** (the bill's true value after applying ₹4,600 from CN). So:
+| Place | Shown | Should be |
+|---|---|---|
+| Record Payment → Available CN Balance | ₹2,600 | ₹8,500 |
+| Ledger card "CN Available" | ₹14,400 | ₹8,500 |
+| Ledger top "Advance Balance (Cr)" | ₹7,000 | ~₹1,100 (cascades from above) |
 
-- **`SalesInvoiceDashboard.tsx` line 3460** computes per-row Balance as `net_amount - paid_amount` and forgets `- sale_return_adjust`. Every other balance/pending calculation in the same file (lines 1230, 1303, 1791, 1819, 1927, 2742, 2857) correctly subtracts `sale_return_adjust`. This single row-render is the outlier.
+DB confirms: `credit_notes.used_amount = 0`, `sale_returns.credit_available_balance = 8500`, one CN voucher of 5,900 exists.
 
-- **`customerAuditBundle.ts` lines 51–73** pushes a Sale debit row of `net_amount` (post-adjust = 4600) **and** a "Sale return adjust" credit row of `sra` (= 4600). Both rows feed the running balance in `CustomerAccountStatementAuditPage.tsx`, so the bill's true Dr (4600) is fully cancelled by the memo Cr (4600), and the original SR credit row (13,500 Cr) is left un-offset → closing inflates by 4,600.
+## Root causes
 
-The same double-count infects `computeCustomerOutstanding` in `customerAuditMath.ts` (`totalInvoiced - totalSaleReturnAdjust` while `totalInvoiced` is already net).
+**A. Double subtraction in `SalesInvoiceDashboard.tsx` `handlePaymentModeChange` (lines ~1830–1894)**
 
-## Fix
+`totalCN` is summed from `saleReturnCnPoolRow(r)` → already returns `credit_available_balance` (post-adjustment).
+Then `usedCN` = sum of `voucher_entries` with `payment_method='credit_note_adjustment'` is subtracted again.
+Result: 8,500 − 5,900 = **2,600** (wrong; the 5,900 was already deducted from 14,400 to make 8,500).
 
-### 1. Sales Invoice Dashboard — per-row Balance
-`src/pages/SalesInvoiceDashboard.tsx` line 3460: subtract `sale_return_adjust` and clamp at 0, matching the rest of the file.
+**B. `credit_notes.used_amount` is never updated**
 
-```tsx
-₹{invoice.is_cancelled ? 0 : Math.round(Math.max(0,
-   (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)
-)).toLocaleString('en-IN')}
-```
+`handleRecordPayment` updates `sale_returns.credit_available_balance` and inserts a voucher, but never bumps `credit_notes.used_amount`. The Customer Ledger "CN Available" card (`CustomerLedger.tsx` line 216–235) reads `credit_amount − used_amount` and therefore always shows the gross 14,400.
 
-Result for `INV/26-27/473`: 4600 − 0 − 4600 = **₹0** (matches Paid status).
+**C. Cascading "Advance Balance (Cr) ₹7,000"**
 
-### 2. Customer Account Statement (Audit) ledger — Tally-style display
-`src/utils/customerAuditBundle.ts` `buildAuditRows`:
-- When `sale_return_adjust > 0`, push the Sale debit as **gross** (`net_amount + sra`) so the subsequent "Sale return adjust" credit row brings it back down to the actual `net_amount`. Net effect on running balance = `net_amount` Dr (correct).
-- Keep the credit row visible for transparency (Tally-style "Less: SR adjust").
+The audit-formula outstanding pulls in the inflated CN pool, throwing the customer balance off. Fixing A + B re-aligns it. No separate fix needed beyond a one-time refresh.
+
+## Fix plan
+
+### 1. `src/pages/SalesInvoiceDashboard.tsx` — stop double-counting in CN balance dialog
+
+In `handlePaymentModeChange` (lines ~1854–1880), use **either** `credit_available_balance` **or** voucher subtraction, not both. Cleanest: drop the voucher subtraction entirely, since `credit_available_balance` is already the authoritative remaining pool.
 
 ```ts
-const sra = Number(s.sale_return_adjust || 0);
-const grossForDisplay = net + sra;
-rows.push({ ... debit: grossForDisplay, credit: 0, ... });
-if (sra > 0.005) {
-  rows.push({ ... debit: 0, credit: sra, particulars: `Sale return / credit adjusted to ${sn}` ... });
+const totalCN = eligible.reduce((sum, r) => sum + saleReturnCnPoolRow(r), 0);
+// REMOVE: customerSales fetch, cnVouchers fetch, usedCN subtraction
+const totalAvailable = totalCN;
+setAvailableCNBalance(totalAvailable);
+setSelectedCNReturnId(eligible[0]?.id ?? null);
+```
+
+This makes the dialog show ₹8,500 (correct).
+
+### 2. `src/pages/SalesInvoiceDashboard.tsx` — sync `credit_notes.used_amount` on CN apply
+
+In `handleRecordPayment` (the `if (isCreditNoteMode)` branch around line 2024–2052), after updating `sale_returns`, also update the linked credit note row:
+
+```ts
+// Look up CN row linked to this sale_return
+const { data: cnRow } = await supabase
+  .from("credit_notes")
+  .select("id, credit_amount, used_amount")
+  .eq("organization_id", currentOrganization!.id)
+  .eq("customer_id", selectedInvoiceForPayment.customer_id)
+  // Match by sale_return id via the existing ensureCreditNoteForSaleReturn link,
+  // or by credit_note_id stored on sale_returns
+  .eq("id", srRow.credit_note_id)  // pull credit_note_id in the SR select above
+  .maybeSingle();
+
+if (cnRow) {
+  const newUsed = Math.min(
+    Number(cnRow.credit_amount || 0),
+    Number(cnRow.used_amount || 0) + amount
+  );
+  const newCnStatus =
+    newUsed >= Number(cnRow.credit_amount || 0) - 0.01 ? "fully_used" : "active";
+  await supabase
+    .from("credit_notes")
+    .update({ used_amount: newUsed, status: newCnStatus })
+    .eq("id", cnRow.id);
 }
 ```
 
-### 3. Outstanding math
-`src/utils/customerAuditMath.ts` `computeCustomerOutstanding`: change `totalInvoiced` to use **gross** (`net_amount + sale_return_adjust`) so subtracting `totalSaleReturnAdjust` is mathematically consistent with the new ledger display. Final outstanding for Faiza Sheikh:
+Also include `credit_note_id` in the `sale_returns` select on line 2034.
+
+Snapshot/rollback path (the GL-failure branch at lines ~2185–2214) must also restore `credit_notes.used_amount` if the application fails — capture pre-update `used_amount`/`status` in the snapshot block (lines ~1992–2008) and restore alongside the SR rollback.
+
+### 3. One-time data fix for Naseem Jahid (Ella Noor)
+
+After code is deployed, re-sync `credit_notes.used_amount` for CN/26-27/5 to **5,900** (status `active`) so the Ledger CN Available card immediately reflects ₹8,500. We may want a small backfill script across all orgs for any CN where:
 
 ```
-0 + (13500 + 9200) − 4600 − 13500(receipt) − 13500(adv used) − 0(unused) + 0
-= 22700 − 4600 − 13500 − 13500 = -8900 → 8900 Cr ✓
+credit_notes.used_amount = 0
+AND exists matching sale_returns with credit_available_balance < net_amount (or voucher_entries with credit_note_adjustment for that customer's sales)
 ```
 
-(Matches the corrected ledger closing.)
+Will surface that script for approval after the code change lands.
 
-### 4. Investigate Ella Noor org for similar drift
-Run a verification query after the fix to list all customers in Ella Noor where `compute(closing) ≠ ledger(closing)` so the user can spot any remaining advance-adjustment ghosts. Display top mismatches in chat (no DB writes).
+### Files
 
-## Out of scope
+- `src/pages/SalesInvoiceDashboard.tsx` — fixes A + B
+- (no change to `CustomerLedger.tsx`; once `used_amount` syncs, the card is correct)
+- One-time DB update for affected customers (separate approval)
 
-- No DB migration. Underlying `sales.net_amount` and `sale_return_adjust` are correct; only display/aggregation logic is wrong.
-- `CustomerLedger.tsx` (the legacy ledger view) already handles this correctly (line 1672–1677 comment) and is not touched.
-- No changes to advance-application logic — Faiza's advance (13,500) was correctly consumed by `INV/25-26/1372`.
+### Out of scope
 
-## Files
-
-- `src/pages/SalesInvoiceDashboard.tsx` (1 line)
-- `src/utils/customerAuditBundle.ts` (~10 lines)
-- `src/utils/customerAuditMath.ts` (~3 lines)
+- The "actual advance remaining is ₹1,100" vs DB ₹5,800 question — DB shows ADV/25-26/0662 unused 1,100 and ADV/26-27/244 unused 4,700 (active, never applied). That's a data review for the user; the 4,700 advance is genuinely sitting unapplied. Will report and ask separately if a cleanup is needed.
