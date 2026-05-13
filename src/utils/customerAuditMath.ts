@@ -70,10 +70,15 @@ export const computeCustomerOutstanding = (
       !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
   );
 
-  const totalInvoiced = validSales.reduce((sum, s) => sum + Number(s.net_amount || 0), 0);
-
+  // sales.net_amount is stored POST-adjust (already net of any sale_return_adjust
+  // applied at billing time). For ledger-style math we need GROSS so subtracting
+  // totalSaleReturnAdjust below doesn't double-count the SR offset.
   const totalSaleReturnAdjust = validSales.reduce(
     (sum, s) => sum + Number(s.sale_return_adjust || 0),
+    0,
+  );
+  const totalInvoiced = validSales.reduce(
+    (sum, s) => sum + Number(s.net_amount || 0) + Number(s.sale_return_adjust || 0),
     0,
   );
 
