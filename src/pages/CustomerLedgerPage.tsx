@@ -41,7 +41,13 @@ interface CustomerOption {
 }
 
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtAmt = (n: number) => (n ? inr.format(Math.abs(n)) : "");
+
+/** Debit/credit cells: hide zero. Balance/closure: show `0.00` (JS treats 0 as falsy — do not use `n ?` for balances). */
+const fmtAmtCell = (n: number) =>
+  !Number.isFinite(n) || Math.abs(n) < 0.005 ? "" : inr.format(Math.abs(n));
+
+const fmtAmtBalance = (n: number) =>
+  !Number.isFinite(n) ? "" : inr.format(Math.abs(n));
 
 /**
  * Statement running balance uses `running += debit - credit` (negative = customer Cr).
@@ -119,6 +125,8 @@ export default function CustomerLedgerPage() {
     ],
     enabled: !!currentOrganization?.id && !!customerId,
     queryFn: async () => {
+      // Source rows: `get_customer_ledger_statement` (SQL maintained in Supabase; not in this repo).
+      // Client merge below repairs gaps; export the RPC into supabase/migrations if server-side changes are needed.
       const { data, error } = await supabase.rpc("get_customer_ledger_statement", {
         p_customer_id: customerId!,
         p_organization_id: currentOrganization!.id,
@@ -133,7 +141,7 @@ export default function CustomerLedgerPage() {
       // ensure in-range invoices are never dropped by RPC-side joins/filters.
       let salesQuery = supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, payment_status")
+        .select("id, sale_number, sale_date, net_amount, payment_status, sale_return_adjust")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -193,11 +201,27 @@ export default function CustomerLedgerPage() {
       const { data: creditNoteVouchers, error: creditNoteVouchersError } = await creditNoteVouchersQuery;
       if (creditNoteVouchersError) throw creditNoteVouchersError;
 
-      const existingReturnRefs = new Set(
-        rpcRowsNormalized
-          .filter((row) => Number(row.credit || 0) > 0)
-          .map((row) => (row.voucher_no || "").trim())
+      const allReturnNumbers = new Set(
+        (saleReturns || [])
+          .map((sr: any) => String(sr.return_number || "").trim())
+          .filter(Boolean),
       );
+      const returnLikeRpcTypes = new Set(["SALE_RETURN", "SALE_RETURN_ADJUST", "SR"]);
+      const existingRpcSaleReturnNumbers = new Set<string>();
+      const existingRpcCreditNoteNumbers = new Set<string>();
+      for (const row of rpcRowsNormalized) {
+        const cr = Number(row.credit || 0);
+        if (cr <= 0.005) continue;
+        const vn = (row.voucher_no || "").trim();
+        if (!vn) continue;
+        const vt = (row.voucher_type || "").toUpperCase();
+        if (returnLikeRpcTypes.has(vt) || (vt === "CREDIT_NOTE" && allReturnNumbers.has(vn))) {
+          existingRpcSaleReturnNumbers.add(vn);
+        }
+        if (vt === "CREDIT_NOTE") {
+          existingRpcCreditNoteNumbers.add(vn);
+        }
+      }
 
       // Fully applied to invoice(s): settlement appears as CN_APPLIED / sale receipts — omit duplicate SR credit.
       const returnRows: LedgerRow[] = (saleReturns || [])
@@ -217,7 +241,7 @@ export default function CustomerLedgerPage() {
         credit: Number(sr.net_amount || 0),
         running_balance: 0,
       }))
-        .filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
+        .filter((row) => !existingRpcSaleReturnNumbers.has((row.voucher_no || "").trim()));
 
       const creditNoteRows: LedgerRow[] = (creditNoteVouchers || []).map((v: any) => ({
         id: `cnv-${v.id}`,
@@ -228,7 +252,7 @@ export default function CustomerLedgerPage() {
         debit: 0,
         credit: Number(v.total_amount || 0),
         running_balance: 0,
-      })).filter((row) => !existingReturnRefs.has((row.voucher_no || "").trim()));
+      })).filter((row) => !existingRpcCreditNoteNumbers.has((row.voucher_no || "").trim()));
 
       // Voucher numbers already represented (RPC + supplements) — skip duplicate voucher rows.
       const existingVoucherNumbers = new Set<string>();
@@ -544,9 +568,51 @@ export default function CustomerLedgerPage() {
         return String(a.id).localeCompare(String(b.id));
       });
 
+      const sumSRA = (inRangeSales || []).reduce(
+        (s, x: any) => s + Number(x.sale_return_adjust || 0),
+        0,
+      );
+      const adjustedReturns = (saleReturns || []).filter(
+        (sr: any) => String(sr.credit_status || "").toLowerCase() === "adjusted",
+      );
+      const sumSRAdjusted = adjustedReturns.reduce(
+        (s, sr: any) => s + Number(sr.net_amount || 0),
+        0,
+      );
+      const EPS = 0.01;
+      const sraSrDelta = Math.round((sumSRAdjusted - sumSRA) * 100) / 100;
+
+      let merged = combined;
+      if (sraSrDelta > EPS) {
+        const reconDates = adjustedReturns
+          .map((sr: any) => String(sr.return_date || "").slice(0, 10))
+          .filter(Boolean)
+          .sort();
+        const reconDate =
+          reconDates.length > 0
+            ? reconDates[reconDates.length - 1]!
+            : format(toDate ?? new Date(), "yyyy-MM-dd");
+        const reconRow: LedgerRow = {
+          id: "zzz-reconcile-sra-sr-gap",
+          transaction_date: reconDate,
+          voucher_type: "SALE_RETURN_ADJUST",
+          voucher_no: null,
+          particulars: `Sale return / credit reconciliation (adjusted returns exceed invoice SRA lines by ₹${inr.format(sraSrDelta)})`,
+          debit: 0,
+          credit: sraSrDelta,
+          running_balance: 0,
+        };
+        merged = [...combined, reconRow].sort((a, b) => {
+          const dA = new Date(a.transaction_date).getTime();
+          const dB = new Date(b.transaction_date).getTime();
+          if (dA !== dB) return dA - dB;
+          return String(a.id).localeCompare(String(b.id));
+        });
+      }
+
       // Recompute running balance after merge so header/table stay consistent.
       let running = 0;
-      return combined.map((row) => {
+      return merged.map((row) => {
         running += Number(row.debit || 0) - Number(row.credit || 0);
         return { ...row, running_balance: running };
       });
@@ -756,13 +822,13 @@ export default function CustomerLedgerPage() {
                           {r.particulars || "—"}
                         </TableCell>
                         <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums">
-                          {debit > 0 ? fmtAmt(debit) : ""}
+                          {debit > 0 ? fmtAmtCell(debit) : ""}
                         </TableCell>
                         <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums">
-                          {credit > 0 ? fmtAmt(credit) : ""}
+                          {credit > 0 ? fmtAmtCell(credit) : ""}
                         </TableCell>
                         <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums font-semibold">
-                          {fmtAmt(bal)} {bal >= 0 ? "Dr" : "Cr"}
+                          {fmtAmtBalance(bal)} {bal >= 0 ? "Dr" : "Cr"}
                         </TableCell>
                       </TableRow>
                     );
@@ -776,13 +842,13 @@ export default function CustomerLedgerPage() {
                       Totals
                     </td>
                     <td className="border px-3 py-2 text-right font-mono tabular-nums">
-                      {fmtAmt(totalDebit)}
+                      {fmtAmtBalance(totalDebit)}
                     </td>
                     <td className="border px-3 py-2 text-right font-mono tabular-nums">
-                      {fmtAmt(totalCredit)}
+                      {fmtAmtBalance(totalCredit)}
                     </td>
                     <td className="border px-3 py-2 text-right font-mono tabular-nums">
-                      {fmtAmt(Math.abs(closing))} {closing >= 0 ? "Dr" : "Cr"}
+                      {fmtAmtBalance(closing)} {closing >= 0 ? "Dr" : "Cr"}
                     </td>
                   </tr>
                 </tfoot>
