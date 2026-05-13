@@ -3480,9 +3480,16 @@ Please clear your dues at the earliest. Thank you!`;
                     ₹{Math.abs(effectiveBalance).toLocaleString("en-IN")} credit balance — refund to customer
                   </p>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                    {(selectedCustomer.unusedAdvanceTotal || 0) > 0
-                      ? `₹${(selectedCustomer.unusedAdvanceTotal || 0).toLocaleString('en-IN')} from unused advance bookings · remaining is overpayment`
-                      : 'Customer has overpaid — process a cash/UPI refund'}
+                    {(() => {
+                      const unused = selectedCustomer.unusedAdvanceTotal || 0;
+                      const overpay = Math.max(0, Math.abs(effectiveBalance) - unused);
+                      const parts: string[] = [];
+                      if (unused > 0) parts.push(`₹${unused.toLocaleString("en-IN")} unused advance`);
+                      if (overpay > 0) parts.push(`₹${overpay.toLocaleString("en-IN")} overpayment / pending CN`);
+                      return parts.length
+                        ? `Breakdown: ${parts.join(" + ")}`
+                        : "Customer has overpaid — process a cash/UPI refund";
+                    })()}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
