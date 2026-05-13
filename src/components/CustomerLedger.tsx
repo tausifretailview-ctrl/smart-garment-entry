@@ -1325,7 +1325,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL sale returns for this customer (all statuses)
       let saleReturnsQuery = supabase
         .from("sale_returns")
-        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, created_at")
+        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, credit_note_id, created_at")
         .eq("customer_id", selectedCustomer.id)
         .eq("organization_id", organizationId)
         .is("deleted_at", null);
