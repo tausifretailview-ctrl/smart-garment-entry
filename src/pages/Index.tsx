@@ -183,6 +183,98 @@ const getDateRange = (type: DateRangeType) => {
   }
 };
 
+/** Classify each active customer from `customers` using last qualifying sale + lifetime stats. */
+async function fetchCustomerSegmentCounts(organizationId: string): Promise<{
+  vip: number;
+  regular: number;
+  risk: number;
+  lost: number;
+  total: number;
+}> {
+  const { data: custRows, error: cErr } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+  if (cErr) throw cErr;
+  const customerIds = new Set((custRows || []).map((r: { id: string }) => r.id));
+  const total = customerIds.size;
+
+  const agg = new Map<string, { last: string; orders: number; revenue: number }>();
+  const PAGE = 1000;
+  let from = 0;
+  for (;;) {
+    const { data: rows, error } = await supabase
+      .from("sales")
+      .select("customer_id, sale_date, net_amount, payment_status")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .not("customer_id", "is", null)
+      .order("sale_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!rows?.length) break;
+    for (const row of rows as {
+      customer_id: string;
+      sale_date: string | null;
+      net_amount: number | null;
+      payment_status: string | null;
+    }[]) {
+      const st = String(row.payment_status || "").toLowerCase();
+      if (st === "cancelled" || st === "hold") continue;
+      const cid = row.customer_id;
+      if (!customerIds.has(cid)) continue;
+      const sd = String(row.sale_date || "").slice(0, 10);
+      if (!sd) continue;
+      const prev = agg.get(cid) || { last: "", orders: 0, revenue: 0 };
+      agg.set(cid, {
+        last: sd > prev.last ? sd : prev.last,
+        orders: prev.orders + 1,
+        revenue: prev.revenue + Number(row.net_amount || 0),
+      });
+    }
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+
+  const now = new Date();
+  const daysSince = (ymd: string) => {
+    const t = new Date(ymd + "T12:00:00").getTime();
+    return Math.floor((now.getTime() - t) / 86400000);
+  };
+
+  const VIP_RECENCY_DAYS = 90;
+  const RISK_RECENCY_DAYS = 365;
+  const VIP_MIN_ORDERS = 5;
+  const VIP_MIN_REVENUE = 50_000;
+
+  let vip = 0;
+  let regular = 0;
+  let risk = 0;
+  let lost = 0;
+
+  for (const cid of customerIds) {
+    const a = agg.get(cid);
+    if (!a?.last) {
+      regular++;
+      continue;
+    }
+    const d = daysSince(a.last);
+    if (d > RISK_RECENCY_DAYS) {
+      lost++;
+    } else if (d > VIP_RECENCY_DAYS) {
+      risk++;
+    } else if (a.orders >= VIP_MIN_ORDERS || a.revenue >= VIP_MIN_REVENUE) {
+      vip++;
+    } else {
+      regular++;
+    }
+  }
+
+  return { vip, regular, risk, lost, total };
+}
+
 // Note: Refresh intervals are now tier-based via useTierBasedRefresh hook
 // Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
 
@@ -280,6 +372,7 @@ const DesktopDashboard = () => {
       await queryClient.invalidateQueries({ queryKey: ["top-products"] });
       setTimeout(() => setIsRefreshing(false), 500);
     }
+    await queryClient.invalidateQueries({ queryKey: ["customer-segment-counts", currentOrganization?.id] });
     setLastUpdated(new Date());
   };
 
@@ -325,6 +418,14 @@ const DesktopDashboard = () => {
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
+  });
+
+  const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
+    queryKey: ["customer-segment-counts", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
   });
 
   const isLgUp = useIsLgUp();
@@ -1024,41 +1125,53 @@ const DesktopDashboard = () => {
         </div>
         )}
 
-        {/* Customer Category Cards — inline row */}
+        {/* Customer Category Cards — from customers + sales (not placeholders) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Card 
+          <Card
             className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer"
             onClick={() => navigate("/sales-analytics?tab=customers")}
+            title="Last sale within 90 days and (5+ invoices or ₹50k+ lifetime revenue)"
           >
             <CardContent className="p-3 text-center">
-              <div className="text-xl font-semibold tabular-nums text-warning">5</div>
+              <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
+                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.vip ?? 0}
+              </div>
               <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
             </CardContent>
           </Card>
-          <Card 
+          <Card
             className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-success cursor-pointer"
             onClick={() => navigate("/sales-analytics?tab=customers")}
+            title="Active in last 90 days, below VIP thresholds, or no sales yet (CRM only)"
           >
             <CardContent className="p-3 text-center">
-              <div className="text-xl font-semibold tabular-nums text-success">22</div>
+              <div className="text-xl font-semibold tabular-nums text-success min-h-[28px] flex items-center justify-center">
+                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.regular ?? 0}
+              </div>
               <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
             </CardContent>
           </Card>
-          <Card 
+          <Card
             className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer"
             onClick={() => navigate("/sales-analytics?tab=customers")}
+            title="Last sale between 91 and 365 days ago"
           >
             <CardContent className="p-3 text-center">
-              <div className="text-xl font-semibold tabular-nums text-warning">410</div>
+              <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
+                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.risk ?? 0}
+              </div>
               <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
             </CardContent>
           </Card>
-          <Card 
+          <Card
             className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-destructive cursor-pointer"
             onClick={() => navigate("/sales-analytics?tab=customers")}
+            title="Last sale over 365 days ago (inactive)"
           >
             <CardContent className="p-3 text-center">
-              <div className="text-xl font-semibold tabular-nums text-destructive">6221</div>
+              <div className="text-xl font-semibold tabular-nums text-destructive min-h-[28px] flex items-center justify-center">
+                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.lost ?? 0}
+              </div>
               <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
             </CardContent>
           </Card>
