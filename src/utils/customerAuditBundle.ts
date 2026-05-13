@@ -81,11 +81,37 @@ export function buildAuditRows(
   for (const sr of params.saleReturns) {
     const cs = String(sr.credit_status || "").toLowerCase();
     const linked = String((sr as { linked_sale_id?: string | null }).linked_sale_id || "").trim();
-    // Absorbed into an invoice via `sales.sale_return_adjust` / POS — omit duplicate SR credit.
-    // `adjusted` with no `linked_sale_id`: CN generated but not tied to a sale — must still show credit.
-    if (cs === "adjusted" && linked) continue;
     const d = String(sr.return_date || "").slice(0, 10);
     const rn = String(sr.return_number || "").trim() || "—";
+    const grossCredit = Number(sr.net_amount || 0);
+    // De-duplicate against absorbed credit so partially / fully adjusted SRs
+    // aren't double-counted alongside their `sale_return_adjust` row or any
+    // CN-application voucher already posted under the same return number.
+    let absorbed = 0;
+    if (linked) {
+      const linkedSale = (params.sales || []).find(
+        (s: any) => String(s.id) === linked,
+      );
+      if (linkedSale) absorbed += Number((linkedSale as any).sale_return_adjust || 0);
+    }
+    const rnLower = rn.toLowerCase();
+    if (rnLower && rnLower !== "—") {
+      for (const v of params.vouchers || []) {
+        const vt = String(v.voucher_type || "").toLowerCase();
+        const pm = String(v.payment_method || "").toLowerCase();
+        const desc = String(v.description || "").toLowerCase();
+        const isCnApp =
+          (vt === "receipt" && pm === "credit_note_adjustment") ||
+          (vt === "credit_note") ||
+          desc.includes("credit note adjusted") ||
+          desc.includes("cn adjusted");
+        if (isCnApp && desc.includes(rnLower)) {
+          absorbed += voucherCreditAmount(v);
+        }
+      }
+    }
+    const effectiveCredit = Math.max(0, grossCredit - absorbed);
+    if (effectiveCredit < 0.005) continue;
     const baseParticulars =
       String((sr as { notes?: string | null }).notes || "").trim() || `Sale return / credit note ${rn}`;
     const particulars =
@@ -97,7 +123,7 @@ export function buildAuditRows(
       ref: rn,
       particulars,
       debit: 0,
-      credit: Number(sr.net_amount || 0),
+      credit: effectiveCredit,
       internal: false,
     });
   }
