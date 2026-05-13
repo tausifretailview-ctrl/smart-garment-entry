@@ -3457,7 +3457,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                ₹{invoice.is_cancelled ? 0 : Math.round((invoice.net_amount || 0) - (invoice.paid_amount || 0)).toLocaleString('en-IN')}
+                                 ₹{invoice.is_cancelled ? 0 : Math.round(Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0))).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
