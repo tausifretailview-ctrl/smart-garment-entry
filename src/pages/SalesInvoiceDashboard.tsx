@@ -1851,45 +1851,14 @@ export default function SalesInvoiceDashboard() {
           return saleReturnCnPoolRow(r) > 0.005;
         });
 
-        const totalCN = eligible.reduce((sum: number, r: any) => sum + saleReturnCnPoolRow(r), 0);
-
-        // Sum of CN adjustments already applied for this customer's invoices.
-        const { data: customerSales } = await supabase
-          .from("sales")
-          .select("id")
-          .eq("organization_id", currentOrganization?.id)
-          .eq("customer_id", selectedInvoiceForPayment.customer_id)
-          .is("deleted_at", null);
-        const saleIds = (customerSales || []).map((s: any) => s.id);
-
-        let usedCN = 0;
-        if (saleIds.length > 0) {
-          const { data: cnVouchers } = await supabase
-            .from("voucher_entries")
-            .select("total_amount")
-            .eq("organization_id", currentOrganization?.id)
-            .eq("voucher_type", "receipt")
-            // Phase 1.2: include mis-tagged customer rows for the customer's sales.
-            .in("reference_type", ["sale", "customer"])
-            .eq("payment_method", "credit_note_adjustment")
-            .in("reference_id", saleIds)
-            .is("deleted_at", null);
-          usedCN = (cnVouchers || []).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0);
-        }
-
-        const totalAvailable = Math.max(0, totalCN - usedCN);
-
-        let remainingUsed = usedCN;
-        let bestReturnId: string | null = null;
-        for (const r of eligible) {
-          const amt = saleReturnCnPoolRow(r);
-          if (remainingUsed >= amt) {
-            remainingUsed -= amt;
-            continue;
-          }
-          bestReturnId = r.id;
-          break;
-        }
+        // credit_available_balance on each sale_return is already the authoritative
+        // remaining pool (auto-deducted on link + adjustments). Do NOT subtract
+        // credit_note_adjustment vouchers again — that double-counts.
+        const totalAvailable = eligible.reduce(
+          (sum: number, r: any) => sum + saleReturnCnPoolRow(r),
+          0,
+        );
+        const bestReturnId = eligible.find((r: any) => saleReturnCnPoolRow(r) > 0.005)?.id ?? null;
 
         setAvailableCNBalance(totalAvailable);
         setSelectedCNReturnId(bestReturnId);
@@ -1989,10 +1958,15 @@ export default function SalesInvoiceDashboard() {
         linked_sale_id: string | null;
         credit_available_balance: number | null;
       } | null = null;
+      let creditNoteSnapshot: {
+        id: string;
+        used_amount: number;
+        status: string;
+      } | null = null;
       if (isCreditNoteMode && selectedCNReturnId) {
         const { data: srPre } = await supabase
           .from("sale_returns")
-          .select("credit_status, linked_sale_id, credit_available_balance")
+          .select("credit_status, linked_sale_id, credit_available_balance, credit_note_id")
           .eq("id", selectedCNReturnId)
           .maybeSingle();
         if (srPre) {
@@ -2004,6 +1978,21 @@ export default function SalesInvoiceDashboard() {
             credit_available_balance:
               cab != null && !Number.isNaN(Number(cab)) ? Number(cab) : null,
           };
+          const preCnId = (srPre as { credit_note_id?: string | null }).credit_note_id ?? null;
+          if (preCnId) {
+            const { data: cnPre } = await supabase
+              .from("credit_notes")
+              .select("id, credit_amount, used_amount, status")
+              .eq("id", preCnId)
+              .maybeSingle();
+            if (cnPre) {
+              creditNoteSnapshot = {
+                id: cnPre.id as string,
+                used_amount: Number((cnPre as { used_amount?: number }).used_amount || 0),
+                status: String((cnPre as { status?: string }).status || "active"),
+              };
+            }
+          }
         }
       }
 
@@ -2031,7 +2020,7 @@ export default function SalesInvoiceDashboard() {
 
           const { data: srRow } = await supabase
             .from("sale_returns")
-            .select("net_amount, credit_available_balance, linked_sale_id")
+            .select("net_amount, credit_available_balance, linked_sale_id, credit_note_id")
             .eq("id", selectedCNReturnId)
             .maybeSingle();
           const net = Number(srRow?.net_amount || 0);
@@ -2049,6 +2038,27 @@ export default function SalesInvoiceDashboard() {
             updatePayload.linked_sale_id = selectedInvoiceForPayment.id;
           }
           await supabase.from("sale_returns").update(updatePayload).eq("id", selectedCNReturnId);
+
+          // Keep credit_notes.used_amount in sync so the Customer Ledger
+          // "CN Available" card (credit_amount - used_amount) reflects reality.
+          const cnId = (srRow as { credit_note_id?: string | null } | null)?.credit_note_id ?? null;
+          if (cnId) {
+            const { data: cnRow } = await supabase
+              .from("credit_notes")
+              .select("credit_amount, used_amount")
+              .eq("id", cnId)
+              .maybeSingle();
+            if (cnRow) {
+              const credit = Number((cnRow as { credit_amount?: number }).credit_amount || 0);
+              const prevUsed = Number((cnRow as { used_amount?: number }).used_amount || 0);
+              const newUsed = Math.min(credit, Math.round((prevUsed + amount) * 100) / 100);
+              const newCnStatus = credit - newUsed <= 0.01 ? "fully_used" : "active";
+              await supabase
+                .from("credit_notes")
+                .update({ used_amount: newUsed, status: newCnStatus })
+                .eq("id", cnId);
+            }
+          }
         }
 
         const { error: updateError } = await supabase
@@ -2201,6 +2211,15 @@ export default function SalesInvoiceDashboard() {
                 credit_available_balance: saleReturnSnapshot.credit_available_balance,
               })
               .eq("id", saleReturnSnapshot.id);
+          }
+          if (creditNoteSnapshot) {
+            await supabase
+              .from("credit_notes")
+              .update({
+                used_amount: creditNoteSnapshot.used_amount,
+                status: creditNoteSnapshot.status,
+              })
+              .eq("id", creditNoteSnapshot.id);
           }
           throw glErr;
         }
