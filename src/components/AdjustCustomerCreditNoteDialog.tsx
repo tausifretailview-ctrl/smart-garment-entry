@@ -496,6 +496,20 @@ export function AdjustCustomerCreditNoteDialog({
 
         if (returnError) throw returnError;
 
+        // Mirror the refund into customer_ledger_entries so the
+        // Customer Account Statement report stays in sync.
+        if (currentOrganization?.id && customerId) {
+          await insertLedgerCredit({
+            organizationId: currentOrganization.id,
+            customerId,
+            voucherType: "PAYMENT",
+            voucherNo: newVoucherNumber,
+            particulars: `Refund paid for Sale Return ${returnNumber} (${refundMode})`,
+            transactionDate: today,
+            amount: liveCn,
+          });
+        }
+
         toast({
           title: "Success",
           description: `Refund marked as paid. Payment voucher created.`,
@@ -635,10 +649,6 @@ export function AdjustCustomerCreditNoteDialog({
           if (voucherError) throw voucherError;
         }
 
-        toast({
-          title: "Success",
-          description: `Credit note adjusted to customer outstanding balance. ₹${liveCn.toFixed(2)} deducted.`,
-        });
       }
 
       onOpenChange(false);
