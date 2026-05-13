@@ -1,103 +1,37 @@
-## Bug — Naseem Jahid (Ella Noor)
+## Answer
 
-When a Sale Return (SR/25-26/57, ₹14,400) is created and **auto-adjusted** ₹5,900 against linked invoice INV/26-27/386, the system does two things at the same time:
+### 1. CN fix coverage — yes, applies to all organizations going forward
 
-1. Reduces `sale_returns.credit_available_balance` from 14,400 → **8,500**.
-2. Writes a `credit_note_adjustment` voucher of **5,900** against INV/26-27/386.
+The two code changes I shipped are global, not Ella-Noor-specific:
 
-Both correctly represent the **same ₹5,900**. But the "Record Payment → From Credit Note (CN)" dialog subtracts them **twice**, and the Customer Ledger "CN Available" card reads from a third out-of-sync source (`credit_notes.used_amount`). That produces every wrong number the user reported:
+- **Sales Dashboard → Record Payment → "From Credit Note (CN)"** now reads only `sale_returns.credit_available_balance` for the available CN pool — the buggy second subtraction of `credit_note_adjustment` vouchers is removed. Every customer in every org now sees the correct remaining CN amount.
+- **`handleRecordPayment` (CN branch)** now bumps `credit_notes.used_amount` (and flips status to `fully_used` when fully consumed), with snapshot/rollback if the GL post fails. This keeps the Customer Ledger "CN Available" card in sync for every future adjustment.
+- **Backfill migration** already healed the 3 historical CNs across orgs that had `used_amount = 0` while their SR pool was partially consumed (CN/26-27/3 = 4750/4750, CN/26-27/4 = 4600/13500, CN/26-27/5 = 5900/14400).
 
-| Place | Shown | Should be |
+So: yes — every future CN adjustment from the Sales Dashboard, in every organization, will keep `sale_returns.credit_available_balance` and `credit_notes.used_amount` in lockstep.
+
+### 2. Advance adjustment flow — investigated, no similar bug
+
+Audited the advance counterpart of the same code path:
+
+| Step | CN flow (was) | Advance flow |
 |---|---|---|
-| Record Payment → Available CN Balance | ₹2,600 | ₹8,500 |
-| Ledger card "CN Available" | ₹14,400 | ₹8,500 |
-| Ledger top "Advance Balance (Cr)" | ₹7,000 | ~₹1,100 (cascades from above) |
+| Read available pool | `sale_returns.credit_available_balance` − vouchers (DOUBLE) | `customer_advances.amount − used_amount` only ✓ |
+| Update master table on apply | none → ledger card stale ✗ | `applyAdvance` FIFO bumps `customer_advances.used_amount` ✓ |
+| Voucher entry written | yes | yes |
+| Sale `paid_amount` updated | no (uses `sale_return_adjust`) | yes |
 
-DB confirms: `credit_notes.used_amount = 0`, `sale_returns.credit_available_balance = 8500`, one CN voucher of 5,900 exists.
-
-## Root causes
-
-**A. Double subtraction in `SalesInvoiceDashboard.tsx` `handlePaymentModeChange` (lines ~1830–1894)**
-
-`totalCN` is summed from `saleReturnCnPoolRow(r)` → already returns `credit_available_balance` (post-adjustment).
-Then `usedCN` = sum of `voucher_entries` with `payment_method='credit_note_adjustment'` is subtracted again.
-Result: 8,500 − 5,900 = **2,600** (wrong; the 5,900 was already deducted from 14,400 to make 8,500).
-
-**B. `credit_notes.used_amount` is never updated**
-
-`handleRecordPayment` updates `sale_returns.credit_available_balance` and inserts a voucher, but never bumps `credit_notes.used_amount`. The Customer Ledger "CN Available" card (`CustomerLedger.tsx` line 216–235) reads `credit_amount − used_amount` and therefore always shows the gross 14,400.
-
-**C. Cascading "Advance Balance (Cr) ₹7,000"**
-
-The audit-formula outstanding pulls in the inflated CN pool, throwing the customer balance off. Fixing A + B re-aligns it. No separate fix needed beyond a one-time refresh.
-
-## Fix plan
-
-### 1. `src/pages/SalesInvoiceDashboard.tsx` — stop double-counting in CN balance dialog
-
-In `handlePaymentModeChange` (lines ~1854–1880), use **either** `credit_available_balance` **or** voucher subtraction, not both. Cleanest: drop the voucher subtraction entirely, since `credit_available_balance` is already the authoritative remaining pool.
-
-```ts
-const totalCN = eligible.reduce((sum, r) => sum + saleReturnCnPoolRow(r), 0);
-// REMOVE: customerSales fetch, cnVouchers fetch, usedCN subtraction
-const totalAvailable = totalCN;
-setAvailableCNBalance(totalAvailable);
-setSelectedCNReturnId(eligible[0]?.id ?? null);
-```
-
-This makes the dialog show ₹8,500 (correct).
-
-### 2. `src/pages/SalesInvoiceDashboard.tsx` — sync `credit_notes.used_amount` on CN apply
-
-In `handleRecordPayment` (the `if (isCreditNoteMode)` branch around line 2024–2052), after updating `sale_returns`, also update the linked credit note row:
-
-```ts
-// Look up CN row linked to this sale_return
-const { data: cnRow } = await supabase
-  .from("credit_notes")
-  .select("id, credit_amount, used_amount")
-  .eq("organization_id", currentOrganization!.id)
-  .eq("customer_id", selectedInvoiceForPayment.customer_id)
-  // Match by sale_return id via the existing ensureCreditNoteForSaleReturn link,
-  // or by credit_note_id stored on sale_returns
-  .eq("id", srRow.credit_note_id)  // pull credit_note_id in the SR select above
-  .maybeSingle();
-
-if (cnRow) {
-  const newUsed = Math.min(
-    Number(cnRow.credit_amount || 0),
-    Number(cnRow.used_amount || 0) + amount
-  );
-  const newCnStatus =
-    newUsed >= Number(cnRow.credit_amount || 0) - 0.01 ? "fully_used" : "active";
-  await supabase
-    .from("credit_notes")
-    .update({ used_amount: newUsed, status: newCnStatus })
-    .eq("id", cnRow.id);
-}
-```
-
-Also include `credit_note_id` in the `sale_returns` select on line 2034.
-
-Snapshot/rollback path (the GL-failure branch at lines ~2185–2214) must also restore `credit_notes.used_amount` if the application fails — capture pre-update `used_amount`/`status` in the snapshot block (lines ~1992–2008) and restore alongside the SR rollback.
-
-### 3. One-time data fix for Naseem Jahid (Ella Noor)
-
-After code is deployed, re-sync `credit_notes.used_amount` for CN/26-27/5 to **5,900** (status `active`) so the Ledger CN Available card immediately reflects ₹8,500. We may want a small backfill script across all orgs for any CN where:
+DB sweep (all orgs) — looking for any customer whose `advance_adjustment` voucher totals exceed actual `customer_advances.used_amount`:
 
 ```
-credit_notes.used_amount = 0
-AND exists matching sale_returns with credit_available_balance < net_amount (or voucher_entries with credit_note_adjustment for that customer's sales)
+phantom_excess > ₹1 → 0 rows
 ```
 
-Will surface that script for approval after the code change lands.
+Conclusion: the advance-adjustment path on the Sales Dashboard is structurally sound. It does not double-read pool sources, and `customer_advances.used_amount` is reliably incremented via `applyAdvance` (FIFO) in `useCustomerAdvances`. The previously cleaned-up phantom rows (Naseem 9100, Faiza 4600, Moshin 3950) were already reversed and no new drift has accumulated.
 
-### Files
+### What's still worth a quick follow-up (not bugs in the same class)
 
-- `src/pages/SalesInvoiceDashboard.tsx` — fixes A + B
-- (no change to `CustomerLedger.tsx`; once `used_amount` syncs, the card is correct)
-- One-time DB update for affected customers (separate approval)
+- **Naseem Jahid's "Advance Balance ₹5,800" vs your expected ₹1,100**: DB shows ADV/26-27/244 = ₹4,700 created on 13/05/2026 sitting completely unused (status = `active`, `used_amount = 0`). It's a real, unapplied advance booking — not a phantom. If this booking shouldn't exist (e.g., duplicate of a payment already adjusted elsewhere), say the word and I'll trace its origin and queue a reversal.
+- **"Advance Balance (Cr) ₹7,000" header on the Customer Ledger**: this should auto-correct on the next refresh now that the CN backfill ran. If it still shows wrong after a hard refresh, I'll re-investigate the audit-formula path.
 
-### Out of scope
-
-- The "actual advance remaining is ₹1,100" vs DB ₹5,800 question — DB shows ADV/25-26/0662 unused 1,100 and ADV/26-27/244 unused 4,700 (active, never applied). That's a data review for the user; the 4,700 advance is genuinely sitting unapplied. Will report and ask separately if a cleanup is needed.
+No further code changes proposed in this turn — pending your direction on the ₹4,700 advance and a refresh check on Naseem's ledger.
