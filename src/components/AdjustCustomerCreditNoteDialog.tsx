@@ -22,6 +22,7 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
+import { insertLedgerCredit } from "@/lib/customerLedger";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -60,7 +61,7 @@ export function AdjustCustomerCreditNoteDialog({
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
-  const [adjustmentType, setAdjustmentType] = useState<"invoice" | "refund" | "outstanding">("invoice");
+  const [adjustmentType, setAdjustmentType] = useState<"invoice" | "refund">("invoice");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
