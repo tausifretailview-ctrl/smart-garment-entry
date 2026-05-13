@@ -1325,7 +1325,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL sale returns for this customer (all statuses)
       let saleReturnsQuery = supabase
         .from("sale_returns")
-        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, created_at")
+        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, credit_note_id, created_at")
         .eq("customer_id", selectedCustomer.id)
         .eq("organization_id", organizationId)
         .is("deleted_at", null);
@@ -1632,7 +1632,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           data: refund,
         })),
         ...(creditNotesData || [])
-          .filter((cn: any) => !cn.sale_id || !(saleReturnsData || []).some((sr: any) => sr.linked_sale_id === cn.sale_id))
+          .filter((cn: any) => {
+            // Skip CNs already represented by a Sale Return row (same ledger amount,
+            // would otherwise double-count). Match by SR.credit_note_id (authoritative
+            // link) OR by the legacy sale_id heuristic.
+            const linkedBySr = (saleReturnsData || []).some(
+              (sr: any) => sr.credit_note_id === cn.id
+            );
+            if (linkedBySr) return false;
+            const linkedBySaleId = cn.sale_id && (saleReturnsData || []).some(
+              (sr: any) => sr.linked_sale_id === cn.sale_id
+            );
+            return !linkedBySaleId;
+          })
           .map((cn: any) => ({
             date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
             timestamp: cn.created_at,
