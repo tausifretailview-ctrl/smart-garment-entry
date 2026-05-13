@@ -1958,10 +1958,15 @@ export default function SalesInvoiceDashboard() {
         linked_sale_id: string | null;
         credit_available_balance: number | null;
       } | null = null;
+      let creditNoteSnapshot: {
+        id: string;
+        used_amount: number;
+        status: string;
+      } | null = null;
       if (isCreditNoteMode && selectedCNReturnId) {
         const { data: srPre } = await supabase
           .from("sale_returns")
-          .select("credit_status, linked_sale_id, credit_available_balance")
+          .select("credit_status, linked_sale_id, credit_available_balance, credit_note_id")
           .eq("id", selectedCNReturnId)
           .maybeSingle();
         if (srPre) {
@@ -1973,6 +1978,21 @@ export default function SalesInvoiceDashboard() {
             credit_available_balance:
               cab != null && !Number.isNaN(Number(cab)) ? Number(cab) : null,
           };
+          const preCnId = (srPre as { credit_note_id?: string | null }).credit_note_id ?? null;
+          if (preCnId) {
+            const { data: cnPre } = await supabase
+              .from("credit_notes")
+              .select("id, credit_amount, used_amount, status")
+              .eq("id", preCnId)
+              .maybeSingle();
+            if (cnPre) {
+              creditNoteSnapshot = {
+                id: cnPre.id as string,
+                used_amount: Number((cnPre as { used_amount?: number }).used_amount || 0),
+                status: String((cnPre as { status?: string }).status || "active"),
+              };
+            }
+          }
         }
       }
 
@@ -2000,7 +2020,7 @@ export default function SalesInvoiceDashboard() {
 
           const { data: srRow } = await supabase
             .from("sale_returns")
-            .select("net_amount, credit_available_balance, linked_sale_id")
+            .select("net_amount, credit_available_balance, linked_sale_id, credit_note_id")
             .eq("id", selectedCNReturnId)
             .maybeSingle();
           const net = Number(srRow?.net_amount || 0);
@@ -2018,6 +2038,27 @@ export default function SalesInvoiceDashboard() {
             updatePayload.linked_sale_id = selectedInvoiceForPayment.id;
           }
           await supabase.from("sale_returns").update(updatePayload).eq("id", selectedCNReturnId);
+
+          // Keep credit_notes.used_amount in sync so the Customer Ledger
+          // "CN Available" card (credit_amount - used_amount) reflects reality.
+          const cnId = (srRow as { credit_note_id?: string | null } | null)?.credit_note_id ?? null;
+          if (cnId) {
+            const { data: cnRow } = await supabase
+              .from("credit_notes")
+              .select("credit_amount, used_amount")
+              .eq("id", cnId)
+              .maybeSingle();
+            if (cnRow) {
+              const credit = Number((cnRow as { credit_amount?: number }).credit_amount || 0);
+              const prevUsed = Number((cnRow as { used_amount?: number }).used_amount || 0);
+              const newUsed = Math.min(credit, Math.round((prevUsed + amount) * 100) / 100);
+              const newCnStatus = credit - newUsed <= 0.01 ? "fully_used" : "active";
+              await supabase
+                .from("credit_notes")
+                .update({ used_amount: newUsed, status: newCnStatus })
+                .eq("id", cnId);
+            }
+          }
         }
 
         const { error: updateError } = await supabase
