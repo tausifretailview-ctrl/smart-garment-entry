@@ -2212,6 +2212,15 @@ export default function SalesInvoiceDashboard() {
               })
               .eq("id", saleReturnSnapshot.id);
           }
+          if (creditNoteSnapshot) {
+            await supabase
+              .from("credit_notes")
+              .update({
+                used_amount: creditNoteSnapshot.used_amount,
+                status: creditNoteSnapshot.status,
+              })
+              .eq("id", creditNoteSnapshot.id);
+          }
           throw glErr;
         }
       }
