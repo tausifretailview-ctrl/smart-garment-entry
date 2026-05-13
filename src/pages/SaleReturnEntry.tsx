@@ -335,7 +335,7 @@ export default function SaleReturnEntry() {
     try {
       let query = supabase
         .from('sale_items')
-        .select('unit_price, per_qty_net_amount, line_total, quantity, discount_percent')
+        .select('unit_price, per_qty_net_amount, line_total, quantity, discount_percent, net_after_discount')
         .eq('variant_id', variantId)
         .is('deleted_at', null);
 
@@ -352,13 +352,21 @@ export default function SaleReturnEntry() {
       const discPct = (data.discount_percent && data.discount_percent > 0) ? data.discount_percent : undefined;
 
       let price: number | null = null;
+      const qty = Number(data.quantity) || 0;
+      const perQtyFromNetAfter =
+        data.net_after_discount != null &&
+        qty > 0 &&
+        Number(data.net_after_discount) > 0.005
+          ? Number(data.net_after_discount) / qty
+          : null;
       if (useOriginalPrice) {
         // Return original price before discount (for exchange scenarios)
         if (data.unit_price && data.unit_price > 0) price = data.unit_price;
         else if (data.per_qty_net_amount && data.per_qty_net_amount > 0) price = data.per_qty_net_amount;
       } else {
-        // DEFAULT: Return actual paid price after all discounts (accounting-correct)
-        if (data.per_qty_net_amount && data.per_qty_net_amount > 0) price = data.per_qty_net_amount;
+        // DEFAULT: paid unit — prefer net_after_discount (post flat/round) then per_qty_net_amount
+        if (perQtyFromNetAfter != null && perQtyFromNetAfter > 0.005) price = perQtyFromNetAfter;
+        else if (data.per_qty_net_amount && data.per_qty_net_amount > 0.005) price = data.per_qty_net_amount;
         else if (data.line_total && data.quantity) price = data.line_total / data.quantity;
         else if (data.unit_price && data.unit_price > 0) price = data.unit_price;
       }

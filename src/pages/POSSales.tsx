@@ -135,6 +135,69 @@ function calculatePosCartLineNet(item: CartItem): number {
   return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
 }
 
+type SaleRowForFlatResolve = {
+  gross_amount?: number | null;
+  discount_amount?: number | null;
+  flat_discount_amount?: number | null;
+  flat_discount_percent?: number | null;
+};
+
+type SaleItemRowForFlatResolve = {
+  line_total?: number | null;
+  per_qty_net_amount?: number | null;
+  quantity?: number | null;
+  mrp?: number | null;
+  unit_price?: number | null;
+  discount_percent?: number | null;
+};
+
+/**
+ * Restore bill-level flat discount for POS edit when `sales.flat_*` is missing but
+ * `sale_items` still carry post-flat `per_qty_net_amount`, or legacy rows put the
+ * whole bill discount in `sales.discount_amount` while line totals stayed at gross.
+ */
+function resolveBillFlatForPosEdit(
+  sale: SaleRowForFlatResolve,
+  saleItems: SaleItemRowForFlatResolve[],
+): { value: number; mode: "percent" | "amount"; percentLooksClean: boolean } {
+  const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
+  const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
+  const percentLooksClean =
+    savedFlatPercent > 0 &&
+    Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
+
+  if (percentLooksClean) return { value: savedFlatPercent, mode: "percent", percentLooksClean: true };
+  if (savedFlatAmount > 0.005) return { value: savedFlatAmount, mode: "amount", percentLooksClean: false };
+
+  let fromLines = 0;
+  for (const row of saleItems || []) {
+    const lt = Number(row.line_total) || 0;
+    const pq = Number(row.per_qty_net_amount) || 0;
+    const q = Number(row.quantity) || 0;
+    if (pq > 0.005 && q > 0) fromLines += Math.max(0, lt - pq * q);
+  }
+  fromLines = Math.round(fromLines * 100) / 100;
+  if (fromLines > 0.02) return { value: fromLines, mode: "amount", percentLooksClean: false };
+
+  const gross = Number(sale.gross_amount) || 0;
+  const discAgg = Number(sale.discount_amount) || 0;
+  if (discAgg > 0.02 && gross > 0.02) {
+    const lineSum = (saleItems || []).reduce((s, r) => s + (Number(r.line_total) || 0), 0);
+    if (Math.abs(lineSum - gross) < 0.05) {
+      const hasLineDisc = (saleItems || []).some((row) => {
+        const m = Number(row.mrp) || 0;
+        const u = Number(row.unit_price) || 0;
+        const q = Number(row.quantity) || 0;
+        if ((Number(row.discount_percent) || 0) > 0.005) return true;
+        return m > u + 0.01 && q > 0;
+      });
+      if (!hasLineDisc) return { value: discAgg, mode: "amount", percentLooksClean: false };
+    }
+  }
+
+  return { value: 0, mode: "percent", percentLooksClean: false };
+}
+
 /** Net amount per unit after line-level discounts (for display / receipt rate). */
 function posLineNetUnitPrice(item: CartItem): number {
   return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
@@ -514,22 +577,6 @@ export default function POSSales() {
       setCustomerId(sale.customer_id || "");
       setCustomerName(sale.customer_name);
       setCustomerPhone(sale.customer_phone || "");
-      const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
-      const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
-      // If percent has long decimals (e.g. 10.2564), it was derived from amount mode.
-      const percentLooksClean =
-        savedFlatPercent > 0 &&
-        Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
-      if (percentLooksClean) {
-        handleFlatDiscountValueChange(savedFlatPercent);
-        setFlatDiscountMode('percent');
-      } else if (savedFlatAmount > 0) {
-        handleFlatDiscountValueChange(savedFlatAmount);
-        setFlatDiscountMode('amount');
-      } else {
-        setFlatDiscountValue(0);
-        setFlatDiscountMode('percent');
-      }
       setSaleReturnAdjust(sale.sale_return_adjust || 0);
       setRoundOff(Number(sale.round_off) || 0);
       setIsManualRoundOff(true);
@@ -537,6 +584,21 @@ export default function POSSales() {
       setSelectedSalesman(sale.salesman || "");
 
       if (isHeld) {
+        const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
+        const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
+        const percentLooksClean =
+          savedFlatPercent > 0 &&
+          Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
+        if (percentLooksClean) {
+          handleFlatDiscountValueChange(savedFlatPercent);
+          setFlatDiscountMode("percent");
+        } else if (savedFlatAmount > 0) {
+          handleFlatDiscountValueChange(savedFlatAmount);
+          setFlatDiscountMode("amount");
+        } else {
+          setFlatDiscountValue(0);
+          setFlatDiscountMode("percent");
+        }
         // Load items from dedicated held_cart_data column (held sale doesn't have sale_items)
         try {
           const holdData = (sale as any).held_cart_data;
@@ -544,7 +606,7 @@ export default function POSSales() {
             setItems(holdData.items);
             if (holdData.flatDiscountPercent !== undefined) {
               handleFlatDiscountValueChange(holdData.flatDiscountPercent);
-              setFlatDiscountMode('percent');
+              setFlatDiscountMode("percent");
             }
             if (holdData.saleReturnAdjust !== undefined) {
               setSaleReturnAdjust(holdData.saleReturnAdjust);
@@ -554,26 +616,39 @@ export default function POSSales() {
             }
           }
         } catch (parseError) {
-          console.error('Error loading held cart data:', parseError);
+          console.error("Error loading held cart data:", parseError);
         }
-        
-        toast.success("Held Bill Loaded", { description: `Bill ${sale.sale_number} loaded. Complete the sale with a payment method.` });
+
+        toast.success("Held Bill Loaded", {
+          description: `Bill ${sale.sale_number} loaded. Complete the sale with a payment method.`,
+        });
       } else {
-        // Fetch sale items for regular sales
         const { data: saleItems, error: itemsError } = await supabase
-          .from('sale_items')
-          .select('*')
-          .eq('sale_id', saleId);
+          .from("sale_items")
+          .select("*")
+          .eq("sale_id", saleId);
 
         if (itemsError) throw itemsError;
 
+        const flatRes = resolveBillFlatForPosEdit(sale, saleItems || []);
+        if (flatRes.percentLooksClean) {
+          handleFlatDiscountValueChange(flatRes.value);
+          setFlatDiscountMode("percent");
+        } else if (flatRes.value > 0.005) {
+          handleFlatDiscountValueChange(flatRes.value);
+          setFlatDiscountMode(flatRes.mode);
+        } else {
+          setFlatDiscountValue(0);
+          setFlatDiscountMode("percent");
+        }
+
         // Convert sale items to cart items
-        const cartItems: CartItem[] = saleItems.map(item => ({
+        const cartItems: CartItem[] = saleItems.map((item) => ({
           id: item.id,
-          barcode: item.barcode || '',
+          barcode: item.barcode || "",
           productName: item.product_name,
           size: item.size,
-          color: item.color || '',
+          color: item.color || "",
           quantity: item.quantity,
           mrp: item.mrp,
           originalMrp: item.mrp > item.unit_price ? item.mrp : null,
@@ -584,25 +659,26 @@ export default function POSSales() {
           netAmount: item.line_total,
           productId: item.product_id,
           variantId: item.variant_id,
-          hsnCode: item.hsn_code || '',
+          hsnCode: item.hsn_code || "",
           itemNotes: (item as any).item_notes || null,
         }));
 
         setItems(cartItems);
-        
+
         // Load sale notes for regular sales
         setSaleNotes(sale.notes || "");
-        
+
         // Store original items for stock validation in edit mode
-        setOriginalItemsForEdit(saleItems.map(item => ({
-          variantId: item.variant_id,
-          quantity: item.quantity,
-        })));
+        setOriginalItemsForEdit(
+          saleItems.map((item) => ({
+            variantId: item.variant_id,
+            quantity: item.quantity,
+          })),
+        );
 
         toast.success(`Invoice ${sale.sale_number} loaded for editing`);
       }
 
-      // Fetch financer/EMI details if available
       const { data: financer } = await supabase
         .from('sale_financer_details')
         .select('*')
@@ -3348,26 +3424,22 @@ export default function POSSales() {
     }));
 
     setItems(loadedItems);
-    
-    // Restore flat discount - detect if it was saved as amount or percent mode
-    const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
-    const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
-    // If percent has long decimals (e.g. 10.2564), it was derived from amount mode.
-    // Prefer amount mode in that case to preserve the user's original ₹ entry.
-    const percentLooksClean =
-      savedFlatPercent > 0 &&
-      Math.abs(savedFlatPercent * 100 - Math.round(savedFlatPercent * 100)) < 0.0001;
-    if (percentLooksClean) {
-      handleFlatDiscountValueChange(savedFlatPercent);
-      setFlatDiscountMode('percent');
-    } else if (savedFlatAmount > 0) {
-      handleFlatDiscountValueChange(savedFlatAmount);
-      setFlatDiscountMode('amount');
+
+    const flatRes = resolveBillFlatForPosEdit(sale, sale.sale_items || []);
+    if (flatRes.percentLooksClean) {
+      handleFlatDiscountValueChange(flatRes.value);
+      setFlatDiscountMode("percent");
+    } else if (flatRes.value > 0.005) {
+      handleFlatDiscountValueChange(flatRes.value);
+      setFlatDiscountMode(flatRes.mode);
     } else {
       setFlatDiscountValue(0);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode("percent");
     }
-    
+
+    const effectiveFlatForSnapshot =
+      flatRes.percentLooksClean ? Number(sale.flat_discount_amount) || 0 : flatRes.value;
+
     setSaleReturnAdjust(Number(sale.sale_return_adjust) || 0);
     
     // Set round-off as manual to prevent auto-recalculation from overwriting saved value
@@ -3400,7 +3472,7 @@ export default function POSSales() {
         discount: Number(sale.discount_amount),
         subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
       },
-      flatDiscountAmount: savedFlatAmount,
+      flatDiscountAmount: effectiveFlatForSnapshot,
       saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
       finalAmount: Number(sale.net_amount),
       method: sale.payment_method,
