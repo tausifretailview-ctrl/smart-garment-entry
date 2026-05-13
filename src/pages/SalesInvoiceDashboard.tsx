@@ -1851,45 +1851,14 @@ export default function SalesInvoiceDashboard() {
           return saleReturnCnPoolRow(r) > 0.005;
         });
 
-        const totalCN = eligible.reduce((sum: number, r: any) => sum + saleReturnCnPoolRow(r), 0);
-
-        // Sum of CN adjustments already applied for this customer's invoices.
-        const { data: customerSales } = await supabase
-          .from("sales")
-          .select("id")
-          .eq("organization_id", currentOrganization?.id)
-          .eq("customer_id", selectedInvoiceForPayment.customer_id)
-          .is("deleted_at", null);
-        const saleIds = (customerSales || []).map((s: any) => s.id);
-
-        let usedCN = 0;
-        if (saleIds.length > 0) {
-          const { data: cnVouchers } = await supabase
-            .from("voucher_entries")
-            .select("total_amount")
-            .eq("organization_id", currentOrganization?.id)
-            .eq("voucher_type", "receipt")
-            // Phase 1.2: include mis-tagged customer rows for the customer's sales.
-            .in("reference_type", ["sale", "customer"])
-            .eq("payment_method", "credit_note_adjustment")
-            .in("reference_id", saleIds)
-            .is("deleted_at", null);
-          usedCN = (cnVouchers || []).reduce((sum: number, v: any) => sum + (Number(v.total_amount) || 0), 0);
-        }
-
-        const totalAvailable = Math.max(0, totalCN - usedCN);
-
-        let remainingUsed = usedCN;
-        let bestReturnId: string | null = null;
-        for (const r of eligible) {
-          const amt = saleReturnCnPoolRow(r);
-          if (remainingUsed >= amt) {
-            remainingUsed -= amt;
-            continue;
-          }
-          bestReturnId = r.id;
-          break;
-        }
+        // credit_available_balance on each sale_return is already the authoritative
+        // remaining pool (auto-deducted on link + adjustments). Do NOT subtract
+        // credit_note_adjustment vouchers again — that double-counts.
+        const totalAvailable = eligible.reduce(
+          (sum: number, r: any) => sum + saleReturnCnPoolRow(r),
+          0,
+        );
+        const bestReturnId = eligible.find((r: any) => saleReturnCnPoolRow(r) > 0.005)?.id ?? null;
 
         setAvailableCNBalance(totalAvailable);
         setSelectedCNReturnId(bestReturnId);
