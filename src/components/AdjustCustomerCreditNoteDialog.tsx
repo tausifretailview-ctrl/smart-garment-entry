@@ -16,7 +16,6 @@ import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import {
-  deleteJournalEntryByReference,
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
