@@ -265,7 +265,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
 
   const { data: saleReturns, error: srErr } = await client
     .from("sale_returns")
-    .select("id, return_number, return_date, net_amount, credit_status, notes")
+    .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, notes")
     .eq("customer_id", customerId)
     .eq("organization_id", orgId)
     .is("deleted_at", null);

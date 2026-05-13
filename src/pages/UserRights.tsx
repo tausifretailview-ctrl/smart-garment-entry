@@ -97,6 +97,7 @@ const menuStructure = [
       { id: "hourly_sales_analysis", name: "Hourly Sales Analysis" },
       { id: "customer_ledger", name: "Customer Ledger" },
       { id: "customer_account_statement", name: "Customer Account Statement" },
+      { id: "customer_balance_activity", name: "Customer balance & activity" },
       { id: "customer_audit_report", name: "Customer Audit Report" },
     ],
   },
@@ -252,6 +253,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   hourly_sales_analysis: true,
   customer_ledger: true,
   customer_account_statement: true,
+  customer_balance_activity: true,
   customer_audit_report: true,
   delivery_dashboard: true,
   delivery_update: true,
@@ -369,6 +371,11 @@ const UserRights = () => {
       // Backward compatibility: older records used one key (`customer_ledger`) for all customer report screens.
       if (menuPerms.customer_account_statement === undefined) {
         menuPerms.customer_account_statement = !!menuPerms.customer_ledger;
+      }
+      if (menuPerms.customer_balance_activity === undefined) {
+        menuPerms.customer_balance_activity = !!(
+          menuPerms.customer_account_statement || menuPerms.customer_ledger
+        );
       }
       if (menuPerms.customer_audit_report === undefined) {
         menuPerms.customer_audit_report = !!menuPerms.customer_ledger;
