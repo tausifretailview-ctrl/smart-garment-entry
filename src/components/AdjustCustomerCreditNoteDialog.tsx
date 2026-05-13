@@ -16,12 +16,12 @@ import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import {
-  deleteJournalEntryByReference,
   recordCustomerCreditNoteApplicationJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
+import { insertLedgerCredit } from "@/lib/customerLedger";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -60,7 +60,7 @@ export function AdjustCustomerCreditNoteDialog({
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
-  const [adjustmentType, setAdjustmentType] = useState<"invoice" | "refund" | "outstanding">("invoice");
+  const [adjustmentType, setAdjustmentType] = useState<"invoice" | "refund">("invoice");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
@@ -495,148 +495,23 @@ export function AdjustCustomerCreditNoteDialog({
 
         if (returnError) throw returnError;
 
+        // Mirror the refund into customer_ledger_entries so the
+        // Customer Account Statement report stays in sync.
+        if (currentOrganization?.id && customerId) {
+          await insertLedgerCredit({
+            organizationId: currentOrganization.id,
+            customerId,
+            voucherType: "PAYMENT",
+            voucherNo: newVoucherNumber,
+            particulars: `Refund paid for Sale Return ${returnNumber} (${refundMode})`,
+            transactionDate: today,
+            amount: liveCn,
+          });
+        }
+
         toast({
           title: "Success",
           description: `Refund marked as paid. Payment voucher created.`,
-        });
-      } else if (adjustmentType === "outstanding") {
-        const prevReturnCreditStatus = String((currentReturn as any)?.credit_status || "pending");
-        const { error: returnError } = await supabase
-          .from("sale_returns")
-          .update({
-            credit_status: "adjusted_outstanding",
-          })
-          .eq("id", saleReturnId);
-
-        if (returnError) throw returnError;
-
-        const { data: srRow } = await supabase
-          .from("sale_returns")
-          .select("linked_sale_id")
-          .eq("id", saleReturnId)
-          .single();
-        const linkedSaleId = (srRow as any)?.linked_sale_id || null;
-
-        if (linkedSaleId && liveCn > 0) {
-          const { data: linkedSale } = await supabase
-            .from("sales")
-            .select("paid_amount, net_amount, sale_return_adjust, payment_status")
-            .eq("id", linkedSaleId)
-            .single();
-
-          if (linkedSale) {
-            const net = Number(linkedSale.net_amount || 0);
-            const snapPaid = Number(linkedSale.paid_amount || 0);
-            const snapSr = Number((linkedSale as any).sale_return_adjust || 0);
-            const snapStatus = String(linkedSale.payment_status || "pending");
-            const capRemaining = Math.max(0, net - snapSr - snapPaid);
-            const adjustAmount = Math.min(liveCn, capRemaining);
-            const newSr = snapSr + adjustAmount;
-            const outstandingAfter = Math.max(0, net - newSr - snapPaid);
-            const newStatus =
-              outstandingAfter <= 0.01
-                ? "completed"
-                : snapPaid > 0.01 || newSr > 0.01
-                  ? "partial"
-                  : "pending";
-
-            if (adjustAmount > 0.01) {
-              await supabase
-                .from("sales")
-                .update({
-                  payment_status: newStatus,
-                  sale_return_adjust: newSr,
-                })
-                .eq("id", linkedSaleId);
-
-              const today = format(new Date(), "yyyy-MM-dd");
-              const { data: lastRcp } = await supabase
-                .from("voucher_entries")
-                .select("voucher_number")
-                .eq("organization_id", currentOrganization?.id)
-                .eq("voucher_type", "receipt")
-                .order("created_at", { ascending: false })
-                .limit(1);
-              const lastNum2 = lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-              const newVoucherNumber = `RCP-${String(parseInt(lastNum2) + 1).padStart(5, "0")}`;
-              const cnApplyDesc = `Credit note adjusted against invoice (Return ${returnNumber})`;
-
-              const { data: outVoucherRow, error: outVoucherErr } = await supabase
-                .from("voucher_entries")
-                .insert({
-                  organization_id: currentOrganization?.id,
-                  voucher_number: newVoucherNumber,
-                  voucher_type: "receipt",
-                  voucher_date: today,
-                  reference_type: "sale",
-                  reference_id: linkedSaleId,
-                  total_amount: adjustAmount,
-                  payment_method: "credit_note_adjustment",
-                  description: cnApplyDesc,
-                })
-                .select("id")
-                .single();
-              if (outVoucherErr) throw outVoucherErr;
-              const outVoucherId = outVoucherRow?.id as string | undefined;
-
-              const { data: acctOut2 } = await supabase
-                .from("settings")
-                .select("accounting_engine_enabled")
-                .eq("organization_id", currentOrganization?.id)
-                .maybeSingle();
-              if (
-                outVoucherId &&
-                isAccountingEngineEnabled(acctOut2 as { accounting_engine_enabled?: boolean } | null)
-              ) {
-                try {
-                  await recordCustomerCreditNoteApplicationJournalEntry(
-                    outVoucherId,
-                    currentOrganization!.id,
-                    adjustAmount,
-                    today,
-                    cnApplyDesc,
-                    supabase
-                  );
-                } catch (glErr) {
-                  await deleteJournalEntryByReference(
-                    currentOrganization!.id,
-                    "CustomerCreditNoteApplication",
-                    outVoucherId,
-                    supabase
-                  );
-                  await supabase.from("voucher_entries").delete().eq("id", outVoucherId);
-                  await supabase
-                    .from("sales")
-                    .update({
-                      payment_status: snapStatus as "pending" | "partial" | "completed",
-                      sale_return_adjust: snapSr,
-                    })
-                    .eq("id", linkedSaleId);
-                  await supabase
-                    .from("sale_returns")
-                    .update({ credit_status: prevReturnCreditStatus })
-                    .eq("id", saleReturnId);
-                  throw glErr;
-                }
-              }
-            }
-          }
-        }
-
-        if (creditNoteId && creditNoteId !== "") {
-          const { error: voucherError } = await supabase
-            .from("voucher_entries")
-            .update({
-              description: `Credit Note adjusted to Outstanding Balance: ${returnNumber}`,
-            })
-            .eq("id", creditNoteId);
-
-          if (voucherError) throw voucherError;
-        }
-
-        toast({
-          title: "Success",
-          description: `Credit note adjusted to customer outstanding balance. ₹${liveCn.toFixed(2)} deducted.`,
         });
       }
 
@@ -689,7 +564,7 @@ export function AdjustCustomerCreditNoteDialog({
 
           <RadioGroup
             value={adjustmentType}
-            onValueChange={(value) => setAdjustmentType(value as "invoice" | "refund" | "outstanding")}
+            onValueChange={(value) => setAdjustmentType(value as "invoice" | "refund")}
             className="space-y-2 shrink-0"
           >
             <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -704,13 +579,6 @@ export function AdjustCustomerCreditNoteDialog({
               <Label htmlFor="refund" className="flex-1 cursor-pointer">
                 <div className="font-medium">Mark as Refund</div>
                 <div className="text-sm text-muted-foreground">Cash/bank refund paid to customer</div>
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-              <RadioGroupItem value="outstanding" id="outstanding" />
-              <Label htmlFor="outstanding" className="flex-1 cursor-pointer">
-                <div className="font-medium">Adjust in Outstanding Balance</div>
-                <div className="text-sm text-muted-foreground">Reduce customer balance (linked invoice flow)</div>
               </Label>
             </div>
           </RadioGroup>

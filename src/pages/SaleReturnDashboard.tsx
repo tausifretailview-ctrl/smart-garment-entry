@@ -754,9 +754,8 @@ export default function SaleReturnDashboard() {
                             </Button>
                             {(() => {
                               const status = ret.credit_status || "";
-                              if (status === "refunded" || status === "adjusted_outstanding") return false;
-                              const isCnRefund = ret.refund_type === "credit_note" || !ret.refund_type;
-                              if (!isCnRefund || !ret.customer_id) return false;
+                              if (status === "refunded") return false;
+                              if (!ret.customer_id) return false;
                               if (status === "adjusted" && ret.linked_sale_id) {
                                 const remaining = ret.remaining_cn_amt ?? 0;
                                 if (remaining <= 0) return false;

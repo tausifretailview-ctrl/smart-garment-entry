@@ -1,37 +1,46 @@
-## Answer
+## Goal
 
-### 1. CN fix coverage — yes, applies to all organizations going forward
+Make the Sale Return Dashboard "Adjust Credit Note" flow reliable across every organization with only two adjustment modes — **Adjust Against Invoice(s)** and **Refund** — and ensure customer balance + ledger + GL stay correctly in sync.
 
-The two code changes I shipped are global, not Ella-Noor-specific:
+## Findings (current state)
 
-- **Sales Dashboard → Record Payment → "From Credit Note (CN)"** now reads only `sale_returns.credit_available_balance` for the available CN pool — the buggy second subtraction of `credit_note_adjustment` vouchers is removed. Every customer in every org now sees the correct remaining CN amount.
-- **`handleRecordPayment` (CN branch)** now bumps `credit_notes.used_amount` (and flips status to `fully_used` when fully consumed), with snapshot/rollback if the GL post fails. This keeps the Customer Ledger "CN Available" card in sync for every future adjustment.
-- **Backfill migration** already healed the 3 historical CNs across orgs that had `used_amount = 0` while their SR pool was partially consumed (CN/26-27/3 = 4750/4750, CN/26-27/4 = 4600/13500, CN/26-27/5 = 5900/14400).
+1. **Icon visibility too restrictive.** In `SaleReturnDashboard.tsx` (line 755 predicate), the purple Adjust-CN icon is hidden when `refund_type` is `cash_refund` or `exchange`, even if `credit_available_balance > 0`. Result: rows with leftover credit can't be adjusted.
+2. **Outstanding mode has real bugs** (currently the 3rd option):
+   - If the return has no `linked_sale_id`, it just flips status to `adjusted_outstanding` and writes nothing — CN is "consumed" but customer outstanding is NOT actually reduced.
+   - When linked, partial outstanding adjusts don't recalc `credit_available_balance` for the leftover.
+   - Per your direction, this mode is being removed entirely.
+3. **Refund mode** works (creates `PAY-` voucher, sets `credit_available_balance = 0`, `credit_status = 'refunded'`), but does NOT write a `customer_ledger_entries` row, so the new Customer Account Statement report misses it.
+4. **Invoice mode** (via `applyInvoiceAllocationsViaRpc`) updates `sales.sale_return_adjust`, creates `RCP-` vouchers per invoice, posts journal entries, and decrements `credit_available_balance` — this is the healthy path.
 
-So: yes — every future CN adjustment from the Sales Dashboard, in every organization, will keep `sale_returns.credit_available_balance` and `credit_notes.used_amount` in lockstep.
+## Changes
 
-### 2. Advance adjustment flow — investigated, no similar bug
+### 1. `src/components/AdjustCustomerCreditNoteDialog.tsx`
+- Change `adjustmentType` union from `"invoice" | "refund" | "outstanding"` → `"invoice" | "refund"`.
+- Remove the third RadioGroup option ("Adjust in Outstanding Balance") and its description block.
+- Remove the entire `else if (adjustmentType === "outstanding") { ... }` branch (lines ~502–635) and any related helper code that only that branch uses.
+- Refund branch: after the `PAY-` voucher insert + `sale_returns` update, also call `insertLedgerCredit` (from `@/lib/customerLedger`) so the Customer Account Statement reflects the refund as a debit-side cash payment to the customer (voucher type `PAYMENT`, amount = `liveCn`, particulars = `Refund for Sale Return ${returnNumber}`).
+- Default `adjustmentType` stays `"invoice"`.
 
-Audited the advance counterpart of the same code path:
+### 2. `src/pages/SaleReturnDashboard.tsx`
+- Loosen the Adjust-CN icon visibility predicate (line ~755):
+  - Drop the `refund_type === 'credit_note' || !refund_type` requirement.
+  - Drop the `credit_status === 'adjusted_outstanding'` early return (no longer reachable for new returns; for legacy rows with leftover balance the icon should appear).
+  - Keep: `customer_id` present AND `bal > 0` AND status not `refunded`.
+- For status `adjusted` + `linked_sale_id`, still require `remaining_cn_amt > 0` (unchanged).
 
-| Step | CN flow (was) | Advance flow |
-|---|---|---|
-| Read available pool | `sale_returns.credit_available_balance` − vouchers (DOUBLE) | `customer_advances.amount − used_amount` only ✓ |
-| Update master table on apply | none → ledger card stale ✗ | `applyAdvance` FIFO bumps `customer_advances.used_amount` ✓ |
-| Voucher entry written | yes | yes |
-| Sale `paid_amount` updated | no (uses `sale_return_adjust`) | yes |
+### 3. Legacy data (no migration needed)
+Existing returns that already sit at `credit_status = 'adjusted_outstanding'` keep that status. With the new icon predicate, if their `credit_available_balance > 0` the user can re-adjust the leftover via Invoice or Refund. No data backfill needed.
 
-DB sweep (all orgs) — looking for any customer whose `advance_adjustment` voucher totals exceed actual `customer_advances.used_amount`:
+## Accounting verification (after changes)
 
-```
-phantom_excess > ₹1 → 0 rows
-```
+| Mode | sales.sale_return_adjust | voucher_entries | journal_entries (if engine on) | sale_returns.credit_available_balance | customer_ledger_entries |
+|---|---|---|---|---|---|
+| Invoice (per-invoice) | +adjustAmount per invoice | RCP- per invoice | CustomerCreditNoteApplication per voucher | decremented to remainder | already written by RPC path |
+| Refund | n/a | PAY- once | (cash refund handled by existing payment GL) | set to 0 | NEW: PAYMENT credit row added |
 
-Conclusion: the advance-adjustment path on the Sales Dashboard is structurally sound. It does not double-read pool sources, and `customer_advances.used_amount` is reliably incremented via `applyAdvance` (FIFO) in `useCustomerAdvances`. The previously cleaned-up phantom rows (Naseem 9100, Faiza 4600, Moshin 3950) were already reversed and no new drift has accumulated.
+Customer balance (`useCustomerBalance` / `reconcile_customer_balances`) reads from `sales`, `voucher_entries`, `customer_advances`, `sale_returns.credit_available_balance` — all of which the two remaining flows update correctly.
 
-### What's still worth a quick follow-up (not bugs in the same class)
-
-- **Naseem Jahid's "Advance Balance ₹5,800" vs your expected ₹1,100**: DB shows ADV/26-27/244 = ₹4,700 created on 13/05/2026 sitting completely unused (status = `active`, `used_amount = 0`). It's a real, unapplied advance booking — not a phantom. If this booking shouldn't exist (e.g., duplicate of a payment already adjusted elsewhere), say the word and I'll trace its origin and queue a reversal.
-- **"Advance Balance (Cr) ₹7,000" header on the Customer Ledger**: this should auto-correct on the next refresh now that the CN backfill ran. If it still shows wrong after a hard refresh, I'll re-investigate the audit-formula path.
-
-No further code changes proposed in this turn — pending your direction on the ₹4,700 advance and a refresh check on Naseem's ledger.
+## Out of scope
+- No DB schema migration.
+- No changes to `SaleReturnEntry.tsx`, `useCustomerBalance`, or the receipt RPC.
+- No retroactive cleanup of historical `adjusted_outstanding` rows.
