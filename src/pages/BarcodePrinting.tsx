@@ -1561,6 +1561,17 @@ export default function BarcodePrinting() {
 
     hasResolvedDefaultTabRef.current = true;
     setActiveBarTab(resolved);
+    // Keep precisionSettings.enabled in sync with the resolved tab so that
+    // handlePrint picks the right branch on the very first click after
+    // landing on this page (e.g. when navigating directly from Purchase
+    // Dashboard). Without this, enabled may stay true from saved settings
+    // while the visible tab is "standard", causing the wrong print pipeline
+    // to run until the user manually toggles tabs.
+    setPrecisionSettings(prev =>
+      prev.enabled === (resolved === "precision")
+        ? prev
+        : { ...prev, enabled: resolved === "precision" }
+    );
   }, [
     settingsLoading,
     isLoadingSettings,
