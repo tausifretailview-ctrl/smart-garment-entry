@@ -174,7 +174,7 @@ export default function CustomerLedgerPage() {
       // Include sale return / credit note adjustments in statement transactions.
       let saleReturnsQuery = supabase
         .from("sale_returns")
-        .select("id, return_number, return_date, net_amount, credit_status, created_at")
+        .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, created_at")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null);
@@ -223,9 +223,16 @@ export default function CustomerLedgerPage() {
         }
       }
 
-      // Fully applied to invoice(s): settlement appears as CN_APPLIED / sale receipts — omit duplicate SR credit.
+      // `credit_status = adjusted` + `linked_sale_id` set: return is consumed into a sale row via
+      // `sales.sale_return_adjust` / POS flow — omit duplicate SR credit (see recon block below).
+      // `adjusted` with NO `linked_sale_id`: UI shows "Credit Note Generated" — CN exists but was
+      // never tied to an invoice; there is no SRA offset, so we MUST still show the SR credit.
       const returnRows: LedgerRow[] = (saleReturns || [])
-        .filter((sr: any) => String(sr.credit_status || "").toLowerCase() !== "adjusted")
+        .filter((sr: any) => {
+          const st = String(sr.credit_status || "").toLowerCase();
+          if (st !== "adjusted") return true;
+          return !String((sr as any).linked_sale_id || "").trim();
+        })
         .map((sr: any) => ({
         id: `sr-${sr.id}`,
         transaction_date: sr.return_date,
@@ -236,7 +243,10 @@ export default function CustomerLedgerPage() {
             ? `Credit Note pending adjustment (${sr.return_number || "N/A"})`
             : sr.credit_status === "adjusted_outstanding"
             ? `Credit Note adjusted to outstanding (${sr.return_number || "N/A"})`
-            : `Sale Return / Credit Note (${sr.return_number || "N/A"})`,
+            : String(sr.credit_status || "").toLowerCase() === "adjusted" &&
+                !String((sr as any).linked_sale_id || "").trim()
+              ? `Sale Return / Credit Note (${sr.return_number || "N/A"}) — CN not linked to an invoice`
+              : `Sale Return / Credit Note (${sr.return_number || "N/A"})`,
         debit: 0,
         credit: Number(sr.net_amount || 0),
         running_balance: 0,
@@ -572,9 +582,11 @@ export default function CustomerLedgerPage() {
         (s, x: any) => s + Number(x.sale_return_adjust || 0),
         0,
       );
-      const adjustedReturns = (saleReturns || []).filter(
-        (sr: any) => String(sr.credit_status || "").toLowerCase() === "adjusted",
-      );
+      const adjustedReturns = (saleReturns || []).filter((sr: any) => {
+        const st = String(sr.credit_status || "").toLowerCase();
+        if (st !== "adjusted") return false;
+        return Boolean(String((sr as any).linked_sale_id || "").trim());
+      });
       const sumSRAdjusted = adjustedReturns.reduce(
         (s, sr: any) => s + Number(sr.net_amount || 0),
         0,
