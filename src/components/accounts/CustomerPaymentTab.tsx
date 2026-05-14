@@ -934,7 +934,21 @@ export function CustomerPaymentTab({
             const netAmount = Number(sale?.net_amount || 0);
             const saleReturnAdjust = Number((sale as any)?.sale_return_adjust || 0);
             const payableCap = Math.max(0, netAmount - saleReturnAdjust);
-            const newPaidAmount = Math.min(payableCap, Number(sale?.paid_amount || 0) + allocatedAmount);
+            // Recompute from authoritative voucher sum so a stale/overstated cached
+            // paid_amount cannot cause a partial payment to settle the invoice.
+            const { data: vRows } = await supabase
+              .from("voucher_entries")
+              .select("total_amount, discount_amount")
+              .eq("organization_id", organizationId)
+              .eq("voucher_type", "receipt")
+              .in("reference_type", ["sale", "customer"])
+              .is("deleted_at", null)
+              .eq("reference_id", invoiceId);
+            const voucherSum = (vRows || []).reduce(
+              (s: number, v: any) => s + Number(v.total_amount || 0) + Number(v.discount_amount || 0),
+              0
+            );
+            const newPaidAmount = Math.min(payableCap, voucherSum);
             const newStatus = (newPaidAmount + saleReturnAdjust) >= (netAmount - SETTLEMENT_TOLERANCE_RUPEE) ? "completed" : "partial";
 
             const { error: updateError } = await supabase
