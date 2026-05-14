@@ -406,6 +406,7 @@ export function CustomerPaymentTab({
     setUpiPaymentDate(undefined);
     setDiscountAmount("");
     setDiscountReason("");
+    setEnableDiscount(false);
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
 
