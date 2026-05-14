@@ -1,46 +1,88 @@
-## Goal
+## Investigation findings
 
-Make the Sale Return Dashboard "Adjust Credit Note" flow reliable across every organization with only two adjustment modes — **Adjust Against Invoice(s)** and **Refund** — and ensure customer balance + ledger + GL stay correctly in sync.
+### Issue 1 — INV/25-26/523 "auto paid" + Sales Dashboard / Audit / Ledger mismatch
 
-## Findings (current state)
+DB state for INV/25-26/523 (NEW LAXMI FOOTWEAR):
+- `sales.net_amount = 19,118`, `sales.paid_amount = 19,118`, `payment_status = completed`
+- Only one receipt exists in `voucher_entries`: RCP/26-27/162 = ₹10,000 (UPI, 14-May-2026)
+- No CN, no advance applied → ₹9,118 of `paid_amount` has **no backing voucher** (data drift from an earlier code path)
 
-1. **Icon visibility too restrictive.** In `SaleReturnDashboard.tsx` (line 755 predicate), the purple Adjust-CN icon is hidden when `refund_type` is `cash_refund` or `exchange`, even if `credit_available_balance > 0`. Result: rows with leftover credit can't be adjusted.
-2. **Outstanding mode has real bugs** (currently the 3rd option):
-   - If the return has no `linked_sale_id`, it just flips status to `adjusted_outstanding` and writes nothing — CN is "consumed" but customer outstanding is NOT actually reduced.
-   - When linked, partial outstanding adjusts don't recalc `credit_available_balance` for the leftover.
-   - Per your direction, this mode is being removed entirely.
-3. **Refund mode** works (creates `PAY-` voucher, sets `credit_available_balance = 0`, `credit_status = 'refunded'`), but does NOT write a `customer_ledger_entries` row, so the new Customer Account Statement report misses it.
-4. **Invoice mode** (via `applyInvoiceAllocationsViaRpc`) updates `sales.sale_return_adjust`, creates `RCP-` vouchers per invoice, posts journal entries, and decrements `credit_available_balance` — this is the healthy path.
+Why each report disagrees:
+- **Sales Dashboard** reads `sales.paid_amount` directly → shows Paid (wrong, should be Partial / 9,118 pending)
+- **Customer Account Statement (Audit)** sums `voucher_entries` only → outstanding **35,074 Dr** (correct picture of money actually received)
+- **Customer Ledger** (`CustomerLedger.tsx` line 1755-1783) creates a **synthetic "Payment at sale" credit row** = `sale.paid_amount − voucherPayments` = `19,118 − 10,000 = 9,118`. This phantom 9,118 is added on top of the real 10,000 receipt → ledger over-credits → outstanding 25,956 (wrong)
 
-## Changes
+So the audit register is correct (₹35,074 Dr); both Sales Dashboard and Customer Ledger are wrong because they trust the inflated `sales.paid_amount`.
 
-### 1. `src/components/AdjustCustomerCreditNoteDialog.tsx`
-- Change `adjustmentType` union from `"invoice" | "refund" | "outstanding"` → `"invoice" | "refund"`.
-- Remove the third RadioGroup option ("Adjust in Outstanding Balance") and its description block.
-- Remove the entire `else if (adjustmentType === "outstanding") { ... }` branch (lines ~502–635) and any related helper code that only that branch uses.
-- Refund branch: after the `PAY-` voucher insert + `sale_returns` update, also call `insertLedgerCredit` (from `@/lib/customerLedger`) so the Customer Account Statement reflects the refund as a debit-side cash payment to the customer (voucher type `PAYMENT`, amount = `liveCn`, particulars = `Refund for Sale Return ${returnNumber}`).
-- Default `adjustmentType` stays `"invoice"`.
+### Issue 2 — Settlement discount missing from Customer Ledger
 
-### 2. `src/pages/SaleReturnDashboard.tsx`
-- Loosen the Adjust-CN icon visibility predicate (line ~755):
-  - Drop the `refund_type === 'credit_note' || !refund_type` requirement.
-  - Drop the `credit_status === 'adjusted_outstanding'` early return (no longer reachable for new returns; for legacy rows with leftover balance the icon should appear).
-  - Keep: `customer_id` present AND `bal > 0` AND status not `refunded`.
-- For status `adjusted` + `linked_sale_id`, still require `remaining_cn_amt > 0` (unchanged).
+Receipts taken with a discount (e.g. RCP/26-27/163-2: cash ₹7,474 + discount ₹543 against INV/26-27/34) store the discount in `voucher_entries.discount_amount`. The Customer Audit bundle already adds it to the credit (`voucherCreditAmount = total_amount + discount_amount`).
 
-### 3. Legacy data (no migration needed)
-Existing returns that already sit at `credit_status = 'adjusted_outstanding'` keep that status. With the new icon predicate, if their `credit_available_balance > 0` the user can re-adjust the leftover via Invoice or Refund. No data backfill needed.
+But `CustomerLedger.tsx` line 533 selects only `total_amount`, so the ledger renders the receipt as ₹7,474 Cr and the ₹543 discount is never credited — the bill stays ₹543 short of settling.
 
-## Accounting verification (after changes)
+## Fix plan
 
-| Mode | sales.sale_return_adjust | voucher_entries | journal_entries (if engine on) | sale_returns.credit_available_balance | customer_ledger_entries |
-|---|---|---|---|---|---|
-| Invoice (per-invoice) | +adjustAmount per invoice | RCP- per invoice | CustomerCreditNoteApplication per voucher | decremented to remainder | already written by RPC path |
-| Refund | n/a | PAY- once | (cash refund handled by existing payment GL) | set to 0 | NEW: PAYMENT credit row added |
+### A. Customer Ledger — stop trusting drifted `paid_amount`
+File: `src/components/CustomerLedger.tsx` (~ line 1755)
 
-Customer balance (`useCustomerBalance` / `reconcile_customer_balances`) reads from `sales`, `voucher_entries`, `customer_advances`, `sale_returns.credit_available_balance` — all of which the two remaining flows update correctly.
+Replace
+```ts
+const totalPaidOnSale = isExchangeCoveredByReturn ? 0 : (sale.paid_amount || 0);
+const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
+const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
+```
+with the actual at-sale tender (cash + card + upi only, never a derived figure):
+```ts
+const paidAtSale = isExchangeCoveredByReturn
+  ? 0
+  : Math.max(0,
+      Number(sale.cash_amount || 0) +
+      Number(sale.card_amount || 0) +
+      Number(sale.upi_amount  || 0));
+```
+Result: synthetic phantom credits disappear, ledger closing matches the Audit Register (₹35,074 Dr in this case).
+
+### B. Customer Ledger — credit settlement discount
+File: `src/components/CustomerLedger.tsx`
+
+1. Line 533 — extend select: `'..., total_amount, discount_amount, ...'`
+2. Wherever a voucher row is pushed as `type: 'payment'` (around lines 1607 / 2055), set:
+   `credit: Number(v.total_amount || 0) + Number(v.discount_amount || 0)`
+   and append `Discount: ₹543` to the description when `discount_amount > 0` (already present in the voucher's own description, but ensure it renders).
+3. Same widening for `voucherPaymentsBySaleId` aggregation: add `discount_amount` to the per-sale total.
+
+This brings the Customer Ledger row in line with the Audit Register and Customer Payment Tab, both of which already include `discount_amount` in the credit.
+
+### C. Sales Dashboard — payment status from receipts
+File: `src/pages/SalesInvoiceDashboard.tsx`
+
+Use the existing `reconcileSaleInvoiceDisplay()` helper from `src/utils/customerBalanceUtils.ts` (already in the codebase) when computing the row's displayed paid / outstanding / status. It clamps `effectivePaid` against the actual non-advance voucher sum and the payable cap, so a drifted `paid_amount` of 19,118 against a 10,000 voucher is shown as Partial with 9,118 pending.
+
+### D. One-time data heal (optional but recommended)
+SQL migration to bring `sales.paid_amount` back in line with reality for legacy drift, scoped per organization:
+```sql
+UPDATE public.sales s SET
+  paid_amount = LEAST(
+    GREATEST(0, s.net_amount - COALESCE(s.sale_return_adjust, 0)),
+    COALESCE((SELECT SUM(ve.total_amount + COALESCE(ve.discount_amount,0))
+              FROM voucher_entries ve
+              WHERE ve.reference_id = s.id
+                AND ve.voucher_type = 'receipt'
+                AND ve.deleted_at IS NULL), 0)
+  ),
+  payment_status = CASE
+    WHEN ... >= net_amount - 1 THEN 'completed'
+    WHEN ... > 0 THEN 'partial'
+    ELSE 'pending' END
+WHERE s.organization_id = '<org>'
+  AND s.deleted_at IS NULL
+  AND s.payment_status NOT IN ('cancelled','hold')
+  AND s.payment_method <> 'pay_later';  -- pay_later guarded by trigger
+```
+Run only after A/B/C are merged. This will, e.g., reset INV/25-26/523 to `paid_amount=10,000`, `payment_status='partial'` so the Sales Dashboard shows ₹9,118 pending naturally — and prevents the same drift from recurring on other customers.
 
 ## Out of scope
-- No DB schema migration.
-- No changes to `SaleReturnEntry.tsx`, `useCustomerBalance`, or the receipt RPC.
-- No retroactive cleanup of historical `adjusted_outstanding` rows.
+- Hunting the original code path that wrote 19,118 into `paid_amount` — audit logs only capture status changes, not paid_amount values; with A+C+D in place the symptom cannot recur regardless of source.
+- Any changes to advance / CN application logic.
+
+Approve to implement A, B, C and prepare D as a reviewable migration.
