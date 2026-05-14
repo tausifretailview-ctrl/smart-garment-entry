@@ -4241,6 +4241,7 @@ export default function Settings() {
                       })
                     }
                     placeholder="e.g., yourname@paytm"
+                    className="no-uppercase"
                   />
                   <p className="text-xs text-muted-foreground">
                     UPI ID for payment QR code on invoice
@@ -4266,7 +4267,7 @@ export default function Settings() {
                       })
                     }
                     placeholder="personal@upi  (leave blank to use Company UPI ID)"
-                    className="font-mono"
+                    className="font-mono no-uppercase"
                   />
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     ⚠️ This UPI ID will appear on DC purchase invoices only.
@@ -4307,6 +4308,7 @@ export default function Settings() {
                         })
                       }
                       placeholder="e.g., https://instagram.com/yourstore"
+                      className="no-uppercase"
                     />
                   </div>
                   
@@ -4325,6 +4327,7 @@ export default function Settings() {
                         })
                       }
                       placeholder="e.g., https://yourstore.com"
+                      className="no-uppercase"
                     />
                   </div>
                   
@@ -4343,6 +4346,7 @@ export default function Settings() {
                         })
                       }
                       placeholder="e.g., https://g.page/yourstore/review"
+                      className="no-uppercase"
                     />
                   </div>
                 </div>
