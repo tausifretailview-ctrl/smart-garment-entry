@@ -198,7 +198,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
   const { data: customerInvoices } = useQuery({
     queryKey: ["customer-invoices", referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
+      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).eq("is_cancelled", false).is("deleted_at", null).order("sale_date", { ascending: false });
       return data || [];
     },
     enabled: !!referenceId,
@@ -210,7 +210,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
     queryFn: async () => {
       const { data: cust } = await supabase.from("customers").select("opening_balance").eq("id", referenceId).maybeSingle();
       const ob = cust?.opening_balance || 0;
-      const { data: sales } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null);
+      const { data: sales } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).eq("is_cancelled", false).is("deleted_at", null);
       const invoiceOutstanding = sales?.reduce((sum, s) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0) || 0;
       const { data: obPayments } = await supabase.from("voucher_entries").select("total_amount, discount_amount, reference_id").eq("organization_id", organizationId).eq("voucher_type", "receipt").eq("reference_type", "customer").is("deleted_at", null);
       const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (Number(p.total_amount) || 0) + (Number((p as { discount_amount?: number }).discount_amount) || 0), 0) || 0;
