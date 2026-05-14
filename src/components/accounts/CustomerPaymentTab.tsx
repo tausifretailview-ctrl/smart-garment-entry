@@ -1540,12 +1540,46 @@ export function CustomerPaymentTab({
                   : (customerBalance || 0);
                 const paymentValue = roundToRupee(amount);
                 const suggestedDiscount = Math.max(0, selectedInvoiceTotal - paymentValue);
-                const showDiscountFields = paymentValue > 0 && paymentValue < selectedInvoiceTotal;
-                return showDiscountFields && (
+                const hasGap = paymentValue > 0 && paymentValue < selectedInvoiceTotal;
+                if (!hasGap) return null;
+                if (!enableDiscount) {
+                  return (
+                    <div className="flex items-center justify-between gap-3 p-3 border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 rounded-lg">
+                      <div className="text-sm text-amber-900 dark:text-amber-200">
+                        Remaining <span className="font-semibold tabular-nums font-mono">₹{roundToRupee(suggestedDiscount).toLocaleString('en-IN')}</span> will stay as <span className="font-semibold">outstanding</span>.
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEnableDiscount(true)}
+                      >
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                        Settle as discount
+                      </Button>
+                    </div>
+                  );
+                }
+                return (
                   <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
-                    <div className="flex items-center gap-2 text-foreground">
-                      <TrendingDown className="h-4 w-4" />
-                      <span className="text-sm font-medium">Discount Settlement</span>
+                    <div className="flex items-center justify-between text-foreground">
+                      <div className="flex items-center gap-2">
+                        <TrendingDown className="h-4 w-4" />
+                        <span className="text-sm font-medium">Discount Settlement</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => {
+                          setEnableDiscount(false);
+                          setDiscountAmount("");
+                          setDiscountReason("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
