@@ -1,97 +1,51 @@
-## What I found
+## Root cause
 
-Yesterday's two migrations are in place, but drift still exists in many customers / orgs. Top offenders (`paid_amount` ≠ sum of receipt vouchers, > ₹1):
+Two independent bugs surface in the Customer Payment screen, both organisation-wide (not specific to TRIMBAK):
 
-| Organization | Drifted invoices |
-|---|---|
-| MIRANOS CLOTHING | 163 |
-| TIRTHA COSMETICS | 62 |
-| Gurukrupa Silk Sarees | 59 |
-| VELVET EXCLUSIVE | 47 |
-| **KS FOOTWEAR** | **43** |
-| SACCHI FASHION | 35 |
-| ELLA NOOR | 20 |
-| GLAMARIZE | 17 |
-| …others | smaller |
+### 1. Cancelled invoices appear in the payment dropdown
+`CustomerPaymentTab.tsx` (line 201) and `FloatingPayments.tsx` (line 201) filter only by `payment_status not in ('cancelled','hold')` and `deleted_at is null`. They do **not** check `sales.is_cancelled = false`. Cancelled invoices (which keep their old `payment_status` of `pending`/`partial`) therefore still show up as outstanding rows in the invoice picker and inflate the customer's outstanding balance.
 
-Sample (KS FOOTWEAR):
+### 2. Partial payment is mis-presented as a settlement discount
+Today, when the user reduces the per-invoice allocation (e.g. `24,275 → 12,000`) or types a smaller `Amount`, the **Discount Settlement** panel pops up with a placeholder `Suggested: ₹12,275` and an `Apply ₹12,275 discount` button. Users read that as "discount already applied" and worry the remaining ₹12,275 has been written off, even though the underlying mutation correctly leaves it as outstanding when the discount field stays blank.
 
-- `INV/25-26/523` — net 19,118 / paid 19,118 / receipts 10,000 → still showing Paid (the original NEW LAXMI bill).
-- `INV/25-26/716` — net 15,393 / paid 15,393 / receipts 25,393.
-- `POS/25-26/851` — net 870 / paid 330 / receipts 870 (cash 330 + settlement discount 540).
-- Many more POS bills where `paid_amount` is the cash tender only and the settlement discount is missing.
+Per your decision: the gap should silently stay as outstanding; no discount should be suggested unless the user explicitly chooses to settle with a discount.
 
-### Why yesterday's heal missed them
+### 3. Confusion around `INV/26-27/331`
+DB inspection (KS FOOTWEAR org) shows TRIMBAK's `INV/26-27/331` has `net=24,275`, `paid_amount=0`, no receipt voucher attached — i.e. the bill is intact and fully outstanding. The "₹275 badge" in your third screenshot is a different customer's invoice (likely Majida Darvesh `INV/26-27/331` in ELLA NOOR, `5,600 − 5,325 = 275`). No data healing is needed for TRIMBAK once the two code fixes above ship.
 
-`supabase/migrations/20260514064214_…sql` had two predicates that skipped exactly the rows the user is now reporting:
-
-1. `AND COALESCE(s.payment_method,'') <> 'pay_later'` — the NEW LAXMI 523 case is a `pay_later` invoice, so it was deliberately excluded and `paid_amount=19,118` was never reset to 10,000.
-2. POS bills where the receipt was created (or recreated) after the migration ran: settlement discount (`voucher_entries.discount_amount`) is in the receipt but `sales.paid_amount` still equals the original cash tender, so the drill-down audit shows the gap.
-
-The discount-split normalize migration (`20260514100000_…`) is fine and should not be re-run.
+---
 
 ## Plan
 
-### 1. New one-time heal migration — covers ALL organizations
+### Fix A — Filter cancelled invoices (org-wide)
 
-`supabase/migrations/<new>_heal_sale_paid_amount_v2.sql`
+`src/components/accounts/CustomerPaymentTab.tsx` (the `customer-invoices` query, ~line 194):
+- Add `.eq("is_cancelled", false)` to the `sales` select.
+- Apply the same `is_cancelled = false` filter in the helper queries that read `sales` for this customer (voucher payments, opening-balance, totals).
 
-Logic:
+`src/components/FloatingPayments.tsx` (the customer-invoices query, ~line 201 and the totals query at line 213):
+- Add `.eq("is_cancelled", false)` to both selects.
 
-```text
-receipt_total(sale_id) = SUM(voucher_entries.total_amount + COALESCE(discount_amount,0))
-  WHERE voucher_type = 'receipt'
-    AND deleted_at IS NULL
-    AND reference_id = sale.id        -- match on id, accept either reference_type
-                                      -- ('sale' or legacy 'customer'), per the
-                                      -- customer-balance-logic memory rule
+### Fix B — Make the discount panel opt-in
 
-payable = GREATEST(0, net_amount - COALESCE(sale_return_adjust, 0))
-new_paid = LEAST(payable, receipt_total)
+`src/components/accounts/CustomerPaymentTab.tsx` discount section (~line 1524):
+- Replace the automatic `showDiscountFields = paymentValue > 0 && paymentValue < selectedInvoiceTotal` with an explicit toggle:
+  - Add state `const [enableDiscount, setEnableDiscount] = useState(false)`.
+  - When `paymentValue > 0 && paymentValue < selectedInvoiceTotal`, render a single small **"Settle remaining ₹X as discount?"** link/button instead of the full panel.
+  - Only when the user clicks that link (`enableDiscount = true`) do we render the full Discount Amount + Reason inputs.
+  - Reset `enableDiscount`, `discountAmount`, `discountReason` whenever `referenceId`, `selectedInvoiceIds`, or `amount` changes back to a fully-paying value.
+- Update the helper text near the per-invoice allocation row to say `"Reducing this amount keeps the balance outstanding."` so the intent is unambiguous.
 
-UPDATE sales SET
-  paid_amount = new_paid,
-  payment_status = CASE
-    WHEN payable <= 0.01 THEN 'completed'
-    WHEN new_paid >= payable - 0.01 THEN 'completed'
-    WHEN new_paid > 0.01 THEN 'partial'
-    ELSE 'pending'
-  END
-WHERE deleted_at IS NULL
-  AND COALESCE(is_cancelled, false) = false
-  AND COALESCE(payment_status,'') NOT IN ('cancelled','hold')
-  AND COALESCE(sale_number,'') NOT LIKE 'Hold/%'
-  -- NOTE: pay_later is NOT excluded this time
-  AND ( ABS(paid_amount - new_paid) > 0.01 OR payment_status IS DISTINCT FROM <computed> )
-```
+The underlying mutation logic (lines 597–656) already treats an empty discount as "leave as outstanding", so no business-logic change is needed — only the UI presentation.
 
-Key differences vs yesterday:
-- Removes the `payment_method <> 'pay_later'` filter (this is what blocked INV/25-26/523).
-- Joins on `reference_id = sale.id` only — ignores `reference_type` so legacy rows with `reference_type='customer'` pointing to a sale id are also counted (matches the rule documented in `mem://features/accounts/customer-balance-logic`).
-- Re-runs idempotently — only updates rows that still drift.
+### Fix C — Verify (no DB writes needed)
+- After deploying, re-open Customer Payment for TRIMBAK in KS FOOTWEAR: `INV/26-27/331` should show full ₹24,275 outstanding (already correct in DB).
+- For any customer who has cancelled bills, confirm those rows no longer appear in the invoice picker and the "Outstanding Balance" header drops accordingly.
 
-Expected effect on the reported invoices:
+---
 
-| Sale | Before | After |
-|---|---|---|
-| INV/25-26/523 | paid 19,118 / Completed | paid 10,000 / **Partial** (₹9,118 pending) |
-| INV/25-26/716 | paid 15,393 / Completed | paid 15,393 / **Completed** (capped at payable; excess 10,000 indicates an over-receipt to investigate manually) |
-| POS/25-26/851 | paid 330 / Completed | paid 870 / Completed (cash 330 + discount 540 reconciled) |
-| All other 200+ drifted POS / pay_later sales across the listed orgs | re-aligned | |
+## Files touched
+- `src/components/accounts/CustomerPaymentTab.tsx` — add cancelled filter + opt-in discount panel
+- `src/components/FloatingPayments.tsx` — add cancelled filter to both `sales` queries
 
-### 2. Verification
-
-Re-run the existing `supabase/verify_receipt_sales_mismatch.sql` and the org-level drift query in this thread. Both should return 0 mismatches afterwards.
-
-### 3. Source-code prevention (already shipped)
-
-- `CustomerLedger.tsx` already derives Payment-at-sale from `cash + card + upi` (no longer trusts `paid_amount`).
-- `reconcileSaleInvoiceDisplay` already drives the Sales Dashboard from voucher truth.
-- Receipt-with-settlement-discount: `voucher_entries.total_amount` now stores cash only and the audit/ledger credits `total + discount`. POS save path that initially set `paid_amount = cash only` while a discount voucher carries the rest is the only remaining write that creates the drift; this migration heals every historical instance and any future occurrence can be re-healed by re-running the same SQL. A trigger-based guard is **out of scope** for this change.
-
-### Out of scope
-- Investigating the legacy code path that originally over/under-set `paid_amount`.
-- Any change to advance / credit-note application logic.
-- Any change to the journal_entries already posted for these vouchers.
-
-Approve to apply the new heal migration.
+No migrations, no edge functions, no data writes.
