@@ -471,30 +471,20 @@ const PurchaseEntry = () => {
     setVisibleItemCount(100);
   }, [lineItems.length > 0 ? Math.ceil(lineItems.length / 500) : 0]);
 
-  // Start auto-save (works for both new and edit mode)
+  // Start auto-save once on mount. The useDraftSave hook itself persists the
+  // latest currentDataRef on unmount and respects draftClearedRef, so we must
+  // NOT re-save here on every dep change — doing so used to fire the cleanup
+  // with stale closure values right after a successful save (deleteDraft +
+  // setLineItems([])), re-creating the draft from the bill that was just saved.
+  // That caused old saved bills to reappear in Drafts and recent unsaved
+  // entries to be overwritten.
   useEffect(() => {
     startAutoSave();
     return () => {
-      // Don't save draft if navigating to product entry (sessionStorage handles this)
-      if (lineItems.length > 0 && !isNavigatingForProductRef.current) {
-        saveDraft({
-          billData,
-          softwareBillNo,
-          billDate: billDate.toISOString(),
-          lineItems,
-          roundOff,
-          otherCharges,
-          discountAmount,
-          entryMode,
-          isDcPurchase,
-          isEditMode,
-          editingBillId,
-          originalLineItems,
-        }, false);
-      }
       stopAutoSave();
     };
-  }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, saveDraft]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Barcode duplicate warning check — debounced 600ms after lineItems change
   useEffect(() => {
