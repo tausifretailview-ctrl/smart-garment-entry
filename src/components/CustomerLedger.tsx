@@ -1750,11 +1750,21 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           // Skip payment processing for cancelled invoices
           if (isCancelled) return;
 
-          // Calculate "payment at sale" - exclude amounts paid via vouchers (recorded payments)
-          // Total paid_amount includes all payments, but voucher payments are recorded separately
-          const totalPaidOnSale = isExchangeCoveredByReturn ? 0 : (sale.paid_amount || 0);
-          const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
-          const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
+          // "Payment at sale" = the actual tender captured on the bill itself
+          // (cash + card + UPI). We deliberately do NOT derive this from
+          // `sale.paid_amount - voucherPayments` because legacy data drift
+          // can leave `paid_amount` inflated above real receipts, which
+          // would synthesise a phantom credit row here and over-state the
+          // payments column. Voucher receipts are still rendered as their
+          // own separate rows from `allVouchers` below.
+          const paidAtSale = isExchangeCoveredByReturn
+            ? 0
+            : Math.max(
+                0,
+                Number(sale.cash_amount || 0) +
+                  Number(sale.card_amount || 0) +
+                  Number(sale.upi_amount || 0),
+              );
           
           if (paidAtSale > 0) {
             runningBalance -= paidAtSale;
