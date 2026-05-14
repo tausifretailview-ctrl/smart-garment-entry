@@ -50,13 +50,10 @@ export function buildAuditRows(
     const net = Number(s.net_amount || 0);
     const sn = String(s.sale_number || "").trim() || "—";
     const sra = Number(s.sale_return_adjust || 0);
-    // Mirror Customer Ledger: show the GROSS invoice debit, then emit the
-    // sale-return-adjust portion as a separate credit row so users can see
-    // both the original invoice value and the credit applied. The SR row
-    // below shows the FULL return amount (no netting against the linked
-    // sale) for the same reason — total return credit displayed equals the
-    // actual sale-return value (e.g. ₹14,400, not ₹8,500).
-    const debitForDisplay = net + sra;
+    // sales.net_amount is stored POST-adjust. To keep the running balance correct
+    // when we also push a separate "Sale return adjust" credit row below, the
+    // Sale debit must be GROSS (net + sra). Net effect on balance = net Dr.
+    const debitForDisplay = sra > 0.005 ? net + sra : net;
     rows.push({
       id: `sale-${s.id}`,
       at: d,
@@ -69,9 +66,9 @@ export function buildAuditRows(
     });
     if (sra > 0.005) {
       rows.push({
-        id: `sale-sra-${s.id}`,
+        id: `sra-${s.id}`,
         at: d,
-        type: "Invoice credit (return)",
+        type: "Sale return adjust",
         ref: sn,
         particulars: `Sale return / credit adjusted to ${sn}`,
         debit: 0,
@@ -84,34 +81,11 @@ export function buildAuditRows(
   for (const sr of params.saleReturns) {
     const cs = String(sr.credit_status || "").toLowerCase();
     const linked = String((sr as { linked_sale_id?: string | null }).linked_sale_id || "").trim();
+    // Absorbed into an invoice via `sales.sale_return_adjust` / POS — omit duplicate SR credit.
+    // `adjusted` with no `linked_sale_id`: CN generated but not tied to a sale — must still show credit.
+    if (cs === "adjusted" && linked) continue;
     const d = String(sr.return_date || "").slice(0, 10);
     const rn = String(sr.return_number || "").trim() || "—";
-    const grossCredit = Number(sr.net_amount || 0);
-    // De-duplicate against absorbed credit so the SR isn't double-counted
-    // against any CN-application voucher already posted under the same
-    // return number. We DO NOT subtract the linked sale's
-    // `sale_return_adjust` here — that portion is now emitted as a separate
-    // "Invoice credit (return)" row above (mirrors Customer Ledger), so the
-    // SR row should show the full return value.
-    let absorbed = 0;
-    const rnLower = rn.toLowerCase();
-    if (rnLower && rnLower !== "—") {
-      for (const v of params.vouchers || []) {
-        const vt = String(v.voucher_type || "").toLowerCase();
-        const pm = String(v.payment_method || "").toLowerCase();
-        const desc = String(v.description || "").toLowerCase();
-        const isCnApp =
-          (vt === "receipt" && pm === "credit_note_adjustment") ||
-          (vt === "credit_note") ||
-          desc.includes("credit note adjusted") ||
-          desc.includes("cn adjusted");
-        if (isCnApp && desc.includes(rnLower)) {
-          absorbed += voucherCreditAmount(v);
-        }
-      }
-    }
-    const effectiveCredit = Math.max(0, grossCredit - absorbed);
-    if (effectiveCredit < 0.005) continue;
     const baseParticulars =
       String((sr as { notes?: string | null }).notes || "").trim() || `Sale return / credit note ${rn}`;
     const particulars =
@@ -123,7 +97,7 @@ export function buildAuditRows(
       ref: rn,
       particulars,
       debit: 0,
-      credit: effectiveCredit,
+      credit: Number(sr.net_amount || 0),
       internal: false,
     });
   }

@@ -7,9 +7,8 @@ import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useCustomerBalances } from "@/hooks/useCustomerSearch";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
-import { fetchCustomerAuditBundle, buildAuditRows } from "@/utils/customerAuditBundle";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -109,53 +108,15 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
 
   const selected = useMemo(() => customers.find((c) => c.id === selectedId) ?? null, [customers, selectedId]);
 
-  const orgId = currentOrganization?.id ?? "";
-
-  // Compute closing balance using the SAME row pipeline as the
-  // Customer Account Statement (audit) page so the headline figure
-  // matches the audit register's closing balance exactly.
-  const { data: auditBundle, isFetching: snapshotLoading } = useQuery({
-    queryKey: ["customer-statement-floating-audit", orgId, selectedId],
-    enabled: open && !!orgId && !!selectedId,
-    queryFn: () => fetchCustomerAuditBundle(supabase, orgId, selectedId!),
-    staleTime: 30 * 1000,
-  });
-
-  const snapshot = useMemo(() => {
-    if (!auditBundle) {
-      return { closing: 0, opening: 0, debit: 0, credit: 0 };
-    }
-    const opening = Number(auditBundle.customer.opening_balance || 0);
-    const rows = buildAuditRows(
-      {
-        sales: auditBundle.allSales,
-        saleReturns: auditBundle.saleReturns,
-        vouchers: auditBundle.vouchersMerged,
-        advances: auditBundle.advances,
-        refunds: auditBundle.refunds,
-        balanceAdjustments: (auditBundle as any).balanceAdjustments,
-      },
-      { ledgerAlignedApplicationReceipts: true },
-    );
-    let debit = 0;
-    let credit = 0;
-    for (const r of rows) {
-      if (r.internal) continue;
-      debit += r.debit || 0;
-      credit += r.credit || 0;
-    }
-    return { closing: opening + debit - credit, opening, debit, credit };
-  }, [auditBundle]);
-
-  const auditAlignedBalance = snapshot.closing;
-  const auditAlignedAdv = selected ? getCustomerAdvance(selected.id) : 0;
-  const auditAlignedCn = selected ? getCustomerCreditNote(selected.id) : 0;
+  const snapshot = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
 
   const openAuditPage = () => {
     if (!selectedId) return;
     onOpenChange(false);
     orgNavigate(`/customer-account-statement-audit?customer=${encodeURIComponent(selectedId)}`);
   };
+
+  const orgId = currentOrganization?.id ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -240,7 +201,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                     filtered.map((c) => {
                       const bal = getCustomerBalance(toBalanceCustomer(c, orgId));
                       const adv = getCustomerAdvance(c.id);
-                      const cnAmt = getCustomerCreditNote(c.id);
+                      const cn = getCustomerCreditNote(c.id);
                       const isSel = c.id === selectedId;
                       return (
                         <button
@@ -275,9 +236,9 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                                   Adv ₹{inr.format(adv)}
                                 </Badge>
                               )}
-                              {cnAmt > 0 && (
+                              {cn > 0 && (
                                 <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">
-                                  CN ₹{inr.format(cnAmt)}
+                                  CN ₹{inr.format(cn)}
                                 </Badge>
                               )}
                             </div>
@@ -310,7 +271,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   </div>
                 </div>
 
-                {snapshotLoading ? (
+                {snapshot.isLoading ? (
                   <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading balance snapshot…
@@ -319,49 +280,35 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   <Card className="shrink-0">
                     <CardContent className="p-3 space-y-2 text-sm">
                       <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">Closing balance (audit)</span>
+                        <span className="text-muted-foreground">Outstanding (snapshot)</span>
                         <span
                           className={cn(
                             "font-bold tabular-nums",
-                            auditAlignedBalance > 0.005
+                            snapshot.balance > 0.005
                               ? "text-red-600 dark:text-red-400"
-                              : auditAlignedBalance < -0.005
+                              : snapshot.balance < -0.005
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : "",
                           )}
                         >
-                          ₹{inr.format(Math.abs(auditAlignedBalance))}
-                          {auditAlignedBalance > 0.005 ? " Dr" : auditAlignedBalance < -0.005 ? " Cr" : ""}
+                          ₹{inr.format(Math.abs(snapshot.balance))}
+                          {snapshot.balance > 0.005 ? " Dr" : snapshot.balance < -0.005 ? " Cr" : ""}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground border-t pt-2">
                         <span>Opening</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.opening)}</span>
-                        <span>Total billed (Dr)</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.debit)}</span>
-                        <span>Total received / returned (Cr)</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.credit)}</span>
-                        {auditAlignedAdv > 0.005 && (
+                        <span className="text-right tabular-nums">₹{inr.format(snapshot.openingBalance)}</span>
+                        <span>Net sales</span>
+                        <span className="text-right tabular-nums">₹{inr.format(snapshot.totalSales)}</span>
+                        <span>Total paid</span>
+                        <span className="text-right tabular-nums">₹{inr.format(snapshot.totalPaid)}</span>
+                        {snapshot.unusedAdvanceTotal > 0.005 && (
                           <>
                             <span>Unused advance</span>
-                            <span className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                              ₹{inr.format(auditAlignedAdv)}
-                            </span>
-                          </>
-                        )}
-                        {auditAlignedCn > 0.005 && (
-                          <>
-                            <span>Pending credit note</span>
-                            <span className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                              ₹{inr.format(auditAlignedCn)}
-                            </span>
+                            <span className="text-right tabular-nums">₹{inr.format(snapshot.unusedAdvanceTotal)}</span>
                           </>
                         )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground border-t pt-1.5">
-                        Same closing as the Customer Account Statement (audit). Open the audit register for the full
-                        Dr/Cr ledger with running balance.
-                      </p>
                     </CardContent>
                   </Card>
                 )}
