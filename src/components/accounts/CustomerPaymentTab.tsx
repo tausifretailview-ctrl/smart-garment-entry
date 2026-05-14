@@ -199,6 +199,7 @@ export function CustomerPaymentTab({
         .select("*")
         .eq("customer_id", referenceId)
         .not("payment_status", "in", '("cancelled","hold")')
+        .eq("is_cancelled", false)
         .is("deleted_at", null)
         .order("sale_date", { ascending: false });
       if (error) throw error;
