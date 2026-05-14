@@ -236,7 +236,10 @@ export function CustomerPaymentTab({
           const net = Number(sale.net_amount || 0);
           const srAdjust = Number(sale.sale_return_adjust || 0);
           const cap = Math.max(0, net - srAdjust);
-          const effectivePaid = Math.min(cap, Math.max(Number(sale.paid_amount || 0), Number(voucherPaidBySale.get(sale.id) || 0)));
+          // Authoritative source = sum of (non-deleted) receipt vouchers.
+          // Using max(paid_amount, vsum) made stale/overstated paid_amount values
+          // unrecoverable; clamp strictly to vsum so the cache self-heals.
+          const effectivePaid = Math.min(cap, Number(voucherPaidBySale.get(sale.id) || 0));
           const effectiveStatus =
             effectivePaid + srAdjust >= net - SETTLEMENT_TOLERANCE_RUPEE
               ? "completed"
