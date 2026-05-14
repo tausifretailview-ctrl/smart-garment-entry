@@ -2486,7 +2486,11 @@ const POSDashboard = () => {
                             {columnSettings.creditNoteAmt && (
                               <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                                 {(() => {
-                                  const cnAmt = sale.credit_note_amount || sale.credit_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
+                                  // Only show a CN amount when a real credit note exists.
+                                  // Negative net_amount alone is NOT a credit note — it may be
+                                  // an unsettled cash refund (S/R Adj exchange) which is
+                                  // surfaced in the CN-status column as "Refund Pending".
+                                  const cnAmt = sale.credit_note_amount || sale.credit_amount || 0;
                                   if (cnAmt > 0 || sale.credit_note_id) {
                                     return (
                                       <span className="font-semibold text-violet-600">
@@ -2500,10 +2504,27 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.creditNoteStatus && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                {(sale.credit_note_id || (sale.credit_amount || 0) > 0 || sale.net_amount < 0) ? (() => {
+                                {(() => {
+                                  const hasRealCN = !!sale.credit_note_id || (sale.credit_amount || 0) > 0 || (sale.credit_note_amount || 0) > 0;
+                                  const refundDone = (sale.refund_amount || 0) > 0;
+                                  // Negative net_amount with no CN and no refund => money owed back to customer.
+                                  if (!hasRealCN && (sale.net_amount || 0) < 0 && !refundDone) {
+                                    return (
+                                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-1.5 py-0 font-bold" title={`Customer is owed ₹${Math.round(Math.abs(sale.net_amount)).toLocaleString('en-IN')} — refund not processed`}>
+                                        Refund Pending
+                                      </Badge>
+                                    );
+                                  }
+                                  if (!hasRealCN) {
+                                    return (
+                                      <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">
+                                        None
+                                      </Badge>
+                                    );
+                                  }
                                   const cn = sale.credit_note_id ? creditNoteUsage[sale.credit_note_id] : null;
                                   const used = cn?.used_amount || 0;
-                                  const total = cn?.credit_amount || sale.credit_amount || (sale.net_amount < 0 ? Math.abs(sale.net_amount) : 0);
+                                  const total = cn?.credit_amount || sale.credit_amount || sale.credit_note_amount || 0;
                                   if (used > 0 && used >= total) {
                                     return (
                                       <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs px-1.5 py-0 font-bold" title={`Adjusted ₹${Math.round(used).toLocaleString('en-IN')}`}>
@@ -2530,11 +2551,7 @@ const POSDashboard = () => {
                                       CN
                                     </Badge>
                                   );
-                                })() : (
-                                  <Badge variant="outline" className="text-muted-foreground text-xs px-1.5 py-0">
-                                    None
-                                  </Badge>
-                                )}
+                                })()}
                               </TableCell>
                             )}
                             {columnSettings.status && (
