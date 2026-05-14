@@ -105,6 +105,10 @@ export function CustomerPaymentTab({
   const [upiCalendarOpen, setUpiCalendarOpen] = useState(false);
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  // Opt-in: only show the Discount Settlement panel when the user explicitly
+  // chooses to settle the gap as a discount. Default is to keep the
+  // unpaid balance as outstanding (per user policy).
+  const [enableDiscount, setEnableDiscount] = useState(false);
   const savingRef = useRef(false);
 
   // Customer search
