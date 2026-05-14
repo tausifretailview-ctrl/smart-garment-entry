@@ -266,8 +266,22 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
           const outstanding = invoice.net_amount - currentPaid;
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
-          const newPaidAmount = currentPaid + amountToApply;
-          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 'partial';
+          // Recompute from authoritative voucher sum so a stale/overstated cached
+          // paid_amount cannot cause a partial payment to settle the invoice.
+          const { data: vRows } = await supabase
+            .from("voucher_entries")
+            .select("total_amount, discount_amount")
+            .eq("organization_id", organizationId)
+            .eq("voucher_type", "receipt")
+            .in("reference_type", ["sale", "customer"])
+            .is("deleted_at", null)
+            .eq("reference_id", invoiceId);
+          const voucherSum = (vRows || []).reduce(
+            (s: number, v: any) => s + Number(v.total_amount || 0) + Number(v.discount_amount || 0),
+            0
+          );
+          const newPaidAmount = Math.min(invoice.net_amount, voucherSum + amountToApply);
+          const newStatus = newPaidAmount >= invoice.net_amount - 0.5 ? 'completed' : 'partial';
           saleRevert.push({ id: invoiceId, prevPaid: currentPaid, prevStatus });
           await supabase.from('sales').update({ paid_amount: newPaidAmount, payment_status: newStatus, payment_date: format(voucherDate, 'yyyy-MM-dd') }).eq('id', invoiceId);
           processedInvoices.push({ invoice, amountApplied: amountToApply, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
