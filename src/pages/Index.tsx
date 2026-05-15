@@ -292,7 +292,7 @@ const DesktopDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
-  const { isAdmin, hasSpecialPermission } = useUserPermissions();
+  const { isAdmin, hasSpecialPermission, hasMenuAccess } = useUserPermissions();
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -356,6 +356,7 @@ const DesktopDashboard = () => {
   };
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
+  const canViewNetProfit = isAdmin || hasMenuAccess("net_profit_analysis");
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
