@@ -189,7 +189,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
-            {onOpenCashierReport && (
+            {onOpenCashierReport && can("daily_cashier_report") && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -207,7 +207,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
-            {onOpenStockReport && (
+            {onOpenStockReport && can("stock_report") && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -225,7 +225,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
-            {onOpenSaleReturn && (
+            {onOpenSaleReturn && can("sale_return") && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button 
@@ -243,7 +243,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
-            <Tooltip>
+            {can("delivery_challan_entry") && <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
@@ -258,8 +258,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                 <p>Delivery Challan — Fast Billing</p>
               </TooltipContent>
-            </Tooltip>
-            <Tooltip>
+            </Tooltip>}
+            {can("stock_report") && <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
@@ -274,8 +274,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                 <p>Size-wise Stock Report</p>
               </TooltipContent>
-            </Tooltip>
-            <Tooltip>
+            </Tooltip>}
+            {can("daily_tally") && <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
@@ -290,8 +290,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                 <p>Daily Cash Tally</p>
               </TooltipContent>
-            </Tooltip>
-            <Tooltip>
+            </Tooltip>}
+            {(can("payment_recording") || can("payments_dashboard")) && <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
@@ -306,7 +306,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                 <p>Quick Payments (Receipt / Supplier / Expense)</p>
               </TooltipContent>
-            </Tooltip>
+            </Tooltip>}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
