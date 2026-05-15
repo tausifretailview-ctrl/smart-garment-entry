@@ -49,8 +49,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
   const [showDCDialog, setShowDCDialog] = useState(false);
-  const { hasMenuAccess, permissions } = useUserPermissions();
-  const can = (id: string) => permissions === null || hasMenuAccess(id);
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
