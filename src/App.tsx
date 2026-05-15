@@ -743,9 +743,11 @@ const App = () => {
                   path="pos-sales"
                   element={
                     <ProtectedRoute>
-                      <POSLayout>
-                        <POSSales />
-                      </POSLayout>
+                      <MenuPermissionRoute permission="pos_sales">
+                        <POSLayout>
+                          <POSSales />
+                        </POSLayout>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />
@@ -753,9 +755,11 @@ const App = () => {
                   path="pos-dashboard"
                   element={
                     <ProtectedRoute>
-                      <FullScreenLayout>
-                        <POSDashboard />
-                      </FullScreenLayout>
+                      <MenuPermissionRoute permission="pos_dashboard">
+                        <FullScreenLayout>
+                          <POSDashboard />
+                        </FullScreenLayout>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />
