@@ -131,7 +131,10 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (permissionsLoading) return;
-    setOpenWindows(prev => prev.filter(w => canAccessPath(w.path)));
+    setOpenWindows(prev => {
+      const allowed = prev.filter(w => canAccessPath(w.path));
+      return allowed.length === prev.length ? prev : allowed;
+    });
   }, [permissionsLoading, canAccessPath]);
 
   // Update active window on location change and auto-add to tabs
