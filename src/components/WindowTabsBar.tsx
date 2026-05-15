@@ -75,7 +75,7 @@ export function WindowTabsBar() {
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
 
-  if (openWindows.length === 0) return null;
+  if (allowedOpenWindows.length === 0) return null;
 
   const allowedOpenWindows = openWindows.filter((window) => canPath(window.path));
   const groupedPages = QUICK_OPEN_PAGES.filter((page) => canPath(page.path)).reduce((acc, page) => {
@@ -89,7 +89,7 @@ export function WindowTabsBar() {
     return (
       <div className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
+          <span>{allowedOpenWindows.length} window{allowedOpenWindows.length > 1 ? 's' : ''} open</span>
           <span className="hidden md:inline">•</span>
           <span className="hidden md:inline">
             <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd>+
@@ -177,7 +177,7 @@ export function WindowTabsBar() {
 
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">
-            {openWindows.map((window) => {
+            {allowedOpenWindows.map((window) => {
               const IconComponent = getTabIcon(window.icon);
               const isActive = window.path === activeWindow;
               
@@ -195,7 +195,7 @@ export function WindowTabsBar() {
                 >
                   <IconComponent className="h-3 w-3 shrink-0" />
                   <span className="truncate max-w-[100px]">{window.label}</span>
-                  {openWindows.length > 1 && (
+                  {allowedOpenWindows.length > 1 && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
