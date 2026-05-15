@@ -39,6 +39,7 @@ export const Header = () => {
   const dashboardToolbar = useDashboardToolbarOptional();
   const { isSchool } = useSchoolFeatures();
   const { hasMenuAccess, permissions } = useUserPermissions();
+  const can = (id: string) => permissions === null || hasMenuAccess(id);
   const canQuickCustomerStatement =
     !isSchool &&
     (permissions === null ||
@@ -86,11 +87,12 @@ export const Header = () => {
       isDialog: boolean;
       shortcut?: string;
       dialogKey: string;
+      permission?: string;
     }[] = [
-      { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "" },
-      { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "" },
-      { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock" },
-      { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock" },
+      { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "", permission: "pos_sales" },
+      { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "", permission: "purchase_bill" },
+      { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock", permission: "stock_report" },
+      { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock", permission: "stock_report" },
     ];
     if (canQuickCustomerStatement) {
       base.push({
@@ -101,9 +103,9 @@ export const Header = () => {
         dialogKey: "customerStatement",
       });
     }
-    base.push({ icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "" });
-    return base;
-  }, [canQuickCustomerStatement]);
+    base.push({ icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "", permission: "stock_report" });
+    return base.filter((a) => !a.permission || can(a.permission));
+  }, [canQuickCustomerStatement, permissions]);
 
   const handleQuickAction = (action: (typeof quickActions)[0]) => {
     if (action.dialogKey === "sizeStock") {
