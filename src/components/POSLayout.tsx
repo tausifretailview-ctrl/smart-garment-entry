@@ -32,6 +32,7 @@ import { FloatingPayments } from "@/components/FloatingPayments";
 import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
 import { Truck } from "lucide-react";
 import { IPadInstallBanner } from "@/components/IPadInstallBanner";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -48,6 +49,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const [showCashTally, setShowCashTally] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
   const [showDCDialog, setShowDCDialog] = useState(false);
+  const { hasMenuAccess, permissions } = useUserPermissions();
+  const can = (id: string) => permissions === null || hasMenuAccess(id);
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -71,27 +74,27 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48 bg-popover z-50">
-              <DropdownMenuItem onClick={() => orgNavigate("/")}>
+              {can("main_dashboard") && <DropdownMenuItem onClick={() => orgNavigate("/")}> 
                 <Home className="mr-2 h-4 w-4" />
                 Dashboard
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")}>
+              </DropdownMenuItem>}
+              {can("pos_dashboard") && <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")}>
                 <ShoppingCart className="mr-2 h-4 w-4" />
                 POS Dashboard
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => orgNavigate("/products")}>
+              </DropdownMenuItem>}
+              {can("product_dashboard") && <DropdownMenuItem onClick={() => orgNavigate("/products")}>
                 <Package className="mr-2 h-4 w-4" />
                 Products
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")}>
+              </DropdownMenuItem>}
+              {can("sales_invoice_dashboard") && <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")}>
                 <FileText className="mr-2 h-4 w-4" />
                 Sales Dashboard
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => orgNavigate("/settings")}>
+              {can("settings_view") && <DropdownMenuItem onClick={() => orgNavigate("/settings")}>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
               <DropdownMenuItem onClick={() => setIsOpen(true)}>
                 <Keyboard className="mr-2 h-4 w-4" />
                 Keyboard Shortcuts
