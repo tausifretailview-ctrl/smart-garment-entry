@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { getMenuPermissionForPath } from "@/lib/menuPermissions";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -77,6 +79,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const location = useLocation();
   const navigate = useNavigate();
   const { orgSlug, getOrgPath } = useOrgNavigation();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   
   const [openWindows, setOpenWindows] = useState<WindowTab[]>(() => {
     try {
@@ -115,10 +118,24 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
   const [activeWindow, setActiveWindow] = useState(getCurrentPath());
 
+  const canAccessPath = useCallback((path: string) => {
+    if (permissionsLoading) return false;
+    const permission = getMenuPermissionForPath(path);
+    return !permission || permissions === null || hasMenuAccess(permission);
+  }, [hasMenuAccess, permissions, permissionsLoading]);
+
   // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(openWindows));
   }, [openWindows]);
+
+  useEffect(() => {
+    if (permissionsLoading) return;
+    setOpenWindows(prev => {
+      const allowed = prev.filter(w => canAccessPath(w.path));
+      return allowed.length === prev.length ? prev : allowed;
+    });
+  }, [permissionsLoading, canAccessPath]);
 
   // Update active window on location change and auto-add to tabs
   useEffect(() => {
@@ -126,33 +143,34 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     setActiveWindow(currentPath);
     
     // Auto-add current page to open windows if not already there
-    if (currentPath && PAGE_CONFIG[currentPath]) {
+    if (currentPath && PAGE_CONFIG[currentPath] && canAccessPath(currentPath)) {
       const config = PAGE_CONFIG[currentPath];
       const exists = openWindows.some(w => w.path === currentPath);
       if (!exists && openWindows.length < MAX_WINDOWS) {
         setOpenWindows(prev => [...prev, { path: currentPath, label: config.label, icon: config.icon }]);
       }
     }
-  }, [location.pathname, getCurrentPath]);
+  }, [location.pathname, getCurrentPath, canAccessPath]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const allowedWindows = openWindows.filter(w => canAccessPath(w.path));
       // Ctrl+Tab to cycle through windows
       if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
-        if (openWindows.length > 1) {
-          const currentIndex = openWindows.findIndex(w => w.path === activeWindow);
+        if (allowedWindows.length > 1) {
+          const currentIndex = allowedWindows.findIndex(w => w.path === activeWindow);
           const nextIndex = e.shiftKey 
-            ? (currentIndex - 1 + openWindows.length) % openWindows.length
-            : (currentIndex + 1) % openWindows.length;
-          const nextWindow = openWindows[nextIndex];
+            ? (currentIndex - 1 + allowedWindows.length) % allowedWindows.length
+            : (currentIndex + 1) % allowedWindows.length;
+          const nextWindow = allowedWindows[nextIndex];
           navigate(getOrgPath(`/${nextWindow.path}`));
         }
       }
       
       // Ctrl+W to close current window (but not if only one window)
-      if (e.ctrlKey && e.key === "w" && openWindows.length > 1) {
+      if (e.ctrlKey && e.key === "w" && allowedWindows.length > 1) {
         e.preventDefault();
         closeWindow(activeWindow);
       }
@@ -160,19 +178,19 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openWindows, activeWindow, navigate, getOrgPath]);
+  }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath]);
 
   const openWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
     const config = PAGE_CONFIG[cleanPath];
-    if (!config) return;
+    if (!config || !canAccessPath(cleanPath)) return;
 
     const exists = openWindows.some(w => w.path === cleanPath);
     if (!exists && openWindows.length < MAX_WINDOWS) {
       setOpenWindows(prev => [...prev, { path: cleanPath, label: config.label, icon: config.icon }]);
     }
     navigate(getOrgPath(`/${cleanPath}`));
-  }, [openWindows, navigate, getOrgPath]);
+  }, [openWindows, navigate, getOrgPath, canAccessPath]);
 
   const closeWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
@@ -188,8 +206,9 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [openWindows, activeWindow, navigate, getOrgPath]);
 
   const switchWindow = useCallback((path: string) => {
+    if (!canAccessPath(path)) return;
     navigate(getOrgPath(`/${path}`));
-  }, [navigate, getOrgPath]);
+  }, [navigate, getOrgPath, canAccessPath]);
 
   const isWindowOpen = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
