@@ -458,18 +458,20 @@ const DesktopDashboard = () => {
             </span>
           )}
         </div>
-        <Button
-          variant="default"
-          size="sm"
-          className="h-7 text-[11px] px-2.5 shrink-0 font-semibold"
-          onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-        >
-          <TrendingUp className="h-3.5 w-3.5 mr-1" />
-          Net Profit
-        </Button>
+        {canViewNetProfit && (
+          <Button
+            variant="default"
+            size="sm"
+            className="h-7 text-[11px] px-2.5 shrink-0 font-semibold"
+            onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+          >
+            <TrendingUp className="h-3.5 w-3.5 mr-1" />
+            Net Profit
+          </Button>
+        )}
       </>
     ),
-    [dateRange, isLoading, dateLabel, startDate, endDate, navigate]
+    [dateRange, isLoading, dateLabel, startDate, endDate, navigate, canViewNetProfit]
   );
 
   useEffect(() => {
@@ -816,15 +818,17 @@ const DesktopDashboard = () => {
               <span className="text-xs font-medium text-primary">{dateLabel}</span>
             )}
           </div>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-            className="h-8 text-xs"
-          >
-            <TrendingUp className="h-3.5 w-3.5 mr-1" />
-            Net Profit
-          </Button>
+          {canViewNetProfit && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+              className="h-8 text-xs"
+            >
+              <TrendingUp className="h-3.5 w-3.5 mr-1" />
+              Net Profit
+            </Button>
+          )}
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70">
