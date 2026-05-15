@@ -158,6 +158,7 @@ export const Header = () => {
         {/* Classic menu bar — desktop only */}
         <nav className="hidden lg:flex items-center gap-0 ml-1">
           {/* FILE */}
+          {(can("pos_sales") || can("sales_invoice") || can("purchase_bill") || can("quotation_entry") || can("product_entry") || can("settings_view")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -202,8 +203,10 @@ export const Header = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {/* VIEW */}
+          {(can("main_dashboard") || can("pos_dashboard") || can("sales_invoice_dashboard") || can("purchase_dashboard") || can("delivery_dashboard") || can("payments_dashboard") || can("accounts_dashboard") || can("customer_ledger")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -255,8 +258,10 @@ export const Header = () => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {/* TOOLS */}
+          {(can("barcode_printing") || can("stock_adjustment") || can("stock_settlement") || can("bulk_product_update") || can("tally_export") || can("recycle_bin") || can("user_rights") || can("audit_logs") || can("whatsapp_inbox")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -314,8 +319,10 @@ export const Header = () => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {/* REPORTS */}
+          {(can("stock_report") || can("item_wise_sales") || can("item_wise_stock") || can("stock_ageing") || can("daily_tally") || can("daily_cashier_report") || can("sale_analysis") || can("hourly_sales_analysis") || can("accounting_reports_view") || can("net_profit_analysis") || can("sales_analytics") || can("gst_reports") || can("gst_register") || can("einvoice_report") || canQuickCustomerStatement || can("customer_audit_report")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -414,6 +421,7 @@ export const Header = () => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
 
           {/* HELP */}
           <DropdownMenu>
@@ -510,6 +518,7 @@ export const Header = () => {
       {/* ROW 2: Action toolbar (+ optional dashboard: theme, period, Net Profit) */}
       <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-[hsl(var(--sidebar-background))] border-b border-sidebar-border text-sidebar-foreground">
         {/* Split button: New Sale */}
+        {can("pos_sales") && (
         <div className="flex items-center">
           <Button
             onClick={() => orgNavigate("/pos-sales")}
@@ -522,13 +531,14 @@ export const Header = () => {
             <ChevronDown className="h-3.5 w-3.5" />
           </Button>
         </div>
+        )}
 
         {/* Outlined action buttons */}
         {[
-          { label: "Purchase", icon: ShoppingCart, path: "/purchase-entry", chevron: false },
-          { label: "Stock",    icon: Package,      path: "/stock-report",   chevron: true  },
-          { label: "Cashier",  icon: TrendingUp,   path: "/daily-cashier-report", chevron: false },
-        ].map((btn) => (
+          { label: "Purchase", icon: ShoppingCart, path: "/purchase-entry", chevron: false, permission: "purchase_bill" },
+          { label: "Stock",    icon: Package,      path: "/stock-report",   chevron: true , permission: "stock_report" },
+          { label: "Cashier",  icon: TrendingUp,   path: "/daily-cashier-report", chevron: false, permission: "daily_cashier_report" },
+        ].filter((btn) => can(btn.permission)).map((btn) => (
           <div key={btn.label} className="flex items-center">
             <Button
               onClick={() => orgNavigate(btn.path)}
@@ -551,6 +561,7 @@ export const Header = () => {
 
         {/* Quick action buttons */}
         <div className="w-px h-4 bg-sidebar-border mx-0.5" />
+        {can("stock_report") && (
         <Button
           onClick={() => setQuickStockOpen(true)}
           variant="outline"
@@ -559,6 +570,8 @@ export const Header = () => {
           <BoxIcon className="h-3.5 w-3.5" />
           Quick Stock
         </Button>
+        )}
+        {can("stock_report") && (
         <Button
           onClick={() => setSizeStockOpen(true)}
           variant="outline"
@@ -567,6 +580,7 @@ export const Header = () => {
           <LayoutGrid className="h-3.5 w-3.5" />
           Size Stock
         </Button>
+        )}
         {canQuickCustomerStatement && (
           <Button
             onClick={() => setCustomerStatementOpen(true)}
