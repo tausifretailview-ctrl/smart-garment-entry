@@ -152,21 +152,22 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const allowedWindows = openWindows.filter(w => canAccessPath(w.path));
       // Ctrl+Tab to cycle through windows
       if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
-        if (openWindows.length > 1) {
-          const currentIndex = openWindows.findIndex(w => w.path === activeWindow);
+        if (allowedWindows.length > 1) {
+          const currentIndex = allowedWindows.findIndex(w => w.path === activeWindow);
           const nextIndex = e.shiftKey 
-            ? (currentIndex - 1 + openWindows.length) % openWindows.length
-            : (currentIndex + 1) % openWindows.length;
-          const nextWindow = openWindows[nextIndex];
+            ? (currentIndex - 1 + allowedWindows.length) % allowedWindows.length
+            : (currentIndex + 1) % allowedWindows.length;
+          const nextWindow = allowedWindows[nextIndex];
           navigate(getOrgPath(`/${nextWindow.path}`));
         }
       }
       
       // Ctrl+W to close current window (but not if only one window)
-      if (e.ctrlKey && e.key === "w" && openWindows.length > 1) {
+      if (e.ctrlKey && e.key === "w" && allowedWindows.length > 1) {
         e.preventDefault();
         closeWindow(activeWindow);
       }
@@ -174,19 +175,19 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openWindows, activeWindow, navigate, getOrgPath]);
+  }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath]);
 
   const openWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
     const config = PAGE_CONFIG[cleanPath];
-    if (!config) return;
+    if (!config || !canAccessPath(cleanPath)) return;
 
     const exists = openWindows.some(w => w.path === cleanPath);
     if (!exists && openWindows.length < MAX_WINDOWS) {
       setOpenWindows(prev => [...prev, { path: cleanPath, label: config.label, icon: config.icon }]);
     }
     navigate(getOrgPath(`/${cleanPath}`));
-  }, [openWindows, navigate, getOrgPath]);
+  }, [openWindows, navigate, getOrgPath, canAccessPath]);
 
   const closeWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
@@ -202,8 +203,9 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [openWindows, activeWindow, navigate, getOrgPath]);
 
   const switchWindow = useCallback((path: string) => {
+    if (!canAccessPath(path)) return;
     navigate(getOrgPath(`/${path}`));
-  }, [navigate, getOrgPath]);
+  }, [navigate, getOrgPath, canAccessPath]);
 
   const isWindowOpen = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
