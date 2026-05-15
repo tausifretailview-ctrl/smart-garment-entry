@@ -38,10 +38,11 @@ export const Header = () => {
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const dashboardToolbar = useDashboardToolbarOptional();
   const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, permissions } = useUserPermissions();
-  const can = (id: string) => permissions === null || hasMenuAccess(id);
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
   const canQuickCustomerStatement =
     !isSchool &&
+    !permissionsLoading &&
     (permissions === null ||
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
