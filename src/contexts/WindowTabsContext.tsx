@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { getMenuPermissionForPath } from "@/lib/menuPermissions";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -77,6 +79,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const location = useLocation();
   const navigate = useNavigate();
   const { orgSlug, getOrgPath } = useOrgNavigation();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   
   const [openWindows, setOpenWindows] = useState<WindowTab[]>(() => {
     try {
@@ -115,10 +118,21 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
   const [activeWindow, setActiveWindow] = useState(getCurrentPath());
 
+  const canAccessPath = useCallback((path: string) => {
+    if (permissionsLoading) return false;
+    const permission = getMenuPermissionForPath(path);
+    return !permission || permissions === null || hasMenuAccess(permission);
+  }, [hasMenuAccess, permissions, permissionsLoading]);
+
   // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(openWindows));
   }, [openWindows]);
+
+  useEffect(() => {
+    if (permissionsLoading) return;
+    setOpenWindows(prev => prev.filter(w => canAccessPath(w.path)));
+  }, [permissionsLoading, canAccessPath]);
 
   // Update active window on location change and auto-add to tabs
   useEffect(() => {
@@ -126,14 +140,14 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     setActiveWindow(currentPath);
     
     // Auto-add current page to open windows if not already there
-    if (currentPath && PAGE_CONFIG[currentPath]) {
+    if (currentPath && PAGE_CONFIG[currentPath] && canAccessPath(currentPath)) {
       const config = PAGE_CONFIG[currentPath];
       const exists = openWindows.some(w => w.path === currentPath);
       if (!exists && openWindows.length < MAX_WINDOWS) {
         setOpenWindows(prev => [...prev, { path: currentPath, label: config.label, icon: config.icon }]);
       }
     }
-  }, [location.pathname, getCurrentPath]);
+  }, [location.pathname, getCurrentPath, canAccessPath]);
 
   // Keyboard shortcuts
   useEffect(() => {
