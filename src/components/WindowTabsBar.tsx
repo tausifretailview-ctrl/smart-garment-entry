@@ -22,6 +22,7 @@ import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { getMenuPermissionForPath } from "@/lib/menuPermissions";
 
 const QUICK_OPEN_PAGES = [
   { path: "", label: "Dashboard", icon: "Home", category: "Main" },
@@ -57,19 +58,27 @@ export function WindowTabsBar() {
   } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
   const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, permissions } = useUserPermissions();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
 
+  const canPath = (path: string) => {
+    if (permissionsLoading) return false;
+    const permission = getMenuPermissionForPath(path);
+    return !permission || permissions === null || hasMenuAccess(permission);
+  };
+
   const canQuickCustomerStatement =
     !isSchool &&
+    !permissionsLoading &&
     (permissions === null ||
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
 
   if (openWindows.length === 0) return null;
 
-  const groupedPages = QUICK_OPEN_PAGES.reduce((acc, page) => {
+  const allowedOpenWindows = openWindows.filter((window) => canPath(window.path));
+  const groupedPages = QUICK_OPEN_PAGES.filter((page) => canPath(page.path)).reduce((acc, page) => {
     if (!acc[page.category]) acc[page.category] = [];
     acc[page.category].push(page);
     return acc;
