@@ -75,14 +75,14 @@ export function WindowTabsBar() {
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
 
-  if (allowedOpenWindows.length === 0) return null;
-
   const allowedOpenWindows = openWindows.filter((window) => canPath(window.path));
   const groupedPages = QUICK_OPEN_PAGES.filter((page) => canPath(page.path)).reduce((acc, page) => {
     if (!acc[page.category]) acc[page.category] = [];
     acc[page.category].push(page);
     return acc;
   }, {} as Record<string, typeof QUICK_OPEN_PAGES>);
+
+  if (allowedOpenWindows.length === 0) return null;
 
   // Collapsed state - just show toggle button
   if (!isTabsBarVisible) {
