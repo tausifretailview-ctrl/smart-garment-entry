@@ -119,7 +119,7 @@ export function WindowTabsBar() {
     <div className="bg-muted/30 border-b px-2 py-0.5">
       <div className="flex items-center gap-0.5">
         {/* Dashboard Button */}
-        <Tooltip>
+        {canPath("") && <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -134,10 +134,10 @@ export function WindowTabsBar() {
           <TooltipContent side="bottom">
             <p>Go to Dashboard</p>
           </TooltipContent>
-        </Tooltip>
+        </Tooltip>}
 
         {/* Size Stock Quick Button */}
-        <Tooltip>
+        {canPath("stock-report") && <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -152,7 +152,7 @@ export function WindowTabsBar() {
           <TooltipContent side="bottom">
             <p>Quick Size Stock Check (Ctrl+G)</p>
           </TooltipContent>
-        </Tooltip>
+        </Tooltip>}
 
         {canQuickCustomerStatement && (
           <Tooltip>
