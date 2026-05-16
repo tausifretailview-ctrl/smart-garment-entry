@@ -416,7 +416,7 @@ const DesktopDashboard = () => {
       };
     },
     enabled: !!currentOrganization && hasLoaded,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 15 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
   });
@@ -424,7 +424,7 @@ const DesktopDashboard = () => {
   const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: ["customer-segment-counts", currentOrganization?.id],
     enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 15 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
   });
