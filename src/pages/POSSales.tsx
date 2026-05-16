@@ -506,7 +506,7 @@ export default function POSSales() {
   const productSearchSeqRef = useRef(0);
   
   // Visibility-based polling - pauses when tab is hidden
-  const posRefetchInterval = useVisibilityRefetch(300000); // 5 minutes (reduced from 1 min for multi-tab perf)
+  const posRefetchInterval = useVisibilityRefetch(900000); // 15 minutes (reduced cloud usage)
   
   // Ref to skip customer re-search after dropdown selection
   const customerJustSelected = useRef(false);

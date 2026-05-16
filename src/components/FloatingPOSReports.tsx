@@ -80,7 +80,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       return data;
     },
     enabled: !!currentOrganization?.id && open,
-    refetchInterval: open ? 30000 : false,
+    refetchInterval: open ? 120000 : false,
   });
 
   const { data: voucherData } = useQuery({

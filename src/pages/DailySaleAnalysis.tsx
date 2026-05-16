@@ -360,7 +360,7 @@ export default function DailySaleAnalysis() {
     },
     enabled: !!orgId,
     ...REPORT_CACHE,
-    refetchInterval: isToday ? 5 * 60_000 : false,
+    refetchInterval: isToday ? 15 * 60_000 : false,
   });
 
   const items = analysisData || [];

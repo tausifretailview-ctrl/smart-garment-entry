@@ -32,7 +32,7 @@ export function useOrgQuery<T>({ queryKey, queryFn, enabled = true, options }: O
     queryKey: [...queryKey, orgId!],
     queryFn: () => queryFn(orgId!),
     enabled: !!orgId && enabled,
-    staleTime: 30_000,
+    staleTime: 120_000,
     ...options,
   });
 }

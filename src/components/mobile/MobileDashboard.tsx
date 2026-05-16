@@ -114,7 +114,7 @@ export const MobileDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000,
-    refetchInterval: getRefreshInterval('fast'),
+    refetchInterval: false,
     retry: 2,
   });
 
@@ -136,7 +136,7 @@ export const MobileDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 120000,
-    refetchInterval: getRefreshInterval('medium'),
+    refetchInterval: false,
     retry: 2,
   });
 

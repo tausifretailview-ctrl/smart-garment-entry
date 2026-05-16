@@ -192,11 +192,12 @@ export const WhatsAppAPISettings = () => {
     }
   }, [settings]);
 
-  // Fetch stats - tier-based polling
+  // Fetch stats - on-mount only (manual refresh via page reload)
   const { data: stats } = useQuery({
     queryKey: ['whatsapp-stats'],
     queryFn: getMessageStats,
-    refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
+    refetchInterval: false,
+    staleTime: 5 * 60 * 1000,
   });
 
   const handleInputChange = (field: string, value: string | boolean | number | string[] | TemplateParam[] | SocialLinks) => {
