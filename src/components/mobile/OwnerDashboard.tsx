@@ -96,7 +96,7 @@ export const OwnerDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000,
-    refetchInterval: getRefreshInterval("fast"),
+    refetchInterval: false,
   });
 
   /* ── Query: Today's purchases ── */
@@ -116,7 +116,7 @@ export const OwnerDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000,
-    refetchInterval: getRefreshInterval("medium"),
+    refetchInterval: false,
   });
 
   /* ── Query: Payments received today (from voucher receipts) ── */
@@ -136,7 +136,7 @@ export const OwnerDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000,
-    refetchInterval: getRefreshInterval("medium"),
+    refetchInterval: false,
   });
 
   /* ── Query: Outstanding balances ── */
