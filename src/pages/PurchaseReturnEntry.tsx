@@ -450,6 +450,9 @@ const PurchaseReturnEntry = () => {
   const pendingBarcodeRef = useRef<string | null>(null);
   // Lock to prevent multiple processBarcodeInput calls per single scan
   const processingBarcodeRef = useRef(false);
+  // Direct fallback timer — fires after scanner stops typing regardless of avg interval
+  const directScanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastInputTimeRef = useRef<number>(0);
 
   // Process a scanned barcode: exact match → auto-add, else fall back to search
   const processBarcodeInput = useCallback(async (barcode: string) => {
@@ -1613,6 +1616,19 @@ const PurchaseReturnEntry = () => {
                       barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
                         processBarcodeInput(val.trim());
                       });
+                    // Direct fallback: fire after 150ms idle for any fast input
+                    const now = Date.now();
+                    const delta = now - lastInputTimeRef.current;
+                    lastInputTimeRef.current = now;
+                    if (directScanTimerRef.current) clearTimeout(directScanTimerRef.current);
+                    if (delta < 60 || newValue.length >= 6) {
+                      directScanTimerRef.current = setTimeout(() => {
+                        const v = newValue.trim();
+                        if (v.length >= 4 && !processingBarcodeRef.current) {
+                          processBarcodeInput(v);
+                        }
+                      }, 150);
+                    }
                     }
                   }}
                   onFocus={() => {
@@ -1628,6 +1644,7 @@ const PurchaseReturnEntry = () => {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
+                    if (directScanTimerRef.current) { clearTimeout(directScanTimerRef.current); directScanTimerRef.current = null; }
                       const value = searchQuery.trim();
                       if (value.length >= 4) {
                         processBarcodeInput(value);
@@ -1636,6 +1653,7 @@ const PurchaseReturnEntry = () => {
                       }
                     }
                     if (e.key === "Escape") {
+                    if (directScanTimerRef.current) { clearTimeout(directScanTimerRef.current); directScanTimerRef.current = null; }
                       setShowSearch(false);
                       setSearchResults([]);
                       setSearchQuery("");
