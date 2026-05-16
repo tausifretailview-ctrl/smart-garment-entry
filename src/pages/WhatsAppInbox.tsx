@@ -114,7 +114,7 @@ const WhatsAppInbox = () => {
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30000, // 30 seconds stale time
-    refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
+    refetchInterval: false, // Realtime subscription handles updates
   });
 
   // Fetch messages for selected conversation
@@ -134,7 +134,7 @@ const WhatsAppInbox = () => {
     },
     enabled: !!selectedConversation?.id,
     staleTime: 15000, // 15 seconds stale time
-    refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
+    refetchInterval: false, // Realtime subscription handles updates
   });
 
   // Send message mutation
