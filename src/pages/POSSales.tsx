@@ -1933,6 +1933,7 @@ export default function POSSales() {
         hsnCode: product.hsn_code || '',
         productType: 'service',
         itemNotes: description || null,
+        baseGst: Number(product.purchase_gst_percent ?? baseServiceGst) || 0,
       };
       setItems(prev => [...prev, newItem]);
       bumpCartHighlight(newItem.id);
@@ -1991,6 +1992,7 @@ export default function POSSales() {
       hsnCode: '',
       productType: 'service',
       itemNotes: description || null,
+      baseGst: matchedServiceGst,
     };
     setItems(prev => [...prev, newItem]);
     bumpCartHighlight(newItem.id);
