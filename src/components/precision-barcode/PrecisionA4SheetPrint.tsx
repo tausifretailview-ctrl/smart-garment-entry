@@ -13,11 +13,17 @@ interface PrecisionA4SheetPrintProps {
   yOffset: number;
   vGap: number;
   config?: LabelDesignConfig;
+  /** 1-based slot on the first page to begin printing (default 1).
+   *  Earlier slots are rendered as blank placeholders. */
+  startPosition?: number;
 }
 
 export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4SheetPrintProps>(
-  ({ items, labelWidth, labelHeight, cols, rows, xOffset, yOffset, vGap, config }, ref) => {
-    const expandedItems: LabelItem[] = [];
+  ({ items, labelWidth, labelHeight, cols, rows, xOffset, yOffset, vGap, config, startPosition = 1 }, ref) => {
+    const labelsPerPage = cols * rows;
+    const skipSlots = Math.min(labelsPerPage, Math.max(0, Math.floor((startPosition || 1) - 1)));
+    const expandedItems: (LabelItem | null)[] = [];
+    for (let s = 0; s < skipSlots; s++) expandedItems.push(null);
     items.forEach((item) => {
       const qty = item.qty && item.qty > 0 ? item.qty : 0;
       for (let i = 0; i < qty; i++) {
@@ -25,8 +31,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       }
     });
 
-    const labelsPerPage = cols * rows;
-    const pages: LabelItem[][] = [];
+    const pages: (LabelItem | null)[][] = [];
     for (let i = 0; i < expandedItems.length; i += labelsPerPage) {
       pages.push(expandedItems.slice(i, i + labelsPerPage));
     }
@@ -56,14 +61,21 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
                 }}
               >
                 {pageItems.map((item, idx) => (
-                  <PrecisionLabelPreview
-                    key={idx}
-                    item={item}
-                    width={labelWidth}
-                    height={labelHeight}
-                    showBorder
-                    config={config}
-                  />
+                  item ? (
+                    <PrecisionLabelPreview
+                      key={idx}
+                      item={item}
+                      width={labelWidth}
+                      height={labelHeight}
+                      showBorder
+                      config={config}
+                    />
+                  ) : (
+                    <div
+                      key={idx}
+                      style={{ width: `${labelWidth}mm`, height: `${labelHeight}mm` }}
+                    />
+                  )
                 ))}
               </div>
             </div>
