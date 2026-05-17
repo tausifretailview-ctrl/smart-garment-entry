@@ -1111,6 +1111,9 @@ export default function BarcodePrinting() {
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
   const [topOffset, setTopOffset] = useState(0);
   const [leftOffset, setLeftOffset] = useState(0);
+  // Start Label Position (Standard A4 only) — skips already-used slots on a
+  // partially-used sheet. 1 = normal behavior. Ephemeral, not persisted.
+  const [startPosition, setStartPosition] = useState(1);
   const [bottomOffset, setBottomOffset] = useState(0);
   const [rightOffset, setRightOffset] = useState(0);
   const [businessName, setBusinessName] = useState("SMART INVENTORY");
