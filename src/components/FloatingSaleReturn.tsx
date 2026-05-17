@@ -876,6 +876,19 @@ export const FloatingSaleReturn = ({
                       linked_sale_id: billSaleId,
                     } as any)
                     .eq('id', returnData.id);
+
+                  // Defensive: ensure the sale flips to completed when fully settled.
+                  // (The RPC sets payment_status, but downstream voucher triggers can
+                  // recompute it from receipt sums and leave a stale 'partial' state.)
+                  const newPaid = Number((saleRow as any).paid_amount || 0) + appliedNum;
+                  const netAmt = Number((saleRow as any).net_amount || 0);
+                  const sra = Number((saleRow as any).sale_return_adjust || 0);
+                  if (newPaid + sra >= netAmt - 1) {
+                    await supabase
+                      .from('sales')
+                      .update({ payment_status: 'completed' } as any)
+                      .eq('id', billSaleId);
+                  }
                 }
               }
             } catch (autoApplyErr) {
