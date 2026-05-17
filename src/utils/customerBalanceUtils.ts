@@ -264,7 +264,12 @@ export function reconcileSaleInvoiceDisplay(params: {
   // computeCustomerOutstanding). Without this, advance-only payments left
   // outstanding = net − sr while effectiveCash was 0.
   const exposureAfterCashLike = Math.max(0, net - sr - effectiveCash);
-  const cappedNonCash = Math.min(exposureAfterCashLike, adv + cn);
+  // Avoid double-counting CN: when sale_return_adjust already encodes the CN
+  // application (Sales Dashboard CN-adjust flow writes both sr and a
+  // credit_note_adjustment voucher for the same amount), subtract the portion
+  // already represented in sr from the cn bucket.
+  const cnNotInSr = Math.max(0, cn - Math.max(0, sr));
+  const cappedNonCash = Math.min(exposureAfterCashLike, adv + cnNotInSr);
   const outstanding = Math.max(0, Math.round(net - sr - effectiveCash - cappedNonCash));
   const settledDisplay = Math.max(
     0,
