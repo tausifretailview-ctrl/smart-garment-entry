@@ -102,7 +102,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch sales
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount, sale_return_adjust, credit_applied")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -110,13 +110,17 @@ const SalesmanCustomerAccount = () => {
 
       if (salesError) throw salesError;
 
-      // Fetch payment receipts
+      // Fetch payment receipts — scope to this customer's sale IDs + opening-balance
+      // receipts so we never hit the 1000-row org cap and silently miss old payments.
+      const saleIdList = (salesData || []).map((s: any) => s.id);
+      const referenceIds = Array.from(new Set([...saleIdList, customerId!])).filter(Boolean);
       const { data: receiptsData, error: receiptsError } = await supabase
         .from("voucher_entries")
         .select("id, voucher_number, voucher_date, total_amount, reference_id, reference_type, created_at")
         .eq("voucher_type", "receipt")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
+        .in("reference_id", referenceIds.length > 0 ? referenceIds : ["00000000-0000-0000-0000-000000000000"])
         .order("voucher_date", { ascending: true });
 
       if (receiptsError) throw receiptsError;
@@ -289,10 +293,15 @@ const SalesmanCustomerAccount = () => {
 
       // Build pending invoices list with per-invoice balance
       const pendingList = (salesData || [])
-        .filter(sale => sale.payment_status !== 'completed' && sale.payment_status !== 'cancelled')
+        // Don't trust stored payment_status — compute balance from receipts +
+        // paid_amount + sale_return_adjust + credit_applied. Just skip cancelled.
+        .filter(sale => sale.payment_status !== 'cancelled' && sale.payment_status !== 'hold')
         .map(sale => {
           const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
-          const effectivePaid = Math.max(sale.paid_amount || 0, voucherPaid);
+          const effectivePaid =
+            Math.max(Number(sale.paid_amount) || 0, voucherPaid) +
+            (Number((sale as any).sale_return_adjust) || 0) +
+            (Number((sale as any).credit_applied) || 0);
           const balance = Math.max(0, Math.round(sale.net_amount - effectivePaid));
           const saleDate = new Date(sale.sale_date);
           const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
