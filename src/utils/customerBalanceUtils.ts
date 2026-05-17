@@ -387,6 +387,37 @@ export async function fetchCustomerBalanceSnapshot(
   const adjustmentTotal =
     adjustments?.reduce((sum, adj) => sum + (adj.outstanding_difference || 0), 0) || 0;
 
+  // Per-sale paid_amount drift fallback: POS at-sale cash/UPI/card payments
+  // are recorded on sales.paid_amount but may NOT have a corresponding
+  // voucher_entries receipt (those are written to customer_ledger_entries only).
+  // computeAuditFormulaOutstanding counts only voucher receipts, so without
+  // this adjustment the customer balance shows the sale as fully unpaid even
+  // though paid_amount equals net_amount. Mirror the per-sale drift logic
+  // used in computeCustomerBalanceFromBundle / reconcile_customer_balances.
+  const validSales = (bundle.allSales || []).filter(
+    (s: any) =>
+      s.is_cancelled !== true &&
+      !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
+  );
+  const voucherTotalsBySale = new Map<string, number>();
+  for (const v of bundle.vouchersMerged || []) {
+    if (String((v as any).voucher_type || "").toLowerCase() !== "receipt") continue;
+    const refId = (v as any).reference_id;
+    if (!refId) continue;
+    voucherTotalsBySale.set(
+      refId,
+      (voucherTotalsBySale.get(refId) || 0) + (Number((v as any).total_amount) || 0),
+    );
+  }
+  let paidAmountDrift = 0;
+  for (const s of validSales) {
+    const paid = Number((s as any).paid_amount || 0);
+    if (paid <= 0) continue;
+    const voucherSum = voucherTotalsBySale.get((s as any).id) || 0;
+    const drift = paid - voucherSum;
+    if (drift > 0) paidAmountDrift += drift;
+  }
+
   const openingBalance = Number(bundle.customer.opening_balance || 0);
   const totalSalesGross = Math.round(co.totalInvoiced);
   const totalSaleReturnAdjustOnSales = Math.round(co.totalSaleReturnAdjust);
@@ -395,14 +426,14 @@ export async function fetchCustomerBalanceSnapshot(
   // outstanding was reduced (treated as a payment-equivalent credit). Include it
   // in totalPaid (subtracting a negative adds to paid) and in balance.
   const totalPaid = Math.round(
-    co.totalRealPayments + co.customerPaymentDebits + co.totalAdvanceUsed + co.unusedAdvance - adjustmentTotal
+    co.totalRealPayments + co.customerPaymentDebits + co.totalAdvanceUsed + co.unusedAdvance + paidAmountDrift - adjustmentTotal
   );
-  const totalCashPaid = Math.round(co.receiptCredits + co.creditNoteCredits);
+  const totalCashPaid = Math.round(co.receiptCredits + co.creditNoteCredits + paidAmountDrift);
   const totalAdvanceApplied = Math.round(co.totalAdvanceUsed);
   const totalCnApplied = Math.round(co.creditNoteCredits);
 
   return {
-    balance: Math.round(co.outstanding + adjustmentTotal),
+    balance: Math.round(co.outstanding - paidAmountDrift + adjustmentTotal),
     openingBalance: Math.round(openingBalance),
     totalSales,
     totalPaid,
