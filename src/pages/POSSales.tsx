@@ -1933,7 +1933,10 @@ export default function POSSales() {
         hsnCode: product.hsn_code || '',
         productType: 'service',
         itemNotes: description || null,
-        baseGst: Number(product.purchase_gst_percent ?? baseServiceGst) || 0,
+        // Use the product's SALE GST as the auto-rule base — restoring to
+        // purchase GST would wrongly zero-out sales when the merchant buys
+        // unregistered (purchase GST 0) but sells at 5/12/18%.
+        baseGst: Number(baseServiceGst) || 0,
       };
       setItems(prev => [...prev, newItem]);
       bumpCartHighlight(newItem.id);
@@ -2167,7 +2170,11 @@ export default function POSSales() {
         isDcProduct: variant.is_dc_product === true,
         uom: product.uom || 'NOS',
         showDiscount: !useMrpAsPrice && displayMrp > salePrice,
-        baseGst: Number((product as any).purchase_gst_percent ?? product.sale_gst_percent ?? product.gst_per ?? 0) || 0,
+        // Auto-rule base = product's SALE GST (what the merchant configured
+        // for selling). Do not fall back to purchase_gst_percent — for orgs
+        // that buy from unregistered suppliers it is 0 and would silently
+        // reset every below-threshold line to 0%.
+        baseGst: Number(product.sale_gst_percent ?? product.gst_per ?? (product as any).purchase_gst_percent ?? 0) || 0,
       };
       newItem.netAmount = calculatePosCartLineNet(newItem);
       // Re-evaluate GST against post-discount net unit price (handles MRP→net downgrade).
