@@ -534,17 +534,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
 
                   {/* Simplified Totals — No GST Breakup */}
-                  <div style={{ display: "grid", gridTemplateColumns: "60% 40%", borderBottom: B }}>
-                    {/* Left — Notes / empty */}
-                    <div style={{ borderRight: B, padding: isA4 ? "4px 8px" : "3px 6px" }}>
-                      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
-                        <div style={{ fontSize: isA4 ? "10px" : "8px" }}>
-                          <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Right — Totals */}
-                    <div style={{ fontSize: fsTotals, color: "#111" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "40% 60%", borderBottom: B }}>
+                    {/* Left — Totals */}
+                    <div style={{ fontSize: fsTotals, color: "#111", borderRight: B }}>
                       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                         <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
                       </div>
@@ -566,6 +558,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "5px 8px" : "4px 6px", fontWeight: "900", fontSize: isA4 ? "20px" : "17px", backgroundColor: "#d1d5db", color: "#000", borderTop: "2px solid #000" }}>
                         <span>Bill Total</span><span>₹{fmt(grandTotal)}</span>
                       </div>
+                    </div>
+                    {/* Right — Notes / empty */}
+                    <div style={{ padding: isA4 ? "4px 8px" : "3px 6px" }}>
+                      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+                        <div style={{ fontSize: isA4 ? "10px" : "8px" }}>
+                          <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
