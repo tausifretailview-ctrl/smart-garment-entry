@@ -816,11 +816,7 @@ export default function SaleReturnDashboard() {
                                 const remaining = ret.remaining_cn_amt ?? 0;
                                 if (remaining <= 0) return false;
                               }
-                              const bal =
-                                ret.credit_available_balance != null && !Number.isNaN(Number(ret.credit_available_balance))
-                                  ? Number(ret.credit_available_balance)
-                                  : (ret.remaining_cn_amt ?? Number(ret.net_amount));
-                              return bal > 0;
+                              return getAvailableCN(ret) > 0;
                             })() && (
                               <Button
                                 variant="ghost"
@@ -843,10 +839,7 @@ export default function SaleReturnDashboard() {
                                 status !== "Credit Note Pending".toLowerCase()
                               )
                                 return null;
-                              const refundableAmt =
-                                ret.credit_available_balance != null
-                                  ? Number(ret.credit_available_balance)
-                                  : Number(ret.net_amount);
+                              const refundableAmt = getAvailableCN(ret);
                               if (refundableAmt <= 0 || !ret.customer_id) return null;
                               return (
                                 <Button
