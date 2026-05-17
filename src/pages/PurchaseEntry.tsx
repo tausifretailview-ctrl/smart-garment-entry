@@ -2637,11 +2637,35 @@ const PurchaseEntry = () => {
     // Synchronous double-click guard (React state updates are async, so `loading`
     // alone leaves a ~50ms window where a second click can pass). The ref flips
     // immediately and is the authoritative gate; `loading` remains for UI feedback.
-    if (savingRef.current) return;
-    if (loading) return;
+    if (savingRef.current) {
+      console.warn('[PurchaseEntry] Save click ignored — a save is already in progress');
+      toast({
+        title: "Save in progress",
+        description: "Please wait — the previous save is still running.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (loading) {
+      console.warn('[PurchaseEntry] Save click ignored — loading state is true');
+      return;
+    }
     savingRef.current = true;
     try {
       await doSave();
+    } catch (err: any) {
+      // Last-resort guard: any uncaught exception from doSave must surface to the
+      // user. Without this, the button silently resets and the user sees nothing.
+      console.error('[PurchaseEntry] Unexpected save error (outer guard):', err);
+      try {
+        setLoading(false);
+      } catch { /* ignore */ }
+      toast({
+        title: "Bill Save Failed",
+        description: `Unexpected error: ${err?.message || String(err) || 'Unknown error'}. Your draft is preserved — please try again.`,
+        variant: "destructive",
+        duration: 12000,
+      });
     } finally {
       savingRef.current = false;
     }
