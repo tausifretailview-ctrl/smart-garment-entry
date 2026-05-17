@@ -278,6 +278,21 @@ export default function SaleReturnDashboard() {
         });
       }
 
+      // Fetch live CN remaining for any return that has a credit_note_id
+      const creditNoteIds = [...new Set(returnsList.map(r => r.credit_note_id).filter(Boolean))] as string[];
+      const cnLiveMap: Record<string, number> = {};
+      if (creditNoteIds.length > 0 && currentOrganization?.id) {
+        const { data: cnRows } = await supabase
+          .from("credit_notes")
+          .select("id, credit_amount, used_amount")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", creditNoteIds);
+        (cnRows || []).forEach((c: any) => {
+          const remaining = Math.max(0, Number(c.credit_amount || 0) - Number(c.used_amount || 0));
+          cnLiveMap[c.id] = remaining;
+        });
+      }
+
       const enriched = returnsList.map((r) => {
         const linked = r.linked_sale_id ? linkedSaleMap[r.linked_sale_id] : undefined;
         const net = Number(r.net_amount || 0);
@@ -287,6 +302,10 @@ export default function SaleReturnDashboard() {
           : net;
         const remaining_cn_amt =
           r.linked_sale_id && linked ? Math.max(0, net - sra) : 0;
+        const cn_live_remaining =
+          r.credit_note_id && cnLiveMap[r.credit_note_id] != null
+            ? cnLiveMap[r.credit_note_id]
+            : null;
         return {
           ...r,
           customer_phone: r.customer_id ? customerPhoneMap[r.customer_id] || null : null,
@@ -295,8 +314,27 @@ export default function SaleReturnDashboard() {
           adjusted_sale_type: r.linked_sale_id ? linked?.sale_type || null : null,
           actual_adjusted_amt,
           remaining_cn_amt,
+          cn_live_remaining,
         };
       });
+
+      // Self-heal stale credit_available_balance on sale_returns (fire-and-forget)
+      if (currentOrganization?.id) {
+        enriched.forEach((r) => {
+          if (
+            r.credit_note_id &&
+            r.cn_live_remaining != null &&
+            Math.abs(Number(r.credit_available_balance ?? -1) - r.cn_live_remaining) > 0.01
+          ) {
+            supabase
+              .from("sale_returns")
+              .update({ credit_available_balance: r.cn_live_remaining })
+              .eq("id", r.id)
+              .eq("organization_id", currentOrganization.id)
+              .then(() => {});
+          }
+        });
+      }
 
       return { returns: enriched, totalCount: count || 0 };
     },
