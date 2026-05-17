@@ -145,6 +145,23 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={base}>
 
+        {/* ═══ PRINT CSS — force single continuous 80mm page ═══ */}
+        <style>{`
+          @media print {
+            @page { size: 80mm auto; margin: 0; }
+            html, body { margin: 0 !important; padding: 0 !important; }
+            .thermal-print-80mm,
+            .thermal-print-80mm * {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-before: avoid !important;
+              page-break-after: avoid !important;
+              break-before: avoid !important;
+              break-after: avoid !important;
+            }
+          }
+        `}</style>
+
         {/* ═══ HEADER ═══ */}
         <div style={dblLine} />
         <div style={{ ...center, marginBottom: '4px' }}>
