@@ -120,6 +120,7 @@ interface CartItem {
   uom?: string;
   showDiscount?: boolean;
   itemNotes?: string | null;
+  baseGst?: number; // Purchase GST % — used to auto-downgrade Sale GST when net unit price falls below threshold
 }
 
 interface POSBarcodeRuntimeSettings {
@@ -133,6 +134,13 @@ function calculatePosCartLineNet(item: CartItem): number {
   const percentDiscount = (baseAmount * item.discountPercent) / 100;
   const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
   return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
+}
+
+/** Post-discount per-unit price used to evaluate the Garment GST threshold. */
+function posCartNetUnitPrice(item: CartItem): number {
+  const qty = Number(item.quantity) || 0;
+  if (qty <= 0) return Number(item.mrp) || 0;
+  return Math.max(0, calculatePosCartLineNet(item) / qty);
 }
 
 type SaleRowForFlatResolve = {
