@@ -59,6 +59,8 @@ interface SaleReturn {
   actual_adjusted_amt?: number;
   /** Return net not yet applied when partial CN on invoice. */
   remaining_cn_amt?: number;
+  /** Live remaining on linked credit_notes row (credit_amount - used_amount). */
+  cn_live_remaining?: number | null;
 }
 
 interface SaleReturnItem {
