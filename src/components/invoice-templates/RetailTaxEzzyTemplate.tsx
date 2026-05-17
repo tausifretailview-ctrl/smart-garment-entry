@@ -306,7 +306,9 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
       case "qty":
         return item.qty;
       case "rate":
-        return fmt(item.rate);
+        // Show GROSS line amount before discount (qty × unit-rate).
+        // Net after discount is shown in the "Amount" column.
+        return fmt(item.qty * item.rate);
       case "disc": {
         const d = Number(item.discountPercent ?? 0);
         return d > 0 ? d.toFixed(0) : "0";
