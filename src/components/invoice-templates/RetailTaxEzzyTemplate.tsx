@@ -175,6 +175,9 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   > = {};
   const isInterState = igstAmount > 0;
 
+  // GST is inclusive of price for retail: tax = net * gst / (100 + gst)
+  // applied on the post-discount line total. Do not change this formula
+  // without updating the totals box (MRP Total / Discount / GST) below.
   items.forEach((item) => {
     const gstPct = item.gstPercent || 0;
     if (gstPct > 0) {
@@ -192,6 +195,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
       }
     }
   });
+
+  // MRP Total = sum of gross line amounts (qty × unit-rate) BEFORE discount.
+  // Discount row below then subtracts to reach net. Grand Total stays
+  // authoritative from the caller (handles round-off / S/R adjust).
+  const mrpTotal = items.reduce((sum, i) => sum + i.qty * i.rate, 0);
 
   const gstRates = Object.keys(gstBreakup)
     .map(Number)
