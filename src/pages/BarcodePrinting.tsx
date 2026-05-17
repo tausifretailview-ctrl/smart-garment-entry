@@ -3641,6 +3641,7 @@ export default function BarcodePrinting() {
         rightOffsetMm: rightOffset,
         labelConfig,
         businessName,
+        startPosition,
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
@@ -3758,6 +3759,7 @@ export default function BarcodePrinting() {
         rightOffsetMm: rightOffset,
         labelConfig,
         businessName,
+        startPosition,
       });
 
       const blob = new Blob([new Uint8Array(pdfBytes) as any], { type: 'application/pdf' });
