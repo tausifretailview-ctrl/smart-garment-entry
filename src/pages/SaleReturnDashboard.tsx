@@ -59,6 +59,8 @@ interface SaleReturn {
   actual_adjusted_amt?: number;
   /** Return net not yet applied when partial CN on invoice. */
   remaining_cn_amt?: number;
+  /** Live remaining on linked credit_notes row (credit_amount - used_amount). */
+  cn_live_remaining?: number | null;
 }
 
 interface SaleReturnItem {
@@ -93,6 +95,22 @@ const formatCreditStatusLabel = (ret: SaleReturn) => {
   if (ret.credit_status === "adjusted") return "Credit Note Generated";
   if (ret.credit_status === "pending") return "Credit Note Pending";
   return "Pending";
+};
+
+/**
+ * Authoritative available CN amount for a sale return.
+ * 1. If a credit_notes row exists, use its live remaining (credit_amount - used_amount).
+ * 2. Otherwise, if the return is linked to a sale, use remaining_cn_amt.
+ * 3. Otherwise (pending, no CN yet), fall back to net_amount.
+ */
+const getAvailableCN = (ret: SaleReturn): number => {
+  if (ret.credit_note_id && ret.cn_live_remaining != null) {
+    return Number(ret.cn_live_remaining);
+  }
+  if (ret.linked_sale_id) {
+    return Number(ret.remaining_cn_amt ?? 0);
+  }
+  return Number(ret.net_amount || 0);
 };
 
 export default function SaleReturnDashboard() {
@@ -276,6 +294,21 @@ export default function SaleReturnDashboard() {
         });
       }
 
+      // Fetch live CN remaining for any return that has a credit_note_id
+      const creditNoteIds = [...new Set(returnsList.map(r => r.credit_note_id).filter(Boolean))] as string[];
+      const cnLiveMap: Record<string, number> = {};
+      if (creditNoteIds.length > 0 && currentOrganization?.id) {
+        const { data: cnRows } = await supabase
+          .from("credit_notes")
+          .select("id, credit_amount, used_amount")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", creditNoteIds);
+        (cnRows || []).forEach((c: any) => {
+          const remaining = Math.max(0, Number(c.credit_amount || 0) - Number(c.used_amount || 0));
+          cnLiveMap[c.id] = remaining;
+        });
+      }
+
       const enriched = returnsList.map((r) => {
         const linked = r.linked_sale_id ? linkedSaleMap[r.linked_sale_id] : undefined;
         const net = Number(r.net_amount || 0);
@@ -285,6 +318,10 @@ export default function SaleReturnDashboard() {
           : net;
         const remaining_cn_amt =
           r.linked_sale_id && linked ? Math.max(0, net - sra) : 0;
+        const cn_live_remaining =
+          r.credit_note_id && cnLiveMap[r.credit_note_id] != null
+            ? cnLiveMap[r.credit_note_id]
+            : null;
         return {
           ...r,
           customer_phone: r.customer_id ? customerPhoneMap[r.customer_id] || null : null,
@@ -293,8 +330,27 @@ export default function SaleReturnDashboard() {
           adjusted_sale_type: r.linked_sale_id ? linked?.sale_type || null : null,
           actual_adjusted_amt,
           remaining_cn_amt,
+          cn_live_remaining,
         };
       });
+
+      // Self-heal stale credit_available_balance on sale_returns (fire-and-forget)
+      if (currentOrganization?.id) {
+        enriched.forEach((r) => {
+          if (
+            r.credit_note_id &&
+            r.cn_live_remaining != null &&
+            Math.abs(Number(r.credit_available_balance ?? -1) - r.cn_live_remaining) > 0.01
+          ) {
+            supabase
+              .from("sale_returns")
+              .update({ credit_available_balance: r.cn_live_remaining })
+              .eq("id", r.id)
+              .eq("organization_id", currentOrganization.id)
+              .then(() => {});
+          }
+        });
+      }
 
       return { returns: enriched, totalCount: count || 0 };
     },
@@ -760,11 +816,7 @@ export default function SaleReturnDashboard() {
                                 const remaining = ret.remaining_cn_amt ?? 0;
                                 if (remaining <= 0) return false;
                               }
-                              const bal =
-                                ret.credit_available_balance != null && !Number.isNaN(Number(ret.credit_available_balance))
-                                  ? Number(ret.credit_available_balance)
-                                  : (ret.remaining_cn_amt ?? Number(ret.net_amount));
-                              return bal > 0;
+                              return getAvailableCN(ret) > 0;
                             })() && (
                               <Button
                                 variant="ghost"
@@ -787,10 +839,7 @@ export default function SaleReturnDashboard() {
                                 status !== "Credit Note Pending".toLowerCase()
                               )
                                 return null;
-                              const refundableAmt =
-                                ret.credit_available_balance != null
-                                  ? Number(ret.credit_available_balance)
-                                  : Number(ret.net_amount);
+                              const refundableAmt = getAvailableCN(ret);
                               if (refundableAmt <= 0 || !ret.customer_id) return null;
                               return (
                                 <Button
@@ -920,11 +969,8 @@ export default function SaleReturnDashboard() {
             returnNumber={selectedReturnForAdjust.return_number || "N/A"}
             creditAmount={(() => {
               const r = selectedReturnForAdjust;
-              if (r.credit_available_balance != null && !Number.isNaN(Number(r.credit_available_balance))) {
-                return Number(r.credit_available_balance);
-              }
-              if ((r.remaining_cn_amt ?? 0) > 0) return r.remaining_cn_amt!;
-              return r.net_amount;
+              const live = getAvailableCN(r);
+              return live > 0 ? live : Number(r.net_amount);
             })()}
             customerId={selectedReturnForAdjust.customer_id || ""}
             customerName={selectedReturnForAdjust.customer_name}
@@ -965,11 +1011,7 @@ export default function SaleReturnDashboard() {
               <DialogDescription>
                 Refund {selectedReturnForRefund?.customer_name} for{" "}
                 {selectedReturnForRefund?.return_number || "Sale Return"} — ₹
-                {Number(
-                  selectedReturnForRefund?.credit_available_balance ??
-                    selectedReturnForRefund?.net_amount ??
-                    0
-                ).toLocaleString("en-IN")}
+                {(selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0).toLocaleString("en-IN")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -980,11 +1022,7 @@ export default function SaleReturnDashboard() {
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
                   min={0}
-                  max={Number(
-                    selectedReturnForRefund?.credit_available_balance ??
-                      selectedReturnForRefund?.net_amount ??
-                      0
-                  )}
+                  max={selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0}
                 />
               </div>
               <div>
@@ -1022,11 +1060,7 @@ export default function SaleReturnDashboard() {
                   if (!selectedReturnForRefund || !currentOrganization?.id) return;
                   const amount = parseFloat(refundAmount);
                   if (!amount || amount <= 0) return;
-                  const maxRef = Number(
-                    selectedReturnForRefund.credit_available_balance ??
-                      selectedReturnForRefund.net_amount ??
-                      0
-                  );
+                  const maxRef = getAvailableCN(selectedReturnForRefund);
                   if (amount > maxRef + 0.01) {
                     toast({
                       title: "Invalid amount",
