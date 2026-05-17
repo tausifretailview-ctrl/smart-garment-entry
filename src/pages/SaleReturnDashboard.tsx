@@ -1011,11 +1011,7 @@ export default function SaleReturnDashboard() {
               <DialogDescription>
                 Refund {selectedReturnForRefund?.customer_name} for{" "}
                 {selectedReturnForRefund?.return_number || "Sale Return"} — ₹
-                {Number(
-                  selectedReturnForRefund?.credit_available_balance ??
-                    selectedReturnForRefund?.net_amount ??
-                    0
-                ).toLocaleString("en-IN")}
+                {(selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0).toLocaleString("en-IN")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
@@ -1026,11 +1022,7 @@ export default function SaleReturnDashboard() {
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
                   min={0}
-                  max={Number(
-                    selectedReturnForRefund?.credit_available_balance ??
-                      selectedReturnForRefund?.net_amount ??
-                      0
-                  )}
+                  max={selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0}
                 />
               </div>
               <div>
