@@ -57,6 +57,9 @@ export interface A4SheetOptions {
   rightOffsetMm?: number;
   labelConfig: LabelDesignConfig;
   businessName?: string;
+  /** Start printing from this 1-based slot on the first page (default 1).
+   *  Used to skip already-used labels on a partially-used A4 sheet. */
+  startPosition?: number;
 }
 
 export const generateA4LabelPdf = async (
@@ -70,7 +73,14 @@ export const generateA4LabelPdf = async (
     bottomOffsetMm: rawBottomOffsetMm = 0,
     rightOffsetMm: rawRightOffsetMm = 0,
     labelConfig, businessName = '',
+    startPosition: rawStartPosition = 1,
   } = options;
+  const labelsPerSlot = Math.max(1, cols * rows);
+  const startPosition = Math.min(
+    labelsPerSlot,
+    Math.max(1, Math.floor(rawStartPosition || 1))
+  );
+  const skipSlots = startPosition - 1;
   const topOffsetMm = Math.max(0, rawTopOffsetMm);
   const leftOffsetMm = Math.max(0, rawLeftOffsetMm);
   const bottomOffsetMm = Math.max(0, rawBottomOffsetMm);
@@ -103,7 +113,8 @@ export const generateA4LabelPdf = async (
   const marginLeft = mmToPt(leftOffsetMm + centeredPadXmm);
   const marginTop = mmToPt(topOffsetMm + centeredPadYmm);
 
-  const allLabels: LabelItem[] = [];
+  const allLabels: (LabelItem | null)[] = [];
+  for (let s = 0; s < skipSlots; s++) allLabels.push(null);
   items.forEach(item => {
     const qty = item.qty || 1;
     for (let i = 0; i < qty; i++) allLabels.push(item);
@@ -118,6 +129,7 @@ export const generateA4LabelPdf = async (
 
     for (let i = 0; i < pageLabels.length; i++) {
       const item = pageLabels[i];
+      if (!item) continue; // skipped slot — leave blank
       const col = i % cols;
       const row = Math.floor(i / cols);
 
