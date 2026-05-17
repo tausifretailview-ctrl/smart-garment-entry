@@ -1,83 +1,68 @@
 ## Problem
 
-On the Sale Return Dashboard, customer-linked sale returns with a credit note (status `pending` or `partially_adjusted`) often don't show the **Adjust against invoice** (purple CN icon) and **Refund to customer** (green cash icon) buttons.
+Two related symptoms in the screenshot/message you shared:
 
-Two real bugs were found from the live data:
+1. **WhatsApp Outstanding reminder** lists already-paid invoices (e.g. `INV/25-26/264`, `INV/25-26/127`, `INV/25-26/73` for VANDANA FOOT WEAR JOGESWARI — each has a matching `RCP/25-26/170x` receipt for the full amount).
+2. **Customer Ledger PDF / page** Description column shows `Invoice - pending` for invoices that are actually fully paid (e.g. KS FOOTWEAR / Perfect Shoes Mira Road customer rows).
 
-1. **Stale `credit_available_balance` on `sale_returns`.**
-   Example: `SR/26-27/35` stores `credit_available_balance = 200`, but the linked `credit_notes` row shows `credit_amount 6200 − used_amount 0 = 6200` remaining. The dashboard trusts the stale column and hides/under-reports the Adjust button balance.
+## Root Cause
 
-2. **`bal` falls through to `0` when there is no linked sale.**
-   In `SaleReturnDashboard.tsx`:
-   ```ts
-   const bal = ret.credit_available_balance != null
-     ? Number(ret.credit_available_balance)
-     : (ret.remaining_cn_amt ?? Number(ret.net_amount));
-   ```
-   `remaining_cn_amt` is computed earlier as `0` when there's no `linked_sale_id` (not null), so `??` does NOT fall through to `net_amount`. Result: rows like `SR/26-27/94` (₹11,938.70) and `SR/26-27/93` (₹7,370.80) — both customer-linked and fully open — get `bal = 0` and the Adjust button is hidden. Refund still shows because that branch uses `net_amount` directly.
+Both the reminder and the ledger Description take a shortcut and trust `sales.payment_status` / `sales.paid_amount` directly:
+
+- `src/pages/salesman/SalesmanCustomerAccount.tsx` — `pendingInvoices` is filtered by `sale.payment_status !== 'completed'` first, then voucher receipts are merged in to compute balance. If `payment_status` is stale (`pending`), but the sale was actually settled later through Customer Payment vouchers, balance compares OK only when voucher rows are loaded — but the voucher query has no `customer_id` filter and is capped at Supabase default 1000 rows per org; large orgs (this one already has 903 receipts) silently lose old receipts and the invoice falls through as "pending" with `balance = net_amount`.
+- `src/pages/CustomerLedgerPage.tsx` line 168 prints `Invoice - ${sale.payment_status || "pending"}` — purely cosmetic but driven by the stale column, so paid invoices read as "pending" in the PDF.
+
+Newer payments saved through `CustomerPaymentTab` DO update `sales.payment_status` and `paid_amount` (and the tab has a self-heal pass), but historical receipts created before that fix left rows out of sync.
 
 ## Fix
 
-Edit only `src/pages/SaleReturnDashboard.tsx`.
+Compute the effective per-invoice paid status from data, not from the stale column. Three changes, all in frontend display code:
 
-### 1. Fetch live CN remaining for visible rows
+### 1. `src/pages/salesman/SalesmanCustomerAccount.tsx`
+- Scope the `voucher_entries` receipt query to the current customer: `.in('reference_id', [...customerSaleIds, customerId])` so we never hit the 1000-row org cap.
+- Build `pendingInvoices` from **all** non-cancelled sales (drop the `payment_status !== 'completed'` pre-filter); compute `effectivePaid = max(paid_amount, voucherPaid) + sale_return_adjust + credit_applied`; keep only invoices where `balance ≥ 1`. This way, paid-but-stale invoices are correctly excluded from `sendAllOutstandingReminder` even when the column is wrong.
+- Pull `sale_return_adjust` and `credit_applied` into the sales select.
 
-In the existing list query (around the `linkedSales` enrichment, lines ~250-297), after collecting `linkedSaleIds`, also collect `creditNoteIds` from `returnsList.map(r => r.credit_note_id)`. If any, fetch:
+### 2. `src/pages/CustomerLedgerPage.tsx`
+- For the `missingInvoiceRows.particulars`, derive the label from computed balance, not from `sale.payment_status`:
+  - `balance ≤ 0.5` → `Invoice - paid`
+  - `balance < net_amount` → `Invoice - partial`
+  - else → `Invoice - pending`
+- Add `paid_amount, sale_return_adjust, credit_applied` to the sales select used at line 142-150 so we can compute balance locally.
+- (Optional small touch) Same fix anywhere the RPC ledger renders the description — pass the computed status through `normalizeApplicationLedgerRow`.
 
-```ts
-supabase.from('credit_notes')
-  .select('id, credit_amount, used_amount, status')
-  .in('id', creditNoteIds)
-  .eq('organization_id', currentOrganization.id)
+### 3. One-time backfill migration to heal historical `payment_status`
+Run a migration that, scoped per organization, sets:
+
+```sql
+update sales s
+set paid_amount = greatest(s.paid_amount, v.voucher_paid),
+    payment_status = case
+      when greatest(s.paid_amount, v.voucher_paid) + coalesce(s.sale_return_adjust,0) + coalesce(s.credit_applied,0)
+           >= s.net_amount - 0.5 then 'completed'
+      when greatest(s.paid_amount, v.voucher_paid) > 0 then 'partial'
+      else s.payment_status
+    end
+from (
+  select reference_id as sale_id, sum(total_amount) as voucher_paid
+  from voucher_entries
+  where voucher_type = 'receipt' and reference_type = 'sale' and deleted_at is null
+  group by reference_id
+) v
+where v.sale_id = s.id
+  and s.deleted_at is null
+  and s.payment_status not in ('cancelled','hold');
 ```
 
-Build `cnMap[id] = max(0, credit_amount - used_amount)`. Pass it into the `enriched` mapper and add a derived field, e.g. `cn_live_remaining`.
+This permanently corrects the historical drift behind both the reminder and the ledger.
 
-### 2. Compute the true available balance once
+### Out of scope (intentionally)
+- `useCustomerBalance`, dashboards, and totals already use `max(paid_amount, voucher_sum)` and are not affected.
+- No change to `CustomerPaymentTab` save logic — new payments already update `payment_status` correctly.
+- No change to credit-note / advance-adjust flows.
 
-Add a small helper inside the component (or inline):
+## Verification
 
-```ts
-const getAvailableCN = (ret) => {
-  // 1. Live CN row is the source of truth when a CN exists
-  if (ret.credit_note_id && ret.cn_live_remaining != null) {
-    return ret.cn_live_remaining;
-  }
-  // 2. Linked-to-sale return: remaining after sale_return_adjust
-  if (ret.linked_sale_id) {
-    return ret.remaining_cn_amt ?? 0;
-  }
-  // 3. Pending / no CN yet: full net amount
-  return Number(ret.net_amount || 0);
-};
-```
-
-Use it in three places:
-- The Adjust-button visibility block (lines ~755-768): replace the `bal` calculation with `getAvailableCN(ret)`.
-- The Refund-button visibility block (lines ~781-810): replace `refundableAmt` with `getAvailableCN(ret)`.
-- The Adjust-dialog `availableBalance` prop (lines ~923-927).
-
-Keep all current guards (`status !== 'refunded'`, `customer_id` required, status filter for refund, etc.) — user confirmed walk-in (no customer) rows should stay hidden.
-
-### 3. Self-heal stale `credit_available_balance`
-
-When a row has `credit_note_id`, `cn_live_remaining` differs from `credit_available_balance` by more than ₹0.01, and the user is just viewing the dashboard, fire-and-forget update:
-
-```ts
-supabase.from('sale_returns')
-  .update({ credit_available_balance: cn_live_remaining })
-  .eq('id', ret.id)
-  .eq('organization_id', currentOrganization.id)
-```
-
-Run this once after the enrichment step (batched, no `await` blocking render). This keeps the stored column in sync going forward without a separate migration.
-
-## Out of scope
-
-- No DB migrations.
-- No changes to `AdjustCustomerCreditNoteDialog` or refund-write logic — only visibility/availability inputs change.
-- No new buttons or columns.
-
-## Files changed
-
-- `src/pages/SaleReturnDashboard.tsx`
+- Re-open Salesman → Customer Account for VANDANA FOOT WEAR JOGESWARI → "Send Outstanding Reminder": INV/25-26/73, /127, /264 must no longer appear.
+- Print Customer Ledger for the Perfect Shoes Mira Road customer: paid invoice rows show `Invoice - paid`; partially paid rows show `Invoice - partial`.
+- After backfill, `select count(*) from sales where payment_status='pending' and ...` shows no rows where voucher receipts already cover the net amount.

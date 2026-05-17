@@ -141,7 +141,7 @@ export default function CustomerLedgerPage() {
       // ensure in-range invoices are never dropped by RPC-side joins/filters.
       let salesQuery = supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, payment_status, sale_return_adjust")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, sale_return_adjust, credit_applied")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -151,6 +151,38 @@ export default function CustomerLedgerPage() {
 
       const { data: inRangeSales, error: salesError } = await salesQuery;
       if (salesError) throw salesError;
+
+      // Fetch voucher receipts for those sales so the Description ("Invoice - paid /
+      // partial / pending") reflects the real money received, not the stale
+      // `sales.payment_status` column that historical payments never updated.
+      const inRangeSaleIds = (inRangeSales || []).map((s: any) => s.id);
+      const voucherPaidBySaleId = new Map<string, number>();
+      if (inRangeSaleIds.length > 0) {
+        const { data: vouchers } = await supabase
+          .from("voucher_entries")
+          .select("reference_id, total_amount")
+          .eq("organization_id", currentOrganization!.id)
+          .eq("voucher_type", "receipt")
+          .eq("reference_type", "sale")
+          .is("deleted_at", null)
+          .in("reference_id", inRangeSaleIds);
+        (vouchers || []).forEach((v: any) => {
+          const prev = voucherPaidBySaleId.get(v.reference_id) || 0;
+          voucherPaidBySaleId.set(v.reference_id, prev + (Number(v.total_amount) || 0));
+        });
+      }
+
+      const describeInvoiceStatus = (sale: any): string => {
+        const net = Number(sale.net_amount) || 0;
+        const paid = Math.max(
+          Number(sale.paid_amount) || 0,
+          voucherPaidBySaleId.get(sale.id) || 0
+        );
+        const adjusted = paid + (Number(sale.sale_return_adjust) || 0) + (Number(sale.credit_applied) || 0);
+        if (adjusted >= net - 0.5) return "Invoice - paid";
+        if (adjusted > 0.5) return "Invoice - partial";
+        return "Invoice - pending";
+      };
 
       const existingInvoiceRefs = new Set(
         rpcRowsNormalized
@@ -165,7 +197,7 @@ export default function CustomerLedgerPage() {
           transaction_date: sale.sale_date,
           voucher_type: "INVOICE",
           voucher_no: sale.sale_number || null,
-          particulars: `Invoice - ${sale.payment_status || "pending"}`,
+          particulars: describeInvoiceStatus(sale),
           debit: Number(sale.net_amount || 0),
           credit: 0,
           running_balance: 0,
