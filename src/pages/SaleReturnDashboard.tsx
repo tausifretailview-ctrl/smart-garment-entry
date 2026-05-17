@@ -1060,11 +1060,7 @@ export default function SaleReturnDashboard() {
                   if (!selectedReturnForRefund || !currentOrganization?.id) return;
                   const amount = parseFloat(refundAmount);
                   if (!amount || amount <= 0) return;
-                  const maxRef = Number(
-                    selectedReturnForRefund.credit_available_balance ??
-                      selectedReturnForRefund.net_amount ??
-                      0
-                  );
+                  const maxRef = getAvailableCN(selectedReturnForRefund);
                   if (amount > maxRef + 0.01) {
                     toast({
                       title: "Invalid amount",
