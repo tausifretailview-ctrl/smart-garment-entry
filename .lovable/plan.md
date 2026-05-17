@@ -1,53 +1,65 @@
 ## Problem
 
-For BAPUSO BOTRE / sale POS/26-27/629 (₹11,200, paid ₹6,200), after issuing CN ₹6,400 and refunding ₹1,400 cash, the customer ledger should close at **₹0**. Instead it shows **₹6,200 Cr**.
+In Sales Invoice Dashboard, when a Credit Note is adjusted against an unpaid/part‑paid invoice (e.g. bill ₹6,800, CN adjust ₹5,300), the invoice flips to **Paid (Completed)** instead of staying **Partial** with ₹1,500 outstanding.
 
-Reason: the ledger contains **two ₹6,200 payment rows for the same bill**:
+## Root cause
 
-1. `Payment at sale - Cash: ₹6,200` — synthesised from `sales.cash_amount` (correct, this is the real at-sale tender).
-2. `Phase 4 backfill: legacy POS receipt for POS/26-27/629` — a voucher row (`BCK/43a44550/7d9139`, ₹6,200 cash) created by a one-off historical migration to backfill receipts for legacy POS bills that had no voucher entry.
+The dashboard CN‑adjust flow (`SalesInvoiceDashboard.tsx`, `handleRecordPayment`) does two things for the same CN amount:
 
-Because the bill already carries the tender in `cash_amount`, the backfill voucher is a duplicate. The ledger UI renders both → balance overstated by exactly ₹6,200.
+1. Updates `sales.sale_return_adjust` += CN amount (line ~2067).
+2. Writes a `voucher_entries` row with `payment_method = 'credit_note_adjustment'` (line ~2117).
 
-**Scope check (system-wide):** running a join of `voucher_entries` (description LIKE 'Phase 4 backfill%') against `sales` where `cash_amount + card_amount + upi_amount > 0` returns **19,968 duplicate vouchers totalling ₹5.31 Cr**. So this affects every legacy POS bill that had real tender data — not just this one customer.
+After that, the reconciliation pass at lines 2237–2271 sums **all** receipt vouchers for the sale (including the CN voucher just inserted) into `receiptTotal`, then does:
 
-The customer-balance RPC already handles this drift via `GREATEST(paid_amount - adv, non_adv_voucher)` per sale, so reports stay correct — but the **ledger statement UI** does not, and that's what the user sees.
+```
+reconciledPaid = min(net - sr, max(paid_amount, receiptTotal))
+status = (reconciledPaid + sr >= net - 1) ? 'completed' : 'partial'
+```
+
+For the user's case: net=6800, sr=5300, paid=0, receiptTotal=5300 (CN voucher) → reconciledPaid=1500, then 1500 + 5300 = 6800 → **completed**, and `paid_amount` is written as 1500 even though no cash was received.
+
+The list-render reconciler `reconcileSaleInvoiceDisplay` (in `src/utils/customerBalanceUtils.ts`) has the same double‑count: it adds the `cn` voucher bucket as extra settlement on top of `sale_return_adjust`, so even after a page refresh the status still shows Completed.
+
+The `apply_credit_note_to_sale` RPC (POS flow) is unaffected because it bumps `paid_amount` instead of `sale_return_adjust`, so the existing `effectiveCash = max(salePaid - cn - adv, cash)` strip correctly cancels the double-count there. The bug only triggers for the dashboard CN-adjust path that touches `sale_return_adjust`.
 
 ## Fix
 
-Two coordinated changes:
+Stop counting the same CN twice when `sale_return_adjust` already represents it.
 
-### 1. Data cleanup migration (one-shot)
+### 1. `src/pages/SalesInvoiceDashboard.tsx` — final sync in `handleRecordPayment`
 
-Soft-delete every Phase 4 backfill voucher whose linked sale already carries equivalent at-sale tender. Safe predicate:
+- Change the `voucher_entries` query at line ~2237 to also select `payment_method`.
+- Exclude rows where `payment_method IN ('credit_note_adjustment', 'advance_adjustment')` from `receiptTotal` so only true cash/card/upi receipts are compared against `paid_amount`.
+- Status calc stays `reconciledPaid + sr >= net - 1 → completed`, which is correct because `sr` already encodes the CN/advance contribution.
 
-```text
-ve.description LIKE 'Phase 4 backfill%'
-AND ve.deleted_at IS NULL
-AND ve.reference_type = 'sale'
-AND backfill_total <= sale.cash + sale.card + sale.upi (within ₹1 tolerance)
+Result for the user's case: receiptTotal=0, reconciledPaid=0, status = `0 + 5300 < 6799` → **partial**, balance ₹1,500.
+
+### 2. `src/utils/customerBalanceUtils.ts` — `reconcileSaleInvoiceDisplay`
+
+The `cn` voucher bucket must not be added on top of `sr` when both reflect the same applied CN. Adjust the helper so the non‑cash settlement bucket is reduced by `sr` already counted:
+
+```
+const cnNotInSr = Math.max(0, cn - Math.max(0, sr));
+const cappedNonCash = Math.min(exposureAfterCashLike, adv + cnNotInSr);
 ```
 
-Set `deleted_at = now()`, `deleted_by = NULL`, leave the voucher row in place for audit. Do **not** touch any backfill voucher whose linked sale has zero tender — those are genuine backfills for bills that really had no receipt recorded.
+Rationale:
+- Dashboard flow: sr=5300, cn=5300 → cnNotInSr=0 → outstanding = net − sr − cash = 1500 ✔
+- POS `apply_credit_note_to_sale` flow: sr=0, salePaid includes CN, cn voucher present → unchanged behaviour, still correctly partial ✔
+- Pure sale‑return at billing time (sr>0, no cn voucher) → unchanged ✔
+- Advance adjustments (`adv` bucket) → unchanged ✔
 
-### 2. CustomerLedger UI guard (defensive)
+### 3. Optional one‑time data repair
 
-In `src/components/CustomerLedger.tsx`, when aggregating `allVouchers` for a sale, skip any voucher whose `description` starts with `'Phase 4 backfill'` if that same sale already produced a `Payment at sale` row (cash+card+upi > 0). This protects against any backfill rows that escape the cleanup.
+Existing invoices already mis‑marked Completed by this bug will keep their wrong `paid_amount` / `payment_status` until touched. On next dashboard load the corrected `reconcileSaleInvoiceDisplay` will detect the drift (lines 642–668) and auto-sync them back to the correct partial status + correct `paid_amount`. No SQL migration required.
 
-### 3. Verification
+## Files to change
 
-After the migration runs, re-open BAPUSO BOTRE's ledger:
-- Duplicate `BCK/43a44550/7d9139` row disappears.
-- Running balance: −11,200 (invoice) + 6,200 (payment at sale) + 6,400 (CN) − 1,400 (adv refund) = **₹0**.
-- Header `Fully Settled` chip stays green.
+- `src/pages/SalesInvoiceDashboard.tsx` (final sync block ~lines 2237–2271)
+- `src/utils/customerBalanceUtils.ts` (`reconcileSaleInvoiceDisplay`, ~lines 254–272)
 
-## Files
+## Out of scope (will not touch)
 
-- New migration `supabase/migrations/<timestamp>_cleanup_phase4_backfill_duplicates.sql` — soft-deletes the 19,968 duplicate receipts.
-- `src/components/CustomerLedger.tsx` — add the "skip backfill row when at-sale tender exists" guard around the voucher loop.
-
-## Out of scope
-
-- Dashboards/reports (`Cash/UPI Paid`, `Returns/CR`, `CN Available`) — already correct in the screenshot, no change needed.
-- Customer balance RPC — already uses GREATEST drift handling.
-- The Phase 4 backfill migration script itself — historical, will not run again.
+- POS `apply_credit_note_to_sale` RPC and `useCreditNotes` — already correct.
+- Advance adjustment flow — already correct (only the receiptTotal filter is tightened, which is symmetric).
+- Customer ledger and balance hooks — they use a separate ledger path that already excludes CN/advance vouchers from cash_pay.

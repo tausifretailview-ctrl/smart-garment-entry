@@ -2236,7 +2236,7 @@ export default function SalesInvoiceDashboard() {
 
       const { data: saleReceipts, error: saleReceiptsError } = await supabase
         .from('voucher_entries')
-        .select('total_amount')
+        .select('total_amount, payment_method')
         .eq('organization_id', currentOrganization?.id)
         .eq('voucher_type', 'receipt')
         // Phase 1.2: include mis-tagged customer rows for this exact sale id.
@@ -2245,7 +2245,17 @@ export default function SalesInvoiceDashboard() {
         .is('deleted_at', null);
       if (saleReceiptsError) throw saleReceiptsError;
 
-      const receiptTotal = (saleReceipts || []).reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0);
+      // Only true cash-like receipts should be compared against paid_amount.
+      // credit_note_adjustment and advance_adjustment vouchers represent CN/advance
+      // settlement (already reflected via sale_return_adjust or applied advance),
+      // and including them here double-counts the same settlement and flips
+      // partial invoices to completed.
+      const receiptTotal = (saleReceipts || [])
+        .filter((row: any) => {
+          const pm = String(row.payment_method || '').toLowerCase();
+          return pm !== 'credit_note_adjustment' && pm !== 'advance_adjustment';
+        })
+        .reduce((sum: number, row: any) => sum + Number(row.total_amount || 0), 0);
       const latestNet = Number(refreshedSale?.net_amount || selectedInvoiceForPayment.net_amount || 0);
       const latestSRAdjust = Number(refreshedSale?.sale_return_adjust || 0);
       const payableCap = Math.max(0, latestNet - latestSRAdjust);
