@@ -5,10 +5,11 @@
  * attract 18% GST instead of 5%. Threshold is configurable per-org.
  *
  * Behaviour:
- *  - Only UPGRADES current GST to 18% — never downgrades.
- *  - Manual selections higher than 18% are preserved.
- *  - When sale price drops back below threshold, callers should reset GST
- *    to the purchase GST themselves (this helper is stateless).
+ *  - When effective price > threshold => bumps current GST up to 18% (if lower).
+ *  - When effective price <= threshold => restores GST to baseGst (purchase GST).
+ *  - Manual selections higher than 18% are always preserved.
+ *  - "Effective price" should be the post-discount per-unit price (net unit price),
+ *    not raw MRP — so discount-driven downgrades work (e.g. MRP 3000 -20% = 2400).
  */
 export interface GarmentGstRuleSettings {
   garment_gst_rule_enabled?: boolean;
@@ -39,13 +40,22 @@ export function getGarmentGstThreshold(
 export function applyGarmentGstRule(
   salePrice: number | null | undefined,
   currentGst: number,
-  settings?: GarmentGstRuleSettings | null
+  settings?: GarmentGstRuleSettings | null,
+  baseGst?: number | null
 ): number {
   if (!isGarmentGstRuleEnabled(settings)) return currentGst;
   const threshold = getGarmentGstThreshold(settings);
   const price = Number(salePrice) || 0;
   if (price > threshold && currentGst < GARMENT_BUMPED_GST) {
     return GARMENT_BUMPED_GST;
+  }
+  // Below / equal to threshold: restore to baseGst (purchase GST) when the
+  // current GST was previously auto-bumped. Preserve manual overrides > 18%.
+  if (price > 0 && price <= threshold && baseGst != null) {
+    const base = Number(baseGst) || 0;
+    if (currentGst <= GARMENT_BUMPED_GST && currentGst !== base) {
+      return base;
+    }
   }
   return currentGst;
 }
