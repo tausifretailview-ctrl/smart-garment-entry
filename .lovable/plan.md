@@ -1,32 +1,68 @@
 ## Goal
 
-In Standard Printing (A4 sheet) only, add a new field "Start Label Position" so the user can begin printing from label slot N (e.g. 11) when labels 1–10 are already used on the sheet. Default = 1 (normal behavior, no skip). No other settings change.
+Refactor the **Retail Tax Ezzy** invoice template (`src/components/invoice-templates/RetailTaxEzzyTemplate.tsx`) to match the BAWLEE reference layout, and verify the inclusive-of-GST math used in the totals.
 
-## Behavior
+No other templates (Thermal, Tally, Modern, Wholesale, ERP, Modern Wholesale, etc.) and no calculation services are touched — only the Ezzy template.
 
-- Field appears only in the Standard Printing tab (A4 sheets). Thermal 1UP/2UP unaffected.
-- Default value = 1 → prints normally from slot 1.
-- If user enters N (1 ≤ N ≤ cols × rows): the first (N − 1) slots on page 1 are left blank, real labels start at slot N. Subsequent pages start at slot 1 as usual.
-- Applies to both "Print" (PDF print flow) and "Perfect PDF" export, and to the on-screen `PrecisionA4SheetPrint` preview so what user sees matches what prints.
-- Field resets to 1 after print is optional — keep value sticky in component state (not persisted to DB) so user controls it.
+## Changes
 
-## Files to edit
+### 1. Item table — Rate vs Amount columns
 
-1. **`src/utils/a4LabelPdf.ts`**
-   - Add `startPosition?: number` to `A4SheetOptions` (default 1).
-   - In page 1 layout, offset the first page's labels by `(startPosition − 1)` empty slots: build `allLabels` then prepend `(startPosition − 1)` `null` placeholders; in the per-label loop, skip rendering when item is null but still consume the slot.
+Currently:
+- `Rate` column = unit rate (`item.rate`)
+- `Amount` column = net line total after discount (`item.total`)
 
-2. **`src/components/precision-barcode/PrecisionA4SheetPrint.tsx`**
-   - Add optional `startPosition?: number` prop (default 1).
-   - On the first page only, prepend `(startPosition − 1)` empty grid cells (render an empty `<div style={{ width: labelWidth+'mm', height: labelHeight+'mm' }} />`) before the real labels so the preview matches the printed offset.
+New behaviour (matches BAWLEE reference):
+- `Rate` column = **line gross before discount** = `qty × unit-rate` (i.e. MRP-level line amount, pre-discount)
+- `Disc %` column = unchanged
+- `Amount` column = **net after line discount** = `item.total` (unchanged)
 
-3. **`src/pages/BarcodePrinting.tsx`**
-   - Add state: `const [startPosition, setStartPosition] = useState(1);`
-   - In the Standard Printing tab UI (near top/left offset inputs), add a small numeric input "Start Label Position" with min=1, max = `cols * rows`, helper text "Skip already-used labels on the sheet (default 1).".
-   - Pass `startPosition` into both `generateA4LabelPdf(...)` calls (lines ~3629 and ~3746) and into both `<PrecisionA4SheetPrint ... />` usages (lines ~5778 and ~5886).
-   - Do NOT persist into printer_presets or default formats — keep it ephemeral per-session.
+Implementation: in `renderCell`, change the `"rate"` case to render `fmt(item.qty * item.rate)` instead of `fmt(item.rate)`. The header label "Rate" stays.
 
-## Out of scope
+### 2. Totals box (right side, last page)
 
-- No changes to thermal printing, label design, search, RPCs, DB, or any other setting.
-- No default-format save/load changes.
+Replace the current rows with this order, matching the reference:
+
+```text
+MRP Total            ₹<sum of qty × rate across all items>
+Discount             - ₹<discount>
+[S/R Adjust          ± ₹<...>]              (only if non-zero, unchanged)
+GST (incl. in MRP)   ₹<totalTax>
+[Round Off           ± ₹<...>]              (only if non-zero, unchanged)
+Total                ₹<grandTotal>
+```
+
+Key edits in the right-hand totals column (around lines 616–660):
+- Rename "Sub Total" → **MRP Total**, drop the small "(incl. GST)" sub-label
+- Compute `mrpTotal = items.reduce((s,i)=> s + i.qty * i.rate, 0)` and display that instead of the `subtotal` prop
+- Keep the Discount row format (`- ₹...`) — already correct
+- Keep GST row, change the small sub-label to "(incl. in MRP)"
+- Keep Round Off + Total rows unchanged
+
+### 3. GST inclusive-of-GST calculation check
+
+Current formula per item (lines 178–194):
+
+```ts
+const taxOnItem  = item.total * gstPct / (100 + gstPct);
+const taxableVal = item.total - taxOnItem;
+```
+
+This is the **correct** reverse-calc for inclusive pricing, applied on the **net** (post-discount) line amount — which is exactly how Indian retail inclusive-GST bills should be computed. Cross-checked against the BAWLEE reference:
+
+- Net total 6,600 @ 18% → tax = 6600 × 18/118 = **1,006.78** ✓
+- Taxable = 6600 − 1006.78 = **5,593.22** ✓
+- CGST = SGST = 503.39 ✓
+
+So no maths change is needed. The plan only adds a brief code comment above the loop reaffirming the formula, so future edits don't accidentally break it.
+
+### 4. Out of scope
+
+- No DB / migration / service changes
+- No changes to other invoice templates or thermal receipts
+- No changes to search, POS flow, or settings
+- `subtotal`, `taxableAmount`, `cgstAmount`, `sgstAmount`, `igstAmount`, `totalTax`, `grandTotal` props from the caller stay as-is; the template now derives `mrpTotal` locally from `items` for the display row.
+
+## Files touched
+
+- `src/components/invoice-templates/RetailTaxEzzyTemplate.tsx` — only file modified

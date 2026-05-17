@@ -175,6 +175,9 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   > = {};
   const isInterState = igstAmount > 0;
 
+  // GST is inclusive of price for retail: tax = net * gst / (100 + gst)
+  // applied on the post-discount line total. Do not change this formula
+  // without updating the totals box (MRP Total / Discount / GST) below.
   items.forEach((item) => {
     const gstPct = item.gstPercent || 0;
     if (gstPct > 0) {
@@ -192,6 +195,11 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
       }
     }
   });
+
+  // MRP Total = sum of gross line amounts (qty × unit-rate) BEFORE discount.
+  // Discount row below then subtracts to reach net. Grand Total stays
+  // authoritative from the caller (handles round-off / S/R adjust).
+  const mrpTotal = items.reduce((sum, i) => sum + i.qty * i.rate, 0);
 
   const gstRates = Object.keys(gstBreakup)
     .map(Number)
@@ -298,7 +306,9 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
       case "qty":
         return item.qty;
       case "rate":
-        return fmt(item.rate);
+        // Show GROSS line amount before discount (qty × unit-rate).
+        // Net after discount is shown in the "Amount" column.
+        return fmt(item.qty * item.rate);
       case "disc": {
         const d = Number(item.discountPercent ?? 0);
         return d > 0 ? d.toFixed(0) : "0";
@@ -615,11 +625,8 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     </div>
                     <div className="w-[42%] shrink-0 border-slate-300">
                       <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
-                        <span className="leading-tight">
-                          Sub Total{" "}
-                          <span className="block text-[7px] font-normal normal-case text-slate-600">(incl. GST)</span>
-                        </span>
-                        <span>₹{fmt(subtotal)}</span>
+                        <span className="leading-tight">MRP Total</span>
+                        <span>₹{fmt(mrpTotal)}</span>
                       </div>
                       {showDiscountRow ? (
                         <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
@@ -640,7 +647,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                       <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                         <span className="leading-tight">
                           GST{" "}
-                          <span className="text-[7px] font-normal normal-case text-slate-600"> (incl. in Sub Total)</span>
+                          <span className="text-[7px] font-normal normal-case text-slate-600"> (incl. in MRP)</span>
                         </span>
                         <span>₹{fmt(totalTax)}</span>
                       </div>
