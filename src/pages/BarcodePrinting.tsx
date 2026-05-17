@@ -5815,6 +5815,7 @@ export default function BarcodePrinting() {
                       yOffset={precisionSettings.yOffset}
                       vGap={precisionSettings.vGap}
                       config={precisionSettings.labelConfig || undefined}
+                      startPosition={startPosition}
                     />
                   )}
                 </>
@@ -5924,6 +5925,7 @@ export default function BarcodePrinting() {
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
+              startPosition={startPosition}
             />
           )}
         </div>
