@@ -625,11 +625,8 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                     </div>
                     <div className="w-[42%] shrink-0 border-slate-300">
                       <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
-                        <span className="leading-tight">
-                          Sub Total{" "}
-                          <span className="block text-[7px] font-normal normal-case text-slate-600">(incl. GST)</span>
-                        </span>
-                        <span>₹{fmt(subtotal)}</span>
+                        <span className="leading-tight">MRP Total</span>
+                        <span>₹{fmt(mrpTotal)}</span>
                       </div>
                       {showDiscountRow ? (
                         <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
@@ -650,7 +647,7 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
                       <div className="flex justify-between border-b border-slate-300 px-1.5 py-0.5">
                         <span className="leading-tight">
                           GST{" "}
-                          <span className="text-[7px] font-normal normal-case text-slate-600"> (incl. in Sub Total)</span>
+                          <span className="text-[7px] font-normal normal-case text-slate-600"> (incl. in MRP)</span>
                         </span>
                         <span>₹{fmt(totalTax)}</span>
                       </div>
