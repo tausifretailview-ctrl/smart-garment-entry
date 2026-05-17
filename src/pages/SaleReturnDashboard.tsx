@@ -969,11 +969,8 @@ export default function SaleReturnDashboard() {
             returnNumber={selectedReturnForAdjust.return_number || "N/A"}
             creditAmount={(() => {
               const r = selectedReturnForAdjust;
-              if (r.credit_available_balance != null && !Number.isNaN(Number(r.credit_available_balance))) {
-                return Number(r.credit_available_balance);
-              }
-              if ((r.remaining_cn_amt ?? 0) > 0) return r.remaining_cn_amt!;
-              return r.net_amount;
+              const live = getAvailableCN(r);
+              return live > 0 ? live : Number(r.net_amount);
             })()}
             customerId={selectedReturnForAdjust.customer_id || ""}
             customerName={selectedReturnForAdjust.customer_name}
