@@ -1585,6 +1585,20 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       }
 
       // Merge sales, payments, and advances chronologically
+      // Build a set of sale IDs that already carry at-sale tender (cash/card/upi).
+      // Any "Phase 4 backfill" voucher pointing at those sales is a historical
+      // duplicate of the synthesised "Payment at sale" row and must be skipped,
+      // otherwise the ledger double-counts the receipt.
+      const salesWithAtSaleTender = new Set<string>(
+        (salesData || [])
+          .filter((s: any) =>
+            (Number(s.cash_amount) || 0) +
+              (Number(s.card_amount) || 0) +
+              (Number(s.upi_amount) || 0) >
+            0
+          )
+          .map((s: any) => s.id)
+      );
       const combined = [
         ...salesData.map((sale) => ({
           date: sale.sale_date,
@@ -1594,6 +1608,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         })),
         // Include all vouchers including advance-application entries
         ...allVouchers
+          .filter((voucher: any) => {
+            const desc = String(voucher.description || '');
+            if (!desc.toLowerCase().startsWith('phase 4 backfill')) return true;
+            // Drop the backfill duplicate when the linked sale already
+            // accounts for the tender via cash/card/upi columns.
+            return !(voucher.reference_id && salesWithAtSaleTender.has(voucher.reference_id));
+          })
           .map((voucher: any) => ({
             date: voucher.voucher_date,
             timestamp: voucher.created_at,
