@@ -1,65 +1,83 @@
 ## Problem
 
-In Sales Invoice Dashboard, when a Credit Note is adjusted against an unpaid/part‑paid invoice (e.g. bill ₹6,800, CN adjust ₹5,300), the invoice flips to **Paid (Completed)** instead of staying **Partial** with ₹1,500 outstanding.
+On the Sale Return Dashboard, customer-linked sale returns with a credit note (status `pending` or `partially_adjusted`) often don't show the **Adjust against invoice** (purple CN icon) and **Refund to customer** (green cash icon) buttons.
 
-## Root cause
+Two real bugs were found from the live data:
 
-The dashboard CN‑adjust flow (`SalesInvoiceDashboard.tsx`, `handleRecordPayment`) does two things for the same CN amount:
+1. **Stale `credit_available_balance` on `sale_returns`.**
+   Example: `SR/26-27/35` stores `credit_available_balance = 200`, but the linked `credit_notes` row shows `credit_amount 6200 − used_amount 0 = 6200` remaining. The dashboard trusts the stale column and hides/under-reports the Adjust button balance.
 
-1. Updates `sales.sale_return_adjust` += CN amount (line ~2067).
-2. Writes a `voucher_entries` row with `payment_method = 'credit_note_adjustment'` (line ~2117).
-
-After that, the reconciliation pass at lines 2237–2271 sums **all** receipt vouchers for the sale (including the CN voucher just inserted) into `receiptTotal`, then does:
-
-```
-reconciledPaid = min(net - sr, max(paid_amount, receiptTotal))
-status = (reconciledPaid + sr >= net - 1) ? 'completed' : 'partial'
-```
-
-For the user's case: net=6800, sr=5300, paid=0, receiptTotal=5300 (CN voucher) → reconciledPaid=1500, then 1500 + 5300 = 6800 → **completed**, and `paid_amount` is written as 1500 even though no cash was received.
-
-The list-render reconciler `reconcileSaleInvoiceDisplay` (in `src/utils/customerBalanceUtils.ts`) has the same double‑count: it adds the `cn` voucher bucket as extra settlement on top of `sale_return_adjust`, so even after a page refresh the status still shows Completed.
-
-The `apply_credit_note_to_sale` RPC (POS flow) is unaffected because it bumps `paid_amount` instead of `sale_return_adjust`, so the existing `effectiveCash = max(salePaid - cn - adv, cash)` strip correctly cancels the double-count there. The bug only triggers for the dashboard CN-adjust path that touches `sale_return_adjust`.
+2. **`bal` falls through to `0` when there is no linked sale.**
+   In `SaleReturnDashboard.tsx`:
+   ```ts
+   const bal = ret.credit_available_balance != null
+     ? Number(ret.credit_available_balance)
+     : (ret.remaining_cn_amt ?? Number(ret.net_amount));
+   ```
+   `remaining_cn_amt` is computed earlier as `0` when there's no `linked_sale_id` (not null), so `??` does NOT fall through to `net_amount`. Result: rows like `SR/26-27/94` (₹11,938.70) and `SR/26-27/93` (₹7,370.80) — both customer-linked and fully open — get `bal = 0` and the Adjust button is hidden. Refund still shows because that branch uses `net_amount` directly.
 
 ## Fix
 
-Stop counting the same CN twice when `sale_return_adjust` already represents it.
+Edit only `src/pages/SaleReturnDashboard.tsx`.
 
-### 1. `src/pages/SalesInvoiceDashboard.tsx` — final sync in `handleRecordPayment`
+### 1. Fetch live CN remaining for visible rows
 
-- Change the `voucher_entries` query at line ~2237 to also select `payment_method`.
-- Exclude rows where `payment_method IN ('credit_note_adjustment', 'advance_adjustment')` from `receiptTotal` so only true cash/card/upi receipts are compared against `paid_amount`.
-- Status calc stays `reconciledPaid + sr >= net - 1 → completed`, which is correct because `sr` already encodes the CN/advance contribution.
+In the existing list query (around the `linkedSales` enrichment, lines ~250-297), after collecting `linkedSaleIds`, also collect `creditNoteIds` from `returnsList.map(r => r.credit_note_id)`. If any, fetch:
 
-Result for the user's case: receiptTotal=0, reconciledPaid=0, status = `0 + 5300 < 6799` → **partial**, balance ₹1,500.
-
-### 2. `src/utils/customerBalanceUtils.ts` — `reconcileSaleInvoiceDisplay`
-
-The `cn` voucher bucket must not be added on top of `sr` when both reflect the same applied CN. Adjust the helper so the non‑cash settlement bucket is reduced by `sr` already counted:
-
-```
-const cnNotInSr = Math.max(0, cn - Math.max(0, sr));
-const cappedNonCash = Math.min(exposureAfterCashLike, adv + cnNotInSr);
+```ts
+supabase.from('credit_notes')
+  .select('id, credit_amount, used_amount, status')
+  .in('id', creditNoteIds)
+  .eq('organization_id', currentOrganization.id)
 ```
 
-Rationale:
-- Dashboard flow: sr=5300, cn=5300 → cnNotInSr=0 → outstanding = net − sr − cash = 1500 ✔
-- POS `apply_credit_note_to_sale` flow: sr=0, salePaid includes CN, cn voucher present → unchanged behaviour, still correctly partial ✔
-- Pure sale‑return at billing time (sr>0, no cn voucher) → unchanged ✔
-- Advance adjustments (`adv` bucket) → unchanged ✔
+Build `cnMap[id] = max(0, credit_amount - used_amount)`. Pass it into the `enriched` mapper and add a derived field, e.g. `cn_live_remaining`.
 
-### 3. Optional one‑time data repair
+### 2. Compute the true available balance once
 
-Existing invoices already mis‑marked Completed by this bug will keep their wrong `paid_amount` / `payment_status` until touched. On next dashboard load the corrected `reconcileSaleInvoiceDisplay` will detect the drift (lines 642–668) and auto-sync them back to the correct partial status + correct `paid_amount`. No SQL migration required.
+Add a small helper inside the component (or inline):
 
-## Files to change
+```ts
+const getAvailableCN = (ret) => {
+  // 1. Live CN row is the source of truth when a CN exists
+  if (ret.credit_note_id && ret.cn_live_remaining != null) {
+    return ret.cn_live_remaining;
+  }
+  // 2. Linked-to-sale return: remaining after sale_return_adjust
+  if (ret.linked_sale_id) {
+    return ret.remaining_cn_amt ?? 0;
+  }
+  // 3. Pending / no CN yet: full net amount
+  return Number(ret.net_amount || 0);
+};
+```
 
-- `src/pages/SalesInvoiceDashboard.tsx` (final sync block ~lines 2237–2271)
-- `src/utils/customerBalanceUtils.ts` (`reconcileSaleInvoiceDisplay`, ~lines 254–272)
+Use it in three places:
+- The Adjust-button visibility block (lines ~755-768): replace the `bal` calculation with `getAvailableCN(ret)`.
+- The Refund-button visibility block (lines ~781-810): replace `refundableAmt` with `getAvailableCN(ret)`.
+- The Adjust-dialog `availableBalance` prop (lines ~923-927).
 
-## Out of scope (will not touch)
+Keep all current guards (`status !== 'refunded'`, `customer_id` required, status filter for refund, etc.) — user confirmed walk-in (no customer) rows should stay hidden.
 
-- POS `apply_credit_note_to_sale` RPC and `useCreditNotes` — already correct.
-- Advance adjustment flow — already correct (only the receiptTotal filter is tightened, which is symmetric).
-- Customer ledger and balance hooks — they use a separate ledger path that already excludes CN/advance vouchers from cash_pay.
+### 3. Self-heal stale `credit_available_balance`
+
+When a row has `credit_note_id`, `cn_live_remaining` differs from `credit_available_balance` by more than ₹0.01, and the user is just viewing the dashboard, fire-and-forget update:
+
+```ts
+supabase.from('sale_returns')
+  .update({ credit_available_balance: cn_live_remaining })
+  .eq('id', ret.id)
+  .eq('organization_id', currentOrganization.id)
+```
+
+Run this once after the enrichment step (batched, no `await` blocking render). This keeps the stored column in sync going forward without a separate migration.
+
+## Out of scope
+
+- No DB migrations.
+- No changes to `AdjustCustomerCreditNoteDialog` or refund-write logic — only visibility/availability inputs change.
+- No new buttons or columns.
+
+## Files changed
+
+- `src/pages/SaleReturnDashboard.tsx`
