@@ -2234,6 +2234,13 @@ export default function POSSales() {
       const updatedItems = [...prev];
       updatedItems[index].quantity = newQty;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index].gstPer = applyGarmentGstRule(
+        posCartNetUnitPrice(updatedItems[index]),
+        updatedItems[index].gstPer,
+        garmentGstSettings,
+        updatedItems[index].baseGst,
+      );
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -2245,6 +2252,13 @@ export default function POSSales() {
       updatedItems[index].discountPercent = discountPercent;
       // Keep Disc% and Disc Rs synchronized as one discount mode (no double subtraction).
       updatedItems[index].discountAmount = 0;
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index].gstPer = applyGarmentGstRule(
+        posCartNetUnitPrice(updatedItems[index]),
+        updatedItems[index].gstPer,
+        garmentGstSettings,
+        updatedItems[index].baseGst,
+      );
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -2261,6 +2275,13 @@ export default function POSSales() {
       // Store discount through percent mapping to avoid adding both percent + amount.
       updatedItems[index].discountAmount = 0;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index].gstPer = applyGarmentGstRule(
+        posCartNetUnitPrice(updatedItems[index]),
+        updatedItems[index].gstPer,
+        garmentGstSettings,
+        updatedItems[index].baseGst,
+      );
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -2272,8 +2293,14 @@ export default function POSSales() {
       updatedItems[index].mrp = newMrp;
       // CRITICAL: Sync unitCost with MRP to ensure correct unit_price is saved to database
       updatedItems[index].unitCost = newMrp;
-      // Garment / Footwear GST auto-bump rule on price change
-      updatedItems[index].gstPer = applyGarmentGstRule(newMrp, updatedItems[index].gstPer, garmentGstSettings);
+      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      // Garment / Footwear GST auto rule based on post-discount net unit price.
+      updatedItems[index].gstPer = applyGarmentGstRule(
+        posCartNetUnitPrice(updatedItems[index]),
+        updatedItems[index].gstPer,
+        garmentGstSettings,
+        updatedItems[index].baseGst,
+      );
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -2282,8 +2309,13 @@ export default function POSSales() {
   const updateGstPer = (index: number, newGstPer: number) => {
     setItems(prev => {
       const updatedItems = [...prev];
-      // Re-apply auto-bump: if user picks <18% but price > threshold, bump back to 18
-      updatedItems[index].gstPer = applyGarmentGstRule(updatedItems[index].mrp, newGstPer, garmentGstSettings);
+      // Re-apply auto rule against post-discount net unit price.
+      updatedItems[index].gstPer = applyGarmentGstRule(
+        posCartNetUnitPrice(updatedItems[index]),
+        newGstPer,
+        garmentGstSettings,
+        updatedItems[index].baseGst,
+      );
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
