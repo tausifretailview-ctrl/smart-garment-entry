@@ -1,68 +1,66 @@
 ## Problem
 
-Two related symptoms in the screenshot/message you shared:
+Same root cause as the earlier VANDANA FOOT WEAR fix. Audit of the two organizations confirms broad drift:
 
-1. **WhatsApp Outstanding reminder** lists already-paid invoices (e.g. `INV/25-26/264`, `INV/25-26/127`, `INV/25-26/73` for VANDANA FOOT WEAR JOGESWARI — each has a matching `RCP/25-26/170x` receipt for the full amount).
-2. **Customer Ledger PDF / page** Description column shows `Invoice - pending` for invoices that are actually fully paid (e.g. KS FOOTWEAR / Perfect Shoes Mira Road customer rows).
+- **ELLA NOOR**: 38 invoices across 36 customers are fully settled (via receipts, sale-return adjust, or credit-note adjust) but still carry `payment_status='pending'`. Hidden adjustments total ₹2,11,600.
+- **KS FOOTWEAR**: 6 invoices across 6 customers in the same state. Hidden adjustments total ₹20,695.
 
-## Root Cause
+Consequence: these invoices still show in WhatsApp outstanding reminders and render as "Invoice - pending" in the Customer Ledger PDF for those customers.
 
-Both the reminder and the ledger Description take a shortcut and trust `sales.payment_status` / `sales.paid_amount` directly:
+The frontend code changes already shipped (`SalesmanCustomerAccount.tsx` + `CustomerLedgerPage.tsx`) compute balance dynamically, so once those screens reload, the false positives are gone there. But:
 
-- `src/pages/salesman/SalesmanCustomerAccount.tsx` — `pendingInvoices` is filtered by `sale.payment_status !== 'completed'` first, then voucher receipts are merged in to compute balance. If `payment_status` is stale (`pending`), but the sale was actually settled later through Customer Payment vouchers, balance compares OK only when voucher rows are loaded — but the voucher query has no `customer_id` filter and is capped at Supabase default 1000 rows per org; large orgs (this one already has 903 receipts) silently lose old receipts and the invoice falls through as "pending" with `balance = net_amount`.
-- `src/pages/CustomerLedgerPage.tsx` line 168 prints `Invoice - ${sale.payment_status || "pending"}` — purely cosmetic but driven by the stale column, so paid invoices read as "pending" in the PDF.
-
-Newer payments saved through `CustomerPaymentTab` DO update `sales.payment_status` and `paid_amount` (and the tab has a self-heal pass), but historical receipts created before that fix left rows out of sync.
+- Any other screen / report still reading `sales.payment_status` directly stays wrong.
+- Dashboards filtered by "Pending" status keep showing these rows.
 
 ## Fix
 
-Compute the effective per-invoice paid status from data, not from the stale column. Three changes, all in frontend display code:
+One-time backfill, scoped strictly to the two affected organizations. Same SQL logic as the earlier VANDANA backfill — re-applied org-wide.
 
-### 1. `src/pages/salesman/SalesmanCustomerAccount.tsx`
-- Scope the `voucher_entries` receipt query to the current customer: `.in('reference_id', [...customerSaleIds, customerId])` so we never hit the 1000-row org cap.
-- Build `pendingInvoices` from **all** non-cancelled sales (drop the `payment_status !== 'completed'` pre-filter); compute `effectivePaid = max(paid_amount, voucherPaid) + sale_return_adjust + credit_applied`; keep only invoices where `balance ≥ 1`. This way, paid-but-stale invoices are correctly excluded from `sendAllOutstandingReminder` even when the column is wrong.
-- Pull `sale_return_adjust` and `credit_applied` into the sales select.
+For every non-cancelled, non-hold sale in these two orgs:
 
-### 2. `src/pages/CustomerLedgerPage.tsx`
-- For the `missingInvoiceRows.particulars`, derive the label from computed balance, not from `sale.payment_status`:
-  - `balance ≤ 0.5` → `Invoice - paid`
-  - `balance < net_amount` → `Invoice - partial`
-  - else → `Invoice - pending`
-- Add `paid_amount, sale_return_adjust, credit_applied` to the sales select used at line 142-150 so we can compute balance locally.
-- (Optional small touch) Same fix anywhere the RPC ledger renders the description — pass the computed status through `normalizeApplicationLedgerRow`.
-
-### 3. One-time backfill migration to heal historical `payment_status`
-Run a migration that, scoped per organization, sets:
+1. Raise `paid_amount` to `max(paid_amount, sum(receipt vouchers))`.
+2. Recompute `payment_status`:
+   - `completed` if `paid + sale_return_adjust + credit_applied ≥ net_amount − 0.5`
+   - `partial` if any payment exists
+   - otherwise leave as is.
 
 ```sql
 update sales s
-set paid_amount = greatest(s.paid_amount, v.voucher_paid),
+set paid_amount = greatest(s.paid_amount, coalesce(v.voucher_paid,0)),
     payment_status = case
-      when greatest(s.paid_amount, v.voucher_paid) + coalesce(s.sale_return_adjust,0) + coalesce(s.credit_applied,0)
+      when greatest(s.paid_amount, coalesce(v.voucher_paid,0))
+           + coalesce(s.sale_return_adjust,0)
+           + coalesce(s.credit_applied,0)
            >= s.net_amount - 0.5 then 'completed'
-      when greatest(s.paid_amount, v.voucher_paid) > 0 then 'partial'
+      when greatest(s.paid_amount, coalesce(v.voucher_paid,0)) > 0 then 'partial'
       else s.payment_status
     end
 from (
   select reference_id as sale_id, sum(total_amount) as voucher_paid
   from voucher_entries
-  where voucher_type = 'receipt' and reference_type = 'sale' and deleted_at is null
+  where voucher_type='receipt' and deleted_at is null
+    and organization_id in (
+      '4bc73037-e877-4123-9261-eb6e3876698c', -- KS FOOTWEAR
+      '3fdca631-1e0c-4417-9704-421f5129ff67'  -- ELLA NOOR
+    )
   group by reference_id
 ) v
-where v.sale_id = s.id
+where s.organization_id in (
+  '4bc73037-e877-4123-9261-eb6e3876698c',
+  '3fdca631-1e0c-4417-9704-421f5129ff67'
+)
   and s.deleted_at is null
-  and s.payment_status not in ('cancelled','hold');
+  and s.payment_status not in ('cancelled','hold')
+  and (v.sale_id = s.id or v.sale_id is null);
 ```
 
-This permanently corrects the historical drift behind both the reminder and the ledger.
-
-### Out of scope (intentionally)
-- `useCustomerBalance`, dashboards, and totals already use `max(paid_amount, voucher_sum)` and are not affected.
-- No change to `CustomerPaymentTab` save logic — new payments already update `payment_status` correctly.
-- No change to credit-note / advance-adjust flows.
+(Run as a `supabase--insert` data-only statement — no schema change.)
 
 ## Verification
 
-- Re-open Salesman → Customer Account for VANDANA FOOT WEAR JOGESWARI → "Send Outstanding Reminder": INV/25-26/73, /127, /264 must no longer appear.
-- Print Customer Ledger for the Perfect Shoes Mira Road customer: paid invoice rows show `Invoice - paid`; partially paid rows show `Invoice - partial`.
-- After backfill, `select count(*) from sales where payment_status='pending' and ...` shows no rows where voucher receipts already cover the net amount.
+Re-run the audit query — expected count drops to 0 for both orgs. Spot-check WhatsApp Outstanding Reminder for any customer in either org: only true-pending invoices remain.
+
+## Out of scope
+
+- No code changes — the frontend fixes already shipped handle live computation.
+- Other organizations not touched (run a separate audit if needed).
