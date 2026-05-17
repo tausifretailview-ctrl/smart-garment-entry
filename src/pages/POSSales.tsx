@@ -2167,7 +2167,16 @@ export default function POSSales() {
         isDcProduct: variant.is_dc_product === true,
         uom: product.uom || 'NOS',
         showDiscount: !useMrpAsPrice && displayMrp > salePrice,
+        baseGst: Number((product as any).purchase_gst_percent ?? product.sale_gst_percent ?? product.gst_per ?? 0) || 0,
       };
+      newItem.netAmount = calculatePosCartLineNet(newItem);
+      // Re-evaluate GST against post-discount net unit price (handles MRP→net downgrade).
+      newItem.gstPer = applyGarmentGstRule(
+        posCartNetUnitPrice(newItem),
+        newItem.gstPer,
+        garmentGstSettings,
+        newItem.baseGst,
+      );
       newItem.netAmount = calculatePosCartLineNet(newItem);
       hasManuallyAddedNewItemRef.current = true;
       setItems(prev => [...prev, newItem]);
