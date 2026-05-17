@@ -5285,6 +5285,31 @@ export default function BarcodePrinting() {
               }}
             />
           </div>
+
+          <div className="space-y-2">
+            <Label>Start Label Position</Label>
+            <Input
+              type="number"
+              min={1}
+              max={
+                sheetType === "custom"
+                  ? Math.max(1, customCols * customRows)
+                  : Math.max(
+                      1,
+                      sheetPresets[sheetType].cols *
+                        ((sheetPresets[sheetType] as any).rows || 10)
+                    )
+              }
+              value={startPosition}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                setStartPosition(Number.isFinite(n) && n >= 1 ? n : 1);
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Skip already-used labels on the sheet. Default 1 (start from first label).
+            </p>
+          </div>
         </div>
       </div>
 
