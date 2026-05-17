@@ -5246,13 +5246,13 @@ export default function POSSales() {
                           <div>
                             <Input
                               type="number"
-                              value={item.discountPercent || ""}
-                              onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
+                              value={item.discountPercent ? Math.round(Number(item.discountPercent)) : ""}
+                              onChange={(e) => updateDiscountPercent(index, Math.round(parseFloat(e.target.value) || 0))}
                               placeholder="0"
                               className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
                               min="0"
                               max="100"
-                              step="0.01"
+                              step="1"
                             />
                           </div>
                           <div>
@@ -5267,14 +5267,14 @@ export default function POSSales() {
                                   const rsDiscount = Number(item.discountAmount) > 0
                                     ? Number(item.discountAmount)
                                     : percentAmount;
-                                  return rsDiscount > 0 ? Number(rsDiscount.toFixed(2)) : "";
+                                  return rsDiscount > 0 ? Math.round(rsDiscount) : "";
                                 })()
                               }
-                              onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
+                              onChange={(e) => updateDiscountAmount(index, Math.round(parseFloat(e.target.value) || 0))}
                               placeholder="0"
                               className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
                               min="0"
-                              step="0.01"
+                              step="1"
                             />
                           </div>
                           <div
