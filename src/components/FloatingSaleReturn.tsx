@@ -837,6 +837,64 @@ export const FloatingSaleReturn = ({
               } as any)
               .eq('id', returnData.id);
           }
+
+          // Auto-apply this CN against the original bill's outstanding balance
+          // so the source sale flips to Paid and the SR settlement is resolved.
+          // Any remainder stays on the credit note as customer credit (refund payable).
+          if (creditNote && billSaleId) {
+            try {
+              const { data: saleRow } = await supabase
+                .from('sales')
+                .select('net_amount, paid_amount, credit_note_amount, sale_return_adjust')
+                .eq('id', billSaleId)
+                .maybeSingle();
+              if (saleRow) {
+                const outstanding = Math.max(
+                  0,
+                  Number((saleRow as any).net_amount || 0)
+                    - Number((saleRow as any).paid_amount || 0)
+                    - Number((saleRow as any).credit_note_amount || 0)
+                    - Number((saleRow as any).sale_return_adjust || 0)
+                );
+                const applyAmt = Math.min(grossAmount, outstanding);
+                if (applyAmt > 0) {
+                  const { data: applyRes } = await supabase.rpc(
+                    'apply_credit_note_to_sale',
+                    {
+                      p_customer_id: effectiveCustomerId,
+                      p_sale_id: billSaleId,
+                      p_apply_amount: applyAmt,
+                      p_organization_id: organizationId,
+                    }
+                  );
+                  const appliedNum = Number((applyRes as any)?.applied_amount) || 0;
+                  const fullyConsumed = appliedNum >= grossAmount - 0.01;
+                  await supabase
+                    .from('sale_returns')
+                    .update({
+                      credit_status: fullyConsumed ? 'adjusted' : 'adjusted_outstanding',
+                      linked_sale_id: billSaleId,
+                    } as any)
+                    .eq('id', returnData.id);
+
+                  // Defensive: ensure the sale flips to completed when fully settled.
+                  // (The RPC sets payment_status, but downstream voucher triggers can
+                  // recompute it from receipt sums and leave a stale 'partial' state.)
+                  const newPaid = Number((saleRow as any).paid_amount || 0) + appliedNum;
+                  const netAmt = Number((saleRow as any).net_amount || 0);
+                  const sra = Number((saleRow as any).sale_return_adjust || 0);
+                  if (newPaid + sra >= netAmt - 1) {
+                    await supabase
+                      .from('sales')
+                      .update({ payment_status: 'completed' } as any)
+                      .eq('id', billSaleId);
+                  }
+                }
+              }
+            } catch (autoApplyErr) {
+              console.error('Auto-apply CN to original sale failed:', autoApplyErr);
+            }
+          }
         } catch (cnErr) {
           console.error('Credit note creation failed:', cnErr);
         }
