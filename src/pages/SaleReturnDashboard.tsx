@@ -97,6 +97,22 @@ const formatCreditStatusLabel = (ret: SaleReturn) => {
   return "Pending";
 };
 
+/**
+ * Authoritative available CN amount for a sale return.
+ * 1. If a credit_notes row exists, use its live remaining (credit_amount - used_amount).
+ * 2. Otherwise, if the return is linked to a sale, use remaining_cn_amt.
+ * 3. Otherwise (pending, no CN yet), fall back to net_amount.
+ */
+const getAvailableCN = (ret: SaleReturn): number => {
+  if (ret.credit_note_id && ret.cn_live_remaining != null) {
+    return Number(ret.cn_live_remaining);
+  }
+  if (ret.linked_sale_id) {
+    return Number(ret.remaining_cn_amt ?? 0);
+  }
+  return Number(ret.net_amount || 0);
+};
+
 export default function SaleReturnDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
