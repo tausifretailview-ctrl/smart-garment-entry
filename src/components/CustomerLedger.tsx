@@ -2252,8 +2252,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         }
       });
 
-      // Sort by date descending
-      payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // Sort by date descending; latest recorded first (created_at fallback by id/source)
+      payments.sort((a, b) => {
+        const d = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (d !== 0) return d;
+        const ac = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bc = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bc - ac;
+      });
 
       return payments;
     },

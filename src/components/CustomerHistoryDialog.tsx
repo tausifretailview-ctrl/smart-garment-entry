@@ -522,7 +522,7 @@ export function CustomerHistoryDialog({
       // Fetch vouchers: both invoice-linked AND direct customer receipts
       const { data, error } = await supabase
         .from('voucher_entries')
-        .select('id, voucher_number, voucher_date, voucher_type, total_amount, description')
+        .select('id, voucher_number, voucher_date, voucher_type, total_amount, description, created_at')
         .eq('organization_id', organizationId)
         .or('voucher_type.eq.receipt,voucher_type.eq.RECEIPT')
         .is('deleted_at', null)
@@ -531,7 +531,8 @@ export function CustomerHistoryDialog({
             ? `reference_id.in.(${saleIds.join(',')}),and(reference_type.eq.customer,reference_id.eq.${customerId})`
             : `and(reference_type.eq.customer,reference_id.eq.${customerId})`
         )
-        .order('voucher_date', { ascending: false });
+        .order('voucher_date', { ascending: false })
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
