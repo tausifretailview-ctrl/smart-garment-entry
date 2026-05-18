@@ -228,7 +228,8 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
 
   const resetForm = () => {
     setVoucherDate(new Date());
-    setReferenceId("");
+    // Keep referenceId (customer) selected so the refreshed pending-invoice
+    // list with remaining balance is immediately visible after a part payment.
     setSelectedInvoiceIds([]);
     setAmount("");
     setPaymentMethod("cash");
