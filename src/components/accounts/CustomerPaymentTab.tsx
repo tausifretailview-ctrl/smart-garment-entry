@@ -970,8 +970,14 @@ export function CustomerPaymentTab({
         savingRef.current = false;
       }
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success("Payment recorded successfully");
+      // Force-refetch the active pending-invoice list immediately so a partial
+      // payment shows the remaining-balance invoice without a page refresh.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["customer-invoices", referenceId] }),
+        queryClient.refetchQueries({ queryKey: ["customer-balance", referenceId] }),
+      ]);
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });

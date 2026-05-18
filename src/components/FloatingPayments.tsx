@@ -228,7 +228,8 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
 
   const resetForm = () => {
     setVoucherDate(new Date());
-    setReferenceId("");
+    // Keep referenceId (customer) selected so the refreshed pending-invoice
+    // list with remaining balance is immediately visible after a part payment.
     setSelectedInvoiceIds([]);
     setAmount("");
     setPaymentMethod("cash");
@@ -410,10 +411,17 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod };
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       toast.success("Payment recorded");
       setShowSaved(true);
       setTimeout(() => setShowSaved(false), 3000);
+      // Force-refetch the pending-invoices list BEFORE we touch form state,
+      // so a partial payment immediately shows the remaining-balance invoice
+      // without requiring a page refresh.
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["customer-invoices", referenceId] }),
+        queryClient.refetchQueries({ queryKey: ["customer-balance", referenceId] }),
+      ]);
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
