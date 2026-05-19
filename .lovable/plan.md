@@ -1,55 +1,74 @@
-## What I found
 
-I queried KS Footwear's sales and matched the bills from your note (HINA FOOTWEAR-KURAR MALAD: 682, 560, 463, 337, 293) and the screenshot (SHOE POINT-MIRAROAD E: 724, 533, 299, 150).
+## What the user reported
 
-Every one of these "partial" invoices shows the same fingerprint — the cash you actually received plus the settlement discount you entered equals **the bill amount minus its GST portion** (~9% or ~18%). Example:
+In **VELVET EXCLUSIVE LADIES WEAR & BAGS**, several March–April invoices show as **Not Paid / Pending**, but the user confirms they are actually fully paid. The root cause is two separate things working together — both need to be addressed.
 
-```
-INV/25-26/724  Net 17,727   Cash 15,599  Discount 532   Recorded paid 16,131   Residual 1,596 (= 9% of 17,727)
-INV/25-26/682  Net  2,945   Cash  2,237  Discount 177   Recorded paid  2,414   Residual   531 (= 18%)
-INV/25-26/299  Net 15,933   Cash 14,021  Discount 478   Recorded paid 14,499   Residual 1,434 (= 9%)
-```
+## What I found in the data
 
-Org-wide scan in KS Footwear:
-- 81 partial bills with residual, totalling ₹2,35,911 across 59 customers.
-- Of those, 27 bills match the GST-percentage fingerprint — these are the ones caused by the settlement-discount regression.
-- The remaining ~54 bills are genuine partial payments (residuals do not match a GST %).
+I scanned all Velvet POS bills from 1-Mar-2026 onwards. Out of ~28 "pending" bills, **20 bills are wrongly marked pending**. They share a clear fingerprint:
 
-## Root cause (suspected)
+- `payment_method` = `cash` / `card` / `upi` (not `pay_later`)
+- A sale-return credit (`credit_applied` / `sale_return_adjust`) was used **plus** the customer paid the remaining net in cash/card/UPI
+- The cash/card/UPI tender column equals the net amount (e.g. net 251, cash 251)
+- But `paid_amount = 0` and `payment_status = 'pending'`
 
-When recording a payment with Settlement Discount, the discount amount entered by the user was treated as **pre-tax**, so only `cash + discount` was credited to AR while the GST portion of that discount stayed open on the invoice. We patched a related path earlier (paid_amount / payment_status sync); the discount→AR side is still under-crediting.
+Examples (all by the same operator):
+- POS/26-27/795 — net 251, cash 251 → still pending
+- POS/26-27/569 — MANSI GONDKAR, net 4200, UPI 4200, credit applied 7415 → still pending
+- POS/26-27/476 — net 9500, UPI 9500, credit applied 12130 → still pending
+
+Many of these have **no customer name** because the operator skipped the customer field on a quick walk-in/exchange flow — exactly the user's hypothesis.
+
+The remaining ~8 pending bills are genuine `pay_later` credit invoices (MITALI MADAM, KAMAL BHAI, etc.) and Hold drafts — those will be **left untouched**.
 
 ## Plan
 
-### Step 1 — Confirm the cleanup scope with you
-Two distinct buckets:
-1. **GST-fingerprint residuals (27 bills, KS Footwear)** — these are the bug you're describing. Safe to write off as additional settlement discount so the bills close to ₹0 and customer balance drops accordingly.
-2. **Other partial bills (~54)** — leave untouched (real outstanding).
+### Step 1 — Data cleanup (Velvet only, scoped)
 
-I'll share the full list of 27 bills (customer, invoice, residual) before any change. Same scan will be run on Ella Noor and Velvet so we catch the same pattern there.
+For Velvet (`organization_id = dafc3d0c-…`), find every non-cancelled, non-deleted sale where:
 
-### Step 2 — Backfill cleanup (data-only, via insert)
-For each confirmed bill:
-- Mark the residual as a settlement discount by updating `sales.paid_amount = net_amount - sale_return_adjust` and `payment_status='completed'`.
-- Write a `voucher_entries` row of type `receipt`, `payment_method='settlement_discount'`, `total_amount=0`, `discount_amount=<residual>`, description "Settlement discount — auto-cleanup of GST-residual from discount feature bug", linked to the sale.
-- No new cash is created; this only reclassifies the unpaid portion as discount, exactly as if the original receipt had carried the full discount.
+- `payment_status = 'pending'`
+- `payment_method IN ('cash','card','upi','multiple')` (i.e. NOT `pay_later` and NOT `hold`)
+- `cash_amount + card_amount + upi_amount >= net_amount − 1` (fully tendered)
 
-This matches the existing customer-balance formula (settlement discount counted in `voucherCreditAmount` as `total_amount + discount_amount`) so the customer's outstanding drops by the residual amount immediately, with audit trail.
+…and update:
 
-### Step 3 — Fix the discount feature so it stops happening
-Locate the payment-receipt save path (FloatingPayments + CustomerPaymentTab) and verify how `paid_amount` and the voucher row are computed when Settlement Discount is used. Ensure `sales.paid_amount` is incremented by `cash + discount` (full settlement) so no residual remains, and confirm the same on edit. Add a small guard: if user marks a bill as fully settled via discount, force `paid_amount = net_amount - sale_return_adjust`.
+- `paid_amount = net_amount − COALESCE(sale_return_adjust,0)` (clamped to ≥0)
+- `payment_status = 'completed'`
+- `payment_date = COALESCE(payment_date, sale_date)`
 
-### Step 4 — Verification
-- Re-run the scan: 27 GST-fingerprint bills should be zero.
-- Spot-check HINA FOOTWEAR and SHOE POINT-MIRAROAD E outstanding on Customer Ledger and Outstanding report — should drop by the cleared residuals.
-- Make one test receipt with settlement discount on a sandbox bill to confirm the fix prevents new residuals.
+Expected impact: **~20 bills** corrected, totalling ~₹20,000+ moved from "Outstanding" to "Paid" in reports and customer ledger. No effect on stock, GST, or revenue (only the paid/outstanding flag changes).
 
-## Out of scope
-- No change to the genuine partial bills.
-- No change to reports, UI, or other organisations' historical data unless they show the same fingerprint.
+### Step 2 — Make customer name compulsory for credit (pay_later) invoices
 
-## Question before I implement
-Do you want me to:
-(a) Auto-clear all 27 GST-fingerprint bills in KS Footwear (plus equivalents in Ella Noor / Velvet) as settlement discount, **or**
-(b) Send you the list first so you can confirm bill-by-bill, **or**
-(c) Only fix the code going forward and leave history as-is?
+In `src/pages/POSSales.tsx`, the save handler currently only blocks negative-net credit notes when there's no customer. Add a parallel guard:
+
+- If `effectivePaymentMethod === 'pay_later'` **and** the customer field is empty / "WALK-IN", block the save and show a toast: *"Customer Required for Credit Bill — please add customer name or mobile number before saving a Pay Later invoice."*
+- Same guard added in `src/hooks/useSaveSale.tsx` `saveSale` / `updateSale` as a server-call safety net so the rule applies to every entry point (POS, hold-resume, mobile POS).
+
+This matches the existing pattern at line 2533 (negative-net credit-note guard) and the project rule that credit ledger entries must be attributable to a customer.
+
+### Step 3 — Prevent the "exchange + tender" bug going forward
+
+The 20 bug bills all came through the exchange flow (sale return adjust + extra tender). The `saveSale` function already calculates `paidAmt = saleData.netAmount` correctly for single-method cash/card/UPI, but one of the secondary save paths in `POSSales.tsx` (lines 2790 / 2996 / 3766 / 3824 — financer / mobile / hold-resume variants) appears to insert without re-computing `paid_amount`. I'll audit those four payloads and route them through the same `cashAmt/cardAmt/upiAmt → paidAmt` logic used at line 491–501 of `useSaveSale.tsx` so any new sale with cash/card/UPI tender always lands as `completed`.
+
+No schema changes. No migrations. No impact on other organisations.
+
+### Out of scope
+
+- Genuine `pay_later` credit bills (MITALI MADAM, KAMAL BHAI, HEENA PATEL, KAVITA DAMANIA, SHRADDHA MISHRA, SUCCESS NIKESH) — left as pending because they really are outstanding.
+- Hold drafts — left as `pending` / `hold`.
+- KS Footwear / Ella Noor / other orgs — not touched.
+
+## Verification
+
+After Step 1 runs, I'll re-query Velvet and confirm:
+- Zero remaining `pending` bills with `payment_method != 'pay_later'` and full tender
+- The 20 customer ledgers no longer show those bills as outstanding
+- Daily Tally totals for the affected dates are unchanged (cash/card/UPI already correct — only the flag changes)
+
+After Step 2 + 3, I'll cold-test a Pay Later save with empty customer (should block) and an exchange + cash sale (should save as completed with paid_amount = net).
+
+## Confirmation needed
+
+Shall I proceed with all three steps as above? Specifically: **(a) auto-correct the 20 Velvet bills**, **(b) add the compulsory-customer guard for Pay Later**, **(c) patch the secondary save paths** — or do you want to review the 20-bill list first before the data fix?

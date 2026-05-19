@@ -421,6 +421,23 @@ export const useSaveSale = () => {
       return null;
     }
 
+    // Server-side safety net: Pay Later (credit) bills MUST have a named customer.
+    // Prevents wrongly-attributed credit entries from any save entry point.
+    if (paymentMethod === 'pay_later') {
+      const nameOk = !!saleData.customerName?.trim() &&
+        saleData.customerName.trim().toLowerCase() !== 'walk-in customer';
+      const phoneOk = !!saleData.customerPhone?.trim();
+      if (!nameOk && !phoneOk) {
+        savingLockRef.current = false;
+        toast({
+          title: "Customer Required for Credit Bill",
+          description: "Please add customer name or mobile number before saving a Pay Later invoice.",
+          variant: "destructive",
+        });
+        return null;
+      }
+    }
+
     setIsSaving(true);
 
     let insertedSaleIdForRollback: string | null = null;
@@ -979,6 +996,22 @@ export const useSaveSale = () => {
         variant: "destructive",
       });
       return null;
+    }
+
+    // Server-side safety net: Pay Later (credit) bills MUST have a named customer.
+    if (paymentMethod === 'pay_later') {
+      const nameOk = !!saleData.customerName?.trim() &&
+        saleData.customerName.trim().toLowerCase() !== 'walk-in customer';
+      const phoneOk = !!saleData.customerPhone?.trim();
+      if (!nameOk && !phoneOk) {
+        savingLockRef.current = false;
+        toast({
+          title: "Customer Required for Credit Bill",
+          description: "Please add customer name or mobile number before saving a Pay Later invoice.",
+          variant: "destructive",
+        });
+        return null;
+      }
     }
 
     setIsSaving(true);
