@@ -352,7 +352,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <div className="flex pr-border-t">
             <div className="w-1/2 pr-border-r">
               <div className="p-1">
-                <p className="text-sm"><span className="font-bold">In Words :</span> {amountInWords(returnData.net_amount)}</p>
+                <p className="text-sm"><span className="font-bold">In Words :</span> {amountInWords(totalAfterTax)}</p>
               </div>
               
               {/* Bank Details */}
