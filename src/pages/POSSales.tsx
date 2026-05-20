@@ -514,7 +514,7 @@ export default function POSSales() {
   const productSearchSeqRef = useRef(0);
   
   // Visibility-based polling - pauses when tab is hidden
-  const posRefetchInterval = useVisibilityRefetch(900000); // 15 minutes (reduced cloud usage)
+  const posRefetchInterval = useVisibilityRefetch(30 * 60 * 1000); // 30 minutes (reduced cloud usage)
   
   // Ref to skip customer re-search after dropdown selection
   const customerJustSelected = useRef(false);
@@ -1122,7 +1122,7 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     refetchInterval: posRefetchInterval,
     refetchOnWindowFocus: false,
   });
