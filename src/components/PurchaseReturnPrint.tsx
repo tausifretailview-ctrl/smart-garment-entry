@@ -125,9 +125,16 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
   ({ returnData, items, businessDetails, saleSettings, logoUrl }, ref) => {
     const isDC = !!returnData.is_dc;
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
-    const discountAmount = returnData.discount_amount || 0;
+    const lineDiscountTotal = items.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
+    const grossWithoutDiscount = items.reduce(
+      (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.pur_price) || 0),
+      0
+    );
+    const headerDiscount = returnData.discount_amount || 0;
+    const discountAmount = lineDiscountTotal + headerDiscount;
     const discountPercent = returnData.discount_percent || 0;
-    const amountBeforeTax = returnData.gross_amount - discountAmount;
+    const amountBeforeTax = grossWithoutDiscount - discountAmount;
+    const totalAfterTax = amountBeforeTax + (returnData.gst_amount || 0);
     
     
     
@@ -296,7 +303,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-right">{item.pur_price.toFixed(2)}</td>
                   <td className="text-right">{(item.discount_percent || 0).toFixed(2)}</td>
                   <td className="text-right">{(item.discount_amount || 0).toFixed(2)}</td>
-                  <td className="text-right">{item.line_total.toFixed(2)}</td>
+                  <td className="text-right">{((Number(item.qty) || 0) * (Number(item.pur_price) || 0)).toFixed(2)}</td>
                 </tr>
               ))}
               {/* Add empty rows for minimum 10 rows */}
@@ -326,7 +333,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
-            <div className="p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{returnData.gross_amount.toFixed(2)}</div>
+            <div className="p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{grossWithoutDiscount.toFixed(2)}</div>
           </div>
 
           {/* Remark & Discount Row */}
@@ -336,7 +343,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               <span className="text-sm ml-2">{returnData.notes || ""}</span>
             </div>
             <div className="w-1/2 flex">
-              <div className="w-1/2 pr-border-r p-1 text-sm">Dis : {discountPercent.toFixed(2)}(%)</div>
+              <div className="w-1/2 pr-border-r p-1 text-sm">Less: Discount</div>
               <div className="w-1/2 p-1 text-right text-sm">{discountAmount.toFixed(2)}</div>
             </div>
           </div>
@@ -377,14 +384,14 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   </div>
                   <div className="flex pr-border-b">
                     <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount After Tax</div>
-                    <div className="w-1/3 p-1 text-right text-sm font-bold">{returnData.net_amount.toFixed(2)}</div>
+                    <div className="w-1/3 p-1 text-right text-sm font-bold">{totalAfterTax.toFixed(2)}</div>
                   </div>
                 </>
               )}
               {isDC && (
                 <div className="flex pr-border-b">
                   <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount</div>
-                  <div className="w-1/3 p-1 text-right text-sm font-bold">{returnData.net_amount.toFixed(2)}</div>
+                  <div className="w-1/3 p-1 text-right text-sm font-bold">{totalAfterTax.toFixed(2)}</div>
                 </div>
               )}
 
