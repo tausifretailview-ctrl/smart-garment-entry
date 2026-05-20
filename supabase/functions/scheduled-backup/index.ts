@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface BackupSetting {
+  organization_id: string;
+  backup_retention_days: number | null;
+  last_auto_backup_at: string | null;
+}
+
 const AUTO_BACKUP_INTERVAL_DAYS = 7;
 const AUTO_BACKUP_INTERVAL_MS = AUTO_BACKUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
 
@@ -32,7 +38,8 @@ Deno.serve(async (req) => {
       throw new Error('Failed to fetch backup settings');
     }
 
-    const eligibleSettings = (allSettings || []).filter((setting: any) => {
+    const settings = (allSettings || []) as BackupSetting[];
+    const eligibleSettings = settings.filter((setting) => {
       if (!setting.last_auto_backup_at) return true;
       return Date.now() - new Date(setting.last_auto_backup_at).getTime() >= AUTO_BACKUP_INTERVAL_MS;
     });
@@ -43,18 +50,18 @@ Deno.serve(async (req) => {
           success: true,
           message: `No orgs due for auto-backup within ${AUTO_BACKUP_INTERVAL_DAYS} days`,
           dispatched: 0,
-          skipped: allSettings?.length || 0,
+          skipped: settings.length,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const skipped = (allSettings?.length || 0) - eligibleSettings.length;
+    const skipped = settings.length - eligibleSettings.length;
     console.log(`Dispatching backup for ${eligibleSettings.length} organizations (${skipped} skipped as recently backed up)`);
 
     // Fan out: invoke auto-backup for each org as fire-and-forget HTTP call.
     // We don't await — each invocation runs in its own short-lived edge function.
-    const dispatchPromises = eligibleSettings.map(async (setting: any) => {
+    const dispatchPromises = eligibleSettings.map(async (setting) => {
       const orgId = setting.organization_id;
       const retentionDays = setting.backup_retention_days || 30;
       try {
