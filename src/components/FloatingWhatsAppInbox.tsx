@@ -38,8 +38,8 @@ export const FloatingWhatsAppInbox = () => {
       return data?.reduce((sum, conv) => sum + (conv.unread_count || 0), 0) || 0;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000, // 30 seconds stale time
-    refetchInterval: getRefreshInterval('medium'), // Tier-based: false for free tier
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: getRefreshInterval('slow'), // Tier-based: false for free tier
   });
 
   // Only show on dashboard (root path after org slug)

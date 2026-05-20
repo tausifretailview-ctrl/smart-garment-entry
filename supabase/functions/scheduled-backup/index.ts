@@ -7,6 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const AUTO_BACKUP_INTERVAL_DAYS = 7;
+const AUTO_BACKUP_INTERVAL_MS = AUTO_BACKUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -21,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data: allSettings, error: settingsError } = await supabase
       .from('settings')
-      .select('organization_id, backup_retention_days')
+      .select('organization_id, backup_retention_days, last_auto_backup_at')
       .eq('auto_backup_enabled', true);
 
     if (settingsError) {
@@ -29,18 +32,29 @@ Deno.serve(async (req) => {
       throw new Error('Failed to fetch backup settings');
     }
 
-    if (!allSettings?.length) {
+    const eligibleSettings = (allSettings || []).filter((setting: any) => {
+      if (!setting.last_auto_backup_at) return true;
+      return Date.now() - new Date(setting.last_auto_backup_at).getTime() >= AUTO_BACKUP_INTERVAL_MS;
+    });
+
+    if (!eligibleSettings.length) {
       return new Response(
-        JSON.stringify({ success: true, message: 'No orgs with auto-backup enabled', dispatched: 0 }),
+        JSON.stringify({
+          success: true,
+          message: `No orgs due for auto-backup within ${AUTO_BACKUP_INTERVAL_DAYS} days`,
+          dispatched: 0,
+          skipped: allSettings?.length || 0,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Dispatching backup for ${allSettings.length} organizations`);
+    const skipped = (allSettings?.length || 0) - eligibleSettings.length;
+    console.log(`Dispatching backup for ${eligibleSettings.length} organizations (${skipped} skipped as recently backed up)`);
 
     // Fan out: invoke auto-backup for each org as fire-and-forget HTTP call.
     // We don't await — each invocation runs in its own short-lived edge function.
-    const dispatchPromises = allSettings.map(async (setting) => {
+    const dispatchPromises = eligibleSettings.map(async (setting: any) => {
       const orgId = setting.organization_id;
       const retentionDays = setting.backup_retention_days || 30;
       try {
@@ -82,6 +96,7 @@ Deno.serve(async (req) => {
         message: `Dispatched ${dispatched} backup jobs (${failed} failed to dispatch)`,
         dispatched,
         failed,
+        skipped,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
