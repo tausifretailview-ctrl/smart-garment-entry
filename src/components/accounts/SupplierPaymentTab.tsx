@@ -283,7 +283,8 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           const processed = processedBills[i];
           const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
           const billRef = processed.bill.supplier_invoice_no || processed.bill.software_bill_no || processed.bill.id.slice(0, 8);
-          const voucherDescription = `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`;
+          const baseDescription = `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`;
+          const voucherDescription = description ? `${description} | ${baseDescription}` : baseDescription;
           const { data: ins, error: voucherError } = await supabase
             .from("voucher_entries")
             .insert({
