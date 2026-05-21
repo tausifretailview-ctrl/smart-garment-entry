@@ -588,7 +588,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top" }}>{fmt(rateExclTax)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top" }}>{fmt(gstAmt)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top", fontWeight: "bold" }}>
-                      {fmt(item.total)}
+                      {fmt(taxableAmt)}
                     </td>
                   </tr>
                 );
@@ -615,8 +615,10 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     Output GST @ {summaryGstRate}%
                   </td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
-                  <td colSpan={2} style={cellNoRowBorder}></td>
-                  <td colSpan={2} style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px" }}>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px" }}>
                     {fmt(isInterState ? totalIgst : totalCgst + totalSgst)}
                   </td>
                 </tr>
@@ -630,8 +632,10 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     Round Off
                   </td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
-                  <td colSpan={2} style={cellNoRowBorder}></td>
-                  <td colSpan={2} style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px" }}>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px" }}>
                     {roundOff >= 0 ? "" : "(-)"}
                     {fmt(Math.abs(roundOff))}
                   </td>
@@ -647,7 +651,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   Total
                 </td>
                 <td style={{ ...cell, textAlign: "center", fontWeight: "bold", fontSize: "11px" }}>{totalQty} Pcs</td>
-                <td colSpan={2} style={cell}></td>
+                <td style={cell}></td>
+                <td style={cell}></td>
                 <td style={{ ...cell, textAlign: "right", fontWeight: "bold", fontSize: "12px" }}>
                   ₹{fmt(grandTotal)}
                 </td>
