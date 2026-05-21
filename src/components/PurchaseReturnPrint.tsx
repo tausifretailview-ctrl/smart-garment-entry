@@ -133,8 +133,11 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const headerDiscount = returnData.discount_amount || 0;
     const discountAmount = lineDiscountTotal + headerDiscount;
     const discountPercent = returnData.discount_percent || 0;
-    const amountBeforeTax = grossWithoutDiscount - discountAmount;
-    const totalAfterTax = amountBeforeTax + (returnData.gst_amount || 0);
+    // Trust the saved return totals rather than re-deriving — keeps print
+    // in sync with the Purchase Return summary (Net Amount on the form).
+    const totalAfterTax = Number(returnData.net_amount) || 0;
+    const gstAmount = Number(returnData.gst_amount) || 0;
+    const amountBeforeTax = totalAfterTax - gstAmount;
     
     
     
