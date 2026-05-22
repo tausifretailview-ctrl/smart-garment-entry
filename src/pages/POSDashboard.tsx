@@ -3049,7 +3049,7 @@ const POSDashboard = () => {
         <PrintPreviewDialog
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
-          defaultFormat={posBillFormat || 'thermal'}
+          defaultFormat={posBillFormat || 'a5'}
           renderInvoice={(format) => (
             <InvoiceWrapper
               format={format}

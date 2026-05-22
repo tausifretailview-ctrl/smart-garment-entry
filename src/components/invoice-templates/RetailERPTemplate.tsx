@@ -241,16 +241,27 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Calculate totals
   const totalBeforeTax = Object.values(gstBreakup).reduce((s, v) => s + v.taxableValue, 0);
 
-  // Payment breakdown
+  // Payment breakdown (mix / multiple — show total + per-mode amounts on print)
+  const cashPaidAmt = Number(cashAmount) || 0;
+  const upiPaidAmt = Number(upiAmount) || 0;
+  const cardPaidAmt = Number(cardAmount) || 0;
+  const creditPaidAmt = Number(creditAmount) || 0;
   const paymentParts: string[] = [];
-  if (cashAmount && cashAmount > 0) paymentParts.push(`Cash: ₹${fmt(cashAmount)}`);
-  if (upiAmount && upiAmount > 0) paymentParts.push(`UPI: ₹${fmt(upiAmount)}`);
-  if (cardAmount && cardAmount > 0) paymentParts.push(`Card: ₹${fmt(cardAmount)}`);
-  if (creditAmount && creditAmount > 0) paymentParts.push(`Credit: ₹${fmt(creditAmount)}`);
-  const mixPaymentBreakdown = paymentParts.length > 1 ? paymentParts.join(' | ') : '';
+  if (cashPaidAmt > 0) paymentParts.push(`Cash: ₹${fmt(cashPaidAmt)}`);
+  if (upiPaidAmt > 0) paymentParts.push(`UPI: ₹${fmt(upiPaidAmt)}`);
+  if (cardPaidAmt > 0) paymentParts.push(`Card: ₹${fmt(cardPaidAmt)}`);
+  if (creditPaidAmt > 0) paymentParts.push(`Credit: ₹${fmt(creditPaidAmt)}`);
+  const mixTenderTotal = cashPaidAmt + upiPaidAmt + cardPaidAmt + creditPaidAmt;
+  const isMixPayment = String(paymentMethod || "").toLowerCase() === "multiple";
+  const mixPaymentDetail =
+    isMixPayment && paymentParts.length > 0
+      ? `Total ₹${fmt(mixTenderTotal > 0 ? mixTenderTotal : grandTotal)} (${paymentParts.join(" | ")})`
+      : paymentParts.length > 1
+        ? paymentParts.join(" | ")
+        : "";
 
   const billTotal = grandTotal;
-  const receivedToday = paidAmount;
+  const receivedToday = mixTenderTotal > 0 ? mixTenderTotal : Number(paidAmount) || 0;
   const currentBalance = billTotal - receivedToday;
   const totalDue = currentBalance + previousBalance;
 
@@ -547,18 +558,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               {isLastPage && (
               <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
 
-                  {/* Simplified Totals — right-aligned under Rate/Amount columns */}
-                  <div style={{ display: "grid", gridTemplateColumns: "52% 48%", borderBottom: B }}>
-                    {/* Left — Notes / spare */}
-                    <div style={{ padding: isA4 ? "4px 8px" : "3px 6px", borderRight: B }}>
-                      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
-                        <div style={{ fontSize: isA4 ? "10px" : "8px" }}>
-                          <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Right — Totals */}
-                    <div style={{ fontSize: fsTotals, color: "#111" }}>
+                  {/* Totals — flush right (under Rate / Amount columns) */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", borderBottom: B, width: "100%" }}>
+                    <div
+                      style={{
+                        width: isA4 ? "46%" : "44%",
+                        minWidth: isA4 ? "78mm" : "62mm",
+                        fontSize: fsTotals,
+                        color: "#111",
+                        borderLeft: B,
+                      }}
+                    >
                       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                         <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
                       </div>
@@ -582,17 +592,23 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       </div>
                     </div>
                   </div>
+                  {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+                    <div style={{ borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "10px" : "8px" }}>
+                      <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
+                    </div>
+                  )}
 
                   {/* Amount in Words */}
                   <div style={{ borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "600" }}>
                     <strong>Amount in Words:</strong> {numberToWords(grandTotal)}
                   </div>
 
-                  {/* Payment + Mix breakdown */}
+                  {/* Payment + mix breakdown */}
                   {paymentMethod && (
                     <div style={{ borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px" }}>
-                      <strong>Payment:</strong> {paymentMethod}
-                      {mixPaymentBreakdown && ` (${mixPaymentBreakdown})`}
+                      <strong>Payment:</strong>{" "}
+                      {isMixPayment ? "Mix Payment" : paymentMethod}
+                      {mixPaymentDetail ? ` — ${mixPaymentDetail}` : ""}
                     </div>
                   )}
 
