@@ -120,7 +120,6 @@ interface CartItem {
   uom?: string;
   showDiscount?: boolean;
   itemNotes?: string | null;
-  baseGst?: number; // Purchase GST % — used to auto-downgrade Sale GST when net unit price falls below threshold
 }
 
 interface POSBarcodeRuntimeSettings {
@@ -134,13 +133,6 @@ function calculatePosCartLineNet(item: CartItem): number {
   const percentDiscount = (baseAmount * item.discountPercent) / 100;
   const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
   return baseAmount - percentDiscount - item.discountAmount - implicitRateDiscount;
-}
-
-/** Post-discount per-unit price used to evaluate the Garment GST threshold. */
-function posCartNetUnitPrice(item: CartItem): number {
-  const qty = Number(item.quantity) || 0;
-  if (qty <= 0) return Number(item.mrp) || 0;
-  return Math.max(0, calculatePosCartLineNet(item) / qty);
 }
 
 type SaleRowForFlatResolve = {
@@ -514,7 +506,7 @@ export default function POSSales() {
   const productSearchSeqRef = useRef(0);
   
   // Visibility-based polling - pauses when tab is hidden
-  const posRefetchInterval = useVisibilityRefetch(30 * 60 * 1000); // 30 minutes (reduced cloud usage)
+  const posRefetchInterval = useVisibilityRefetch(300000); // 5 minutes (reduced from 1 min for multi-tab perf)
   
   // Ref to skip customer re-search after dropdown selection
   const customerJustSelected = useRef(false);
@@ -1122,7 +1114,7 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 120000, // Cache for 2 minutes
     refetchInterval: posRefetchInterval,
     refetchOnWindowFocus: false,
   });
@@ -1933,10 +1925,6 @@ export default function POSSales() {
         hsnCode: product.hsn_code || '',
         productType: 'service',
         itemNotes: description || null,
-        // Use the product's SALE GST as the auto-rule base — restoring to
-        // purchase GST would wrongly zero-out sales when the merchant buys
-        // unregistered (purchase GST 0) but sells at 5/12/18%.
-        baseGst: Number(baseServiceGst) || 0,
       };
       setItems(prev => [...prev, newItem]);
       bumpCartHighlight(newItem.id);
@@ -1995,7 +1983,6 @@ export default function POSSales() {
       hsnCode: '',
       productType: 'service',
       itemNotes: description || null,
-      baseGst: matchedServiceGst,
     };
     setItems(prev => [...prev, newItem]);
     bumpCartHighlight(newItem.id);
@@ -2170,20 +2157,7 @@ export default function POSSales() {
         isDcProduct: variant.is_dc_product === true,
         uom: product.uom || 'NOS',
         showDiscount: !useMrpAsPrice && displayMrp > salePrice,
-        // Auto-rule base = product's SALE GST (what the merchant configured
-        // for selling). Do not fall back to purchase_gst_percent — for orgs
-        // that buy from unregistered suppliers it is 0 and would silently
-        // reset every below-threshold line to 0%.
-        baseGst: Number(product.sale_gst_percent ?? product.gst_per ?? (product as any).purchase_gst_percent ?? 0) || 0,
       };
-      newItem.netAmount = calculatePosCartLineNet(newItem);
-      // Re-evaluate GST against post-discount net unit price (handles MRP→net downgrade).
-      newItem.gstPer = applyGarmentGstRule(
-        posCartNetUnitPrice(newItem),
-        newItem.gstPer,
-        garmentGstSettings,
-        newItem.baseGst,
-      );
       newItem.netAmount = calculatePosCartLineNet(newItem);
       hasManuallyAddedNewItemRef.current = true;
       setItems(prev => [...prev, newItem]);
@@ -2241,13 +2215,6 @@ export default function POSSales() {
       const updatedItems = [...prev];
       updatedItems[index].quantity = newQty;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
-      updatedItems[index].gstPer = applyGarmentGstRule(
-        posCartNetUnitPrice(updatedItems[index]),
-        updatedItems[index].gstPer,
-        garmentGstSettings,
-        updatedItems[index].baseGst,
-      );
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -2259,13 +2226,6 @@ export default function POSSales() {
       updatedItems[index].discountPercent = discountPercent;
       // Keep Disc% and Disc Rs synchronized as one discount mode (no double subtraction).
       updatedItems[index].discountAmount = 0;
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
-      updatedItems[index].gstPer = applyGarmentGstRule(
-        posCartNetUnitPrice(updatedItems[index]),
-        updatedItems[index].gstPer,
-        garmentGstSettings,
-        updatedItems[index].baseGst,
-      );
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -2282,13 +2242,6 @@ export default function POSSales() {
       // Store discount through percent mapping to avoid adding both percent + amount.
       updatedItems[index].discountAmount = 0;
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
-      updatedItems[index].gstPer = applyGarmentGstRule(
-        posCartNetUnitPrice(updatedItems[index]),
-        updatedItems[index].gstPer,
-        garmentGstSettings,
-        updatedItems[index].baseGst,
-      );
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
   };
@@ -2300,14 +2253,8 @@ export default function POSSales() {
       updatedItems[index].mrp = newMrp;
       // CRITICAL: Sync unitCost with MRP to ensure correct unit_price is saved to database
       updatedItems[index].unitCost = newMrp;
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
-      // Garment / Footwear GST auto rule based on post-discount net unit price.
-      updatedItems[index].gstPer = applyGarmentGstRule(
-        posCartNetUnitPrice(updatedItems[index]),
-        updatedItems[index].gstPer,
-        garmentGstSettings,
-        updatedItems[index].baseGst,
-      );
+      // Garment / Footwear GST auto-bump rule on price change
+      updatedItems[index].gstPer = applyGarmentGstRule(newMrp, updatedItems[index].gstPer, garmentGstSettings);
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -2316,13 +2263,8 @@ export default function POSSales() {
   const updateGstPer = (index: number, newGstPer: number) => {
     setItems(prev => {
       const updatedItems = [...prev];
-      // Re-apply auto rule against post-discount net unit price.
-      updatedItems[index].gstPer = applyGarmentGstRule(
-        posCartNetUnitPrice(updatedItems[index]),
-        newGstPer,
-        garmentGstSettings,
-        updatedItems[index].baseGst,
-      );
+      // Re-apply auto-bump: if user picks <18% but price > threshold, bump back to 18
+      updatedItems[index].gstPer = applyGarmentGstRule(updatedItems[index].mrp, newGstPer, garmentGstSettings);
       updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
       return updatedItems;
     });
@@ -5246,13 +5188,13 @@ export default function POSSales() {
                           <div>
                             <Input
                               type="number"
-                              value={item.discountPercent ? Math.round(Number(item.discountPercent)) : ""}
-                              onChange={(e) => updateDiscountPercent(index, Math.round(parseFloat(e.target.value) || 0))}
+                              value={item.discountPercent || ""}
+                              onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
                               className="h-7 text-xs w-full text-center bg-muted/30 border-border/60"
                               min="0"
                               max="100"
-                              step="1"
+                              step="0.01"
                             />
                           </div>
                           <div>
@@ -5267,14 +5209,14 @@ export default function POSSales() {
                                   const rsDiscount = Number(item.discountAmount) > 0
                                     ? Number(item.discountAmount)
                                     : percentAmount;
-                                  return rsDiscount > 0 ? Math.round(rsDiscount) : "";
+                                  return rsDiscount > 0 ? Number(rsDiscount.toFixed(2)) : "";
                                 })()
                               }
-                              onChange={(e) => updateDiscountAmount(index, Math.round(parseFloat(e.target.value) || 0))}
+                              onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
                               placeholder="0"
                               className="h-7 text-xs w-full text-right bg-muted/30 border-border/60"
                               min="0"
-                              step="1"
+                              step="0.01"
                             />
                           </div>
                           <div

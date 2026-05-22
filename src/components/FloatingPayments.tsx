@@ -198,7 +198,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
   const { data: customerInvoices } = useQuery({
     queryKey: ["customer-invoices", referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).eq("is_cancelled", false).is("deleted_at", null).order("sale_date", { ascending: false });
+      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
       return data || [];
     },
     enabled: !!referenceId,
@@ -210,7 +210,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
     queryFn: async () => {
       const { data: cust } = await supabase.from("customers").select("opening_balance").eq("id", referenceId).maybeSingle();
       const ob = cust?.opening_balance || 0;
-      const { data: sales } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).eq("is_cancelled", false).is("deleted_at", null);
+      const { data: sales } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null);
       const invoiceOutstanding = sales?.reduce((sum, s) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0) || 0;
       const { data: obPayments } = await supabase.from("voucher_entries").select("total_amount, discount_amount, reference_id").eq("organization_id", organizationId).eq("voucher_type", "receipt").eq("reference_type", "customer").is("deleted_at", null);
       const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (Number(p.total_amount) || 0) + (Number((p as { discount_amount?: number }).discount_amount) || 0), 0) || 0;
@@ -228,8 +228,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
 
   const resetForm = () => {
     setVoucherDate(new Date());
-    // Keep referenceId (customer) selected so the refreshed pending-invoice
-    // list with remaining balance is immediately visible after a part payment.
+    setReferenceId("");
     setSelectedInvoiceIds([]);
     setAmount("");
     setPaymentMethod("cash");
@@ -267,22 +266,8 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
           const outstanding = invoice.net_amount - currentPaid;
           const amountToApply = Math.min(remainingAmount, outstanding);
           if (amountToApply <= 0) continue;
-          // Recompute from authoritative voucher sum so a stale/overstated cached
-          // paid_amount cannot cause a partial payment to settle the invoice.
-          const { data: vRows } = await supabase
-            .from("voucher_entries")
-            .select("total_amount, discount_amount")
-            .eq("organization_id", organizationId)
-            .eq("voucher_type", "receipt")
-            .in("reference_type", ["sale", "customer"])
-            .is("deleted_at", null)
-            .eq("reference_id", invoiceId);
-          const voucherSum = (vRows || []).reduce(
-            (s: number, v: any) => s + Number(v.total_amount || 0) + Number(v.discount_amount || 0),
-            0
-          );
-          const newPaidAmount = Math.min(invoice.net_amount, voucherSum + amountToApply);
-          const newStatus = newPaidAmount >= invoice.net_amount - 0.5 ? 'completed' : 'partial';
+          const newPaidAmount = currentPaid + amountToApply;
+          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 'partial';
           saleRevert.push({ id: invoiceId, prevPaid: currentPaid, prevStatus });
           await supabase.from('sales').update({ paid_amount: newPaidAmount, payment_status: newStatus, payment_date: format(voucherDate, 'yyyy-MM-dd') }).eq('id', invoiceId);
           processedInvoices.push({ invoice, amountApplied: amountToApply, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
@@ -411,17 +396,10 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
 
       return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod };
     },
-    onSuccess: async (data) => {
+    onSuccess: (data) => {
       toast.success("Payment recorded");
       setShowSaved(true);
       setTimeout(() => setShowSaved(false), 3000);
-      // Force-refetch the pending-invoices list BEFORE we touch form state,
-      // so a partial payment immediately shows the remaining-balance invoice
-      // without requiring a page refresh.
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["customer-invoices", referenceId] }),
-        queryClient.refetchQueries({ queryKey: ["customer-balance", referenceId] }),
-      ]);
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });

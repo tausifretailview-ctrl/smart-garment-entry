@@ -201,7 +201,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                     filtered.map((c) => {
                       const bal = getCustomerBalance(toBalanceCustomer(c, orgId));
                       const adv = getCustomerAdvance(c.id);
-                      const cnAmt = getCustomerCreditNote(c.id);
+                      const cn = getCustomerCreditNote(c.id);
                       const isSel = c.id === selectedId;
                       return (
                         <button
@@ -236,9 +236,9 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                                   Adv ₹{inr.format(adv)}
                                 </Badge>
                               )}
-                              {cnAmt > 0 && (
+                              {cn > 0 && (
                                 <Badge variant="outline" className="text-[10px] px-1 py-0 font-normal">
-                                  CN ₹{inr.format(cnAmt)}
+                                  CN ₹{inr.format(cn)}
                                 </Badge>
                               )}
                             </div>

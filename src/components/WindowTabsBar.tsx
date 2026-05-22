@@ -22,7 +22,6 @@ import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { getMenuPermissionForPath } from "@/lib/menuPermissions";
 
 const QUICK_OPEN_PAGES = [
   { path: "", label: "Dashboard", icon: "Home", category: "Main" },
@@ -58,38 +57,30 @@ export function WindowTabsBar() {
   } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
   const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const { hasMenuAccess, permissions } = useUserPermissions();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
 
-  const canPath = (path: string) => {
-    if (permissionsLoading) return false;
-    const permission = getMenuPermissionForPath(path);
-    return !permission || permissions === null || hasMenuAccess(permission);
-  };
-
   const canQuickCustomerStatement =
     !isSchool &&
-    !permissionsLoading &&
     (permissions === null ||
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
 
-  const allowedOpenWindows = openWindows.filter((window) => canPath(window.path));
-  const groupedPages = QUICK_OPEN_PAGES.filter((page) => canPath(page.path)).reduce((acc, page) => {
+  if (openWindows.length === 0) return null;
+
+  const groupedPages = QUICK_OPEN_PAGES.reduce((acc, page) => {
     if (!acc[page.category]) acc[page.category] = [];
     acc[page.category].push(page);
     return acc;
   }, {} as Record<string, typeof QUICK_OPEN_PAGES>);
-
-  if (allowedOpenWindows.length === 0) return null;
 
   // Collapsed state - just show toggle button
   if (!isTabsBarVisible) {
     return (
       <div className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{allowedOpenWindows.length} window{allowedOpenWindows.length > 1 ? 's' : ''} open</span>
+          <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
           <span className="hidden md:inline">•</span>
           <span className="hidden md:inline">
             <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd>+
@@ -119,7 +110,7 @@ export function WindowTabsBar() {
     <div className="bg-muted/30 border-b px-2 py-0.5">
       <div className="flex items-center gap-0.5">
         {/* Dashboard Button */}
-        {canPath("") && <Tooltip>
+        <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -134,10 +125,10 @@ export function WindowTabsBar() {
           <TooltipContent side="bottom">
             <p>Go to Dashboard</p>
           </TooltipContent>
-        </Tooltip>}
+        </Tooltip>
 
         {/* Size Stock Quick Button */}
-        {canPath("stock-report") && <Tooltip>
+        <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -152,7 +143,7 @@ export function WindowTabsBar() {
           <TooltipContent side="bottom">
             <p>Quick Size Stock Check (Ctrl+G)</p>
           </TooltipContent>
-        </Tooltip>}
+        </Tooltip>
 
         {canQuickCustomerStatement && (
           <Tooltip>
@@ -177,7 +168,7 @@ export function WindowTabsBar() {
 
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">
-            {allowedOpenWindows.map((window) => {
+            {openWindows.map((window) => {
               const IconComponent = getTabIcon(window.icon);
               const isActive = window.path === activeWindow;
               
@@ -195,7 +186,7 @@ export function WindowTabsBar() {
                 >
                   <IconComponent className="h-3 w-3 shrink-0" />
                   <span className="truncate max-w-[100px]">{window.label}</span>
-                  {allowedOpenWindows.length > 1 && (
+                  {openWindows.length > 1 && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

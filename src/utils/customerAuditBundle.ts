@@ -261,7 +261,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
   const { data: allSales, error: salesErr } = await client
     .from("sales")
     .select(
-      "id, sale_number, sale_date, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+      "id, sale_number, sale_date, net_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
     )
     .eq("customer_id", customerId)
     .eq("organization_id", orgId)

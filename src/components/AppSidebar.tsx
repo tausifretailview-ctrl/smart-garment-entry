@@ -642,7 +642,7 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        {(isAdminPermissions || hasMenuAccess("delivery_challan_entry")) && (
+                        {(isAdminPermissions || hasMenuAccess("delivery_challan")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/delivery-challan-entry")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
                               <NavLink to="/delivery-challan-entry" className="flex items-center gap-2 group">

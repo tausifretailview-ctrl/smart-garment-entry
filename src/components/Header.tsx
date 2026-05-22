@@ -38,11 +38,9 @@ export const Header = () => {
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const dashboardToolbar = useDashboardToolbarOptional();
   const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
-  const can = (id: string) => !permissionsLoading && (permissions === null || hasMenuAccess(id));
+  const { hasMenuAccess, permissions } = useUserPermissions();
   const canQuickCustomerStatement =
     !isSchool &&
-    !permissionsLoading &&
     (permissions === null ||
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
@@ -88,12 +86,11 @@ export const Header = () => {
       isDialog: boolean;
       shortcut?: string;
       dialogKey: string;
-      permission?: string;
     }[] = [
-      { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "", permission: "pos_sales" },
-      { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "", permission: "purchase_bill" },
-      { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock", permission: "stock_report" },
-      { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock", permission: "stock_report" },
+      { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false, dialogKey: "" },
+      { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false, dialogKey: "" },
+      { icon: LayoutGrid, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G", dialogKey: "sizeStock" },
+      { icon: BoxIcon, label: "Quick Stock", path: "", isDialog: true, dialogKey: "quickStock" },
     ];
     if (canQuickCustomerStatement) {
       base.push({
@@ -104,9 +101,9 @@ export const Header = () => {
         dialogKey: "customerStatement",
       });
     }
-    base.push({ icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "", permission: "stock_report" });
-    return base.filter((a) => !a.permission || can(a.permission));
-  }, [canQuickCustomerStatement, permissions]);
+    base.push({ icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "" });
+    return base;
+  }, [canQuickCustomerStatement]);
 
   const handleQuickAction = (action: (typeof quickActions)[0]) => {
     if (action.dialogKey === "sizeStock") {
@@ -159,7 +156,6 @@ export const Header = () => {
         {/* Classic menu bar — desktop only */}
         <nav className="hidden lg:flex items-center gap-0 ml-1">
           {/* FILE */}
-          {(can("pos_sales") || can("sales_invoice") || can("purchase_bill") || can("quotation_entry") || can("product_entry") || can("settings_view")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -167,47 +163,33 @@ export const Header = () => {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-52 text-sm">
-              {can("pos_sales") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/pos-sales")} className="cursor-pointer">
-                  <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> New POS Sale
-                </DropdownMenuItem>
-              )}
-              {can("sales_invoice") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice")} className="cursor-pointer">
-                  <Plus className="h-3.5 w-3.5 mr-2 opacity-60" /> New Invoice
-                </DropdownMenuItem>
-              )}
-              {can("purchase_bill") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/purchase-entry")} className="cursor-pointer">
-                  <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> New Purchase
-                </DropdownMenuItem>
-              )}
-              {can("quotation_entry") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/quotation-entry")} className="cursor-pointer">
-                  <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> New Quotation
-                </DropdownMenuItem>
-              )}
-              {can("product_entry") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/product-entry")} className="cursor-pointer">
-                  <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> New Product
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/pos-sales")} className="cursor-pointer">
+                <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> New POS Sale
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice")} className="cursor-pointer">
+                <Plus className="h-3.5 w-3.5 mr-2 opacity-60" /> New Invoice
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/purchase-entry")} className="cursor-pointer">
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> New Purchase
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/quotation-entry")} className="cursor-pointer">
+                <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> New Quotation
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/product-entry")} className="cursor-pointer">
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> New Product
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("settings_view") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer">
-                  Settings
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer">
+                Settings
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          )}
 
           {/* VIEW */}
-          {(can("main_dashboard") || can("pos_dashboard") || can("sales_invoice_dashboard") || can("purchase_dashboard") || can("delivery_dashboard") || can("payments_dashboard") || can("accounts_dashboard") || can("customer_ledger")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -215,54 +197,36 @@ export const Header = () => {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-52 text-sm">
-              {can("main_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/")} className="cursor-pointer">
-                  <LayoutGrid className="h-3.5 w-3.5 mr-2 opacity-60" /> Dashboard
-                </DropdownMenuItem>
-              )}
-              {can("pos_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")} className="cursor-pointer">
-                  <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> POS Dashboard
-                </DropdownMenuItem>
-              )}
-              {can("sales_invoice_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")} className="cursor-pointer">
-                  <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Invoice Dashboard
-                </DropdownMenuItem>
-              )}
-              {can("purchase_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/purchase-bills")} className="cursor-pointer">
-                  <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Purchase Dashboard
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/")} className="cursor-pointer">
+                <LayoutGrid className="h-3.5 w-3.5 mr-2 opacity-60" /> Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")} className="cursor-pointer">
+                <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> POS Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")} className="cursor-pointer">
+                <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Invoice Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/purchase-bills")} className="cursor-pointer">
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Purchase Dashboard
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("delivery_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/delivery-dashboard")} className="cursor-pointer">
-                  Delivery Dashboard
-                </DropdownMenuItem>
-              )}
-              {can("payments_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/payments-dashboard")} className="cursor-pointer">
-                  Payments Dashboard
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/delivery-dashboard")} className="cursor-pointer">
+                Delivery Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/payments-dashboard")} className="cursor-pointer">
+                Payments Dashboard
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("accounts_dashboard") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/accounts")} className="cursor-pointer">
-                  Accounts & Ledger
-                </DropdownMenuItem>
-              )}
-              {can("customer_ledger") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/customer-ledger-report")} className="cursor-pointer">
-                  Customer Ledger
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/accounts")} className="cursor-pointer">
+                Accounts & Ledger
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/customer-ledger-report")} className="cursor-pointer">
+                Customer Ledger
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          )}
 
           {/* TOOLS */}
-          {(can("barcode_printing") || can("stock_adjustment") || can("stock_settlement") || can("bulk_product_update") || can("tally_export") || can("recycle_bin") || can("user_rights") || can("audit_logs") || can("whatsapp_inbox")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -270,60 +234,40 @@ export const Header = () => {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 text-sm">
-              {can("barcode_printing") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/barcode-printing")} className="cursor-pointer">
-                  <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Barcode Printing
-                </DropdownMenuItem>
-              )}
-              {can("stock_adjustment") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/stock-adjustment")} className="cursor-pointer">
-                  <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Adjustment
-                </DropdownMenuItem>
-              )}
-              {can("stock_settlement") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/stock-settlement")} className="cursor-pointer">
-                  Stock Settlement
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/barcode-printing")} className="cursor-pointer">
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Barcode Printing
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-adjustment")} className="cursor-pointer">
+                <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Adjustment
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-settlement")} className="cursor-pointer">
+                Stock Settlement
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("bulk_product_update") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/bulk-product-update")} className="cursor-pointer">
-                  Bulk Product Update
-                </DropdownMenuItem>
-              )}
-              {can("tally_export") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/tally-export")} className="cursor-pointer">
-                  Tally Export
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/bulk-product-update")} className="cursor-pointer">
+                Bulk Product Update
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/tally-export")} className="cursor-pointer">
+                Tally Export
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("recycle_bin") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/recycle-bin")} className="cursor-pointer">
-                  Recycle Bin
-                </DropdownMenuItem>
-              )}
-              {can("user_rights") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/user-rights")} className="cursor-pointer">
-                  User Rights
-                </DropdownMenuItem>
-              )}
-              {can("audit_logs") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/audit-log")} className="cursor-pointer">
-                  Audit Log
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/recycle-bin")} className="cursor-pointer">
+                Recycle Bin
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/user-rights")} className="cursor-pointer">
+                User Rights
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/audit-log")} className="cursor-pointer">
+                Audit Log
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("whatsapp_inbox") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/whatsapp-inbox")} className="cursor-pointer">
-                  WhatsApp Inbox
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/whatsapp-inbox")} className="cursor-pointer">
+                WhatsApp Inbox
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          )}
 
           {/* REPORTS */}
-          {(can("stock_report") || can("item_wise_sales") || can("item_wise_stock") || can("stock_ageing") || can("daily_tally") || can("daily_cashier_report") || can("sale_analysis") || can("hourly_sales_analysis") || can("accounting_reports_view") || can("net_profit_analysis") || can("sales_analytics") || can("gst_reports") || can("gst_register") || can("einvoice_report") || canQuickCustomerStatement || can("customer_audit_report")) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
@@ -331,98 +275,65 @@ export const Header = () => {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56 text-sm">
-              {can("stock_report") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/stock-report")} className="cursor-pointer">
-                  <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Report
-                </DropdownMenuItem>
-              )}
-              {can("item_wise_sales") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/item-wise-sales")} className="cursor-pointer">
-                  Item-wise Sales
-                </DropdownMenuItem>
-              )}
-              {can("item_wise_stock") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/item-wise-stock")} className="cursor-pointer">
-                  Item-wise Stock
-                </DropdownMenuItem>
-              )}
-              {can("stock_ageing") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/stock-ageing")} className="cursor-pointer">
-                  Stock Ageing
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-report")} className="cursor-pointer">
+                <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Report
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/item-wise-sales")} className="cursor-pointer">
+                Item-wise Sales
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/item-wise-stock")} className="cursor-pointer">
+                Item-wise Stock
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/stock-ageing")} className="cursor-pointer">
+                Stock Ageing
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("daily_tally") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/daily-tally")} className="cursor-pointer">
-                  <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Daily Tally
-                </DropdownMenuItem>
-              )}
-              {can("daily_cashier_report") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/daily-cashier-report")} className="cursor-pointer">
-                  Daily Cashier
-                </DropdownMenuItem>
-              )}
-              {can("sale_analysis") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/daily-sale-analysis")} className="cursor-pointer">
-                  Daily Sale Analysis
-                </DropdownMenuItem>
-              )}
-              {can("hourly_sales_analysis") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/hourly-sales-analysis")} className="cursor-pointer">
-                  Hourly Sales
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/daily-tally")} className="cursor-pointer">
+                <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Daily Tally
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/daily-cashier-report")} className="cursor-pointer">
+                Daily Cashier
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/daily-sale-analysis")} className="cursor-pointer">
+                Daily Sale Analysis
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/hourly-sales-analysis")} className="cursor-pointer">
+                Hourly Sales
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("accounting_reports_view") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/accounting-reports")} className="cursor-pointer">
-                  P&L / Balance Sheet
-                </DropdownMenuItem>
-              )}
-              {can("net_profit_analysis") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/net-profit-analysis")} className="cursor-pointer">
-                  Net Profit Analysis
-                </DropdownMenuItem>
-              )}
-              {can("sales_analytics") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/sales-analytics")} className="cursor-pointer">
-                  Sales Analytics
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/accounting-reports")} className="cursor-pointer">
+                P&L / Balance Sheet
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/net-profit-analysis")} className="cursor-pointer">
+                Net Profit Analysis
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/sales-analytics")} className="cursor-pointer">
+                Sales Analytics
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {can("gst_reports") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/gst-reports")} className="cursor-pointer">
-                  GST Reports
-                </DropdownMenuItem>
-              )}
-              {can("gst_register") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/gst-register")} className="cursor-pointer">
-                  GST Register
-                </DropdownMenuItem>
-              )}
-              {can("einvoice_report") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/einvoice-report")} className="cursor-pointer">
-                  E-Invoice Report
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => orgNavigate("/gst-reports")} className="cursor-pointer">
+                GST Reports
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/gst-register")} className="cursor-pointer">
+                GST Register
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/einvoice-report")} className="cursor-pointer">
+                E-Invoice Report
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {canQuickCustomerStatement && (
-                <DropdownMenuItem
-                  onClick={() => setCustomerStatementOpen(true)}
-                  className="cursor-pointer"
-                >
-                  <FileText className="h-3.5 w-3.5 mr-2 opacity-60" />
-                  Account statement (audit)
-                </DropdownMenuItem>
-              )}
-              {can("customer_audit_report") && (
-                <DropdownMenuItem onClick={() => orgNavigate("/customer-audit-report")} className="cursor-pointer">
-                  <ShieldCheck className="h-3.5 w-3.5 mr-2 opacity-60" />
-                  Customer Audit Report
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem
+                onClick={() => setCustomerStatementOpen(true)}
+                className="cursor-pointer"
+              >
+                <FileText className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Account statement (audit)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => orgNavigate("/customer-audit-report")} className="cursor-pointer">
+                <ShieldCheck className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Customer Audit Report
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          )}
 
           {/* HELP */}
           <DropdownMenu>
@@ -519,7 +430,6 @@ export const Header = () => {
       {/* ROW 2: Action toolbar (+ optional dashboard: theme, period, Net Profit) */}
       <div className="sticky top-9 z-50 hidden lg:flex min-h-10 items-center flex-wrap px-3 py-1 gap-x-2 gap-y-1 bg-[hsl(var(--sidebar-background))] border-b border-sidebar-border text-sidebar-foreground">
         {/* Split button: New Sale */}
-        {can("pos_sales") && (
         <div className="flex items-center">
           <Button
             onClick={() => orgNavigate("/pos-sales")}
@@ -532,14 +442,13 @@ export const Header = () => {
             <ChevronDown className="h-3.5 w-3.5" />
           </Button>
         </div>
-        )}
 
         {/* Outlined action buttons */}
         {[
-          { label: "Purchase", icon: ShoppingCart, path: "/purchase-entry", chevron: false, permission: "purchase_bill" },
-          { label: "Stock",    icon: Package,      path: "/stock-report",   chevron: true , permission: "stock_report" },
-          { label: "Cashier",  icon: TrendingUp,   path: "/daily-cashier-report", chevron: false, permission: "daily_cashier_report" },
-        ].filter((btn) => can(btn.permission)).map((btn) => (
+          { label: "Purchase", icon: ShoppingCart, path: "/purchase-entry", chevron: false },
+          { label: "Stock",    icon: Package,      path: "/stock-report",   chevron: true  },
+          { label: "Cashier",  icon: TrendingUp,   path: "/daily-cashier-report", chevron: false },
+        ].map((btn) => (
           <div key={btn.label} className="flex items-center">
             <Button
               onClick={() => orgNavigate(btn.path)}
@@ -562,7 +471,6 @@ export const Header = () => {
 
         {/* Quick action buttons */}
         <div className="w-px h-4 bg-sidebar-border mx-0.5" />
-        {can("stock_report") && (
         <Button
           onClick={() => setQuickStockOpen(true)}
           variant="outline"
@@ -571,8 +479,6 @@ export const Header = () => {
           <BoxIcon className="h-3.5 w-3.5" />
           Quick Stock
         </Button>
-        )}
-        {can("stock_report") && (
         <Button
           onClick={() => setSizeStockOpen(true)}
           variant="outline"
@@ -581,7 +487,6 @@ export const Header = () => {
           <LayoutGrid className="h-3.5 w-3.5" />
           Size Stock
         </Button>
-        )}
         {canQuickCustomerStatement && (
           <Button
             onClick={() => setCustomerStatementOpen(true)}
