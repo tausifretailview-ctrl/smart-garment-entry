@@ -76,6 +76,7 @@ interface RetailTemplateProps {
   showGSTBreakdown?: boolean;
   showBankDetails?: boolean;
   showMRP?: boolean;
+  showDiscountOnRate?: boolean;
   minItemRows?: number;
   showTotalQuantity?: boolean;
   amountWithDecimal?: boolean;
@@ -138,6 +139,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   amountWithGrouping = true,
   format = "a5-vertical",
   salesman,
+  showDiscountOnRate = true,
 }) => {
   const isA4 = format === "a4";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
@@ -367,7 +369,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                           {item ? (
                             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: "1.1" }}>
                               <span>{fmt(getDisplayBaseRate(item))}</span>
-                              {(Number(item.discountPercent || 0) > 0) && (
+                              {showDiscountOnRate && (Number(item.discountPercent || 0) > 0) && (
                                 <span style={{ fontSize: isA4 ? "10px" : "8px", color: "#b45309" }}>
                                   -{Number(item.discountPercent).toFixed(0)}%
                                 </span>

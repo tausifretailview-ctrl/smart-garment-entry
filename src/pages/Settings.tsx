@@ -178,6 +178,8 @@ interface SaleSettings {
   show_item_barcode?: boolean;
   show_item_hsn?: boolean;
   show_item_mrp?: boolean;
+  /** Show -27% style discount under Rate on printed invoices (Retail ERP, etc.) */
+  show_discount_on_rate?: boolean;
   // Invoice column settings
   show_mrp_column?: boolean;
   // E-Invoice Settings
@@ -2826,6 +2828,25 @@ export default function Settings() {
                         MRP
                       </Label>
                     </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_discount_on_rate"
+                        checked={(settings.sale_settings as any)?.show_discount_on_rate !== false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_discount_on_rate: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_discount_on_rate" className="font-normal cursor-pointer">
+                        Discount on Rate
+                      </Label>
+                    </div>
                   </div>
                 </div>
 
@@ -4189,6 +4210,7 @@ export default function Settings() {
                         showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
                         showBankDetails={settings.sale_settings?.show_bank_details ?? false}
                         showMRP={settings.sale_settings?.show_mrp_column ?? false}
+                        showDiscountOnRate={(settings.sale_settings as any)?.show_discount_on_rate !== false}
                         minItemRows={(settings.sale_settings as any)?.min_item_rows}
                         showTotalQuantity={(settings.sale_settings as any)?.show_total_quantity}
                         amountWithDecimal={(settings.sale_settings as any)?.amount_with_decimal}

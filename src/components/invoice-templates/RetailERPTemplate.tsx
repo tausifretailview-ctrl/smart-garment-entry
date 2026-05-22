@@ -79,6 +79,7 @@ interface RetailERPTemplateProps {
   showGSTBreakdown?: boolean;
   showBankDetails?: boolean;
   showMRP?: boolean;
+  showDiscountOnRate?: boolean;
   minItemRows?: number;
   showTotalQuantity?: boolean;
   amountWithDecimal?: boolean;
@@ -151,6 +152,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   termsConditions = [],
   notes,
   showHSN = true,
+  showDiscountOnRate = true,
   showGSTBreakdown = true,
   amountWithDecimal = true,
   amountWithGrouping = true,
@@ -512,7 +514,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 content = (
                                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: "1.15" }}>
                                     <span>{fmt(getDisplayBaseRate(item))}</span>
-                                    {(Number(item.discountPercent || 0) > 0) && (
+                                    {showDiscountOnRate && (Number(item.discountPercent || 0) > 0) && (
                                       <span style={{ fontSize: isA4 ? "10px" : "8px", color: "#b45309" }}>
                                         -{Number(item.discountPercent).toFixed(0)}%
                                       </span>

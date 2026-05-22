@@ -58,6 +58,7 @@ interface TaxInvoiceTemplateProps {
   grandTotal: number;
   totalSavings?: number;
   showMRP?: boolean;
+  showDiscountOnRate?: boolean;
   minItemRows?: number;
   paymentMethod?: string;
   declarationText?: string;
@@ -109,6 +110,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   grandTotal,
   totalSavings = 0,
   showMRP = false,
+  showDiscountOnRate = true,
   minItemRows = 8,
   paymentMethod,
   declarationText,
@@ -380,7 +382,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
                 <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.1' }}>
                     <span>{formatCurrency(getDisplayBaseRate(items[index] || (item as any)))}</span>
-                    {(Number((items[index] as any)?.discountPercent || 0) > 0) && (
+                    {showDiscountOnRate && (Number((items[index] as any)?.discountPercent || 0) > 0) && (
                       <span style={{ fontSize: '7px', color: '#b45309' }}>
                         -{Number((items[index] as any).discountPercent).toFixed(0)}%
                       </span>
