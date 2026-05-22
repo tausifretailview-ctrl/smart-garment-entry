@@ -107,13 +107,13 @@ BEGIN
         WHERE s.organization_id = p_organization_id
           AND s.deleted_at IS NULL
           AND s.customer_id = p_customer_id
-          AND s.id::text = ve.reference_id
+          AND s.id::text = ve.reference_id::text
       )
       OR (
         lower(COALESCE(ve.reference_type, '')) = 'customer'
-        AND trim(COALESCE(ve.reference_id, '')) = trim(p_customer_id::text)
+        AND trim(COALESCE(ve.reference_id::text, '')) = trim(p_customer_id::text)
         AND NOT EXISTS (
-          SELECT 1 FROM public.sales s2 WHERE s2.id::text = ve.reference_id
+          SELECT 1 FROM public.sales s2 WHERE s2.id::text = ve.reference_id::text
         )
       )
     );
@@ -130,7 +130,7 @@ BEGIN
     AND ve.deleted_at IS NULL
     AND lower(COALESCE(ve.voucher_type, '')) = 'credit_note'
     AND lower(COALESCE(ve.reference_type, '')) = 'customer'
-    AND trim(COALESCE(ve.reference_id, '')) = trim(p_customer_id::text);
+    AND trim(COALESCE(ve.reference_id::text, '')) = trim(p_customer_id::text);
 
   RETURN QUERY
   SELECT
@@ -142,7 +142,7 @@ BEGIN
     AND ve.deleted_at IS NULL
     AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
     AND lower(COALESCE(ve.reference_type, '')) = 'customer'
-    AND trim(COALESCE(ve.reference_id, '')) = trim(p_customer_id::text);
+    AND trim(COALESCE(ve.reference_id::text, '')) = trim(p_customer_id::text);
 
   RETURN QUERY
   SELECT

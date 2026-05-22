@@ -82,12 +82,16 @@ DECLARE
   v_advances_applied NUMERIC;
   v_unused_advances NUMERIC;
 BEGIN
+  -- Full run can take many minutes; avoid dashboard/API default timeouts.
+  PERFORM set_config('statement_timeout', '0', true);
+
   IF auth.uid() IS NOT NULL THEN
     IF p_organization_id IS NULL THEN
-      RAISE EXCEPTION 'p_organization_id is required for manual reconciliation'
-        USING ERRCODE = '42501';
-    END IF;
-    IF NOT EXISTS (
+      IF NOT public.has_role(auth.uid(), 'platform_admin'::app_role) THEN
+        RAISE EXCEPTION 'p_organization_id is required for manual reconciliation'
+          USING ERRCODE = '42501';
+      END IF;
+    ELSIF NOT EXISTS (
       SELECT 1
       FROM public.organization_members om
       WHERE om.user_id = auth.uid()
@@ -124,10 +128,8 @@ BEGIN
       BEGIN
         v_total_checked := v_total_checked + 1;
 
-        SELECT public.get_customer_true_outstanding(v_cust.id, v_org.id)
-        INTO v_rpc_outstanding;
-
         SELECT
+          COALESCE(SUM(r.amount), 0),
           COALESCE(MAX(CASE WHEN r.source = 'opening_balance' THEN r.amount END), 0),
           COALESCE(MAX(CASE WHEN r.source = 'balance_adjustment' THEN r.amount END), 0),
           COALESCE(MAX(CASE WHEN r.source = 'total_invoiced' THEN r.amount END), 0),
@@ -138,6 +140,7 @@ BEGIN
           COALESCE(MAX(CASE WHEN r.source = 'advances_applied' THEN r.amount END), 0),
           COALESCE(MAX(CASE WHEN r.source = 'unused_advances' THEN r.amount END), 0)
         INTO
+          v_rpc_outstanding,
           v_opening_balance,
           v_balance_adjustments,
           v_total_invoiced,
@@ -184,7 +187,7 @@ BEGIN
         SELECT COALESCE(SUM(ve.total_amount), 0)
         INTO v_voucher_adv
         FROM public.voucher_entries ve
-        INNER JOIN public.sales s ON s.id::text = ve.reference_id
+        INNER JOIN public.sales s ON s.id::text = ve.reference_id::text
         WHERE s.customer_id = v_cust.id
           AND s.organization_id = v_org.id
           AND ve.organization_id = v_org.id
@@ -204,7 +207,7 @@ BEGIN
             AND EXISTS (
               SELECT 1
               FROM public.sales s
-              WHERE s.id::text = ve.reference_id
+              WHERE s.id::text = ve.reference_id::text
                 AND s.customer_id = v_cust.id
                 AND s.organization_id = v_org.id
             )

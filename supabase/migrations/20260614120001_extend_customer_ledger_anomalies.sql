@@ -46,7 +46,7 @@ AS $$
     WHERE ve.deleted_at IS NULL
       AND ve.voucher_type = 'receipt'
       AND ve.reference_type = 'customer'
-      AND EXISTS (SELECT 1 FROM public.sales s WHERE s.id::text = ve.reference_id)
+      AND EXISTS (SELECT 1 FROM public.sales s WHERE s.id::text = ve.reference_id::text)
     GROUP BY ve.organization_id
   ),
   sale_vouch AS (
@@ -98,11 +98,11 @@ AS $$
            COUNT(*) AS cnt,
            COALESCE(SUM(ve.total_amount), 0) AS amt
     FROM public.voucher_entries ve
-    LEFT JOIN public.customers c ON c.id::text = ve.reference_id
+    LEFT JOIN public.customers c ON c.id::text = ve.reference_id::text
     WHERE ve.deleted_at IS NULL
       AND ve.voucher_type = 'receipt'
       AND ve.reference_type = 'customer'
-      AND NOT EXISTS (SELECT 1 FROM public.sales s WHERE s.id::text = ve.reference_id)
+      AND NOT EXISTS (SELECT 1 FROM public.sales s WHERE s.id::text = ve.reference_id::text)
       AND COALESCE(c.opening_balance, 0) = 0
     GROUP BY ve.organization_id
   ),
@@ -133,7 +133,7 @@ AS $$
              s.customer_id,
              SUM(ve.total_amount) AS voucher_adv_total
       FROM public.voucher_entries ve
-      INNER JOIN public.sales s ON s.id::text = ve.reference_id
+      INNER JOIN public.sales s ON s.id::text = ve.reference_id::text
       WHERE ve.deleted_at IS NULL
         AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
         AND lower(COALESCE(ve.payment_method, '')) = 'advance_adjustment'
@@ -156,7 +156,7 @@ AS $$
       AND EXISTS (
         SELECT 1
         FROM public.sales s
-        WHERE s.id::text = ve.reference_id
+        WHERE s.id::text = ve.reference_id::text
           AND s.deleted_at IS NULL
           AND COALESCE(s.paid_amount, 0) > (
             SELECT COALESCE(
@@ -164,7 +164,7 @@ AS $$
               0
             )
             FROM public.voucher_entries v2
-            WHERE v2.reference_id = s.id::text
+            WHERE v2.reference_id::text = s.id::text
               AND v2.deleted_at IS NULL
               AND v2.voucher_type = 'receipt'
           ) + 1
