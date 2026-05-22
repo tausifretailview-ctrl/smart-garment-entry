@@ -19,6 +19,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { createReceiptVoucher } from "@/utils/saleSettlement";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -578,35 +579,20 @@ export const FloatingSaleReturn = ({
           }).eq("id", cn.id);
         }
 
-        const { data: lastVoucher } = await supabase
-          .from("voucher_entries")
-          .select("voucher_number")
-          .eq("organization_id", organizationId)
-          .eq("voucher_type", "receipt")
-          .order("created_at", { ascending: false })
-          .limit(1);
-        const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
         const cnVoucherDate = new Date().toISOString().split("T")[0];
         const cnDescription = isPartial
           ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
           : `Credit note ${cn.returnNumber} applied via POS`;
-        const { data: cnVoucherRow, error: cnVoucherErr } = await supabase
-          .from("voucher_entries")
-          .insert({
-            organization_id: organizationId,
-            voucher_number: `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
-            voucher_type: "receipt",
-            voucher_date: cnVoucherDate,
-            reference_type: "customer",
-            reference_id: effectiveCustomerId,
-            description: cnDescription,
-            total_amount: redeemAmount,
-            payment_method: "credit_note_adjustment",
-          })
-          .select("id")
-          .single();
-        if (cnVoucherErr) throw cnVoucherErr;
-        const cnVoucherId = cnVoucherRow?.id as string | undefined;
+        const cnCreated = await createReceiptVoucher(supabase, {
+          organizationId,
+          referenceId: effectiveCustomerId,
+          referenceType: "customer",
+          amount: redeemAmount,
+          paymentMethod: "credit_note_adjustment",
+          description: cnDescription,
+          voucherDate: cnVoucherDate,
+        });
+        const cnVoucherId = cnCreated.id;
         const { data: acctPos } = await supabase
           .from("settings")
           .select("accounting_engine_enabled")
@@ -921,28 +907,16 @@ export const FloatingSaleReturn = ({
                 .eq("id", cn.id);
             }
 
-            const { data: lastVoucher } = await supabase
-              .from("voucher_entries")
-              .select("voucher_number")
-              .eq("organization_id", organizationId)
-              .eq("voucher_type", "receipt")
-              .order("created_at", { ascending: false })
-              .limit(1);
-            const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
-
-            await supabase.from("voucher_entries").insert({
-              organization_id: organizationId,
-              voucher_number: newVoucherNumber,
-              voucher_type: "receipt",
-              voucher_date: new Date().toISOString().split("T")[0],
-              reference_type: "customer",
-              reference_id: effectiveCustomerId,
+            await createReceiptVoucher(supabase, {
+              organizationId,
+              referenceId: effectiveCustomerId,
+              referenceType: "customer",
+              amount: redeemAmount,
+              paymentMethod: "credit_note_adjustment",
               description: isPartial
                 ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
                 : `Credit note ${cn.returnNumber} applied via POS`,
-              total_amount: redeemAmount,
-              payment_method: "credit_note_adjustment",
+              voucherDate: new Date().toISOString().split("T")[0],
             });
           }
         } catch (cnErr) {

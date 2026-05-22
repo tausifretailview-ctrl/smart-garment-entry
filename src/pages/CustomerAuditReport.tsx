@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   XCircle,
   Search,
+  RefreshCw,
+  History,
+  Loader2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
@@ -19,6 +22,7 @@ import * as XLSX from "xlsx";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 import { computeCustomerOutstanding } from "@/utils/customerAuditMath";
@@ -67,8 +71,22 @@ function ymdBoundary(d: Date | undefined): string | null {
 
 type IntegrityRow = { source: string; amount: number; detail: string };
 
+type ReconHistoryRow = {
+  check_date: string;
+  rpc_outstanding: number;
+  invoice_sum_outstanding: number;
+  drift_rpc_vs_invoices: number;
+  severity: string;
+  notes: string | null;
+  has_phantom_advance: boolean;
+  has_mistagged_receipts: boolean;
+  has_overpaid_invoices: boolean;
+  has_sr_invoice_drift: boolean;
+};
+
 export default function CustomerAuditReport() {
   const { currentOrganization } = useOrganization();
+  const { isAdmin } = useUserPermissions();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const preSelectedCustomerId = searchParams.get("customer");
@@ -90,6 +108,14 @@ export default function CustomerAuditReport() {
   const [custOpen, setCustOpen] = useState(false);
   const [integrityDialogOpen, setIntegrityDialogOpen] = useState(false);
   const [integrityBreakdown, setIntegrityBreakdown] = useState<IntegrityRow[] | null>(null);
+  const [reconRunning, setReconRunning] = useState(false);
+  const [lastReconSummary, setLastReconSummary] = useState<{
+    checked: number;
+    warnings: number;
+    critical: number;
+    ok: number;
+    date: string;
+  } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = useReactToPrint({
@@ -312,6 +338,62 @@ export default function CustomerAuditReport() {
   const integrityTotal =
     integrityBreakdown?.reduce((s, r) => s + r.amount, 0) ?? null;
 
+  const { data: reconHistory = [], refetch: refetchReconHistory } = useQuery({
+    queryKey: ["balance-recon-history", currentOrganization?.id, customerId],
+    enabled: !!currentOrganization?.id && !!customerId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("balance_reconciliation_log")
+        .select(
+          "check_date, rpc_outstanding, invoice_sum_outstanding, drift_rpc_vs_invoices, severity, notes, has_phantom_advance, has_mistagged_receipts, has_overpaid_invoices, has_sr_invoice_drift",
+        )
+        .eq("organization_id", currentOrganization!.id)
+        .eq("customer_id", customerId!)
+        .order("check_date", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return (data || []) as ReconHistoryRow[];
+    },
+  });
+
+  const runFullReconciliation = async () => {
+    if (!currentOrganization?.id) return;
+    setReconRunning(true);
+    try {
+      const { data, error } = await (supabase.rpc as any)("run_nightly_balance_reconciliation", {
+        p_organization_id: currentOrganization.id,
+      });
+      if (error) throw error;
+      const summary = data as {
+        checked?: number;
+        warnings?: number;
+        critical?: number;
+        ok?: number;
+        date?: string;
+      };
+      setLastReconSummary({
+        checked: Number(summary?.checked ?? 0),
+        warnings: Number(summary?.warnings ?? 0),
+        critical: Number(summary?.critical ?? 0),
+        ok: Number(summary?.ok ?? 0),
+        date: String(summary?.date ?? format(new Date(), "yyyy-MM-dd")),
+      });
+      await refetchReconHistory();
+      toast({
+        title: "Reconciliation complete",
+        description: `Checked ${summary?.checked ?? 0} customers: ${summary?.critical ?? 0} critical, ${summary?.warnings ?? 0} warnings, ${summary?.ok ?? 0} OK.`,
+      });
+    } catch (e: unknown) {
+      toast({
+        title: "Reconciliation failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setReconRunning(false);
+    }
+  };
+
   const exportExcel = () => {
     if (!selectedCustomer || !math || !auditBundle) return;
     const rows: (string | number)[][] = [
@@ -418,6 +500,20 @@ export default function CustomerAuditReport() {
               <Search className="h-4 w-4 mr-2" />
               Integrity check
             </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => void runFullReconciliation()}
+                disabled={!currentOrganization?.id || reconRunning}
+              >
+                {reconRunning ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Run full reconciliation
+              </Button>
+            )}
           </div>
         </div>
 
@@ -822,6 +918,63 @@ export default function CustomerAuditReport() {
                 </CardContent>
               </Card>
             )}
+
+          {selectedCustomer && (
+            <Card className="print:hidden">
+              <CardContent className="p-4 space-y-3">
+                <h3 className="font-semibold text-base flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Nightly reconciliation history
+                </h3>
+                {lastReconSummary && (
+                  <p className="text-xs text-muted-foreground">
+                    Last manual run ({lastReconSummary.date}): checked {lastReconSummary.checked} —{" "}
+                    {lastReconSummary.critical} critical, {lastReconSummary.warnings} warnings,{" "}
+                    {lastReconSummary.ok} OK.
+                  </p>
+                )}
+                {reconHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No logged issues for this customer in the last 30 days (only warnings/critical are
+                    stored).
+                  </p>
+                ) : (
+                  <ul className="space-y-2 text-sm">
+                    {reconHistory.map((row) => {
+                      const d = String(row.check_date).slice(0, 10);
+                      const out = Number(row.rpc_outstanding || 0);
+                      const drift = Number(row.drift_rpc_vs_invoices || 0);
+                      const icon =
+                        row.severity === "critical" ? "🔴" : row.severity === "warning" ? "🟡" : "✅";
+                      return (
+                        <li
+                          key={d + row.severity}
+                          className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-border/60 pb-2 last:border-0"
+                        >
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {format(new Date(d + "T12:00:00"), "dd-MMM-yyyy")}:
+                          </span>
+                          <span>
+                            {icon}{" "}
+                            {row.severity === "ok" ? "OK" : row.severity} — Outstanding ₹
+                            {fmt(Math.abs(out))} {out >= 0 ? "Dr" : "Cr"}
+                          </span>
+                          {drift > 1 && (
+                            <span className="text-amber-700 dark:text-amber-300 text-xs">
+                              Drift ₹{fmt(drift)}
+                            </span>
+                          )}
+                          {row.notes && (
+                            <span className="text-xs text-muted-foreground w-full">{row.notes}</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="bg-muted/30">
             <CardContent className="p-4 text-sm text-muted-foreground">

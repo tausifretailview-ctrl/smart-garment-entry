@@ -18,6 +18,10 @@ interface AnomalyRow {
   ghost_receipts_amount: number;
   null_ref_receipts_count: number;
   null_ref_receipts_amount: number;
+  advance_drift_count?: number;
+  advance_drift_amount?: number;
+  discount_drift_count?: number;
+  discount_drift_amount?: number;
 }
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -36,7 +40,7 @@ function CountCell({ count, amount }: { count: number; amount: number }) {
 
 /**
  * Customer Ledger Health diagnostic — platform admin only.
- * Surfaces 5 classes of voucher_entries / sales drift per organization.
+ * Surfaces 7 classes of voucher_entries / sales drift per organization.
  * Read-only; repairs happen elsewhere.
  */
 export function PlatformLedgerHealth() {
@@ -57,13 +61,21 @@ export function PlatformLedgerHealth() {
       acc.overpaid += r.overpaid_count;
       acc.ghost += r.ghost_receipts_count;
       acc.nullRef += r.null_ref_receipts_count;
+      acc.advance += Number(r.advance_drift_count || 0);
+      acc.discount += Number(r.discount_drift_count || 0);
       return acc;
     },
-    { mistagged: 0, drift: 0, overpaid: 0, ghost: 0, nullRef: 0 }
+    { mistagged: 0, drift: 0, overpaid: 0, ghost: 0, nullRef: 0, advance: 0, discount: 0 }
   );
 
   const totalAnomalies =
-    totals.mistagged + totals.drift + totals.overpaid + totals.ghost + totals.nullRef;
+    totals.mistagged +
+    totals.drift +
+    totals.overpaid +
+    totals.ghost +
+    totals.nullRef +
+    totals.advance +
+    totals.discount;
 
   return (
     <div className="space-y-4">
@@ -76,12 +88,14 @@ export function PlatformLedgerHealth() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <SummaryCard label="Mis-tagged Receipts" count={totals.mistagged} hint="ref_type=customer but points to a sale" />
         <SummaryCard label="Paid Drift" count={totals.drift} hint="sales.paid_amount ≠ receipts" />
         <SummaryCard label="Over-paid Bills" count={totals.overpaid} hint="receipts > bill amount" />
         <SummaryCard label="Ghost Receipts" count={totals.ghost} hint="customer ref, no sale, opening=0" />
         <SummaryCard label="NULL Ref" count={totals.nullRef} hint="receipt with no reference_id" />
+        <SummaryCard label="Advance Drift" count={totals.advance} hint="used_amount ≠ advance vouchers" />
+        <SummaryCard label="Discount Drift" count={totals.discount} hint="paid_amount vs receipt+discount" />
       </div>
 
       {error && (
@@ -101,7 +115,14 @@ export function PlatformLedgerHealth() {
               : totalAnomalies === 0
                 ? "All organizations clean."
                 : `${totalAnomalies.toLocaleString("en-IN")} anomalies across ${(data || []).filter((r) =>
-                    r.mistagged_receipts_count + r.paid_drift_count + r.overpaid_count + r.ghost_receipts_count + r.null_ref_receipts_count > 0
+                    r.mistagged_receipts_count +
+                      r.paid_drift_count +
+                      r.overpaid_count +
+                      r.ghost_receipts_count +
+                      r.null_ref_receipts_count +
+                      Number(r.advance_drift_count || 0) +
+                      Number(r.discount_drift_count || 0) >
+                    0
                   ).length} organizations.`}
           </CardDescription>
         </CardHeader>
@@ -121,6 +142,8 @@ export function PlatformLedgerHealth() {
                     <TableHead className="text-right">Over-paid</TableHead>
                     <TableHead className="text-right">Ghost</TableHead>
                     <TableHead className="text-right">NULL Ref</TableHead>
+                    <TableHead className="text-right">Adv Drift</TableHead>
+                    <TableHead className="text-right">Disc Drift</TableHead>
                     <TableHead className="text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -131,7 +154,9 @@ export function PlatformLedgerHealth() {
                       row.paid_drift_count +
                       row.overpaid_count +
                       row.ghost_receipts_count +
-                      row.null_ref_receipts_count;
+                      row.null_ref_receipts_count +
+                      Number(row.advance_drift_count || 0) +
+                      Number(row.discount_drift_count || 0);
                     return (
                       <TableRow key={row.organization_id}>
                         <TableCell className="font-medium">{row.organization_name}</TableCell>
@@ -149,6 +174,12 @@ export function PlatformLedgerHealth() {
                         </TableCell>
                         <TableCell className="text-right">
                           <CountCell count={row.null_ref_receipts_count} amount={row.null_ref_receipts_amount} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <CountCell count={Number(row.advance_drift_count || 0)} amount={Number(row.advance_drift_amount || 0)} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <CountCell count={Number(row.discount_drift_count || 0)} amount={Number(row.discount_drift_amount || 0)} />
                         </TableCell>
                         <TableCell className="text-right">
                           {total === 0 ? (
@@ -181,6 +212,8 @@ export function PlatformLedgerHealth() {
           <p><strong className="text-foreground">Over-paid:</strong> Receipts exceed the bill amount (after sale-return adjust) by more than ₹1 — usually duplicates.</p>
           <p><strong className="text-foreground">Ghost Receipts:</strong> reference_type='customer' rows that don't match any invoice and the customer's opening balance is ₹0 — orphan / unidentified payments.</p>
           <p><strong className="text-foreground">NULL Ref:</strong> Receipts saved with no reference_id at all — cannot be classified.</p>
+          <p><strong className="text-foreground">Advance Drift:</strong> customer_advances.used_amount does not match advance_adjustment receipt vouchers (Phase 2 FIFO).</p>
+          <p><strong className="text-foreground">Discount Drift:</strong> Receipt discount_amount present but sales.paid_amount still exceeds voucher settlement total.</p>
         </CardContent>
       </Card>
     </div>

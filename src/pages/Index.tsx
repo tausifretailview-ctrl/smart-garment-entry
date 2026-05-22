@@ -59,6 +59,7 @@ import {
 import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 import { cn } from "@/lib/utils";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
+import { BalanceReconciliationAlert } from "@/components/BalanceReconciliationAlert";
 
 // Currency formatter helper
 const formatCurrency = (value: number) => {
@@ -289,7 +290,7 @@ const MobileDashboardWrapper = () => {
 
 // Desktop dashboard with all hooks
 const DesktopDashboard = () => {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission } = useUserPermissions();
@@ -864,6 +865,7 @@ const DesktopDashboard = () => {
 
       {/* Main Content — Full Width */}
       <div className="space-y-4">
+        {hasLoaded && organizationRole === "admin" && <BalanceReconciliationAlert />}
 
         {/* Left side - Metric cards */}
         {!hasLoaded ? (

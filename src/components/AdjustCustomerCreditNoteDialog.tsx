@@ -22,6 +22,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { insertLedgerCredit } from "@/lib/customerLedger";
+import { createReceiptVoucher } from "@/utils/saleSettlement";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -291,35 +292,19 @@ export function AdjustCustomerCreditNoteDialog({
           if (!voucherEntryId) {
             // adjust_invoice_balance does not create a voucher_entries row; create one now
             // so the credit-note application is auditable and the GL journal can reference it.
-            const { data: lastRcp } = await supabase
-              .from("voucher_entries")
-              .select("voucher_number")
-              .eq("organization_id", currentOrganization!.id)
-              .eq("voucher_type", "receipt")
-              .order("created_at", { ascending: false })
-              .limit(1);
-            const lastNum = lastRcp?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-            const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
             const saleNumber = (unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId;
             const cnApplyDesc = `Credit note ${returnNumber} → ${saleNumber}`;
 
-            const { data: newVoucher, error: vInsErr } = await supabase
-              .from("voucher_entries")
-              .insert({
-                organization_id: currentOrganization!.id,
-                voucher_number: newVoucherNumber,
-                voucher_type: "receipt",
-                voucher_date: today,
-                reference_type: "sale",
-                reference_id: saleId,
-                total_amount: applyAmt,
-                payment_method: "credit_note_adjustment",
-                description: cnApplyDesc,
-              })
-              .select("id")
-              .single();
-            if (vInsErr) throw vInsErr;
-            voucherEntryId = (newVoucher as { id?: string } | null)?.id || "";
+            const created = await createReceiptVoucher(supabase, {
+              organizationId: currentOrganization!.id,
+              referenceId: saleId,
+              referenceType: "sale",
+              amount: applyAmt,
+              paymentMethod: "credit_note_adjustment",
+              description: cnApplyDesc,
+              voucherDate: today,
+            });
+            voucherEntryId = created.id;
           }
 
           if (!voucherEntryId) {
