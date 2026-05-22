@@ -165,6 +165,7 @@ export const purchaseBillFields: TargetField[] = [
   { key: 'pur_price', label: 'Purchase Price', type: 'number', required: true },
   { key: 'sale_price', label: 'Sale Price', type: 'number', required: true },
   { key: 'qty', label: 'Quantity', type: 'number', required: true },
+  { key: 'line_total', label: 'Line Total / Amount', type: 'number' },
   { key: 'mrp', label: 'MRP', type: 'number' },
 ];
 
@@ -332,6 +333,7 @@ const fieldAliases: Record<string, string[]> = {
   sale_price: ['saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
   mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice', 'price'],
   qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces', 'nos', 'qnty', 'stockqty'],
+  line_total: ['linetotal', 'lineamount', 'amount', 'linenet', 'netamount', 'value', 'linevalue', 'itemamount', 'totalamount', 'linewiseamount', 'grossamount', 'basicamount', 'taxableamount'],
   default_pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost'],
   default_sale_price: ['saleprice', 'sellingprice', 'mrp', 'sp', 'price', 'retailprice'],
   opening_qty: ['openingqty', 'openingstock', 'opening', 'initialqty', 'initialstock', 'qty', 'quantity', 'opstock', 'opqty'],

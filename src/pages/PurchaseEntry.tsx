@@ -53,6 +53,7 @@ import {
   roundMoney,
   normalizePurchaseUnitPrice,
   computePurchaseLineSubTotal,
+  getPurchaseLineMultiplier,
   isPurchaseFreightOrChargeRow,
   extractChargeAmountFromRow,
 } from "@/utils/excelImportUtils";
@@ -3730,7 +3731,21 @@ const PurchaseEntry = () => {
 
           const qty = parseLocalizedNumber(row.qty) || 0;
           const purPrice = normalizePurchaseUnitPrice(parseLocalizedNumber(row.pur_price) || 0);
-          const lineTotal = roundMoney(qty * purPrice);
+          const uom = row.uom?.toString().trim() || '';
+
+          // Use Excel's line_total if provided (avoids rounding differences)
+          const excelLineTotal = parseLocalizedNumber(row.line_total);
+          const hasExcelLineTotal = excelLineTotal > 0;
+          const lineTotal = hasExcelLineTotal
+            ? roundMoney(excelLineTotal)
+            : roundMoney(qty * purPrice);
+
+          // If using Excel's line_total, back-calculate pur_price to stay consistent
+          const multiplier = getPurchaseLineMultiplier({ uom, size, qty });
+          const effectivePurPrice =
+            hasExcelLineTotal && multiplier > 0
+              ? normalizePurchaseUnitPrice(excelLineTotal / multiplier)
+              : purPrice;
 
           newLineItems.push({
             temp_id: `import_${Date.now()}_${Math.random()}`,
@@ -3739,7 +3754,7 @@ const PurchaseEntry = () => {
             product_name: row.product_name?.toString().trim() || '',
             size: size,
             qty: qty,
-            pur_price: purPrice,
+            pur_price: effectivePurPrice,
             sale_price: parseLocalizedNumber(row.sale_price) || 0,
             gst_per: parseLocalizedNumber(row.gst_per) || 0,
             hsn_code: row.hsn_code?.toString().trim() || '',
