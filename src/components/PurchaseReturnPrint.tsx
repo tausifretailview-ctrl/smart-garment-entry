@@ -346,7 +346,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               <span className="text-sm ml-2">{returnData.notes || ""}</span>
             </div>
             <div className="w-1/2 flex">
-              <div className="w-1/2 pr-border-r p-1 text-sm">Less: Discount</div>
+              <div className="w-1/2 pr-border-r p-1 text-sm">
+                Less: Discount{discountPercent > 0 ? ` @ ${discountPercent.toFixed(2)}%` : ""}
+              </div>
               <div className="w-1/2 p-1 text-right text-sm">{discountAmount.toFixed(2)}</div>
             </div>
           </div>
