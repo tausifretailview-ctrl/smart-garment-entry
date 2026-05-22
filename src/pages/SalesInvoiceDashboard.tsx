@@ -60,6 +60,7 @@ import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { InvoiceHistoryDialog } from "@/components/InvoiceHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
@@ -318,6 +319,10 @@ export default function SalesInvoiceDashboard() {
   // Customer history dialog state
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+
+  // Invoice history dialog state
+  const [showInvoiceHistory, setShowInvoiceHistory] = useState(false);
+  const [selectedInvoiceForHistory, setSelectedInvoiceForHistory] = useState<{ id: string } | null>(null);
   
   // E-Invoice state
   const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
@@ -2815,7 +2820,19 @@ export default function SalesInvoiceDashboard() {
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={cn("font-mono text-xs font-bold text-primary", inv.is_cancelled && "line-through decoration-red-500/70")}>{inv.sale_number}</span>
+                        <span
+                          className={cn(
+                            "font-mono text-xs font-bold text-primary cursor-pointer hover:underline",
+                            inv.is_cancelled && "line-through decoration-red-500/70"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedInvoiceForHistory({ id: inv.id });
+                            setShowInvoiceHistory(true);
+                          }}
+                        >
+                          {inv.sale_number}
+                        </span>
                         {invoiceLikelyMissingLines(inv) && (
                           <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0">
                             <title>Qty 0 but amount on file — open to fix lines</title>
@@ -2950,6 +2967,13 @@ export default function SalesInvoiceDashboard() {
           customerId={selectedCustomerForHistory?.id || null}
           customerName={selectedCustomerForHistory?.name || ''}
           organizationId={currentOrganization?.id || ''}
+        />
+
+        <InvoiceHistoryDialog
+          open={showInvoiceHistory}
+          onOpenChange={setShowInvoiceHistory}
+          saleId={selectedInvoiceForHistory?.id}
+          organizationId={currentOrganization?.id}
         />
 
         {/* Hidden Invoice Wrapper for PDF generation on mobile */}
@@ -3440,7 +3464,16 @@ export default function SalesInvoiceDashboard() {
                             >
                               <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
                                 <div className="flex items-center gap-1 flex-wrap">
-                                  <span className="break-words">{invoice.sale_number}</span>
+                                  <span
+                                    className="break-words text-primary cursor-pointer hover:underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedInvoiceForHistory({ id: invoice.id });
+                                      setShowInvoiceHistory(true);
+                                    }}
+                                  >
+                                    {invoice.sale_number}
+                                  </span>
                                   {invoiceLikelyMissingLines(invoice) && (
                                     <span title="Bill amount on file but quantity is 0 — line items may be missing or deleted. Open invoice to fix.">
                                       <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" aria-hidden />
@@ -4457,6 +4490,13 @@ export default function SalesInvoiceDashboard() {
           customerId={selectedCustomerForHistory?.id || null}
           customerName={selectedCustomerForHistory?.name || ''}
           organizationId={currentOrganization?.id || ''}
+        />
+
+        <InvoiceHistoryDialog
+          open={showInvoiceHistory}
+          onOpenChange={setShowInvoiceHistory}
+          saleId={selectedInvoiceForHistory?.id}
+          organizationId={currentOrganization?.id}
         />
 
         {/* Hidden E-Invoice Print Component for PDF Generation */}
