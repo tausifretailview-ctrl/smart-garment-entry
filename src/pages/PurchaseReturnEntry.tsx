@@ -1156,6 +1156,8 @@ const PurchaseReturnEntry = () => {
           return_number: freshReturnNumber,
           credit_status: "pending",
           payment_method: paymentMethodForReturnRow,
+          discount_amount: discountAmount,
+          discount_percent: discountPercent,
         };
 
         let returnRecord: any = null;
