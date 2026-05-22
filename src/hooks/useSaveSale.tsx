@@ -11,6 +11,12 @@ import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 }
 import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { deleteJournalEntryByReference, recordSaleJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import {
+  derivePaidAndStatus,
+  getAvailableCN,
+  preSaveInvariants,
+  warnSettlementPathMismatch,
+} from "@/utils/saleSettlement";
 
 interface CartItem {
   id: string;
@@ -227,15 +233,23 @@ export const useSaveSale = () => {
   }) => {
     if (!currentOrganization?.id || !params.customerId || params.adjustmentAmount <= 0) return;
 
+    const { returns: cnPool } = await getAvailableCN(
+      supabase,
+      params.customerId,
+      currentOrganization.id,
+      { includeUnlinkedAdjusted: true },
+    );
+    if (!cnPool.length) return;
+
     const { data: pendingSRs } = await supabase
       .from('sale_returns')
       .select(
         'id, net_amount, gross_amount, gst_amount, credit_status, linked_sale_id, credit_available_balance, customer_id, customer_name, organization_id, refund_type, return_date, return_number, original_sale_number, notes, credit_note_id'
       )
-      .eq('customer_id', params.customerId)
-      .eq('organization_id', currentOrganization.id)
-      .or('credit_status.eq.pending,credit_status.eq.partially_adjusted,and(credit_status.eq.adjusted,linked_sale_id.is.null)')
-      .is('deleted_at', null)
+      .in(
+        'id',
+        cnPool.map((r) => r.id),
+      )
       .order('return_date', { ascending: true });
 
     const targetAmount = roundMoney(params.adjustmentAmount);
@@ -361,6 +375,110 @@ export const useSaveSale = () => {
     }
   };
 
+  type SavePaymentMethod = 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later';
+
+  const resolveSalePaymentFields = (
+    saleData: SaleData,
+    paymentMethod: SavePaymentMethod,
+    paymentBreakdown?: {
+      cashAmount: number;
+      cardAmount: number;
+      upiAmount: number;
+      totalPaid: number;
+      refundAmount: number;
+    },
+    options?: {
+      existingPaidAmount?: number;
+      existingPaymentStatus?: string;
+      isUpdate?: boolean;
+    },
+  ) => {
+    let cashAmt = 0;
+    let cardAmt = 0;
+    let upiAmt = 0;
+    let paidAmt = 0;
+    let refundAmt = saleData.refundAmount || 0;
+    let finalPaymentMethod: string = paymentMethod;
+
+    if (paymentBreakdown) {
+      cashAmt = paymentBreakdown.cashAmount;
+      cardAmt = paymentBreakdown.cardAmount;
+      upiAmt = paymentBreakdown.upiAmount;
+      paidAmt = paymentBreakdown.totalPaid;
+      refundAmt = paymentBreakdown.refundAmount;
+      finalPaymentMethod = 'multiple';
+    } else if (options?.isUpdate) {
+      if (paymentMethod === 'pay_later') {
+        paidAmt = options.existingPaidAmount || 0;
+      } else if (
+        (options.existingPaidAmount || 0) === 0 ||
+        options.existingPaymentStatus === 'completed'
+      ) {
+        paidAmt = saleData.netAmount;
+        if (paymentMethod === 'cash') cashAmt = paidAmt;
+        else if (paymentMethod === 'card') cardAmt = paidAmt;
+        else if (paymentMethod === 'upi') upiAmt = paidAmt;
+      } else {
+        paidAmt = options.existingPaidAmount || 0;
+        if (paymentMethod === 'cash') cashAmt = paidAmt;
+        else if (paymentMethod === 'card') cardAmt = paidAmt;
+        else if (paymentMethod === 'upi') upiAmt = paidAmt;
+      }
+    } else {
+      paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
+      if (paymentMethod === 'cash') cashAmt = saleData.netAmount;
+      else if (paymentMethod === 'card') cardAmt = saleData.netAmount;
+      else if (paymentMethod === 'upi') upiAmt = saleData.netAmount;
+    }
+
+    const exchange = getExchangeAmounts(saleData, refundAmt);
+    if (exchange.isExchangeRefund) {
+      paidAmt = Math.max(0, saleData.netAmount || 0);
+      cashAmt = 0;
+      cardAmt = 0;
+      upiAmt = 0;
+      refundAmt = 0;
+    }
+
+    const cashReceived = paidAmt;
+    const legacyStatus =
+      paidAmt >= saleData.netAmount
+        ? 'completed'
+        : paidAmt > 0
+          ? 'partial'
+          : paymentMethod === 'pay_later'
+            ? 'pending'
+            : 'pending';
+
+    const { paidAmount, paymentStatus } = derivePaidAndStatus({
+      netAmount: saleData.netAmount,
+      saleReturnAdjust: saleData.saleReturnAdjust || 0,
+      cashReceived,
+      advanceApplied: saleData.creditApplied || 0,
+      cnApplied: 0,
+      discountGiven: saleData.pointsRedeemedAmount || 0,
+      paymentMethod,
+    });
+
+    warnSettlementPathMismatch(
+      options?.isUpdate ? 'useSaveSale.updateSale' : 'useSaveSale.saveSale',
+      legacyStatus,
+      paymentStatus,
+    );
+
+    return {
+      cashAmt,
+      cardAmt,
+      upiAmt,
+      paidAmt: paidAmount,
+      refundAmt,
+      payStatus: paymentStatus,
+      finalPaymentMethod,
+      isExchangeRefund: exchange.isExchangeRefund,
+      exchange,
+    };
+  };
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
@@ -438,6 +556,27 @@ export const useSaveSale = () => {
       }
     }
 
+    try {
+      preSaveInvariants({
+        netAmount: saleData.netAmount,
+        items: saleData.items,
+        customerId: saleData.customerId,
+        paymentMethod,
+        saleReturnAdjust: saleData.saleReturnAdjust,
+        paidAmount:
+          paymentBreakdown?.totalPaid ??
+          (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),
+      });
+    } catch (invErr) {
+      savingLockRef.current = false;
+      toast({
+        title: 'Cannot save sale',
+        description: invErr instanceof Error ? invErr.message : 'Validation failed',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
     setIsSaving(true);
 
     let insertedSaleIdForRollback: string | null = null;
@@ -476,65 +615,17 @@ export const useSaveSale = () => {
         }
       }
 
-      // Calculate payment status and amounts
-      let cashAmt = 0;
-      let cardAmt = 0;
-      let upiAmt = 0;
-      let paidAmt = 0;
-      let refundAmt = 0;
-      let payStatus = 'completed';
-      let finalPaymentMethod = paymentMethod;
-
-      if (paymentBreakdown) {
-        // Mix payment or refund
-        cashAmt = paymentBreakdown.cashAmount;
-        cardAmt = paymentBreakdown.cardAmount;
-        upiAmt = paymentBreakdown.upiAmount;
-        paidAmt = paymentBreakdown.totalPaid;
-        refundAmt = paymentBreakdown.refundAmount;
-        
-        // Use 'multiple' as payment method for refunds or mixed payments
-        finalPaymentMethod = 'multiple';
-        
-        if (paidAmt >= saleData.netAmount) {
-          payStatus = 'completed';
-        } else if (paidAmt > 0) {
-          payStatus = 'partial';
-        } else {
-          payStatus = 'pending';
-        }
-      } else {
-        // Single payment method
-        paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
-        payStatus = paymentMethod === 'pay_later' ? 'pending' : 'completed';
-        
-        if (paymentMethod === 'cash') {
-          cashAmt = saleData.netAmount;
-        } else if (paymentMethod === 'card') {
-          cardAmt = saleData.netAmount;
-        } else if (paymentMethod === 'upi') {
-          upiAmt = saleData.netAmount;
-        }
-      }
-
-      // Store refund amount from saleData if provided
-      if (saleData.refundAmount) {
-        refundAmt = saleData.refundAmount;
-      }
-
-      const exchange = getExchangeAmounts(saleData, refundAmt);
-      const { isExchangeRefund } = exchange;
-      if (isExchangeRefund) {
-        // Bill fully settled by Sale Return credit (S/R Adjust).
-        // Net amount is the TRUE net (≈0); no actual cash/card/upi was collected.
-        // Paid amount equals net so the bill shows as fully settled, not outstanding.
-        paidAmt = Math.max(0, saleData.netAmount || 0);
-        payStatus = 'completed';
-        cashAmt = 0;
-        cardAmt = 0;
-        upiAmt = 0;
-        refundAmt = 0;
-      }
+      const {
+        cashAmt,
+        cardAmt,
+        upiAmt,
+        paidAmt,
+        refundAmt,
+        payStatus,
+        finalPaymentMethod,
+        isExchangeRefund,
+        exchange,
+      } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
       // Insert sale record
       const { data: sale, error: saleError } = await supabase
@@ -1014,6 +1105,24 @@ export const useSaveSale = () => {
       }
     }
 
+    try {
+      preSaveInvariants({
+        netAmount: saleData.netAmount,
+        items: saleData.items,
+        customerId: saleData.customerId,
+        paymentMethod,
+        saleReturnAdjust: saleData.saleReturnAdjust,
+      });
+    } catch (invErr) {
+      savingLockRef.current = false;
+      toast({
+        title: 'Cannot update sale',
+        description: invErr instanceof Error ? invErr.message : 'Validation failed',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
     setIsSaving(true);
 
     try {
@@ -1098,69 +1207,20 @@ export const useSaveSale = () => {
         }
       }
 
-      // Calculate payment status and amounts
-      let cashAmt = 0;
-      let cardAmt = 0;
-      let upiAmt = 0;
-      let paidAmt = 0;
-      let refundAmt = 0;
-      let payStatus = 'completed';
-      let finalPaymentMethod = paymentMethod;
-
-      if (paymentBreakdown) {
-        cashAmt = paymentBreakdown.cashAmount;
-        cardAmt = paymentBreakdown.cardAmount;
-        upiAmt = paymentBreakdown.upiAmount;
-        paidAmt = paymentBreakdown.totalPaid;
-        refundAmt = paymentBreakdown.refundAmount;
-        finalPaymentMethod = 'multiple';
-        
-        if (paidAmt >= saleData.netAmount) {
-          payStatus = 'completed';
-        } else if (paidAmt > 0) {
-          payStatus = 'partial';
-        } else {
-          payStatus = 'pending';
-        }
-      } else {
-        if (paymentMethod === 'pay_later') {
-          // Pay later: preserve existing paid amount (could be partial payment received later)
-          paidAmt = existingPaidAmount;
-          payStatus = paidAmt >= saleData.netAmount ? 'completed' : paidAmt > 0 ? 'partial' : 'pending';
-        } else {
-          // Full payment method (cash/card/upi): only set to full if it was already completed
-          // or if no prior payment existed
-          if (existingPaidAmount === 0 || existingSale?.payment_status === 'completed') {
-            paidAmt = saleData.netAmount;
-            payStatus = 'completed';
-          } else {
-            // Preserve existing partial payment
-            paidAmt = existingPaidAmount;
-            payStatus = paidAmt >= saleData.netAmount ? 'completed' : 'partial';
-          }
-
-          if (paymentMethod === 'cash') cashAmt = paidAmt;
-          else if (paymentMethod === 'card') cardAmt = paidAmt;
-          else if (paymentMethod === 'upi') upiAmt = paidAmt;
-        }
-      }
-
-      if (saleData.refundAmount) {
-        refundAmt = saleData.refundAmount;
-      }
-
-      const exchange = getExchangeAmounts(saleData, refundAmt);
-      const { isExchangeRefund } = exchange;
-      if (isExchangeRefund) {
-        // Bill fully settled by Sale Return credit (S/R Adjust).
-        // Keep net_amount as the TRUE net; no real cash collected.
-        paidAmt = Math.max(0, saleData.netAmount || 0);
-        payStatus = 'completed';
-        cashAmt = 0;
-        cardAmt = 0;
-        upiAmt = 0;
-        refundAmt = 0;
-      }
+      const {
+        cashAmt,
+        cardAmt,
+        upiAmt,
+        paidAmt,
+        refundAmt,
+        payStatus,
+        finalPaymentMethod,
+        isExchangeRefund,
+      } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown, {
+        existingPaidAmount,
+        existingPaymentStatus: existingSale?.payment_status,
+        isUpdate: true,
+      });
 
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
       const { error: deleteError } = await supabase
@@ -1590,6 +1650,27 @@ export const useSaveSale = () => {
       return null;
     }
 
+    try {
+      preSaveInvariants({
+        netAmount: saleData.netAmount,
+        items: saleData.items,
+        customerId: saleData.customerId,
+        paymentMethod,
+        saleReturnAdjust: saleData.saleReturnAdjust,
+        paidAmount:
+          paymentBreakdown?.totalPaid ??
+          (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),
+      });
+    } catch (invErr) {
+      savingLockRef.current = false;
+      toast({
+        title: 'Cannot complete sale',
+        description: invErr instanceof Error ? invErr.message : 'Validation failed',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
     setIsSaving(true);
 
     try {
@@ -1608,46 +1689,15 @@ export const useSaveSale = () => {
         newSaleNumber = defaultNumber;
       }
 
-      // Calculate payment status and amounts
-      let cashAmt = 0;
-      let cardAmt = 0;
-      let upiAmt = 0;
-      let paidAmt = 0;
-      let refundAmt = 0;
-      let payStatus = 'completed';
-      let finalPaymentMethod = paymentMethod;
-
-      if (paymentBreakdown) {
-        cashAmt = paymentBreakdown.cashAmount;
-        cardAmt = paymentBreakdown.cardAmount;
-        upiAmt = paymentBreakdown.upiAmount;
-        paidAmt = paymentBreakdown.totalPaid;
-        refundAmt = paymentBreakdown.refundAmount;
-        finalPaymentMethod = 'multiple';
-        
-        if (paidAmt >= saleData.netAmount) {
-          payStatus = 'completed';
-        } else if (paidAmt > 0) {
-          payStatus = 'partial';
-        } else {
-          payStatus = 'pending';
-        }
-      } else {
-        paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
-        payStatus = paymentMethod === 'pay_later' ? 'pending' : 'completed';
-        
-        if (paymentMethod === 'cash') {
-          cashAmt = saleData.netAmount;
-        } else if (paymentMethod === 'card') {
-          cardAmt = saleData.netAmount;
-        } else if (paymentMethod === 'upi') {
-          upiAmt = saleData.netAmount;
-        }
-      }
-
-      if (saleData.refundAmount) {
-        refundAmt = saleData.refundAmount;
-      }
+      const {
+        cashAmt,
+        cardAmt,
+        upiAmt,
+        paidAmt,
+        refundAmt,
+        payStatus,
+        finalPaymentMethod,
+      } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
       // Insert sale items with proportional bill discount + round-off distribution (NOW affects stock via triggers)
       const subTotal = saleData.grossAmount;

@@ -34,6 +34,13 @@ import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
+import {
+  consumeAdvanceFIFO,
+  createReceiptVoucher,
+  derivePaidAndStatus,
+  getAvailableCN,
+  warnSettlementPathMismatch,
+} from "@/utils/saleSettlement";
 
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
@@ -232,12 +239,26 @@ export function CustomerPaymentTab({
           const srAdjust = Number(sale.sale_return_adjust || 0);
           const cap = Math.max(0, net - srAdjust);
           const effectivePaid = Math.min(cap, Math.max(Number(sale.paid_amount || 0), Number(voucherPaidBySale.get(sale.id) || 0)));
-          const effectiveStatus =
+          const legacyStatus =
             effectivePaid + srAdjust >= net - SETTLEMENT_TOLERANCE_RUPEE
               ? "completed"
               : effectivePaid > 0 || srAdjust > 0
                 ? "partial"
                 : "pending";
+          const { paymentStatus: effectiveStatus } = derivePaidAndStatus({
+            netAmount: net,
+            saleReturnAdjust: srAdjust,
+            cashReceived: effectivePaid,
+            advanceApplied: 0,
+            cnApplied: 0,
+            discountGiven: 0,
+            paymentMethod: sale.payment_method,
+          });
+          warnSettlementPathMismatch(
+            "CustomerPaymentTab.normalizeSync",
+            legacyStatus,
+            effectiveStatus,
+          );
           return { sale, effectivePaid, effectiveStatus };
         })
         .filter(({ sale, effectivePaid, effectiveStatus }) =>
@@ -269,15 +290,17 @@ export function CustomerPaymentTab({
     queryKey: ["customer-adjusted-outstanding-credit", organizationId, referenceId],
     queryFn: async () => {
       if (!organizationId || !referenceId) return 0;
-      const { data, error } = await supabase
-        .from("sale_returns")
-        .select("net_amount")
-        .eq("organization_id", organizationId)
-        .eq("customer_id", referenceId)
-        .eq("credit_status", "adjusted_outstanding")
-        .is("deleted_at", null);
-      if (error) throw error;
-      return (data || []).reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+      const { total, returns } = await getAvailableCN(supabase, referenceId, organizationId);
+      const legacyOnly = returns
+        .filter((r) => r.credit_status === "adjusted_outstanding")
+        .reduce((sum, r) => sum + r.available, 0);
+      if (Math.abs(total - legacyOnly) > 1) {
+        console.warn(
+          "[SETTLEMENT] CustomerPaymentTab CN pool: legacy adjusted_outstanding-only vs getAvailableCN — using unified pool",
+          { legacyOnly, total },
+        );
+      }
+      return total;
     },
     enabled: !!organizationId && !!referenceId,
   });
@@ -433,22 +456,6 @@ export function CustomerPaymentTab({
         status: String(a.status || "active"),
       }));
 
-      let advRemaining = amountToApply;
-      for (const adv of availableAdvances || []) {
-        if (advRemaining <= 0) break;
-        const available = adv.amount - adv.used_amount;
-        const toUse = Math.min(available, advRemaining);
-        const newUsed = adv.used_amount + toUse;
-        await supabase
-          .from("customer_advances")
-          .update({
-            used_amount: newUsed,
-            status: newUsed >= adv.amount ? "fully_used" : "partially_used",
-          })
-          .eq("id", adv.id);
-        advRemaining -= toUse;
-      }
-
       const { data: acctAdv } = await supabase
         .from("settings")
         .select("accounting_engine_enabled")
@@ -460,17 +467,11 @@ export function CustomerPaymentTab({
 
       const advYmd = format(new Date(), "yyyy-MM-dd");
       let remaining = amountToApply;
-      const { data: voucherNumber, error: advNumErr } = await supabase.rpc("generate_voucher_number", {
-        p_type: "receipt",
-        p_date: advYmd,
-      });
-      if (advNumErr) throw advNumErr;
 
       const saleRevertAdv: Array<{ id: string; prevPaid: number; prevStatus: string }> = [];
       const createdAdvanceVoucherIds: string[] = [];
 
       try {
-        let idx = 0;
         for (const invoice of invoicesToProcess) {
           if (remaining <= 0) break;
           const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherPayments.get(invoice.id) || 0);
@@ -481,56 +482,61 @@ export function CustomerPaymentTab({
             prevPaid: Number(invoice.paid_amount || 0),
             prevStatus: String(invoice.payment_status || "pending"),
           });
-          const newPaid = (invoice.paid_amount || 0) + applyAmt;
-          const newStatus =
+          const prevPaid = Number(invoice.paid_amount || 0);
+          const newPaid = prevPaid + applyAmt;
+          const legacyStatus =
             newPaid >= invoice.net_amount ? "completed" : newPaid > 0 ? "partial" : "pending";
+          const { paymentStatus: newStatus } = derivePaidAndStatus({
+            netAmount: Number(invoice.net_amount || 0),
+            saleReturnAdjust: Number(invoice.sale_return_adjust || 0),
+            cashReceived: prevPaid,
+            advanceApplied: applyAmt,
+            cnApplied: 0,
+            discountGiven: 0,
+            paymentMethod: invoice.payment_method,
+          });
+          warnSettlementPathMismatch(
+            "CustomerPaymentTab.applyAdvance",
+            legacyStatus,
+            newStatus,
+          );
           await supabase
             .from("sales")
             .update({ paid_amount: newPaid, payment_status: newStatus })
             .eq("id", invoice.id);
-          const vNum = invoicesToProcess.length > 1 ? `${voucherNumber}-${idx + 1}` : voucherNumber;
+
           const advDesc = `Adjusted from advance balance for ${invoice.sale_number}`;
-          const { data: vrow, error: vInsErr } = await supabase
-            .from("voucher_entries")
-            .insert({
-              organization_id: organizationId,
-              voucher_number: vNum,
-              voucher_type: "receipt",
-              voucher_date: advYmd,
-              reference_type: "sale",
-              reference_id: invoice.id,
-              description: advDesc,
-              total_amount: applyAmt,
-              payment_method: "advance_adjustment",
-            })
-            .select("id")
-            .single();
-          if (vInsErr) throw vInsErr;
-          if (!vrow?.id) throw new Error("Advance voucher insert failed");
-          createdAdvanceVoucherIds.push(vrow.id as string);
-          if (postLedgerAdv) {
+          const { vouchers } = await consumeAdvanceFIFO(supabase, {
+            customerId: referenceId,
+            organizationId,
+            saleId: invoice.id,
+            requestedAmount: applyAmt,
+            voucherDate: advYmd,
+          });
+          createdAdvanceVoucherIds.push(...vouchers);
+          const lastVoucherId = vouchers.length ? vouchers[vouchers.length - 1] : null;
+          if (postLedgerAdv && lastVoucherId) {
             await recordCustomerAdvanceApplicationJournalEntry(
-              vrow.id,
+              lastVoucherId,
               organizationId,
               applyAmt,
               advYmd,
               advDesc,
-              supabase
+              supabase,
             );
           }
-          if (referenceId) {
+          if (referenceId && lastVoucherId) {
             insertLedgerCredit({
               organizationId,
               customerId: referenceId,
               voucherType: "RECEIPT",
-              voucherNo: vNum,
+              voucherNo: lastVoucherId,
               particulars: `Advance adjusted for ${invoice.sale_number}`,
               transactionDate: advYmd,
               amount: applyAmt,
             });
           }
           remaining -= applyAmt;
-          idx++;
         }
       } catch (advErr) {
         for (const vid of [...createdAdvanceVoucherIds].reverse()) {
@@ -687,20 +693,26 @@ export function CustomerPaymentTab({
             openingBalanceDiscount > 0
               ? ` | Discount: ₹${openingBalanceDiscount.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
               : "";
-          const { data: obVoucher, error: obErr } = await supabase.from("voucher_entries").insert({
-            organization_id: organizationId,
-            voucher_number: obVoucherNumber,
-            voucher_type: "receipt",
-            voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            reference_type: 'customer',
-            reference_id: referenceId,
+          const obCreated = await createReceiptVoucher(supabase, {
+            organizationId,
+            referenceId: referenceId!,
+            referenceType: "customer",
+            voucherNumber: obVoucherNumber,
+            voucherDate: format(voucherDate, "yyyy-MM-dd"),
+            amount: openingBalanceCash,
+            discountAmount: openingBalanceDiscount,
+            discountReason: openingBalanceDiscount > 0 ? discountReason || null : null,
+            paymentMethod,
             description: `Opening Balance Payment${paymentDetails}${obDiscSuffix}`,
+          });
+          const obVoucher = {
+            id: obCreated.id,
+            voucher_number: obCreated.voucher_number,
             total_amount: openingBalanceCash,
             discount_amount: openingBalanceDiscount,
-            discount_reason: openingBalanceDiscount > 0 ? discountReason || null : null,
-            payment_method: paymentMethod,
-          }).select().single();
-          if (obErr) throw obErr;
+            voucher_date: format(voucherDate, "yyyy-MM-dd"),
+            description: `Opening Balance Payment${paymentDetails}${obDiscSuffix}`,
+          };
           createdVouchers.push(obVoucher);
           if (
             postLedger &&
@@ -756,20 +768,25 @@ export function CustomerPaymentTab({
             processed.discountApplied > 0
               ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
               : "";
-          const { data: voucher, error: voucherError } = await supabase.from("voucher_entries").insert({
-            organization_id: organizationId,
-            voucher_number: invoiceVoucherNumber,
-            voucher_type: "receipt",
-            voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            reference_type: 'sale',
-            reference_id: processed.invoice.id,
+          const created = await createReceiptVoucher(supabase, {
+            organizationId,
+            referenceId: processed.invoice.id,
+            voucherNumber: invoiceVoucherNumber,
+            voucherDate: format(voucherDate, "yyyy-MM-dd"),
+            amount: processed.cashApplied,
+            discountAmount: processed.discountApplied,
+            discountReason: processed.discountApplied > 0 ? discountReason || null : null,
+            paymentMethod,
             description: invoiceDescription + invoiceDiscountSuffix,
+          });
+          const voucher = {
+            id: created.id,
+            voucher_number: created.voucher_number,
             total_amount: processed.cashApplied,
             discount_amount: processed.discountApplied,
-            discount_reason: processed.discountApplied > 0 ? discountReason || null : null,
-            payment_method: paymentMethod,
-          }).select().single();
-          if (voucherError) throw voucherError;
+            voucher_date: format(voucherDate, "yyyy-MM-dd"),
+            description: invoiceDescription + invoiceDiscountSuffix,
+          };
           createdVouchers.push(voucher);
           if (
             postLedger &&
@@ -819,20 +836,28 @@ export function CustomerPaymentTab({
         }
       } else {
         // total_amount = cash/collected only; discount_amount = CD/waiver. Settlement = sum (matches multi-invoice rows).
-        const { data: voucher, error: voucherError } = await supabase.from("voucher_entries").insert({
-          organization_id: organizationId,
-          voucher_number: voucherNumber,
-          voucher_type: "receipt",
-          voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: isOpeningBalancePayment ? 'customer' : 'sale',
-          reference_id: isOpeningBalancePayment ? referenceId : processedInvoices[0]?.invoice.id || referenceId,
+        const created = await createReceiptVoucher(supabase, {
+          organizationId,
+          referenceId: isOpeningBalancePayment
+            ? referenceId!
+            : processedInvoices[0]?.invoice.id || referenceId!,
+          referenceType: isOpeningBalancePayment ? "customer" : "sale",
+          voucherNumber: voucherNumber as string,
+          voucherDate: format(voucherDate, "yyyy-MM-dd"),
+          amount: paymentAmount,
+          discountAmount: discountValue,
+          discountReason: discountReason || null,
+          paymentMethod,
           description: finalDescription + discountSuffix,
+        });
+        const voucher = {
+          id: created.id,
+          voucher_number: created.voucher_number,
           total_amount: paymentAmount,
           discount_amount: discountValue,
-          discount_reason: discountReason || null,
-          payment_method: paymentMethod,
-        }).select().single();
-        if (voucherError) throw voucherError;
+          voucher_date: format(voucherDate, "yyyy-MM-dd"),
+          description: finalDescription + discountSuffix,
+        };
         createdVouchers.push(voucher);
         if (
           postLedger &&
@@ -926,7 +951,24 @@ export function CustomerPaymentTab({
             const saleReturnAdjust = Number((sale as any)?.sale_return_adjust || 0);
             const payableCap = Math.max(0, netAmount - saleReturnAdjust);
             const newPaidAmount = Math.min(payableCap, Number(sale?.paid_amount || 0) + allocatedAmount);
-            const newStatus = (newPaidAmount + saleReturnAdjust) >= (netAmount - SETTLEMENT_TOLERANCE_RUPEE) ? "completed" : "partial";
+            const legacyStatus =
+              newPaidAmount + saleReturnAdjust >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
+                ? "completed"
+                : "partial";
+            const { paymentStatus: newStatus } = derivePaidAndStatus({
+              netAmount,
+              saleReturnAdjust,
+              cashReceived: newPaidAmount,
+              advanceApplied: 0,
+              cnApplied: 0,
+              discountGiven: processed.discountApplied || 0,
+              paymentMethod,
+            });
+            warnSettlementPathMismatch(
+              "CustomerPaymentTab.recordPayment",
+              legacyStatus,
+              newStatus,
+            );
 
             const { error: updateError } = await supabase
               .from("sales")
@@ -1036,12 +1078,25 @@ export function CustomerPaymentTab({
             const newSr = Math.max(0, srAdjust - paymentAmount);
             let newPaid = Number(invoice.paid_amount || 0);
             if (dualPaidAndSr) newPaid = Math.max(0, newPaid - paymentAmount);
-            const newStatus =
+            const legacyCnStatus =
               newPaid + newSr >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
                 ? "completed"
                 : newPaid > 0 || newSr > 0
                   ? "partial"
                   : "pending";
+            const { paymentStatus: newStatus } = derivePaidAndStatus({
+              netAmount,
+              saleReturnAdjust: newSr,
+              cashReceived: newPaid,
+              advanceApplied: 0,
+              cnApplied: newSr,
+              discountGiven: 0,
+            });
+            warnSettlementPathMismatch(
+              "CustomerPaymentTab.deleteReceipt.cn",
+              legacyCnStatus,
+              newStatus,
+            );
             await supabase
               .from("sales")
               .update({
@@ -1052,12 +1107,25 @@ export function CustomerPaymentTab({
               .eq("id", saleId);
           } else {
             const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) - paymentAmount);
-            const newStatus =
+            const legacyDelStatus =
               newPaidAmount + srAdjust >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
                 ? "completed"
                 : newPaidAmount > 0 || srAdjust > 0
                   ? "partial"
                   : "pending";
+            const { paymentStatus: newStatus } = derivePaidAndStatus({
+              netAmount,
+              saleReturnAdjust: srAdjust,
+              cashReceived: newPaidAmount,
+              advanceApplied: 0,
+              cnApplied: 0,
+              discountGiven: 0,
+            });
+            warnSettlementPathMismatch(
+              "CustomerPaymentTab.deleteReceipt",
+              legacyDelStatus,
+              newStatus,
+            );
             await supabase
               .from("sales")
               .update({ paid_amount: newPaidAmount, payment_status: newStatus })

@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Loader2, IndianRupee, CheckCircle2 } from "lucide-react";
+import { consumeAdvanceFIFO, derivePaidAndStatus, warnSettlementPathMismatch } from "@/utils/saleSettlement";
 
 interface BulkAdvanceAdjustDialogProps {
   open: boolean;
@@ -43,7 +44,7 @@ export function BulkAdvanceAdjustDialog({
   const [advanceBalance, setAdvanceBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { getAvailableAdvanceBalance, applyAdvance } = useCustomerAdvances(organizationId);
+  const { getAvailableAdvanceBalance } = useCustomerAdvances(organizationId);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -106,13 +107,38 @@ export function BulkAdvanceAdjustDialog({
         return;
       }
 
-      // Update each invoice
+      const advYmd = format(new Date(), "yyyy-MM-dd");
+
       for (const inv of invoices) {
         if (inv.allocate <= 0) continue;
 
-        const newPaid = Math.round((inv.paid_amount + inv.allocate) * 100) / 100;
-        const totalSettled = newPaid + inv.sale_return_adjust;
-        const newStatus = totalSettled >= inv.net_amount - 1 ? "completed" : totalSettled > 0 ? "partial" : "pending";
+        const prevPaid = inv.paid_amount;
+        const newPaid = Math.round((prevPaid + inv.allocate) * 100) / 100;
+        const legacyStatus =
+          newPaid + inv.sale_return_adjust >= inv.net_amount - 1
+            ? "completed"
+            : newPaid > 0
+              ? "partial"
+              : "pending";
+        const { paymentStatus: newStatus } = derivePaidAndStatus({
+          netAmount: inv.net_amount,
+          saleReturnAdjust: inv.sale_return_adjust,
+          cashReceived: prevPaid,
+          advanceApplied: inv.allocate,
+          cnApplied: 0,
+          discountGiven: 0,
+          paymentMethod: "advance",
+        });
+        warnSettlementPathMismatch("BulkAdvanceAdjustDialog", legacyStatus, newStatus);
+
+        await consumeAdvanceFIFO(supabase, {
+          customerId,
+          organizationId,
+          saleId: inv.id,
+          requestedAmount: inv.allocate,
+          voucherDate: advYmd,
+          createdBy: userId ?? null,
+        });
 
         const { error: updateErr } = await supabase
           .from("sales")
@@ -120,40 +146,11 @@ export function BulkAdvanceAdjustDialog({
             paid_amount: newPaid,
             payment_status: newStatus,
             payment_method: "advance",
-            payment_date: format(new Date(), "yyyy-MM-dd"),
+            payment_date: advYmd,
           })
           .eq("id", inv.id);
 
         if (updateErr) throw updateErr;
-
-        // Create voucher entry
-        const { data: voucherNum, error: vNumErr } = await supabase.rpc("generate_voucher_number", {
-          p_type: "receipt",
-          p_date: format(new Date(), "yyyy-MM-dd"),
-        });
-        if (vNumErr) throw vNumErr;
-
-        const { error: vErr } = await supabase.from("voucher_entries").insert({
-          organization_id: organizationId,
-          voucher_number: voucherNum,
-          voucher_type: "receipt",
-          voucher_date: format(new Date(), "yyyy-MM-dd"),
-          reference_type: "sale",
-          reference_id: inv.id,
-          total_amount: inv.allocate,
-          payment_method: "advance_adjustment",
-          description: `Adjusted from advance balance for invoice ${inv.sale_number}`,
-          created_by: userId,
-        });
-        if (vErr) throw vErr;
-      }
-
-      // Apply advance deduction (FIFO) for the FULL allocated amount (the guard above ensures it fits).
-      if (totalAllocated > 0) {
-        await applyAdvance.mutateAsync({
-          customerId,
-          amountToApply: totalAllocated,
-        });
       }
 
       queryClient.invalidateQueries({ queryKey: ["invoices"] });

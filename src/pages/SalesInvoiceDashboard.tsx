@@ -76,6 +76,13 @@ import { cn } from "@/lib/utils";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
+  createReceiptVoucher,
+  consumeAdvanceFIFO,
+  derivePaidAndStatus,
+  getAvailableCN,
+  warnSettlementPathMismatch,
+} from "@/utils/saleSettlement";
+import {
   fetchCustomerBalanceSnapshot,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
@@ -642,13 +649,28 @@ export default function SalesInvoiceDashboard() {
       const staleUpdates = invoices
         .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
         .map((inv: any) => {
+          const split = splitBySale.get(inv.id) ?? { cash: 0, cn: 0, adv: 0 };
           const rec = reconcileSaleInvoiceDisplay({
             net_amount: inv.net_amount,
             sale_return_adjust: inv.sale_return_adjust,
             paid_amount: inv.paid_amount,
-            split: splitBySale.get(inv.id) ?? null,
+            split,
           });
-          return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
+          const { paymentStatus: derivedStatus } = derivePaidAndStatus({
+            netAmount: Number(inv.net_amount || 0),
+            saleReturnAdjust: Number(inv.sale_return_adjust || 0),
+            cashReceived: split.cash,
+            advanceApplied: split.adv,
+            cnApplied: split.cn,
+            discountGiven: 0,
+            paymentMethod: inv.payment_method,
+          });
+          warnSettlementPathMismatch(
+            "SalesInvoiceDashboard.staleNormalize",
+            rec.payment_status,
+            derivedStatus,
+          );
+          return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: derivedStatus };
         })
         .filter(({ inv, normalizedPaid, normalizedStatus }) =>
           Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
@@ -1831,22 +1853,19 @@ export default function SalesInvoiceDashboard() {
     if (mode === "credit_note" && selectedInvoiceForPayment?.customer_id) {
       setIsFetchingCN(true);
       try {
-        const { data: returns } = await supabase
-          .from("sale_returns")
-          .select(
-            "id, return_number, net_amount, credit_status, linked_sale_id, return_date, credit_available_balance, refund_type",
-          )
-          .eq("organization_id", currentOrganization?.id)
-          .eq("customer_id", selectedInvoiceForPayment.customer_id)
-          .is("deleted_at", null)
-          .in("credit_status", ["pending", "partially_adjusted", "adjusted"])
-          .order("return_date", { ascending: true });
+        const { returns: cnReturns } = await getAvailableCN(
+          supabase,
+          selectedInvoiceForPayment.customer_id,
+          currentOrganization!.id,
+          { includeUnlinkedAdjusted: true },
+        );
 
-        const eligible = (returns || []).filter((r: any) => {
+        const eligible = cnReturns.filter((r) => {
           const st = String(r.credit_status || "").toLowerCase();
-          if (st === "refunded" || st === "adjusted_outstanding") return false;
+          if (st === "refunded") return false;
           const rtRaw = r.refund_type;
-          const isCnRefund = rtRaw == null || String(rtRaw).trim() === "" || String(rtRaw).toLowerCase() === "credit_note";
+          const isCnRefund =
+            rtRaw == null || String(rtRaw).trim() === "" || String(rtRaw).toLowerCase() === "credit_note";
           if (!isCnRefund) return false;
           return saleReturnCnPoolRow(r) > 0.005;
         });
@@ -2006,9 +2025,23 @@ export default function SalesInvoiceDashboard() {
       const newCNAdjust = isCreditNoteMode
         ? currentCNAdjust + amount
         : currentCNAdjust;
-      const newStatus = (newPaidAmount + newCNAdjust) >= selectedInvoiceForPayment.net_amount - 1
-        ? 'completed'
-        : newPaidAmount > 0 || newCNAdjust > 0 ? 'partial' : 'pending';
+      const legacyStatus =
+        newPaidAmount + newCNAdjust >= selectedInvoiceForPayment.net_amount - 1
+          ? "completed"
+          : newPaidAmount > 0 || newCNAdjust > 0
+            ? "partial"
+            : "pending";
+      const { paymentStatus: newStatus } = derivePaidAndStatus({
+        netAmount: Number(selectedInvoiceForPayment.net_amount || 0),
+        saleReturnAdjust: newCNAdjust,
+        cashReceived:
+          paymentMode === "advance" || isCreditNoteMode ? currentPaid : newPaidAmount,
+        advanceApplied: paymentMode === "advance" ? amount : 0,
+        cnApplied: isCreditNoteMode ? amount : 0,
+        discountGiven: 0,
+        paymentMethod: paymentMode,
+      });
+      warnSettlementPathMismatch("SalesInvoiceDashboard.recordPayment", legacyStatus, newStatus);
 
       if (isCreditNoteMode) {
         if (selectedCNReturnId) {
@@ -2086,26 +2119,9 @@ export default function SalesInvoiceDashboard() {
         if (updateError) throw updateError;
         effectivePaidAmount = newPaidAmount;
 
-        // If payment mode is advance, apply advance deduction using FIFO (only for booking-based advances)
-        if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
-          const bookingDeduction = amount;
-          if (bookingDeduction > 0) {
-            await applyAdvance.mutateAsync({
-              customerId: selectedInvoiceForPayment.customer_id,
-              amountToApply: bookingDeduction,
-            });
-          }
-        }
       }
 
-      // Generate voucher number
-      const { data: voucherData, error: voucherError } = await supabase.rpc(
-        'generate_voucher_number',
-        { p_type: 'receipt', p_date: format(paymentDate, 'yyyy-MM-dd') }
-      );
-
-      if (voucherError) throw voucherError;
-
+      const payYmd = format(paymentDate, "yyyy-MM-dd");
       const voucherDescription =
         paymentMode === "advance"
           ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`
@@ -2113,30 +2129,40 @@ export default function SalesInvoiceDashboard() {
             ? `Credit note adjusted against invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`
             : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`;
 
-      // Create voucher entry
-      const { data: voucherEntry, error: voucherEntryError } = await supabase
-        .from('voucher_entries')
-        .insert({
-          organization_id: currentOrganization?.id,
-          voucher_number: voucherData,
-          voucher_type: 'receipt',
-          voucher_date: format(paymentDate, 'yyyy-MM-dd'),
-          reference_type: 'sale',
-          reference_id: selectedInvoiceForPayment.id,
-          total_amount: amount,
-          payment_method: paymentMode === "advance" ? "advance_adjustment"
-            : paymentMode === "credit_note" ? "credit_note_adjustment"
-            : paymentMode,
+      let voucherRowId: string | undefined;
+      let receiptVoucherNumber = "";
+      if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
+        const { vouchers } = await consumeAdvanceFIFO(supabase, {
+          customerId: selectedInvoiceForPayment.customer_id,
+          organizationId: currentOrganization!.id,
+          saleId: selectedInvoiceForPayment.id,
+          requestedAmount: amount,
+          voucherDate: payYmd,
+          createdBy: user?.id ?? null,
+        });
+        voucherRowId = vouchers[vouchers.length - 1];
+        if (voucherRowId) {
+          const { data: vrow } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("id", voucherRowId)
+            .maybeSingle();
+          receiptVoucherNumber = String(vrow?.voucher_number || "");
+        }
+      } else {
+        const created = await createReceiptVoucher(supabase, {
+          organizationId: currentOrganization!.id,
+          referenceId: selectedInvoiceForPayment.id,
+          amount,
+          paymentMethod:
+            paymentMode === "credit_note" ? "credit_note_adjustment" : paymentMode,
           description: voucherDescription,
-          created_by: user?.id,
-        })
-        .select()
-        .single();
-
-      if (voucherEntryError) throw voucherEntryError;
-
-      const voucherRowId = voucherEntry?.id as string | undefined;
-      const payYmd = format(paymentDate, "yyyy-MM-dd");
+          voucherDate: payYmd,
+          createdBy: user?.id ?? null,
+        });
+        voucherRowId = created.id;
+        receiptVoucherNumber = created.voucher_number;
+      }
 
       if (postLedgerSi && voucherRowId) {
         try {
@@ -2290,7 +2316,7 @@ export default function SalesInvoiceDashboard() {
 
       // Prepare receipt data
       const newReceiptData = {
-        voucherNumber: voucherData,
+        voucherNumber: receiptVoucherNumber,
         voucherDate: format(paymentDate, 'yyyy-MM-dd'),
         customerName: selectedInvoiceForPayment.customer_name,
         customerPhone: selectedInvoiceForPayment.customer_phone || '',
