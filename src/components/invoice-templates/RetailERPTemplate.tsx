@@ -275,11 +275,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Build column config — GST column removed for clean retail look
   const cols: { key: string; label: string; width: string; align: "center" | "left" | "right" }[] = [
     { key: "sr", label: "SN", width: "5%", align: "center" },
-    { key: "description", label: "DESCRIPTION", width: showHSNCol ? "28%" : "34%", align: "left" },
-    { key: "size", label: "SIZE", width: "7%", align: "center" },
-    { key: "barcode", label: "BARCODE", width: "10%", align: "center" },
+    { key: "description", label: "DESCRIPTION", width: showHSNCol ? "24%" : "30%", align: "left" },
+    { key: "size", label: "SIZE", width: "6%", align: "center" },
+    { key: "barcode", label: "BARCODE", width: "14%", align: "center" },
   ];
-  if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "8%", align: "center" });
+  if (showHSNCol) cols.push({ key: "hsn", label: "HSN", width: "7%", align: "center" });
   cols.push({ key: "qty", label: "QTY", width: "6%", align: "center" });
   cols.push({ key: "rate", label: "RATE", width: "12%", align: "right" });
   cols.push({ key: "amount", label: "AMOUNT", width: "14%", align: "right" });
@@ -480,7 +480,21 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 );
                                 break;
                               case "size": content = item.size || ""; break;
-                              case "barcode": content = item.barcode || ""; break;
+                              case "barcode":
+                                content = (
+                                  <span
+                                    style={{
+                                      display: "block",
+                                      fontFamily: "Consolas, Monaco, monospace",
+                                      fontSize: isA4 ? "12px" : "10px",
+                                      whiteSpace: "nowrap",
+                                      letterSpacing: "0.03em",
+                                    }}
+                                  >
+                                    {item.barcode || ""}
+                                  </span>
+                                );
+                                break;
                               case "hsn": content = item.hsn || ""; break;
                               case "qty": content = item.qty; break;
                               case "rate":
@@ -533,10 +547,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               {isLastPage && (
               <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
 
-                  {/* Simplified Totals — No GST Breakup */}
-                  <div style={{ display: "grid", gridTemplateColumns: "40% 60%", borderBottom: B }}>
-                    {/* Left — Totals */}
-                    <div style={{ fontSize: fsTotals, color: "#111", borderRight: B }}>
+                  {/* Simplified Totals — right-aligned under Rate/Amount columns */}
+                  <div style={{ display: "grid", gridTemplateColumns: "52% 48%", borderBottom: B }}>
+                    {/* Left — Notes / spare */}
+                    <div style={{ padding: isA4 ? "4px 8px" : "3px 6px", borderRight: B }}>
+                      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
+                        <div style={{ fontSize: isA4 ? "10px" : "8px" }}>
+                          <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Right — Totals */}
+                    <div style={{ fontSize: fsTotals, color: "#111" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                         <span>Sub Total</span><span>₹{fmt(displaySubTotal)}</span>
                       </div>
@@ -558,14 +580,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <div style={{ display: "flex", justifyContent: "space-between", padding: isA4 ? "5px 8px" : "4px 6px", fontWeight: "900", fontSize: isA4 ? "20px" : "17px", backgroundColor: "#d1d5db", color: "#000", borderTop: "2px solid #000" }}>
                         <span>Bill Total</span><span>₹{fmt(grandTotal)}</span>
                       </div>
-                    </div>
-                    {/* Right — Notes / empty */}
-                    <div style={{ padding: isA4 ? "4px 8px" : "3px 6px" }}>
-                      {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
-                        <div style={{ fontSize: isA4 ? "10px" : "8px" }}>
-                          <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
 
