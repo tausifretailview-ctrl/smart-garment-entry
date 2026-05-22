@@ -1034,6 +1034,8 @@ const PurchaseReturnEntry = () => {
           const { is_dc: _ignore, ...rest } = updatePayload;
           return rest;
         })();
+        updatePayload.discount_amount = discountAmount;
+        updatePayload.discount_percent = discountPercent;
         const itemsPayload = lineItems.map((item) => buildPurchaseReturnItemPayload(item, isDC));
 
         // Run the two independent operations in parallel for faster save.
@@ -1154,6 +1156,8 @@ const PurchaseReturnEntry = () => {
           return_number: freshReturnNumber,
           credit_status: "pending",
           payment_method: paymentMethodForReturnRow,
+          discount_amount: discountAmount,
+          discount_percent: discountPercent,
         };
 
         let returnRecord: any = null;
