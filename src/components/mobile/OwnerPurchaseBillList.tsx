@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { formatPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, FileText, Filter } from "lucide-react";
@@ -52,7 +53,7 @@ export const OwnerPurchaseBillList = ({ period, customRange, onBack, onViewBill 
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("purchase_bills")
-        .select("id, software_bill_no, supplier_invoice_no, supplier_name, net_amount, bill_date, created_at")
+        .select("id, software_bill_no, supplier_invoice_no, supplier_name, net_amount, bill_date, bill_entry_at, created_at")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("bill_date", start)
@@ -174,7 +175,10 @@ export const OwnerPurchaseBillList = ({ period, customRange, onBack, onViewBill 
                   </div>
                   <div className="text-right shrink-0 ml-3">
                     <p className="text-[10px] text-muted-foreground">
-                      {bill.bill_date ? format(new Date(bill.bill_date), "dd MMM yyyy") : ""}
+                      Inv. {bill.bill_date ? format(new Date(bill.bill_date), "dd MMM yyyy") : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/80 tabular-nums">
+                      Entry {formatPurchaseBillEntryAt(bill, "dd MMM, hh:mm a")}
                     </p>
                     <p className="text-sm font-bold text-warning tabular-nums mt-0.5">
                       {fmt(bill.net_amount || 0)}

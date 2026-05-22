@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
+import { formatPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { ColumnDef } from "@tanstack/react-table";
 import * as XLSX from "xlsx";
 
@@ -101,6 +102,7 @@ interface PurchaseBill {
   supplier_invoice_no: string;
   software_bill_no: string;
   bill_date: string;
+  bill_entry_at?: string | null;
   gross_amount: number;
   discount_amount: number;
   gst_amount: number;
@@ -381,7 +383,7 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -1381,12 +1383,17 @@ const PurchaseBillDashboard = () => {
     },
     {
       accessorKey: "bill_date",
-      header: "Date",
+      header: "Dates",
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground whitespace-nowrap tabular-nums">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</span>
+        <div className="text-xs whitespace-nowrap tabular-nums leading-snug">
+          <div className="text-foreground">{format(new Date(row.original.bill_date), "dd MMM yyyy")}</div>
+          <div className="text-muted-foreground" title="Bill saved in EzzyERP">
+            {formatPurchaseBillEntryAt(row.original, "dd MMM yyyy, hh:mm a")}
+          </div>
+        </div>
       ),
-      size: 100,
-      minSize: 90,
+      size: 130,
+      minSize: 110,
     },
     {
       accessorKey: "supplier_invoice_no",
@@ -1669,7 +1676,7 @@ const PurchaseBillDashboard = () => {
       // Fetch ALL filtered bills (no pagination) for export
       let query = supabase
         .from("purchase_bills")
-        .select("supplier_name, supplier_invoice_no, software_bill_no, bill_date, gross_amount, discount_amount, gst_amount, net_amount, payment_status, paid_amount, total_qty, is_dc_purchase")
+        .select("supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, created_at, gross_amount, discount_amount, gst_amount, net_amount, payment_status, paid_amount, total_qty, is_dc_purchase")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -1699,7 +1706,8 @@ const PurchaseBillDashboard = () => {
       const rows = allBills.map((b, i) => ({
         "Sr No": i + 1,
         "Bill No": b.software_bill_no || "",
-        "Date": b.bill_date ? format(new Date(b.bill_date), "dd-MM-yyyy") : "",
+        "Supplier Bill Date": b.bill_date ? format(new Date(b.bill_date), "dd-MM-yyyy") : "",
+        "Entry Date & Time": formatPurchaseBillEntryAt(b, "dd-MM-yyyy HH:mm"),
         "Supplier Inv No": b.supplier_invoice_no || "",
         "Supplier": b.supplier_name || "",
         "Gross Amount": Math.round(b.gross_amount || 0),
@@ -1800,9 +1808,12 @@ const PurchaseBillDashboard = () => {
                     </div>
                     <p className="text-sm font-medium text-foreground mt-1 truncate">{bill.supplier_name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(bill.bill_date), "d MMM yyyy")}
+                      Inv. {format(new Date(bill.bill_date), "d MMM yyyy")}
                       {bill.supplier_invoice_no ? ` · ${bill.supplier_invoice_no}` : ""}
                       {` · ${bill.total_qty || 0} pcs`}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/80 tabular-nums">
+                      Entry {formatPurchaseBillEntryAt(bill, "d MMM yyyy, hh:mm a")}
                     </p>
                   </div>
                   <div className="text-right shrink-0 ml-3">
@@ -2492,8 +2503,12 @@ const PurchaseBillDashboard = () => {
                   <p className="font-medium">{selectedBillForPayment.supplier_name}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Bill Date:</span>
+                  <span className="text-muted-foreground">Supplier bill date:</span>
                   <p className="font-medium">{format(new Date(selectedBillForPayment.bill_date), "dd MMM yyyy")}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Entry date &amp; time:</span>
+                  <p className="font-medium tabular-nums">{formatPurchaseBillEntryAt(selectedBillForPayment)}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Bill Amount:</span>

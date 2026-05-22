@@ -3572,6 +3572,7 @@ export type Database = {
       purchase_bills: {
         Row: {
           bill_date: string
+          bill_entry_at: string | null
           bill_image_url: string | null
           cancelled_at: string | null
           cancelled_by: string | null
@@ -3604,6 +3605,7 @@ export type Database = {
         }
         Insert: {
           bill_date?: string
+          bill_entry_at?: string | null
           bill_image_url?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -3636,6 +3638,7 @@ export type Database = {
         }
         Update: {
           bill_date?: string
+          bill_entry_at?: string | null
           bill_image_url?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null

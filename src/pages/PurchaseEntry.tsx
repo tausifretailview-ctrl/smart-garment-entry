@@ -39,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
+import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
@@ -216,6 +217,8 @@ const PurchaseEntry = () => {
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [billDate, setBillDate] = useState<Date>(new Date());
   const [billDateOpen, setBillDateOpen] = useState(false);
+  /** When this bill was first saved in EzzyERP (read-only after save). */
+  const [billEntryAt, setBillEntryAt] = useState<string | null>(null);
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
@@ -771,6 +774,7 @@ const PurchaseEntry = () => {
       });
       setSoftwareBillNo(existingBill.software_bill_no || '');
       setBillDate(new Date(existingBill.bill_date));
+      setBillEntryAt(getPurchaseBillEntryAt(existingBill as { bill_entry_at?: string | null; created_at?: string }));
       setRoundOff(Number(existingBill.round_off) || 0);
       setOtherCharges(Number(existingBill.other_charges) || 0);
       setDiscountAmount(Number(existingBill.discount_amount) || 0);
@@ -941,6 +945,7 @@ const PurchaseEntry = () => {
           });
           setSoftwareBillNo(existingBill.software_bill_no || "");
           setBillDate(new Date(existingBill.bill_date));
+          setBillEntryAt(getPurchaseBillEntryAt(existingBill as { bill_entry_at?: string | null; created_at?: string }));
           setRoundOff(Number(existingBill.round_off) || 0);
           setOtherCharges(Number(existingBill.other_charges) || 0);
           setDiscountAmount(Number(existingBill.discount_amount) || 0);
@@ -3103,6 +3108,7 @@ const PurchaseEntry = () => {
           supplier_invoice_no: "",
         });
         setBillDate(new Date());
+        setBillEntryAt(null);
         setLineItems([]);
         setOtherCharges(0);
         setDiscountAmount(0);
@@ -3156,6 +3162,7 @@ const PurchaseEntry = () => {
               supplier_name: billData.supplier_name,
               supplier_invoice_no: billData.supplier_invoice_no,
               bill_date: format(billDate, "yyyy-MM-dd"),
+              bill_entry_at: new Date().toISOString(),
               gross_amount: calculatedGrossBeforeDiscount,
               discount_amount: calculatedTotalDiscount,
               gst_amount: isDcPurchase ? 0 : calculatedGst,
@@ -3170,6 +3177,10 @@ const PurchaseEntry = () => {
           .single();
 
         if (billError) throw billError;
+
+        setBillEntryAt(
+          getPurchaseBillEntryAt(billDataResult as { bill_entry_at?: string | null; created_at?: string }),
+        );
 
         // Insert purchase items with sku_id for stock tracking
         const itemsToInsert = lineItems.map((item) => ({
@@ -3315,6 +3326,7 @@ const PurchaseEntry = () => {
           supplier_invoice_no: "",
         });
         setBillDate(new Date());
+        setBillEntryAt(null);
         setLineItems([]);
         setOtherCharges(0);
         setDiscountAmount(0);
@@ -4057,6 +4069,7 @@ const PurchaseEntry = () => {
               setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
               setSoftwareBillNo("");
               setBillDate(new Date());
+              setBillEntryAt(null);
               setOtherCharges(0);
               setRoundOff(0);
               setEditingBillId(null);
@@ -4174,7 +4187,7 @@ const PurchaseEntry = () => {
               </div>
 
               <div className="space-y-2 flex-1 min-w-[160px]">
-                <Label htmlFor="bill_date">Bill Date</Label>
+                <Label htmlFor="bill_date">Supplier bill date</Label>
                 <Popover open={billDateOpen} onOpenChange={setBillDateOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -4198,6 +4211,22 @@ const PurchaseEntry = () => {
                     />
                   </PopoverContent>
                 </Popover>
+              </div>
+
+              <div className="space-y-2 flex-1 min-w-[200px]">
+                <Label>Bill entry date &amp; time</Label>
+                <div
+                  className="h-10 px-3 flex items-center rounded-md border border-input bg-muted/40 text-sm tabular-nums"
+                  title="When this purchase bill was saved in EzzyERP"
+                >
+                  {billEntryAt ? (
+                    <span className="text-foreground font-medium">
+                      {formatPurchaseBillEntryAt({ bill_entry_at: billEntryAt })}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">Recorded automatically when you save</span>
+                  )}
+                </div>
               </div>
 
               {/* DC Purchase Checkbox */}

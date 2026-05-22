@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { formatPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, FileText, Truck, Calendar, Share2 } from "lucide-react";
@@ -47,7 +48,8 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
     const text = [
       `📦 Purchase Bill: ${bill.software_bill_no}`,
       `📋 Supplier Inv: ${bill.supplier_invoice_no || "N/A"}`,
-      `📅 Date: ${format(new Date(bill.bill_date), "dd MMM yyyy")}`,
+      `📅 Supplier bill: ${format(new Date(bill.bill_date), "dd MMM yyyy")}`,
+      `🕐 Entry: ${formatPurchaseBillEntryAt(bill)}`,
       `🏭 Supplier: ${bill.supplier_name || "Unknown"}`,
       `💰 Total: ${fmt(bill.net_amount || 0)}`,
     ].join("\n");
@@ -117,7 +119,13 @@ export const OwnerPurchaseBillDetail = ({ billId, onBack }: Props) => {
               <div className="flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {format(new Date(bill.bill_date), "dd MMM yyyy")}
+                  Supplier bill: {format(new Date(bill.bill_date), "dd MMM yyyy")}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Entry: {formatPurchaseBillEntryAt(bill)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
