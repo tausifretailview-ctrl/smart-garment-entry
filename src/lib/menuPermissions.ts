@@ -56,3 +56,59 @@ export const getMenuPermissionForPath = (path: string) => {
   const cleanPath = normalizePath(path);
   return MENU_PERMISSION_BY_PATH[cleanPath];
 };
+
+/** First landing page when main dashboard is disabled (order = priority). */
+export const LANDING_ROUTE_ORDER = [
+  "pos-sales",
+  "pos-dashboard",
+  "sales-invoice",
+  "sales-invoice-dashboard",
+  "purchase-entry",
+  "purchase-bills",
+  "product-dashboard",
+  "stock-report",
+  "daily-cashier-report",
+  "customers",
+  "settings",
+] as const;
+
+const DASHBOARD_MENU_IDS = new Set(["main_dashboard", "dashboard_view", "dashboard_customize"]);
+
+/** True when submenu is enabled and parent "Dashboard" main menu is enabled (if permissions exist). */
+export function isMenuPermissionGranted(
+  permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
+  menuId: string
+): boolean {
+  if (permissions === null) return true;
+  if (DASHBOARD_MENU_IDS.has(menuId) && permissions.mainMenu?.dashboard !== true) {
+    return false;
+  }
+  return permissions.menu?.[menuId] === true;
+}
+
+/** Default route after login or when main dashboard is blocked. */
+export function resolveFirstAllowedPath(
+  hasMenuAccess: (menuId: string) => boolean,
+  permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
+  organizationRole?: string | null
+): string {
+  if (permissions === null && organizationRole === "admin") {
+    return "";
+  }
+  if (permissions === null) {
+    return "";
+  }
+  if (hasMenuAccess("main_dashboard")) {
+    return "";
+  }
+  for (const path of LANDING_ROUTE_ORDER) {
+    const perm = getMenuPermissionForPath(path);
+    if (perm && hasMenuAccess(perm)) {
+      return path;
+    }
+  }
+  if (hasMenuAccess("settings_view")) {
+    return "settings";
+  }
+  return "pos-sales";
+}

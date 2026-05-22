@@ -12,6 +12,7 @@ import { WindowTabsProvider } from "@/contexts/WindowTabsContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { OrgLayout } from "@/components/OrgLayout";
+import { MenuPermissionRoute } from "@/components/MenuPermissionRoute";
 import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
@@ -356,9 +357,11 @@ const App = () => {
                   index
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <Index />
-                      </Layout>
+                      <MenuPermissionRoute permission="main_dashboard">
+                        <Layout>
+                          <Index />
+                        </Layout>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />

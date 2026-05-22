@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
 interface MenuPermissionRouteProps {
   permission: string;
@@ -27,7 +28,13 @@ export const MenuPermissionRoute = ({ permission, children }: MenuPermissionRout
 
   if (!isAllowed) {
     const slug = orgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug");
-    return <Navigate to={slug ? `/${slug}` : "/"} replace />;
+    const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
+    const target = slug
+      ? fallback
+        ? `/${slug}/${fallback}`
+        : `/${slug}`
+      : "/organization-setup";
+    return <Navigate to={target} replace />;
   }
 
   return <>{children}</>;

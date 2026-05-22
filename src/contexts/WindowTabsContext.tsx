@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { getMenuPermissionForPath } from "@/lib/menuPermissions";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -80,6 +81,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const navigate = useNavigate();
   const { orgSlug, getOrgPath } = useOrgNavigation();
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const { organizationRole } = useOrganization();
   
   const [openWindows, setOpenWindows] = useState<WindowTab[]>(() => {
     try {
@@ -136,6 +138,29 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       return allowed.length === prev.length ? prev : allowed;
     });
   }, [permissionsLoading, canAccessPath]);
+
+  // Redirect away from main dashboard when user lacks main_dashboard right
+  useEffect(() => {
+    if (permissionsLoading) return;
+    const currentPath = getCurrentPath();
+    if (currentPath !== "" && currentPath !== "dashboard") return;
+    if (canAccessPath("")) return;
+
+    const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
+    if (fallback !== currentPath) {
+      navigate(getOrgPath(fallback ? `/${fallback}` : "/"));
+    }
+  }, [
+    permissionsLoading,
+    location.pathname,
+    getCurrentPath,
+    canAccessPath,
+    hasMenuAccess,
+    permissions,
+    organizationRole,
+    navigate,
+    getOrgPath,
+  ]);
 
   // Update active window on location change and auto-add to tabs
   useEffect(() => {

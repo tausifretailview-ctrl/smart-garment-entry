@@ -218,7 +218,7 @@ export function AppSidebar() {
         )}
 
         {/* Dashboard */}
-        {(isAdminPermissions || hasMenuAccess("main_dashboard")) && (
+        {(isAdminPermissions || (hasMainMenuAccess("dashboard") && hasMenuAccess("main_dashboard"))) && (
           <SidebarGroup className="pt-0 first:pt-0">
             <SidebarMenu>
               <SidebarMenuItem>

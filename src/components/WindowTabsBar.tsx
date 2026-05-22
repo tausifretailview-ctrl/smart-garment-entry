@@ -57,7 +57,10 @@ export function WindowTabsBar() {
   } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
   const { isSchool } = useSchoolFeatures();
-  const { hasMenuAccess, permissions } = useUserPermissions();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const canMainDashboard =
+    !permissionsLoading &&
+    (permissions === null || hasMenuAccess("main_dashboard"));
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
 
@@ -109,23 +112,24 @@ export function WindowTabsBar() {
   return (
     <div className="bg-muted/30 border-b px-2 py-0.5">
       <div className="flex items-center gap-0.5">
-        {/* Dashboard Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-6 gap-1 px-1.5 shrink-0"
-              onClick={() => orgNavigate("/")}
-            >
-              <Home className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline text-[11px]">Dashboard</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Go to Dashboard</p>
-          </TooltipContent>
-        </Tooltip>
+        {canMainDashboard && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-6 gap-1 px-1.5 shrink-0"
+                onClick={() => orgNavigate("/")}
+              >
+                <Home className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline text-[11px]">Dashboard</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Go to Dashboard</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         {/* Size Stock Quick Button */}
         <Tooltip>

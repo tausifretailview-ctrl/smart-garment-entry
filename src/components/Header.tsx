@@ -25,10 +25,11 @@ import { FloatingStockReport } from "@/components/FloatingPOSReports";
 import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const navigate = useNavigate();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,6 +42,10 @@ export const Header = () => {
   const { hasMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
   const can = (menuId: string) =>
     !permissionsLoading && (permissions === null || hasMenuAccess(menuId));
+  const goHome = () => {
+    const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
+    orgNavigate(fallback ? `/${fallback}` : "/");
+  };
   const canQuickCustomerStatement =
     !isSchool &&
     !permissionsLoading &&
@@ -150,7 +155,7 @@ export const Header = () => {
         </Sheet>
 
         {/* Logo + App name */}
-        <button onClick={() => orgNavigate("/")} className="flex items-center gap-2 flex-shrink-0">
+        <button onClick={goHome} className="flex items-center gap-2 flex-shrink-0">
           <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-[11px]">E</span>
           </div>

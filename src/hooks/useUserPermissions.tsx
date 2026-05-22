@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { isMenuPermissionGranted } from "@/lib/menuPermissions";
 
 interface UserPermissions {
   menu: Record<string, boolean>;
@@ -69,9 +70,7 @@ export const useUserPermissions = () => {
 
   // Helper to check if a specific menu item is accessible
   const hasMenuAccess = (menuId: string): boolean => {
-    // If no permissions set or admin, allow all
-    if (permissions === null) return true;
-    return permissions.menu?.[menuId] === true;
+    return isMenuPermissionGranted(permissions, menuId);
   };
 
   // Helper to check if a main menu category is enabled

@@ -16,6 +16,9 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -26,6 +29,8 @@ export const Layout = ({ children }: LayoutProps) => {
   useEscapeBack();
   const { orgNavigate } = useOrgNavigation();
   const location = useLocation();
+  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const { organizationRole } = useOrganization();
   // Full-screen billing: hide sidebar + header/tabs on Sales Invoice
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
 
@@ -44,7 +49,13 @@ export const Layout = ({ children }: LayoutProps) => {
           case "n": e.preventDefault(); orgNavigate("/sales-invoice"); break;
           case "p": e.preventDefault(); orgNavigate("/pos-sales"); break;
           case "b": e.preventDefault(); orgNavigate("/purchase-entry"); break;
-          case "d": e.preventDefault(); orgNavigate("/"); break;
+          case "d": {
+            e.preventDefault();
+            if (permissionsLoading) break;
+            const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
+            orgNavigate(fallback ? `/${fallback}` : "/");
+            break;
+          }
           case "s": e.preventDefault(); orgNavigate("/stock-report"); break;
         }
       }
