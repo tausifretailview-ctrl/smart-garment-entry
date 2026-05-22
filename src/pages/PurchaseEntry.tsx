@@ -2699,10 +2699,12 @@ const PurchaseEntry = () => {
       return;
     }
 
-    // UNIQUENESS CHECK: Supplier Invoice No must be unique per supplier within organization.
+    // UNIQUENESS CHECK: Supplier Invoice No must be unique per supplier among active bills.
+    // Cancelled bills are voided — same number may be reused (same as permanent delete).
     // When the user accepted the auto-generated serial (it collides because the global
     // count overlaps with another supplier's existing number), silently bump to the next
     // free number for THIS supplier instead of blocking the save.
+    const activePurchaseBillOnly = "is_cancelled.is.null,is_cancelled.eq.false";
     if (billData.supplier_id && currentOrganization?.id) {
       let dupQuery = supabase
         .from("purchase_bills")
@@ -2711,6 +2713,7 @@ const PurchaseEntry = () => {
         .eq("supplier_id", billData.supplier_id)
         .eq("supplier_invoice_no", billData.supplier_invoice_no.trim())
         .is("deleted_at", null)
+        .or(activePurchaseBillOnly)
         .limit(1);
 
       if (isEditMode && editingBillId) {
@@ -2731,7 +2734,8 @@ const PurchaseEntry = () => {
             .select("supplier_invoice_no")
             .eq("organization_id", currentOrganization.id)
             .eq("supplier_id", billData.supplier_id)
-            .is("deleted_at", null);
+            .is("deleted_at", null)
+            .or(activePurchaseBillOnly);
           let maxNum = 0;
           (existingForSupplier || []).forEach((r: any) => {
             const n = parseInt(String(r.supplier_invoice_no || "").replace(/\D/g, ""), 10);
@@ -2774,6 +2778,7 @@ const PurchaseEntry = () => {
           .eq("supplier_id", billData.supplier_id)
           .eq("bill_date", billDateStr)
           .is("deleted_at", null)
+          .or(activePurchaseBillOnly)
           .order("created_at", { ascending: false })
           .limit(20);
 

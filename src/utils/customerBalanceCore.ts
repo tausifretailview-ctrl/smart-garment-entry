@@ -327,6 +327,126 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
   };
 }
 
+/** Org-wide rows grouped per customer for batch outstanding (e.g. payment customer picker). */
+export type OrgCustomerBalanceBatch = {
+  salesByCustomerId: Map<string, CustomerBalanceCoreSale[]>;
+  vouchersByCustomerId: Map<string, CustomerBalanceCoreVoucher[]>;
+  advancesByCustomerId: Map<string, Array<{ amount?: number | null; used_amount?: number | null }>>;
+  refundsByCustomerId: Map<string, Array<{ refund_amount?: number | null }>>;
+  adjustmentsByCustomerId: Map<string, number>;
+  saleReturnsByCustomerId: Map<string, CustomerBalanceCoreSaleReturn[]>;
+};
+
+/** Map a voucher to a customer (sale-linked, opening, mistagged customer+sale id). */
+export function resolveVoucherCustomerId(
+  v: Pick<CustomerBalanceCoreVoucher, "reference_id" | "reference_type">,
+  saleIdToCustomerId: Map<string, string>,
+  customerIds: Set<string>,
+): string | null {
+  const refId = v.reference_id == null ? "" : String(v.reference_id).trim();
+  if (!refId) return null;
+  const saleCustomer = saleIdToCustomerId.get(refId);
+  if (saleCustomer) return saleCustomer;
+  if (customerIds.has(refId)) return refId;
+  return null;
+}
+
+export function buildOrgCustomerBalanceBatch(params: {
+  sales: Array<CustomerBalanceCoreSale & { id: string; customer_id: string }>;
+  vouchers: CustomerBalanceCoreVoucher[];
+  advances: Array<{ customer_id: string; amount?: number | null; used_amount?: number | null }>;
+  refunds: Array<{ customer_id: string; refund_amount?: number | null }>;
+  adjustments: Array<{ customer_id: string; outstanding_difference?: number | null }>;
+  saleReturns: Array<
+    CustomerBalanceCoreSaleReturn & { customer_id: string }
+  >;
+  customerIds: Set<string>;
+}): OrgCustomerBalanceBatch {
+  const saleIdToCustomerId = new Map<string, string>();
+  const salesByCustomerId = new Map<string, CustomerBalanceCoreSale[]>();
+
+  for (const s of params.sales) {
+    const cid = s.customer_id;
+    if (!cid) continue;
+    saleIdToCustomerId.set(s.id, cid);
+    const list = salesByCustomerId.get(cid) || [];
+    list.push(s);
+    salesByCustomerId.set(cid, list);
+  }
+
+  const vouchersByCustomerId = new Map<string, CustomerBalanceCoreVoucher[]>();
+  for (const v of params.vouchers) {
+    const cid = resolveVoucherCustomerId(v, saleIdToCustomerId, params.customerIds);
+    if (!cid) continue;
+    const list = vouchersByCustomerId.get(cid) || [];
+    list.push(v);
+    vouchersByCustomerId.set(cid, list);
+  }
+
+  const advancesByCustomerId = new Map<
+    string,
+    Array<{ amount?: number | null; used_amount?: number | null }>
+  >();
+  for (const a of params.advances) {
+    const list = advancesByCustomerId.get(a.customer_id) || [];
+    list.push(a);
+    advancesByCustomerId.set(a.customer_id, list);
+  }
+
+  const refundsByCustomerId = new Map<string, Array<{ refund_amount?: number | null }>>();
+  for (const r of params.refunds) {
+    const list = refundsByCustomerId.get(r.customer_id) || [];
+    list.push(r);
+    refundsByCustomerId.set(r.customer_id, list);
+  }
+
+  const adjustmentsByCustomerId = new Map<string, number>();
+  for (const a of params.adjustments) {
+    adjustmentsByCustomerId.set(
+      a.customer_id,
+      (adjustmentsByCustomerId.get(a.customer_id) || 0) +
+        Number(a.outstanding_difference || 0),
+    );
+  }
+
+  const saleReturnsByCustomerId = new Map<string, CustomerBalanceCoreSaleReturn[]>();
+  for (const sr of params.saleReturns) {
+    const list = saleReturnsByCustomerId.get(sr.customer_id) || [];
+    list.push(sr);
+    saleReturnsByCustomerId.set(sr.customer_id, list);
+  }
+
+  return {
+    salesByCustomerId,
+    vouchersByCustomerId,
+    advancesByCustomerId,
+    refundsByCustomerId,
+    adjustmentsByCustomerId,
+    saleReturnsByCustomerId,
+  };
+}
+
+/**
+ * Lifetime outstanding aligned with `get_customer_true_outstanding` / audit formula
+ * (excludes paidAmountDrift and pending standalone SR — use `computeCustomerBalanceCore().balance` for ledger snapshot).
+ */
+export function computeAuditOutstandingFromBatch(
+  customerId: string,
+  openingBalance: number,
+  batch: OrgCustomerBalanceBatch,
+): number {
+  return computeCustomerBalanceCore({
+    openingBalance,
+    customerId,
+    sales: batch.salesByCustomerId.get(customerId) || [],
+    voucherEntries: batch.vouchersByCustomerId.get(customerId) || [],
+    customerAdvances: batch.advancesByCustomerId.get(customerId) || [],
+    advanceRefunds: batch.refundsByCustomerId.get(customerId) || [],
+    adjustmentTotal: batch.adjustmentsByCustomerId.get(customerId) || 0,
+    saleReturns: batch.saleReturnsByCustomerId.get(customerId) || [],
+  }).auditFormulaOutstanding;
+}
+
 /** Sum of RPC-aligned component lines (should match `balance` when inputs match DB). */
 export function sumReconcileStyleComponents(c: CustomerBalanceCoreComponents): number {
   return (
