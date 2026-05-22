@@ -3,7 +3,7 @@ import { Home, ShoppingCart, Receipt, Wallet, MoreHorizontal, FileText, X } from
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
-import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_LEGACY_SALES_HUB_PATH } from "@/lib/mobileShell";
+import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH } from "@/lib/mobileShell";
 
 interface NavItem {
   icon: React.ElementType;
@@ -18,7 +18,7 @@ const navItems: NavItem[] = [
     icon: Home,
     label: "Home",
     path: MOBILE_DEFAULT_LANDING_PATH,
-    matchPaths: ["/", MOBILE_DEFAULT_LANDING_PATH, MOBILE_LEGACY_SALES_HUB_PATH],
+    matchPaths: ["/", MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH],
   },
   {
     icon: Receipt,
@@ -26,7 +26,7 @@ const navItems: NavItem[] = [
     path: MOBILE_DEFAULT_LANDING_PATH,
     matchPaths: [
       MOBILE_DEFAULT_LANDING_PATH,
-      MOBILE_LEGACY_SALES_HUB_PATH,
+      MOBILE_OWNER_SALES_PATH,
       "/sales-invoice-dashboard",
       "/sale-return-entry",
       "/sales-invoice",

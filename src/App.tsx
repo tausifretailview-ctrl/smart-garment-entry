@@ -354,7 +354,7 @@ const App = () => {
                 <Route path="portal/orders" element={<PortalOrders />} />
                 <Route path="portal/invoices" element={<PortalInvoices />} />
                 <Route path="portal/account" element={<PortalAccount />} />
-                {/* Org home: mobile → owner-sales, desktop → main dashboard */}
+                {/* Org home: mobile → mobile-sales, desktop → main dashboard */}
                 <Route
                   index
                   element={
