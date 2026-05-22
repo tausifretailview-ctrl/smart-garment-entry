@@ -60,6 +60,20 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Android native app
+
+Android-only Capacitor setup (no iOS). See **[docs/ANDROID_BUILD.md](docs/ANDROID_BUILD.md)** for step-by-step build and Play Store release.
+
+Quick start:
+
+```sh
+npm install
+npm run build
+npx cap add android
+npm run build:android
+npm run android:open
+```
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/5542c4f6-5687-49fc-a3ae-a105152e96ae) and click on Share -> Publish.
