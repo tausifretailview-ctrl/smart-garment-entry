@@ -223,13 +223,16 @@ BEGIN
               > COALESCE(s.net_amount, 0) + 1
         ) INTO v_has_overpaid;
 
-        SELECT EXISTS (
-          SELECT 1
-          FROM public.sr_invoice_integrity_check sic
-          WHERE sic.organization_id = v_org.id
-            AND sic.customer_id = v_cust.id
-            AND ABS(COALESCE(sic.drift_amount, 0)) > 0.01
-        ) INTO v_has_sr_drift;
+        v_has_sr_drift := FALSE;
+        IF to_regclass('public.sr_invoice_integrity_check') IS NOT NULL THEN
+          SELECT EXISTS (
+            SELECT 1
+            FROM public.sr_invoice_integrity_check sic
+            WHERE sic.organization_id = v_org.id
+              AND sic.customer_id = v_cust.id
+              AND ABS(COALESCE(sic.drift_amount, 0)) > 0.01
+          ) INTO v_has_sr_drift;
+        END IF;
 
         v_severity := 'ok';
         IF v_has_phantom OR v_has_overpaid OR v_drift > 1000 THEN

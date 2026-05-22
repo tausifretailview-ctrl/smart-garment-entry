@@ -59,8 +59,6 @@ import {
 import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 import { cn } from "@/lib/utils";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { BalanceReconciliationAlert } from "@/components/BalanceReconciliationAlert";
-
 // Currency formatter helper
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -871,8 +869,6 @@ const DesktopDashboard = () => {
 
       {/* Main Content — Full Width */}
       <div className="space-y-4">
-        {hasLoaded && organizationRole === "admin" && <BalanceReconciliationAlert />}
-
         {/* Left side - Metric cards */}
         {!hasLoaded ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
