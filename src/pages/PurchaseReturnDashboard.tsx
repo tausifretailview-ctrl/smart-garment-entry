@@ -127,7 +127,7 @@ const PurchaseReturnDashboard = () => {
       };
 
       const SEL_CORE =
-        "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status";
+        "id, return_number, return_date, supplier_name, supplier_id, original_bill_number, gross_amount, gst_amount, net_amount, notes, created_at, credit_note_id, credit_status, discount_amount, discount_percent";
       const SEL_LINKED = `${SEL_CORE}, linked_bill_id`;
       const SEL_CREDIT = `${SEL_LINKED}, credit_available_balance`;
       const SEL_FULL = `${SEL_CREDIT}, is_dc`;
