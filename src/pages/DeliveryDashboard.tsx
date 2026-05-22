@@ -1,3 +1,4 @@
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -188,7 +189,7 @@ const DeliveryDashboard = () => {
       return data;
     },
     enabled: !!currentOrganization?.id && !!selectedStatus,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 

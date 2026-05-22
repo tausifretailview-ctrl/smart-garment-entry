@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -355,7 +356,7 @@ export default function SaleReturnDashboard() {
       return { returns: enriched, totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 
@@ -422,7 +423,7 @@ export default function SaleReturnDashboard() {
       return { totalReturns: count || 0, totalValue, totalQty };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 

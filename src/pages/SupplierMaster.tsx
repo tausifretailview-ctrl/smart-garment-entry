@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
@@ -133,7 +134,7 @@ const SupplierMaster = () => {
       return { suppliers: (data || []) as Supplier[], filteredCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 

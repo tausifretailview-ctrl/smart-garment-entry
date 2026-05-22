@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -637,6 +638,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       return vData || [];
     },
     enabled: !!currentOrganization?.id && open && searchQuery.trim().length >= 1 && stockData.length === 0,
+    staleTime: STALE_LIVE,
+    refetchOnWindowFocus: false,
   });
 
   const displayData = stockData.length > 0 ? stockData : (fallbackData || []);

@@ -4,6 +4,7 @@ import { ScanBarcode, Search, Loader2, Package, Camera } from "lucide-react";
 import { toast } from "sonner";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { lookupBarcodeStock, type BarcodeStockMatch } from "@/utils/lookupBarcodeStock";
 import { CameraBarcodeScannerDialog } from "@/components/CameraBarcodeScannerDialog";
@@ -90,7 +91,7 @@ export function BarcodeStockScanSheet({ open, onOpenChange }: BarcodeStockScanSh
     queryKey: ["barcode-stock-scan", currentOrganization?.id, searchTerm],
     enabled: open && !!currentOrganization?.id && searchTerm.length > 0,
     queryFn: () => lookupBarcodeStock(currentOrganization!.id, searchTerm),
-    staleTime: 0,
+    staleTime: STALE_LIVE,
   });
 
   const runSearch = useCallback(() => {

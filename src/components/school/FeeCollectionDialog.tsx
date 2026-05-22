@@ -175,6 +175,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
       return data || [];
     },
     enabled: !!currentOrganization?.id && !initialStudent && open && studentSearch.length >= 2,
+    staleTime: STALE_LIVE,
   });
 
   const handlePrint = useReactToPrint({

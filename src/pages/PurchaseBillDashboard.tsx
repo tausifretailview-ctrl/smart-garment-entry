@@ -30,6 +30,7 @@ import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -466,7 +467,7 @@ const PurchaseBillDashboard = () => {
       return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 
@@ -1235,7 +1236,7 @@ const PurchaseBillDashboard = () => {
       return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_LIVE,
   });
 
   const summaryStats = useMemo(() => ({

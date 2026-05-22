@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "@/integrations/supabase/client";
@@ -225,7 +226,7 @@ const PurchaseReturnDashboard = () => {
       return { returns: returnsWithQty as unknown as PurchaseReturn[], totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -71,7 +72,7 @@ export default function MobileSalesHub() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
   });
 
   const totalSales = salesData?.reduce((s, i) => s + (i.net_amount || 0), 0) || 0;

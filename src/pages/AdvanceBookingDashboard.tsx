@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -134,7 +135,7 @@ export default function AdvanceBookingDashboard() {
       return { total, totalAmount, usedAmount, available: totalAmount - usedAmount };
     },
     enabled: !!orgId,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
   });
 
   // Paginated advances query
@@ -188,7 +189,7 @@ export default function AdvanceBookingDashboard() {
       return { data: data || [], count: count || 0 };
     },
     enabled: !!orgId,
-    staleTime: 30000,
+    staleTime: STALE_LIVE,
   });
 
   const advances = advancesData?.data || [];
