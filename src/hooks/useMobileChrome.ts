@@ -12,7 +12,22 @@ export function useHideMobileBottomNav(): boolean {
   return onPos || onSalesInvoice;
 }
 
+const OWN_HEADER_PATHS = [
+  /\/sales-invoice(\/|$)/,
+  /\/pos-dashboard$/,
+  /\/daily-cashier-report$/,
+  /\/sales-invoice-dashboard$/,
+  /\/purchase-bills$/,
+  /\/payments-dashboard$/,
+  /\/sale-return-dashboard$/,
+  /\/mobile-sales$/,
+  /\/mobile-more$/,
+  /\/mobile-accounts$/,
+  /\/owner-reports$/,
+  /\/mobile-reports$/,
+];
+
 export function useHideMobileAppHeader(): boolean {
   const location = useLocation();
-  return /\/sales-invoice(\/|$)/.test(location.pathname);
+  return OWN_HEADER_PATHS.some((re) => re.test(location.pathname));
 }

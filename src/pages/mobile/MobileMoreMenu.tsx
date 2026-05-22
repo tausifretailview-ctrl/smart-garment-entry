@@ -12,7 +12,6 @@ import {
   User, 
   HelpCircle, 
   LogOut,
-  ChevronRight,
   Package,
   Wallet,
   FileSpreadsheet
@@ -24,8 +23,6 @@ import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicat
 import { invalidateActiveHubQueries } from "@/lib/mobileHubRefresh";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 interface MenuItem {
@@ -115,48 +112,37 @@ export default function MobileMoreMenu() {
         <h1 className="text-xl font-semibold text-foreground">More Options</h1>
       </div>
 
-      {/* Menu Sections */}
+      {/* Menu Sections — icon grid */}
       <div className="px-4 py-4 space-y-6">
         {menuSections.map((section) => (
           <div key={section.title}>
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
               {section.title}
             </h2>
-            <Card className="overflow-hidden">
-              <CardContent className="p-0">
-                {section.items.map((item, itemIndex) => {
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.label}>
-                      <button
-                        onClick={() => handleItemClick(item)}
-                        className={cn(
-                          "w-full flex items-center justify-between px-4 py-3.5",
-                          "active:bg-muted/50 transition-colors duration-100",
-                          "touch-manipulation"
-                        )}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-9 h-9 rounded-lg flex items-center justify-center",
-                            "bg-muted/50"
-                          )}>
-                            <Icon className={cn("h-5 w-5", item.color || "text-foreground")} />
-                          </div>
-                          <span className="text-sm font-medium text-foreground">
-                            {item.label}
-                          </span>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                      {itemIndex < section.items.length - 1 && (
-                        <Separator className="ml-16" />
-                      )}
+            <div className="grid grid-cols-4 gap-2.5">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => handleItemClick(item)}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl",
+                      "bg-card border border-border/60 shadow-sm",
+                      "active:scale-95 active:bg-muted/50 touch-manipulation",
+                    )}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center">
+                      <Icon className={cn("h-5 w-5", item.color || "text-foreground")} />
                     </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
+                    <span className="text-[10px] font-medium text-foreground text-center leading-tight">
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ))}
       </div>

@@ -567,6 +567,16 @@ All colors MUST be HSL.
     @apply w-1.5 h-1.5 rounded-full bg-emerald-300;
   }
 
+  /* Legacy desktop dashboards inside mobile main — soften wide padding */
+  @media (max-width: 1023px) {
+    main .min-h-screen.px-8 {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+  }
+
   /* Active state indicator */
   .active-indicator {
     @apply relative;

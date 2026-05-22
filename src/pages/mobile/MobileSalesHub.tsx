@@ -9,6 +9,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSettings } from "@/hooks/useSettings";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
@@ -310,6 +311,8 @@ export default function MobileSalesHub() {
           <span className="text-sm font-bold tabular-nums text-foreground">{totalCount}</span>
         </div>
       </div>
+
+      <MobileModuleNavStrip className="pt-2" />
 
       {/* Invoice List */}
       <div className="px-4 py-3 space-y-2.5">

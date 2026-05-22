@@ -60,6 +60,13 @@ import {
   mapSaleFinancerRow,
   type SaleFinancerDetailsDisplay,
 } from "@/components/SaleFinancerDetailsPanel";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
+import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
+import { MobileListCard } from "@/components/mobile/MobileListCard";
+import { cn } from "@/lib/utils";
 
 interface SaleItem {
   id: string;
@@ -1835,7 +1842,272 @@ const POSDashboard = () => {
     setCurrentPage(1);
   };
 
+  const isMobile = useIsMobile();
+  const fmtAmt = (n: number) =>
+    n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+  const mobilePaymentMethodChips = [
+    { v: "all", l: "All" },
+    { v: "cash", l: "Cash" },
+    { v: "upi", l: "UPI" },
+    { v: "card", l: "Card" },
+    { v: "multiple", l: "Mix" },
+    { v: "pay_later", l: "Later" },
+  ];
+
+  const mobileStatusChips = [
+    { v: "all", l: "All" },
+    { v: "completed", l: "Paid" },
+    { v: "partial", l: "Partial" },
+    { v: "pending", l: "Pending" },
+    { v: "hold", l: "Hold" },
+  ];
+
   return (
+    <>
+      {isMobile ? (
+        <div className="flex flex-col min-h-full bg-muted/30 -mx-3 sm:-mx-4">
+          <MobilePageHeader
+            title="POS Dashboard"
+            backTo="/mobile-sales"
+            subtitle={`${summaryStats.totalBills} bills`}
+            rightContent={
+              <button
+                type="button"
+                onClick={() => navigate("/pos-sales")}
+                className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation"
+              >
+                <Plus className="h-5 w-5 text-primary-foreground" />
+              </button>
+            }
+          />
+
+          <MobileModuleNavStrip />
+
+          <div className="px-4 pt-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Sale no, customer, barcode..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm"
+              />
+            </div>
+          </div>
+
+          <MobilePeriodChips
+            value={periodFilter}
+            onChange={handlePeriodChange}
+            periods={[
+              { value: "daily", label: "Today" },
+              { value: "monthly", label: "Month" },
+              { value: "quarterly", label: "Quarter" },
+              { value: "all", label: "All" },
+            ]}
+          />
+
+          {periodFilter === "daily" && (
+            <div className="px-4 pt-2">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setStartDate(v);
+                  setEndDate(v);
+                }}
+                className="h-10 bg-card rounded-xl text-sm"
+                aria-label="Sale date"
+              />
+            </div>
+          )}
+
+          <MobileStatStrip
+            stats={[
+              {
+                label: "Bills",
+                value: String(summaryStats.totalBills),
+                color: "text-blue-600",
+                bg: "bg-blue-50",
+                onClick: () => setPaymentStatusFilter([]),
+              },
+              {
+                label: "Completed",
+                value: String(summaryStats.completedCount),
+                color: "text-emerald-600",
+                bg: "bg-emerald-50",
+                onClick: () => setPaymentStatusFilter(["completed"]),
+              },
+              {
+                label: "Pending",
+                value: String(summaryStats.pendingCount),
+                color: "text-amber-600",
+                bg: "bg-amber-50",
+                onClick: () => setPaymentStatusFilter(["pending", "partial"]),
+              },
+              {
+                label: "Amount",
+                value: fmtAmt(summaryStats.totalAmount),
+                color: "text-purple-600",
+                bg: "bg-purple-50",
+              },
+            ]}
+          />
+
+          <div className="grid grid-cols-2 gap-2 px-4 py-2">
+            {[
+              { label: "Cash", value: summaryStats.totalCash, filter: "cash", bg: "bg-emerald-500" },
+              { label: "Card", value: summaryStats.totalCard, filter: "card", bg: "bg-blue-500" },
+              { label: "UPI", value: summaryStats.totalUpi, filter: "upi", bg: "bg-purple-500" },
+              {
+                label: "Balance",
+                value: summaryStats.totalBalance,
+                filter: null,
+                bg: "bg-rose-500",
+                onClick: () => setPaymentStatusFilter(["pending"]),
+              },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => {
+                  if (p.filter) setPaymentMethodFilter(p.filter);
+                  else if (p.onClick) p.onClick();
+                }}
+                className={cn(
+                  "rounded-2xl p-3 text-left text-white active:scale-[0.98] touch-manipulation",
+                  p.bg,
+                )}
+              >
+                <p className="text-[10px] font-medium opacity-90">{p.label}</p>
+                <p className="text-lg font-bold tabular-nums mt-0.5">{fmtAmt(p.value)}</p>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 px-4 py-1 overflow-x-auto no-scrollbar">
+            {mobilePaymentMethodChips.map((s) => (
+              <button
+                key={s.v}
+                type="button"
+                onClick={() => setPaymentMethodFilter(s.v)}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
+                  paymentMethodFilter === s.v
+                    ? "bg-foreground text-background border-transparent"
+                    : "bg-card text-muted-foreground border-border",
+                )}
+              >
+                {s.l}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 px-4 py-1 overflow-x-auto no-scrollbar">
+            {mobileStatusChips.map((s) => (
+              <button
+                key={s.v}
+                type="button"
+                onClick={() =>
+                  setPaymentStatusFilter(s.v === "all" ? [] : s.v === "pending" ? ["pending", "partial"] : [s.v])
+                }
+                className={cn(
+                  "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
+                  (s.v === "all" && paymentStatusFilter.length === 0) ||
+                    (s.v !== "all" &&
+                      s.v !== "pending" &&
+                      paymentStatusFilter.length === 1 &&
+                      paymentStatusFilter[0] === s.v) ||
+                    (s.v === "pending" &&
+                      paymentStatusFilter.includes("pending") &&
+                      paymentStatusFilter.includes("partial"))
+                    ? "bg-foreground text-background border-transparent"
+                    : "bg-card text-muted-foreground border-border",
+                )}
+              >
+                {s.l}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 px-4 space-y-2.5 pb-4 pt-2">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-20 bg-card rounded-2xl animate-pulse" />
+              ))
+            ) : paginatedSales.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Receipt className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm font-medium">No sales found</p>
+              </div>
+            ) : (
+              paginatedSales.map((sale) => {
+                const totalSettled =
+                  (sale.paid_amount || 0) + Number(sale.sale_return_adjust || 0);
+                const effectiveStatus =
+                  sale.payment_status === "hold"
+                    ? "hold"
+                    : totalSettled >= (sale.net_amount || 0)
+                      ? "completed"
+                      : totalSettled > 0
+                        ? "partial"
+                        : "pending";
+                const statusClass: Record<string, string> = {
+                  completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                  partial: "bg-amber-50 text-amber-700 border-amber-200",
+                  pending: "bg-rose-50 text-rose-700 border-rose-200",
+                  hold: "bg-slate-50 text-slate-700 border-slate-200",
+                };
+                return (
+                  <MobileListCard
+                    key={sale.id}
+                    muted={!!sale.is_cancelled}
+                    onClick={() => !sale.is_cancelled && navigate(`/pos-sales?saleId=${sale.id}`)}
+                    title={sale.sale_number}
+                    subtitle={sale.customer_name || "Walk-in"}
+                    badge={
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize",
+                          statusClass[effectiveStatus] || statusClass.pending,
+                        )}
+                      >
+                        {effectiveStatus}
+                      </span>
+                    }
+                    amount={fmtAmt(sale.net_amount || 0)}
+                    meta={
+                      sale.sale_date
+                        ? format(new Date(sale.sale_date), "dd MMM · hh:mm a")
+                        : undefined
+                    }
+                    footer={
+                      <span className="text-[10px] text-muted-foreground capitalize">
+                        {sale.payment_method || "—"}
+                      </span>
+                    }
+                  />
+                );
+              })
+            )}
+          </div>
+
+          {filteredSales.length > itemsPerPage && (
+            <div className="flex items-center justify-between px-4 pb-4 gap-2">
+              <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                Prev
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {currentPage} / {totalPages}
+              </span>
+              <Button variant="outline" size="sm" onClick={handleNextPage} disabled={currentPage === totalPages}>
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
     <div className="min-h-screen bg-background px-8 py-6">
       
       <div className="w-full space-y-4">
@@ -3043,6 +3315,8 @@ const POSDashboard = () => {
           </CardContent>
         </Card>
       </div>
+    </div>
+      )}
 
       {/* Print Preview Dialog */}
       {previewSale && (
@@ -3443,7 +3717,7 @@ const POSDashboard = () => {
           />
         </div>
       )}
-    </div>
+    </>
   );
 };
 

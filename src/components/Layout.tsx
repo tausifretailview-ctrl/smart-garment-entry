@@ -86,7 +86,9 @@ export const Layout = ({ children }: LayoutProps) => {
             <OfflineIndicator />
 
             <div className="flex min-h-screen w-full bg-background">
-              <AppSidebar />
+              <div className="hidden lg:block shrink-0">
+                <AppSidebar />
+              </div>
               <SidebarInset className="flex flex-col flex-1 min-w-0">
                 {!isSalesInvoicePage && (
                   <>

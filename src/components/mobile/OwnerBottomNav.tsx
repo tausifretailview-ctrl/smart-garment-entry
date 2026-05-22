@@ -1,4 +1,4 @@
-import { Home, IndianRupee, ShoppingCart, Package, BarChart3, ScanBarcode } from "lucide-react";
+import { Home, IndianRupee, ShoppingCart, Package, MoreHorizontal, ScanBarcode } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useMobileScan } from "@/contexts/MobileScanContext";
@@ -27,7 +27,21 @@ const sideTabs: NavTab[] = [
   },
   { icon: ShoppingCart, label: "Purchase", path: "/owner-purchases", matchPaths: ["/owner-purchases"] },
   { icon: Package, label: "Stock", path: "/owner-stock", matchPaths: ["/owner-stock"] },
-  { icon: BarChart3, label: "Reports", path: "/owner-reports", matchPaths: ["/owner-reports", "/mobile-reports"] },
+  {
+    icon: MoreHorizontal,
+    label: "More",
+    path: "/mobile-more",
+    matchPaths: [
+      "/mobile-more",
+      "/settings",
+      "/customers",
+      "/suppliers",
+      "/products",
+      "/daily-cashier-report",
+      "/pos-dashboard",
+      "/gst-reports",
+    ],
+  },
 ];
 
 export const OwnerBottomNav = () => {

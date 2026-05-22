@@ -28,7 +28,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
     <ChatProvider>
       <DashboardToolbarProvider>
         <MobileScanProvider>
-          <SidebarProvider defaultOpen={!isSalesInvoicePage}>
+          <SidebarProvider defaultOpen={false}>
             <OfflineIndicator />
 
             <div
@@ -38,7 +38,9 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                   : "flex min-h-screen w-full bg-background"
               }
             >
-              <AppSidebar />
+              <div className="hidden lg:block shrink-0">
+                <AppSidebar />
+              </div>
               <SidebarInset
                 className={
                   isSalesInvoicePage
