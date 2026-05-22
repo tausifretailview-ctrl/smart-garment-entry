@@ -1,4 +1,20 @@
-import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
+import {
+  computeCustomerBalanceCore,
+  warnCustomerBalanceMismatch,
+  type ComputeCustomerOutstandingOptions,
+  isAdvanceApplicationVoucher,
+  isAdvanceApplicationReceiptLedgerAligned,
+  isCreditNoteApplicationReceiptLedgerAligned,
+  isReceiptMemoApplicationLedgerAligned,
+} from "@/utils/customerBalanceCore";
+
+export {
+  ComputeCustomerOutstandingOptions,
+  isAdvanceApplicationVoucher,
+  isAdvanceApplicationReceiptLedgerAligned,
+  isCreditNoteApplicationReceiptLedgerAligned,
+  isReceiptMemoApplicationLedgerAligned,
+};
 
 /**
  * Pure helpers for Customer Audit Report — not used by legacy ledger / balance hooks.
@@ -12,41 +28,6 @@ import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils
  * `computeCustomerOutstanding` / `buildAuditRows` so advance/CN application receipts match
  * {@link customerBalanceUtils} (customer-level sale applications are memo-only, not cash credits).
  */
-
-export const isAdvanceApplicationVoucher = (v: any): boolean => {
-  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
-  if (String(v.reference_type || "").toLowerCase() !== "sale") return false;
-  const pm = String(v.payment_method || "").toLowerCase();
-  if (pm === "advance_adjustment") return true;
-  const desc = (v.description || "").toLowerCase().trim();
-  return desc.startsWith("adjusted from advance balance");
-};
-
-/** Same advance-application detection as `isAdvVoucher` in customerBalanceUtils (any reference_type). */
-export const isAdvanceApplicationReceiptLedgerAligned = (v: any): boolean => {
-  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
-  const pm = String(v.payment_method || "").toLowerCase();
-  if (pm === "advance_adjustment") return true;
-  const desc = (v.description || "").toLowerCase();
-  return desc.includes("adjusted from advance balance") || desc.includes("advance adjusted");
-};
-
-/** Same CN-application detection as `isCnVoucher` in customerBalanceUtils (receipt rows). */
-export const isCreditNoteApplicationReceiptLedgerAligned = (v: any): boolean => {
-  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
-  const pm = String(v.payment_method || "").toLowerCase();
-  if (pm === "credit_note_adjustment") return true;
-  const desc = (v.description || "").toLowerCase();
-  return desc.includes("credit note adjusted") || desc.includes("cn adjusted");
-};
-
-export const isReceiptMemoApplicationLedgerAligned = (v: any): boolean =>
-  isAdvanceApplicationReceiptLedgerAligned(v) || isCreditNoteApplicationReceiptLedgerAligned(v);
-
-export type ComputeCustomerOutstandingOptions = {
-  /** When true, exclude advance/CN application receipts from receipt credits (matches CustomerLedgerPage memo rules). */
-  ledgerAlignedApplicationReceipts?: boolean;
-};
 
 /** Pre-refactor audit formula (RPC-aligned, no drift / pending SR). */
 function computeCustomerOutstandingLegacyAudit(

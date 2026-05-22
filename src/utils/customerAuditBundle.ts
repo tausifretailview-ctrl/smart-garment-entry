@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { computeCustomerBalanceCore } from "@/utils/customerBalanceCore";
 import {
   computeCustomerOutstanding,
   isAdvanceApplicationVoucher,
@@ -261,7 +262,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
   const { data: allSales, error: salesErr } = await client
     .from("sales")
     .select(
-      "id, sale_number, sale_date, net_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+      "id, sale_number, sale_date, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
     )
     .eq("customer_id", customerId)
     .eq("organization_id", orgId)
@@ -433,21 +434,36 @@ export function computeAuditPeriodOutstanding(
 
 /** Full-period (lifetime) outstanding — formula check vs running balance. */
 export function computeAuditFormulaOutstanding(bundle: CustomerAuditBundle): ReturnType<typeof computeCustomerOutstanding> {
-  const validSales = bundle.allSales.filter(
-    (s: any) =>
-      s.is_cancelled !== true &&
-      !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
-  );
   const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
     (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
     0,
   );
-  return computeCustomerOutstanding({
+  const core = computeCustomerBalanceCore({
     openingBalance: Number(bundle.customer.opening_balance || 0),
-    sales: validSales,
+    sales: bundle.allSales,
     voucherEntries: bundle.vouchersMerged,
     customerAdvances: bundle.advances,
     advanceRefunds: bundle.refunds,
     adjustmentTotal,
+    saleReturns: bundle.saleReturns,
   });
+  const totalAdvanceReceived = bundle.advances.reduce(
+    (sum: number, a: { amount?: number | null }) => sum + Number(a.amount || 0),
+    0,
+  );
+  return {
+    openingBalance: core.openingBalance,
+    totalInvoiced: core.totalInvoicedGross,
+    totalSaleReturnAdjust: core.totalSaleReturnAdjustOnInvoices,
+    totalRealPayments: core.totalRealPayments,
+    receiptCredits: core.receiptCredits,
+    creditNoteCredits: core.creditNoteCredits,
+    customerPaymentDebits: core.customerPaymentDebits,
+    totalAdvanceReceived,
+    totalAdvanceUsed: core.totalAdvanceUsed,
+    unusedAdvance: core.unusedAdvance,
+    advanceRefundedTotal: core.advanceRefundedTotal,
+    adjustmentTotal: core.adjustmentTotal,
+    outstanding: core.auditFormulaOutstanding,
+  };
 }

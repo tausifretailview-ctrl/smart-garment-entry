@@ -7,13 +7,58 @@
  * - `pendingStandaloneSaleReturns` — standalone sale_returns still in `pending` (not in RPC lines)
  */
 
-import {
-  isAdvanceApplicationVoucher,
-  isReceiptMemoApplicationLedgerAligned,
-  type ComputeCustomerOutstandingOptions,
-} from "@/utils/customerAuditMath";
-
 const BALANCE_MISMATCH_TOL = 1;
+
+export type ComputeCustomerOutstandingOptions = {
+  /** When true, exclude advance/CN application receipts from receipt credits (CustomerLedger memo rules). */
+  ledgerAlignedApplicationReceipts?: boolean;
+};
+
+export const isAdvanceApplicationVoucher = (v: {
+  voucher_type?: string | null;
+  reference_type?: string | null;
+  payment_method?: string | null;
+  description?: string | null;
+}): boolean => {
+  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
+  if (String(v.reference_type || "").toLowerCase() !== "sale") return false;
+  const pm = String(v.payment_method || "").toLowerCase();
+  if (pm === "advance_adjustment") return true;
+  const desc = (v.description || "").toLowerCase().trim();
+  return desc.startsWith("adjusted from advance balance");
+};
+
+export const isAdvanceApplicationReceiptLedgerAligned = (v: {
+  voucher_type?: string | null;
+  payment_method?: string | null;
+  description?: string | null;
+}): boolean => {
+  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
+  const pm = String(v.payment_method || "").toLowerCase();
+  if (pm === "advance_adjustment") return true;
+  const desc = (v.description || "").toLowerCase();
+  return desc.includes("adjusted from advance balance") || desc.includes("advance adjusted");
+};
+
+export const isCreditNoteApplicationReceiptLedgerAligned = (v: {
+  voucher_type?: string | null;
+  payment_method?: string | null;
+  description?: string | null;
+}): boolean => {
+  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
+  const pm = String(v.payment_method || "").toLowerCase();
+  if (pm === "credit_note_adjustment") return true;
+  const desc = (v.description || "").toLowerCase();
+  return desc.includes("credit note adjusted") || desc.includes("cn adjusted");
+};
+
+export const isReceiptMemoApplicationLedgerAligned = (v: {
+  voucher_type?: string | null;
+  reference_type?: string | null;
+  payment_method?: string | null;
+  description?: string | null;
+}): boolean =>
+  isAdvanceApplicationReceiptLedgerAligned(v) || isCreditNoteApplicationReceiptLedgerAligned(v);
 
 export type CustomerBalanceCoreVoucher = {
   voucher_type: string;
@@ -127,8 +172,9 @@ function filterValidSales(sales: CustomerBalanceCoreSale[]): CustomerBalanceCore
 }
 
 /**
- * Sum of `sales.paid_amount` not already represented on receipt vouchers for that sale.
- * POS often records payment on the sale row while vouchers live only in customer_ledger_entries.
+ * POS cash parity: `sales.paid_amount` minus receipt voucher totals on the same sale.
+ * At-sale cash/UPI is often stored on the sale row without a matching `voucher_entries` receipt
+ * (payment may exist only in `customer_ledger_entries`). Subtracting drift aligns balance with POS.
  */
 export function computePaidAmountDrift(
   validSales: CustomerBalanceCoreSale[],
@@ -156,7 +202,10 @@ export function computePaidAmountDrift(
   return drift;
 }
 
-/** Standalone pending sale returns — credits not yet in invoice sale_return_adjust / RPC lines. */
+/**
+ * Standalone pending sale returns (explicit component, not folded into RPC `reconcile_customer_balance`).
+ * Sum of `sale_returns` where `credit_status` is `pending` — credit not yet absorbed into invoices.
+ */
 export function computePendingStandaloneSaleReturns(
   saleReturns: CustomerBalanceCoreSaleReturn[] | undefined,
 ): number {

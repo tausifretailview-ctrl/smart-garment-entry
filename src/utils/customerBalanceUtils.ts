@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeAuditFormulaOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -82,10 +83,8 @@ function isCnVoucher(v: VoucherLedgerRow): boolean {
   );
 }
 
-/**
- * Single source of truth for customer outstanding (matches {@link useCustomerBalance}).
- */
-export function computeCustomerOutstanding(p: CustomerOutstandingParams): CustomerOutstandingResult {
+/** Pre-refactor ledger math (sale_returns status rules, per-sale paid_amount). */
+function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): CustomerOutstandingResult {
   const saleIds = p.sales.map((s) => s.id);
   const saleIdSet = new Set(saleIds);
 
@@ -188,6 +187,58 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     totalCashPaid: Math.round(totalPaidOnSales + openingBalanceVoucherPayments),
     totalAdvanceApplied: Math.round(totalAdvanceApplied),
     totalCnApplied: Math.round(totalCnApplied),
+  };
+}
+
+/**
+ * Customer outstanding for ledger bulk paths — delegates to {@link computeCustomerBalanceCore}
+ * with ledger-aligned memo receipts; warns if legacy ledger math differs by > ₹1.
+ */
+export function computeCustomerOutstanding(p: CustomerOutstandingParams): CustomerOutstandingResult {
+  const legacy = computeCustomerOutstandingLegacy(p);
+
+  const voucherEntries = p.vouchers.map((v) => ({
+    voucher_type: "receipt",
+    reference_type: v.reference_type,
+    reference_id: v.reference_id,
+    total_amount: v.total_amount,
+    payment_method: v.payment_method,
+    description: v.description,
+  }));
+
+  const core = computeCustomerBalanceCore({
+    openingBalance: p.openingBalance,
+    customerId: p.customerId,
+    sales: p.sales,
+    voucherEntries,
+    customerAdvances: p.advances,
+    advanceRefunds:
+      (p.advanceRefundTotal || 0) > 0 ? [{ refund_amount: p.advanceRefundTotal }] : [],
+    adjustmentTotal: p.adjustmentTotal,
+    saleReturns: p.saleReturns,
+    additionalCustomerPaymentDebits: p.refundsPaidTotal,
+    options: { ledgerAlignedApplicationReceipts: true },
+  });
+
+  warnCustomerBalanceMismatch(
+    "customerBalanceUtils.computeCustomerOutstanding",
+    legacy.balance,
+    core.balance,
+    { customerId: p.customerId },
+  );
+
+  return {
+    balance: core.balance,
+    totalSales: core.totalSalesNet,
+    totalSalesGross: core.totalInvoicedGross,
+    totalSaleReturnAdjustOnSales: core.totalSaleReturnAdjustOnInvoices,
+    totalPaid: legacy.totalPaid,
+    unusedAdvanceTotal: core.unusedAdvance,
+    adjustmentTotal: core.adjustmentTotal,
+    saleReturnTotal: core.pendingStandaloneSaleReturns,
+    totalCashPaid: legacy.totalCashPaid,
+    totalAdvanceApplied: legacy.totalAdvanceApplied,
+    totalCnApplied: legacy.totalCnApplied,
   };
 }
 
@@ -380,75 +431,62 @@ export async function fetchCustomerBalanceSnapshot(
   totalCnApplied: number;
 }> {
   const bundle = await fetchCustomerAuditBundle(client, organizationId, customerId);
-  const co = computeAuditFormulaOutstanding(bundle);
-
-  const { data: adjustments, error: adjError } = await client
-    .from("customer_balance_adjustments")
-    .select("outstanding_difference")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId);
-
-  if (adjError) throw adjError;
-  const adjustmentTotal =
-    adjustments?.reduce((sum, adj) => sum + (adj.outstanding_difference || 0), 0) || 0;
-
-  // Per-sale paid_amount drift fallback: POS at-sale cash/UPI/card payments
-  // are recorded on sales.paid_amount but may NOT have a corresponding
-  // voucher_entries receipt (those are written to customer_ledger_entries only).
-  // computeAuditFormulaOutstanding counts only voucher receipts, so without
-  // this adjustment the customer balance shows the sale as fully unpaid even
-  // though paid_amount equals net_amount. Mirror the per-sale drift logic
-  // used in computeCustomerBalanceFromBundle / reconcile_customer_balances.
-  const validSales = (bundle.allSales || []).filter(
-    (s: any) =>
-      s.is_cancelled !== true &&
-      !["cancelled", "hold"].includes(String(s.payment_status || "").toLowerCase()),
+  const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
+    (sum: number, a: { outstanding_difference?: number | null }) =>
+      sum + Number(a.outstanding_difference || 0),
+    0,
   );
-  const voucherTotalsBySale = new Map<string, number>();
-  for (const v of bundle.vouchersMerged || []) {
-    if (String((v as any).voucher_type || "").toLowerCase() !== "receipt") continue;
-    const refId = (v as any).reference_id;
-    if (!refId) continue;
-    voucherTotalsBySale.set(
-      refId,
-      (voucherTotalsBySale.get(refId) || 0) + (Number((v as any).total_amount) || 0),
-    );
-  }
-  let paidAmountDrift = 0;
-  for (const s of validSales) {
-    const paid = Number((s as any).paid_amount || 0);
-    if (paid <= 0) continue;
-    const voucherSum = voucherTotalsBySale.get((s as any).id) || 0;
-    const drift = paid - voucherSum;
-    if (drift > 0) paidAmountDrift += drift;
-  }
 
-  const openingBalance = Number(bundle.customer.opening_balance || 0);
-  const totalSalesGross = Math.round(co.totalInvoiced);
-  const totalSaleReturnAdjustOnSales = Math.round(co.totalSaleReturnAdjust);
-  const totalSales = Math.round(co.totalInvoiced - co.totalSaleReturnAdjust);
-  // adjustmentTotal uses sign convention: negative outstanding_difference means
-  // outstanding was reduced (treated as a payment-equivalent credit). Include it
-  // in totalPaid (subtracting a negative adds to paid) and in balance.
+  const core = computeCustomerBalanceCore({
+    openingBalance: Number(bundle.customer.opening_balance || 0),
+    customerId,
+    sales: bundle.allSales,
+    voucherEntries: bundle.vouchersMerged,
+    customerAdvances: bundle.advances,
+    advanceRefunds: bundle.refunds,
+    adjustmentTotal,
+    saleReturns: bundle.saleReturns,
+  });
+
+  // Pre-fix bug: adjustment was in auditFormulaOutstanding and added again; drift subtracted twice.
+  const preFixBalance = Math.round(
+    core.auditFormulaOutstanding - core.paidAmountDrift + adjustmentTotal,
+  );
+  warnCustomerBalanceMismatch(
+    "fetchCustomerBalanceSnapshot (adjustment double-apply fix)",
+    preFixBalance,
+    core.balance,
+    { customerId },
+  );
+
+  const openingBalance = core.openingBalance;
+  const totalSalesGross = core.totalInvoicedGross;
+  const totalSaleReturnAdjustOnSales = core.totalSaleReturnAdjustOnInvoices;
+  const totalSales = core.totalSalesNet;
   const totalPaid = Math.round(
-    co.totalRealPayments + co.customerPaymentDebits + co.totalAdvanceUsed + co.unusedAdvance + paidAmountDrift - adjustmentTotal
+    core.totalRealPayments +
+      core.customerPaymentDebits +
+      core.totalAdvanceUsed +
+      core.unusedAdvance +
+      core.paidAmountDrift -
+      adjustmentTotal,
   );
-  const totalCashPaid = Math.round(co.receiptCredits + co.creditNoteCredits + paidAmountDrift);
-  const totalAdvanceApplied = Math.round(co.totalAdvanceUsed);
-  const totalCnApplied = Math.round(co.creditNoteCredits);
+  const totalCashPaid = Math.round(
+    core.receiptCredits + core.creditNoteCredits + core.paidAmountDrift,
+  );
 
   return {
-    balance: Math.round(co.outstanding - paidAmountDrift + adjustmentTotal),
-    openingBalance: Math.round(openingBalance),
+    balance: core.balance,
+    openingBalance,
     totalSales,
     totalPaid,
-    adjustmentTotal: Math.round(adjustmentTotal),
-    unusedAdvanceTotal: Math.round(co.unusedAdvance),
-    saleReturnTotal: 0,
+    adjustmentTotal: core.adjustmentTotal,
+    unusedAdvanceTotal: core.unusedAdvance,
+    saleReturnTotal: core.pendingStandaloneSaleReturns,
     totalSalesGross,
     totalSaleReturnAdjustOnSales,
     totalCashPaid,
-    totalAdvanceApplied,
-    totalCnApplied,
+    totalAdvanceApplied: core.totalAdvanceUsed,
+    totalCnApplied: core.creditNoteCredits,
   };
 }
