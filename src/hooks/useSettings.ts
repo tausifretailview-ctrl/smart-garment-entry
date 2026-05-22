@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { STALE_SETTINGS } from '@/lib/queryStaleTimes';
 
 /**
  * Centralized settings hook — fetches ALL settings columns once,
@@ -31,7 +32,7 @@ export function useSettings() {
       if (error) throw error;
       return data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes — settings rarely change
+    staleTime: STALE_SETTINGS,
     refetchOnWindowFocus: false,
     enabled: !!orgId,
   });

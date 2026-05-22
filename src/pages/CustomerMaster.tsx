@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -244,7 +245,7 @@ const CustomerMaster = () => {
       return { customers: (data || []) as Customer[], filteredCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 

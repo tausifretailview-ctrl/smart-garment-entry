@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
+import { STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
@@ -246,6 +247,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return data || [];
     },
     enabled: !!organizationId && !!isSchool,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
@@ -733,7 +736,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return customerTotals;
     },
     enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -2113,6 +2117,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return cleanedTransactions;
     },
     enabled: !!selectedCustomer?.id,
+    staleTime: STALE_FREQUENT,
+    refetchOnWindowFocus: false,
   });
 
   // Fetch payment history for selected customer
@@ -2263,7 +2269,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       return payments;
     },
-    enabled: !!selectedCustomer?.id,
+    enabled:
+      !!selectedCustomer?.id &&
+      (activeTab === "payments" || activeTab === "unapplied"),
+    staleTime: STALE_FREQUENT,
+    refetchOnWindowFocus: false,
   });
 
   // Calculate payment summary

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 
 interface CustomerBalanceResult {
   balance: number;
@@ -50,7 +51,8 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       return await fetchCustomerBalanceSnapshot(supabase, organizationId, customerId);
     },
     enabled: !!customerId && !!organizationId,
-    staleTime: 60000,
+    staleTime: STALE_FREQUENT,
+    refetchOnWindowFocus: false,
   });
 
   return {

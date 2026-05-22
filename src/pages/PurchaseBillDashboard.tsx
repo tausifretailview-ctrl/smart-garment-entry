@@ -29,6 +29,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -341,21 +342,7 @@ const PurchaseBillDashboard = () => {
     pageContextMenu.openMenu(e, undefined);
   };
 
-  // Fetch settings to check if MRP is enabled
-  const { data: purchaseSettings } = useQuery({
-    queryKey: ["settings", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("purchase_settings")
-        .eq("organization_id", currentOrganization?.id)
-        .single();
-      if (error && error.code !== "PGRST116") throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
-  
+  const { data: purchaseSettings } = useSettings();
   const showMrp = (purchaseSettings?.purchase_settings as any)?.show_mrp || false;
 
   // Debounced search for server-side filtering

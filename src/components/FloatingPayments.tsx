@@ -27,6 +27,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
@@ -53,14 +54,7 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  const { data: settings } = useQuery({
-    queryKey: ["settings", orgId],
-    queryFn: async () => {
-      const { data } = await supabase.from("settings").select("sale_settings, business_name, gst_number, bill_barcode_settings, address, mobile_number, email_id").eq("organization_id", orgId).maybeSingle();
-      return data;
-    },
-    enabled: !!orgId,
-  });
+  const { data: settings } = useSettings();
 
   const handlePrintReceipt = useReactToPrint({ contentRef: receiptRef, documentTitle: `Receipt_${receiptData?.voucherNumber}` });
 

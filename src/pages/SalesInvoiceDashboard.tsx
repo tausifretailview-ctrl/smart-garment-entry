@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
+import { STALE_LIVE, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -216,7 +217,8 @@ export default function SalesInvoiceDashboard() {
         .map((u: any) => ({ id: u.id, email: u.email }));
     },
     enabled: !!currentOrganization?.id && !!session?.access_token,
-    staleTime: 300000,
+    staleTime: STALE_SETTINGS,
+    refetchOnWindowFocus: false,
   });
 
   // Default userFilter: admins (and mobile) see all users; non-admins default to themselves
@@ -713,7 +715,7 @@ export default function SalesInvoiceDashboard() {
       return { data: filteredNormalized, count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 
@@ -762,7 +764,8 @@ export default function SalesInvoiceDashboard() {
       return names as string[];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60000,
+    staleTime: STALE_SETTINGS,
+    refetchOnWindowFocus: false,
   });
 
   // Sales dashboard card stats derived from the same filtered invoice universe as table.
@@ -933,7 +936,7 @@ export default function SalesInvoiceDashboard() {
       };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 

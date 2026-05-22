@@ -2,6 +2,7 @@ import { useMemo, useCallback, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { STALE_LIVE } from "@/lib/queryStaleTimes";
 
 interface Customer {
   id: string;
@@ -138,7 +139,7 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
       return (data || []) as Customer[];
     },
     enabled: !!currentOrganization?.id && options.enabled !== false,
-    staleTime: 30 * 1000,
+    staleTime: STALE_LIVE,
     gcTime: 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 3,

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -187,14 +188,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     enabled: !!orgId && open,
   });
 
-  const { data: settings } = useQuery({
-    queryKey: ["settings", orgId],
-    queryFn: async () => {
-      const { data } = await supabase.from("settings").select("sale_settings, business_name").eq("organization_id", orgId!).maybeSingle();
-      return data;
-    },
-    enabled: !!orgId && open,
-  });
+  const { data: settings } = useSettings();
 
   // ─── Denomination total ────────────────────────────────────────────
   const denomTotal = useMemo(() => {

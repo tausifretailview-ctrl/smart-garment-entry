@@ -6,6 +6,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +45,17 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { purchaseBillFields, purchaseBillSampleData, parseExcelDate, parseLocalizedNumber } from "@/utils/excelImportUtils";
+import {
+  purchaseBillFields,
+  purchaseBillSampleData,
+  parseExcelDate,
+  parseLocalizedNumber,
+  roundMoney,
+  normalizePurchaseUnitPrice,
+  computePurchaseLineSubTotal,
+  isPurchaseFreightOrChargeRow,
+  extractChargeAmountFromRow,
+} from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
@@ -300,9 +311,8 @@ const PurchaseEntry = () => {
     return items.map((it) => {
       const uom = it.uom || uomMap[it.product_id] || 'NOS';
       const merged = { ...it, uom };
-      const mult = getMtrMultiplier(merged);
-      const sub = mult * (Number(merged.pur_price) || 0);
-      const lineTotal = sub * (1 - (Number(merged.discount_percent) || 0) / 100);
+      const sub = computePurchaseLineSubTotal(merged);
+      const lineTotal = roundMoney(sub * (1 - (Number(merged.discount_percent) || 0) / 100));
       return { ...merged, line_total: lineTotal };
     });
   };
@@ -362,8 +372,8 @@ const PurchaseEntry = () => {
       if (!matches) return item;
       touched.add(item.temp_id);
       const merged = { ...item, ...updates };
-      const mult = getMtrMultiplier(merged);
-      return { ...merged, line_total: ((updates.pur_price ?? item.pur_price) * mult) * (1 - item.discount_percent / 100) };
+      const sub = computePurchaseLineSubTotal(merged);
+      return { ...merged, line_total: roundMoney(sub * (1 - item.discount_percent / 100)) };
     }));
     // Show updated badge briefly on all touched rows
     setUpdatedRows(prev => { const next = new Set(prev); touched.forEach(id => next.add(id)); return next; });
@@ -558,22 +568,7 @@ const PurchaseEntry = () => {
     return () => { if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current); };
   }, [lineItems, currentOrganization?.id]);
 
-  // Fetch settings
-  const { data: settings } = useQuery({
-    queryKey: ["settings", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("purchase_settings, product_settings, bill_barcode_settings, accounting_engine_enabled")
-        .eq("organization_id", currentOrganization?.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  const { data: settings } = useSettings();
 
   const showMrp = ((settings?.purchase_settings as any)?.show_mrp || false) && showPurCol.mrp;
   const accountingEngineOn = isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null);
@@ -1400,10 +1395,13 @@ const PurchaseEntry = () => {
 
 
   useEffect(() => {
-    const grossBeforeDiscount = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
+    const grossBeforeDiscount = lineItems.reduce(
+      (sum, r) => sum + computePurchaseLineSubTotal(r),
+      0
+    );
     const itemDiscount = lineItems.reduce((sum, r) => {
-      const sub = getMtrMultiplier(r) * r.pur_price;
-      return sum + (sub * r.discount_percent / 100);
+      const sub = computePurchaseLineSubTotal(r);
+      return sum + roundMoney(sub * r.discount_percent / 100);
     }, 0);
     const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
     const grossAfterAllDiscount = grossAfterItemDiscount - discountAmount;
@@ -2130,10 +2128,9 @@ const PurchaseEntry = () => {
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
     const effectiveGst = isDcPurchase ? 0 : item.gst_per;
-    const mtrMult = getMtrMultiplier(item);
-    const subTotal = mtrMult * item.pur_price;
-    const discountAmount = subTotal * (item.discount_percent / 100);
-    const lineTotal = subTotal - discountAmount;
+    const subTotal = computePurchaseLineSubTotal(item);
+    const discountAmount = roundMoney(subTotal * (item.discount_percent / 100));
+    const lineTotal = roundMoney(subTotal - discountAmount);
     setLineItems((prev) => [
       ...prev,
       {
@@ -2154,10 +2151,9 @@ const PurchaseEntry = () => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
           if (field === "qty" || field === "pur_price" || field === "discount_percent" || field === "size") {
-            const mtrMult = getMtrMultiplier(updated);
-            const subTotal = mtrMult * updated.pur_price;
-            const discountAmount = subTotal * (updated.discount_percent / 100);
-            updated.line_total = subTotal - discountAmount;
+            const subTotal = computePurchaseLineSubTotal(updated);
+            const discountAmount = roundMoney(subTotal * (updated.discount_percent / 100));
+            updated.line_total = roundMoney(subTotal - discountAmount);
           }
           // Garment / Footwear GST auto-bump rule on sale price change
           if (field === "sale_price") {
@@ -2850,10 +2846,13 @@ const PurchaseEntry = () => {
     
     try {
       // Calculate totals directly from lineItems to avoid stale state issues
-      const calculatedGrossBeforeDiscount = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
+      const calculatedGrossBeforeDiscount = lineItems.reduce(
+        (sum, r) => sum + computePurchaseLineSubTotal(r),
+        0
+      );
       const calculatedItemDiscount = lineItems.reduce((sum, r) => {
-        const sub = getMtrMultiplier(r) * r.pur_price;
-        return sum + (sub * r.discount_percent / 100);
+        const sub = computePurchaseLineSubTotal(r);
+        return sum + roundMoney(sub * r.discount_percent / 100);
       }, 0);
       const calculatedTotalDiscount = calculatedItemDiscount + discountAmount;
       const calculatedGrossAfterDiscount = calculatedGrossBeforeDiscount - calculatedTotalDiscount;
@@ -3371,8 +3370,8 @@ const PurchaseEntry = () => {
   };
 
   const itemDiscountTotal = lineItems.reduce((sum, r) => {
-    const sub = getMtrMultiplier(r) * r.pur_price;
-    return sum + (sub * r.discount_percent / 100);
+    const sub = computePurchaseLineSubTotal(r);
+    return sum + roundMoney(sub * r.discount_percent / 100);
   }, 0);
 
   const totals = { 
@@ -3535,8 +3534,22 @@ const PurchaseEntry = () => {
       }
     }
     
+    // Extract courier / freight rows into bill charges (not product lines)
+    let freightChargesFromExcel = 0;
+    const rowsWithoutFreight = mappedData.filter((row) => {
+      if (isPurchaseFreightOrChargeRow(row)) {
+        freightChargesFromExcel += extractChargeAmountFromRow(row);
+        return false;
+      }
+      return true;
+    });
+    if (freightChargesFromExcel > 0) {
+      setOtherCharges((prev) => Math.max(prev, freightChargesFromExcel));
+    }
+
     // Helper function to detect summary/total rows or empty rows
     const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
+      if (isPurchaseFreightOrChargeRow(row)) return true;
       const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount', 'shipping', 'freight', 'transport', 'charges', 'discount', 'tax', 'gst'];
       let meaningfulValueCount = 0;
       
@@ -3556,7 +3569,7 @@ const PurchaseEntry = () => {
     };
 
     // Filter valid rows - skip empty rows and summary/total rows
-    const validRows = mappedData.filter(row => 
+    const validRows = rowsWithoutFreight.filter(row => 
       row.product_name?.toString().trim() && 
       row.size?.toString().trim() && 
       row.qty && Number(row.qty) > 0 &&
@@ -3711,8 +3724,8 @@ const PurchaseEntry = () => {
           }
 
           const qty = parseLocalizedNumber(row.qty) || 0;
-          const purPrice = parseLocalizedNumber(row.pur_price) || 0;
-          const lineTotal = qty * purPrice;
+          const purPrice = normalizePurchaseUnitPrice(parseLocalizedNumber(row.pur_price) || 0);
+          const lineTotal = roundMoney(qty * purPrice);
 
           newLineItems.push({
             temp_id: `import_${Date.now()}_${Math.random()}`,
@@ -3756,9 +3769,18 @@ const PurchaseEntry = () => {
 
     setLineItems(prev => [...prev, ...newLineItems]);
 
-    let description = `Added ${successCount} items from Excel`;
-    if (skippedCount > 0) description += `, ${skippedCount} empty rows skipped`;
-    if (errorCount > 0) description += `, ${errorCount} errors`;
+    const importedLinesTotal = newLineItems.reduce(
+      (sum, item) => sum + roundMoney(item.line_total),
+      0
+    );
+
+    let description = `Added ${successCount} items · Lines ₹${importedLinesTotal.toLocaleString("en-IN")}`;
+    if (freightChargesFromExcel > 0) {
+      description += ` · Charges ₹${freightChargesFromExcel.toLocaleString("en-IN")}`;
+      description += ` · Bill ₹${(importedLinesTotal + freightChargesFromExcel).toLocaleString("en-IN")}`;
+    }
+    if (skippedCount > 0) description += ` · ${skippedCount} rows skipped`;
+    if (errorCount > 0) description += ` · ${errorCount} errors`;
 
     toast({
       title: "Import Completed",
@@ -4479,7 +4501,7 @@ const PurchaseEntry = () => {
               <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
                   {lineItems.slice(0, visibleItemCount).map((item, index) => {
-                    const subTotal = getMtrMultiplier(item) * item.pur_price;
+                    const subTotal = computePurchaseLineSubTotal(item);
                     const total = item.line_total;
                     const gstAmount = (total * item.gst_per) / 100;
                     
@@ -4835,7 +4857,7 @@ const PurchaseEntry = () => {
             {/* GROSS AMT */}
             <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Gross Amt</span>
             <span className="bg-white/10 rounded-sm px-3 h-9 flex items-center text-[15px] font-bold font-mono tabular-nums min-w-[80px] justify-end">
-              {totals.grossAmount.toFixed(0)}
+              {Math.round(totals.grossAmount).toLocaleString("en-IN")}
             </span>
 
             <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
@@ -4886,7 +4908,7 @@ const PurchaseEntry = () => {
         {/* Bottom Bar: Formula strip + action buttons */}
         <div className="bg-teal-900 flex items-center px-4 py-1.5 gap-3">
           <div className="flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
-            <span>Gross <span className="text-white font-bold">₹{totals.grossAmount.toFixed(0)}</span></span>
+            <span>Gross <span className="text-white font-bold">₹{Math.round(totals.grossAmount).toLocaleString("en-IN")}</span></span>
             <span className="text-teal-500">—</span>
             <span>Disc <span className="text-red-300 font-bold">₹{(totals.itemDiscount + discountAmount).toFixed(0)}</span></span>
             <span className="text-teal-500">+</span>

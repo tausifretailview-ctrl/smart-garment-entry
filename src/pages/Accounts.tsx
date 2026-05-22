@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, Printer, Send, Coins, LayoutDashboard, Loader2, BookMarked, Trash2 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -100,20 +101,7 @@ export default function Accounts() {
   const [editTransactionId, setEditTransactionId] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
-  // Fetch settings for receipt
-  const { data: settings } = useQuery({
-    queryKey: ["settings", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: settings } = useSettings();
 
   // Old voucher fetch removed — now lazy-loaded per tab below
 

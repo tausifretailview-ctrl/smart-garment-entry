@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -197,16 +198,7 @@ const DailyTally = () => {
     ...REPORT_CACHE,
   });
 
-  // Settings (business name)
-  const { data: settings } = useQuery({
-    queryKey: ["settings", orgId],
-    queryFn: async () => {
-      const { data } = await supabase.from("settings").select("business_name").eq("organization_id", orgId!).maybeSingle();
-      return data;
-    },
-    enabled: !!orgId,
-    ...REPORT_CACHE,
-  });
+  const { data: settings } = useSettings();
 
   const isLoading = salesLoading || vouchersLoading || advancesLoading || refundsLoading || snapshotLoading;
 

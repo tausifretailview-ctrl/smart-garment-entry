@@ -4,6 +4,64 @@ import * as XLSX from 'xlsx';
  * Parse localized number format - handles both US (1,234.56) and European (1.234,56) formats
  * Auto-detects format based on separator positions
  */
+/** Round to 2 decimal places (INR line amounts). */
+export const roundMoney = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+};
+
+/** Snap near-integer prices from Excel (e.g. 2589.0000001 → 2589). */
+export const normalizePurchaseUnitPrice = (value: number): number => {
+  const rounded = roundMoney(value);
+  if (Math.abs(rounded - Math.round(rounded)) < 0.01) {
+    return Math.round(rounded);
+  }
+  return rounded;
+};
+
+export const getPurchaseLineMultiplier = (item: {
+  uom?: string;
+  size?: string;
+  qty: number;
+}): number => {
+  if ((item.uom || "").toUpperCase() === "MTR") {
+    const meters = parseFloat(item.size || "");
+    if (!isNaN(meters) && meters > 0) return meters;
+  }
+  return item.qty;
+};
+
+export const computePurchaseLineSubTotal = (item: {
+  uom?: string;
+  size?: string;
+  qty: number;
+  pur_price: number;
+}): number => {
+  return roundMoney(getPurchaseLineMultiplier(item) * (Number(item.pur_price) || 0));
+};
+
+const CHARGE_ROW_PATTERN =
+  /courier|freight|convenience|conveince|transport\s*charge|shipping|carriage|delivery\s*charge|other\s*charge/i;
+
+/** Excel summary rows for courier / freight — not product lines. */
+export const isPurchaseFreightOrChargeRow = (row: Record<string, any>): boolean => {
+  const labelText = Object.values(row)
+    .filter((v) => v !== undefined && v !== null && v !== "")
+    .map((v) => String(v).toLowerCase())
+    .join(" ");
+  return CHARGE_ROW_PATTERN.test(labelText);
+};
+
+/** Largest numeric value on a charge row (e.g. courier amount in PKR column). */
+export const extractChargeAmountFromRow = (row: Record<string, any>): number => {
+  let max = 0;
+  for (const v of Object.values(row)) {
+    const n = parseLocalizedNumber(v);
+    if (n > max) max = n;
+  }
+  return normalizePurchaseUnitPrice(max);
+};
+
 export const parseLocalizedNumber = (
   value: string | number | null | undefined,
   useCommaDecimal?: boolean
@@ -411,6 +469,7 @@ export interface ValidationResult {
 
 // Check if a row appears to be a summary/total row or empty row that should be skipped
 const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
+  if (isPurchaseFreightOrChargeRow(row)) return true;
   const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount', 'shipping', 'freight', 'transport', 'charges', 'discount', 'tax', 'gst'];
   
   // Count how many meaningful values this row has

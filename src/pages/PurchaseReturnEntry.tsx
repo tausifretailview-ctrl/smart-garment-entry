@@ -4,6 +4,7 @@ import { useSearchParams, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,22 +112,7 @@ const PurchaseReturnEntry = () => {
   const [billLoaded, setBillLoaded] = useState(false);
   const [originalBillId, setOriginalBillId] = useState('');
 
-  // Org-wide purchase settings (mirrors PurchaseEntry pattern)
-  const { data: settings } = useQuery({
-    queryKey: ["settings", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("purchase_settings, product_settings")
-        .eq("organization_id", currentOrganization?.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  const { data: settings } = useSettings();
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const defaultTaxRate = (settings?.purchase_settings as any)?.default_tax_rate;

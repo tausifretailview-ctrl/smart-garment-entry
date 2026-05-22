@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useSettings } from "@/hooks/useSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -180,21 +181,7 @@ const DailyCashierReport = () => {
 
   const isLoading = salesLoading || receiptsLoading || refundsLoading || feesLoading || expensesLoading;
 
-  // Fetch settings for business name
-  const { data: settings } = useQuery({
-    queryKey: ["settings", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase
-        .from("settings")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-  });
+  const { data: settings } = useSettings();
 
   // Calculate totals including payment receipts
   const calculateTotals = () => {

@@ -1,0 +1,48 @@
+---
+description: React Query staleTime tiers and critical exceptions for Supabase read optimization
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# React Query cache policy
+
+Global defaults live in `src/App.tsx`: `staleTime: 30_000`, `refetchOnWindowFocus: false`, `retry: 1`.
+Use tiers from `src/lib/queryStaleTimes.ts`.
+
+## CRITICAL EXCEPTIONS — `staleTime: 0` (STALE_LIVE)
+
+**Search / filter in queryKey** — every keystroke or filter change must refetch:
+
+- `debouncedSearch`, `searchTerm`, `searchQuery`, or similar in `queryKey`
+- `filter` in key (e.g. `deliveryFilter`, `statusFilter`, `filtered-invoices`)
+
+**POS barcode lookups** — always latest product data:
+
+- `product-by-barcode`, `variant-lookup`, `barcode-scan`, `barcode-stock-scan`
+
+## Pagination — `staleTime: 5_000` (STALE_PAGINATED)
+
+When `queryKey` includes `currentPage`, `pageSize`, `itemsPerPage`, or `useInfiniteQuery`, use 5s unless a live search/filter marker above applies (search wins → 0).
+
+## Do NOT override `refetchOnMount`
+
+Leave React Query default (`true`). First page load always fetches fresh data; tab switches within `staleTime` skip refetch.
+
+## Tier reference
+
+| Tier | ms | Use for |
+|------|-----|---------|
+| STALE_LIVE | 0 | Search, filters, barcode |
+| STALE_PAGINATED | 5_000 | Paginated lists |
+| STALE_DEFAULT | 30_000 | Global default |
+| STALE_FREQUENT | 10_000 | Balances, recent lists |
+| STALE_REFERENCE | 120_000 | Products, suppliers, categories |
+| STALE_SETTINGS | 300_000 | Org settings via `useSettings()` |
+
+## Quick test checklist
+
+1. Customer search — results update each keystroke
+2. POS barcode scan — product appears instantly
+3. Save sale → Sales Dashboard — new sale visible immediately
+4. Tab switch back within 10s — no flash/reload storm
+5. Morning open — today's data, not stale overnight cache on first mount

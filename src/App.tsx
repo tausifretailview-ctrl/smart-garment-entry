@@ -281,9 +281,10 @@ const App = () => {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000,    // 5 minutes — was 30s, saves ~80% re-fetches on navigation
-        gcTime: 30 * 60 * 1000,      // 30 minutes cache retention
-        refetchOnWindowFocus: false,  // Already off - keep it off
+        staleTime: 30_000, // 30s — fresh enough for dashboards; stops refetch storms on tab switch
+        gcTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        // refetchOnMount: true (default) — first page visit always fetches; tab return within staleTime skips
         retry: 1,
       },
     },

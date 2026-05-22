@@ -1,5 +1,6 @@
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { STALE_REFERENCE } from '@/lib/queryStaleTimes';
 
 /**
  * Organization-scoped useQuery wrapper.
@@ -32,7 +33,8 @@ export function useOrgQuery<T>({ queryKey, queryFn, enabled = true, options }: O
     queryKey: [...queryKey, orgId!],
     queryFn: () => queryFn(orgId!),
     enabled: !!orgId && enabled,
-    staleTime: 120_000,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
     ...options,
   });
 }

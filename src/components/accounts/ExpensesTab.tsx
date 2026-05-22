@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useSettings } from "@/hooks/useSettings";
 import {
   deleteJournalEntryByReference,
   recordExpenseVoucherJournalEntry,
@@ -147,20 +148,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
     enabled: !!organizationId,
   });
 
-  // Fetch org settings for print
-  const { data: settings } = useQuery({
-    queryKey: ["settings", organizationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("settings")
-        .select("business_name, address, mobile_number, accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!organizationId,
-  });
+  const { data: settings } = useSettings();
 
   // Create expense
   const createExpense = useMutation({
