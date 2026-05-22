@@ -31,8 +31,10 @@ import { FloatingCashTally } from "@/components/FloatingCashTally";
 import { FloatingPayments } from "@/components/FloatingPayments";
 import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
 import { Truck } from "lucide-react";
-import { IPadInstallBanner } from "@/components/IPadInstallBanner";
+import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
+import { mobileMainPaddingClass } from "@/lib/mobileShell";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { cn } from "@/lib/utils";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -327,15 +329,22 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
         </div>
       </header>
       
-      <WindowTabsBar />
-      
-      {/* Mobile offline indicator */}
+      <div className="hidden lg:block">
+        <WindowTabsBar />
+      </div>
+
       <OfflineIndicator />
-      
-      {/* Add bottom padding on mobile for bottom nav */}
-      <main className="flex-1 animate-fade-in p-4 pb-20 lg:pb-4">{children}</main>
-      
-      {/* Mobile navigation */}
+
+      <main
+        className={cn(
+          "flex-1 animate-fade-in p-3 sm:p-4",
+          mobileMainPaddingClass,
+          "lg:!pb-4",
+        )}
+      >
+        {children}
+      </main>
+
       <MobileBottomNav />
       
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
@@ -343,7 +352,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
       <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
-      <IPadInstallBanner />
+      <PwaInstallBanner />
     </div>
   );
 };

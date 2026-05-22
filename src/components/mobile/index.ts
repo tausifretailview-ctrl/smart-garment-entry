@@ -1,4 +1,6 @@
 // Mobile navigation and UX components
+export { MobileAppHeader } from "./MobileAppHeader";
+export { PwaInstallBanner } from "./PwaInstallBanner";
 export { MobileBottomNav } from "./MobileBottomNav";
 export { MobileFAB } from "./MobileFAB";
 export { MobileDrawer } from "./MobileDrawer";
