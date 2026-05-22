@@ -38,6 +38,8 @@ import {
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
+import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
+import { AdaptivePaymentMethodPicker } from "@/components/mobile/AdaptivePaymentMethodPicker";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 import {
@@ -1294,57 +1296,35 @@ export function CustomerPaymentTab({
                 </Popover>
               </div>
 
-              {/* Customer Search */}
               <div className="space-y-2">
-                <Label>Customer</Label>
-                <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" aria-expanded={customerSearchOpen} className="w-full justify-between">
-                      {referenceId ? customersWithBalance?.find((c) => c.id === referenceId)?.customer_name || "Select customer" : "Select customer"}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput placeholder="Search customer by name or phone..." value={customerSearchTerm} onValueChange={setCustomerSearchTerm} />
-                      <CommandList>
-                        <CommandEmpty>{customersWithBalance?.length === 0 ? "No customers with outstanding balance" : "No customer found"}</CommandEmpty>
-                        <CommandGroup>
-                          {customersWithBalance
-                            ?.filter((c) => {
-                              if (!customerSearchTerm) return true;
-                              const term = customerSearchTerm.toLowerCase();
-                              return c.customer_name.toLowerCase().includes(term) || (c.phone?.toLowerCase().includes(term));
-                            })
-                            .slice(0, 50)
-                            .map((customer) => (
-                              <CommandItem
-                                key={customer.id}
-                                value={customer.id}
-                                onSelect={() => {
-                                  setReferenceId(customer.id);
-                                  setSelectedInvoiceIds([]);
-                                  setAllocatedAmounts({});
-                                  setCustomerSearchOpen(false);
-                                  setCustomerSearchTerm("");
-                                }}
-                                className="flex items-center justify-between"
-                              >
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{customer.customer_name}</span>
-                                  {customer.phone && <span className="text-xs text-muted-foreground">{customer.phone}</span>}
-                                </div>
-                                <Badge variant="destructive" className="ml-2">
-                                  ₹{Math.round(customer.outstandingBalance).toLocaleString('en-IN')}
-                                </Badge>
-                                {referenceId === customer.id && <Check className="ml-2 h-4 w-4 text-primary" />}
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              <AdaptiveCustomerPicker
+                label="Customer"
+                open={customerSearchOpen}
+                onOpenChange={setCustomerSearchOpen}
+                selectedId={referenceId || null}
+                selectedLabel={
+                  customersWithBalance?.find((c) => c.id === referenceId)?.customer_name || ""
+                }
+                searchTerm={customerSearchTerm}
+                onSearchTermChange={setCustomerSearchTerm}
+                options={(customersWithBalance ?? []).map((c) => ({
+                  id: c.id,
+                  customer_name: c.customer_name,
+                  phone: c.phone,
+                  outstandingBalance: c.outstandingBalance,
+                }))}
+                onSelect={(customer) => {
+                  setReferenceId(customer.id);
+                  setSelectedInvoiceIds([]);
+                  setAllocatedAmounts({});
+                }}
+                emptyMessage={
+                  customersWithBalance?.length === 0
+                    ? "No customers with outstanding balance"
+                    : "No customer found"
+                }
+                showOutstanding
+              />
                 {referenceId && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && (() => {
                   const lifetimeDr = lifetimeOutstanding ?? customerBalance ?? 0;
                   const showAsNoOutstanding =
@@ -1516,21 +1496,17 @@ export function CustomerPaymentTab({
                 )}
               </div>
 
-              {/* Payment Method */}
-              <div className="space-y-2">
-                <Label>Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={(value) => { setPaymentMethod(value); setChequeNumber(""); setChequeDate(undefined); setTransactionId(""); setUpiPaymentDate(undefined); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="card">Card</SelectItem>
-                    <SelectItem value="upi">UPI</SelectItem>
-                    <SelectItem value="cheque">Cheque</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <AdaptivePaymentMethodPicker
+                label="Payment Method"
+                value={paymentMethod}
+                onChange={(value) => {
+                  setPaymentMethod(value);
+                  setChequeNumber("");
+                  setChequeDate(undefined);
+                  setTransactionId("");
+                  setUpiPaymentDate(undefined);
+                }}
+              />
 
               {/* Cheque fields */}
               {paymentMethod === 'cheque' && (

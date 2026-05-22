@@ -4,15 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarIcon, Plus, Check, ChevronsUpDown, Printer, X, CheckCircle2 } from "lucide-react";
+import { CalendarIcon, Plus, Printer, X, CheckCircle2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -35,6 +33,12 @@ import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtil
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
+import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
+import { AdaptiveSupplierPicker } from "@/components/mobile/AdaptiveSupplierPicker";
+import {
+  AdaptivePaymentMethodPicker,
+} from "@/components/mobile/AdaptivePaymentMethodPicker";
+import { DEFAULT_RECEIPT_PAYMENT_METHODS } from "@/components/mobile/MobilePaymentMethodPickerSheet";
 
 interface FloatingPaymentsProps {
   open: boolean;
@@ -451,48 +455,30 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
           </Popover>
         </div>
 
-        {/* Customer */}
-        <div className="space-y-1">
-          <Label className="text-xs">Customer</Label>
-          <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full justify-between text-xs h-9">
-                {referenceId ? (customersWithBalance?.find(c => c.id === referenceId)?.customer_name || "Select") : "Select customer..."}
-                <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[350px] p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput placeholder="Search by name or phone..." value={customerSearchTerm} onValueChange={setCustomerSearchTerm} />
-                <CommandList>
-                  <CommandEmpty>No customer found</CommandEmpty>
-                  <CommandGroup>
-                    {customersWithBalance?.filter(c => {
-                      if (!customerSearchTerm) return true;
-                      const t = customerSearchTerm.toLowerCase();
-                      return c.customer_name.toLowerCase().includes(t) || c.phone?.toLowerCase().includes(t);
-                    }).slice(0, 30).map(c => (
-                      <CommandItem key={c.id} value={c.id} onSelect={() => {
-                        setReferenceId(c.id);
-                        setSelectedInvoiceIds([]);
-                        setAmount("");
-                        setCustomerSearchOpen(false);
-                        setCustomerSearchTerm("");
-                      }}>
-                        <div className="flex-1">
-                          <span className="text-sm">{c.customer_name}</span>
-                          {c.phone && <span className="text-xs text-muted-foreground ml-2">{c.phone}</span>}
-                        </div>
-                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">₹{Math.round(c.outstandingBalance).toLocaleString('en-IN')}</Badge>
-                        {referenceId === c.id && <Check className="ml-1 h-3 w-3 text-primary" />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
+        <AdaptiveCustomerPicker
+          label={<span className="text-xs">Customer</span>}
+          open={customerSearchOpen}
+          onOpenChange={setCustomerSearchOpen}
+          selectedId={referenceId || null}
+          selectedLabel={customersWithBalance?.find((c) => c.id === referenceId)?.customer_name || ""}
+          placeholder="Select customer..."
+          searchTerm={customerSearchTerm}
+          onSearchTermChange={setCustomerSearchTerm}
+          options={(customersWithBalance ?? []).map((c) => ({
+            id: c.id,
+            customer_name: c.customer_name,
+            phone: c.phone,
+            outstandingBalance: c.outstandingBalance,
+          }))}
+          onSelect={(c) => {
+            setReferenceId(c.id);
+            setSelectedInvoiceIds([]);
+            setAmount("");
+          }}
+          showOutstanding
+          triggerClassName="h-9 text-xs"
+          popoverWidth="w-[350px]"
+        />
       </div>
 
       {/* Outstanding */}
@@ -532,20 +518,13 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        {/* Payment Method */}
-        <div className="space-y-1">
-          <Label className="text-xs">Payment Method</Label>
-          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cash">Cash</SelectItem>
-              <SelectItem value="card">Card</SelectItem>
-              <SelectItem value="upi">UPI</SelectItem>
-              <SelectItem value="cheque">Cheque</SelectItem>
-              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <AdaptivePaymentMethodPicker
+          label={<span className="text-xs">Payment Method</span>}
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+          methods={DEFAULT_RECEIPT_PAYMENT_METHODS.filter((m) => m.value !== "other")}
+          triggerClassName="h-9 text-xs"
+        />
 
         {/* Amount */}
         <div className="space-y-1">
@@ -730,40 +709,28 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
           </Popover>
         </div>
 
-        <div className="space-y-1">
-          <Label className="text-xs">Supplier</Label>
-          <Popover open={supplierSearchOpen} onOpenChange={setSupplierSearchOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="w-full justify-between text-xs h-9">
-                {referenceId ? (suppliersWithBalance?.find(s => s.id === referenceId)?.supplier_name || "Select") : "Select supplier..."}
-                <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[350px] p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput placeholder="Search supplier..." value={supplierSearchTerm} onValueChange={setSupplierSearchTerm} />
-                <CommandList>
-                  <CommandEmpty>No supplier found</CommandEmpty>
-                  <CommandGroup>
-                    {suppliersWithBalance?.filter(s => !supplierSearchTerm || s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase())).slice(0, 30).map(s => (
-                      <CommandItem key={s.id} value={s.id} onSelect={() => {
-                        setReferenceId(s.id);
-                        setSelectedBillIds([]);
-                        setAmount("");
-                        setSupplierSearchOpen(false);
-                        setSupplierSearchTerm("");
-                      }}>
-                        <span className="flex-1 text-sm">{s.supplier_name}</span>
-                        <Badge variant="destructive" className="text-xs">₹{Math.round(s.outstandingBalance).toLocaleString('en-IN')}</Badge>
-                        {referenceId === s.id && <Check className="ml-1 h-3 w-3" />}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
+        <AdaptiveSupplierPicker
+          label={<span className="text-xs">Supplier</span>}
+          open={supplierSearchOpen}
+          onOpenChange={setSupplierSearchOpen}
+          selectedId={referenceId || null}
+          selectedLabel={suppliersWithBalance?.find((s) => s.id === referenceId)?.supplier_name || ""}
+          placeholder="Select supplier..."
+          searchTerm={supplierSearchTerm}
+          onSearchTermChange={setSupplierSearchTerm}
+          options={(suppliersWithBalance ?? []).map((s) => ({
+            id: s.id,
+            supplier_name: s.supplier_name,
+            phone: s.phone,
+            outstandingBalance: s.outstandingBalance,
+          }))}
+          onSelect={(s) => {
+            setReferenceId(s.id);
+            setSelectedBillIds([]);
+            setAmount("");
+          }}
+          triggerClassName="h-9 text-xs"
+        />
       </div>
 
       {/* Bill selection */}
@@ -796,18 +763,15 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Payment Method</Label>
-          <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="cash">Cash</SelectItem>
-              <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-              <SelectItem value="cheque">Cheque</SelectItem>
-              <SelectItem value="upi">UPI</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <AdaptivePaymentMethodPicker
+          label={<span className="text-xs">Payment Method</span>}
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+          methods={DEFAULT_RECEIPT_PAYMENT_METHODS.filter((m) =>
+            ["cash", "bank_transfer", "cheque", "upi"].includes(m.value)
+          )}
+          triggerClassName="h-9 text-xs"
+        />
         <div className="space-y-1">
           <Label className="text-xs">Amount</Label>
           <Input type="number" step="0.01" placeholder="₹ Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 text-xs" />

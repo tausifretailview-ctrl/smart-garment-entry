@@ -14,19 +14,7 @@ import {
   Camera
 } from "lucide-react";
 import { CameraScanner } from "@/components/tablet/CameraScanner";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { MobileCustomerPickerSheet } from "@/components/mobile/MobileCustomerPickerSheet";
 import {
   Select,
   SelectContent,
@@ -220,62 +208,36 @@ export const MobilePOSHeader = ({
 
       {/* Customer Row */}
       <div className="flex items-center gap-2">
-        <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="flex-1 justify-between h-10 text-left font-normal"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="truncate">
-                  {customerName || 'Walk-in Customer'}
-                </span>
-              </div>
-              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="start">
-            <Command>
-              <CommandInput
-                placeholder="Search customer..."
-                value={customerSearchInput}
-                onValueChange={onCustomerSearchChange}
-              />
-              <CommandList className="max-h-60">
-                <CommandEmpty>No customer found.</CommandEmpty>
-                <CommandGroup heading={hasMoreCustomers ? `Showing ${customers?.length || 0} - refine search` : undefined}>
-                  {/* Walk-in option */}
-                  <CommandItem
-                    onSelect={() => {
-                      onCustomerSelect(null);
-                      setOpenCustomerSearch(false);
-                    }}
-                  >
-                    <span className="text-muted-foreground">Walk-in Customer</span>
-                  </CommandItem>
-                  {customers?.slice(0, 20).map((customer: any) => (
-                    <CommandItem
-                      key={customer.id}
-                      onSelect={() => {
-                        onCustomerSelect(customer);
-                        setOpenCustomerSearch(false);
-                      }}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium">{customer.customer_name}</span>
-                        {customer.phone && (
-                          <span className="text-xs text-muted-foreground">{customer.phone}</span>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-        
+        <Button
+          type="button"
+          variant="outline"
+          className="flex-1 justify-between h-10 text-left font-normal touch-manipulation"
+          onClick={() => setOpenCustomerSearch(true)}
+        >
+          <div className="flex items-center gap-2 truncate">
+            <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{customerName || "Walk-in Customer"}</span>
+          </div>
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+
+        <MobileCustomerPickerSheet
+          open={openCustomerSearch}
+          onOpenChange={setOpenCustomerSearch}
+          title="Select customer"
+          searchTerm={customerSearchInput}
+          onSearchTermChange={onCustomerSearchChange}
+          options={(customers ?? []).slice(0, 50).map((customer: { id: string; customer_name: string; phone?: string }) => ({
+            id: customer.id,
+            customer_name: customer.customer_name,
+            phone: customer.phone,
+          }))}
+          onSelect={(c) => onCustomerSelect(customers?.find((x: { id: string }) => x.id === c.id) ?? c)}
+          emptyMessage={hasMoreCustomers ? "Refine search to see more customers" : "No customer found"}
+          walkInLabel="Walk-in Customer"
+          onWalkIn={() => onCustomerSelect(null)}
+        />
+
         <Button
           variant="outline"
           size="icon"
