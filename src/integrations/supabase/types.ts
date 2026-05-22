@@ -409,6 +409,112 @@ export type Database = {
           },
         ]
       }
+      balance_reconciliation_log: {
+        Row: {
+          advances_applied: number | null
+          balance_adjustments: number | null
+          check_date: string
+          created_at: string | null
+          credit_note_vouchers: number | null
+          customer_id: string
+          customer_name: string | null
+          customer_payment_refunds: number | null
+          drift_rpc_vs_invoices: number | null
+          has_mistagged_receipts: boolean | null
+          has_overpaid_invoices: boolean | null
+          has_phantom_advance: boolean | null
+          has_sr_invoice_drift: boolean | null
+          id: string
+          invoice_sum_outstanding: number | null
+          notes: string | null
+          opening_balance: number | null
+          organization_id: string
+          pending_sale_returns: number | null
+          receipt_payments: number | null
+          rpc_outstanding: number
+          severity: string | null
+          total_invoiced: number | null
+          total_sale_return_adjust: number | null
+          unused_advances: number | null
+        }
+        Insert: {
+          advances_applied?: number | null
+          balance_adjustments?: number | null
+          check_date?: string
+          created_at?: string | null
+          credit_note_vouchers?: number | null
+          customer_id: string
+          customer_name?: string | null
+          customer_payment_refunds?: number | null
+          drift_rpc_vs_invoices?: number | null
+          has_mistagged_receipts?: boolean | null
+          has_overpaid_invoices?: boolean | null
+          has_phantom_advance?: boolean | null
+          has_sr_invoice_drift?: boolean | null
+          id?: string
+          invoice_sum_outstanding?: number | null
+          notes?: string | null
+          opening_balance?: number | null
+          organization_id: string
+          pending_sale_returns?: number | null
+          receipt_payments?: number | null
+          rpc_outstanding?: number
+          severity?: string | null
+          total_invoiced?: number | null
+          total_sale_return_adjust?: number | null
+          unused_advances?: number | null
+        }
+        Update: {
+          advances_applied?: number | null
+          balance_adjustments?: number | null
+          check_date?: string
+          created_at?: string | null
+          credit_note_vouchers?: number | null
+          customer_id?: string
+          customer_name?: string | null
+          customer_payment_refunds?: number | null
+          drift_rpc_vs_invoices?: number | null
+          has_mistagged_receipts?: boolean | null
+          has_overpaid_invoices?: boolean | null
+          has_phantom_advance?: boolean | null
+          has_sr_invoice_drift?: boolean | null
+          id?: string
+          invoice_sum_outstanding?: number | null
+          notes?: string | null
+          opening_balance?: number | null
+          organization_id?: string
+          pending_sale_returns?: number | null
+          receipt_payments?: number | null
+          rpc_outstanding?: number
+          severity?: string | null
+          total_invoiced?: number | null
+          total_sale_return_adjust?: number | null
+          unused_advances?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "balance_reconciliation_log_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "balance_reconciliation_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "balance_reconciliation_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       barcode_label_settings: {
         Row: {
           created_at: string | null
@@ -7621,6 +7727,10 @@ export type Database = {
       get_customer_ledger_anomalies: {
         Args: never
         Returns: {
+          advance_drift_amount: number
+          advance_drift_count: number
+          discount_drift_amount: number
+          discount_drift_count: number
           ghost_receipts_amount: number
           ghost_receipts_count: number
           mistagged_receipts_amount: number
@@ -7652,6 +7762,10 @@ export type Database = {
           voucher_no: string
           voucher_type: string
         }[]
+      }
+      get_customer_true_outstanding: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: number
       }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
@@ -7945,6 +8059,14 @@ export type Database = {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: undefined
       }
+      reconcile_customer_balance: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: {
+          amount: number
+          detail: string
+          source: string
+        }[]
+      }
       reconcile_customer_balances: {
         Args: { p_organization_id: string }
         Returns: {
@@ -7994,6 +8116,10 @@ export type Database = {
       restore_sale_order: { Args: { p_order_id: string }; Returns: undefined }
       restore_sale_return: { Args: { p_return_id: string }; Returns: undefined }
       restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      run_nightly_balance_reconciliation: {
+        Args: { p_organization_id?: string }
+        Returns: Json
+      }
       scan_stock_alerts_all_orgs: {
         Args: never
         Returns: {

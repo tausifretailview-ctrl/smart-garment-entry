@@ -492,7 +492,7 @@ Thank you for your business!`;
   };
 
   const fmtShort = (n: number) =>
-    n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")};
+    n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
 
   const dashboardDialogs = (
     <>
