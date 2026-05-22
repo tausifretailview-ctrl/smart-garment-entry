@@ -79,6 +79,34 @@ export async function fetchAllSalesSummary(organizationId: string) {
   return allRows;
 }
 
+const TRUE_OUTSTANDING_RPC_CHUNK = 25;
+
+/**
+ * Lifetime outstanding per customer via `get_customer_true_outstanding` (matches Customer Ledger / audit RPC).
+ */
+export async function fetchCustomerTrueOutstandingMap(
+  organizationId: string,
+  customerIds: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const unique = [...new Set(customerIds.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += TRUE_OUTSTANDING_RPC_CHUNK) {
+    const chunk = unique.slice(i, i + TRUE_OUTSTANDING_RPC_CHUNK);
+    const rows = await Promise.all(
+      chunk.map(async (customerId) => {
+        const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
+          p_customer_id: customerId,
+          p_organization_id: organizationId,
+        });
+        if (error) throw error;
+        return { customerId, balance: Math.round(Number(data || 0)) };
+      }),
+    );
+    rows.forEach((r) => map.set(r.customerId, r.balance));
+  }
+  return map;
+}
+
 /**
  * Fetch all sales for an organization with full details using range pagination.
  */

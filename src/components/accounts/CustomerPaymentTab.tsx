@@ -30,7 +30,11 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import {
+  fetchAllCustomers,
+  fetchAllSalesSummary,
+  fetchCustomerTrueOutstandingMap,
+} from "@/utils/fetchAllRows";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
@@ -41,12 +45,6 @@ import {
   getAvailableCN,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
-import {
-  buildOrgCustomerBalanceBatch,
-  computeAuditOutstandingFromBatch,
-  type CustomerBalanceCoreVoucher,
-} from "@/utils/customerBalanceCore";
-
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
 const OPENING_BALANCE_ID = "__opening_balance__";
@@ -150,91 +148,38 @@ export function CustomerPaymentTab({
     staleTime: 5000,
   });
 
-  // Fetch customers with balance (audit/RPC formula via customerBalanceCore)
+  // Fetch customers with balance (same RPC as Customer Ledger / audit)
   const { data: customersWithBalance } = useQuery({
-    queryKey: ["customers-with-balance", organizationId, "audit-core"],
+    queryKey: ["customers-with-balance", organizationId, "true-outstanding-rpc"],
     queryFn: async () => {
-      const allCustomers = await fetchAllCustomers(organizationId);
-      const customerIds = new Set(allCustomers.map((c: { id: string }) => c.id));
-
-      const [
-        allSales,
-        { data: allVouchers, error: voucherError },
-        { data: advances, error: advancesError },
-        { data: adjustments, error: adjustmentsError },
-        { data: saleReturns, error: saleReturnsError },
-      ] = await Promise.all([
+      const [allCustomers, allSales, { data: advances, error: advancesError }] = await Promise.all([
+        fetchAllCustomers(organizationId),
         fetchAllSalesSummary(organizationId),
-        supabase
-          .from("voucher_entries")
-          .select(
-            "id, voucher_type, reference_type, reference_id, total_amount, discount_amount, payment_method, description",
-          )
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null)
-          .in("voucher_type", ["receipt", "payment", "credit_note"]),
-        supabase
-          .from("customer_advances")
-          .select("id, customer_id, amount, used_amount")
-          .eq("organization_id", organizationId),
-        supabase
-          .from("customer_balance_adjustments")
-          .select("customer_id, outstanding_difference")
-          .eq("organization_id", organizationId),
-        supabase
-          .from("sale_returns")
-          .select("customer_id, net_amount, credit_status, linked_sale_id")
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null),
+        supabase.from("customer_advances").select("customer_id").eq("organization_id", organizationId),
       ]);
-      if (voucherError) throw voucherError;
       if (advancesError) throw advancesError;
-      if (adjustmentsError) throw adjustmentsError;
-      if (saleReturnsError) throw saleReturnsError;
 
-      const advanceIdToCustomer = new Map(
-        (advances || []).map((a: { id: string; customer_id: string }) => [a.id, a.customer_id]),
-      );
-      const advanceIds = [...advanceIdToCustomer.keys()];
-      let refunds: Array<{ customer_id: string; refund_amount?: number | null }> = [];
-      if (advanceIds.length > 0) {
-        const { data: refundRows, error: refundsError } = await supabase
-          .from("advance_refunds")
-          .select("refund_amount, advance_id")
-          .eq("organization_id", organizationId)
-          .in("advance_id", advanceIds);
-        if (refundsError) throw refundsError;
-        refunds = (refundRows || [])
-          .map((r: { advance_id: string; refund_amount?: number | null }) => {
-            const customer_id = advanceIdToCustomer.get(r.advance_id);
-            if (!customer_id) return null;
-            return { customer_id, refund_amount: r.refund_amount };
-          })
-          .filter(Boolean) as Array<{ customer_id: string; refund_amount?: number | null }>;
-      }
-
-      const batch = buildOrgCustomerBalanceBatch({
-        sales: allSales,
-        vouchers: (allVouchers || []) as CustomerBalanceCoreVoucher[],
-        advances: advances || [],
-        refunds,
-        adjustments: adjustments || [],
-        saleReturns: saleReturns || [],
-        customerIds,
+      const activeCustomerIds = new Set<string>();
+      allSales.forEach((s: { customer_id?: string | null }) => {
+        if (s.customer_id) activeCustomerIds.add(s.customer_id);
       });
+      (advances || []).forEach((a: { customer_id: string }) => activeCustomerIds.add(a.customer_id));
+
+      const candidates = allCustomers.filter(
+        (c: { id: string; opening_balance?: number | null }) =>
+          activeCustomerIds.has(c.id) || Math.abs(Number(c.opening_balance || 0)) > 0.01,
+      );
+
+      const balanceMap = await fetchCustomerTrueOutstandingMap(
+        organizationId,
+        candidates.map((c: { id: string }) => c.id),
+      );
 
       return allCustomers
-        .map((c: any) => {
-          const outstanding = computeAuditOutstandingFromBatch(
-            c.id,
-            Number(c.opening_balance || 0),
-            batch,
-          );
-          return {
-            ...c,
-            outstandingBalance: Math.round(outstanding),
-          };
-        })
+        .map((c: any) => ({
+          ...c,
+          outstandingBalance: balanceMap.get(c.id) ?? 0,
+        }))
         .filter((c: { outstandingBalance: number }) => c.outstandingBalance > 0);
     },
     enabled: !!organizationId,
@@ -407,18 +352,30 @@ export function CustomerPaymentTab({
     enabled: !!referenceId && !!organizationId,
   });
 
-  // Customer balance — ledger snapshot (may differ from audit/RPC lifetime)
   const { balance: customerBalance } = useCustomerBalance(
     referenceId || null,
     organizationId
   );
 
-  /** Lifetime Dr from customerBalanceCore — matches dropdown badge and audit/RPC. */
-  const lifetimeAuditOutstanding = useMemo(() => {
-    if (!referenceId) return undefined;
-    const fromPicker = customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
-    return fromPicker !== undefined ? fromPicker : undefined;
-  }, [referenceId, customersWithBalance]);
+  /** Lifetime Dr — `get_customer_true_outstanding` (same as Customer Ledger). */
+  const { data: trueLifetimeOutstanding } = useQuery({
+    queryKey: ["customer-true-outstanding-payment", organizationId, referenceId],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
+        p_customer_id: referenceId,
+        p_organization_id: organizationId,
+      });
+      if (error) throw error;
+      return Math.round(Number(data || 0));
+    },
+    enabled: !!referenceId && !!organizationId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const lifetimeOutstanding =
+    trueLifetimeOutstanding ??
+    customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
 
   /** Sum of opening + per-invoice pending (matches Select Invoices list; includes sale_return_adjust). */
   const listedInvoicePendingTotal = useMemo(() => {
@@ -1239,7 +1196,7 @@ export function CustomerPaymentTab({
     // historically missed per-invoice CN adjust until useCustomerBalance subtracts sale_return_adjust.
     const selectedPayableForZeroGuard =
       selectedInvoiceIds.length > 0 ? getSelectedPayableTotal() : 0;
-    const lifetimeDrForGuard = lifetimeAuditOutstanding ?? customerBalance;
+    const lifetimeDrForGuard = lifetimeOutstanding ?? customerBalance;
     if (
       lifetimeDrForGuard !== undefined &&
       lifetimeDrForGuard <= 0 &&
@@ -1385,8 +1342,8 @@ export function CustomerPaymentTab({
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {referenceId && (lifetimeAuditOutstanding !== undefined || customerBalance !== undefined) && (() => {
-                  const lifetimeDr = lifetimeAuditOutstanding ?? customerBalance ?? 0;
+                {referenceId && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && (() => {
+                  const lifetimeDr = lifetimeOutstanding ?? customerBalance ?? 0;
                   const showAsNoOutstanding =
                     lifetimeDr <= 0 && listedInvoicePendingTotal < MIN_PENDING_RUPEE;
                   const displayBalance =
@@ -1414,7 +1371,7 @@ export function CustomerPaymentTab({
                   );
                 })()}
                 {/* Advance Balance Banner */}
-                {referenceId && advanceBalance > 0 && (lifetimeAuditOutstanding !== undefined || customerBalance !== undefined) && ((lifetimeAuditOutstanding ?? customerBalance ?? 0) >= MIN_PENDING_RUPEE || listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
+                {referenceId && advanceBalance > 0 && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && ((lifetimeOutstanding ?? customerBalance ?? 0) >= MIN_PENDING_RUPEE || listedInvoicePendingTotal >= MIN_PENDING_RUPEE) && (
                   <div className="mt-2 p-3 border rounded-md bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -1726,7 +1683,7 @@ export function CustomerPaymentTab({
               const paymentAmount = roundToRupee(amount);
               const discountValue = roundToRupee(discountAmount);
               const totalSettled = paymentAmount + discountValue;
-              const outstandingBalance = lifetimeAuditOutstanding ?? customerBalance ?? 0;
+              const outstandingBalance = lifetimeOutstanding ?? customerBalance ?? 0;
               const isExcessPayment = Math.round(totalSettled) > Math.round(outstandingBalance) && outstandingBalance > 0;
               const isZeroBalance = outstandingBalance <= 0;
               const isDisabled = isZeroBalance || isExcessPayment;
