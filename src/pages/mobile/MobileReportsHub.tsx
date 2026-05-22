@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateActiveHubQueries } from "@/lib/mobileHubRefresh";
 import { 
   Package, 
   Grid3X3, 
@@ -86,7 +90,12 @@ export default function MobileReportsHub() {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-background pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
         <h1 className="text-xl font-semibold text-foreground">Reports</h1>

@@ -17,6 +17,11 @@ import {
   Wallet,
   FileSpreadsheet
 } from "lucide-react";
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateActiveHubQueries } from "@/lib/mobileHubRefresh";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +44,10 @@ interface MenuSection {
 export default function MobileMoreMenu() {
   const { orgNavigate } = useOrgNavigation();
   const { signOut } = useAuth();
+  const queryClient = useQueryClient();
+  const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
+    useCallback(() => invalidateActiveHubQueries(queryClient), [queryClient])
+  );
 
   const handleSignOut = async () => {
     await signOut();
@@ -95,7 +104,12 @@ export default function MobileMoreMenu() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-background pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
         <h1 className="text-xl font-semibold text-foreground">More Options</h1>

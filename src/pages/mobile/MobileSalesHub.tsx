@@ -1,6 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateMobileSalesHubQueries } from "@/lib/mobileHubRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -24,6 +27,10 @@ export default function MobileSalesHub() {
   const { orgNavigate } = useOrgNavigation();
   const { data: settings } = useSettings();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
+    useCallback(() => invalidateMobileSalesHubQueries(queryClient), [queryClient])
+  );
   const [period, setPeriod] = useState("today");
   const [search, setSearch] = useState("");
 
@@ -253,7 +260,12 @@ export default function MobileSalesHub() {
   const saleSettings = settings?.sale_settings as any;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-slate-50 dark:bg-background pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 space-y-3">
         <div className="flex items-center justify-between">

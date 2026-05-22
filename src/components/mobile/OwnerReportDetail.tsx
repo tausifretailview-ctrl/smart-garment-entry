@@ -1,5 +1,8 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateOwnerReportQueries } from "@/lib/mobileHubRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
@@ -60,7 +63,11 @@ interface Props {
 
 export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
+  const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
+    useCallback(() => invalidateOwnerReportQueries(queryClient), [queryClient])
+  );
   const [period, setPeriod] = useState<Period>("today");
   const [customRange, setCustomRange] = useState<{ from: Date; to: Date } | null>(null);
   const [showFromCal, setShowFromCal] = useState(false);
@@ -70,7 +77,12 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
   const needsDateFilter = !["stock-summary", "customer-outstanding", "supplier-outstanding"].includes(reportType);
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-muted/30 pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 flex items-center gap-3">
         <button onClick={onBack} className="p-1 -ml-1 touch-manipulation"><ArrowLeft className="h-5 w-5" /></button>

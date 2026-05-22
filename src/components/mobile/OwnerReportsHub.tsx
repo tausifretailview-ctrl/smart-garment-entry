@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateOwnerReportQueries } from "@/lib/mobileHubRefresh";
 import {
   TrendingUp, TrendingDown, PieChart, Package, Users, Building2,
   Receipt, Tag, Ruler, CreditCard, ChevronRight,
@@ -34,13 +38,22 @@ const REPORTS: ReportCard[] = [
 
 export const OwnerReportsHub = () => {
   const [activeReport, setActiveReport] = useState<ReportType | null>(null);
+  const queryClient = useQueryClient();
+  const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
+    useCallback(() => invalidateOwnerReportQueries(queryClient), [queryClient])
+  );
 
   if (activeReport) {
     return <OwnerReportDetail reportType={activeReport} onBack={() => setActiveReport(null)} />;
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-muted/30 pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3">
         <h1 className="text-lg font-bold text-foreground">📊 Reports</h1>

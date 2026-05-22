@@ -9,7 +9,10 @@ import {
   ArrowDownRight, Clock, Star, AlertCircle,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow } from "date-fns";
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useEffect } from "react";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateOwnerDashboardQueries } from "@/lib/mobileHubRefresh";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -42,38 +45,13 @@ export const OwnerDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const { getRefreshInterval } = useTierBasedRefresh();
 
   const today = format(new Date(), "yyyy-MM-dd");
 
-  /* Pull-to-refresh */
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const touchStartY = useRef(0);
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-  }, []);
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    const diff = e.changedTouches[0].clientY - touchStartY.current;
-    if (diff > 80 && scrollRef.current && scrollRef.current.scrollTop <= 0) {
-      handleRefresh();
-    }
-  }, []);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["owner-dashboard"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-sales-trend"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-recent-activity"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-low-stock"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-top-selling"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-purchase-today"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-payments-today"] }),
-      queryClient.invalidateQueries({ queryKey: ["owner-outstanding"] }),
-    ]);
-    setTimeout(() => setIsRefreshing(false), 500);
-  };
+  const { scrollRef, isRefreshing, pullHandlers, refresh: handleRefresh } = usePullToRefresh(
+    () => invalidateOwnerDashboardQueries(queryClient)
+  );
 
   /* Greeting */
   const hour = new Date().getHours();
@@ -308,15 +286,9 @@ export const OwnerDashboard = () => {
     <div
       ref={scrollRef}
       className="min-h-screen bg-muted/30 pb-24 overflow-y-auto"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      {...pullHandlers}
     >
-      {/* Pull-to-refresh indicator */}
-      {isRefreshing && (
-        <div className="flex justify-center py-2">
-          <RefreshCw className="h-5 w-5 text-primary animate-spin" />
-        </div>
-      )}
+      <PullToRefreshIndicator visible={isRefreshing} />
 
       {/* ── HEADER ── */}
       <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pt-5 pb-14 overflow-hidden">

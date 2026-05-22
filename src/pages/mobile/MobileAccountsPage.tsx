@@ -1,4 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateMobileAccountsHubQueries } from "@/lib/mobileHubRefresh";
 import { MobileAccountsSummary } from "@/components/mobile/MobileAccountsSummary";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -8,7 +12,11 @@ import { cn } from "@/lib/utils";
 
 export default function MobileAccountsPage() {
   const { orgNavigate } = useOrgNavigation();
+  const queryClient = useQueryClient();
   const [statementOpen, setStatementOpen] = useState(false);
+  const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
+    useCallback(() => invalidateMobileAccountsHubQueries(queryClient), [queryClient])
+  );
 
   const quickLinks = [
     { icon: ArrowDownLeft, label: "Receive Payment", nav: "/accounts", color: "text-emerald-500", bg: "bg-emerald-50", desc: "Record customer receipt" },
@@ -22,7 +30,12 @@ export default function MobileAccountsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-slate-50 dark:bg-background pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-4">
         <h1 className="text-xl font-semibold text-foreground">Accounts</h1>

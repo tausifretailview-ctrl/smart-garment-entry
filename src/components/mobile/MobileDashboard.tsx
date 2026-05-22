@@ -10,7 +10,10 @@ import {
   ShoppingCart, Receipt, ShoppingBag, Calculator, Users, Building2, CreditCard, Calendar
 } from "lucide-react";
 import { format } from "date-fns";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
+import { invalidateOwnerDashboardQueries } from "@/lib/mobileHubRefresh";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -40,9 +43,14 @@ export const MobileDashboard = () => {
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
   const queryClient = useQueryClient();
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
   const { getRefreshInterval } = useTierBasedRefresh();
+  const { scrollRef, isRefreshing, pullHandlers, refresh: handleManualRefresh } = usePullToRefresh(
+    useCallback(async () => {
+      await invalidateOwnerDashboardQueries(queryClient);
+      await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
+    }, [queryClient])
+  );
   
   // Lazy loading for summary section
   const [summaryVisible, setSummaryVisible] = useState(false);
@@ -68,14 +76,6 @@ export const MobileDashboard = () => {
 
     return () => observer.disconnect();
   }, []);
-  
-  // Manual refresh handler
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
-    await queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
-    setTimeout(() => setIsRefreshing(false), 500);
-  };
   
   // Greeting based on time
   const getGreeting = () => {
@@ -141,7 +141,12 @@ export const MobileDashboard = () => {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-background pb-24">
+    <div
+      ref={scrollRef}
+      className="min-h-screen bg-slate-50 dark:bg-background pb-24"
+      {...pullHandlers}
+    >
+      <PullToRefreshIndicator visible={isRefreshing} />
 
       {/* ── HEADER BANNER ── gradient top section */}
       <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pt-5 pb-16 overflow-hidden">
