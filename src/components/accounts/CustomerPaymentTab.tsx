@@ -36,6 +36,8 @@ import {
   fetchCustomerTrueOutstandingMap,
 } from "@/utils/fetchAllRows";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 import {
@@ -99,6 +101,7 @@ export function CustomerPaymentTab({
 }: CustomerPaymentTabProps) {
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
+  const isMobile = useIsMobile();
 
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -1779,9 +1782,150 @@ export function CustomerPaymentTab({
               placeholder="Search by customer name, voucher no, or description..."
               value={paymentSearchTerm}
               onChange={(e) => { setPaymentSearchTerm(e.target.value); setCustomerPaymentsPage(1); }}
-              className="max-w-sm"
+              className={cn(isMobile ? "w-full h-10 rounded-xl" : "max-w-sm")}
             />
           </div>
+          {isMobile ? (
+            <div className="space-y-2.5">
+              {paginatedPayments.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">No receipts found</div>
+              ) : (
+                paginatedPayments.map((voucher) => {
+                  const invoice = sales?.find((s) => s.id === voucher.reference_id);
+                  let customerName = "-";
+                  if (invoice?.customer_name) {
+                    customerName = invoice.customer_name;
+                  } else if (voucher.reference_type === "customer") {
+                    customerName = customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "-";
+                  } else if (invoice?.customer_id) {
+                    customerName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "-";
+                  }
+                  const desc = voucher.description || "";
+                  const dateMatch = desc.match(/(?:UPI Date|Date):\s*(\d{2}\/\d{2}\/\d{4})/);
+                  const extractedDate = dateMatch ? dateMatch[1] : null;
+                  const disc = Number((voucher as any).discount_amount) || 0;
+                  const isSelected = selectedPaymentIds.includes(voucher.id);
+
+                  return (
+                    <MobileListCard
+                      key={voucher.id}
+                      className={isSelected ? "ring-2 ring-primary/40" : undefined}
+                      title={voucher.voucher_number}
+                      subtitle={customerName}
+                      badge={
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          {voucher.payment_method || "—"}
+                        </Badge>
+                      }
+                      amount={
+                        <div className="text-sm font-bold tabular-nums">
+                          ₹{voucher.total_amount.toLocaleString("en-IN")}
+                        </div>
+                      }
+                      meta={
+                        <>
+                          <span>Payment {format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</span>
+                          <span>Entry {formatEntryDateTime(voucher.created_at)}</span>
+                          {extractedDate ? <span>Instrument date {extractedDate}</span> : null}
+                          {disc > 0 ? <span>Discount ₹{disc.toFixed(2)}</span> : null}
+                          {desc ? <span className="line-clamp-2">{desc}</span> : null}
+                        </>
+                      }
+                      footer={
+                        <>
+                          {isAdmin && (
+                            <div className="flex items-center justify-center px-2 border-r border-border/40">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) => {
+                                  if (checked) setSelectedPaymentIds([...selectedPaymentIds, voucher.id]);
+                                  else setSelectedPaymentIds(selectedPaymentIds.filter((id) => id !== voucher.id));
+                                }}
+                              />
+                            </div>
+                          )}
+                          {isAdmin && voucher.reference_type === "customer" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cust = customers?.find((c) => c.id === voucher.reference_id);
+                                setReassignPayment(voucher);
+                                setReassignCustomerId(voucher.reference_id);
+                                setReassignCustomerName(cust?.customer_name || "Customer");
+                              }}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary active:bg-primary/5 touch-manipulation"
+                            >
+                              <Link2 className="h-3.5 w-3.5" />
+                              Link
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onEditPayment(voucher)}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 active:bg-blue-50 touch-manipulation"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Edit
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const customer = voucher.reference_type === "customer"
+                                ? customers?.find((c) => c.id === voucher.reference_id)
+                                : (invoice?.customer_id ? customers?.find((c) => c.id === invoice.customer_id) : null);
+                              const paid = Number(voucher.total_amount) || 0;
+                              const discAmt = Number((voucher as any).discount_amount) || 0;
+                              const discReason = String((voucher as any).discount_reason || "");
+                              const invNet = invoice?.net_amount != null ? Number(invoice.net_amount) : paid + discAmt;
+                              onShowReceipt({
+                                voucherNumber: voucher.voucher_number,
+                                voucherDate: voucher.voucher_date,
+                                customerName,
+                                customerPhone: customer?.phone || "",
+                                customerAddress: customer?.address || "",
+                                invoiceNumber: voucher.description?.includes("Against Invoice")
+                                  ? voucher.description.replace("Against Invoice: ", "")
+                                  : voucher.description || "-",
+                                invoiceDate: invoice?.sale_date || voucher.voucher_date,
+                                invoiceAmount: invNet,
+                                paidAmount: paid,
+                                discountAmount: discAmt,
+                                discountReason: discReason,
+                                paymentMethod: voucher.payment_method || "cash",
+                                previousBalance: 0,
+                                currentBalance: 0,
+                              });
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground active:bg-muted/50 touch-manipulation"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                            Print
+                          </button>
+                        </>
+                      }
+                    />
+                  );
+                })
+              )}
+              {customerPaymentsGrandTotals.count > 0 && (
+                <div className="rounded-2xl border border-border/40 bg-muted/40 p-3.5 flex items-center justify-between text-sm">
+                  <span className="font-semibold">
+                    Grand total ({customerPaymentsGrandTotals.count} receipt
+                    {customerPaymentsGrandTotals.count === 1 ? "" : "s"}
+                    {totalPages > 1 ? ", all pages" : ""})
+                  </span>
+                  <span className="font-bold tabular-nums">
+                    ₹{customerPaymentsGrandTotals.amount.toFixed(2)}
+                    {customerPaymentsGrandTotals.discount > 0.009
+                      ? ` · disc ₹${customerPaymentsGrandTotals.discount.toFixed(2)}`
+                      : ""}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -1915,6 +2059,7 @@ export function CustomerPaymentTab({
               </TableFooter>
             ) : null}
           </Table>
+          )}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
               <p className="text-sm text-muted-foreground">Showing {startIndex + 1}-{Math.min(endIndex, customerPayments.length)} of {customerPayments.length} receipts</p>

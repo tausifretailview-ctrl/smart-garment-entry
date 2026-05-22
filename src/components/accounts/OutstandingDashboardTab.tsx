@@ -18,6 +18,9 @@ import { format, differenceInDays } from "date-fns";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobileListCard } from "@/components/mobile/MobileListCard";
 
 interface OutstandingDashboardTabProps {
   organizationId: string;
@@ -47,6 +50,7 @@ type SortField = "name" | "totalOutstanding" | "invoiceCount" | "oldestDays";
 type SortDir = "asc" | "desc";
 
 export function OutstandingDashboardTab({ organizationId }: OutstandingDashboardTabProps) {
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("totalOutstanding");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -467,113 +471,171 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
         </Card>
       )}
 
-      {/* Full Customer Outstanding Table */}
+      {/* Customer outstanding list */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base">Customer-wise Outstanding</CardTitle>
-              <CardDescription>Detailed breakdown with aging columns</CardDescription>
+              <CardDescription>
+                {isMobile ? "Tap a customer for aging summary" : "Detailed breakdown with aging columns"}
+              </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
+            <div className={cn("flex gap-2", isMobile ? "flex-col w-full" : "items-center")}>
+              <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search customer..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 w-52"
+                  className={cn("pl-9", isMobile ? "w-full h-10 rounded-xl" : "w-52")}
                 />
               </div>
-              <Select value={minAmount} onValueChange={setMinAmount}>
-                <SelectTrigger className="w-36">
-                  <SelectValue placeholder="Min amount" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All amounts</SelectItem>
-                  <SelectItem value="1000">≥ ₹1,000</SelectItem>
-                  <SelectItem value="5000">≥ ₹5,000</SelectItem>
-                  <SelectItem value="10000">≥ ₹10,000</SelectItem>
-                  <SelectItem value="50000">≥ ₹50,000</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-                <FileDown className="h-4 w-4" /> Export
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select value={minAmount} onValueChange={setMinAmount}>
+                  <SelectTrigger className={isMobile ? "flex-1" : "w-36"}>
+                    <SelectValue placeholder="Min amount" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All amounts</SelectItem>
+                    <SelectItem value="1000">≥ ₹1,000</SelectItem>
+                    <SelectItem value="5000">≥ ₹5,000</SelectItem>
+                    <SelectItem value="10000">≥ ₹10,000</SelectItem>
+                    <SelectItem value="50000">≥ ₹50,000</SelectItem>
+                  </SelectContent>
+                </Select>
+                {!isMobile && (
+                  <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
+                    <FileDown className="h-4 w-4" /> Export
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>
-                    <div className="flex items-center">Customer <SortIcon field="name" /></div>
-                  </TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("totalOutstanding")}>
-                    <div className="flex items-center justify-end">Outstanding <SortIcon field="totalOutstanding" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("invoiceCount")}>
-                    <div className="flex items-center justify-end">Invoices <SortIcon field="invoiceCount" /></div>
-                  </TableHead>
-                  <TableHead className="text-right">0-7d</TableHead>
-                  <TableHead className="text-right">8-30d</TableHead>
-                  <TableHead className="text-right">31-60d</TableHead>
-                  <TableHead className="text-right">61-90d</TableHead>
-                  <TableHead className="text-right">90d+</TableHead>
-                  <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("oldestDays")}>
-                    <div className="flex items-center justify-end">Oldest <SortIcon field="oldestDays" /></div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                      {search ? "No customers match your search" : "No outstanding balances found"}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredCustomers.map((c) => (
-                    <TableRow key={c.id} className="hover:bg-muted/50">
-                      <TableCell className="font-medium max-w-[200px] truncate">{c.name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {c.phone ? (
-                          <span className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {c.phone}
-                          </span>
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-bold tabular-nums">
+          {isMobile && (
+            <MobileStatStrip
+              stats={[
+                { label: "Total due", value: `₹${Math.round(totalOutstanding).toLocaleString("en-IN")}`, color: "text-rose-600", bg: "bg-rose-50" },
+                { label: "Customers", value: String(totalCustomers), color: "text-blue-600", bg: "bg-blue-50" },
+                { label: "Invoices", value: String(totalInvoices), color: "text-violet-600", bg: "bg-violet-50" },
+              ]}
+            />
+          )}
+          {isMobile ? (
+            <div className="space-y-2.5 mt-3">
+              {filteredCustomers.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  {search ? "No customers match your search" : "No outstanding balances found"}
+                </div>
+              ) : (
+                filteredCustomers.map((c) => (
+                  <MobileListCard
+                    key={c.id}
+                    title={c.name}
+                    subtitle={c.phone ? (
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3 shrink-0" /> {c.phone}
+                      </span>
+                    ) : undefined}
+                    badge={getAgingBadge(c.oldestDays)}
+                    amount={
+                      <div className="text-sm font-bold tabular-nums text-destructive">
                         ₹{Math.round(c.totalOutstanding).toLocaleString("en-IN")}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">{c.invoiceCount}</TableCell>
-                      <TableCell className="text-right tabular-nums text-success">
-                        {c.aging.current > 0 ? `₹${Math.round(c.aging.current).toLocaleString("en-IN")}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-info">
-                        {c.aging.d30 > 0 ? `₹${Math.round(c.aging.d30).toLocaleString("en-IN")}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-warning">
-                        {c.aging.d60 > 0 ? `₹${Math.round(c.aging.d60).toLocaleString("en-IN")}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-destructive/80">
-                        {c.aging.d90 > 0 ? `₹${Math.round(c.aging.d90).toLocaleString("en-IN")}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums text-destructive font-semibold">
-                        {c.aging.d90plus > 0 ? `₹${Math.round(c.aging.d90plus).toLocaleString("en-IN")}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {getAgingBadge(c.oldestDays)}
+                      </div>
+                    }
+                    meta={
+                      <>
+                        <span>{c.invoiceCount} unpaid invoice{c.invoiceCount !== 1 ? "s" : ""}</span>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
+                          {c.aging.current > 0 && <span className="text-success">0-7d: ₹{Math.round(c.aging.current).toLocaleString("en-IN")}</span>}
+                          {c.aging.d30 > 0 && <span className="text-info">8-30d: ₹{Math.round(c.aging.d30).toLocaleString("en-IN")}</span>}
+                          {c.aging.d60 > 0 && <span className="text-warning">31-60d: ₹{Math.round(c.aging.d60).toLocaleString("en-IN")}</span>}
+                          {(c.aging.d90 > 0 || c.aging.d90plus > 0) && (
+                            <span className="text-destructive">
+                              61d+: ₹{Math.round(c.aging.d90 + c.aging.d90plus).toLocaleString("en-IN")}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    }
+                  />
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>
+                      <div className="flex items-center">Customer <SortIcon field="name" /></div>
+                    </TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("totalOutstanding")}>
+                      <div className="flex items-center justify-end">Outstanding <SortIcon field="totalOutstanding" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("invoiceCount")}>
+                      <div className="flex items-center justify-end">Invoices <SortIcon field="invoiceCount" /></div>
+                    </TableHead>
+                    <TableHead className="text-right">0-7d</TableHead>
+                    <TableHead className="text-right">8-30d</TableHead>
+                    <TableHead className="text-right">31-60d</TableHead>
+                    <TableHead className="text-right">61-90d</TableHead>
+                    <TableHead className="text-right">90d+</TableHead>
+                    <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("oldestDays")}>
+                      <div className="flex items-center justify-end">Oldest <SortIcon field="oldestDays" /></div>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredCustomers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                        {search ? "No customers match your search" : "No outstanding balances found"}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ) : (
+                    filteredCustomers.map((c) => (
+                      <TableRow key={c.id} className="hover:bg-muted/50">
+                        <TableCell className="font-medium max-w-[200px] truncate">{c.name}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {c.phone ? (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" /> {c.phone}
+                            </span>
+                          ) : "-"}
+                        </TableCell>
+                        <TableCell className="text-right font-bold tabular-nums">
+                          ₹{Math.round(c.totalOutstanding).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{c.invoiceCount}</TableCell>
+                        <TableCell className="text-right tabular-nums text-success">
+                          {c.aging.current > 0 ? `₹${Math.round(c.aging.current).toLocaleString("en-IN")}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-info">
+                          {c.aging.d30 > 0 ? `₹${Math.round(c.aging.d30).toLocaleString("en-IN")}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-warning">
+                          {c.aging.d60 > 0 ? `₹${Math.round(c.aging.d60).toLocaleString("en-IN")}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-destructive/80">
+                          {c.aging.d90 > 0 ? `₹${Math.round(c.aging.d90).toLocaleString("en-IN")}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-destructive font-semibold">
+                          {c.aging.d90plus > 0 ? `₹${Math.round(c.aging.d90plus).toLocaleString("en-IN")}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {getAgingBadge(c.oldestDays)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
           <div className="text-xs text-muted-foreground mt-2">
             Showing {filteredCustomers.length} of {customers.length} customers
           </div>

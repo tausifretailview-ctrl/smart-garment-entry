@@ -28,6 +28,10 @@ import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/MobileListCard";
 
 interface Invoice {
   id: string;
@@ -73,6 +77,7 @@ const defaultColumnSettings: ColumnSettings = {
 };
 
 export default function PaymentsDashboard() {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
@@ -486,6 +491,398 @@ Thank you for your business!`;
     }
   };
 
+  const fmtShort = (n: number) =>
+    n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")};
+
+  const dashboardDialogs = (
+    <>
+      {/* Record Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Customer Payment</DialogTitle>
+            <DialogDescription>
+              Record payment for invoice {selectedInvoice?.sale_number}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Customer</Label>
+              <div className="text-sm font-medium">{selectedInvoice?.customer_name}</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Invoice Amount</Label>
+                <div className="text-sm">₹{Number(selectedInvoice?.net_amount || 0).toFixed(2)}</div>
+              </div>
+              <div className="space-y-2">
+                <Label>Already Paid</Label>
+                <div className="text-sm text-green-600">₹{Number(selectedInvoice?.paid_amount || 0).toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentAmount">Payment Amount *</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter payment amount"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Payment Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(paymentDate, "dd MMM yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={paymentDate} onSelect={(date) => date && setPaymentDate(date)} />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentMethod">Payment Method *</Label>
+              <Select value={paymentMethod} onValueChange={(value) => {
+                setPaymentMethod(value);
+                setChequeNumber("");
+                setChequeDate(undefined);
+                setTransactionId("");
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {paymentMethod === 'cheque' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Cheque Number</Label>
+                  <Input
+                    placeholder="Enter cheque number"
+                    value={chequeNumber}
+                    onChange={(e) => setChequeNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cheque Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {chequeDate ? format(chequeDate, "dd/MM/yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={chequeDate}
+                        onSelect={setChequeDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'other' && (
+              <div className="space-y-2">
+                <Label>Transaction ID</Label>
+                <Input
+                  placeholder="Enter transaction ID"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentDialog(false)} disabled={isRecordingPayment}>
+              Cancel
+            </Button>
+            <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
+              {isRecordingPayment ? "Recording..." : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Payment Receipt</DialogTitle>
+            <DialogDescription>Print or send this receipt to the customer</DialogDescription>
+          </DialogHeader>
+          
+          <div className="hidden">
+            <PaymentReceipt
+              ref={receiptRef}
+              receiptData={receiptData}
+              companyDetails={{
+                businessName: settings?.business_name,
+                address: settings?.address,
+                mobileNumber: settings?.mobile_number,
+                emailId: settings?.email_id,
+                gstNumber: settings?.gst_number,
+                logoUrl: (settings?.sale_settings as any)?.logoUrl,
+                upiId: (settings?.sale_settings as any)?.upiId,
+              }}
+              receiptSettings={{
+                showCompanyLogo: true,
+                showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                showSignature: true,
+                signatureLabel: "Authorized Signature"
+              }}
+            />
+          </div>
+
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <PaymentReceipt
+              receiptData={receiptData}
+              companyDetails={{
+                businessName: settings?.business_name,
+                address: settings?.address,
+                mobileNumber: settings?.mobile_number,
+                emailId: settings?.email_id,
+                gstNumber: settings?.gst_number,
+                logoUrl: (settings?.sale_settings as any)?.logoUrl,
+                upiId: (settings?.sale_settings as any)?.upiId,
+              }}
+              receiptSettings={{
+                showCompanyLogo: true,
+                showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                showSignature: true,
+                signatureLabel: "Authorized Signature"
+              }}
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowReceiptDialog(false)}>
+              Close
+            </Button>
+            <Button onClick={handlePrintReceipt} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print Receipt
+            </Button>
+            {receiptData?.customerPhone && (
+              <Button onClick={handleSendReceiptWhatsApp} className="gap-2 bg-green-600 hover:bg-green-700">
+                <Send className="h-4 w-4" />
+                Send via WhatsApp
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {paymentLinkInvoice && (
+        <PaymentLinkDialog
+          open={showPaymentLinkDialog}
+          onOpenChange={setShowPaymentLinkDialog}
+          customerName={paymentLinkInvoice.customer_name}
+          customerPhone={paymentLinkInvoice.customer_phone}
+          amount={Number(paymentLinkInvoice.net_amount || 0) - Number(paymentLinkInvoice.paid_amount || 0)}
+          invoiceNumber={paymentLinkInvoice.sale_number}
+        />
+      )}
+
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
+    </>
+  );
+
+  if (isMobile) {
+    const statusChip = (v: string, label: string) => (
+      <button
+        key={v}
+        type="button"
+        onClick={() => { setStatusFilter(v); setCurrentPage(1); }}
+        className={cn(
+          "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
+          statusFilter === v ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
+        )}
+      >
+        {label}
+      </button>
+    );
+
+    return (
+      <>
+        <div className="flex flex-col min-h-screen bg-muted/30 pb-8">
+          <MobilePageHeader
+            title="Payments"
+            subtitle={`${filteredInvoices.length} invoices`}
+          />
+
+          <div className="px-4 pt-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search invoice, customer, phone..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm"
+              />
+            </div>
+          </div>
+
+          <MobileStatStrip
+            stats={[
+              { label: "Revenue", value: fmtShort(summaryStats.totalRevenue), color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Collected", value: fmtShort(summaryStats.completedAmount), color: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "Pending", value: fmtShort(summaryStats.pendingAmount), color: "text-rose-600", bg: "bg-rose-50" },
+              {
+                label: "Rate",
+                value: summaryStats.totalRevenue > 0
+                  ? `${((summaryStats.completedAmount / summaryStats.totalRevenue) * 100).toFixed(0)}%`
+                  : "0%",
+                color: "text-violet-600",
+                bg: "bg-violet-50",
+              },
+            ]}
+          />
+
+          <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
+            {statusChip("all", "All")}
+            {statusChip("pending", "Pending")}
+            {statusChip("partial", "Partial")}
+            {statusChip("completed", "Paid")}
+          </div>
+
+          <div className="flex-1 px-4 space-y-2.5 pb-4">
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => <MobileListCardSkeleton key={i} />)
+            ) : paginatedInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <IndianRupee className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm font-medium">No invoices found</p>
+              </div>
+            ) : (
+              paginatedInvoices.map((invoice) => {
+                const pendingAmount = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
+                return (
+                  <MobileListCard
+                    key={invoice.id}
+                    title={invoice.sale_number}
+                    subtitle={
+                      <>
+                        <button
+                          type="button"
+                          className="text-primary font-medium"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCustomerForHistory({ id: invoice.customer_id, name: invoice.customer_name });
+                            setShowCustomerHistory(true);
+                          }}
+                        >
+                          {invoice.customer_name}
+                        </button>
+                        {invoice.customer_phone ? ` · ${invoice.customer_phone}` : null}
+                      </>
+                    }
+                    badge={getStatusBadge(invoice.payment_status)}
+                    amount={
+                      <div>
+                        <div className="text-sm font-bold tabular-nums">₹{Number(invoice.net_amount).toLocaleString("en-IN")}</div>
+                        {pendingAmount > 0 ? (
+                          <div className="text-xs text-red-600 font-medium tabular-nums">
+                            Due ₹{pendingAmount.toLocaleString("en-IN")}
+                          </div>
+                        ) : null}
+                      </div>
+                    }
+                    meta={
+                      invoice.sale_date ? (
+                        <span>Sale {format(new Date(invoice.sale_date), "dd MMM yyyy")}</span>
+                      ) : null
+                    }
+                    footer={
+                      <>
+                        {columnSettings.whatsapp && invoice.payment_status !== "completed" && (
+                          <button
+                            type="button"
+                            disabled={!invoice.customer_phone}
+                            onClick={() => handleSendPaymentReminder(invoice)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-orange-600 active:bg-orange-50 disabled:opacity-40 touch-manipulation"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            Remind
+                          </button>
+                        )}
+                        {invoice.payment_status !== "completed" && (
+                          <button
+                            type="button"
+                            disabled={!invoice.customer_phone}
+                            onClick={() => {
+                              setPaymentLinkInvoice(invoice);
+                              setShowPaymentLinkDialog(true);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 active:bg-blue-50 disabled:opacity-40 touch-manipulation"
+                          >
+                            <Link2 className="h-3.5 w-3.5" />
+                            Link
+                          </button>
+                        )}
+                        {columnSettings.recordPayment && invoice.payment_status !== "completed" && (
+                          <button
+                            type="button"
+                            onClick={() => openPaymentDialog(invoice)}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-primary active:bg-primary/5 touch-manipulation"
+                          >
+                            <IndianRupee className="h-3.5 w-3.5" />
+                            Record
+                          </button>
+                        )}
+                      </>
+                    }
+                  />
+                );
+              })
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border mx-4 rounded-xl mb-4">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                Prev
+              </Button>
+              <span className="text-xs text-muted-foreground">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
+        {dashboardDialogs}
+      </>
+    );
+  }
+
   return (
     <div className="w-full px-6 py-6 space-y-6">
       
@@ -873,228 +1270,7 @@ Thank you for your business!`;
           </CardContent>
         </Card>
       </div>
-
-      {/* Record Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Customer Payment</DialogTitle>
-            <DialogDescription>
-              Record payment for invoice {selectedInvoice?.sale_number}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Customer</Label>
-              <div className="text-sm font-medium">{selectedInvoice?.customer_name}</div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Invoice Amount</Label>
-                <div className="text-sm">₹{Number(selectedInvoice?.net_amount || 0).toFixed(2)}</div>
-              </div>
-              <div className="space-y-2">
-                <Label>Already Paid</Label>
-                <div className="text-sm text-green-600">₹{Number(selectedInvoice?.paid_amount || 0).toFixed(2)}</div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="paymentAmount">Payment Amount *</Label>
-              <Input
-                id="paymentAmount"
-                type="number"
-                step="0.01"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-                placeholder="Enter payment amount"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Payment Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(paymentDate, "dd MMM yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={paymentDate} onSelect={(date) => date && setPaymentDate(date)} />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="paymentMethod">Payment Method *</Label>
-              <Select value={paymentMethod} onValueChange={(value) => {
-                setPaymentMethod(value);
-                setChequeNumber("");
-                setChequeDate(undefined);
-                setTransactionId("");
-              }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                  <SelectItem value="cheque">Cheque</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Cheque fields */}
-            {paymentMethod === 'cheque' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cheque Number</Label>
-                  <Input
-                    placeholder="Enter cheque number"
-                    value={chequeNumber}
-                    onChange={(e) => setChequeNumber(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Cheque Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {chequeDate ? format(chequeDate, "dd/MM/yyyy") : "Select date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={chequeDate}
-                        onSelect={setChequeDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-            )}
-
-            {/* Other payment - Transaction ID field */}
-            {paymentMethod === 'other' && (
-              <div className="space-y-2">
-                <Label>Transaction ID</Label>
-                <Input
-                  placeholder="Enter transaction ID"
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentDialog(false)} disabled={isRecordingPayment}>
-              Cancel
-            </Button>
-            <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
-              {isRecordingPayment ? "Recording..." : "Record Payment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Payment Receipt Dialog */}
-      <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Payment Receipt</DialogTitle>
-            <DialogDescription>Print or send this receipt to the customer</DialogDescription>
-          </DialogHeader>
-          
-          <div className="hidden">
-            <PaymentReceipt
-              ref={receiptRef}
-              receiptData={receiptData}
-              companyDetails={{
-                businessName: settings?.business_name,
-                address: settings?.address,
-                mobileNumber: settings?.mobile_number,
-                emailId: settings?.email_id,
-                gstNumber: settings?.gst_number,
-                logoUrl: (settings?.sale_settings as any)?.logoUrl,
-                upiId: (settings?.sale_settings as any)?.upiId,
-              }}
-              receiptSettings={{
-                showCompanyLogo: true,
-                showQrCode: !!(settings?.sale_settings as any)?.upiId,
-                showSignature: true,
-                signatureLabel: "Authorized Signature"
-              }}
-            />
-          </div>
-
-          <div className="border rounded-lg p-4 bg-gray-50">
-            <PaymentReceipt
-              receiptData={receiptData}
-              companyDetails={{
-                businessName: settings?.business_name,
-                address: settings?.address,
-                mobileNumber: settings?.mobile_number,
-                emailId: settings?.email_id,
-                gstNumber: settings?.gst_number,
-                logoUrl: (settings?.sale_settings as any)?.logoUrl,
-                upiId: (settings?.sale_settings as any)?.upiId,
-              }}
-              receiptSettings={{
-                showCompanyLogo: true,
-                showQrCode: !!(settings?.sale_settings as any)?.upiId,
-                showSignature: true,
-                signatureLabel: "Authorized Signature"
-              }}
-            />
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowReceiptDialog(false)}>
-              Close
-            </Button>
-            <Button onClick={handlePrintReceipt} className="gap-2">
-              <Printer className="h-4 w-4" />
-              Print Receipt
-            </Button>
-            {receiptData?.customerPhone && (
-              <Button onClick={handleSendReceiptWhatsApp} className="gap-2 bg-green-600 hover:bg-green-700">
-                <Send className="h-4 w-4" />
-                Send via WhatsApp
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Payment Link Dialog */}
-      {paymentLinkInvoice && (
-        <PaymentLinkDialog
-          open={showPaymentLinkDialog}
-          onOpenChange={setShowPaymentLinkDialog}
-          customerName={paymentLinkInvoice.customer_name}
-          customerPhone={paymentLinkInvoice.customer_phone}
-          amount={Number(paymentLinkInvoice.net_amount || 0) - Number(paymentLinkInvoice.paid_amount || 0)}
-          invoiceNumber={paymentLinkInvoice.sale_number}
-        />
-      )}
-
-      <CustomerHistoryDialog
-        open={showCustomerHistory}
-        onOpenChange={setShowCustomerHistory}
-        customerId={selectedCustomerForHistory?.id || null}
-        customerName={selectedCustomerForHistory?.name || ''}
-        organizationId={currentOrganization?.id || ''}
-      />
+      {dashboardDialogs}
     </div>
   );
 }

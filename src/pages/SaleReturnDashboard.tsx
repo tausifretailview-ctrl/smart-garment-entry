@@ -32,6 +32,11 @@ import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCredi
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
+import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/MobileListCard";
+import { cn } from "@/lib/utils";
 
 interface SaleReturn {
   id: string;
@@ -115,6 +120,7 @@ const getAvailableCN = (ret: SaleReturn): number => {
 };
 
 export default function SaleReturnDashboard() {
+  const isMobile = useIsMobile();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -573,6 +579,397 @@ export default function SaleReturnDashboard() {
   const averageValue = totalReturns > 0 ? totalValue / totalReturns : 0;
   const totalPages = Math.ceil(totalReturns / pageSize);
 
+  const canAdjustCn = (ret: SaleReturn) => {
+    const status = ret.credit_status || "";
+    if (status === "refunded" || !ret.customer_id) return false;
+    if (status === "adjusted" && ret.linked_sale_id) {
+      const remaining = ret.remaining_cn_amt ?? 0;
+      if (remaining <= 0) return false;
+    }
+    return getAvailableCN(ret) > 0;
+  };
+
+  const canRefundCn = (ret: SaleReturn) => {
+    const status = (ret.credit_status || "").toLowerCase();
+    if (status === "refunded" || status === "adjusted") return false;
+    if (
+      status !== "pending" &&
+      status !== "partially_adjusted" &&
+      status !== "Credit Note Pending".toLowerCase()
+    ) {
+      return false;
+    }
+    const refundableAmt = getAvailableCN(ret);
+    return refundableAmt > 0 && !!ret.customer_id;
+  };
+
+  const saleReturnDialogs = (
+    <>
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Sale Return?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will move the return to Recycle Bin. Stock will be automatically reversed.
+                You can permanently delete it later from the Recycle Bin.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {selectedReturnForAdjust && (
+          <AdjustCustomerCreditNoteDialog
+            open={showAdjustDialog}
+            onOpenChange={setShowAdjustDialog}
+            saleReturnId={selectedReturnForAdjust.id}
+            creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
+            returnNumber={selectedReturnForAdjust.return_number || "N/A"}
+            creditAmount={(() => {
+              const r = selectedReturnForAdjust;
+              const live = getAvailableCN(r);
+              return live > 0 ? live : Number(r.net_amount);
+            })()}
+            customerId={selectedReturnForAdjust.customer_id || ""}
+            customerName={selectedReturnForAdjust.customer_name}
+            onSuccess={() => refetchReturns()}
+          />
+        )}
+
+        <div style={{ display: "none" }}>
+          {returnToPrint && businessDetails && (
+            isThermal ? (
+              <SaleReturnThermalPrint
+                ref={printRef}
+                saleReturn={returnToPrint}
+                businessDetails={businessDetails}
+              />
+            ) : (
+              <SaleReturnPrint
+                ref={printRef}
+                saleReturn={returnToPrint}
+                businessDetails={businessDetails}
+              />
+            )
+          )}
+        </div>
+
+        <CustomerHistoryDialog
+          open={showCustomerHistory}
+          onOpenChange={setShowCustomerHistory}
+          customerId={selectedCustomerForHistory?.id || null}
+          customerName={selectedCustomerForHistory?.name || ""}
+          organizationId={currentOrganization?.id || ""}
+        />
+
+        <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Refund Credit Note to Customer</DialogTitle>
+              <DialogDescription>
+                Refund available credit for {selectedReturnForRefund?.return_number || "this return"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="text-sm text-muted-foreground">
+                Max refundable: ₹
+                {(selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0).toLocaleString("en-IN")}
+              </div>
+              <div className="space-y-2">
+                <Label>Refund amount</Label>
+                <Input
+                  type="number"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  min={0}
+                  max={selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment mode</Label>
+                <Select value={refundMode} onValueChange={(v: "cash" | "upi" | "card") => setRefundMode(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Note (optional)</Label>
+                <Textarea
+                  value={refundNote}
+                  onChange={(e) => setRefundNote(e.target.value)}
+                  placeholder="Reason for refund..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRefundDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                disabled={isProcessingRefund || !refundAmount || parseFloat(refundAmount) <= 0}
+                onClick={async () => {
+                  if (!selectedReturnForRefund || !currentOrganization?.id) return;
+                  const amount = parseFloat(refundAmount);
+                  if (!amount || amount <= 0) return;
+                  const maxRef = getAvailableCN(selectedReturnForRefund);
+                  if (amount > maxRef + 0.01) {
+                    toast({
+                      title: "Invalid amount",
+                      description: `Refund cannot exceed ₹${maxRef.toLocaleString("en-IN")}.`,
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  if (!selectedReturnForRefund.customer_id) {
+                    toast({
+                      title: "Refund failed",
+                      description: "This return has no linked customer.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  setIsProcessingRefund(true);
+                  try {
+                    const {
+                      data: { user },
+                    } = await supabase.auth.getUser();
+                    const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
+                    const { error: voucherError } = await supabase.from("voucher_entries").insert({
+                      organization_id: currentOrganization.id,
+                      voucher_type: "payment",
+                      voucher_number: `CN-REFUND-${Date.now()}`,
+                      voucher_date: new Date().toISOString().split("T")[0],
+                      reference_type: "customer",
+                      reference_id: selectedReturnForRefund.customer_id,
+                      total_amount: amount,
+                      payment_method: refundMode,
+                      description: `Credit note refund for ${selectedReturnForRefund.return_number || "sale return"} to ${selectedReturnForRefund.customer_name}${noteSuffix}`,
+                      created_by: user?.id || null,
+                    });
+                    if (voucherError) throw voucherError;
+
+                    const remaining = Math.max(0, maxRef - amount);
+                    const { error: srError } = await supabase
+                      .from("sale_returns")
+                      .update({
+                        credit_status: remaining <= 0.01 ? "refunded" : selectedReturnForRefund.credit_status,
+                        credit_available_balance: remaining <= 0.01 ? 0 : remaining,
+                      })
+                      .eq("id", selectedReturnForRefund.id);
+                    if (srError) throw srError;
+
+                    toast({
+                      title: "Refund recorded",
+                      description: `₹${amount.toLocaleString("en-IN")} refunded to ${selectedReturnForRefund.customer_name}`,
+                    });
+                    setShowRefundDialog(false);
+                    queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+                    queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
+                    queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    toast({ title: "Refund failed", description: message, variant: "destructive" });
+                  } finally {
+                    setIsProcessingRefund(false);
+                  }
+                }}
+              >
+                {isProcessingRefund ? "Processing..." : "Record Refund"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="flex flex-col min-h-screen bg-muted/30 pb-8">
+          <MobilePageHeader
+            title="Sale Returns"
+            subtitle={`${totalReturns} returns`}
+            rightContent={
+              <button
+                type="button"
+                onClick={() => navigate("/sale-return-entry")}
+                className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation"
+              >
+                <Plus className="h-5 w-5 text-primary-foreground" />
+              </button>
+            }
+          />
+
+          <div className="px-4 pt-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search return, customer, sale..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm"
+              />
+            </div>
+          </div>
+
+          <MobileStatStrip
+            stats={[
+              { label: "Returns", value: String(totalReturns), color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Value", value: `₹${Math.round(totalValue).toLocaleString("en-IN")}`, color: "text-orange-600", bg: "bg-orange-50" },
+              { label: "Qty", value: String(totalQty), color: "text-violet-600", bg: "bg-violet-50" },
+              { label: "Avg", value: `₹${Math.round(averageValue).toLocaleString("en-IN")}`, color: "text-rose-600", bg: "bg-rose-50" },
+            ]}
+          />
+
+          <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar">
+            {[
+              { v: "all", l: "All" },
+              { v: "pending", l: "Pending" },
+              { v: "partially_adjusted", l: "Partial" },
+              { v: "adjusted", l: "Adjusted" },
+              { v: "refunded", l: "Refunded" },
+            ].map((s) => (
+              <button
+                key={s.v}
+                type="button"
+                onClick={() => { setStatusFilter(s.v); setCurrentPage(1); }}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
+                  statusFilter === s.v ? "bg-foreground text-background border-transparent" : "bg-card text-muted-foreground border-border"
+                )}
+              >
+                {s.l}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 px-4 space-y-2.5 pb-4">
+            {returnsLoading ? (
+              Array.from({ length: 5 }).map((_, i) => <MobileListCardSkeleton key={i} />)
+            ) : returns.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                <Receipt className="h-12 w-12 mb-3 opacity-30" />
+                <p className="text-sm font-medium">No returns found</p>
+              </div>
+            ) : (
+              returns.map((ret) => (
+                <MobileListCard
+                  key={ret.id}
+                  title={ret.return_number || "Return"}
+                  subtitle={
+                    <>
+                      <button
+                        type="button"
+                        className="text-primary font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
+                          setShowCustomerHistory(true);
+                        }}
+                      >
+                        {ret.customer_name}
+                      </button>
+                      {ret.original_sale_number ? ` · ${ret.original_sale_number}` : null}
+                    </>
+                  }
+                  badge={
+                    <Badge variant="outline" className="text-[10px]">
+                      {formatCreditStatusLabel(ret)}
+                    </Badge>
+                  }
+                  amount={
+                    <div className="text-sm font-bold tabular-nums">
+                      ₹{ret.net_amount.toLocaleString("en-IN")}
+                    </div>
+                  }
+                  meta={
+                    <>
+                      <span>{format(new Date(ret.return_date), "dd MMM yyyy")}</span>
+                      {(ret.remaining_cn_amt ?? 0) > 0 ? (
+                        <span className="text-amber-600 block">
+                          ₹{ret.remaining_cn_amt!.toLocaleString("en-IN")} CN remaining
+                        </span>
+                      ) : null}
+                    </>
+                  }
+                  footer={
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/sale-return-entry/${ret.id}`)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-blue-600 active:bg-blue-50 touch-manipulation"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </button>
+                      {canAdjustCn(ret) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedReturnForAdjust(ret);
+                            setShowAdjustDialog(true);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-purple-600 active:bg-purple-50 touch-manipulation"
+                        >
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Adjust
+                        </button>
+                      )}
+                      {canRefundCn(ret) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedReturnForRefund(ret);
+                            setRefundAmount(getAvailableCN(ret).toFixed(2));
+                            setRefundNote("");
+                            setRefundMode("cash");
+                            setShowRefundDialog(true);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-emerald-600 active:bg-emerald-50 touch-manipulation"
+                        >
+                          <Banknote className="h-3.5 w-3.5" />
+                          Refund
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handlePrintClick(ret)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground active:bg-muted/50 touch-manipulation"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Print
+                      </button>
+                    </>
+                  }
+                />
+              ))
+            )}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border mx-4 rounded-xl mb-4">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                Prev
+              </Button>
+              <span className="text-xs text-muted-foreground">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
+        {saleReturnDialogs}
+      </>
+    );
+  }
+
   return (
     <div className="w-full px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
@@ -944,191 +1341,7 @@ export default function SaleReturnDashboard() {
           </CardContent>
         </Card>
 
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Sale Return?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will move the return to Recycle Bin. Stock will be automatically reversed.
-                You can permanently delete it later from the Recycle Bin.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* Credit Note Adjustment Dialog */}
-        {selectedReturnForAdjust && (
-          <AdjustCustomerCreditNoteDialog
-            open={showAdjustDialog}
-            onOpenChange={setShowAdjustDialog}
-            saleReturnId={selectedReturnForAdjust.id}
-            creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
-            returnNumber={selectedReturnForAdjust.return_number || "N/A"}
-            creditAmount={(() => {
-              const r = selectedReturnForAdjust;
-              const live = getAvailableCN(r);
-              return live > 0 ? live : Number(r.net_amount);
-            })()}
-            customerId={selectedReturnForAdjust.customer_id || ""}
-            customerName={selectedReturnForAdjust.customer_name}
-            onSuccess={() => refetchReturns()}
-          />
-        )}
-
-        <div style={{ display: "none" }}>
-          {returnToPrint && businessDetails && (
-            isThermal ? (
-              <SaleReturnThermalPrint
-                ref={printRef}
-                saleReturn={returnToPrint}
-                businessDetails={businessDetails}
-              />
-            ) : (
-              <SaleReturnPrint
-                ref={printRef}
-                saleReturn={returnToPrint}
-                businessDetails={businessDetails}
-              />
-            )
-          )}
-        </div>
-
-        <CustomerHistoryDialog
-          open={showCustomerHistory}
-          onOpenChange={setShowCustomerHistory}
-          customerId={selectedCustomerForHistory?.id || null}
-          customerName={selectedCustomerForHistory?.name || ''}
-          organizationId={currentOrganization?.id || ''}
-        />
-
-        <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Refund Credit Note to Customer</DialogTitle>
-              <DialogDescription>
-                Refund {selectedReturnForRefund?.customer_name} for{" "}
-                {selectedReturnForRefund?.return_number || "Sale Return"} — ₹
-                {(selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0).toLocaleString("en-IN")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div>
-                <Label>Refund Amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={refundAmount}
-                  onChange={(e) => setRefundAmount(e.target.value)}
-                  min={0}
-                  max={selectedReturnForRefund ? getAvailableCN(selectedReturnForRefund) : 0}
-                />
-              </div>
-              <div>
-                <Label>Payment Mode</Label>
-                <Select
-                  value={refundMode}
-                  onValueChange={(v) => setRefundMode(v as "cash" | "upi" | "card")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="upi">UPI</SelectItem>
-                    <SelectItem value="card">Card</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Note (Optional)</Label>
-                <Textarea
-                  value={refundNote}
-                  onChange={(e) => setRefundNote(e.target.value)}
-                  placeholder="Reason for refund..."
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowRefundDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                disabled={isProcessingRefund || !refundAmount || parseFloat(refundAmount) <= 0}
-                onClick={async () => {
-                  if (!selectedReturnForRefund || !currentOrganization?.id) return;
-                  const amount = parseFloat(refundAmount);
-                  if (!amount || amount <= 0) return;
-                  const maxRef = getAvailableCN(selectedReturnForRefund);
-                  if (amount > maxRef + 0.01) {
-                    toast({
-                      title: "Invalid amount",
-                      description: `Refund cannot exceed ₹${maxRef.toLocaleString("en-IN")}.`,
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  if (!selectedReturnForRefund.customer_id) {
-                    toast({
-                      title: "Refund failed",
-                      description: "This return has no linked customer.",
-                      variant: "destructive",
-                    });
-                    return;
-                  }
-                  setIsProcessingRefund(true);
-                  try {
-                    const {
-                      data: { user },
-                    } = await supabase.auth.getUser();
-                    const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
-                    const { error: voucherError } = await supabase.from("voucher_entries").insert({
-                      organization_id: currentOrganization.id,
-                      voucher_type: "payment",
-                      voucher_number: `CN-REFUND-${Date.now()}`,
-                      voucher_date: new Date().toISOString().split("T")[0],
-                      reference_type: "customer",
-                      reference_id: selectedReturnForRefund.customer_id,
-                      total_amount: amount,
-                      payment_method: refundMode,
-                      description: `Credit note refund for ${selectedReturnForRefund.return_number || "sale return"} to ${selectedReturnForRefund.customer_name}${noteSuffix}`,
-                      created_by: user?.id || null,
-                    });
-                    if (voucherError) throw voucherError;
-
-                    const remaining = Math.max(0, maxRef - amount);
-                    const { error: srError } = await supabase
-                      .from("sale_returns")
-                      .update({
-                        credit_status: remaining <= 0.01 ? "refunded" : selectedReturnForRefund.credit_status,
-                        credit_available_balance: remaining <= 0.01 ? 0 : remaining,
-                      })
-                      .eq("id", selectedReturnForRefund.id);
-                    if (srError) throw srError;
-
-                    toast({
-                      title: "Refund recorded",
-                      description: `₹${amount.toLocaleString("en-IN")} refunded to ${selectedReturnForRefund.customer_name}`,
-                    });
-                    setShowRefundDialog(false);
-                    queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
-                    queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
-                    queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-                  } catch (err: unknown) {
-                    const message = err instanceof Error ? err.message : String(err);
-                    toast({ title: "Refund failed", description: message, variant: "destructive" });
-                  } finally {
-                    setIsProcessingRefund(false);
-                  }
-                }}
-              >
-                {isProcessingRefund ? "Processing..." : "Record Refund"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {saleReturnDialogs}
       </div>
   );
 }
