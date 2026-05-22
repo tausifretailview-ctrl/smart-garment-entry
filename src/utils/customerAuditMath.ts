@@ -1,3 +1,5 @@
+import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
+
 /**
  * Pure helpers for Customer Audit Report — not used by legacy ledger / balance hooks.
  *
@@ -46,7 +48,8 @@ export type ComputeCustomerOutstandingOptions = {
   ledgerAlignedApplicationReceipts?: boolean;
 };
 
-export const computeCustomerOutstanding = (
+/** Pre-refactor audit formula (RPC-aligned, no drift / pending SR). */
+function computeCustomerOutstandingLegacyAudit(
   params: {
     openingBalance: number;
     sales: Array<{ net_amount: number; sale_return_adjust?: number; payment_status?: string; is_cancelled?: boolean }>;
@@ -149,5 +152,58 @@ export const computeCustomerOutstanding = (
     advanceRefundedTotal,
     adjustmentTotal: Number(params.adjustmentTotal || 0),
     outstanding,
+  };
+};
+
+export const computeCustomerOutstanding = (
+  params: {
+    openingBalance: number;
+    sales: Array<{ net_amount: number; sale_return_adjust?: number; payment_status?: string; is_cancelled?: boolean }>;
+    voucherEntries: Array<{
+      voucher_type: string;
+      reference_type: string;
+      description: string;
+      total_amount: number;
+      discount_amount?: number | null;
+      payment_method?: string | null;
+    }>;
+    customerAdvances: Array<{ amount: number; used_amount: number; status: string }>;
+    advanceRefunds: Array<{ refund_amount: number }>;
+    adjustmentTotal?: number;
+  },
+  options?: ComputeCustomerOutstandingOptions,
+) => {
+  const legacy = computeCustomerOutstandingLegacyAudit(params, options);
+  const core = computeCustomerBalanceCore({
+    openingBalance: params.openingBalance,
+    sales: params.sales,
+    voucherEntries: params.voucherEntries,
+    customerAdvances: params.customerAdvances,
+    advanceRefunds: params.advanceRefunds,
+    adjustmentTotal: params.adjustmentTotal,
+    options,
+  });
+
+  warnCustomerBalanceMismatch(
+    "customerAuditMath.computeCustomerOutstanding",
+    legacy.outstanding,
+    core.auditFormulaOutstanding,
+  );
+
+  return {
+    openingBalance: core.openingBalance,
+    totalInvoiced: core.totalInvoicedGross,
+    totalSaleReturnAdjust: core.totalSaleReturnAdjustOnInvoices,
+    totalRealPayments: core.totalRealPayments,
+    receiptCredits: core.receiptCredits,
+    creditNoteCredits: core.creditNoteCredits,
+    customerPaymentDebits: core.customerPaymentDebits,
+    totalAdvanceReceived: params.customerAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0),
+    totalAdvanceUsed: core.totalAdvanceUsed,
+    unusedAdvance: core.unusedAdvance,
+    advanceRefundedTotal: core.advanceRefundedTotal,
+    adjustmentTotal: core.adjustmentTotal,
+    /** RPC/audit lifetime formula (excludes paidAmountDrift and pending standalone SR). */
+    outstanding: core.auditFormulaOutstanding,
   };
 };
