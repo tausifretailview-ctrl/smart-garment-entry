@@ -1216,6 +1216,7 @@ export const useSaveSale = () => {
         payStatus,
         finalPaymentMethod,
         isExchangeRefund,
+        exchange,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown, {
         existingPaidAmount,
         existingPaymentStatus: existingSale?.payment_status,

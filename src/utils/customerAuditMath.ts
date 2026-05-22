@@ -47,7 +47,7 @@ function computeCustomerOutstandingLegacyAudit(
     adjustmentTotal?: number;
   },
   options?: ComputeCustomerOutstandingOptions,
-) => {
+) {
   const validSales = params.sales.filter(
     (s) =>
       s.is_cancelled !== true &&
