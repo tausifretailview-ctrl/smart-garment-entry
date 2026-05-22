@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import { cn } from "@/lib/utils";
+import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_LEGACY_SALES_HUB_PATH } from "@/lib/mobileShell";
 
 interface NavTab {
   icon: React.ElementType;
@@ -12,8 +13,18 @@ interface NavTab {
 }
 
 const sideTabs: NavTab[] = [
-  { icon: Home, label: "Home", path: "/", matchPaths: ["/"] },
-  { icon: IndianRupee, label: "Sales", path: "/owner-sales", matchPaths: ["/owner-sales", "/mobile-sales"] },
+  {
+    icon: Home,
+    label: "Home",
+    path: MOBILE_DEFAULT_LANDING_PATH,
+    matchPaths: ["/", MOBILE_DEFAULT_LANDING_PATH, MOBILE_LEGACY_SALES_HUB_PATH],
+  },
+  {
+    icon: IndianRupee,
+    label: "Sales",
+    path: MOBILE_DEFAULT_LANDING_PATH,
+    matchPaths: [MOBILE_DEFAULT_LANDING_PATH, MOBILE_LEGACY_SALES_HUB_PATH],
+  },
   { icon: ShoppingCart, label: "Purchase", path: "/owner-purchases", matchPaths: ["/owner-purchases"] },
   { icon: Package, label: "Stock", path: "/owner-stock", matchPaths: ["/owner-stock"] },
   { icon: BarChart3, label: "Reports", path: "/owner-reports", matchPaths: ["/owner-reports", "/mobile-reports"] },
@@ -26,7 +37,7 @@ export const OwnerBottomNav = () => {
 
   const isActive = (tab: NavTab) => {
     const current = location.pathname;
-    if (tab.path === "/" && current === getOrgPath("/")) return true;
+    if (current === getOrgPath("/")) return tab.matchPaths.includes("/");
     return tab.matchPaths.some((p) => {
       const full = getOrgPath(p);
       return current === full || current.startsWith(full + "/");

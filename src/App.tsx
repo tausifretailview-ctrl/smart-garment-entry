@@ -20,6 +20,7 @@ import { POSLayout } from "@/components/POSLayout";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
 import InstallApp from "./pages/InstallApp";
+import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
 
 // Auto-retry lazy imports to handle chunk failures after deployments
 function lazyWithRetry(importFn: () => Promise<any>) {
@@ -353,16 +354,12 @@ const App = () => {
                 <Route path="portal/orders" element={<PortalOrders />} />
                 <Route path="portal/invoices" element={<PortalInvoices />} />
                 <Route path="portal/account" element={<PortalAccount />} />
-                {/* Dashboard - index route */}
+                {/* Org home: mobile → owner-sales, desktop → main dashboard */}
                 <Route
                   index
                   element={
                     <ProtectedRoute>
-                      <MenuPermissionRoute permission="main_dashboard">
-                        <Layout>
-                          <Index />
-                        </Layout>
-                      </MenuPermissionRoute>
+                      <MobileOrgIndexRedirect />
                     </ProtectedRoute>
                   }
                 />

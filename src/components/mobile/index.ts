@@ -19,6 +19,7 @@ export { MobilePaymentMethodPickerSheet, DEFAULT_RECEIPT_PAYMENT_METHODS } from 
 export { AdaptiveCustomerPicker } from "./AdaptiveCustomerPicker";
 export { AdaptiveSupplierPicker } from "./AdaptiveSupplierPicker";
 export { AdaptivePaymentMethodPicker } from "./AdaptivePaymentMethodPicker";
+export { MobileOrgIndexRedirect } from "./MobileOrgIndexRedirect";
 export { MobileDashboard } from "./MobileDashboard";
 export { MobileDashboardCard } from "./MobileDashboardCard";
 export { MobileDashboardSummary } from "./MobileDashboardSummary";

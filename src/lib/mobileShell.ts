@@ -1,6 +1,12 @@
 /** Shared mobile shell spacing (bottom nav + safe area). */
 export const MOBILE_BOTTOM_NAV_HEIGHT = "4.25rem";
 
+/** Default route after opening the org on phone (OwnerBottomNav + FullScreenLayout). */
+export const MOBILE_DEFAULT_LANDING_PATH = "/owner-sales";
+
+/** Legacy ERP sales hub (MobileBottomNav); kept for deep links. */
+export const MOBILE_LEGACY_SALES_HUB_PATH = "/mobile-sales";
+
 export const mobileMainPaddingClass =
   "pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+0.75rem)] lg:pb-14";
 

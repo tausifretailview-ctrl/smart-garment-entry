@@ -7,12 +7,10 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
-import { useIsMobile, useIsLgUp } from "@/hooks/use-mobile";
+import { useIsLgUp } from "@/hooks/use-mobile";
 import { useDashboardToolbar } from "@/contexts/DashboardToolbarContext";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
-import { OwnerDashboard } from "@/components/mobile/OwnerDashboard";
-import { MobileErrorBoundary } from "@/components/mobile/MobileErrorBoundary";
 import {
   Package,
   ShoppingCart,
@@ -277,16 +275,6 @@ async function fetchCustomerSegmentCounts(organizationId: string): Promise<{
 // Note: Refresh intervals are now tier-based via useTierBasedRefresh hook
 // Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
 
-// Mobile-specific dashboard wrapper - separate component to avoid hook order issues
-const MobileDashboardWrapper = () => {
-  return (
-    <MobileErrorBoundary>
-      <OwnerDashboard />
-    </MobileErrorBoundary>
-  );
-};
-
-// Desktop dashboard with all hooks
 const DesktopDashboard = () => {
   const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -1200,17 +1188,7 @@ const DesktopDashboard = () => {
   );
 };
 
-// DashboardContent decides between mobile and desktop
-// This keeps hook order consistent by NOT calling hooks before conditional
-const DashboardContent = () => {
-  const isMobile = useIsMobile();
-  
-  if (isMobile) {
-    return <MobileDashboardWrapper />;
-  }
-  
-  return <DesktopDashboard />;
-};
+const DashboardContent = () => <DesktopDashboard />;
 
 const Index = () => {
   const { currentOrganization, organizations, loading } = useOrganization();
