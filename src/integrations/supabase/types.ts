@@ -4072,6 +4072,8 @@ export type Database = {
           credit_status: string | null
           deleted_at: string | null
           deleted_by: string | null
+          discount_amount: number
+          discount_percent: number
           gross_amount: number
           gst_amount: number
           id: string
@@ -4095,6 +4097,8 @@ export type Database = {
           credit_status?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          discount_amount?: number
+          discount_percent?: number
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -4118,6 +4122,8 @@ export type Database = {
           credit_status?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          discount_amount?: number
+          discount_percent?: number
           gross_amount?: number
           gst_amount?: number
           id?: string
