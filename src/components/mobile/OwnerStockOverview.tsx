@@ -5,8 +5,10 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import {
-  Package, Search, Layers, IndianRupee, AlertTriangle, XCircle, CheckCircle, ArrowUpDown,
+  Package, Search, Layers, IndianRupee, AlertTriangle, XCircle, CheckCircle, ArrowUpDown, ScanBarcode,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useMobileScan } from "@/contexts/MobileScanContext";
 import { cn } from "@/lib/utils";
 
 const fmtShort = (v: number) =>
@@ -23,6 +25,7 @@ const PAGE_SIZE = 30;
 
 export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const { currentOrganization } = useOrganization();
+  const { openScan } = useMobileScan();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "in" | "low" | "out">("all");
@@ -143,14 +146,26 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="px-4 py-3">
           <h1 className="text-base font-semibold text-foreground mb-3">Stock Overview</h1>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search product, brand, barcode..."
-              className="pl-9 h-9 text-sm rounded-xl bg-muted/50"
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="Search product, brand, barcode..."
+                className="pl-9 h-9 text-sm rounded-xl bg-muted/50"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="default"
+              size="icon"
+              className="h-9 w-9 shrink-0 rounded-xl"
+              onClick={openScan}
+              aria-label="Scan barcode"
+            >
+              <ScanBarcode className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>

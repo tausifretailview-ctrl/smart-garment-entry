@@ -41,7 +41,7 @@ const secondaryActions: QuickAction[] = [
   { icon: Users, label: "Customers", path: "/customers", color: "text-purple-500" },
   { icon: Building2, label: "Suppliers", path: "/suppliers", color: "text-orange-500" },
   { icon: CreditCard, label: "Payments", path: "/payments-dashboard", color: "text-blue-500" },
-  { icon: BarChart3, label: "Reports", path: "/mobile-reports", color: "text-green-500" },
+  { icon: BarChart3, label: "Reports", path: "/owner-reports", color: "text-green-500" },
 ];
 
 export const MobileQuickActions = () => {

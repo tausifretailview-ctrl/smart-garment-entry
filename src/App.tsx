@@ -1311,15 +1311,8 @@ const App = () => {
                   }
                 />
 
-                {/* Mobile Reports Hub */}
-                <Route
-                  path="mobile-reports"
-                  element={
-                    <ProtectedRoute>
-                      <MobileReportsHub />
-                    </ProtectedRoute>
-                  }
-                />
+                {/* Legacy path → owner mobile reports */}
+                <Route path="mobile-reports" element={<Navigate to="owner-reports" replace />} />
 
                 {/* Mobile Sales Hub */}
                 <Route
@@ -1338,9 +1331,11 @@ const App = () => {
                   path="mobile-accounts"
                   element={
                     <ProtectedRoute>
-                      <Suspense fallback={<LazyFallback />}>
-                        <MobileAccountsPage />
-                      </Suspense>
+                      <FullScreenLayout>
+                        <Suspense fallback={<LazyFallback />}>
+                          <MobileAccountsPage />
+                        </Suspense>
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />

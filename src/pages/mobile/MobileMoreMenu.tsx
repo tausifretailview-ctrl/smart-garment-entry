@@ -69,7 +69,7 @@ export default function MobileMoreMenu() {
     {
       title: "Reports",
       items: [
-        { icon: BarChart3, label: "All Reports", path: "/mobile-reports", color: "text-green-500" },
+        { icon: BarChart3, label: "All Reports", path: "/owner-reports", color: "text-green-500" },
         { icon: TrendingUp, label: "Daily Cashier", path: "/daily-cashier-report", color: "text-purple-500" },
         { icon: Package, label: "Stock Report", path: "/stock-report", color: "text-amber-500" },
         { icon: Receipt, label: "GST Reports", path: "/gst-reports", color: "text-indigo-500" },

@@ -8,12 +8,15 @@ interface CameraBarcodeScannerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onBarcodeScanned: (barcode: string) => void;
+  /** When false, skips success toast (e.g. stock scan sheet shows results inline). */
+  showSuccessToast?: boolean;
 }
 
 export function CameraBarcodeScannerDialog({
   open,
   onOpenChange,
   onBarcodeScanned,
+  showSuccessToast = true,
 }: CameraBarcodeScannerDialogProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +95,9 @@ export function CameraBarcodeScannerDialog({
           // Vibrate for feedback
           if (navigator.vibrate) navigator.vibrate(100);
 
-          toast.success(`Scanned: ${decodedText}`);
+          if (showSuccessToast) {
+            toast.success(`Scanned: ${decodedText}`);
+          }
           onBarcodeScanned(decodedText);
           onOpenChange(false);
         },
@@ -114,7 +119,7 @@ export function CameraBarcodeScannerDialog({
         setError(err?.message || "Failed to start camera scanner.");
       }
     }
-  }, [open, onBarcodeScanned, onOpenChange, stopScanner]);
+  }, [open, onBarcodeScanned, onOpenChange, stopScanner, showSuccessToast]);
 
   useEffect(() => {
     if (open) {

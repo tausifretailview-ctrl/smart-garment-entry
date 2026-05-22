@@ -8,8 +8,8 @@ import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
-import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
 import { useEscapeBack } from "@/hooks/useEscapeBack";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -56,6 +56,7 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <ChatProvider>
       <DashboardToolbarProvider>
+      <MobileScanProvider>
       <SidebarProvider defaultOpen={false}>
         {/* Mobile offline indicator */}
         <OfflineIndicator />
@@ -65,13 +66,15 @@ export const Layout = ({ children }: LayoutProps) => {
           <SidebarInset className="flex flex-col flex-1">
             {!isSalesInvoicePage && (
               <>
-                <Header />
-                {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
                 <div className="hidden lg:block">
+                  <Header />
                   <WindowTabsBar />
                 </div>
-                <div className="flex lg:hidden items-center gap-1 px-2 py-0.5 border-b bg-sidebar">
-                  <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
+                <div className="flex lg:hidden items-center gap-2 px-3 py-2 border-b bg-sidebar shrink-0">
+                  <SidebarTrigger className="text-sidebar-foreground h-8 w-8 touch-manipulation" />
+                  <span className="text-sm font-semibold text-sidebar-foreground truncate flex-1">
+                    Menu
+                  </span>
                 </div>
               </>
             )}
@@ -88,15 +91,14 @@ export const Layout = ({ children }: LayoutProps) => {
           </SidebarInset>
         </div>
         
-        {/* Mobile navigation */}
         <OwnerBottomNav />
-        <MobileFAB />
         
         <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
         <FloatingWhatsAppInbox />
         <FloatingChatButton />
         <StatusBar />
       </SidebarProvider>
+      </MobileScanProvider>
       </DashboardToolbarProvider>
     </ChatProvider>
   );

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { MobileAccountsSummary } from "@/components/mobile/MobileAccountsSummary";
-import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ChevronRight, ArrowDownLeft, ArrowUpRight, BookOpen, Building2, Users, Receipt, ShieldCheck, FileText } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
@@ -7,12 +8,13 @@ import { cn } from "@/lib/utils";
 
 export default function MobileAccountsPage() {
   const { orgNavigate } = useOrgNavigation();
+  const [statementOpen, setStatementOpen] = useState(false);
 
   const quickLinks = [
     { icon: ArrowDownLeft, label: "Receive Payment", nav: "/accounts", color: "text-emerald-500", bg: "bg-emerald-50", desc: "Record customer receipt" },
     { icon: ArrowUpRight, label: "Make Payment", nav: "/accounts", color: "text-rose-500", bg: "bg-rose-50", desc: "Record supplier payment" },
     { icon: BookOpen, label: "Customer Ledger", nav: "/customer-ledger-report", color: "text-purple-500", bg: "bg-purple-50", desc: "Full transaction log" },
-    { icon: FileText, label: "Account statement (audit)", nav: "/customer-account-statement-audit", color: "text-indigo-500", bg: "bg-indigo-50", desc: "Same register as audit — compare" },
+    { icon: FileText, label: "Account statement (audit)", action: "statement" as const, color: "text-indigo-500", bg: "bg-indigo-50", desc: "Quick customer balance lookup" },
     { icon: ShieldCheck, label: "Customer Audit", nav: "/customer-audit-report", color: "text-violet-500", bg: "bg-violet-50", desc: "Verified outstanding balance" },
     { icon: Building2, label: "Supplier Ledger", nav: "/accounts", color: "text-orange-500", bg: "bg-orange-50", desc: "Payables & payments" },
     { icon: Users, label: "Customers", nav: "/customers", color: "text-blue-500", bg: "bg-blue-50", desc: "Customer master" },
@@ -39,7 +41,13 @@ export default function MobileAccountsPage() {
               return (
                 <div key={link.label}>
                   <button
-                    onClick={() => orgNavigate(link.nav)}
+                    onClick={() => {
+                      if ("action" in link && link.action === "statement") {
+                        setStatementOpen(true);
+                      } else {
+                        orgNavigate((link as { nav: string }).nav);
+                      }
+                    }}
                     className="w-full flex items-center justify-between px-4 py-3.5 active:bg-muted/40 transition-colors touch-manipulation"
                   >
                     <div className="flex items-center gap-3">
@@ -61,7 +69,7 @@ export default function MobileAccountsPage() {
         </div>
       </div>
 
-      <MobileBottomNav />
+      <CustomerStatementFloatingDialog open={statementOpen} onOpenChange={setStatementOpen} />
     </div>
   );
 }

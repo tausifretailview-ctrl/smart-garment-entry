@@ -281,7 +281,7 @@ export const MobileDashboard = () => {
             { icon: Users, label: "Customers", nav: "/customers", color: "text-purple-500", bg: "bg-purple-50" },
             { icon: Building2, label: "Suppliers", nav: "/suppliers", color: "text-orange-500", bg: "bg-orange-50" },
             { icon: CreditCard, label: "Payments", nav: "/mobile-accounts", color: "text-blue-500", bg: "bg-blue-50" },
-            { icon: BarChart3, label: "Reports", nav: "/mobile-reports", color: "text-teal-500", bg: "bg-teal-50" },
+            { icon: BarChart3, label: "Reports", nav: "/owner-reports", color: "text-teal-500", bg: "bg-teal-50" },
           ].map((a) => {
             const Icon = a.icon;
             return (

@@ -7,8 +7,8 @@ import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
-import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
@@ -25,6 +25,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   return (
     <ChatProvider>
       <DashboardToolbarProvider>
+      <MobileScanProvider>
       <SidebarProvider defaultOpen={!isSalesInvoicePage}>
         {/* Mobile offline indicator */}
         <OfflineIndicator />
@@ -42,13 +43,15 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
           }>
             {!isSalesInvoicePage && (
               <>
-                <Header />
-                {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
                 <div className="hidden lg:block">
+                  <Header />
                   <WindowTabsBar />
                 </div>
-                <div className="flex lg:hidden items-center gap-2 px-4 py-2 border-b bg-sidebar">
-                  <SidebarTrigger className="text-sidebar-foreground" />
+                <div className="flex lg:hidden items-center gap-2 px-3 py-2 border-b bg-sidebar shrink-0">
+                  <SidebarTrigger className="text-sidebar-foreground h-8 w-8 touch-manipulation" />
+                  <span className="text-sm font-semibold text-sidebar-foreground truncate flex-1">
+                    Menu
+                  </span>
                 </div>
               </>
             )}
@@ -65,14 +68,13 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
           </SidebarInset>
         </div>
         
-        {/* Mobile navigation */}
         <OwnerBottomNav />
-        <MobileFAB />
         
         <FloatingWhatsAppInbox />
         <FloatingChatButton />
         <StatusBar />
       </SidebarProvider>
+      </MobileScanProvider>
       </DashboardToolbarProvider>
     </ChatProvider>
   );
