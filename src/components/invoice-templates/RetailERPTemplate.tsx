@@ -165,6 +165,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   instagramLink,
 }) => {
   const isA4 = format === "a4";
+  const invoiceNoteText =
+    notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
   const TARGET_ROWS = isA4 ? 14 : 10;
   const MIN_BLANK_ROWS = 2;
@@ -560,15 +562,64 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               {isLastPage && (
               <div className="retail-erp-footer" style={{ borderTop: B2, fontSize: fsBody }}>
 
-                  {/* Totals — flush right (under Rate / Amount columns) */}
-                  <div style={{ display: "flex", justifyContent: "flex-end", borderBottom: B, width: "100%" }}>
+                  {/* Note (left) + Totals (right) — uses blank space beside subtotal block */}
+                  <div style={{ display: "flex", borderBottom: B, width: "100%", alignItems: "stretch" }}>
+                    <div
+                      style={{
+                        flex: 1,
+                        borderRight: B,
+                        minHeight: isA4 ? "78px" : "62px",
+                        padding: isA4 ? "6px 10px" : "5px 8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "flex-start",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      {invoiceNoteText ? (
+                        <>
+                          <span
+                            style={{
+                              fontSize: isA4 ? "12px" : "10px",
+                              fontWeight: "800",
+                              color: "#000",
+                              marginBottom: isA4 ? "4px" : "2px",
+                            }}
+                          >
+                            Note:
+                          </span>
+                          <span
+                            style={{
+                              fontSize: isA4 ? "24px" : "19px",
+                              fontWeight: "800",
+                              lineHeight: 1.2,
+                              color: "#000",
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {invoiceNoteText}
+                          </span>
+                        </>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: isA4 ? "12px" : "10px",
+                            fontWeight: "700",
+                            color: "#6b7280",
+                          }}
+                        >
+                          Note:
+                        </span>
+                      )}
+                    </div>
                     <div
                       style={{
                         width: isA4 ? "46%" : "44%",
                         minWidth: isA4 ? "78mm" : "62mm",
                         fontSize: fsTotals,
                         color: "#111",
-                        borderLeft: B,
+                        flexShrink: 0,
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
@@ -594,11 +645,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       </div>
                     </div>
                   </div>
-                  {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
-                    <div style={{ borderBottom: B, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: isA4 ? "10px" : "8px" }}>
-                      <strong>Note:</strong> <span style={{ fontStyle: "italic" }}>{notes}</span>
-                    </div>
-                  )}
 
                   {/* Amount in Words */}
                   <div style={{ borderBottom: B, padding: isA4 ? "3px 8px" : "2px 6px", fontSize: isA4 ? "13px" : "10px", fontWeight: "600" }}>
