@@ -54,6 +54,12 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useMobileERP } from "@/hooks/useMobileERP";
+import {
+  SaleFinancerDetailsPanel,
+  mapSaleFinancerRow,
+  type SaleFinancerDetailsDisplay,
+} from "@/components/SaleFinancerDetailsPanel";
 
 interface SaleItem {
   id: string;
@@ -222,6 +228,8 @@ const POSDashboard = () => {
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const { hasSpecialPermission } = useUserPermissions();
+  const mobileERP = useMobileERP();
+  const showFinancerOnExpand = mobileERP.enabled && mobileERP.financer_billing;
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -278,6 +286,7 @@ const POSDashboard = () => {
 
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
+  const [saleFinancerDetails, setSaleFinancerDetails] = useState<Record<string, SaleFinancerDetailsDisplay | null>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
   const [creditNoteUsage, setCreditNoteUsage] = useState<Record<string, { credit_amount: number; used_amount: number; status: string }>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
@@ -646,6 +655,29 @@ const POSDashboard = () => {
     }
   };
 
+  const fetchSaleFinancerDetails = async (saleId: string): Promise<SaleFinancerDetailsDisplay | null> => {
+    if (!showFinancerOnExpand || !currentOrganization?.id) return null;
+    if (saleId in saleFinancerDetails) return saleFinancerDetails[saleId];
+
+    try {
+      const { data, error } = await supabase
+        .from("sale_financer_details")
+        .select("*")
+        .eq("sale_id", saleId)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      const mapped = mapSaleFinancerRow(data as Record<string, unknown> | null);
+      setSaleFinancerDetails((prev) => ({ ...prev, [saleId]: mapped }));
+      return mapped;
+    } catch (error: any) {
+      console.error("Failed to load financer details:", error);
+      setSaleFinancerDetails((prev) => ({ ...prev, [saleId]: null }));
+      return null;
+    }
+  };
+
   const fetchSaleReturns = async (saleNumber: string): Promise<any[]> => {
     if (saleReturns[saleNumber]) return saleReturns[saleNumber];
 
@@ -674,13 +706,17 @@ const POSDashboard = () => {
       setExpandedSale(saleId);
       const sale = sales.find(s => s.id === saleId);
       if (sale) {
-        await Promise.all([
+        const tasks: Promise<unknown>[] = [
           fetchSaleItems(saleId),
-          fetchSaleReturns(sale.sale_number)
-        ]);
+          fetchSaleReturns(sale.sale_number),
+        ];
+        if (showFinancerOnExpand) {
+          tasks.push(fetchSaleFinancerDetails(saleId));
+        }
+        await Promise.all(tasks);
       }
     }
-  }, [expandedSale, sales]);
+  }, [expandedSale, sales, showFinancerOnExpand]);
 
 
   // Stock restoration is now handled automatically by database triggers
@@ -2794,6 +2830,13 @@ const POSDashboard = () => {
                                       </Table>
                                     </div>
                                   </div>
+
+                                  {showFinancerOnExpand && (
+                                    <SaleFinancerDetailsPanel
+                                      variant="compact"
+                                      details={saleFinancerDetails[sale.id]}
+                                    />
+                                  )}
 
                                   {saleReturns[sale.sale_number] && saleReturns[sale.sale_number].length > 0 && (
                                     <div>
