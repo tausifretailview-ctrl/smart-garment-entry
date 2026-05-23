@@ -8003,6 +8003,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      login_attempts_rate_ok: {
+        Args: { _identifier: string }
+        Returns: boolean
+      }
       merge_products: {
         Args: { p_source_product_id: string; p_target_product_id: string }
         Returns: Json
