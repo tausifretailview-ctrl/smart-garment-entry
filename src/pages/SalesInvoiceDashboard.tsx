@@ -65,6 +65,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
+import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDistanceToNow } from "date-fns";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
@@ -342,6 +343,9 @@ export default function SalesInvoiceDashboard() {
   const [showBulkAdvanceDialog, setShowBulkAdvanceDialog] = useState(false);
   const [bulkAdvanceCustomer, setBulkAdvanceCustomer] = useState<{ id: string; name: string } | null>(null);
   const [bulkAdvanceBalance, setBulkAdvanceBalance] = useState<number>(0);
+  const [showSettleDialog, setShowSettleDialog] = useState(false);
+  const [settleCustomerId, setSettleCustomerId] = useState<string | null>(null);
+  const [settleCustomerName, setSettleCustomerName] = useState("");
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -3390,19 +3394,36 @@ export default function SalesInvoiceDashboard() {
                   ))}
                 </SelectContent>
               </Select>
-              {filteredCustomer && bulkAdvanceBalance > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-base border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
-                  onClick={() => {
-                    setBulkAdvanceCustomer(filteredCustomer);
-                    setShowBulkAdvanceDialog(true);
-                  }}
-                >
-                  <IndianRupee className="h-3.5 w-3.5" />
-                  Adjust Advance ₹{bulkAdvanceBalance.toLocaleString("en-IN")}
-                </Button>
+              {filteredCustomer && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 text-base border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium gap-1.5 flex-shrink-0"
+                    onClick={() => {
+                      setSettleCustomerId(filteredCustomer.id);
+                      setSettleCustomerName(filteredCustomer.name || "");
+                      setShowSettleDialog(true);
+                    }}
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    Settle Account
+                  </Button>
+                  {bulkAdvanceBalance > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-10 text-base border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
+                      onClick={() => {
+                        setBulkAdvanceCustomer(filteredCustomer);
+                        setShowBulkAdvanceDialog(true);
+                      }}
+                    >
+                      <IndianRupee className="h-3.5 w-3.5" />
+                      Adjust Advance ₹{bulkAdvanceBalance.toLocaleString("en-IN")}
+                    </Button>
+                  )}
+                </>
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
@@ -4561,6 +4582,19 @@ export default function SalesInvoiceDashboard() {
             }}
           />
         )}
+
+        <SettleCustomerAccountDialog
+          open={showSettleDialog}
+          onOpenChange={setShowSettleDialog}
+          customerId={settleCustomerId}
+          customerName={settleCustomerName}
+          organizationId={currentOrganization?.id || ""}
+          onSuccess={() => {
+            setShowSettleDialog(false);
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
+          }}
+        />
       </div>
   );
 }
