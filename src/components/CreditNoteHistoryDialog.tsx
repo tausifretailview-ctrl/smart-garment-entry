@@ -211,7 +211,7 @@ export function CreditNoteHistoryDialog({
       }
 
       // CN application vouchers (receipt + credit_note_adjustment) for linked invoices
-      let cnApplyVouchers: (typeof refundVouchers)[number] & { reference_id?: string | null }[] = [];
+      let cnApplyVouchers: ((typeof refundVouchers)[number] & { reference_id?: string | null })[] = [];
       if (invoiceIds.length > 0) {
         const { data: applyV, error: applyErr } = await supabase
           .from("voucher_entries")
