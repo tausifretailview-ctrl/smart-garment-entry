@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft, History, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -87,11 +88,11 @@ export function InvoiceHistoryDialog({
     queryKey: ["invoice-history", organizationId, saleId],
     enabled: open && !!saleId && !!organizationId,
     queryFn: async () => {
-      const [saleRes, vouchersRes, returnsRes, deliveryRes] = await Promise.all([
+      const [saleRes, vouchersRes, returnsRes, deliveryRes, saleItemsRes] = await Promise.all([
         supabase
           .from("sales")
           .select(
-            "id, sale_number, sale_date, customer_name, net_amount, paid_amount, sale_return_adjust, payment_status, payment_method, delivery_status, created_at, updated_at, shop_name, irn, ack_no, einvoice_status, is_cancelled, cancelled_at, cancelled_reason"
+            "id, sale_number, sale_date, customer_name, net_amount, paid_amount, sale_return_adjust, payment_status, payment_method, delivery_status, shipping_address, created_at, updated_at, shop_name, irn, ack_no, einvoice_status, is_cancelled, cancelled_at, cancelled_reason"
           )
           .eq("id", saleId!)
           .eq("organization_id", organizationId!)
@@ -119,18 +120,28 @@ export function InvoiceHistoryDialog({
           .eq("organization_id", organizationId!)
           .eq("sale_id", saleId!)
           .order("created_at", { ascending: true }),
+        supabase
+          .from("sale_items")
+          .select(
+            "id, product_name, size, barcode, quantity, unit_price, discount_share, line_total, item_notes"
+          )
+          .eq("sale_id", saleId!)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: true }),
       ]);
 
       if (saleRes.error) throw saleRes.error;
       if (vouchersRes.error) throw vouchersRes.error;
       if (returnsRes.error) throw returnsRes.error;
       if (deliveryRes.error) throw deliveryRes.error;
+      if (saleItemsRes.error) throw saleItemsRes.error;
 
       return {
         sale: saleRes.data,
         vouchers: vouchersRes.data || [],
         saleReturns: returnsRes.data || [],
         deliveryHistory: deliveryRes.data || [],
+        saleItems: saleItemsRes.data || [],
       };
     },
   });
@@ -348,106 +359,327 @@ export function InvoiceHistoryDialog({
           </p>
         </div>
 
-        <Separator />
+        <Tabs defaultValue="history" className="w-full">
+          <TabsList className="w-full grid grid-cols-5 h-9 mb-3">
+            <TabsTrigger value="history" className="text-xs px-1">
+              History
+            </TabsTrigger>
+            <TabsTrigger value="products" className="text-xs px-1">
+              Products
+            </TabsTrigger>
+            <TabsTrigger value="receipts" className="text-xs px-1">
+              Receipts
+            </TabsTrigger>
+            <TabsTrigger value="creditnote" className="text-xs px-1">
+              Credit Note
+            </TabsTrigger>
+            <TabsTrigger value="shipping" className="text-xs px-1">
+              Shipping
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Timeline */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-            Timeline
-          </p>
-          {timeline.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-6">No events recorded.</p>
-          ) : (
-            <div className="space-y-0">
-              {timeline.map((entry, idx) => (
-                <div key={entry.id} className="flex gap-3">
-                  <div className="flex flex-col items-center">
-                    <span className="text-lg leading-none" aria-hidden>
-                      {entry.icon}
-                    </span>
-                    {idx < timeline.length - 1 && (
-                      <div className="w-px flex-1 bg-border min-h-[1.5rem] my-1" />
-                    )}
-                  </div>
-                  <div className="pb-4 flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      <span className="text-muted-foreground font-normal tabular-nums">
-                        {formatTimelineDate(entry.timestamp)}
-                      </span>{" "}
-                      {entry.title}
-                    </p>
-                    {entry.lines.map((line, i) => (
-                      <p key={i} className="text-xs text-muted-foreground mt-0.5 pl-0.5">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {balanceSummary && (
-          <>
-            <Separator />
-            <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5 text-sm">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                Balance Summary
+          <TabsContent value="history" className="mt-0">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
+                Timeline
               </p>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Invoice Amount</span>
-                <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.invoiceAmount)}</span>
-              </div>
-              {balanceSummary.srAdjust > 0 && (
-                <div className="flex justify-between text-amber-700">
-                  <span>S/R Adjust</span>
-                  <span className="font-medium tabular-nums">-{fmtMoney(balanceSummary.srAdjust)}</span>
+              {timeline.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No events recorded.</p>
+              ) : (
+                <div className="space-y-0">
+                  {timeline.map((entry, idx) => (
+                    <div key={entry.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <span className="text-lg leading-none" aria-hidden>
+                          {entry.icon}
+                        </span>
+                        {idx < timeline.length - 1 && (
+                          <div className="w-px flex-1 bg-border min-h-[1.5rem] my-1" />
+                        )}
+                      </div>
+                      <div className="pb-4 flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">
+                          <span className="text-muted-foreground font-normal tabular-nums">
+                            {formatTimelineDate(entry.timestamp)}
+                          </span>{" "}
+                          {entry.title}
+                        </p>
+                        {entry.lines.map((line, i) => (
+                          <p key={i} className="text-xs text-muted-foreground mt-0.5 pl-0.5">
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Cash/UPI Paid</span>
-                <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.cashPaid)}</span>
-              </div>
-              {balanceSummary.advancePaid > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Advance Applied</span>
-                  <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.advancePaid)}</span>
-                </div>
-              )}
-              {balanceSummary.cnPaid > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Credit Note Applied</span>
-                  <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.cnPaid)}</span>
-                </div>
-              )}
-              {balanceSummary.discount > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Receipt Discount</span>
-                  <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.discount)}</span>
-                </div>
-              )}
-              <Separator className="my-2" />
-              <div className="flex justify-between items-center font-semibold">
-                <span>Balance Due</span>
-                <span
-                  className={cn(
-                    "tabular-nums flex items-center gap-1",
-                    balanceSummary.settled ? "text-green-600" : "text-red-600"
+            </div>
+
+            {balanceSummary && (
+              <>
+                <Separator className="my-4" />
+                <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5 text-sm">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Balance Summary
+                  </p>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Invoice Amount</span>
+                    <span className="font-medium tabular-nums">
+                      {fmtMoney(balanceSummary.invoiceAmount)}
+                    </span>
+                  </div>
+                  {balanceSummary.srAdjust > 0 && (
+                    <div className="flex justify-between text-amber-700">
+                      <span>S/R Adjust</span>
+                      <span className="font-medium tabular-nums">
+                        -{fmtMoney(balanceSummary.srAdjust)}
+                      </span>
+                    </div>
                   )}
-                >
-                  {fmtMoney(balanceSummary.balanceDue)}
-                  {balanceSummary.settled && (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span className="text-xs font-medium">Settled</span>
-                    </>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cash/UPI Paid</span>
+                    <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.cashPaid)}</span>
+                  </div>
+                  {balanceSummary.advancePaid > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Advance Applied</span>
+                      <span className="font-medium tabular-nums">
+                        {fmtMoney(balanceSummary.advancePaid)}
+                      </span>
+                    </div>
                   )}
+                  {balanceSummary.cnPaid > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Credit Note Applied</span>
+                      <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.cnPaid)}</span>
+                    </div>
+                  )}
+                  {balanceSummary.discount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Receipt Discount</span>
+                      <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.discount)}</span>
+                    </div>
+                  )}
+                  <Separator className="my-2" />
+                  <div className="flex justify-between items-center font-semibold">
+                    <span>Balance Due</span>
+                    <span
+                      className={cn(
+                        "tabular-nums flex items-center gap-1",
+                        balanceSummary.settled ? "text-green-600" : "text-red-600"
+                      )}
+                    >
+                      {fmtMoney(balanceSummary.balanceDue)}
+                      {balanceSummary.settled && (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-xs font-medium">Settled</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="products" className="mt-0">
+            {data.saleItems.length > 0 ? (
+              <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                <table className="w-full text-xs min-w-[420px]">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="p-2 text-left font-medium">#</th>
+                      <th className="p-2 text-left font-medium">Product</th>
+                      <th className="p-2 text-left font-medium">Size</th>
+                      <th className="p-2 text-right font-medium">Qty</th>
+                      <th className="p-2 text-right font-medium">Price</th>
+                      <th className="p-2 text-right font-medium">Disc</th>
+                      <th className="p-2 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.saleItems.map((item, i) => (
+                      <tr key={item.id} className="border-b last:border-b-0">
+                        <td className="p-2 text-muted-foreground">{i + 1}</td>
+                        <td className="p-2">
+                          <div className="font-medium">{item.product_name}</div>
+                          {item.barcode && (
+                            <div className="text-[10px] text-muted-foreground">BC: {item.barcode}</div>
+                          )}
+                          {item.item_notes && (
+                            <div className="text-[10px] text-blue-600 italic">{item.item_notes}</div>
+                          )}
+                        </td>
+                        <td className="p-2">{item.size || "-"}</td>
+                        <td className="p-2 text-right">{item.quantity}</td>
+                        <td className="p-2 text-right">{fmtMoney(item.unit_price || 0)}</td>
+                        <td className="p-2 text-right">
+                          {item.discount_share ? fmtMoney(item.discount_share) : "-"}
+                        </td>
+                        <td className="p-2 text-right font-medium">
+                          {fmtMoney(item.line_total || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-muted/30 font-medium">
+                      <td colSpan={3} className="p-2 text-right">
+                        Total
+                      </td>
+                      <td className="p-2 text-right">
+                        {data.saleItems.reduce((s, i) => s + (i.quantity || 0), 0)}
+                      </td>
+                      <td className="p-2" />
+                      <td className="p-2" />
+                      <td className="p-2 text-right">
+                        {fmtMoney(data.saleItems.reduce((s, i) => s + (i.line_total || 0), 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8 text-sm">
+                No product details available
+              </p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="receipts" className="mt-0">
+            {data.vouchers.length > 0 ? (
+              <div className="space-y-2">
+                {data.vouchers.map((v) => (
+                  <div
+                    key={v.id}
+                    className="border rounded-lg p-3 text-xs flex justify-between items-center gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium">{v.voucher_number}</div>
+                      <div className="text-muted-foreground">
+                        {formatTimelineDate(v.voucher_date || v.created_at || "")}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {formatPaymentLabel(v.payment_method)}
+                      </div>
+                      {v.description && (
+                        <div className="text-[10px] text-muted-foreground mt-0.5 italic truncate">
+                          {v.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold text-emerald-600">
+                        {fmtMoney(v.total_amount || 0)}
+                      </div>
+                      {(v.discount_amount || 0) > 0 && (
+                        <div className="text-[10px] text-amber-600">
+                          Discount: {fmtMoney(v.discount_amount || 0)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-2 flex justify-between text-sm font-medium">
+                  <span>Total Received</span>
+                  <span className="text-emerald-700">
+                    {fmtMoney(
+                      data.vouchers.reduce(
+                        (s, v) => s + (v.total_amount || 0) + (v.discount_amount || 0),
+                        0
+                      )
+                    )}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8 text-sm">No payments recorded</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="creditnote" className="mt-0">
+            {data.saleReturns.length > 0 ? (
+              <div className="space-y-2">
+                {data.saleReturns.map((sr) => (
+                  <div
+                    key={sr.id}
+                    className="border rounded-lg p-3 text-xs flex justify-between items-center gap-3"
+                  >
+                    <div>
+                      <div className="font-medium">{sr.return_number || "Sale Return"}</div>
+                      <div className="text-muted-foreground">
+                        {formatTimelineDate(sr.return_date || sr.created_at || "")}
+                      </div>
+                      <Badge variant="outline" className="text-[10px] mt-1 capitalize">
+                        {(sr.credit_status || "").replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    <div className="font-bold text-amber-600 shrink-0">
+                      {fmtMoney(sr.net_amount || 0)}
+                    </div>
+                  </div>
+                ))}
+                {(sale.sale_return_adjust || 0) > 0 && (
+                  <div className="border-t pt-2 flex justify-between text-sm font-medium text-amber-700">
+                    <span>Total S/R Adjust on Invoice</span>
+                    <span>{fmtMoney(sale.sale_return_adjust || 0)}</span>
+                  </div>
+                )}
+              </div>
+            ) : (sale.sale_return_adjust || 0) > 0 ? (
+              <div className="border rounded-lg p-3 text-sm">
+                <span className="text-muted-foreground">S/R Adjust on this invoice: </span>
+                <span className="font-semibold text-amber-700">
+                  {fmtMoney(sale.sale_return_adjust || 0)}
                 </span>
               </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8 text-sm">No credit notes</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="shipping" className="mt-0">
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-muted-foreground">Delivery Status: </span>
+                <Badge variant="outline" className="capitalize">
+                  {formatDeliveryLabel(sale.delivery_status)}
+                </Badge>
+              </div>
+              {sale.shipping_address && (
+                <div>
+                  <span className="text-muted-foreground">Shipping Address:</span>
+                  <p className="mt-1 text-sm border rounded p-2 bg-muted/20 whitespace-pre-wrap">
+                    {sale.shipping_address}
+                  </p>
+                </div>
+              )}
+              {data.deliveryHistory.length > 0 && (
+                <div className="space-y-2 mt-3">
+                  <span className="text-xs font-medium text-muted-foreground uppercase">
+                    Tracking History
+                  </span>
+                  {data.deliveryHistory.map((d) => (
+                    <div key={d.id} className="border-l-2 border-blue-300 pl-3 py-1 text-xs">
+                      <div className="font-medium">{formatDeliveryLabel(d.status)}</div>
+                      <div className="text-muted-foreground">
+                        {formatTimelineDate(d.status_date || d.created_at || "")}
+                      </div>
+                      {d.narration && (
+                        <div className="text-muted-foreground italic">{d.narration}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!sale.shipping_address && data.deliveryHistory.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">No shipping details</p>
+              )}
             </div>
-          </>
-        )}
+          </TabsContent>
+        </Tabs>
       </div>
     );
   };
