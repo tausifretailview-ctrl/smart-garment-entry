@@ -30,11 +30,13 @@ import { useToast } from "@/hooks/use-toast";
 import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
-  derivePaidAndStatus,
   getAvailableCN,
-  preSaveInvariants,
   type AvailableCNReturn,
 } from "@/utils/saleSettlement";
+import {
+  reconcileSaleInvoiceDisplay,
+  splitSaleLinkedReceiptRows,
+} from "@/utils/customerBalanceUtils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 
 export interface SettleCustomerAccountDialogProps {
@@ -136,6 +138,7 @@ export function SettleCustomerAccountDialog({
 
   useEffect(() => {
     if (open && pendingInvoices?.length) {
+      // Default: select only invoices that still have balance (user can add partial invoice manually)
       setSelectedInvoices(new Set(pendingInvoices.map((i) => i.id)));
     }
   }, [open, pendingInvoices]);
@@ -301,20 +304,63 @@ export function SettleCustomerAccountDialog({
     return applied;
   };
 
+  const syncSaleFromVouchers = async (invoiceId: string, voucherDate: string) => {
+    const { data: freshSale, error: saleErr } = await supabase
+      .from("sales")
+      .select("net_amount, paid_amount, sale_return_adjust, payment_method")
+      .eq("id", invoiceId)
+      .eq("organization_id", organizationId)
+      .single();
+    if (saleErr) throw saleErr;
+
+    const { data: receiptRows, error: vchErr } = await supabase
+      .from("voucher_entries")
+      .select("reference_id, total_amount, payment_method, description, discount_amount")
+      .eq("organization_id", organizationId)
+      .eq("reference_id", invoiceId)
+      .in("reference_type", ["sale", "customer"])
+      .eq("voucher_type", "receipt")
+      .is("deleted_at", null);
+    if (vchErr) throw vchErr;
+
+    const splitMap = splitSaleLinkedReceiptRows(receiptRows || []);
+    const rec = reconcileSaleInvoiceDisplay({
+      net_amount: Number(freshSale.net_amount || 0),
+      sale_return_adjust: Number(freshSale.sale_return_adjust || 0),
+      paid_amount: Number(freshSale.paid_amount || 0),
+      split: splitMap.get(invoiceId) ?? null,
+    });
+
+    const { error: updErr } = await supabase
+      .from("sales")
+      .update({
+        paid_amount: rec.paid_amount,
+        payment_status: rec.payment_status,
+        payment_date: voucherDate,
+      })
+      .eq("id", invoiceId)
+      .eq("organization_id", organizationId);
+    if (updErr) throw updErr;
+
+    return rec;
+  };
+
   const handleSettle = async () => {
     if (!customerId || selectedTotal <= 0 || isProcessing || selectedInvoices.size === 0) return;
 
     const cashEntered = parseFloat(cashAmount) || 0;
     const totalApplied =
       advanceToApply + cnToApply + discountToApply + cashEntered;
-    if (totalApplied < selectedTotal - 1) {
+    if (totalApplied <= 0.01) {
       toast({
-        title: "Insufficient settlement",
-        description: `Total applied (₹${Math.round(totalApplied).toLocaleString("en-IN")}) is less than selected due (₹${Math.round(selectedTotal).toLocaleString("en-IN")}).`,
+        title: "Nothing to apply",
+        description: "Enter cash/UPI amount, discount, or ensure advance/CN is available.",
         variant: "destructive",
       });
       return;
     }
+
+    const isPartialSettlement = totalApplied < selectedTotal - 0.5;
 
     setIsProcessing(true);
     try {
@@ -404,40 +450,18 @@ export function SettleCustomerAccountDialog({
           }
         }
 
-        preSaveInvariants({
-          netAmount: inv.net_amount,
-          items: [{ id: inv.id }],
-          customerId,
-          paymentMethod: inv.payment_method,
-          saleReturnAdjust,
-          paidAmount: runningPaid,
-        });
-
-        const { paidAmount, paymentStatus } = derivePaidAndStatus({
-          netAmount: inv.net_amount,
-          saleReturnAdjust,
-          cashReceived: runningPaid,
-          advanceApplied: 0,
-          cnApplied: 0,
-          discountGiven: runningDiscount,
-          paymentMethod: inv.payment_method,
-        });
-
-        await supabase
-          .from("sales")
-          .update({
-            paid_amount: paidAmount,
-            payment_status: paymentStatus,
-            payment_date: voucherDate,
-          })
-          .eq("id", inv.id)
-          .eq("organization_id", organizationId);
+        await syncSaleFromVouchers(inv.id, voucherDate);
       }
 
-      const summary = `₹${Math.round(selectedTotal).toLocaleString("en-IN")} settled across ${selectedInvoices.size} invoice(s)`;
+      const summary = isPartialSettlement
+        ? `₹${Math.round(totalApplied).toLocaleString("en-IN")} applied across ${selectedInvoices.size} invoice(s) (₹${Math.round(selectedTotal - totalApplied).toLocaleString("en-IN")} still due on selection)`
+        : `₹${Math.round(totalApplied).toLocaleString("en-IN")} settled across ${selectedInvoices.size} invoice(s)`;
       setSettledSummary(summary);
       setSettled(true);
-      toast({ title: "Settlement recorded", description: summary });
+      toast({
+        title: isPartialSettlement ? "Partial settlement recorded" : "Settlement recorded",
+        description: summary,
+      });
 
       queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
@@ -447,6 +471,7 @@ export function SettleCustomerAccountDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["settle-"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-history"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
 
@@ -568,6 +593,11 @@ export function SettleCustomerAccountDialog({
                   {selectedTotal > 0 && (
                     <p className="text-sm font-medium text-right mt-2 tabular-nums">
                       Selected total: {fmt(selectedTotal)}
+                    </p>
+                  )}
+                  {selectedInvoices.size > 1 && cashNeeded > 0.01 && (
+                    <p className="text-xs text-amber-700 text-right mt-1">
+                      Tip: Deselect invoices you are not paying now, or enter enough cash to cover the full selection.
                     </p>
                   )}
                 </div>

@@ -681,7 +681,7 @@ export default function SalesInvoiceDashboard() {
             rec.payment_status,
             derivedStatus,
           );
-          return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: derivedStatus };
+          return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
         })
         .filter(({ inv, normalizedPaid, normalizedStatus }) =>
           Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
@@ -714,7 +714,12 @@ export default function SalesInvoiceDashboard() {
           paid_amount: inv.paid_amount,
           split: splitBySale.get(inv.id) ?? null,
         });
-        return { ...inv, paid_amount: rec.paid_amount, payment_status: rec.payment_status };
+        return {
+          ...inv,
+          paid_amount: rec.paid_amount,
+          payment_status: rec.payment_status,
+          outstanding: rec.outstanding,
+        };
       });
 
       const filteredNormalized = paymentStatusFilter.length > 0
@@ -2806,11 +2811,16 @@ export default function SalesInvoiceDashboard() {
               <p className="text-sm font-medium">No invoices found</p>
             </div>
           ) : paginatedInvoices.map((inv: any) => {
-            const pending = Math.max(0, (inv.net_amount||0)-(inv.paid_amount||0)-(inv.sale_return_adjust||0));
-            const totalSettled = (inv.paid_amount||0) + (inv.sale_return_adjust||0);
-            const effectiveStatus = inv.payment_status === 'hold' ? 'hold'
-              : (totalSettled >= (inv.net_amount||0) || Math.abs(totalSettled - (inv.net_amount||0)) < 1) ? 'completed'
-              : totalSettled > 0 ? 'partial' : 'pending';
+            const pending = Number(
+              inv.outstanding ??
+                Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0))
+            );
+            const effectiveStatus =
+              inv.payment_status === 'hold'
+                ? 'hold'
+                : inv.payment_status === 'cancelled'
+                  ? 'cancelled'
+                  : inv.payment_status || 'pending';
             const sc: Record<string, string> = {
               completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
               partial: "bg-amber-50 text-amber-700 border-amber-200",
@@ -3569,7 +3579,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                 ₹{invoice.is_cancelled ? 0 : Math.round(Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0))).toLocaleString('en-IN')}
+                                 ₹{invoice.is_cancelled ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)))).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (

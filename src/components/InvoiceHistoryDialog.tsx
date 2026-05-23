@@ -16,6 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft, History, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import {
+  reconcileSaleInvoiceDisplay,
+  splitSaleLinkedReceiptRows,
+} from "@/utils/customerBalanceUtils";
 
 interface InvoiceHistoryDialogProps {
   open: boolean;
@@ -87,6 +91,8 @@ export function InvoiceHistoryDialog({
   const { data, isLoading, isError } = useQuery({
     queryKey: ["invoice-history", organizationId, saleId],
     enabled: open && !!saleId && !!organizationId,
+    staleTime: 0,
+    refetchOnMount: "always",
     queryFn: async () => {
       const [saleRes, vouchersRes, returnsRes, deliveryRes, saleItemsRes] = await Promise.all([
         supabase
@@ -100,10 +106,11 @@ export function InvoiceHistoryDialog({
         supabase
           .from("voucher_entries")
           .select(
-            "id, voucher_number, voucher_date, total_amount, discount_amount, payment_method, description, created_at"
+            "id, voucher_number, voucher_date, total_amount, discount_amount, payment_method, description, created_at, reference_id, reference_type"
           )
           .eq("organization_id", organizationId!)
           .eq("reference_id", saleId!)
+          .in("reference_type", ["sale", "customer"])
           .eq("voucher_type", "receipt")
           .is("deleted_at", null)
           .order("created_at", { ascending: true }),
@@ -267,36 +274,32 @@ export function InvoiceHistoryDialog({
     );
   }, [data]);
 
-  const balanceSummary = useMemo(() => {
+  const reconciled = useMemo(() => {
     if (!data?.sale) return null;
     const sale = data.sale;
-    const vouchers = data.vouchers;
-
-    const invoiceAmount = sale.net_amount || 0;
-    const srAdjust = sale.sale_return_adjust || 0;
-    const totalVoucherPaid = vouchers.reduce(
-      (s, v) => s + (v.total_amount || 0) + (v.discount_amount || 0),
+    const splitMap = splitSaleLinkedReceiptRows(data.vouchers || []);
+    const split = splitMap.get(sale.id) ?? { cash: 0, cn: 0, adv: 0 };
+    const rec = reconcileSaleInvoiceDisplay({
+      net_amount: Number(sale.net_amount || 0),
+      sale_return_adjust: Number(sale.sale_return_adjust || 0),
+      paid_amount: Number(sale.paid_amount || 0),
+      split,
+    });
+    const discount = (data.vouchers || []).reduce(
+      (s, v) => s + (v.discount_amount || 0),
       0
     );
-    const advancePaid = vouchers
-      .filter((v) => v.payment_method === "advance_adjustment")
-      .reduce((s, v) => s + (v.total_amount || 0), 0);
-    const cnPaid = vouchers
-      .filter((v) => v.payment_method === "credit_note_adjustment")
-      .reduce((s, v) => s + (v.total_amount || 0), 0);
-    const cashPaid = totalVoucherPaid - advancePaid - cnPaid;
-    const discount = vouchers.reduce((s, v) => s + (v.discount_amount || 0), 0);
-    const balanceDue = Math.max(0, invoiceAmount - srAdjust - totalVoucherPaid);
-
     return {
-      invoiceAmount,
-      srAdjust,
-      cashPaid,
-      advancePaid,
-      cnPaid,
+      invoiceAmount: Number(sale.net_amount || 0),
+      srAdjust: Number(sale.sale_return_adjust || 0),
+      cashPaid: split.cash,
+      advancePaid: split.adv,
+      cnPaid: split.cn,
       discount,
-      balanceDue,
-      settled: balanceDue <= 0.01,
+      balanceDue: rec.outstanding,
+      displayPaid: rec.paid_amount,
+      paymentStatus: rec.payment_status,
+      settled: rec.outstanding <= 0.01,
     };
   }, [data]);
 
@@ -340,8 +343,15 @@ export function InvoiceHistoryDialog({
             <span className="text-muted-foreground">|</span>
             <span>
               <span className="text-muted-foreground">Status:</span>{" "}
-              <Badge variant="secondary" className="text-xs h-5">
-                {formatStatusLabel(sale.payment_status)}
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-xs h-5",
+                  reconciled?.paymentStatus === "completed" && "bg-green-100 text-green-800",
+                  reconciled?.paymentStatus === "partial" && "bg-orange-100 text-orange-800"
+                )}
+              >
+                {formatStatusLabel(reconciled?.paymentStatus ?? sale.payment_status)}
               </Badge>
             </span>
             <span className="text-muted-foreground">|</span>
@@ -416,7 +426,7 @@ export function InvoiceHistoryDialog({
               )}
             </div>
 
-            {balanceSummary && (
+            {reconciled && (
               <>
                 <Separator className="my-4" />
                 <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5 text-sm">
@@ -426,39 +436,39 @@ export function InvoiceHistoryDialog({
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Invoice Amount</span>
                     <span className="font-medium tabular-nums">
-                      {fmtMoney(balanceSummary.invoiceAmount)}
+                      {fmtMoney(reconciled.invoiceAmount)}
                     </span>
                   </div>
-                  {balanceSummary.srAdjust > 0 && (
+                  {reconciled.srAdjust > 0 && (
                     <div className="flex justify-between text-amber-700">
                       <span>S/R Adjust</span>
                       <span className="font-medium tabular-nums">
-                        -{fmtMoney(balanceSummary.srAdjust)}
+                        -{fmtMoney(reconciled.srAdjust)}
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Cash/UPI Paid</span>
-                    <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.cashPaid)}</span>
+                    <span className="text-muted-foreground">Cash / UPI / Card</span>
+                    <span className="font-medium tabular-nums">{fmtMoney(reconciled.cashPaid)}</span>
                   </div>
-                  {balanceSummary.advancePaid > 0 && (
+                  {reconciled.advancePaid > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Advance Applied</span>
                       <span className="font-medium tabular-nums">
-                        {fmtMoney(balanceSummary.advancePaid)}
+                        {fmtMoney(reconciled.advancePaid)}
                       </span>
                     </div>
                   )}
-                  {balanceSummary.cnPaid > 0 && (
+                  {reconciled.cnPaid > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Credit Note Applied</span>
-                      <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.cnPaid)}</span>
+                      <span className="font-medium tabular-nums">{fmtMoney(reconciled.cnPaid)}</span>
                     </div>
                   )}
-                  {balanceSummary.discount > 0 && (
+                  {reconciled.discount > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Receipt Discount</span>
-                      <span className="font-medium tabular-nums">{fmtMoney(balanceSummary.discount)}</span>
+                      <span className="font-medium tabular-nums">{fmtMoney(reconciled.discount)}</span>
                     </div>
                   )}
                   <Separator className="my-2" />
@@ -467,11 +477,11 @@ export function InvoiceHistoryDialog({
                     <span
                       className={cn(
                         "tabular-nums flex items-center gap-1",
-                        balanceSummary.settled ? "text-green-600" : "text-red-600"
+                        reconciled.settled ? "text-green-600" : "text-red-600"
                       )}
                     >
-                      {fmtMoney(balanceSummary.balanceDue)}
-                      {balanceSummary.settled && (
+                      {fmtMoney(reconciled.balanceDue)}
+                      {reconciled.settled && (
                         <>
                           <CheckCircle2 className="h-4 w-4" />
                           <span className="text-xs font-medium">Settled</span>
