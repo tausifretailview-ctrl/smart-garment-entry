@@ -42,7 +42,7 @@ export default function MobileReportsHub() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("today");
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
-    useCallback(() => invalidateActiveHubQueries(queryClient, "reports"), [queryClient])
+    useCallback(() => invalidateActiveHubQueries(queryClient), [queryClient])
   );
 
   // Build path with date filter params
