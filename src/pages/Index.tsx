@@ -449,11 +449,11 @@ const DesktopDashboard = () => {
   const dashboardHeaderToolbar = useMemo(
     () => (
       <>
-        <ThemeToggle className="h-7 gap-1.5 text-[11px] px-2 bg-sidebar-accent/40 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground" />
-        <div className="flex items-center gap-1 bg-sidebar-accent/40 border border-sidebar-border rounded-md px-1.5 h-7 shrink-0">
-          <Calendar className="h-3.5 w-3.5 text-sidebar-foreground/70 shrink-0" />
+        <ThemeToggle className="h-7 gap-1.5 text-[11px] px-2.5 font-semibold text-white bg-purple-600 hover:bg-purple-700 border-0 shadow-sm [&_svg]:text-white [&_span]:text-white" />
+        <div className="flex items-center gap-1 bg-sky-600 hover:bg-sky-700 border-0 rounded-md px-1.5 h-7 shrink-0 shadow-sm text-white">
+          <Calendar className="h-3.5 w-3.5 text-white shrink-0" />
           <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-            <SelectTrigger className="w-[76px] h-7 border-0 shadow-none text-[11px] bg-transparent text-sidebar-foreground px-0.5 gap-1">
+            <SelectTrigger className="w-[76px] h-7 border-0 shadow-none text-[11px] bg-transparent text-white px-0.5 gap-1 [&_svg]:text-white">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover border-border">
@@ -464,18 +464,18 @@ const DesktopDashboard = () => {
             </SelectContent>
           </Select>
           {isLoading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-white shrink-0" />
           ) : (
-            <span className="text-[11px] font-medium text-primary whitespace-nowrap max-w-[6rem] truncate">
+            <span className="text-[11px] font-semibold text-white whitespace-nowrap max-w-[6rem] truncate">
               {dateLabel}
             </span>
           )}
         </div>
         {canNetProfit && (
           <Button
-            variant="default"
+            variant="ghost"
             size="sm"
-            className="h-7 text-[11px] px-2.5 shrink-0 font-semibold"
+            className="h-7 text-[11px] px-2.5 shrink-0 font-semibold text-white bg-fuchsia-600 hover:bg-fuchsia-700 border-0 shadow-sm hover:text-white"
             onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
           >
             <TrendingUp className="h-3.5 w-3.5 mr-1" />

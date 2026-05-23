@@ -72,11 +72,13 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
 
   const currentTheme = customTheme || theme;
 
+  const iconClass = className?.includes("text-white") ? "h-4 w-4 text-white" : undefined;
+
   const getThemeDisplay = () => {
     if (currentTheme === "enterprise") {
       return (
         <>
-          <Building2 className="h-4 w-4 text-sky-600" />
+          <Building2 className={iconClass ?? "h-4 w-4 text-sky-600"} />
           <span className="hidden sm:inline">Enterprise Theme</span>
         </>
       );
@@ -84,7 +86,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     if (currentTheme === "purple") {
       return (
         <>
-          <Palette className="h-4 w-4 text-[#5B5FEF]" />
+          <Palette className={iconClass ?? "h-4 w-4 text-[#5B5FEF]"} />
           <span className="hidden sm:inline">Purple Theme</span>
         </>
       );
@@ -92,7 +94,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     if (currentTheme === "indigo") {
       return (
         <>
-          <Sparkles className="h-4 w-4 text-indigo-500" />
+          <Sparkles className={iconClass ?? "h-4 w-4 text-indigo-500"} />
           <span className="hidden sm:inline">Classic Theme</span>
         </>
       );
@@ -100,14 +102,14 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     if (currentTheme === 'dark') {
       return (
         <>
-          <Moon className="h-4 w-4 text-primary" />
+          <Moon className={iconClass ?? "h-4 w-4 text-primary"} />
           <span className="hidden sm:inline">Dark Theme</span>
         </>
       );
     }
     return (
       <>
-        <Sun className="h-4 w-4 text-primary" />
+        <Sun className={iconClass ?? "h-4 w-4 text-primary"} />
         <span className="hidden sm:inline">Light Theme</span>
       </>
     );
