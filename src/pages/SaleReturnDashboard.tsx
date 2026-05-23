@@ -30,6 +30,7 @@ import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { CreditNoteHistoryDialog } from "@/components/CreditNoteHistoryDialog";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -158,6 +159,19 @@ export default function SaleReturnDashboard() {
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
+  const [showCnHistory, setShowCnHistory] = useState(false);
+  const [selectedCnForHistory, setSelectedCnForHistory] = useState<{
+    creditNoteId: string | null;
+    saleReturnId: string;
+  } | null>(null);
+
+  const openCnHistory = (ret: SaleReturn) => {
+    setSelectedCnForHistory({
+      creditNoteId: ret.credit_note_id || null,
+      saleReturnId: ret.id,
+    });
+    setShowCnHistory(true);
+  };
   const queryClient = useQueryClient();
 
   const isThermal = billFormat === 'thermal';
@@ -304,15 +318,17 @@ export default function SaleReturnDashboard() {
       // Fetch live CN remaining for any return that has a credit_note_id
       const creditNoteIds = [...new Set(returnsList.map(r => r.credit_note_id).filter(Boolean))] as string[];
       const cnLiveMap: Record<string, number> = {};
+      const cnNumberMap: Record<string, string> = {};
       if (creditNoteIds.length > 0 && currentOrganization?.id) {
         const { data: cnRows } = await supabase
           .from("credit_notes")
-          .select("id, credit_amount, used_amount")
+          .select("id, credit_amount, used_amount, credit_note_number")
           .eq("organization_id", currentOrganization.id)
           .in("id", creditNoteIds);
         (cnRows || []).forEach((c: any) => {
           const remaining = Math.max(0, Number(c.credit_amount || 0) - Number(c.used_amount || 0));
           cnLiveMap[c.id] = remaining;
+          if (c.credit_note_number) cnNumberMap[c.id] = c.credit_note_number;
         });
       }
 
@@ -338,6 +354,9 @@ export default function SaleReturnDashboard() {
           actual_adjusted_amt,
           remaining_cn_amt,
           cn_live_remaining,
+          credit_note_number: r.credit_note_id
+            ? cnNumberMap[r.credit_note_id] || undefined
+            : undefined,
         };
       });
 
@@ -665,6 +684,14 @@ export default function SaleReturnDashboard() {
           organizationId={currentOrganization?.id || ""}
         />
 
+        <CreditNoteHistoryDialog
+          open={showCnHistory}
+          onOpenChange={setShowCnHistory}
+          creditNoteId={selectedCnForHistory?.creditNoteId}
+          saleReturnId={selectedCnForHistory?.saleReturnId}
+          organizationId={currentOrganization?.id}
+        />
+
         <Dialog open={showRefundDialog} onOpenChange={setShowRefundDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -892,6 +919,29 @@ export default function SaleReturnDashboard() {
                   meta={
                     <>
                       <span>{format(new Date(ret.return_date), "dd MMM yyyy")}</span>
+                      {ret.credit_note_number ? (
+                        <button
+                          type="button"
+                          className="text-primary font-medium block text-left"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCnHistory(ret);
+                          }}
+                        >
+                          CN: {ret.credit_note_number}
+                        </button>
+                      ) : (ret.refund_type === "credit_note" || !ret.refund_type) ? (
+                        <button
+                          type="button"
+                          className="text-muted-foreground underline text-left text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCnHistory(ret);
+                          }}
+                        >
+                          View CN history
+                        </button>
+                      ) : null}
                       {(ret.remaining_cn_amt ?? 0) > 0 ? (
                         <span className="text-amber-600 block">
                           ₹{ret.remaining_cn_amt!.toLocaleString("en-IN")} CN remaining
@@ -1101,6 +1151,7 @@ export default function SaleReturnDashboard() {
                     <TableHead className="text-right text-[13px] font-semibold">GST</TableHead>
                     <TableHead className="text-right text-[13px] font-semibold">Net Amount</TableHead>
                     <TableHead className="text-[13px] font-semibold">Status</TableHead>
+                    <TableHead className="text-[13px] font-semibold">Credit Note</TableHead>
                     <TableHead className="text-[13px] font-semibold">Adjusted In Invoice</TableHead>
                     <TableHead className="text-right text-[13px] font-semibold">Adjusted Amt</TableHead>
                     <TableHead className="text-[13px] font-semibold">Settlement</TableHead>
@@ -1156,6 +1207,33 @@ export default function SaleReturnDashboard() {
                           <Badge variant="outline" className="text-[12px] bg-slate-50 text-slate-700 border-slate-300">
                             {formatCreditStatusLabel(ret)}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {ret.credit_note_number ? (
+                            <button
+                              type="button"
+                              className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left font-medium"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCnHistory(ret);
+                              }}
+                            >
+                              {ret.credit_note_number}
+                            </button>
+                          ) : (ret.refund_type === "credit_note" || !ret.refund_type) ? (
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:underline text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openCnHistory(ret);
+                              }}
+                            >
+                              Pending
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {ret.adjusted_sale_number ? (
@@ -1280,7 +1358,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
-                          <TableCell colSpan={15} className="bg-muted/50">
+                          <TableCell colSpan={16} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
