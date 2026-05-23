@@ -65,9 +65,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen w-full bg-background">
+    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
       {/* Top Header Bar */}
-      <header className="h-12 bg-primary text-primary-foreground flex items-center justify-between px-4 shadow-md z-50">
+      <header className="h-12 shrink-0 bg-primary text-primary-foreground flex items-center justify-between px-4 shadow-md z-50">
         <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -329,7 +329,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
         </div>
       </header>
       
-      <div className="hidden lg:block">
+      <div className="hidden lg:block shrink-0">
         <WindowTabsBar />
       </div>
 
@@ -337,9 +337,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
 
       <main
         className={cn(
-          "flex-1 animate-fade-in p-3 sm:p-4",
+          "flex-1 min-h-0 overflow-hidden p-3 sm:p-4",
           mobileMainPaddingClass,
-          "lg:!pb-4",
+          "lg:p-0 lg:pb-0",
         )}
       >
         {children}

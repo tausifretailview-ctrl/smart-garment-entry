@@ -4334,7 +4334,7 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="h-[calc(100vh-4rem)] w-full bg-background flex overflow-hidden pos-desktop-readable">
+    <div className="pos-sales-workspace h-full w-full bg-background flex overflow-hidden pos-desktop-readable">
       {/* Left Action Button Bar */}
       <div className="w-[88px] h-full bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
@@ -4506,12 +4506,12 @@ export default function POSSales() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="shrink-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
-          <div className="w-full pl-2">
-            <div className="flex flex-wrap items-end gap-3">
+        <div className="pos-sales-toolbar shrink-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
+          <div className="w-full h-full pl-2">
+            <div className="flex h-full flex-nowrap items-end gap-3 overflow-x-auto overflow-y-hidden">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <div className="relative w-60">
+              <div className="relative w-60 shrink-0">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Barcode</Label>
                 <div className="flex gap-1">
                   <div className="relative flex-1">
@@ -4699,7 +4699,7 @@ export default function POSSales() {
           
           <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
             <PopoverTrigger asChild>
-              <div className="relative w-72">
+              <div className="relative w-72 shrink-0">
                 <div className="flex items-center justify-between mb-1">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer Name</Label>
                 </div>
@@ -4834,7 +4834,7 @@ export default function POSSales() {
           {/* Salesperson Search - After Customer Name */}
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
             <PopoverTrigger asChild>
-              <div className="relative w-36">
+              <div className="relative w-36 shrink-0">
                 <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Salesperson</Label>
                 <Input
                   value={selectedSalesman}
@@ -4897,7 +4897,7 @@ export default function POSSales() {
           </Popover>
 
           {/* Invoice Number Display */}
-          <div className="relative w-40">
+          <div className="relative w-40 shrink-0">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
@@ -5027,7 +5027,7 @@ export default function POSSales() {
       </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2 pb-[calc(8rem+9rem)] min-[1100px]:pb-[calc(8rem+10rem)]">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2">
           <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
@@ -5083,7 +5083,7 @@ export default function POSSales() {
                 <Button
                   size="icon"
                   variant="secondary"
-                  className="fixed bottom-40 right-8 z-30 rounded-full shadow-lg h-12 w-12 relative"
+                  className="absolute bottom-3 right-3 z-30 rounded-full shadow-lg h-12 w-12"
                   onClick={() => {
                     if (itemsContainerRef.current) {
                       itemsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
@@ -5344,10 +5344,11 @@ export default function POSSales() {
           </div>
         </div>
 
-        {/* Totals Section - Fixed at Bottom, above keyboard shortcut bar */}
-        <div className="fixed bottom-[52px] left-[88px] right-0 w-auto bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-30">
+        {/* Totals + shortcuts — in document flow (matches Sales Invoice shell; no viewport jump) */}
+        <div className="pos-sales-footer shrink-0 w-full flex flex-col z-30">
+        <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
-          <div className="flex flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
+          <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
             {/* Qty */}
             <div className="text-center px-3">
               <div className="text-xl font-bold leading-tight">{totals.quantity}</div>
@@ -5670,7 +5671,7 @@ export default function POSSales() {
         </div>
 
         {/* Keyboard Shortcut Bar - Desktop only, redesigned with columns */}
-        <div className="hidden md:flex fixed bottom-0 left-[88px] right-0 flex-wrap min-h-[52px] bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 z-40 border-t border-slate-700/50 select-none px-2 whitespace-nowrap">
+        <div className="pos-sales-shortcuts hidden md:flex h-[52px] shrink-0 w-full flex-nowrap bg-slate-800 dark:bg-slate-950 text-white items-center justify-center gap-1 border-t border-slate-700/50 select-none px-2 overflow-x-auto whitespace-nowrap">
           {/* Payment methods - amber/yellow */}
           {[
             { key: 'F1', label: 'Cash' },
@@ -5726,6 +5727,7 @@ export default function POSSales() {
             <kbd className="text-[10px] font-mono text-slate-400/80 font-bold leading-tight">CTRL+P</kbd>
             <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
+        </div>
         </div>
         </div>
 
