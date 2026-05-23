@@ -337,7 +337,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
 
       <main
         className={cn(
-          "flex-1 min-h-0 overflow-hidden flex flex-col p-3 sm:p-4",
+          "flex flex-1 flex-col min-h-0 h-0 overflow-hidden p-3 sm:p-4",
           mobileMainPaddingClass,
           "lg:p-0 lg:pb-0",
         )}

@@ -4334,7 +4334,7 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="pos-sales-workspace flex-1 min-h-0 h-full w-full bg-background flex overflow-hidden pos-desktop-readable">
+    <div className="pos-sales-workspace flex-1 min-h-0 h-0 w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable">
       {/* Left Action Button Bar */}
       <div className="w-[88px] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
@@ -4503,10 +4503,10 @@ export default function POSSales() {
         </div>
       </div>
 
-      {/* Main Content Area — flex column fills viewport; footer pinned with mt-auto */}
-      <div className="pos-sales-main flex-1 flex flex-col overflow-hidden min-h-0 h-full">
+      {/* Main column: grid locks toolbar / body / footer to viewport height */}
+      <div className="pos-sales-main flex-1 min-h-0 h-0 overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="pos-sales-toolbar shrink-0 z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
+        <div className="pos-sales-toolbar z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
           <div className="w-full h-full pl-2">
             <div className="flex h-full flex-nowrap items-end gap-3 overflow-x-auto overflow-y-hidden">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
@@ -5026,8 +5026,8 @@ export default function POSSales() {
         </div>
       </div>
 
-        {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2">
+        {/* Items Table - Scrollable Section (grid row 2 — grows, scrolls inside) */}
+        <div className="pos-sales-body overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2">
           <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
@@ -5344,8 +5344,8 @@ export default function POSSales() {
           </div>
         </div>
 
-        {/* Totals + shortcuts — pinned to bottom of POS column */}
-        <div className="pos-sales-footer shrink-0 mt-auto w-full flex flex-col z-30">
+        {/* Totals + shortcuts — grid row 3, viewport bottom */}
+        <div className="pos-sales-footer w-full flex flex-col z-30">
         <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
           <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
