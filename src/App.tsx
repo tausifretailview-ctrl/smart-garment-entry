@@ -21,6 +21,7 @@ import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
 import InstallApp from "./pages/InstallApp";
 import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
+import { NativeAppBridge } from "@/components/NativeAppBridge";
 
 // Auto-retry lazy imports to handle chunk failures after deployments
 function lazyWithRetry(importFn: () => Promise<any>) {
@@ -299,6 +300,7 @@ const App = () => {
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <NativeAppBridge />
         <AuthProvider>
           <OrganizationProvider>
             <WindowTabsProvider>

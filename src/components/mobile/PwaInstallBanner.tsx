@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
@@ -32,6 +33,8 @@ export function PwaInstallBanner() {
   const hideBottomNav = useHideMobileBottomNav();
   const { orgNavigate } = useOrgNavigation();
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === "1");
+
+  if (Capacitor.isNativePlatform()) return null;
 
   const standalone = isStandaloneDisplay() || isInstalled;
   const ios = isIOSDevice();

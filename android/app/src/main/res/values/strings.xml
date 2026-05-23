@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EzzyERP</string>
+    <string name="title_activity_main">EzzyERP</string>
+    <string name="package_name">com.ezzyerp.app</string>
+    <string name="custom_url_scheme">com.ezzyerp.app</string>
+</resources>

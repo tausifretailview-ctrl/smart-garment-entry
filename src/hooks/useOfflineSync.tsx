@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Network } from "@capacitor/network";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -179,12 +181,11 @@ export const useOfflineSync = () => {
     setSyncError(null);
   }, []);
 
-  // Monitor online status
+  // Monitor online status (Capacitor Network on native, window events in browser/PWA)
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
       toast.success("Back online", { description: "Syncing pending actions..." });
-      // Auto-sync when coming back online
       syncActions();
     };
 
@@ -193,13 +194,33 @@ export const useOfflineSync = () => {
       toast.warning("You're offline", { description: "Changes will be saved locally" });
     };
 
+    loadPendingCount();
+
+    if (Capacitor.isNativePlatform()) {
+      let remove: (() => void) | undefined;
+
+      const setup = async () => {
+        const status = await Network.getStatus();
+        setIsOnline(status.connected);
+        if (status.connected) syncActions();
+
+        const listener = await Network.addListener("networkStatusChange", (s) => {
+          if (s.connected) handleOnline();
+          else handleOffline();
+        });
+        remove = () => listener.remove();
+      };
+
+      void setup();
+      return () => {
+        remove?.();
+        if (retryTimeout.current) clearTimeout(retryTimeout.current);
+      };
+    }
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Load initial count
-    loadPendingCount();
-
-    // Try to sync on mount if online
     if (navigator.onLine) {
       syncActions();
     }

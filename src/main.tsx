@@ -1,7 +1,10 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { initNativeShell } from "@/hooks/useNativeApp";
 import "./index.css";
+
+void initNativeShell();
 
 // Capture PWA install prompt BEFORE React mounts (event fires once, early)
 declare global {
