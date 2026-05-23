@@ -890,7 +890,11 @@ const PurchaseReturnDashboard = () => {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
-                              onClick={() => navigate(`/purchase-return-entry?edit=${returnRecord.id}`)}
+                              onClick={() =>
+                                navigate(`/purchase-return-entry?edit=${returnRecord.id}`, {
+                                  state: { editReturnId: returnRecord.id },
+                                })
+                              }
                               title="Edit"
                             >
                               <Edit className="h-3.5 w-3.5 text-blue-600" />

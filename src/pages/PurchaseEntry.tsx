@@ -218,6 +218,8 @@ const PurchaseEntry = () => {
   };
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
+  const saveLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SAVE_LOCK_MAX_MS = 120_000;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -2635,41 +2637,50 @@ const PurchaseEntry = () => {
     toast({ title: "Bill Unlocked", description: "You can now edit this bill." });
   };
 
+  const releaseSaveLock = () => {
+    if (saveLockTimeoutRef.current) {
+      clearTimeout(saveLockTimeoutRef.current);
+      saveLockTimeoutRef.current = null;
+    }
+    savingRef.current = false;
+    setLoading(false);
+  };
+
   const handleSave = async () => {
-    // Synchronous double-click guard (React state updates are async, so `loading`
-    // alone leaves a ~50ms window where a second click can pass). The ref flips
-    // immediately and is the authoritative gate; `loading` remains for UI feedback.
-    if (savingRef.current) {
-      console.warn('[PurchaseEntry] Save click ignored — a save is already in progress');
-      toast({
-        title: "Save in progress",
-        description: "Please wait — the previous save is still running.",
-        variant: "destructive",
-      });
+    // Synchronous double-click guard. `loading` alone is async — set both immediately
+    // so the button disables before validation/duplicate checks finish.
+    if (savingRef.current || loading) {
       return;
     }
-    if (loading) {
-      console.warn('[PurchaseEntry] Save click ignored — loading state is true');
-      return;
-    }
+
     savingRef.current = true;
+    setLoading(true);
+    saveLockTimeoutRef.current = setTimeout(() => {
+      if (savingRef.current) {
+        console.warn("[PurchaseEntry] Save lock timeout — releasing stale lock");
+        releaseSaveLock();
+        toast({
+          title: "Save timed out",
+          description:
+            "The save took too long or may have stalled. Your draft is preserved — please try again.",
+          variant: "destructive",
+          duration: 12000,
+        });
+      }
+    }, SAVE_LOCK_MAX_MS);
+
     try {
       await doSave();
     } catch (err: any) {
-      // Last-resort guard: any uncaught exception from doSave must surface to the
-      // user. Without this, the button silently resets and the user sees nothing.
-      console.error('[PurchaseEntry] Unexpected save error (outer guard):', err);
-      try {
-        setLoading(false);
-      } catch { /* ignore */ }
+      console.error("[PurchaseEntry] Unexpected save error (outer guard):", err);
       toast({
         title: "Bill Save Failed",
-        description: `Unexpected error: ${err?.message || String(err) || 'Unknown error'}. Your draft is preserved — please try again.`,
+        description: `Unexpected error: ${err?.message || String(err) || "Unknown error"}. Your draft is preserved — please try again.`,
         variant: "destructive",
         duration: 12000,
       });
     } finally {
-      savingRef.current = false;
+      releaseSaveLock();
     }
   };
 
@@ -2827,8 +2838,6 @@ const PurchaseEntry = () => {
       return;
     }
 
-    setLoading(true);
-    
     // Force-save draft before attempting bill save (safety net against data loss)
     try {
       await saveDraft({
@@ -3144,7 +3153,6 @@ const PurchaseEntry = () => {
               bill_date: existingBills[0].bill_date,
             });
             setShowDuplicateBillWarning(true);
-            setLoading(false);
             return;
           }
         }
@@ -3370,8 +3378,6 @@ const PurchaseEntry = () => {
         variant: "destructive",
         duration: 12000,
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -3996,7 +4002,11 @@ const PurchaseEntry = () => {
           canOverride={hasSpecialPermission('cancel_invoice')}
           onClose={() => setDuplicateWarning(null)}
           onOpenExisting={(billId) => { setDuplicateWarning(null); navigate("/purchase-entry", { state: { editBillId: billId } }); }}
-          onSaveAnyway={async () => { overrideDuplicateRef.current = true; setDuplicateWarning(null); await doSave(); }}
+          onSaveAnyway={async () => {
+            overrideDuplicateRef.current = true;
+            setDuplicateWarning(null);
+            await handleSave();
+          }}
         />
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} />
         {isMobileERPMode && (

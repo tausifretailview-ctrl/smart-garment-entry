@@ -28,6 +28,7 @@ import {
   buildPurchaseReturnItemPayload,
   calculatePurchaseReturnTotals,
 } from "@/utils/purchaseReturnDc";
+import { fetchProductsByIds } from "@/utils/fetchAllRows";
 import {
   deleteJournalEntryByReference,
   recordPurchaseReturnJournalEntry,
@@ -77,15 +78,19 @@ type PurchaseReturnRefundPm = "cash" | "upi" | "card" | "bank_transfer";
 const PurchaseReturnEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, loading: orgLoading } = useOrganization();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const editId = searchParams.get("edit");
+  const editId =
+    searchParams.get("edit") ||
+    (location.state as { editReturnId?: string } | null)?.editReturnId ||
+    null;
   const isEditMode = !!editId;
   
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
-  const [loadingReturn, setLoadingReturn] = useState(false);
+  const [loadingReturn, setLoadingReturn] = useState(() => !!editId);
+  const loadReturnGenRef = useRef(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -221,126 +226,180 @@ const PurchaseReturnEntry = () => {
 
   // Load existing return data in edit mode
   useEffect(() => {
-    const loadReturnData = async () => {
-      if (!editId || !currentOrganization?.id) return;
-      
+    if (!editId) {
+      setLoadingReturn(false);
+      return;
+    }
+
+    if (orgLoading) {
       setLoadingReturn(true);
+      return;
+    }
+
+    if (!currentOrganization?.id) {
+      setLoadingReturn(false);
+      toast({
+        title: "Error",
+        description: "Organization not loaded. Please refresh and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const orgId = currentOrganization.id;
+    const loadGen = ++loadReturnGenRef.current;
+    let cancelled = false;
+
+    const loadReturnData = async () => {
+      setLoadingReturn(true);
+      const loadTimeoutMs = 30_000;
+
       try {
-        // Fetch return header
-        const { data: returnRecord, error: returnError } = await supabase
-          .from("purchase_returns" as any)
-          .select("*")
-          .eq("id", editId)
-          .eq("organization_id", currentOrganization.id)
-          .single();
-
-        if (returnError) throw returnError;
-        if (!returnRecord) throw new Error("Return not found");
-
-        const typedReturn = returnRecord as any;
-        
-        // Set return data
-        setReturnNumber(typedReturn.return_number || "");
-        setReturnDate(new Date(typedReturn.return_date));
-        // If existing return was saved as DC, force DC mode in UI.
-        // Backward compatibility: if `is_dc` column is unavailable, infer DC from zero GST.
-        const inferredDcMode =
-          (typedReturn as any).is_dc === true ||
-          ((typedReturn as any).is_dc == null && Number((typedReturn as any).gst_amount || 0) === 0);
-        if (inferredDcMode) {
-          setTaxType("dc");
-        }
-        setReturnData({
-          supplier_id: typedReturn.supplier_id || "",
-          supplier_name: typedReturn.supplier_name || "",
-          original_bill_number: typedReturn.original_bill_number || "",
-          notes: typedReturn.notes || "",
-        });
-
-        const pm = typedReturn.payment_method as string | null | undefined;
-        if (pm === "cash" || pm === "upi" || pm === "card" || pm === "bank_transfer") {
-          setRefundSettlement("immediate_refund");
-          setRefundPaymentMethod(pm);
-        } else {
-          setRefundSettlement("ap_adjustment");
-          setRefundPaymentMethod("cash");
-        }
-
-        // Fetch return items
-        const { data: items, error: itemsError } = await supabase
-          .from("purchase_return_items" as any)
-          .select("*")
-          .eq("return_id", editId);
-
-        if (itemsError) throw itemsError;
-
-        // Get unique product IDs to fetch product info
-        const productIds = [...new Set((items || []).map((item: any) => item.product_id))];
-        // Get unique sku_ids to fetch variant color
-        const skuIds = [...new Set((items || []).map((item: any) => item.sku_id).filter(Boolean))];
-        
-        let productMap = new Map();
-        if (productIds.length > 0) {
-          const { data: productsData, error: productsError } = await supabase
-            .from("products")
-            .select("id, product_name, brand")
-            .in("id", productIds);
-
-          if (!productsError && productsData) {
-            productMap = new Map(productsData.map((p: any) => [p.id, p]));
+        const fetchVariantColorsByIds = async (skuIds: string[]) => {
+          if (skuIds.length === 0) return new Map<string, { color?: string }>();
+          const map = new Map<string, { color?: string }>();
+          const batchSize = 200;
+          for (let i = 0; i < skuIds.length; i += batchSize) {
+            const batch = skuIds.slice(i, i + batchSize);
+            const { data, error } = await supabase
+              .from("product_variants")
+              .select("id, color")
+              .in("id", batch);
+            if (error) throw error;
+            (data || []).forEach((v: { id: string; color?: string | null }) => {
+              map.set(v.id, { color: v.color || "" });
+            });
           }
-        }
+          return map;
+        };
 
-        // Fetch variant colors
-        let variantMap = new Map();
-        if (skuIds.length > 0) {
-          const { data: variantsData } = await supabase
-            .from("product_variants")
-            .select("id, color")
-            .in("id", skuIds);
-          if (variantsData) {
-            variantMap = new Map(variantsData.map((v: any) => [v.id, v]));
+        const loadWork = async () => {
+          const { data: returnRecord, error: returnError } = await supabase
+            .from("purchase_returns" as any)
+            .select("*")
+            .eq("id", editId)
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .single();
+
+          if (returnError) throw returnError;
+          if (!returnRecord) throw new Error("Return not found");
+
+          const typedReturn = returnRecord as any;
+
+          setReturnNumber(typedReturn.return_number || "");
+          setReturnDate(
+            typedReturn.return_date ? new Date(typedReturn.return_date) : new Date()
+          );
+
+          const inferredDcMode =
+            typedReturn.is_dc === true ||
+            (typedReturn.is_dc == null && Number(typedReturn.gst_amount || 0) === 0);
+          setTaxType(inferredDcMode ? "dc" : "exclusive");
+
+          setDiscountPercent(Number(typedReturn.discount_percent || 0));
+          setDiscountAmount(Number(typedReturn.discount_amount || 0));
+          setGrossAmount(Number(typedReturn.gross_amount || 0));
+          setGstAmount(Number(typedReturn.gst_amount || 0));
+          setNetAmount(Number(typedReturn.net_amount || 0));
+          setOriginalBillId(typedReturn.linked_bill_id || "");
+
+          setReturnData({
+            supplier_id: typedReturn.supplier_id || "",
+            supplier_name: typedReturn.supplier_name || "",
+            original_bill_number: typedReturn.original_bill_number || "",
+            notes: typedReturn.notes || "",
+          });
+
+          const pm = typedReturn.payment_method as string | null | undefined;
+          if (pm === "cash" || pm === "upi" || pm === "card" || pm === "bank_transfer") {
+            setRefundSettlement("immediate_refund");
+            setRefundPaymentMethod(pm);
+          } else {
+            setRefundSettlement("ap_adjustment");
+            setRefundPaymentMethod("cash");
           }
-        }
 
-        const loadedItems: LineItem[] = (items || []).map((item: any) => {
-          const product = productMap.get(item.product_id);
-          const variant = variantMap.get(item.sku_id);
-          return {
-            temp_id: item.id,
-            product_id: item.product_id,
-            sku_id: item.sku_id,
-            product_name: product?.product_name || "Unknown",
-            size: item.size,
-            color: item.color || variant?.color || "",
-            qty: item.qty,
-            pur_price: item.pur_price,
-            gst_per: item.gst_per,
-            hsn_code: item.hsn_code || "",
-            barcode: item.barcode || "",
-            line_total: item.line_total,
-            brand: product?.brand || "",
-            discount_percent: item.discount_percent || 0,
-            discount_amount: item.discount_amount || 0,
-          };
-        });
+          const { data: items, error: itemsError } = await supabase
+            .from("purchase_return_items" as any)
+            .select("*")
+            .eq("return_id", editId)
+            .is("deleted_at", null);
 
-        setLineItems(loadedItems);
+          if (itemsError) throw itemsError;
+
+          const productIds = [
+            ...new Set((items || []).map((item: any) => item.product_id).filter(Boolean)),
+          ] as string[];
+          const skuIds = [
+            ...new Set((items || []).map((item: any) => item.sku_id).filter(Boolean)),
+          ] as string[];
+
+          const [productsData, variantMap] = await Promise.all([
+            fetchProductsByIds(productIds, "id, product_name, brand"),
+            fetchVariantColorsByIds(skuIds),
+          ]);
+
+          const productMap = new Map(productsData.map((p: any) => [p.id, p]));
+
+          const loadedItems: LineItem[] = (items || []).map((item: any) => {
+            const product = productMap.get(item.product_id);
+            const variant = variantMap.get(item.sku_id);
+            return {
+              temp_id: item.id,
+              product_id: item.product_id,
+              sku_id: item.sku_id,
+              product_name: product?.product_name || "Unknown",
+              size: item.size,
+              color: item.color || variant?.color || "",
+              qty: item.qty,
+              pur_price: item.pur_price,
+              gst_per: item.gst_per,
+              hsn_code: item.hsn_code || "",
+              barcode: item.barcode || "",
+              line_total: item.line_total,
+              brand: product?.brand || "",
+              discount_percent: Number((item as any).discount_percent || 0),
+              discount_amount: Number((item as any).discount_amount || 0),
+            };
+          });
+
+          if (cancelled || loadGen !== loadReturnGenRef.current) return;
+          setLineItems(loadedItems);
+        };
+
+        await Promise.race([
+          loadWork(),
+          new Promise<never>((_, reject) => {
+            setTimeout(
+              () => reject(new Error("Loading timed out. Check your connection and try again.")),
+              loadTimeoutMs
+            );
+          }),
+        ]);
       } catch (error) {
+        if (cancelled || loadGen !== loadReturnGenRef.current) return;
         console.error("Error loading return:", error);
         toast({
           title: "Error",
-          description: "Failed to load purchase return",
+          description:
+            error instanceof Error ? error.message : "Failed to load purchase return",
           variant: "destructive",
         });
         navigate("/purchase-returns");
       } finally {
-        setLoadingReturn(false);
+        if (!cancelled && loadGen === loadReturnGenRef.current) {
+          setLoadingReturn(false);
+        }
       }
     };
 
     loadReturnData();
-  }, [editId, currentOrganization?.id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editId, currentOrganization?.id, orgLoading, navigate, toast]);
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
