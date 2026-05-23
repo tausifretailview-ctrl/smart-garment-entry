@@ -133,6 +133,7 @@ const WhatsAppInbox = lazyWithRetry(() => import("./pages/WhatsAppInbox"));
 const MobileMoreMenu = lazyWithRetry(() => import("./pages/mobile/MobileMoreMenu"));
 const MobileReportsHub = lazyWithRetry(() => import("./pages/mobile/MobileReportsHub"));
 const MobileSalesHub = lazyWithRetry(() => import("./pages/mobile/MobileSalesHub"));
+const MobileDashboardPage = lazyWithRetry(() => import("./pages/mobile/MobileDashboardPage"));
 const MobileAccountsPage = lazyWithRetry(() => import("./pages/mobile/MobileAccountsPage"));
 import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScreen";
 import { OwnerSalesScreen } from "@/components/mobile/OwnerSalesScreen";
@@ -356,7 +357,7 @@ const App = () => {
                 <Route path="portal/orders" element={<PortalOrders />} />
                 <Route path="portal/invoices" element={<PortalInvoices />} />
                 <Route path="portal/account" element={<PortalAccount />} />
-                {/* Org home: mobile → mobile-sales, desktop → main dashboard */}
+                {/* Org home: mobile → business dashboard, desktop → main dashboard */}
                 <Route
                   index
                   element={
@@ -1316,6 +1317,18 @@ const App = () => {
 
                 {/* Legacy path → owner mobile reports */}
                 <Route path="mobile-reports" element={<Navigate to="owner-reports" replace />} />
+
+                {/* Mobile Business Dashboard (native app home) */}
+                <Route
+                  path="mobile-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <MobileDashboardPage />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
 
                 {/* Mobile Sales Hub */}
                 <Route

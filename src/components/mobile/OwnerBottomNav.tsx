@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import { cn } from "@/lib/utils";
-import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH } from "@/lib/mobileShell";
+import { MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH, MOBILE_SALES_PATH } from "@/lib/mobileShell";
 
 interface NavTab {
   icon: React.ElementType;
@@ -17,13 +17,13 @@ const sideTabs: NavTab[] = [
     icon: Home,
     label: "Home",
     path: MOBILE_DEFAULT_LANDING_PATH,
-    matchPaths: ["/", MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH],
+    matchPaths: ["/", MOBILE_DEFAULT_LANDING_PATH],
   },
   {
     icon: IndianRupee,
     label: "Sales",
-    path: MOBILE_DEFAULT_LANDING_PATH,
-    matchPaths: [MOBILE_DEFAULT_LANDING_PATH, MOBILE_OWNER_SALES_PATH],
+    path: MOBILE_SALES_PATH,
+    matchPaths: [MOBILE_SALES_PATH, MOBILE_OWNER_SALES_PATH],
   },
   { icon: ShoppingCart, label: "Purchase", path: "/owner-purchases", matchPaths: ["/owner-purchases"] },
   { icon: Package, label: "Stock", path: "/owner-stock", matchPaths: ["/owner-stock"] },

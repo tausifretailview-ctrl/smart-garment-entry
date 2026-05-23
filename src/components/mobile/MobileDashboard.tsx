@@ -7,7 +7,8 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MobileDashboardSummary } from "./MobileDashboardSummary";
 import { 
   TrendingUp, BarChart3, Package, AlertCircle, WifiOff, RefreshCw, 
-  ShoppingCart, Receipt, ShoppingBag, Calculator, Users, Building2, CreditCard, Calendar
+  ShoppingCart, Receipt, ShoppingBag, Calculator, Users, Building2, CreditCard, Calendar,
+  IndianRupee, Layers,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useRef, useState, useEffect, useCallback } from "react";
@@ -17,6 +18,30 @@ import { invalidateOwnerDashboardQueries } from "@/lib/mobileHubRefresh";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+type ErpDashboardStats = {
+  total_sales: number;
+  invoice_count: number;
+  sold_qty: number;
+  total_purchase: number;
+  purchase_count: number;
+  purchase_qty: number;
+  customer_count: number;
+  supplier_count: number;
+  product_count: number;
+  total_stock_qty: number;
+  total_stock_value: number;
+  total_receivables: number;
+  pending_count: number;
+  gross_profit: number;
+  cash_collection: number;
+};
+
+function formatCompactInr(value: number | null | undefined): string {
+  if (value == null) return "₹0";
+  if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`;
+  return `₹${Math.round(value).toLocaleString("en-IN")}`;
+}
 
 // Skeleton for lazy-loaded summary
 const SummarySkeleton = () => (
@@ -102,15 +127,7 @@ export const MobileDashboard = () => {
         p_end_date: today,
       });
       if (error) throw error;
-      return data as {
-        total_sales: number;
-        invoice_count: number;
-        sold_qty: number;
-        total_stock_qty: number;
-        total_stock_value: number;
-        total_receivables: number;
-        pending_count: number;
-      };
+      return data as ErpDashboardStats;
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000,
@@ -183,12 +200,7 @@ export const MobileDashboard = () => {
             <Skeleton className="h-10 w-40 bg-white/10" />
           ) : (
             <p className="text-3xl font-bold text-white tracking-tight tabular-nums">
-              {dashStats?.total_sales != null
-                ? `₹${dashStats.total_sales >= 100000
-                    ? (dashStats.total_sales / 100000).toFixed(1) + 'L'
-                    : dashStats.total_sales.toLocaleString('en-IN')}`
-                : '₹0'
-              }
+              {formatCompactInr(dashStats?.total_sales)}
             </p>
           )}
           <p className="text-xs text-white/40 mt-1">{dashStats?.invoice_count ?? 0} invoices today</p>
@@ -228,11 +240,7 @@ export const MobileDashboard = () => {
             },
           ].map((card) => {
             const Icon = card.icon;
-            const displayValue = card.value != null
-              ? card.value >= 100000
-                ? `₹${(card.value / 100000).toFixed(1)}L`
-                : `₹${Math.round(card.value).toLocaleString("en-IN")}`
-              : '₹0';
+            const displayValue = formatCompactInr(card.value);
             return (
               <button
                 key={card.label}
@@ -248,6 +256,115 @@ export const MobileDashboard = () => {
                 ) : (
                   <p className="text-sm font-bold tabular-nums text-foreground">{displayValue}</p>
                 )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── TODAY'S BUSINESS ── */}
+      <div className="px-4 mt-5">
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Today&apos;s Business
+        </h2>
+        <div className="grid grid-cols-2 gap-2.5">
+          {[
+            {
+              label: "Purchase",
+              sub: `${dashStats?.purchase_count ?? 0} bills`,
+              value: formatCompactInr(dashStats?.total_purchase),
+              icon: ShoppingBag,
+              color: "text-orange-600",
+              bg: "bg-orange-50",
+              nav: "/owner-purchases",
+              isCount: false,
+            },
+            {
+              label: "Gross Profit",
+              sub: "Sales − purchase",
+              value: formatCompactInr(dashStats?.gross_profit),
+              icon: TrendingUp,
+              color: "text-emerald-600",
+              bg: "bg-emerald-50",
+              nav: "/owner-reports",
+              isCount: false,
+            },
+            {
+              label: "Collection",
+              sub: "Cash received",
+              value: formatCompactInr(dashStats?.cash_collection),
+              icon: IndianRupee,
+              color: "text-blue-600",
+              bg: "bg-blue-50",
+              nav: "/mobile-accounts",
+              isCount: false,
+            },
+            {
+              label: "Pending",
+              sub: "Unpaid invoices",
+              value: String(dashStats?.pending_count ?? 0),
+              icon: AlertCircle,
+              color: "text-amber-600",
+              bg: "bg-amber-50",
+              nav: "/mobile-accounts",
+              isCount: true,
+            },
+          ].map((row) => {
+            const Icon = row.icon;
+            return (
+              <button
+                key={row.label}
+                type="button"
+                onClick={() => orgNavigate(row.nav)}
+                className="bg-white dark:bg-card rounded-2xl p-3.5 shadow-sm border border-border/40 text-left touch-manipulation active:scale-[0.98] transition-transform"
+              >
+                <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center mb-2", row.bg)}>
+                  <Icon className={cn("h-4 w-4", row.color)} />
+                </div>
+                <p className="text-[10px] text-muted-foreground">{row.label}</p>
+                {isLoading && !row.isCount ? (
+                  <Skeleton className="h-6 w-20 mt-0.5" />
+                ) : (
+                  <p className="text-base font-bold tabular-nums text-foreground">{row.value}</p>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-0.5">{row.sub}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── BUSINESS TOTALS ── */}
+      <div className="px-4 mt-5">
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Business Totals
+        </h2>
+        <div className="grid grid-cols-2 gap-2.5">
+          {[
+            { label: "Customers", value: dashStats?.customer_count, icon: Users, nav: "/customers" },
+            { label: "Suppliers", value: dashStats?.supplier_count, icon: Building2, nav: "/suppliers" },
+            { label: "Products", value: dashStats?.product_count, icon: Layers, nav: "/products" },
+            { label: "Stock Qty", value: dashStats?.total_stock_qty, icon: Package, nav: "/owner-stock" },
+          ].map((row) => {
+            const Icon = row.icon;
+            return (
+              <button
+                key={row.label}
+                type="button"
+                onClick={() => orgNavigate(row.nav)}
+                className="flex items-center gap-3 bg-white dark:bg-card rounded-2xl p-3 border border-border/40 shadow-sm touch-manipulation active:scale-[0.98] transition-transform"
+              >
+                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-muted flex items-center justify-center shrink-0">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-[10px] text-muted-foreground">{row.label}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-5 w-12 mt-0.5" />
+                  ) : (
+                    <p className="text-sm font-bold tabular-nums">{(row.value ?? 0).toLocaleString("en-IN")}</p>
+                  )}
+                </div>
               </button>
             );
           })}

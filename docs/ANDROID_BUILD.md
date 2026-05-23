@@ -5,7 +5,7 @@ Android only. The app wraps the same Vite/React build used on the web and PWA.
 ## Prerequisites (Windows)
 
 1. **Node.js 18+** — `node -v`
-2. **Java JDK 17** — `java -version` (required for Gradle)
+2. **Java JDK 21** — `java -version` (required for Capacitor 7 / Gradle; JDK 17 alone is not enough)
 3. **Android Studio** — https://developer.android.com/studio  
    - SDK Platform 34+  
    - Android SDK Build-Tools  

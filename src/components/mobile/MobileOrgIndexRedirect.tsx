@@ -14,7 +14,7 @@ const PageFallback = () => (
 );
 
 /**
- * Org home (`/:orgSlug`): desktop shows main dashboard; mobile opens `/mobile-sales`.
+ * Org home (`/:orgSlug`): desktop shows main dashboard; mobile opens business overview.
  */
 export function MobileOrgIndexRedirect() {
   const isMobile = useIsMobile();

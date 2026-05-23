@@ -1,8 +1,11 @@
 /** Shared mobile shell spacing (bottom nav + safe area). */
 export const MOBILE_BOTTOM_NAV_HEIGHT = "4.25rem";
 
-/** Default mobile home — sales invoice hub (MobileBottomNav). */
-export const MOBILE_DEFAULT_LANDING_PATH = "/mobile-sales";
+/** Default mobile / native home — business overview dashboard. */
+export const MOBILE_DEFAULT_LANDING_PATH = "/mobile-dashboard";
+
+/** Mobile sales invoice hub. */
+export const MOBILE_SALES_PATH = "/mobile-sales";
 
 /** Owner-style sales screen (FullScreenLayout + OwnerBottomNav). */
 export const MOBILE_OWNER_SALES_PATH = "/owner-sales";
