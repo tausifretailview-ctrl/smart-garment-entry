@@ -59,11 +59,14 @@ import {
 const OPENING_BALANCE_ID = "__opening_balance__";
 /** Per-invoice due — same rules as Sales Invoice Dashboard (avoids double-counting CN in paid_amount + sr). */
 const getInvoiceOutstanding = (invoice: any, split?: SaleReceiptVoucherSplit | null) => {
+  const s = split ?? { cash: 0, cn: 0, adv: 0 };
+  const voucherBucketSum = s.cash + s.adv + s.cn;
+  const paidForReconcile = Math.max(0, Number(invoice?.paid_amount || 0) - voucherBucketSum);
   return reconcileSaleInvoiceDisplay({
     net_amount: Number(invoice?.net_amount || 0),
     sale_return_adjust: Number(invoice?.sale_return_adjust || 0),
-    paid_amount: Number(invoice?.paid_amount || 0),
-    split: split ?? null,
+    paid_amount: paidForReconcile,
+    split: s,
   }).outstanding;
 };
 const toNumberOrZero = (value: any) => {
@@ -73,6 +76,57 @@ const toNumberOrZero = (value: any) => {
 const MIN_PENDING_RUPEE = 1;
 const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
 const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
+
+/** Ledger-consistent paid_amount / status from receipt vouchers (avoids double-counting with paid_amount). */
+async function syncSalePaymentFromVouchers(
+  invoiceId: string,
+  organizationId: string,
+  voucherDateYmd: string,
+  client: typeof supabase,
+) {
+  const { data: freshSale, error: saleErr } = await client
+    .from("sales")
+    .select("net_amount, paid_amount, sale_return_adjust")
+    .eq("id", invoiceId)
+    .eq("organization_id", organizationId)
+    .single();
+  if (saleErr) throw saleErr;
+
+  const { data: receiptRows, error: vchErr } = await client
+    .from("voucher_entries")
+    .select("reference_id, total_amount, payment_method, description, discount_amount")
+    .eq("organization_id", organizationId)
+    .eq("reference_id", invoiceId)
+    .in("reference_type", ["sale", "customer"])
+    .eq("voucher_type", "receipt")
+    .is("deleted_at", null);
+  if (vchErr) throw vchErr;
+
+  const splitMap = splitSaleLinkedReceiptRows(receiptRows || []);
+  const split = splitMap.get(invoiceId) ?? { cash: 0, cn: 0, adv: 0 };
+  const voucherBucketSum = split.cash + split.adv + split.cn;
+  const legacyPaid = Number(freshSale.paid_amount || 0);
+  // Row paid_amount may already include receipt vouchers; strip them before reconcile.
+  const paidForReconcile = Math.max(0, legacyPaid - voucherBucketSum);
+  const rec = reconcileSaleInvoiceDisplay({
+    net_amount: Number(freshSale.net_amount || 0),
+    sale_return_adjust: Number(freshSale.sale_return_adjust || 0),
+    paid_amount: paidForReconcile,
+    split,
+  });
+
+  const { error: updErr } = await client
+    .from("sales")
+    .update({
+      paid_amount: rec.paid_amount,
+      payment_status: rec.payment_status,
+      payment_date: voucherDateYmd,
+    })
+    .eq("id", invoiceId)
+    .eq("organization_id", organizationId);
+  if (updErr) throw updErr;
+  return rec;
+}
 
 async function rollbackCustomerReceiptVouchers(
   organizationId: string,
@@ -231,10 +285,12 @@ export function CustomerPaymentTab({
       const updates = salesRows
         .map((sale: any) => {
           const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0 };
+          const voucherBucketSum = split.cash + split.adv + split.cn;
+          const paidForReconcile = Math.max(0, Number(sale.paid_amount || 0) - voucherBucketSum);
           const rec = reconcileSaleInvoiceDisplay({
             net_amount: Number(sale.net_amount || 0),
             sale_return_adjust: Number(sale.sale_return_adjust || 0),
-            paid_amount: Number(sale.paid_amount || 0),
+            paid_amount: paidForReconcile,
             split,
           });
           const { paymentStatus: effectiveStatus } = derivePaidAndStatus({
@@ -485,28 +541,6 @@ export function CustomerPaymentTab({
             prevPaid: Number(invoice.paid_amount || 0),
             prevStatus: String(invoice.payment_status || "pending"),
           });
-          const prevPaid = Number(invoice.paid_amount || 0);
-          const newPaid = prevPaid + applyAmt;
-          const legacyStatus =
-            newPaid >= invoice.net_amount ? "completed" : newPaid > 0 ? "partial" : "pending";
-          const { paymentStatus: newStatus } = derivePaidAndStatus({
-            netAmount: Number(invoice.net_amount || 0),
-            saleReturnAdjust: Number(invoice.sale_return_adjust || 0),
-            cashReceived: prevPaid,
-            advanceApplied: applyAmt,
-            cnApplied: 0,
-            discountGiven: 0,
-            paymentMethod: invoice.payment_method,
-          });
-          warnSettlementPathMismatch(
-            "CustomerPaymentTab.applyAdvance",
-            legacyStatus,
-            newStatus,
-          );
-          await supabase
-            .from("sales")
-            .update({ paid_amount: newPaid, payment_status: newStatus })
-            .eq("id", invoice.id);
 
           const advDesc = `Adjusted from advance balance for ${invoice.sale_number}`;
           const { vouchers } = await consumeAdvanceFIFO(supabase, {
@@ -539,6 +573,7 @@ export function CustomerPaymentTab({
               amount: applyAmt,
             });
           }
+          await syncSalePaymentFromVouchers(invoice.id, organizationId, advYmd, supabase);
           remaining -= applyAmt;
         }
       } catch (advErr) {
@@ -934,56 +969,20 @@ export function CustomerPaymentTab({
         }
       }
 
-      // After voucher creation succeeds, update all allocated invoices in parallel.
+      // Sync paid_amount from vouchers only — do not add allocatedAmount on top (double-counts cash/UPI).
       if (processedInvoices.length > 0) {
+        const voucherDateYmd = format(voucherDate, "yyyy-MM-dd");
         await Promise.all(
           processedInvoices.map(async (processed) => {
-            const invoiceId = processed.invoice.id;
-            const allocatedAmount = Number(processed.amountApplied || 0);
-            if (allocatedAmount <= 0) return;
-
-            const { data: sale, error: saleError } = await supabase
-              .from("sales")
-              .select("paid_amount, net_amount, sale_return_adjust")
-              .eq("id", invoiceId)
-              .eq("organization_id", organizationId)
-              .single();
-            if (saleError) throw saleError;
-
-            const netAmount = Number(sale?.net_amount || 0);
-            const saleReturnAdjust = Number((sale as any)?.sale_return_adjust || 0);
-            const payableCap = Math.max(0, netAmount - saleReturnAdjust);
-            const newPaidAmount = Math.min(payableCap, Number(sale?.paid_amount || 0) + allocatedAmount);
-            const legacyStatus =
-              newPaidAmount + saleReturnAdjust >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
-                ? "completed"
-                : "partial";
-            const { paymentStatus: newStatus } = derivePaidAndStatus({
-              netAmount,
-              saleReturnAdjust,
-              cashReceived: newPaidAmount,
-              advanceApplied: 0,
-              cnApplied: 0,
-              discountGiven: processed.discountApplied || 0,
-              paymentMethod,
-            });
-            warnSettlementPathMismatch(
-              "CustomerPaymentTab.recordPayment",
-              legacyStatus,
-              newStatus,
+            if (Number(processed.amountApplied || 0) <= 0) return;
+            const rec = await syncSalePaymentFromVouchers(
+              processed.invoice.id,
+              organizationId,
+              voucherDateYmd,
+              supabase,
             );
-
-            const { error: updateError } = await supabase
-              .from("sales")
-              .update({
-                paid_amount: newPaidAmount,
-                payment_status: newStatus,
-                payment_date: format(voucherDate, "yyyy-MM-dd"),
-              })
-              .eq("id", invoiceId)
-              .eq("organization_id", organizationId);
-            if (updateError) throw updateError;
-          })
+            processed.currentBalance = rec.outstanding;
+          }),
         );
       }
 
@@ -1026,6 +1025,10 @@ export function CustomerPaymentTab({
           0,
         );
         const totalSettledReceipt = totalPaid + discountValue;
+        const syncedCurrentBalance = data.processedInvoices.reduce(
+          (sum: number, p: any) => sum + Number(p.currentBalance ?? 0),
+          0,
+        );
         onShowReceipt({
           voucherNumber: data.voucherNumber, voucherDate: format(voucherDate, 'yyyy-MM-dd'),
           customerName: first.customer_name, customerPhone: first.customer_phone,
@@ -1035,7 +1038,10 @@ export function CustomerPaymentTab({
           invoiceAmount: data.processedInvoices.reduce((sum: number, p: any) => sum + p.invoice.net_amount, 0),
           paidAmount: totalPaid, discountAmount: discountValue, discountReason: data.discountReason || '',
           previousBalance,
-          currentBalance: Math.max(0, previousBalance - totalSettledReceipt),
+          currentBalance:
+            syncedCurrentBalance > 0
+              ? syncedCurrentBalance
+              : Math.max(0, previousBalance - totalSettledReceipt),
           paymentMethod, multipleInvoices: data.processedInvoices,
         });
       }
@@ -1072,6 +1078,7 @@ export function CustomerPaymentTab({
             : "CustomerReceipt";
         await deleteJournalEntryByReference(organizationId, journalRef, voucherId, supabase);
       }
+      let saleCustomerId: string | null = null;
       if (saleId) {
         const { data: invoice } = await supabase
           .from("sales")
@@ -1079,6 +1086,7 @@ export function CustomerPaymentTab({
           .eq("id", saleId)
           .maybeSingle();
         if (invoice) {
+          saleCustomerId = (invoice.customer_id as string) || null;
           const netAmount = Number(invoice.net_amount || 0);
           const srAdjust = Number((invoice as { sale_return_adjust?: number }).sale_return_adjust || 0);
           if (isCreditNoteApplication) {
@@ -1113,45 +1121,28 @@ export function CustomerPaymentTab({
                 sale_return_adjust: newSr,
               })
               .eq("id", saleId);
-          } else {
-            const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) - paymentAmount);
-            const legacyDelStatus =
-              newPaidAmount + srAdjust >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
-                ? "completed"
-                : newPaidAmount > 0 || srAdjust > 0
-                  ? "partial"
-                  : "pending";
-            const { paymentStatus: newStatus } = derivePaidAndStatus({
-              netAmount,
-              saleReturnAdjust: srAdjust,
-              cashReceived: newPaidAmount,
-              advanceApplied: 0,
-              cnApplied: 0,
-              discountGiven: 0,
-            });
-            warnSettlementPathMismatch(
-              "CustomerPaymentTab.deleteReceipt",
-              legacyDelStatus,
-              newStatus,
-            );
-            await supabase
-              .from("sales")
-              .update({ paid_amount: newPaidAmount, payment_status: newStatus })
-              .eq("id", saleId);
-            if (isAdvanceApplication && invoice.customer_id) {
-              await reverseCustomerAdvanceFifo(
-                supabase,
-                organizationId,
-                invoice.customer_id as string,
-                paymentAmount
-              );
-            }
           }
         }
       }
       await supabase.from("voucher_items").delete().eq("voucher_id", voucherId);
       const { error } = await supabase.from("voucher_entries").delete().eq("id", voucherId);
       if (error) throw error;
+      if (saleId && !isCreditNoteApplication) {
+        if (isAdvanceApplication && saleCustomerId) {
+          await reverseCustomerAdvanceFifo(
+            supabase,
+            organizationId,
+            saleCustomerId,
+            paymentAmount,
+          );
+        }
+        await syncSalePaymentFromVouchers(
+          saleId,
+          organizationId,
+          format(new Date(), "yyyy-MM-dd"),
+          supabase,
+        );
+      }
       return { voucherId, paymentAmount, voucherNumber: payment.voucher_number };
     },
     onSuccess: (data) => {
