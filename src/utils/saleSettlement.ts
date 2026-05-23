@@ -290,25 +290,30 @@ export function preSaveInvariants(params: {
     throw new Error("Cannot save sale with no items.");
   }
 
-  if (netAmount <= 0) {
+  const srAdjust = saleReturnAdjust || 0;
+  // POS / useSaveSale: net_amount is payable after S/R adjust; merchandise bill = net + S/R (see getExchangeAmounts).
+  const billAmount = netAmount + srAdjust;
+
+  // Allow net 0 / negative when S/R adjust covers an exchange (see getExchangeAmounts).
+  if (netAmount <= 0 && srAdjust <= 0) {
     throw new Error("Net amount must be greater than zero.");
   }
 
-  if ((saleReturnAdjust || 0) > netAmount + SETTLEMENT_TOLERANCE) {
+  if (srAdjust > billAmount + SETTLEMENT_TOLERANCE) {
     throw new Error(
-      `Sale return adjustment (₹${saleReturnAdjust}) cannot exceed invoice amount (₹${netAmount}).`,
+      `Sale return adjustment (₹${srAdjust}) cannot exceed invoice amount (₹${billAmount}).`,
     );
   }
 
-  const maxPayable = netAmount - (saleReturnAdjust || 0);
+  const maxPayable = netAmount;
   if ((paidAmount || 0) > maxPayable + SETTLEMENT_TOLERANCE) {
     throw new Error(`Paid amount (₹${paidAmount}) exceeds payable amount (₹${maxPayable}).`);
   }
 
-  const totalCredits = (paidAmount || 0) + (saleReturnAdjust || 0);
-  if (totalCredits > netAmount + 1.0) {
+  const totalCredits = (paidAmount || 0) + srAdjust;
+  if (totalCredits > billAmount + SETTLEMENT_TOLERANCE) {
     throw new Error(
-      `Total credits (₹${totalCredits}) exceed invoice amount (₹${netAmount}). This would over-credit the customer.`,
+      `Total credits (₹${totalCredits}) exceed invoice amount (₹${billAmount}). This would over-credit the customer.`,
     );
   }
 }
