@@ -25,6 +25,7 @@ import * as XLSX from "xlsx";
 interface ExpensesTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
+  embedded?: boolean;
 }
 
 const PAYMENT_METHODS = [
@@ -35,7 +36,7 @@ const PAYMENT_METHODS = [
   { value: "cheque", label: "Cheque" },
 ];
 
-export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
+export function ExpensesTab({ organizationId, vouchers, embedded = false }: ExpensesTabProps) {
   const queryClient = useQueryClient();
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -627,7 +628,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
         </CardContent>
       </Card>
 
-      {/* Expense Ledger */}
+      {!embedded && (
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -735,6 +736,7 @@ export function ExpensesTab({ organizationId, vouchers }: ExpensesTabProps) {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>

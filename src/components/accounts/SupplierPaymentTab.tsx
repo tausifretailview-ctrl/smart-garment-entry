@@ -32,9 +32,16 @@ interface SupplierPaymentTabProps {
   vouchers: any[] | undefined;
   suppliers: any[] | undefined;
   onEditPayment?: (voucher: any) => void;
+  embedded?: boolean;
 }
 
-export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEditPayment }: SupplierPaymentTabProps) {
+export function SupplierPaymentTab({
+  organizationId,
+  vouchers,
+  suppliers,
+  onEditPayment,
+  embedded = false,
+}: SupplierPaymentTabProps) {
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
 
@@ -753,7 +760,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
         </CardContent>
       </Card>
 
-      {/* Recent Supplier Payments - Enhanced */}
+      {!embedded && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Supplier Payments</CardTitle>
@@ -871,6 +878,7 @@ export function SupplierPaymentTab({ organizationId, vouchers, suppliers, onEdit
           )}
         </CardContent>
       </Card>
+      )}
 
       <ChequePrintDialog
         open={showChequePrintDialog}

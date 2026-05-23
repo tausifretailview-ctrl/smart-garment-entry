@@ -148,6 +148,8 @@ interface CustomerPaymentTabProps {
   onShowReceipt: (receiptData: any) => void;
   onShowAdvanceDialog: () => void;
   onEditPayment: (voucher: any) => void;
+  /** Hide recent-payments list (floating payments window shows shared history panel). */
+  embedded?: boolean;
 }
 
 export function CustomerPaymentTab({
@@ -159,6 +161,7 @@ export function CustomerPaymentTab({
   onShowReceipt,
   onShowAdvanceDialog,
   onEditPayment,
+  embedded = false,
 }: CustomerPaymentTabProps) {
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
@@ -1665,7 +1668,7 @@ export function CustomerPaymentTab({
         </CardContent>
       </Card>
 
-      {/* Recent Customer Payments */}
+      {!embedded && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Customer Payments</CardTitle>
@@ -2033,6 +2036,7 @@ export function CustomerPaymentTab({
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* Reassign Payment Dialog */}
       {reassignPayment && (

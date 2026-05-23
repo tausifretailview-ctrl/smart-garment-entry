@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText, Scale } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText, Scale, Banknote } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
+import { FloatingAccountsPaymentsDialog } from "@/components/FloatingAccountsPaymentsDialog";
 import { FloatingStockReport } from "@/components/FloatingPOSReports";
 import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
@@ -36,6 +37,7 @@ export const Header = () => {
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const [quickStockOpen, setQuickStockOpen] = useState(false);
   const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const dashboardToolbar = useDashboardToolbarOptional();
   const { isSchool } = useSchoolFeatures();
@@ -52,6 +54,11 @@ export const Header = () => {
     (permissions === null ||
       hasMenuAccess("customer_account_statement") ||
       hasMenuAccess("customer_ledger"));
+  const canQuickPayments =
+    !permissionsLoading &&
+    (permissions === null ||
+      hasMenuAccess("payment_recording") ||
+      hasMenuAccess("payments_dashboard"));
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog (only when stock report is allowed)
   useEffect(() => {
@@ -651,6 +658,17 @@ export const Header = () => {
             <span className="xl:hidden">Stmt (audit)</span>
           </Button>
         )}
+        {canQuickPayments && (
+          <Button
+            onClick={() => setPaymentsOpen(true)}
+            variant="outline"
+            className="h-7 px-2.5 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/40 border-sidebar-border hover:bg-sidebar-accent hover:text-sidebar-foreground gap-1.5"
+            title="Customer & supplier payments, expenses, salaries"
+          >
+            <Banknote className="h-3.5 w-3.5" />
+            Payment
+          </Button>
+        )}
 
         {dashboardToolbar?.toolbar ? (
           <>
@@ -681,6 +699,7 @@ export const Header = () => {
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
       <CustomerStatementFloatingDialog open={customerStatementOpen} onOpenChange={setCustomerStatementOpen} />
+      <FloatingAccountsPaymentsDialog open={paymentsOpen} onOpenChange={setPaymentsOpen} />
     </>
   );
 };

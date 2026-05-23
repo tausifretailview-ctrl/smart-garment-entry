@@ -33,9 +33,10 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 interface EmployeeSalaryTabProps {
   organizationId: string;
   vouchers: any[] | undefined;
+  embedded?: boolean;
 }
 
-export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTabProps) {
+export function EmployeeSalaryTab({ organizationId, vouchers, embedded = false }: EmployeeSalaryTabProps) {
   const queryClient = useQueryClient();
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -272,6 +273,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
         </CardContent>
       </Card>
 
+      {!embedded && (
       <Card>
         <CardHeader>
           <CardTitle>Recent Salary Payments</CardTitle>
@@ -320,6 +322,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers }: EmployeeSalaryTa
           </Table>
         </CardContent>
       </Card>
+      )}
 
       <AlertDialog open={!!salaryDeleteTarget} onOpenChange={(open) => !open && setSalaryDeleteTarget(null)}>
         <AlertDialogContent>
