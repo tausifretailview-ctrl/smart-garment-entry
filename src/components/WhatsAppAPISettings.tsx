@@ -233,7 +233,17 @@ export const WhatsAppAPISettings = () => {
       setSharedNumberWarning(null);
     }
     
-    updateSettings(formData);
+    const payload = { ...formData };
+    // Third-party dashboards often label WABA as "Business ID" — keep both in sync for template sync
+    if (payload.api_provider === "third_party") {
+      const businessId = payload.business_id?.trim();
+      const wabaId = payload.waba_id?.trim();
+      if (businessId && !wabaId) payload.waba_id = businessId;
+      if (wabaId && !businessId) payload.business_id = wabaId;
+      payload.custom_api_url = payload.custom_api_url?.trim() || "";
+    }
+
+    updateSettings(payload);
   };
 
   const handleTestConnection = () => {
@@ -449,15 +459,15 @@ export const WhatsAppAPISettings = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="business_id">Business ID</Label>
+                      <Label htmlFor="business_id">Business ID / WABA ID</Label>
                       <Input
                         id="business_id"
-                        placeholder="e.g., 24732513237950"
+                        placeholder="e.g., 247325313237950"
                         value={formData.business_id}
                         onChange={(e) => handleInputChange("business_id", e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Third-party Business ID (if applicable)
+                        Required for template sync if WABA ID is not set — use the ID from your provider dashboard
                       </p>
                     </div>
                   </div>

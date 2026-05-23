@@ -15,8 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { RefreshCw, Loader2, Plus, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, Loader2, Plus, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  canSyncWhatsAppTemplates,
+  isThirdPartyWhatsAppProvider,
+  resolveWabaIdForTemplates,
+} from "@/lib/whatsappApiUrl";
 
 export const SyncMetaTemplates = () => {
   const { currentOrganization } = useOrganization();
@@ -26,68 +31,32 @@ export const SyncMetaTemplates = () => {
   const [manualTemplateName, setManualTemplateName] = useState("");
   const [manualTemplateLanguage, setManualTemplateLanguage] = useState("en_US");
 
-  // Sync templates from Meta API
+  const isThirdParty = isThirdPartyWhatsAppProvider(settings?.api_provider);
+  const syncLabel = isThirdParty ? "Sync from Provider" : "Sync from Meta";
+
+  // Sync templates via edge function (uses org third-party or Meta credentials server-side)
   const syncMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id) throw new Error("No organization");
-      if (!settings?.waba_id || !settings?.access_token) {
-        throw new Error("WhatsApp API not configured. Please configure API credentials first.");
-      }
 
-      // Build dynamic API URL based on provider settings
-      const baseUrl = settings.custom_api_url || 'https://graph.facebook.com';
-      const version = settings.api_version || 'v21.0';
+      const { data, error } = await supabase.functions.invoke("sync-whatsapp-templates", {
+        body: { organizationId: currentOrganization.id },
+      });
 
-      // Call Meta/Provider API to fetch templates
-      const response = await fetch(
-        `${baseUrl}/${version}/${settings.waba_id}/message_templates?fields=name,status,category,language,components`,
-        {
-          headers: {
-            Authorization: `Bearer ${settings.access_token}`,
-          },
-        }
-      );
+      if (error) throw new Error(error.message || "Failed to sync templates");
+      if (!data?.success) throw new Error(data?.error || "Failed to sync templates");
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error?.error?.message || "Failed to fetch templates from Meta");
-      }
-
-      const data = await response.json();
-      const templates = data.data || [];
-
-      // Filter only approved templates
-      const approvedTemplates = templates.filter(
-        (t: any) => t.status === "APPROVED"
-      );
-
-      // Upsert templates to database
-      for (const template of approvedTemplates) {
-        await supabase.from("whatsapp_meta_templates").upsert(
-          {
-            organization_id: currentOrganization.id,
-            template_name: template.name,
-            template_category: template.category,
-            template_language: template.language,
-            template_status: template.status,
-            components: template.components,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "organization_id,template_name,template_language",
-          }
-        );
-      }
-
-      return approvedTemplates.length;
+      return data.count as number;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["meta-templates"] });
-      toast.success(`Synced ${count} approved templates from Meta`);
+      const via = isThirdParty ? "your API provider" : "Meta";
+      toast.success(`Synced ${count} approved templates from ${via}`);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Sync error:", error);
-      toast.error(error.message || "Failed to sync templates");
+      const message = error instanceof Error ? error.message : "Failed to sync templates";
+      toast.error(message);
     },
   });
 
@@ -118,88 +87,110 @@ export const SyncMetaTemplates = () => {
       setManualTemplateName("");
       setIsOpen(false);
     },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to add template");
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Failed to add template";
+      toast.error(message);
     },
   });
 
-  const canSync = settings?.waba_id && settings?.access_token;
+  const canSync = canSyncWhatsAppTemplates(settings);
+  const wabaHint = settings
+    ? resolveWabaIdForTemplates(settings)
+    : "";
+
+  const syncDisabledReason = !settings?.access_token?.trim()
+    ? "Configure access token and save settings first"
+    : !wabaHint
+      ? isThirdParty
+        ? "Enter Business ID or WABA ID from your provider, then save"
+        : "Enter WhatsApp Business Account ID (WABA), then save"
+      : isThirdParty && !settings?.custom_api_url?.trim()
+        ? "Enter Custom API URL for your third-party provider, then save"
+        : undefined;
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => syncMutation.mutate()}
-        disabled={syncMutation.isPending || !canSync}
-        title={canSync ? "Sync templates from Meta" : "Configure API credentials first"}
-      >
-        {syncMutation.isPending ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : (
-          <RefreshCw className="h-4 w-4 mr-2" />
-        )}
-        Sync from Meta
-      </Button>
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      {isThirdParty && (
+        <p className="text-xs text-muted-foreground sm:mr-2">
+          Using third-party API
+          {settings?.custom_api_url ? `: ${settings.custom_api_url.replace(/^https?:\/\//i, "").split("/")[0]}` : ""}
+        </p>
+      )}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => syncMutation.mutate()}
+          disabled={syncMutation.isPending || !canSync}
+          title={canSync ? syncLabel : syncDisabledReason}
+        >
+          {syncMutation.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          {syncLabel}
+        </Button>
 
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Manually
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Template Manually</DialogTitle>
-            <DialogDescription>
-              Add an approved Meta template by entering its exact name as shown in Meta Business Manager.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="template_name">Template Name</Label>
-              <Input
-                id="template_name"
-                placeholder="e.g., invoice_notification"
-                value={manualTemplateName}
-                onChange={(e) => setManualTemplateName(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter the exact template name (lowercase, underscores)
-              </p>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="template_language">Language Code</Label>
-              <Input
-                id="template_language"
-                placeholder="e.g., en_US"
-                value={manualTemplateLanguage}
-                onChange={(e) => setManualTemplateLanguage(e.target.value)}
-              />
-            </div>
-          </div>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Manually
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Template Manually</DialogTitle>
+              <DialogDescription>
+                Add an approved template by entering its exact name as shown in your provider or Meta Business Manager.
+              </DialogDescription>
+            </DialogHeader>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => addManualMutation.mutate()}
-              disabled={addManualMutation.isPending || !manualTemplateName.trim()}
-            >
-              {addManualMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle className="h-4 w-4 mr-2" />
-              )}
-              Add Template
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="template_name">Template Name</Label>
+                <Input
+                  id="template_name"
+                  placeholder="e.g., invoice_notification"
+                  value={manualTemplateName}
+                  onChange={(e) => setManualTemplateName(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter the exact template name (lowercase, underscores)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="template_language">Language Code</Label>
+                <Input
+                  id="template_language"
+                  placeholder="e.g., en_US"
+                  value={manualTemplateLanguage}
+                  onChange={(e) => setManualTemplateLanguage(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => addManualMutation.mutate()}
+                disabled={addManualMutation.isPending || !manualTemplateName.trim()}
+              >
+                {addManualMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                )}
+                Add Template
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 };

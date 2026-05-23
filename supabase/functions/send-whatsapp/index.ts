@@ -530,6 +530,8 @@ serve(async (req) => {
       phone_number_id: string;
       access_token: string;
       waba_id?: string | null;
+      business_id?: string | null;
+      api_provider?: string | null;
       custom_api_url?: string | null;
       api_version?: string | null;
     };
@@ -573,6 +575,8 @@ serve(async (req) => {
         phone_number_id: defaultCreds.phone_number_id as string,
         access_token: defaultCreds.access_token as string,
         waba_id: defaultCreds.waba_id as string | null,
+        business_id: defaultCreds.business_id as string | null,
+        api_provider: (defaultCreds.api_provider as string | null) || 'meta_direct',
         custom_api_url: defaultCreds.custom_api_url as string | null,
         api_version: defaultCreds.api_version as string | null,
       };
@@ -594,21 +598,43 @@ serve(async (req) => {
         phone_number_id: orgSettings.phone_number_id,
         access_token: orgSettings.access_token,
         waba_id: orgSettings.waba_id,
+        business_id: orgSettings.business_id,
+        api_provider: orgSettings.api_provider,
         custom_api_url: orgSettings.custom_api_url,
         api_version: orgSettings.api_version,
       };
     }
 
+    const resolveApiBaseUrl = (): string => {
+      const provider = apiCredentials.api_provider || 'meta_direct';
+      const custom = String(apiCredentials.custom_api_url ?? '').trim();
+      if (provider === 'third_party') {
+        if (!custom) return 'https://graph.facebook.com';
+        let normalized = custom;
+        if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
+        return normalized.replace(/\/+$/, '');
+      }
+      return custom ? custom.replace(/\/+$/, '') : 'https://graph.facebook.com';
+    };
+
+    const resolveWabaId = (): string | null => {
+      const waba = String(apiCredentials.waba_id ?? '').trim();
+      const businessId = String(apiCredentials.business_id ?? '').trim();
+      return waba || businessId || null;
+    };
+
     // Create a merged settings object for template fetching
-    // Build dynamic API base URL based on provider settings
-    const apiBaseUrl = apiCredentials.custom_api_url || 'https://graph.facebook.com';
+    const apiBaseUrl = resolveApiBaseUrl();
     const apiVersion = apiCredentials.api_version || 'v21.0';
+    const resolvedWabaId = resolveWabaId();
     
     const settings = {
       ...orgSettings,
       phone_number_id: apiCredentials.phone_number_id,
       access_token: apiCredentials.access_token,
-      waba_id: apiCredentials.waba_id,
+      waba_id: resolvedWabaId,
+      business_id: apiCredentials.business_id,
+      api_provider: apiCredentials.api_provider,
       custom_api_url: apiCredentials.custom_api_url,
       api_version: apiCredentials.api_version,
     };
@@ -1070,7 +1096,7 @@ serve(async (req) => {
 
         const namedParamNames = await fetchNamedTemplateParamNames({
           accessToken: settings.access_token,
-          wabaId: settings.waba_id,
+          wabaId: resolvedWabaId,
           templateName: cleanedTemplateName,
           apiBaseUrl,
           apiVersion,
