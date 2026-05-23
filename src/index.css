@@ -1094,8 +1094,14 @@ body.pos-large-ui .pos-desktop-readable table td {
 
 /* POS Sales — fixed shell like offline billing (no jump on Last/Previous/Edit) */
 .pos-sales-workspace {
+  flex: 1 1 0%;
   height: 100%;
   min-height: 0;
+}
+.pos-sales-main {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
 }
 .pos-sales-toolbar {
   flex-shrink: 0;
@@ -1104,6 +1110,7 @@ body.pos-large-ui .pos-desktop-readable table td {
 }
 .pos-sales-footer {
   flex-shrink: 0;
+  margin-top: auto;
 }
 .pos-sales-shortcuts {
   flex-shrink: 0;
