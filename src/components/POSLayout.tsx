@@ -342,7 +342,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
           "lg:p-0 lg:pb-0",
         )}
       >
-        {children}
+        <div className="flex min-h-0 flex-1 flex-col h-full w-full overflow-hidden">
+          {children}
+        </div>
       </main>
 
       <MobileBottomNav />

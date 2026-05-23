@@ -5023,8 +5023,9 @@ export default function POSSales() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
+            </div>
+          </div>
         </div>
-      </div>
 
         {/* Items table — only this region scrolls; footer stays viewport-bottom */}
         <div className="pos-sales-body px-1 md:px-2">
@@ -5337,7 +5338,7 @@ export default function POSSales() {
         </div>
 
         {/* Totals + shortcuts — locked to viewport bottom (never shifts with line items) */}
-        <footer className="pos-sales-footer w-full flex flex-col">
+        <div className="pos-sales-footer w-full flex flex-col">
         <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
           <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
@@ -5720,7 +5721,7 @@ export default function POSSales() {
             <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
         </div>
-        </footer>
+        </div>
 
         {/* Print Dialog */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
