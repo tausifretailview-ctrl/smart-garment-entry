@@ -15,3 +15,14 @@ export const mobileMainContentClass =
 
 export const mobileFullscreenMainClass =
   "flex-1 overflow-hidden relative z-[1] min-h-0";
+
+/** Inclusive local-day bounds for `sales.sale_date` (timestamptz-safe). */
+export function mobileSalesDateBounds(startYmd: string, endYmd: string) {
+  return {
+    startIso: `${startYmd}T00:00:00`,
+    endIso: `${endYmd}T23:59:59.999`,
+  };
+}
+
+/** Sale types shown on mobile home (ERP invoice + POS). */
+export const MOBILE_HOME_SALE_TYPES = ["invoice", "pos"] as const;

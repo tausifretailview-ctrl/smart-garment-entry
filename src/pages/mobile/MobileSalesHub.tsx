@@ -11,6 +11,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
+import { MOBILE_HOME_SALE_TYPES, mobileSalesDateBounds } from "@/lib/mobileShell";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { Badge } from "@/components/ui/badge";
@@ -58,8 +59,51 @@ export default function MobileSalesHub() {
   };
 
   const { start, end } = getDateRange();
+  const { startIso, endIso } = mobileSalesDateBounds(start, end);
 
-  const { data: salesData, isLoading } = useQuery({
+  /** Combined ERP + POS totals (same logic as OwnerDashboard — full day range, not list slice). */
+  const { data: salesSummary, isLoading: summaryLoading } = useQuery({
+    queryKey: ["mobile-sales-summary", currentOrganization?.id, start, end],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("net_amount, sale_type")
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .eq("is_cancelled", false)
+        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso);
+      if (error) throw error;
+      const rows = data || [];
+      let invoiceTotal = 0;
+      let posTotal = 0;
+      let invoiceCount = 0;
+      let posCount = 0;
+      for (const row of rows) {
+        const amt = row.net_amount || 0;
+        if (row.sale_type === "pos") {
+          posTotal += amt;
+          posCount += 1;
+        } else {
+          invoiceTotal += amt;
+          invoiceCount += 1;
+        }
+      }
+      return {
+        total: invoiceTotal + posTotal,
+        count: rows.length,
+        invoiceTotal,
+        posTotal,
+        invoiceCount,
+        posCount,
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: STALE_LIVE,
+  });
+
+  const { data: salesData, isLoading: listLoading } = useQuery({
     queryKey: ["mobile-sales-list", currentOrganization?.id, start, end, search],
     queryFn: async () => {
       let q = supabase
@@ -67,9 +111,10 @@ export default function MobileSalesHub() {
         .select("id, sale_number, sale_date, created_at, customer_name, customer_id, net_amount, paid_amount, payment_status, sale_type, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, payment_method, salesman, notes, customer_address, customer_phone, customers(gst_number)")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
-        .in("sale_type", ["invoice", "pos"])
-        .gte("sale_date", start)
-        .lte("sale_date", end)
+        .eq("is_cancelled", false)
+        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso)
         .order("created_at", { ascending: false })
         .limit(50);
       if (search.trim()) {
@@ -83,8 +128,11 @@ export default function MobileSalesHub() {
     staleTime: STALE_LIVE,
   });
 
-  const totalSales = salesData?.reduce((s, i) => s + (i.net_amount || 0), 0) || 0;
-  const totalCount = salesData?.length || 0;
+  const isLoading = summaryLoading || listLoading;
+  const totalSales = salesSummary?.total ?? 0;
+  const totalCount = salesSummary?.count ?? 0;
+  const posTotal = salesSummary?.posTotal ?? 0;
+  const invoiceTotal = salesSummary?.invoiceTotal ?? 0;
 
   const statusColor = (status: string) => {
     if (status === "paid") return "bg-emerald-100 text-emerald-700 border-emerald-200";
@@ -292,31 +340,59 @@ export default function MobileSalesHub() {
         </div>
       </div>
 
-      {/* Stats strip */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-card border-b border-border/40">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
-            <span className="text-xs text-muted-foreground">Total Sales</span>
+      {/* Stats strip — ERP + POS combined (matches owner home dashboard) */}
+      <div className="px-4 py-3 bg-white dark:bg-card border-b border-border/40 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-xs text-muted-foreground">Total Sales</span>
+            </div>
+            {summaryLoading ? (
+              <Skeleton className="h-5 w-20" />
+            ) : (
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                ₹{totalSales >= 100000 ? `${(totalSales / 100000).toFixed(1)}L` : totalSales.toLocaleString("en-IN")}
+              </span>
+            )}
           </div>
-          <span className="text-sm font-bold tabular-nums text-foreground">
-            ₹{totalSales >= 100000 ? `${(totalSales / 100000).toFixed(1)}L` : totalSales.toLocaleString("en-IN")}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <FileText className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-xs text-muted-foreground">Invoices</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <FileText className="h-3.5 w-3.5 text-blue-500" />
+              <span className="text-xs text-muted-foreground">Bills</span>
+            </div>
+            {summaryLoading ? (
+              <Skeleton className="h-5 w-8" />
+            ) : (
+              <span className="text-sm font-bold tabular-nums text-foreground">{totalCount}</span>
+            )}
           </div>
-          <span className="text-sm font-bold tabular-nums text-foreground">{totalCount}</span>
         </div>
+        {!summaryLoading && totalCount > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+            <span>
+              POS{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                ₹{posTotal >= 100000 ? `${(posTotal / 100000).toFixed(1)}L` : posTotal.toLocaleString("en-IN")}
+              </span>
+              {salesSummary?.posCount ? ` (${salesSummary.posCount})` : ""}
+            </span>
+            <span>
+              Invoice{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                ₹{invoiceTotal >= 100000 ? `${(invoiceTotal / 100000).toFixed(1)}L` : invoiceTotal.toLocaleString("en-IN")}
+              </span>
+              {salesSummary?.invoiceCount ? ` (${salesSummary.invoiceCount})` : ""}
+            </span>
+          </div>
+        )}
       </div>
 
       <MobileModuleNavStrip className="pt-2" />
 
       {/* Invoice List */}
       <div className="px-4 py-3 space-y-2.5">
-        {isLoading ? (
+        {listLoading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="bg-white dark:bg-card rounded-2xl p-4 border border-border/40 shadow-sm space-y-2">
               <Skeleton className="h-4 w-32" />

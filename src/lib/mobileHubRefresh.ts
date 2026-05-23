@@ -15,7 +15,10 @@ export async function invalidateOwnerDashboardQueries(qc: QueryClient) {
 }
 
 export async function invalidateMobileSalesHubQueries(qc: QueryClient) {
-  await qc.invalidateQueries({ queryKey: ["mobile-sales-list"] });
+  await Promise.all([
+    qc.invalidateQueries({ queryKey: ["mobile-sales-list"] }),
+    qc.invalidateQueries({ queryKey: ["mobile-sales-summary"] }),
+  ]);
 }
 
 export async function invalidateMobileAccountsHubQueries(qc: QueryClient) {
