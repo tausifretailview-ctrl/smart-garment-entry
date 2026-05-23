@@ -4334,7 +4334,7 @@ export default function POSSales() {
 
   // Desktop POS Layout
   return (
-    <div className="pos-sales-workspace flex-1 min-h-0 h-0 w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable">
+    <div className="pos-sales-workspace flex-1 min-h-0 h-full w-full bg-background flex items-stretch overflow-hidden pos-desktop-readable">
       {/* Left Action Button Bar */}
       <div className="w-[88px] self-stretch min-h-0 bg-slate-50 dark:bg-slate-900 border-r border-border/60 flex flex-col gap-1.5 p-1.5 z-30 relative overflow-y-auto shrink-0">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
@@ -4503,8 +4503,8 @@ export default function POSSales() {
         </div>
       </div>
 
-      {/* Main column: grid locks toolbar / body / footer to viewport height */}
-      <div className="pos-sales-main flex-1 min-h-0 h-0 overflow-hidden">
+      {/* Main column — toolbar/body/footer absolutely positioned (same pattern as Sales Invoice) */}
+      <div className="pos-sales-main flex-1 min-h-0 h-full w-0 overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
         <div className="pos-sales-toolbar z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2.5">
           <div className="w-full h-full pl-2">
@@ -5026,9 +5026,9 @@ export default function POSSales() {
         </div>
       </div>
 
-        {/* Items Table - Scrollable Section (grid row 2 — grows, scrolls inside) */}
-        <div className="pos-sales-body overflow-hidden min-h-0 flex flex-col px-1 md:px-2 mt-2">
-          <div className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
+        {/* Items table — only this region scrolls; footer stays viewport-bottom */}
+        <div className="pos-sales-body px-1 md:px-2">
+          <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
               <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 72px 60px 100px 72px 86px 110px 85px 120px' }}>
@@ -5245,107 +5245,99 @@ export default function POSSales() {
                   );
                 })()}
             </div>
+          </Card>
 
-                {/* Notes + discount stay below line-item scroll so the cart list can use full height */}
-                <div className="shrink-0 border-t border-border/60 bg-card">
-                {/* Notes Section - Always visible after items */}
-                <div className="p-3 bg-muted/30">
-                  <div className="flex items-center gap-3">
-                    <Label className="text-sm font-medium whitespace-nowrap">
-                      <FileText className="h-4 w-4 inline mr-1" />
-                      Note:
-                    </Label>
-                    <Input
-                      placeholder="Add note (e.g., Pico Fall Details, Alterations, etc.)"
-                      value={saleNotes}
-                      onChange={(e) => setSaleNotes(e.target.value)}
-                      className="flex-1 h-9"
-                    />
-                  </div>
-                </div>
-                
-                {/* Customer Discount & Points Section - After Notes */}
-                {customerId && (() => {
-                  const customer = customers?.find((c: any) => c.id === customerId);
-                  const customerMasterDiscount = customer?.discount_percent || 0;
-                  const hasDiscountInfo = (hasBrandDiscounts && brandDiscounts.length > 0) || customerMasterDiscount > 0;
-                  const showPointsSection = isPointsEnabled;
-                  
-                  if (!hasDiscountInfo && !showPointsSection) return null;
-                  
-                  return (
-                    <div className="p-3 border-t border-border/60 bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
-                      {/* Discount Indicator */}
-                      {hasBrandDiscounts && brandDiscounts.length > 0 ? (
-                        <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
-                          <span className="text-sm text-muted-foreground font-medium">Brand Discounts:</span>
-                          {brandDiscounts.slice(0, 5).map((bd, idx) => (
-                            <span 
-                              key={idx} 
-                              className="text-sm bg-primary/10 text-primary px-2 py-1 rounded font-semibold"
-                            >
-                              {bd.brand}: {bd.discount_percent}%
-                            </span>
-                          ))}
-                          {brandDiscounts.length > 5 && (
-                            <span className="text-sm text-muted-foreground">+{brandDiscounts.length - 5} more</span>
-                          )}
-                        </div>
-                      ) : customerMasterDiscount > 0 ? (
-                        <div className="flex items-center gap-2 bg-green-500/10 px-3 py-2 rounded-lg">
-                          <span className="text-sm text-muted-foreground font-medium">Master Discount:</span>
-                          <span className="text-sm bg-green-500/20 text-green-600 px-2 py-1 rounded font-semibold">
-                            {customerMasterDiscount}%
+          {/* Notes / discounts — sibling of table card (does not push footer; scrolls if tall) */}
+          <div className="pos-sales-notes shrink-0 border-t border-border/60 bg-card">
+            <div className="p-2 bg-muted/30">
+              <div className="flex items-center gap-3">
+                <Label className="text-sm font-medium whitespace-nowrap">
+                  <FileText className="h-4 w-4 inline mr-1" />
+                  Note:
+                </Label>
+                <Input
+                  placeholder="Add note (e.g., Pico Fall Details, Alterations, etc.)"
+                  value={saleNotes}
+                  onChange={(e) => setSaleNotes(e.target.value)}
+                  className="flex-1 h-8"
+                />
+              </div>
+            </div>
+            {customerId && (() => {
+              const customer = customers?.find((c: any) => c.id === customerId);
+              const customerMasterDiscount = customer?.discount_percent || 0;
+              const hasDiscountInfo = (hasBrandDiscounts && brandDiscounts.length > 0) || customerMasterDiscount > 0;
+              const showPointsSection = isPointsEnabled;
+
+              if (!hasDiscountInfo && !showPointsSection) return null;
+
+              return (
+                <div className="p-2 border-t border-border/60 bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4 flex-wrap">
+                  {hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                    <div className="flex items-center gap-2 bg-primary/5 px-3 py-1.5 rounded-lg">
+                      <span className="text-sm text-muted-foreground font-medium">Brand Discounts:</span>
+                      {brandDiscounts.slice(0, 5).map((bd, idx) => (
+                        <span
+                          key={idx}
+                          className="text-sm bg-primary/10 text-primary px-2 py-1 rounded font-semibold"
+                        >
+                          {bd.brand}: {bd.discount_percent}%
+                        </span>
+                      ))}
+                      {brandDiscounts.length > 5 && (
+                        <span className="text-sm text-muted-foreground">+{brandDiscounts.length - 5} more</span>
+                      )}
+                    </div>
+                  ) : customerMasterDiscount > 0 ? (
+                    <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-lg">
+                      <span className="text-sm text-muted-foreground font-medium">Master Discount:</span>
+                      <span className="text-sm bg-green-500/20 text-green-600 px-2 py-1 rounded font-semibold">
+                        {customerMasterDiscount}%
+                      </span>
+                    </div>
+                  ) : null}
+                  {showPointsSection && (
+                    <div className="flex items-center gap-3 ml-auto flex-wrap">
+                      <div className="flex items-center gap-2 bg-amber-500 text-white px-3 py-1.5 rounded-lg">
+                        <Coins className="h-4 w-4" />
+                        <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
+                        {items.length > 0 && (
+                          <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
+                        )}
+                      </div>
+                      {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
+                        <div className="flex items-center bg-green-600 px-3 py-1.5 gap-2 rounded-lg">
+                          <span className="text-white text-sm font-medium">Redeem:</span>
+                          <Input
+                            type="number"
+                            className="w-16 h-8 bg-white text-green-700 text-center text-sm font-semibold rounded border-0"
+                            value={pointsToRedeem || ""}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 0;
+                              const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
+                              setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
+                            }}
+                            min={0}
+                            max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
+                            disabled={!customerId}
+                          />
+                          <span className="text-white text-sm font-medium whitespace-nowrap">
+                            pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
                           </span>
-                        </div>
-                      ) : null}
-                      
-                      {/* Points Display & Redeem */}
-                      {showPointsSection && (
-                        <div className="flex items-center gap-3 ml-auto">
-                          <div className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg">
-                            <Coins className="h-4 w-4" />
-                            <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
-                            {items.length > 0 && (
-                              <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
-                            )}
-                          </div>
-                          
-                          {/* Redeem Section */}
-                          {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-                            <div className="flex items-center bg-green-600 px-3 py-2 gap-2 rounded-lg">
-                              <span className="text-white text-sm font-medium">Redeem:</span>
-                              <Input 
-                                type="number"
-                                className="w-16 h-8 bg-white text-green-700 text-center text-sm font-semibold rounded border-0" 
-                                value={pointsToRedeem || ""}
-                                placeholder="0"
-                                onChange={(e) => {
-                                  const value = parseInt(e.target.value) || 0;
-                                  const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
-                                  setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                                }}
-                                min={0}
-                                max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
-                                disabled={!customerId}
-                              />
-                              <span className="text-white text-sm font-medium whitespace-nowrap">
-                                pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
-                              </span>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
-                  );
-                })()}
-            </div>
-          </Card>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
           </div>
         </div>
 
-        {/* Totals + shortcuts — grid row 3, viewport bottom */}
-        <div className="pos-sales-footer w-full flex flex-col z-30">
+        {/* Totals + shortcuts — locked to viewport bottom (never shifts with line items) */}
+        <footer className="pos-sales-footer w-full flex flex-col">
         <div className="w-full bg-gradient-to-r from-cyan-600 to-teal-600 text-white border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
           {/* Top Info Bar — Qty, Savings, Charges, Discount with vertical dividers */}
           <div className="flex min-h-[52px] flex-nowrap items-center px-6 py-3 gap-0 border-b border-white/10 overflow-x-auto">
@@ -5728,8 +5720,7 @@ export default function POSSales() {
             <span className="text-[13px] font-extrabold text-slate-300 leading-tight">Print</span>
           </div>
         </div>
-        </div>
-        </div>
+        </footer>
 
         {/* Print Dialog */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>

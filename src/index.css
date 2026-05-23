@@ -1092,50 +1092,61 @@ body.pos-large-ui .pos-desktop-readable table td {
   font-size: 13px !important;
 }
 
-/* POS Sales — fixed shell like offline billing (no jump on Last/Previous/Edit) */
+/* POS Sales — fixed shell like Sales Invoice (footer never moves when lines are added) */
 .pos-sales-workspace {
   flex: 1 1 0%;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
 }
 .pos-sales-main {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  position: relative;
   flex: 1 1 0%;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
+  --pos-toolbar-h: 100px;
+  --pos-footer-h: 10.75rem;
 }
 .pos-sales-toolbar {
-  grid-row: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  height: var(--pos-toolbar-h);
+  min-height: var(--pos-toolbar-h);
+  max-height: var(--pos-toolbar-h);
   flex-shrink: 0;
-  min-height: 100px;
-  max-height: 100px;
 }
 .pos-sales-body {
-  grid-row: 2;
+  position: absolute;
+  top: var(--pos-toolbar-h);
+  left: 0;
+  right: 0;
+  bottom: var(--pos-footer-h);
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .pos-sales-footer {
-  grid-row: 3;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
   flex-shrink: 0;
-  z-index: 30;
+}
+.pos-sales-notes {
+  flex-shrink: 0;
+  max-height: 5.5rem;
+  overflow-y: auto;
 }
 .pos-sales-shortcuts {
   flex-shrink: 0;
-}
-
-/* Desktop: explicit viewport height (header + tab bar) so footer stays at screen bottom */
-@media (min-width: 1024px) {
-  .pos-sales-workspace {
-    height: calc(100dvh - 6.75rem);
-    max-height: calc(100dvh - 6.75rem);
-    flex: none;
-  }
-  .pos-sales-main {
-    height: 100%;
-    max-height: 100%;
-  }
 }
 
 /* Main dashboard — fixed shell (no layout jump on load / resize) */
