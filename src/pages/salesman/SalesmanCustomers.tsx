@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
-import { computeCustomerOutstanding } from "@/utils/customerBalanceUtils";
+import {
+  buildOrgCustomerBalanceBatch,
+  computeCustomerBalanceCore,
+  type CustomerBalanceCoreVoucher,
+} from "@/utils/customerBalanceCore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,6 +25,8 @@ interface CustomerWithBalance {
   totalPaid: number;
   balance: number;
   lastOrderDate: string | null;
+  lastPaymentDate: string | null;
+  daysSinceLastPayment: number;
 }
 
 const SalesmanCustomers = () => {
@@ -75,10 +81,12 @@ const SalesmanCustomers = () => {
         .is("deleted_at", null)
         .not("payment_status", "in", '("cancelled","hold")');
 
-      // Receipt vouchers (full rows for CN / advance split)
+      // Receipt vouchers — include dates for last-payment sorting
       const { data: receiptVouchers } = await supabase
         .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount, payment_method, description")
+        .select(
+          "reference_id, reference_type, total_amount, payment_method, description, voucher_date, created_at, voucher_type, discount_amount"
+        )
         .eq("organization_id", orgId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
@@ -89,18 +97,6 @@ const SalesmanCustomers = () => {
         .eq("organization_id", orgId)
         .is("deleted_at", null);
 
-      const returnsByCustomer = new Map<string, { net_amount: number | null; credit_status: string | null; linked_sale_id: string | null }[]>();
-      (allSaleReturns || []).forEach((sr: any) => {
-        if (!sr.customer_id) return;
-        if (!returnsByCustomer.has(sr.customer_id)) returnsByCustomer.set(sr.customer_id, []);
-        returnsByCustomer.get(sr.customer_id)!.push({
-          net_amount: sr.net_amount,
-          credit_status: sr.credit_status,
-          linked_sale_id: sr.linked_sale_id,
-        });
-      });
-
-      // Fetch refund payments (outgoing to customer)
       const { data: refundVouchers } = await supabase
         .from("voucher_entries")
         .select("reference_id, total_amount")
@@ -109,7 +105,6 @@ const SalesmanCustomers = () => {
         .eq("reference_type", "customer")
         .is("deleted_at", null);
 
-      // Fetch balance adjustments
       const { data: adjustments } = await supabase
         .from("customer_balance_adjustments")
         .select("customer_id, outstanding_difference")
@@ -137,72 +132,135 @@ const SalesmanCustomers = () => {
         });
       }
 
-      const advancesByCustomer = new Map<string, { id: string; amount: number | null; used_amount: number | null }[]>();
-      (advances || []).forEach((a: any) => {
-        if (!a.customer_id) return;
-        if (!advancesByCustomer.has(a.customer_id)) advancesByCustomer.set(a.customer_id, []);
-        advancesByCustomer.get(a.customer_id)!.push({
-          id: a.id,
+      const customerIds = new Set((customersData || []).map((c: { id: string }) => c.id));
+
+      type VoucherWithDate = CustomerBalanceCoreVoucher & {
+        voucher_date?: string | null;
+        created_at?: string | null;
+      };
+
+      const voucherRows: VoucherWithDate[] = (receiptVouchers || []).map((v: any) => ({
+        voucher_type: "receipt",
+        reference_type: v.reference_type,
+        reference_id: v.reference_id,
+        total_amount: v.total_amount,
+        discount_amount: v.discount_amount,
+        payment_method: v.payment_method,
+        description: v.description,
+        voucher_date: v.voucher_date,
+        created_at: v.created_at,
+      }));
+
+      const paymentVoucherRows: CustomerBalanceCoreVoucher[] = (refundVouchers || []).map(
+        (v: any) => ({
+          voucher_type: "payment",
+          reference_type: "customer",
+          reference_id: v.reference_id,
+          total_amount: v.total_amount,
+        })
+      );
+
+      const salesForBatch = (salesData || [])
+        .filter((s: any) => s.customer_id && s.id)
+        .map((s: any) => ({
+          id: s.id,
+          customer_id: s.customer_id,
+          net_amount: s.net_amount,
+          paid_amount: s.paid_amount,
+          sale_return_adjust: s.sale_return_adjust,
+          payment_status: s.payment_status,
+        }));
+
+      const batch = buildOrgCustomerBalanceBatch({
+        sales: salesForBatch,
+        vouchers: [...voucherRows, ...paymentVoucherRows],
+        advances: (advances || []).map((a: any) => ({
+          customer_id: a.customer_id,
           amount: a.amount,
           used_amount: a.used_amount,
-        });
+        })),
+        refunds: (advances || []).flatMap((a: any) => {
+          const amt = refundByAdvanceId.get(a.id) || 0;
+          return amt > 0 && a.customer_id
+            ? [{ customer_id: a.customer_id, refund_amount: amt }]
+            : [];
+        }),
+        adjustments: (adjustments || []).map((a: any) => ({
+          customer_id: a.customer_id,
+          outstanding_difference: a.outstanding_difference,
+        })),
+        saleReturns: (allSaleReturns || []).map((sr: any) => ({
+          customer_id: sr.customer_id,
+          net_amount: sr.net_amount,
+          credit_status: sr.credit_status,
+          linked_sale_id: sr.linked_sale_id,
+        })),
+        customerIds,
       });
 
-      // Build per-customer maps
-      const adjMap = new Map<string, number>();
-      (adjustments || []).forEach((a: any) => {
-        adjMap.set(a.customer_id, (adjMap.get(a.customer_id) || 0) + (a.outstanding_difference || 0));
-      });
-
-      const refundMap = new Map<string, number>();
-      (refundVouchers || []).forEach((v: any) => {
-        if (v.reference_id) refundMap.set(v.reference_id, (refundMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-      });
-
-      // Group sales and track last order date per customer
-      const customerSales: Record<string, { sales: any[]; lastOrderDate: string | null }> = {};
+      const lastOrderByCustomer = new Map<string, string | null>();
       (salesData || []).forEach((sale: any) => {
-        if (sale.customer_id) {
-          if (!customerSales[sale.customer_id]) customerSales[sale.customer_id] = { sales: [], lastOrderDate: null };
-          customerSales[sale.customer_id].sales.push(sale);
-          if (!customerSales[sale.customer_id].lastOrderDate || sale.sale_date > customerSales[sale.customer_id].lastOrderDate!) {
-            customerSales[sale.customer_id].lastOrderDate = sale.sale_date;
-          }
+        if (!sale.customer_id || !sale.sale_date) return;
+        const prev = lastOrderByCustomer.get(sale.customer_id);
+        if (!prev || sale.sale_date > prev) {
+          lastOrderByCustomer.set(sale.customer_id, sale.sale_date);
         }
       });
 
-      const customersWithBalance: CustomerWithBalance[] = (customersData || []).map((c: any) => {
-        const customerData = customerSales[c.id] || { sales: [], lastOrderDate: null };
-        const openingBalance = c.opening_balance || 0;
-        const custAdvances = advancesByCustomer.get(c.id) || [];
-        const advanceRefundTotal = custAdvances.reduce(
-          (s, adv) => s + (refundByAdvanceId.get(adv.id) || 0),
-          0
-        );
+      const resolveLastPaymentDate = (customerId: string): string | null => {
+        const rows = (batch.vouchersByCustomerId.get(customerId) || []) as VoucherWithDate[];
+        let latest: string | null = null;
+        for (const v of rows) {
+          if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
+          const d = v.voucher_date || v.created_at;
+          if (!d) continue;
+          if (!latest || d > latest) latest = d;
+        }
+        return latest;
+      };
 
-        const balanceResult = computeCustomerOutstanding({
+      const daysSincePayment = (paymentDate: string | null) => {
+        if (!paymentDate) return 99999;
+        return Math.floor(
+          (Date.now() - new Date(paymentDate).getTime()) / (1000 * 60 * 60 * 24)
+        );
+      };
+
+      const customersWithBalance: CustomerWithBalance[] = (customersData || []).map((c: any) => {
+        const openingBalance = Number(c.opening_balance || 0);
+        const core = computeCustomerBalanceCore({
           openingBalance,
           customerId: c.id,
-          sales: customerData.sales,
-          vouchers: (receiptVouchers || []) as any[],
-          adjustmentTotal: adjMap.get(c.id) || 0,
-          advances: custAdvances,
-          advanceRefundTotal,
-          saleReturns: returnsByCustomer.get(c.id) || [],
-          refundsPaidTotal: refundMap.get(c.id) || 0,
+          sales: batch.salesByCustomerId.get(c.id) || [],
+          voucherEntries: batch.vouchersByCustomerId.get(c.id) || [],
+          customerAdvances: batch.advancesByCustomerId.get(c.id) || [],
+          advanceRefunds: batch.refundsByCustomerId.get(c.id) || [],
+          adjustmentTotal: batch.adjustmentsByCustomerId.get(c.id) || 0,
+          saleReturns: batch.saleReturnsByCustomerId.get(c.id) || [],
         });
+
+        const lastPaymentDate = resolveLastPaymentDate(c.id);
+        const daysSinceLastPayment = daysSincePayment(lastPaymentDate);
 
         return {
           ...c,
           opening_balance: openingBalance,
-          totalSales: balanceResult.totalSales,
-          totalPaid: balanceResult.totalPaid,
-          balance: balanceResult.balance,
-          lastOrderDate: customerData.lastOrderDate,
+          totalSales: core.totalSalesNet,
+          totalPaid: core.totalRealPayments,
+          balance: core.balance,
+          lastOrderDate: lastOrderByCustomer.get(c.id) ?? null,
+          lastPaymentDate,
+          daysSinceLastPayment,
         };
       });
 
-      customersWithBalance.sort((a, b) => b.balance - a.balance);
+      // Longest without payment first (collection priority), then highest balance due
+      customersWithBalance.sort((a, b) => {
+        if (b.daysSinceLastPayment !== a.daysSinceLastPayment) {
+          return b.daysSinceLastPayment - a.daysSinceLastPayment;
+        }
+        return b.balance - a.balance;
+      });
       setCustomers(customersWithBalance);
       setFilteredCustomers(customersWithBalance);
     } catch (error) {
@@ -224,8 +282,8 @@ const SalesmanCustomers = () => {
     return "bg-red-500/10 text-red-600";
   };
 
-  const formatDaysAgo = (dateStr: string | null) => {
-    if (!dateStr) return "No orders";
+  const formatDaysAgo = (dateStr: string | null, emptyLabel = "Never") => {
+    if (!dateStr) return emptyLabel;
     const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
     if (days === 0) return "Today";
     if (days === 1) return "Yesterday";
@@ -297,9 +355,27 @@ const SalesmanCustomers = () => {
                 </Badge>
               </div>
 
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                <span>Last Order: {formatDaysAgo(customer.lastOrderDate)}</span>
-                <span>Total: ₹{customer.totalSales.toLocaleString("en-IN")}</span>
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={cn(
+                      customer.balance > 0 &&
+                        customer.daysSinceLastPayment >= 60 &&
+                        "text-amber-700 font-medium"
+                    )}
+                  >
+                    Last Payment: {formatDaysAgo(customer.lastPaymentDate, "No payment")}
+                  </span>
+                  <span className="shrink-0">
+                    Due: ₹{Math.max(0, customer.balance).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span>Last Order: {formatDaysAgo(customer.lastOrderDate, "No orders")}</span>
+                  <span className="shrink-0">
+                    Sales: ₹{customer.totalSales.toLocaleString("en-IN")}
+                  </span>
+                </div>
               </div>
 
               <div className="flex gap-2">
