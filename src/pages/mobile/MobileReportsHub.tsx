@@ -40,6 +40,10 @@ interface ReportCategory {
 export default function MobileReportsHub() {
   const { orgNavigate } = useOrgNavigation();
   const [selectedPeriod, setSelectedPeriod] = useState<string>("today");
+  const queryClient = useQueryClient();
+  const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
+    useCallback(() => invalidateActiveHubQueries(queryClient), [queryClient])
+  );
 
   // Build path with date filter params
   const getFilteredPath = (basePath: string) => {
