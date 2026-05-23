@@ -103,7 +103,6 @@ export async function createReceiptVoucher(
     discount_amount: params.discountAmount ?? 0,
     payment_method: params.paymentMethod,
     description: params.description,
-    shop_name: params.shopName ?? null,
   };
   if (params.discountReason != null) {
     insertRow.discount_reason = params.discountReason;
