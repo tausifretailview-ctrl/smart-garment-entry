@@ -2797,7 +2797,7 @@ const POSDashboard = () => {
                                   // Only show a CN amount when a real credit note exists.
                                   // Negative net_amount alone is NOT a credit note — it may be
                                   // an unsettled cash refund (S/R Adj exchange) which is
-                                  // surfaced in the CN-status column as "Refund Pending".
+                                  // surfaced in the CN-status column as "Refund".
                                   const cnAmt = sale.credit_note_amount || sale.credit_amount || 0;
                                   if (cnAmt > 0 || sale.credit_note_id) {
                                     return (
@@ -2818,8 +2818,8 @@ const POSDashboard = () => {
                                   // Negative net_amount with no CN and no refund => money owed back to customer.
                                   if (!hasRealCN && (sale.net_amount || 0) < 0 && !refundDone) {
                                     return (
-                                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-1.5 py-0 font-bold" title={`Customer is owed ₹${Math.round(Math.abs(sale.net_amount)).toLocaleString('en-IN')} — refund not processed`}>
-                                        Refund Pending
+                                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-1.5 py-0 font-bold" title={`Customer is owed ₹${Math.round(Math.abs(sale.net_amount)).toLocaleString('en-IN')} — refund due`}>
+                                        Refund
                                       </Badge>
                                     );
                                   }
