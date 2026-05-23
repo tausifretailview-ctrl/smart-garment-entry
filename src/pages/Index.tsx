@@ -31,7 +31,6 @@ import {
   TrendingDown,
   Minus,
   Megaphone,
-  BarChart3,
   Calculator,
   Layers,
 } from "lucide-react";
@@ -75,6 +74,8 @@ const AnimatedMetricCard = ({
   onClick,
   tooltip,
   isCurrency = false,
+  placeholder = false,
+  loading = false,
 }: {
   title: string;
   value: number;
@@ -83,8 +84,14 @@ const AnimatedMetricCard = ({
   onClick?: () => void;
   tooltip?: string;
   isCurrency?: boolean;
+  placeholder?: boolean;
+  loading?: boolean;
 }) => {
-  const displayValue = isCurrency ? formatCurrency(value) : value.toLocaleString("en-IN");
+  const displayValue = placeholder
+    ? "—"
+    : isCurrency
+      ? formatCurrency(value)
+      : value.toLocaleString("en-IN");
 
   // Map accent colors to semantic left-border classes
   const getAccentBorder = (color: string) => {
@@ -113,28 +120,46 @@ const AnimatedMetricCard = ({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group" onClick={onClick}>
+        <div className="group dashboard-metric-card" onClick={placeholder ? undefined : onClick}>
           <Card
             className={cn(
-              "bg-card relative overflow-hidden border border-border cursor-pointer",
-              "shadow-sm hover:shadow-md transition-shadow duration-150",
-              "border-l-[3px]",
-              accentBorder
+              "bg-card relative overflow-hidden border border-border dashboard-metric-card-inner",
+              "shadow-sm border-l-[3px] min-h-[88px]",
+              accentBorder,
+              placeholder
+                ? "opacity-90 cursor-default"
+                : "cursor-pointer hover:shadow-md transition-shadow duration-150"
             )}
           >
-            <CardContent className="p-4 flex items-start justify-between gap-2">
+            <CardContent className="p-4 flex items-start justify-between gap-2 h-full">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground truncate">
                   {title}
                 </p>
-                <p className="text-xl font-semibold text-foreground tabular-nums font-mono mt-1 truncate">
-                  {displayValue}
+                <p
+                  className={cn(
+                    "text-xl font-semibold tabular-nums font-mono mt-1 truncate min-h-[28px] flex items-center",
+                    placeholder ? "text-muted-foreground/50" : "text-foreground"
+                  )}
+                >
+                  {loading && !placeholder ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-primary/70" />
+                  ) : (
+                    displayValue
+                  )}
                 </p>
                 <span className="text-[10px] text-muted-foreground mt-0.5 block">
                   {isCurrency ? "Amount" : "Count"}
                 </span>
               </div>
-              <Icon className="h-4 w-4 text-muted-foreground/60 flex-shrink-0 mt-0.5 group-hover:text-foreground transition-colors" />
+              <Icon
+                className={cn(
+                  "h-4 w-4 flex-shrink-0 mt-0.5",
+                  placeholder
+                    ? "text-muted-foreground/35"
+                    : "text-muted-foreground/60 group-hover:text-foreground transition-colors"
+                )}
+              />
             </CardContent>
           </Card>
         </div>
@@ -411,7 +436,7 @@ const DesktopDashboard = () => {
 
   const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: ["customer-segment-counts", currentOrganization?.id],
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && hasLoaded,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
@@ -752,11 +777,14 @@ const DesktopDashboard = () => {
     );
   };
 
+  const showPlaceholders = !hasLoaded;
+  const metricsLoading = hasLoaded && isLoading;
+
   return (
     <>
     <TooltipProvider>
     <div 
-      className="w-full px-4 sm:px-6 py-2 sm:py-3 space-y-2 sm:space-y-3 bg-background min-h-full"
+      className="dashboard-workspace w-full flex flex-col bg-background -mx-3 sm:-mx-4 -mt-3 sm:-mt-4 px-3 sm:px-4 pt-2 pb-2 min-h-0"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -770,7 +798,7 @@ const DesktopDashboard = () => {
 
       {/* lg+: theme / month / Net Profit sit in window tabs bar; here: refresh + status only */}
       {!isLgUp ? (
-        <div className="flex flex-wrap items-center justify-end gap-2 pb-2 border-b border-border">
+        <div className="dashboard-toolbar flex flex-wrap items-center justify-end gap-2 pb-2 border-b border-border shrink-0">
           <ThemeToggle />
           <Button
             variant={hasLoaded ? "outline" : "default"}
@@ -819,7 +847,7 @@ const DesktopDashboard = () => {
           )}
         </div>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70">
+        <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">
           <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
             {hasLoaded ? (
               <>
@@ -855,29 +883,11 @@ const DesktopDashboard = () => {
         </div>
       )}
 
-      {/* Main Content — Full Width */}
-      <div className="space-y-4">
-        {/* Left side - Metric cards */}
-        {!hasLoaded ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-            <div className="p-4 rounded-full bg-muted">
-              <BarChart3 className="h-10 w-10 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-foreground">Dashboard data not loaded</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Click <strong>Load Data</strong> above to fetch your business analytics
-              </p>
-            </div>
-            <Button onClick={handleRefreshAll} disabled={isRefreshing}>
-              <RefreshCw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-              Load Data
-            </Button>
-          </div>
-        ) : (
-        <div className="space-y-3">
+      {/* Main Content — fixed shell; placeholders until Load Data */}
+      <div className="dashboard-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-3 pr-0.5">
+        <div className="space-y-3 dashboard-metrics-panel">
           {/* Row 1 - Sales Metrics */}
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Total Sales"
               value={salesData?.total || 0}
@@ -886,6 +896,8 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/sales-invoice-dashboard")}
               tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Invoices"
@@ -894,6 +906,8 @@ const DesktopDashboard = () => {
               accentColor="bg-orange-500"
               onClick={() => navigate("/sales-invoice-dashboard")}
               tooltip="Number of sales invoices generated. Click to view all invoices."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Sold Qty"
@@ -902,6 +916,8 @@ const DesktopDashboard = () => {
               accentColor="bg-green-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total quantity of items sold. Click to view Stock Report."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="S/R Amount"
@@ -911,6 +927,8 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/sale-returns")}
               tooltip="Total sale return amount. Click to view Sale Returns."
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="S/R Qty"
@@ -919,6 +937,8 @@ const DesktopDashboard = () => {
               accentColor="bg-slate-500"
               onClick={() => navigate("/sale-returns")}
               tooltip="Total sale return quantity. Click to view Sale Returns."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Customers"
@@ -927,11 +947,13 @@ const DesktopDashboard = () => {
               accentColor="bg-pink-500"
               onClick={() => navigate("/customers")}
               tooltip="Total registered customers. Click to manage customers."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
           </div>
 
           {/* Row 2 - Purchase Metrics */}
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Total Purchase"
               value={purchaseData?.total || 0}
@@ -940,6 +962,8 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/purchase-bills")}
               tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Bills"
@@ -948,6 +972,8 @@ const DesktopDashboard = () => {
               accentColor="bg-teal-500"
               onClick={() => navigate("/purchase-bills")}
               tooltip="Number of purchase bills recorded. Click to view all bills."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Purchase Qty"
@@ -956,6 +982,8 @@ const DesktopDashboard = () => {
               accentColor="bg-orange-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total quantity of items purchased. Click to view Stock Report."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="P/R Amount"
@@ -965,6 +993,8 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return amount. Click to view Purchase Returns."
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="P/R Qty"
@@ -973,6 +1003,8 @@ const DesktopDashboard = () => {
               accentColor="bg-slate-500"
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return quantity. Click to view Purchase Returns."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Suppliers"
@@ -981,16 +1013,18 @@ const DesktopDashboard = () => {
               accentColor="bg-violet-500"
               onClick={() => navigate("/suppliers")}
               tooltip="Total registered suppliers. Click to manage suppliers."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
           </div>
 
           {/* Row 3 - Inventory & Financial Metrics (Grouped Section) */}
-          <div className="bg-muted/30 rounded-lg p-4 border border-border">
+          <div className="bg-muted/30 rounded-lg p-3 border border-border shrink-0">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
               <Layers className="h-3.5 w-3.5" />
               Inventory &amp; Financial Overview
             </h3>
-            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
             <AnimatedMetricCard
               title="Products"
               value={productsCount || 0}
@@ -998,6 +1032,8 @@ const DesktopDashboard = () => {
               accentColor="bg-indigo-500"
               onClick={() => navigate("/products")}
               tooltip="Total unique products in inventory. Click to view Product Dashboard."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Stock Qty"
@@ -1006,6 +1042,8 @@ const DesktopDashboard = () => {
               accentColor="bg-cyan-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total items in stock across all variants. Click to view Stock Report."
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Stock Value"
@@ -1015,6 +1053,8 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/stock-report")}
               tooltip="Total value of current inventory at purchase price. Click to view details."
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             {canViewGrossProfit && (
               <AnimatedMetricCard
@@ -1025,6 +1065,8 @@ const DesktopDashboard = () => {
                 onClick={() => navigate("/daily-cashier-report")}
                 tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
                 isCurrency
+                placeholder={showPlaceholders}
+                loading={metricsLoading}
               />
             )}
             <AnimatedMetricCard
@@ -1035,6 +1077,8 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/payments-dashboard")}
               tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             <AnimatedMetricCard
               title="Cash Collection"
@@ -1044,12 +1088,14 @@ const DesktopDashboard = () => {
               onClick={() => navigate("/daily-cashier-report")}
               tooltip="Total cash collected from sales. Click to view Cashier Report."
               isCurrency
+              placeholder={showPlaceholders}
+              loading={metricsLoading}
             />
             </div>
           </div>
 
           {/* Field Sales App Section - Only visible for users with field sales access */}
-          {hasFieldSalesAccess && (
+          {hasLoaded && hasFieldSalesAccess && (
             <div>
               <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
                 <div className="h-1 w-8 bg-primary rounded-full" />
@@ -1115,54 +1161,77 @@ const DesktopDashboard = () => {
           {/* Charts Section */}
           <StatsChartsSection hasLoaded={hasLoaded} />
         </div>
-        )}
 
-        {/* Customer Category Cards — from customers + sales (not placeholders) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {/* Customer Category Cards */}
+        <div className="dashboard-segment-grid grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer"
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer min-h-[72px]"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Last sale within 90 days and (5+ invoices or ₹50k+ lifetime revenue)"
           >
-            <CardContent className="p-3 text-center">
+            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
               <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
-                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.vip ?? 0}
+                {showPlaceholders ? (
+                  <span className="text-muted-foreground/50">—</span>
+                ) : segmentsLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin opacity-70" />
+                ) : (
+                  customerSegments?.vip ?? 0
+                )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
             </CardContent>
           </Card>
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-success cursor-pointer"
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-success cursor-pointer min-h-[72px]"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Active in last 90 days, below VIP thresholds, or no sales yet (CRM only)"
           >
-            <CardContent className="p-3 text-center">
+            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
               <div className="text-xl font-semibold tabular-nums text-success min-h-[28px] flex items-center justify-center">
-                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.regular ?? 0}
+                {showPlaceholders ? (
+                  <span className="text-muted-foreground/50">—</span>
+                ) : segmentsLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin opacity-70" />
+                ) : (
+                  customerSegments?.regular ?? 0
+                )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
             </CardContent>
           </Card>
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer"
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-warning cursor-pointer min-h-[72px]"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Last sale between 91 and 365 days ago"
           >
-            <CardContent className="p-3 text-center">
+            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
               <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
-                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.risk ?? 0}
+                {showPlaceholders ? (
+                  <span className="text-muted-foreground/50">—</span>
+                ) : segmentsLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin opacity-70" />
+                ) : (
+                  customerSegments?.risk ?? 0
+                )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
             </CardContent>
           </Card>
           <Card
-            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-destructive cursor-pointer"
+            className="border border-border bg-card shadow-sm hover:shadow-md transition-shadow border-l-[3px] border-l-destructive cursor-pointer min-h-[72px]"
             onClick={() => navigate("/sales-analytics?tab=customers")}
             title="Last sale over 365 days ago (inactive)"
           >
-            <CardContent className="p-3 text-center">
+            <CardContent className="p-3 text-center min-h-[72px] flex flex-col justify-center">
               <div className="text-xl font-semibold tabular-nums text-destructive min-h-[28px] flex items-center justify-center">
-                {segmentsLoading ? <Loader2 className="h-6 w-6 animate-spin opacity-70" /> : customerSegments?.lost ?? 0}
+                {showPlaceholders ? (
+                  <span className="text-muted-foreground/50">—</span>
+                ) : segmentsLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin opacity-70" />
+                ) : (
+                  customerSegments?.lost ?? 0
+                )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
             </CardContent>
@@ -1170,7 +1239,7 @@ const DesktopDashboard = () => {
         </div>
 
         {/* New Updates — Collapsible below main content */}
-        <details className="group">
+        <details className="group shrink-0">
           <summary className="cursor-pointer text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2 py-2 select-none">
             <Megaphone className="h-3.5 w-3.5" />
             New Updates &amp; Changelog
@@ -1188,7 +1257,11 @@ const DesktopDashboard = () => {
   );
 };
 
-const DashboardContent = () => <DesktopDashboard />;
+const DashboardContent = () => (
+  <div className="h-full min-h-0 flex flex-col">
+    <DesktopDashboard />
+  </div>
+);
 
 const Index = () => {
   const { currentOrganization, organizations, loading } = useOrganization();
