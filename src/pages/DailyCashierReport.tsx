@@ -788,15 +788,13 @@ const DailyCashierReport = () => {
   }
 
   return (
-    <div id="cashier-report-root" className="min-h-screen bg-background p-4 md:p-6 print:p-2">
+    <div id="cashier-report-root" className="min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 print:hidden">
-        <div className="flex items-center gap-4">
+        <div>
           <BackToDashboard />
-          <div>
-            <h1 className="text-2xl font-bold">Cashier Report</h1>
-            <p className="text-muted-foreground text-sm">Sales summary by payment method</p>
-          </div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight mt-3">Cashier Report</h1>
+          <p className="text-slate-400 text-base mt-0.5">Sales summary by payment method</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-2 print:hidden">

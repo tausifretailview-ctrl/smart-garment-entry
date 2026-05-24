@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAllSuppliers, fetchAllPurchaseBillsWithFilters } from "@/utils/fetchAllRows";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, TrendingUp } from "lucide-react";
+import { CalendarIcon, TrendingUp, Receipt, IndianRupee, Percent } from "lucide-react";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
@@ -87,20 +88,49 @@ const PurchaseReportBySupplier = () => {
 
   const chartData = Object.values(supplierData).sort((a: any, b: any) => b.amount - a.amount).slice(0, 10);
 
+  const purchaseKpiItems = useMemo((): ReportKpiItem[] => [
+    {
+      label: "Total Bills",
+      value: totals.billCount.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+      icon: Receipt,
+    },
+    {
+      label: "Gross Amount",
+      value: `₹${totals.grossAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      gradient: "bg-gradient-to-br from-violet-500 to-violet-600",
+      icon: TrendingUp,
+    },
+    {
+      label: "GST Amount",
+      value: `₹${totals.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+      icon: Percent,
+    },
+    {
+      label: "Net Amount",
+      value: `₹${totals.netAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+      icon: IndianRupee,
+    },
+  ], [totals]);
+
   return (
-    <div className="w-full px-6 py-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-4 lg:px-5 py-6 space-y-5">
       <BackToDashboard />
 
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Purchase Report by Supplier</h1>
+      <div>
+        <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Purchase Report by Supplier</h1>
+        <p className="text-slate-400 text-base mt-0.5">Filter by supplier and date range</p>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
+      <ReportKpiCards items={purchaseKpiItems} />
+
+      <Card className="rounded-xl border border-slate-200 shadow-sm">
+        <CardHeader className="pb-3 border-b border-slate-100">
+          <CardTitle className="text-base font-semibold text-slate-700">Filters</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Supplier</Label>
@@ -157,49 +187,6 @@ const PurchaseReportBySupplier = () => {
           </div>
         </CardContent>
       </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Bills</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totals.billCount}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gross Amount</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{totals.grossAmount.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">GST Amount</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{totals.gstAmount.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Amount</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{totals.netAmount.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Chart */}
       {chartData.length > 0 && (

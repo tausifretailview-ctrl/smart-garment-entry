@@ -15,7 +15,10 @@ import {
   RefreshCw,
   History,
   Loader2,
+  IndianRupee,
+  Wallet,
 } from "lucide-react";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { useQuery } from "@tanstack/react-query";
 import { useReactToPrint } from "react-to-print";
 import * as XLSX from "xlsx";
@@ -308,6 +311,52 @@ export default function CustomerAuditReport() {
   const card2Total =
     math != null ? math.totalRealPayments + math.totalAdvanceReceived : 0;
 
+  const auditKpiItems = useMemo((): ReportKpiItem[] => {
+    if (!math) return [];
+    const thirdLabel =
+      finalOutstanding > 0.005
+        ? "Outstanding"
+        : finalOutstanding < -0.005
+          ? "Customer Credit"
+          : "Settled";
+    const thirdValue =
+      finalOutstanding > 0.005
+        ? `₹ ${fmt(finalOutstanding)} Dr`
+        : finalOutstanding < -0.005
+          ? `₹ ${fmt(Math.abs(finalOutstanding))} Cr`
+          : "₹ 0.00";
+    const thirdGradient =
+      finalOutstanding > 0.005
+        ? "bg-gradient-to-br from-red-500 to-red-600"
+        : finalOutstanding < -0.005
+          ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
+          : "bg-gradient-to-br from-blue-500 to-blue-600";
+
+    return [
+      {
+        label: "Total Billed (Dr)",
+        value: `₹ ${fmt(math.totalInvoiced)}`,
+        sub: "Invoices in period (net)",
+        gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+        icon: FileSearch,
+      },
+      {
+        label: "Total Received (Cr)",
+        value: `₹ ${fmt(card2Total)}`,
+        sub: "Receipts, credit notes & advance",
+        gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+        icon: Wallet,
+      },
+      {
+        label: thirdLabel,
+        value: thirdValue,
+        gradient: thirdGradient,
+        icon: IndianRupee,
+        highlight: Math.abs(finalOutstanding) > 0.005,
+      },
+    ];
+  }, [math, card2Total, finalOutstanding]);
+
   /** Lifetime audit formula (all-time); compare to DB RPC — not FY-scoped `math`. */
   const lifetimeFormula = useMemo(() => {
     if (!auditBundle) return null;
@@ -463,17 +512,11 @@ export default function CustomerAuditReport() {
     <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
       <div className="max-w-[1600px] mx-auto space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-primary/10 p-2 text-primary">
-              <ShieldCheck className="h-7 w-7" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Customer Audit Report</h1>
-              <p className="text-sm text-muted-foreground max-w-2xl">
-                Mathematically verified outstanding balance — for cross-checking with Customer Account
-                Statement
-              </p>
-            </div>
+          <div>
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Customer Audit Report</h1>
+            <p className="text-slate-400 text-base mt-0.5 max-w-2xl">
+              Mathematically verified outstanding balance — cross-check with Customer Account Statement
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -600,62 +643,7 @@ export default function CustomerAuditReport() {
             </p>
           </div>
 
-          {math && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Card className="shadow-sm border-l-4 border-l-amber-500">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
-                      Total Billed (Dr)
-                    </div>
-                    <div className="text-2xl font-bold mt-1 tabular-nums">₹ {fmt(math.totalInvoiced)}</div>
-                    <p className="text-[10px] text-muted-foreground mt-1">Invoices in period (net)</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="shadow-sm border-l-4 border-l-emerald-500">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
-                      Total Received (Cr)
-                    </div>
-                    <div className="text-2xl font-bold mt-1 tabular-nums">₹ {fmt(card2Total)}</div>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Receipts &amp; credit notes (excl. Adv Adj) + all advance booked (lifetime)
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-              {finalOutstanding > 0.005 ? (
-                <Card className="shadow-sm border-l-4 border-l-red-500 text-red-700 dark:text-red-400">
-                  <CardContent className="p-4">
-                    <div className="text-xs uppercase tracking-wide font-medium opacity-80">Outstanding</div>
-                    <div className="text-2xl font-bold mt-1 tabular-nums">
-                      ₹ {fmt(finalOutstanding)} Dr
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : finalOutstanding < -0.005 ? (
-                <Card className="shadow-sm border-l-4 border-l-emerald-600 text-emerald-700 dark:text-emerald-300">
-                  <CardContent className="p-4">
-                    <div className="text-xs uppercase tracking-wide font-medium opacity-80">
-                      Customer Credit
-                    </div>
-                    <div className="text-2xl font-bold mt-1 tabular-nums">
-                      ₹ {fmt(Math.abs(finalOutstanding))} Cr
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="shadow-sm border-l-4 border-l-blue-500 text-blue-700 dark:text-blue-300">
-                  <CardContent className="p-4">
-                    <div className="text-xs uppercase tracking-wide font-medium opacity-80">Settled</div>
-                    <div className="text-2xl font-bold mt-1 tabular-nums">₹ 0.00</div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
+          {math && <ReportKpiCards items={auditKpiItems} />}
 
           <Card className="overflow-hidden">
             <div className="overflow-x-auto">

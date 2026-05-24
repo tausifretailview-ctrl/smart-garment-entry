@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Download, Package, Clock, AlertTriangle, Search } from "lucide-react";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { toast } from "sonner";
 import { differenceInDays, format } from "date-fns";
 import * as XLSX from "xlsx";
@@ -196,50 +197,46 @@ export default function StockAgeingReport() {
 
   const fmt = (n: number) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
+  const ageingKpiItems = useMemo((): ReportKpiItem[] => [
+    {
+      label: "Total Aged Stock",
+      value: fmt(summary.totalValue),
+      sub: `${summary.totalQty} pcs · ${summary.count} batches`,
+      gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+      icon: Package,
+    },
+    {
+      label: "> 30 Days",
+      value: fmt(summary.over30),
+      gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+      icon: Clock,
+    },
+    {
+      label: "> 60 Days",
+      value: fmt(summary.over60),
+      gradient: "bg-gradient-to-br from-orange-500 to-orange-600",
+      icon: AlertTriangle,
+    },
+    {
+      label: "> 90 Days",
+      value: fmt(summary.over90),
+      sub: "Critical ageing",
+      gradient: "bg-gradient-to-br from-red-500 to-red-600",
+      icon: AlertTriangle,
+    },
+  ], [summary]);
+
   return (
-    <div className="space-y-4">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-4 lg:px-5 py-6 space-y-5">
       <BackToDashboard />
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Stock Ageing Report</h1>
+      <div>
+        <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Stock Ageing Report</h1>
+        <p className="text-slate-400 text-base mt-0.5">Slow-moving inventory by purchase batch age</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-xs text-muted-foreground flex items-center gap-1"><Package className="h-3.5 w-3.5" /> Total Aged Stock</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <p className="text-lg font-bold tabular-nums">{fmt(summary.totalValue)}</p>
-            <p className="text-xs text-muted-foreground">{summary.totalQty} pcs · {summary.count} batches</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> &gt;30 Days</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <p className="text-lg font-bold tabular-nums">{fmt(summary.over30)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> &gt;60 Days</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <p className="text-lg font-bold tabular-nums text-warning">{fmt(summary.over60)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> &gt;90 Days</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <p className="text-lg font-bold tabular-nums text-destructive">{fmt(summary.over90)}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <ReportKpiCards items={ageingKpiItems} />
 
+      <Card className="rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs">
@@ -328,6 +325,7 @@ export default function StockAgeingReport() {
           <Button variant="outline" onClick={() => setPage((p) => p + 1)}>Load More ({filtered.length - paginatedRows.length} remaining)</Button>
         </div>
       )}
+      </Card>
     </div>
   );
 }

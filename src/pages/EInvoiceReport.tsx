@@ -6,6 +6,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -350,6 +351,44 @@ export default function EInvoiceReport() {
     },
   ], [settings, currentOrganization]);
 
+  const einvoiceKpiItems = useMemo((): ReportKpiItem[] => [
+    {
+      label: "Total B2B",
+      value: summary.total.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+      icon: Shield,
+      highlight: statusFilter === "all",
+    },
+    {
+      label: "Generated",
+      value: summary.generated.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+      icon: CheckCircle2,
+      highlight: statusFilter === "generated",
+    },
+    {
+      label: "Pending",
+      value: summary.pending.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+      icon: Clock,
+      highlight: statusFilter === "not_generated",
+    },
+    {
+      label: "Failed",
+      value: summary.failed.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-orange-500 to-orange-600",
+      icon: AlertTriangle,
+      highlight: statusFilter === "failed",
+    },
+    {
+      label: "Cancelled",
+      value: summary.cancelled.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-red-500 to-red-600",
+      icon: XCircle,
+      highlight: statusFilter === "cancelled",
+    },
+  ], [summary, statusFilter]);
+
   const periods: { value: PeriodFilter; label: string }[] = [
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
@@ -360,20 +399,20 @@ export default function EInvoiceReport() {
   ];
 
   return (
-    <div className="p-4 md:p-6 space-y-4 w-full">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-5 w-full">
       <BackToDashboard />
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Shield className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">E-Invoice Report</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">E-Invoice Report</h1>
+          <p className="text-slate-400 text-base mt-0.5">B2B e-invoice generation status</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+          <Button variant="outline" className="h-10 border-slate-300 gap-2" onClick={() => refetch()} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} /> Refresh
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={!filteredInvoices.length}>
-            <FileSpreadsheet className="h-4 w-4 mr-1" /> Export Excel
+          <Button variant="outline" className="h-10 border-slate-300 gap-2" onClick={handleExportExcel} disabled={!filteredInvoices.length}>
+            <FileSpreadsheet className="h-4 w-4" /> Export Excel
           </Button>
         </div>
       </div>
@@ -392,39 +431,7 @@ export default function EInvoiceReport() {
         ))}
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card className="cursor-pointer" onClick={() => setStatusFilter('all')}>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold">{summary.total}</div>
-            <div className="text-xs text-muted-foreground">Total B2B</div>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer border-green-200" onClick={() => setStatusFilter('generated')}>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">{summary.generated}</div>
-            <div className="text-xs text-muted-foreground">Generated</div>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer" onClick={() => setStatusFilter('not_generated')}>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-amber-600">{summary.pending}</div>
-            <div className="text-xs text-muted-foreground">Pending</div>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer border-orange-200" onClick={() => setStatusFilter('failed')}>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{summary.failed}</div>
-            <div className="text-xs text-muted-foreground">Failed</div>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer" onClick={() => setStatusFilter('cancelled')}>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-destructive">{summary.cancelled}</div>
-            <div className="text-xs text-muted-foreground">Cancelled</div>
-          </CardContent>
-        </Card>
-      </div>
+      <ReportKpiCards items={einvoiceKpiItems} />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

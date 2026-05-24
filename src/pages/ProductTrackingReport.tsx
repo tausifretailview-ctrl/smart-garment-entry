@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Barcode, AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { format, subDays } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -314,25 +315,52 @@ const ProductTrackingReport = () => {
     );
   }
 
+  const movementKpiItems = useMemo((): ReportKpiItem[] => {
+    if (totalCount === 0 || movements.length === 0) return [];
+    const inQty = movements
+      .filter((m) => m.movement_type === "purchase" || m.movement_type === "sale_return")
+      .reduce((s, m) => s + Math.abs(m.quantity), 0);
+    const outQty = movements
+      .filter((m) => m.movement_type === "sale" || m.movement_type === "purchase_return")
+      .reduce((s, m) => s + Math.abs(m.quantity), 0);
+    return [
+      {
+        label: "Stock In",
+        value: inQty.toLocaleString("en-IN"),
+        sub: "Purchase + sale return",
+        gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+        icon: TrendingUp,
+      },
+      {
+        label: "Stock Out",
+        value: outQty.toLocaleString("en-IN"),
+        sub: "Sale + purchase return",
+        gradient: "bg-gradient-to-br from-red-500 to-red-600",
+        icon: TrendingDown,
+      },
+      {
+        label: "Total Records",
+        value: totalCount.toLocaleString("en-IN"),
+        sub: `Page ${currentPage} of ${totalPages}`,
+        gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+        icon: Barcode,
+      },
+    ];
+  }, [movements, totalCount, currentPage, totalPages]);
+
   return (
-    <div className="p-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Barcode className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Product Tracking Report</h1>
-              <p className="text-sm text-muted-foreground">
-                Track product movements · purchases · sales · returns · adjustments
-              </p>
-            </div>
-          </div>
-          <BackToDashboard />
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 space-y-5">
+        <BackToDashboard />
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Product Tracking Report</h1>
+          <p className="text-slate-400 text-base mt-0.5">
+            Track product movements · purchases · sales · returns · adjustments
+          </p>
         </div>
 
-        {/* Filters */}
-        <Card className="p-4 space-y-4 shadow-sm">
+        <ReportKpiCards items={movementKpiItems} />
+
+        <Card className="rounded-xl border border-slate-200 p-4 space-y-4 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Search by Barcode / Product</label>
@@ -448,22 +476,7 @@ const ProductTrackingReport = () => {
           </div>
         </Card>
 
-        {/* Summary bar */}
-        {totalCount > 0 && movements.length > 0 && (
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-800">
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span className="font-medium">In: {movements.filter(m => m.movement_type === 'purchase' || m.movement_type === 'sale_return').reduce((s, m) => s + Math.abs(m.quantity), 0)} units</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800">
-              <TrendingDown className="h-3.5 w-3.5" />
-              <span className="font-medium">Out: {movements.filter(m => m.movement_type === 'sale' || m.movement_type === 'purchase_return').reduce((s, m) => s + Math.abs(m.quantity), 0)} units</span>
-            </div>
-          </div>
-        )}
-
-        {/* Movements Table */}
-        <Card className="shadow-sm overflow-hidden">
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <ERPTable
             tableId="product_tracking"
             columns={columns}

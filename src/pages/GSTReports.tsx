@@ -699,15 +699,12 @@ const GSTReports = () => {
   ];
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 w-full px-2 sm:px-4 lg:px-6 py-6 space-y-5">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileSpreadsheet className="h-6 w-6 text-primary" />
-            GST Reports
-          </h1>
-          <p className="text-muted-foreground">Generate GST returns and reports for compliance</p>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">GST Reports</h1>
+          <p className="text-slate-400 text-base mt-0.5">Generate GST returns and reports for compliance</p>
         </div>
         {businessInfo.gstin && (
           <Badge variant="outline" className="text-sm">
@@ -730,7 +727,7 @@ const GSTReports = () => {
       )}
 
       {/* Period Selection */}
-      <Card>
+      <Card className="rounded-xl border border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Calendar className="h-4 w-4" />

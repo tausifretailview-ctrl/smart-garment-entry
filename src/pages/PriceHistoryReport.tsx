@@ -811,16 +811,16 @@ const PriceHistoryReport = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 print:p-2">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 print:hidden">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="text-slate-600">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Price & Stock History</h1>
-            <p className="text-muted-foreground text-sm">
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Price & Stock History</h1>
+            <p className="text-slate-400 text-base mt-0.5">
               Track prices, stock movements & product changes
             </p>
           </div>

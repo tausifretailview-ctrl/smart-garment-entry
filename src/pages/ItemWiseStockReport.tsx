@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useProductFieldLabels } from "@/hooks/useSettings";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -379,82 +380,65 @@ export default function ItemWiseStockReport() {
     return pages;
   }, [totalPages, currentPage]);
 
+  const stockKpiItems = useMemo((): ReportKpiItem[] => {
+    if (aggregatedData.length === 0) return [];
+    return [
+      {
+        label: "Total Stock",
+        value: grandTotals.total_qty.toLocaleString("en-IN"),
+        sub: `${aggregatedData.length} groups`,
+        gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+        icon: Package,
+      },
+      {
+        label: "Purchase Value",
+        value: `₹${Math.round(grandTotals.purchase_value).toLocaleString("en-IN")}`,
+        sub: "At purchase price",
+        gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+        icon: IndianRupee,
+      },
+      {
+        label: "Sale Value",
+        value: `₹${Math.round(grandTotals.sale_value).toLocaleString("en-IN")}`,
+        sub: "At sale price",
+        gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+        icon: TrendingUp,
+      },
+    ];
+  }, [aggregatedData.length, grandTotals]);
+
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 space-y-6 print:p-2 print:space-y-2">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-5 print:p-2 print:space-y-2 print:bg-white">
       <div className="print:hidden">
         <BackToDashboard />
       </div>
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold text-foreground print:text-lg">
-            {GROUP_BY_LABELS[groupBy]} Wise Stock Report ({currentOrganization?.name || ""})
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight print:text-lg print:text-foreground">
+            {GROUP_BY_LABELS[groupBy]} Wise Stock Report
           </h1>
-          <p className="text-sm text-muted-foreground print:text-xs">
-            {format(new Date(), "dd-MM-yyyy    hh:mm:ss a")}
+          <p className="text-slate-400 text-base mt-0.5 print:text-xs print:text-muted-foreground">
+            {currentOrganization?.name || ""} · {format(new Date(), "dd-MM-yyyy hh:mm:ss a")}
           </p>
         </div>
-        <div className="flex items-center gap-2 print:hidden">
-          <Button variant="outline" size="sm" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={handlePrint}>
+            <Printer className="h-4 w-4" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToExcel} disabled={aggregatedData.length === 0}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
+          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={exportToExcel} disabled={aggregatedData.length === 0}>
+            <FileSpreadsheet className="h-4 w-4" />
             Excel
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToPDF} disabled={aggregatedData.length === 0}>
-            <FileText className="h-4 w-4 mr-2" />
+          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={exportToPDF} disabled={aggregatedData.length === 0}>
+            <FileText className="h-4 w-4" />
             PDF
           </Button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {aggregatedData.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 print:hidden">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-violet-500/10 rounded-lg">
-                  <Package className="h-5 w-5 text-violet-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Stock</p>
-                  <p className="text-2xl font-bold">{grandTotals.total_qty.toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-500/10 rounded-lg">
-                  <IndianRupee className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Purchase Value</p>
-                  <p className="text-2xl font-bold">₹{Math.round(grandTotals.purchase_value).toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-500/10 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Sale Value</p>
-                  <p className="text-2xl font-bold">₹{Math.round(grandTotals.sale_value).toLocaleString()}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <ReportKpiCards items={stockKpiItems} />
 
       {/* Group By + Search & Filters */}
       <div className="flex flex-wrap gap-3 print:hidden">

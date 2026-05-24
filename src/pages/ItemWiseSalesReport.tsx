@@ -6,6 +6,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useProductFieldLabels } from "@/hooks/useSettings";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -581,27 +582,57 @@ export default function ItemWiseSalesReport() {
     window.print();
   };
 
+  const salesKpiItems = useMemo((): ReportKpiItem[] => [
+    {
+      label: "Total Qty Sold",
+      value: summary.totalQty.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
+      icon: Package,
+    },
+    {
+      label: "Total Sales",
+      value: `₹${summary.totalAmount.toLocaleString("en-IN")}`,
+      gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
+      icon: IndianRupee,
+    },
+    {
+      label: "Unique Products",
+      value: summary.uniqueProducts.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-violet-500 to-violet-600",
+      icon: FileText,
+    },
+    {
+      label: "Avg Sale Price",
+      value: `₹${summary.avgPrice.toFixed(2)}`,
+      gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
+      icon: TrendingUp,
+    },
+  ], [summary]);
+
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-5">
       <BackToDashboard />
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-foreground">Item-wise Sales Report</h1>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Item-wise Sales Report</h1>
+          <p className="text-slate-400 text-base mt-0.5">Period, filters, and item / brand breakdowns</p>
+        </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
+          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={handlePrint}>
+            <Printer className="h-4 w-4" />
             Print
           </Button>
-          <Button variant="outline" size="sm" onClick={exportToExcel}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
+          <Button variant="outline" className="h-10 border-slate-300 text-slate-600 gap-2" onClick={exportToExcel}>
+            <FileSpreadsheet className="h-4 w-4" />
             Excel
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card>
+      <ReportKpiCards items={salesKpiItems} />
+
+      <Card className="rounded-xl border border-slate-200 shadow-sm">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col md:flex-row gap-4 items-end">
@@ -821,65 +852,6 @@ export default function ItemWiseSalesReport() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Package className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Qty Sold</p>
-                <p className="text-2xl font-bold">{summary.totalQty.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <IndianRupee className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Sales</p>
-                <p className="text-2xl font-bold">₹{summary.totalAmount.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <FileText className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Unique Products</p>
-                <p className="text-2xl font-bold">{summary.uniqueProducts}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Sale Price</p>
-                <p className="text-2xl font-bold">₹{summary.avgPrice.toFixed(2)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Tabs for Item-wise and Brand-wise */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "itemwise" | "customerwise" | "brandwise" | "saledetails")}>
