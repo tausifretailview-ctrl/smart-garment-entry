@@ -92,19 +92,7 @@ import {
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
-
-/** Pool amount for "From Credit Note" balance (per sale return row). */
-function saleReturnCnPoolRow(r: { net_amount?: number | null; credit_status?: string | null; credit_available_balance?: number | null }): number {
-  const raw = r.credit_available_balance as number | string | null | undefined;
-  if (raw != null && (raw as unknown) !== "" && !Number.isNaN(Number(raw))) {
-    return Math.max(0, Number(raw));
-  }
-  const st = String(r.credit_status || "").toLowerCase();
-  if (st === "pending" || st === "partially_adjusted" || st === "adjusted") {
-    return Math.max(0, Number(r.net_amount || 0));
-  }
-  return 0;
-}
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -1877,24 +1865,15 @@ export default function SalesInvoiceDashboard() {
           { includeUnlinkedAdjusted: true },
         );
 
-        const eligible = cnReturns.filter((r) => {
-          const st = String(r.credit_status || "").toLowerCase();
-          if (st === "refunded") return false;
-          const rtRaw = r.refund_type;
-          const isCnRefund =
-            rtRaw == null || String(rtRaw).trim() === "" || String(rtRaw).toLowerCase() === "credit_note";
-          if (!isCnRefund) return false;
-          return saleReturnCnPoolRow(r) > 0.005;
-        });
+        const eligible = cnReturns.filter((r) => r.available > 0.005);
 
-        // credit_available_balance on each sale_return is already the authoritative
-        // remaining pool (auto-deducted on link + adjustments). Do NOT subtract
-        // credit_note_adjustment vouchers again — that double-counts.
-        const totalAvailable = eligible.reduce(
-          (sum: number, r: any) => sum + saleReturnCnPoolRow(r),
-          0,
+        const snap = await fetchCustomerFinancialSnapshot(
+          supabase,
+          currentOrganization!.id,
+          selectedInvoiceForPayment.customer_id,
         );
-        const bestReturnId = eligible.find((r: any) => saleReturnCnPoolRow(r) > 0.005)?.id ?? null;
+        const totalAvailable = snap.cnAvailableTotal;
+        const bestReturnId = eligible.find((r) => r.available > 0.005)?.id ?? null;
 
         setAvailableCNBalance(totalAvailable);
         setSelectedCNReturnId(bestReturnId);

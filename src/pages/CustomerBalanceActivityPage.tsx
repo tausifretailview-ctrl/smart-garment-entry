@@ -22,6 +22,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
   buildCustomerActivityRows,
   sliceActivityByDateRange,
@@ -203,6 +204,23 @@ export default function CustomerBalanceActivityPage() {
   const mismatch = activityData?.snapshotCheck.mismatch ?? false;
   const delta = activityData?.snapshotCheck.delta ?? 0;
 
+  const {
+    outstandingDr: rpcOutstanding,
+    advanceAvailable: rpcAdvance,
+    cnAvailableTotal: rpcCn,
+    isLoading: rpcLoading,
+  } = useCustomerFinancialSnapshot(customerId, currentOrganization?.id ?? null);
+
+  const rpcVsLegacy = useMemo(() => {
+    if (!snap || rpcLoading) return null;
+    return {
+      outstandingDelta: Math.abs((rpcOutstanding ?? 0) - snap.balance),
+      advanceDelta: Math.abs((rpcAdvance ?? 0) - snap.unusedAdvanceTotal),
+      outstandingOk: Math.abs((rpcOutstanding ?? 0) - snap.balance) <= 1,
+      advanceOk: Math.abs((rpcAdvance ?? 0) - snap.unusedAdvanceTotal) <= 1,
+    };
+  }, [snap, rpcOutstanding, rpcAdvance, rpcLoading]);
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
       <div className="max-w-[1600px] mx-auto space-y-4">
@@ -311,6 +329,47 @@ export default function CustomerBalanceActivityPage() {
               it — underlying data may need reconciliation.
             </AlertDescription>
           </Alert>
+        )}
+
+        {selectedCustomer && snap && rpcVsLegacy && (
+          <Card className="print:hidden border-dashed">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Financial snapshot parity (QA)</CardTitle>
+              <CardDescription>
+                Compare live RPC (`get_customer_financial_snapshot`) with legacy app snapshot. All windows should match RPC within ₹1.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Outstanding Dr</div>
+                  <div className="font-mono tabular-nums">
+                    RPC ₹{fmt(Math.abs(rpcOutstanding))} · Legacy ₹{fmt(Math.abs(snap.balance))}
+                  </div>
+                  <div className={cn("text-xs mt-0.5", rpcVsLegacy.outstandingOk ? "text-emerald-600" : "text-destructive")}>
+                    {rpcVsLegacy.outstandingOk ? "OK (≤ ₹1)" : `Δ ₹${fmt(rpcVsLegacy.outstandingDelta)}`}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Advance available</div>
+                  <div className="font-mono tabular-nums">
+                    RPC ₹{fmt(rpcAdvance)} · Legacy ₹{fmt(snap.unusedAdvanceTotal)}
+                  </div>
+                  <div className={cn("text-xs mt-0.5", rpcVsLegacy.advanceOk ? "text-emerald-600" : "text-destructive")}>
+                    {rpcVsLegacy.advanceOk ? "OK (≤ ₹1)" : `Δ ₹${fmt(rpcVsLegacy.advanceDelta)}`}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">CN available (RPC only)</div>
+                  <div className="font-mono tabular-nums">₹{fmt(rpcCn)}</div>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground pt-1 border-t">
+                Acceptance: Ledger, POS picker, Payment, Statement, and Settle Account show the same three numbers as RPC;
+                after sale/receipt/SR/CN/advance, refresh all surfaces together.
+              </p>
+            </CardContent>
+          </Card>
         )}
 
         <div ref={printRef} className="space-y-4">

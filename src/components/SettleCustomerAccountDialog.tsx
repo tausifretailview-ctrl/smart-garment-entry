@@ -39,6 +39,8 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { ensureCreditNoteHeadroom, formatCnApplyError } from "@/utils/saleReturnCnBalance";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 export interface SettleCustomerAccountDialogProps {
   open: boolean;
@@ -172,19 +174,11 @@ export function SettleCustomerAccountDialog({
     staleTime: 5000,
   });
 
-  const { data: trueOutstanding } = useQuery({
-    queryKey: ["settle-outstanding", customerId, organizationId],
-    queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
-        p_customer_id: customerId,
-        p_organization_id: organizationId,
-      });
-      if (error) throw error;
-      return Number(data || 0);
-    },
-    enabled: !!customerId && open && !!organizationId,
-    staleTime: 5000,
-  });
+  const {
+    outstandingDr: snapshotOutstanding,
+    advanceAvailable: snapshotAdvance,
+    cnAvailableTotal: snapshotCnTotal,
+  } = useCustomerFinancialSnapshot(open ? customerId : null, organizationId);
 
   const selectedTotal = useMemo(() => {
     return (pendingInvoices || [])
@@ -192,8 +186,9 @@ export function SettleCustomerAccountDialog({
       .reduce((sum, inv) => sum + inv.outstanding, 0);
   }, [pendingInvoices, selectedInvoices]);
 
-  const availableAdvance = advanceData?.total || 0;
-  const availableCN = cnData?.total || 0;
+  const availableAdvance = snapshotAdvance || advanceData?.total || 0;
+  const availableCN = snapshotCnTotal || cnData?.total || 0;
+  const trueOutstanding = snapshotOutstanding;
   const discountToApply = Math.max(0, parseFloat(discountAmount) || 0);
 
   const advanceToApply = Math.min(availableAdvance, selectedTotal);
@@ -482,6 +477,7 @@ export function SettleCustomerAccountDialog({
       queryClient.invalidateQueries({ queryKey: ["invoice-history"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
 
       onSuccess?.();
     } catch (err: unknown) {

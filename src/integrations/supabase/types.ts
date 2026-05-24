@@ -7767,6 +7767,25 @@ export type Database = {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
       }
+      get_customer_financial_snapshot: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: {
+          outstanding_dr: number
+          advance_available: number
+          cn_available_total: number
+          cn_pending_count: number
+        }[]
+      }
+      get_customer_financial_snapshot_batch: {
+        Args: { p_organization_id: string; p_customer_ids: string[] }
+        Returns: {
+          customer_id: string
+          outstanding_dr: number
+          advance_available: number
+          cn_available_total: number
+          cn_pending_count: number
+        }[]
+      }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json

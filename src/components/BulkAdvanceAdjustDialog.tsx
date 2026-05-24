@@ -3,12 +3,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Loader2, IndianRupee, CheckCircle2 } from "lucide-react";
 import { consumeAdvanceFIFO, derivePaidAndStatus, warnSettlementPathMismatch } from "@/utils/saleSettlement";
+import { fetchCustomerFinancialSnapshot, invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
 interface BulkAdvanceAdjustDialogProps {
   open: boolean;
@@ -44,7 +44,6 @@ export function BulkAdvanceAdjustDialog({
   const [advanceBalance, setAdvanceBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const { getAvailableAdvanceBalance } = useCustomerAdvances(organizationId);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -59,7 +58,8 @@ export function BulkAdvanceAdjustDialog({
       // Only true unused advance bookings (customer_advances.amount - used_amount) are spendable.
       // Customer overpayments / refund liabilities must be returned via Refund or converted to a
       // new Advance booking — they cannot be re-spent here as advance.
-      const totalBalance = await getAvailableAdvanceBalance(customerId);
+      const snap = await fetchCustomerFinancialSnapshot(supabase, organizationId, customerId);
+      const totalBalance = snap.advanceAvailable;
 
       // Fetch pending invoices
       const { data: pendingInvoices } = await supabase
@@ -99,7 +99,8 @@ export function BulkAdvanceAdjustDialog({
 
     try {
       // Hard guard: re-verify available advance balance from customer_advances at write time.
-      const liveAdvanceBalance = await getAvailableAdvanceBalance(customerId);
+      const liveSnap = await fetchCustomerFinancialSnapshot(supabase, organizationId, customerId);
+      const liveAdvanceBalance = liveSnap.advanceAvailable;
       if (totalAllocated > liveAdvanceBalance + 0.01) {
         toast.error(
           `Insufficient advance balance. Customer has only ₹${liveAdvanceBalance.toLocaleString("en-IN")} unused advance.`,
@@ -157,6 +158,7 @@ export function BulkAdvanceAdjustDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
 
       toast.success(`₹${totalAllocated.toLocaleString("en-IN")} advance adjusted across ${invoices.filter((i) => i.allocate > 0).length} invoice(s)`);
       onOpenChange(false);

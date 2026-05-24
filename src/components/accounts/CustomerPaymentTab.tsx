@@ -41,12 +41,12 @@ import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
 import { AdaptivePaymentMethodPicker } from "@/components/mobile/AdaptivePaymentMethodPicker";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
-import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
   derivePaidAndStatus,
-  getAvailableCN,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import {
@@ -337,25 +337,6 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
-  const { data: adjustedOutstandingCreditTotal = 0 } = useQuery({
-    queryKey: ["customer-adjusted-outstanding-credit", organizationId, referenceId],
-    queryFn: async () => {
-      if (!organizationId || !referenceId) return 0;
-      const { total, returns } = await getAvailableCN(supabase, referenceId, organizationId);
-      const legacyOnly = returns
-        .filter((r) => r.credit_status === "adjusted_outstanding")
-        .reduce((sum, r) => sum + r.available, 0);
-      if (Math.abs(total - legacyOnly) > 1) {
-        console.warn(
-          "[SETTLEMENT] CustomerPaymentTab CN pool: legacy adjusted_outstanding-only vs getAvailableCN — using unified pool",
-          { legacyOnly, total },
-        );
-      }
-      return total;
-    },
-    enabled: !!organizationId && !!referenceId,
-  });
-
   const { data: customerInvoiceVoucherSplits = new Map<string, SaleReceiptVoucherSplit>() } = useQuery({
     queryKey: ["customer-invoice-voucher-splits", organizationId, referenceId, customerInvoices?.length || 0],
     queryFn: async () => {
@@ -411,24 +392,14 @@ export function CustomerPaymentTab({
     organizationId
   );
 
-  /** Lifetime Dr — `get_customer_true_outstanding` (same as Customer Ledger). */
-  const { data: trueLifetimeOutstanding } = useQuery({
-    queryKey: ["customer-true-outstanding-payment", organizationId, referenceId],
-    queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
-        p_customer_id: referenceId,
-        p_organization_id: organizationId,
-      });
-      if (error) throw error;
-      return Math.round(Number(data || 0));
-    },
-    enabled: !!referenceId && !!organizationId,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  });
+  const {
+    outstandingDr: snapshotOutstandingDr,
+    advanceAvailable: snapshotAdvanceAvailable,
+    cnAvailableTotal: snapshotCnAvailable,
+  } = useCustomerFinancialSnapshot(referenceId || null, organizationId);
 
   const lifetimeOutstanding =
-    trueLifetimeOutstanding ??
+    snapshotOutstandingDr ??
     customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
 
   /** Sum of opening + per-invoice pending (matches Select Invoices list; includes sale_return_adjust). */
@@ -443,8 +414,8 @@ export function CustomerPaymentTab({
   }, [referenceId, customerInvoices, customerInvoiceVoucherSplits, openingBalanceRemaining]);
 
 
-  // Customer advance balance
-  const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(referenceId || null, organizationId);
+  const advanceBalance = snapshotAdvanceAvailable;
+  const adjustedOutstandingCreditTotal = snapshotCnAvailable;
 
   // Auto-fill amount
   const getAllocatedAmount = (invoiceId: string, fallbackOutstanding: number) => {
@@ -613,6 +584,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
       setSelectedInvoiceIds([]);
       setAllocatedAmounts({});
     },
@@ -1004,6 +976,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
 
       const totalPaid = roundToRupee(amount);
       const discountValue = data.discountAmount || 0;
@@ -1159,6 +1132,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
       toast.success(`Receipt deleted. ₹${Math.round(data.paymentAmount).toLocaleString('en-IN')} reversed.`);
     },
     onError: (error: Error) => {

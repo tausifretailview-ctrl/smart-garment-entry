@@ -29,6 +29,7 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
   computeCustomerOutstanding,
   reconcileSaleInvoiceDisplay,
@@ -175,24 +176,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     organizationId || null
   );
 
-  /** Lifetime outstanding from DB RPC (audit-formula SQL); compare to snapshot hook, not date-range header. */
-  const { data: dbTrueOutstanding } = useQuery({
-    queryKey: ["customer-true-outstanding-ledger", organizationId, selectedCustomer?.id],
-    queryFn: async () => {
-      if (!organizationId || !selectedCustomer?.id) return null;
-      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
-        p_customer_id: selectedCustomer.id,
-        p_organization_id: organizationId,
-      });
-      if (error) {
-        console.error("get_customer_true_outstanding:", error);
-        return null;
-      }
-      return Number(data);
-    },
-    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
-    staleTime: 30_000,
-  });
+  const {
+    outstandingDr: snapshotOutstandingDr,
+    advanceAvailable: snapshotAdvanceAvailable,
+    cnAvailableTotal: snapshotCnAvailable,
+  } = useCustomerFinancialSnapshot(
+    isSchool ? null : selectedCustomer?.id,
+    organizationId || null,
+  );
 
   /** Same closing balance as Customer Audit Report for the selected date window (business org only). */
   const { data: ledgerAuditClosingBalance } = useQuery({
@@ -209,27 +200,6 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       const fromYmd = startDate ? format(startDate, "yyyy-MM-dd") : "1900-01-01";
       const toYmd = endDate ? format(endDate, "yyyy-MM-dd") : "9999-12-31";
       return computeAuditPeriodOutstanding(bundle, fromYmd, toYmd);
-    },
-    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
-    staleTime: 30_000,
-  });
-
-  const { data: cnAvailableFromNotes = 0 } = useQuery({
-    queryKey: ["customer-ledger-cn-available", organizationId, selectedCustomer?.id],
-    queryFn: async () => {
-      if (!organizationId || !selectedCustomer?.id) return 0;
-      const { data, error } = await supabase
-        .from("credit_notes")
-        .select("credit_amount, used_amount, status")
-        .eq("organization_id", organizationId)
-        .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null);
-      if (error) throw error;
-      return (data || []).reduce((sum: number, cn: any) => {
-        if (String(cn.status || "").toLowerCase() === "fully_used") return sum;
-        const bal = Math.max(0, Number(cn.credit_amount || 0) - Number(cn.used_amount || 0));
-        return sum + bal;
-      }, 0);
     },
     enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
     staleTime: 30_000,
@@ -2595,10 +2565,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   const cnAvailable = useMemo(() => {
     if (!isSchool) {
-      return Math.round(Number(cnAvailableFromNotes) || 0);
+      return Math.round(snapshotCnAvailable || 0);
     }
     return pendingSaleReturns.reduce((sum, t) => sum + (t.amount || 0), 0);
-  }, [isSchool, cnAvailableFromNotes, pendingSaleReturns]);
+  }, [isSchool, snapshotCnAvailable, pendingSaleReturns]);
 
   type LedgerAllocationRow = {
     id: string;
@@ -3397,21 +3367,21 @@ Please clear your dues at the earliest. Thank you!`;
                     <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
-                {dbTrueOutstanding != null &&
+                {snapshotOutstandingDr != null &&
                   !isSchool &&
                   (() => {
                     const appBalance =
                       ledgerDerivedStats?.closingBalance ?? authoritativeBalance;
-                    return Math.abs(appBalance - dbTrueOutstanding) > 1;
+                    return Math.abs(appBalance - snapshotOutstandingDr) > 1;
                   })() && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-2 text-left max-w-[240px] ml-auto">
                       <span className="inline-flex items-start gap-1 font-medium">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        Balance mismatch: database lifetime check ₹
-                        {Math.abs(dbTrueOutstanding).toLocaleString("en-IN", {
+                        Balance mismatch: financial snapshot ₹
+                        {Math.abs(snapshotOutstandingDr).toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
                         })}{" "}
-                        {dbTrueOutstanding >= 0 ? "Dr" : "Cr"} vs ledger ₹
+                        {snapshotOutstandingDr >= 0 ? "Dr" : "Cr"} vs ledger ₹
                         {Math.abs(
                           ledgerDerivedStats?.closingBalance ?? authoritativeBalance,
                         ).toLocaleString("en-IN", {
@@ -3495,9 +3465,11 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Balance</div>
                   <div className={cn(
                     "text-lg font-bold tabular-nums",
-                    (selectedCustomer.unusedAdvanceTotal ?? 0) > 0 ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground"
+                    (isSchool ? (selectedCustomer.unusedAdvanceTotal ?? 0) : snapshotAdvanceAvailable) > 0
+                      ? "text-teal-600 dark:text-teal-400"
+                      : "text-muted-foreground"
                   )}>
-                    ₹{(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{(isSchool ? (selectedCustomer.unusedAdvanceTotal ?? 0) : snapshotAdvanceAvailable).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                   {(selectedCustomer.unusedAdvanceTotal ?? 0) > 0 && (
                     <div className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5">Available to apply</div>

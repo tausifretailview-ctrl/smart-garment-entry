@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { insertLedgerCredit } from "@/lib/customerLedger";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   ensureCreditNoteHeadroom,
   formatCnApplyError,
@@ -352,6 +353,7 @@ export function AdjustCustomerCreditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
+      invalidateCustomerFinancialSnapshot(queryClient, currentOrganization!.id, customerId);
       return true;
     } catch (err: unknown) {
       console.error(err);

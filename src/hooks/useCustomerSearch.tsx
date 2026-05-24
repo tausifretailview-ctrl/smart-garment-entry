@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
-import { fetchAllCustomers, fetchCustomerTrueOutstandingMap } from "@/utils/fetchAllRows";
+import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import {
+  fetchCustomerFinancialSnapshotMap,
+  type CustomerFinancialSnapshot,
+} from "@/utils/customerFinancialSnapshot";
 
 interface Customer {
   id: string;
@@ -169,78 +173,20 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
 
 /**
  * Hook to get customer balances and advance amounts for dropdown display.
- * Lifetime outstanding uses `get_customer_true_outstanding` (same RPC as Customer Ledger).
+ * All three metrics from `get_customer_financial_snapshot_batch` (single SQL authority).
  */
 export const useCustomerBalances = () => {
   const { currentOrganization } = useOrganization();
 
-  const { data: customerOutstanding = {} } = useQuery({
+  const { data: snapshotByCustomerId = {} } = useQuery({
     queryKey: ["customer-balances-search", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return {};
+      if (!currentOrganization?.id) return {} as Record<string, CustomerFinancialSnapshot>;
 
       const rows = await fetchAllCustomers(currentOrganization.id);
       const ids = rows.map((c: { id: string }) => c.id).filter(Boolean);
-      const map = await fetchCustomerTrueOutstandingMap(currentOrganization.id, ids);
-      return Object.fromEntries(map) as Record<string, number>;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
-  });
-
-  // Fetch advance balances for all customers
-  const { data: advanceBalances = {} } = useQuery({
-    queryKey: ["customer-advances-search", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return {};
-      
-      const { data, error } = await supabase
-        .from("customer_advances")
-        .select("customer_id, amount, used_amount")
-        .eq("organization_id", currentOrganization.id)
-        .in("status", ["active", "partially_used"]);
-      
-      if (error) throw error;
-      
-      const map: Record<string, number> = {};
-      data?.forEach(adv => {
-        const available = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
-        if (available > 0) {
-          map[adv.customer_id] = (map[adv.customer_id] || 0) + available;
-        }
-      });
-      return map;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
-  });
-
-  // Fetch available credit note balances for all customers
-  const { data: creditNoteBalances = {} } = useQuery({
-    queryKey: ["customer-credit-notes-search", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return {};
-
-      const { data, error } = await supabase
-        .from("credit_notes")
-        .select("customer_id, credit_amount, used_amount, status")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .in("status", ["active", "partially_used"]);
-
-      if (error) throw error;
-
-      const map: Record<string, number> = {};
-      data?.forEach((cn: any) => {
-        if (!cn.customer_id) return;
-        const available = Math.max(0, (Number(cn.credit_amount) || 0) - (Number(cn.used_amount) || 0));
-        if (available > 0) {
-          map[cn.customer_id] = (map[cn.customer_id] || 0) + available;
-        }
-      });
-      return map;
+      const map = await fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids);
+      return Object.fromEntries(map) as Record<string, CustomerFinancialSnapshot>;
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30 * 1000,
@@ -248,22 +194,30 @@ export const useCustomerBalances = () => {
   });
 
   const getCustomerBalance = useCallback(
-    (customer: Customer) => customerOutstanding[customer.id] ?? 0,
-    [customerOutstanding],
+    (customer: Customer) => snapshotByCustomerId[customer.id]?.outstandingDr ?? 0,
+    [snapshotByCustomerId],
   );
 
-  const getCustomerAdvance = useCallback((customerId: string) => {
-    return advanceBalances[customerId] || 0;
-  }, [advanceBalances]);
+  const getCustomerAdvance = useCallback(
+    (customerId: string) => snapshotByCustomerId[customerId]?.advanceAvailable ?? 0,
+    [snapshotByCustomerId],
+  );
 
-  const getCustomerCreditNote = useCallback((customerId: string) => {
-    return creditNoteBalances[customerId] || 0;
-  }, [creditNoteBalances]);
+  const getCustomerCreditNote = useCallback(
+    (customerId: string) => snapshotByCustomerId[customerId]?.cnAvailableTotal ?? 0,
+    [snapshotByCustomerId],
+  );
+
+  const getCustomerSnapshot = useCallback(
+    (customerId: string) => snapshotByCustomerId[customerId],
+    [snapshotByCustomerId],
+  );
 
   return {
-    customerBalances: customerOutstanding,
+    customerBalances: snapshotByCustomerId,
     getCustomerBalance,
     getCustomerAdvance,
     getCustomerCreditNote,
+    getCustomerSnapshot,
   };
 };

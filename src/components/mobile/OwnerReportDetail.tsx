@@ -14,6 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { localDayBounds } from "@/lib/localDayBounds";
+import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import type { ReportType } from "./OwnerReportsHub";
 
 /* ─── Helpers ─── */
@@ -395,18 +396,16 @@ const CustomerOutstandingReport = ({ orgId }: { orgId?: string }) => {
         .eq("organization_id", orgId!).is("deleted_at", null);
       if (!customers?.length) return [];
 
-      const { data: sales } = await supabase.from("sales")
-        .select("customer_id, net_amount, sale_date")
-        .eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
-        .in("payment_status", ["pending", "partial"]);
-
-      const outMap = new Map<string, number>();
-      (sales || []).forEach((s: any) => {
-        if (s.customer_id) outMap.set(s.customer_id, (outMap.get(s.customer_id) || 0) + (s.net_amount || 0));
-      });
+      const snapMap = await fetchCustomerFinancialSnapshotMap(
+        orgId!,
+        customers.map((c) => c.id),
+      );
 
       return customers
-        .map((c) => ({ ...c, outstanding: (c.opening_balance || 0) + (outMap.get(c.id) || 0) }))
+        .map((c) => ({
+          ...c,
+          outstanding: snapMap.get(c.id)?.outstandingDr ?? 0,
+        }))
         .filter((c) => c.outstanding > 0)
         .sort((a, b) => b.outstanding - a.outstanding);
     },

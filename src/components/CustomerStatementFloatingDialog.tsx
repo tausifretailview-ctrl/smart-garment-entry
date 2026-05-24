@@ -8,6 +8,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -109,13 +110,13 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
   const selected = useMemo(() => customers.find((c) => c.id === selectedId) ?? null, [customers, selectedId]);
   const orgId = currentOrganization?.id ?? "";
 
-  const snapshot = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
-
-  /** Same lifetime outstanding as the list (Customer Ledger / `get_customer_true_outstanding`). */
-  const ledgerOutstanding = useMemo(() => {
-    if (!selected || !orgId) return 0;
-    return getCustomerBalance(toBalanceCustomer(selected, orgId));
-  }, [selected, orgId, getCustomerBalance]);
+  const balanceDetail = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
+  const {
+    outstandingDr: financialOutstanding,
+    advanceAvailable: financialAdvance,
+    cnAvailableTotal: financialCn,
+    isLoading: financialLoading,
+  } = useCustomerFinancialSnapshot(selectedId, currentOrganization?.id ?? null);
 
   const openAuditPage = () => {
     if (!selectedId) return;
@@ -276,7 +277,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   </div>
                 </div>
 
-                {snapshot.isLoading ? (
+                {financialLoading || balanceDetail.isLoading ? (
                   <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading balance snapshot…
@@ -285,34 +286,40 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   <Card className="shrink-0">
                     <CardContent className="p-3 space-y-2 text-sm">
                       <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">Outstanding (ledger)</span>
+                        <span className="text-muted-foreground">Outstanding (Dr)</span>
                         <span
                           className={cn(
                             "font-bold tabular-nums",
-                            ledgerOutstanding > 0.005
+                            financialOutstanding > 0.005
                               ? "text-red-600 dark:text-red-400"
-                              : ledgerOutstanding < -0.005
+                              : financialOutstanding < -0.005
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : "",
                           )}
                         >
-                          ₹{inr.format(Math.abs(ledgerOutstanding))}
-                          {ledgerOutstanding > 0.005 ? " Dr" : ledgerOutstanding < -0.005 ? " Cr" : ""}
+                          ₹{inr.format(Math.abs(financialOutstanding))}
+                          {financialOutstanding > 0.005 ? " Dr" : financialOutstanding < -0.005 ? " Cr" : ""}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">Advance available</span>
+                        <span className="font-semibold tabular-nums text-teal-700 dark:text-teal-300">
+                          ₹{inr.format(financialAdvance)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-muted-foreground">CN available</span>
+                        <span className="font-semibold tabular-nums text-orange-700 dark:text-orange-300">
+                          ₹{inr.format(financialCn)}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground border-t pt-2">
                         <span>Opening</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.openingBalance)}</span>
+                        <span className="text-right tabular-nums">₹{inr.format(balanceDetail.openingBalance)}</span>
                         <span>Net sales</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.totalSales)}</span>
+                        <span className="text-right tabular-nums">₹{inr.format(balanceDetail.totalSales)}</span>
                         <span>Total paid</span>
-                        <span className="text-right tabular-nums">₹{inr.format(snapshot.totalPaid)}</span>
-                        {snapshot.unusedAdvanceTotal > 0.005 && (
-                          <>
-                            <span>Unused advance</span>
-                            <span className="text-right tabular-nums">₹{inr.format(snapshot.unusedAdvanceTotal)}</span>
-                          </>
-                        )}
+                        <span className="text-right tabular-nums">₹{inr.format(balanceDetail.totalPaid)}</span>
                       </div>
                     </CardContent>
                   </Card>

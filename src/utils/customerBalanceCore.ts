@@ -1,7 +1,9 @@
 import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 
 /**
- * Single source of truth for customer lifetime outstanding.
+ * Client-side lifetime outstanding (transaction list / audit). For headline UI numbers
+ * (Outstanding Dr, Advance available, CN available), use `get_customer_financial_snapshot` via
+ * `useCustomerFinancialSnapshot` / `fetchCustomerFinancialSnapshot`.
  * Formula aligned with `reconcile_customer_balance` / `get_customer_true_outstanding` (SQL)
  * and `customerAuditMath` audit components, plus explicit extensions:
  *
