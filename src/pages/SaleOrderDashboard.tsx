@@ -468,11 +468,27 @@ export default function SaleOrderDashboard() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
+      <div className="w-full min-w-0 max-w-none space-y-5">
 
-      {/* Unsaved Draft Card */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+            Sale Order Dashboard
+          </h1>
+          <p className="text-slate-400 text-base mt-0.5">Manage customer orders and fulfillment</p>
+        </div>
+        <Button
+          onClick={() => navigate('/sale-order-entry')}
+          className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          New Sale Order
+        </Button>
+      </div>
+
       {hasDraft && draftData && (
-        <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+        <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -522,113 +538,112 @@ export default function SaleOrderDashboard() {
         </Card>
       )}
 
-      {/* Summary Statistics Cards - Vasy ERP Style Vibrant */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
         <Card 
-          className={`cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg ${statusFilter === 'all' ? 'ring-2 ring-white' : ''}`}
+          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'all' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
           onClick={() => handleCardClick('all')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium text-white/80">Total Orders</CardDescription>
-            <ClipboardList className="h-4 w-4 text-white" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Total Orders</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <ClipboardList className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.total}</div>
-            <p className="text-xs text-white/70">All orders</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">{stats.total}</div>
+            <p className="text-sm text-white/65 mt-0.5">All orders</p>
           </CardContent>
         </Card>
         
         <Card 
-          className={`cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg ${statusFilter === 'pending' ? 'ring-2 ring-white' : ''}`}
+          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'pending' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
           onClick={() => handleCardClick('pending')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium text-white/80">Pending</CardDescription>
-            <Clock className="h-4 w-4 text-white" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Pending</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <Clock className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.pending}</div>
-            <p className="text-xs text-white/70">Awaiting action</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">{stats.pending}</div>
+            <p className="text-sm text-white/65 mt-0.5">Awaiting action</p>
           </CardContent>
         </Card>
         
         <Card 
-          className={`cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg ${statusFilter === 'partial' ? 'ring-2 ring-white' : ''}`}
+          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'partial' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
           onClick={() => handleCardClick('partial')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium text-white/80">Partial</CardDescription>
-            <Package className="h-4 w-4 text-white" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Partial</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <Package className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.partial}</div>
-            <p className="text-xs text-white/70">Partially fulfilled</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">{stats.partial}</div>
+            <p className="text-sm text-white/65 mt-0.5">Partially fulfilled</p>
           </CardContent>
         </Card>
         
         <Card 
-          className={`cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg ${statusFilter === 'confirmed' ? 'ring-2 ring-white' : ''}`}
+          className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'confirmed' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
           onClick={() => handleCardClick('confirmed')}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium text-white/80">Confirmed</CardDescription>
-            <CheckCircle className="h-4 w-4 text-white" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Confirmed</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <CheckCircle className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.confirmed}</div>
-            <p className="text-xs text-white/70">Completed</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">{stats.confirmed}</div>
+            <p className="text-sm text-white/65 mt-0.5">Completed</p>
           </CardContent>
         </Card>
         
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium text-white/80">Pending Items</CardDescription>
-            <AlertTriangle className="h-4 w-4 text-white" />
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Pending Items</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <AlertTriangle className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{stats.pendingItems}</div>
-            <p className="text-xs text-white/70">To be fulfilled</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">{stats.pendingItems}</div>
+            <p className="text-sm text-white/65 mt-0.5">To be fulfilled</p>
           </CardContent>
         </Card>
         
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium text-white/80">Pending Value</CardDescription>
-            <IndianRupee className="h-4 w-4 text-white" />
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Pending Value</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <IndianRupee className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₹{stats.pendingValue.toLocaleString('en-IN')}</div>
-            <p className="text-xs text-white/70">Outstanding</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">₹{stats.pendingValue.toLocaleString('en-IN')}</div>
+            <p className="text-sm text-white/65 mt-0.5">Outstanding</p>
           </CardContent>
         </Card>
       </div>
       
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6" />
-            Sale Order Dashboard
-          </h1>
-          <Button onClick={() => navigate('/sale-order-entry')}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Sale Order
-          </Button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
+          <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               placeholder="Search by order no, customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
             />
           </div>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
+              <Button variant="outline" className={cn("w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white", !fromDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {fromDate ? format(fromDate, "dd/MM/yy") : "From Date"}
               </Button>
@@ -639,7 +654,7 @@ export default function SaleOrderDashboard() {
           </Popover>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+              <Button variant="outline" className={cn("w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white", !toDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {toDate ? format(toDate, "dd/MM/yy") : "To Date"}
               </Button>
@@ -654,7 +669,7 @@ export default function SaleOrderDashboard() {
             </Button>
           )}
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-48 h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Customer" />
             </SelectTrigger>
             <SelectContent>
@@ -667,7 +682,7 @@ export default function SaleOrderDashboard() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40 h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -680,7 +695,7 @@ export default function SaleOrderDashboard() {
           </Select>
         </div>
 
-        {/* Table */}
+        <div className="p-0">
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -691,19 +706,18 @@ export default function SaleOrderDashboard() {
             No sale orders found
           </div>
         ) : (
-          <ScrollArea className="h-[calc(100vh-320px)] rounded-md border">
+          <ScrollArea className="h-[calc(100vh-320px)]">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead>Order No</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Expected Delivery</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Accept</TableHead>
-                  <TableHead>Actions</TableHead>
+                <TableRow className="bg-black hover:bg-black">
+                  <TableHead className="w-10 text-white"></TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Order No</TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Date</TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Customer</TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Amount</TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Status</TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Accept</TableHead>
+                  <TableHead className="text-white font-bold uppercase text-[13px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -719,10 +733,9 @@ export default function SaleOrderDashboard() {
                             {expandedRows.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
                         </TableCell>
-                        <TableCell className="font-medium">{order.order_number}</TableCell>
-                        <TableCell>{format(new Date(order.order_date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell>{order.expected_delivery_date ? format(new Date(order.expected_delivery_date), 'dd/MM/yyyy') : '-'}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium text-[15px]">{order.order_number}</TableCell>
+                        <TableCell className="text-[15px]">{format(new Date(order.order_date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="text-[15px]">
                           <div>
                             <button
                               className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
@@ -793,7 +806,7 @@ export default function SaleOrderDashboard() {
                       </TableRow>
                       {expandedRows.has(order.id) && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-muted/50">
+                          <TableCell colSpan={8} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Order Items</h4>
                               <Table>
@@ -837,19 +850,21 @@ export default function SaleOrderDashboard() {
           </ScrollArea>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+            <div className="text-sm text-slate-500">
               Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredOrders.length)} of {filteredOrders.length}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
-              <Button variant="outline" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}>Next</Button>
+              <Button variant="outline" className="h-9 text-sm border-slate-200" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
+              <span className="text-sm text-slate-600 font-medium self-center tabular-nums">Page {currentPage} of {totalPages}</span>
+              <Button variant="outline" className="h-9 text-sm border-slate-200" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}>Next</Button>
             </div>
           </div>
         )}
+        </div>
       </Card>
+      </div>
 
       {/* Delete Dialog */}
       <AlertDialog open={!!orderToDelete} onOpenChange={() => setOrderToDelete(null)}>

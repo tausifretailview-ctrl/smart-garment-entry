@@ -548,47 +548,61 @@ const PurchaseReturnDashboard = () => {
 
   if (loading) {
     return (
-      <div className="w-full px-6 py-6 space-y-6">
+      <div className="min-h-screen bg-slate-50 px-4 py-6 space-y-5">
         <Skeleton className="h-12 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
         </div>
-        <Skeleton className="h-96" />
+        <Skeleton className="h-96 rounded-xl" />
       </div>
     );
   }
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
+      <div className="w-full min-w-0 max-w-none space-y-5">
+      <div className="flex flex-wrap justify-between items-start gap-3">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
             Purchase Return Dashboard
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-slate-400 text-base mt-0.5">
             View and manage all purchase return records
           </p>
         </div>
-        <Button onClick={() => navigate("/purchase-return-entry")}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create New Return
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {selectedReturns.size > 0 && (
+            <Button variant="destructive" className="h-10 text-base" onClick={() => setBulkDeleteDialogOpen(true)}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Selected ({selectedReturns.size})
+            </Button>
+          )}
+          <Button
+            onClick={() => navigate("/purchase-return-entry")}
+            className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create New Return
+          </Button>
+        </div>
       </div>
 
       {/* Draft Resume Card */}
       {hasDraft && draftData && (
-        <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 mb-4">
-          <CardHeader className="pb-3">
+        <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
+          <CardHeader className="py-3 px-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-amber-600" />
+                </div>
                 <div>
-                  <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+                  <CardTitle className="text-base font-bold text-amber-800">
                     Unsaved Purchase Return Draft
                   </CardTitle>
-                  <CardDescription className="text-amber-700 dark:text-amber-400">
+                  <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
                     {(draftData as any)?.lineItems?.length || 0} items • Saved {lastSaved ? formatDistanceToNow(lastSaved, { addSuffix: true }) : "recently"}
                   </CardDescription>
                 </div>
@@ -604,7 +618,7 @@ const PurchaseReturnDashboard = () => {
                       description: "The unsaved purchase return has been removed",
                     });
                   }}
-                  className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                  className="gap-1.5 h-9 text-sm border-amber-300 text-amber-700 hover:bg-amber-100"
                 >
                   <X className="h-4 w-4" />
                   Discard
@@ -614,7 +628,7 @@ const PurchaseReturnDashboard = () => {
                   onClick={() => {
                     navigate("/purchase-return-entry", { state: { loadDraft: true } });
                   }}
-                  className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  className="gap-1.5 h-9 text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                 >
                   <Edit className="h-4 w-4" />
                   Resume Draft
@@ -625,118 +639,81 @@ const PurchaseReturnDashboard = () => {
         </Card>
       )}
 
-      {/* Summary Cards - Vasy ERP Style Vibrant */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-sm font-medium text-white/80">Total Returns</CardDescription>
-            <Receipt className="h-4 w-4 text-white" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+        <Card className="hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Total Returns</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <Receipt className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">{filteredReturns.length}</div>
-            <p className="text-xs text-white/70">All return records</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">{filteredReturns.length}</div>
+            <p className="text-sm text-white/65 mt-0.5">All return records</p>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-sm font-medium text-white/80">Total Return Amount</CardDescription>
-            <TrendingDown className="h-4 w-4 text-white" />
+        <Card className="hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Total Return Amount</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <TrendingDown className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₹{totalReturnAmount.toFixed(0)}</div>
-            <p className="text-xs text-white/70">Net refund value</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">₹{totalReturnAmount.toFixed(0)}</div>
+            <p className="text-sm text-white/65 mt-0.5">Net refund value</p>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-sm font-medium text-white/80">Average Return Value</CardDescription>
-            <IndianRupee className="h-4 w-4 text-white" />
+        <Card className="hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+            <CardDescription className="text-base font-medium text-white/80">Average Return Value</CardDescription>
+            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+              <IndianRupee className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-white">₹{averageReturnValue.toFixed(0)}</div>
-            <p className="text-xs text-white/70">Per return</p>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="text-2xl font-black text-white tabular-nums">₹{averageReturnValue.toFixed(0)}</div>
+            <p className="text-sm text-white/65 mt-0.5">Per return</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by return no., supplier or bill number..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="date"
-                placeholder="Start Date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="date"
-                placeholder="End Date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="space-y-2">
-              <div className="text-xs text-muted-foreground">DC Filter</div>
-              <select
-                value={dcFilter}
-                onChange={(e) => setDcFilter(e.target.value as any)}
-                className="border rounded px-3 py-2 text-sm bg-background w-full"
-              >
-                <option value="all">All Returns</option>
-                <option value="dc">DC Only</option>
-                <option value="gst">GST Only</option>
-              </select>
-            </div>
+      <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
+          <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              placeholder="Search by return no., supplier or bill number..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
+            />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Bulk Actions */}
-      {selectedReturns.size > 0 && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="py-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">
-                {selectedReturns.size} return(s) selected
-              </span>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setBulkDeleteDialogOpen(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Returns Table */}
-      <Card>
-        <CardContent className="pt-6">
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
+          />
+          <Input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
+          />
+          <select
+            value={dcFilter}
+            onChange={(e) => setDcFilter(e.target.value as any)}
+            className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-base min-w-[130px] hover:bg-white"
+          >
+            <option value="all">All Returns</option>
+            <option value="dc">DC Only</option>
+            <option value="gst">GST Only</option>
+          </select>
+        </div>
+        <CardContent className="p-0 pt-0">
           {paginatedReturns.length === 0 ? (
             <div className="text-center py-12">
               <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
@@ -751,8 +728,8 @@ const PurchaseReturnDashboard = () => {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="h-10">
-                    <TableHead className="w-8 px-2 py-1.5">
+                  <TableRow className="h-11 bg-black hover:bg-black">
+                    <TableHead className="w-8 px-2 py-2 text-white">
                       <input
                         type="checkbox"
                         checked={selectedReturns.size === filteredReturns.length}
@@ -760,17 +737,15 @@ const PurchaseReturnDashboard = () => {
                         className="rounded"
                       />
                     </TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px]">Ret. No.</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px]">Date</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px]">Supplier</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px]">Orig. Bill</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Qty</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Gross Amt</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px] text-right">GST</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Net Amt</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px]">Notes</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px]">Status</TableHead>
-                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Actions</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase">Ret. No.</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase">Date</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase">Supplier</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase">Orig. Bill</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase text-right">Qty</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase text-right">GST</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase text-right">Net Amt</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase">Status</TableHead>
+                    <TableHead className="px-2 py-2 text-[13px] font-bold text-white uppercase text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -823,13 +798,10 @@ const PurchaseReturnDashboard = () => {
                             {returnRecord.original_bill_number || "N/A"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="px-2 py-1.5 text-sm text-right font-medium tabular-nums">
+                        <TableCell className="px-2 py-2 text-[15px] text-right font-medium tabular-nums">
                           {returnRecord.total_qty || 0}
                         </TableCell>
-                        <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums">
-                          ₹{returnRecord.gross_amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums">
+                        <TableCell className="px-2 py-2 text-[15px] text-right tabular-nums">
                           {returnRecord.is_dc ? (
                             <div className="flex items-center justify-end gap-2">
                               <span className="text-orange-500 text-xs font-medium">DC</span>
@@ -839,13 +811,10 @@ const PurchaseReturnDashboard = () => {
                             <span>₹{returnRecord.gst_amount.toFixed(2)}</span>
                           )}
                         </TableCell>
-                        <TableCell className="px-2 py-1.5 text-sm text-right font-semibold tabular-nums text-primary">
+                        <TableCell className="px-2 py-2 text-[15px] text-right font-semibold tabular-nums text-primary">
                           ₹{returnRecord.net_amount.toFixed(2)}
                         </TableCell>
-                        <TableCell className="px-2 py-1.5 text-sm max-w-[120px] truncate">
-                          {returnRecord.notes || "-"}
-                        </TableCell>
-                        <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                           {returnRecord.credit_status === 'pending' && (
                             <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 text-xs px-1.5 py-0">
                               Pending
@@ -945,7 +914,7 @@ const PurchaseReturnDashboard = () => {
 
                       {expandedReturns.has(returnRecord.id) && (
                         <TableRow>
-                          <TableCell colSpan={13} className="bg-muted/30 p-0">
+                          <TableCell colSpan={10} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-semibold mb-3 flex items-center gap-2">
                                 <Package className="h-4 w-4" />
@@ -1027,18 +996,17 @@ const PurchaseReturnDashboard = () => {
             </div>
           )}
 
-          {/* Pagination */}
           {filteredReturns.length > 0 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows per page:</span>
+                <span className="text-sm text-slate-500">Show:</span>
                 <select
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="border rounded px-2 py-1 text-sm"
+                  className="h-9 rounded-md border border-slate-200 px-2 text-sm"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -1047,12 +1015,13 @@ const PurchaseReturnDashboard = () => {
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-slate-600 font-medium tabular-nums px-1">
                   Page {currentPage} of {totalPages}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-9 text-sm border-slate-200"
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
                 >
@@ -1061,6 +1030,7 @@ const PurchaseReturnDashboard = () => {
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-9 text-sm border-slate-200"
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
                 >
@@ -1071,6 +1041,7 @@ const PurchaseReturnDashboard = () => {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -12,7 +12,7 @@ import * as XLSX from "xlsx";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -328,13 +328,13 @@ const ProductDashboard = () => {
     productName: true,
     category: true,
     brand: true,
-    style: true,
-    color: true,
-    hsn: true,
-    gst: true,
+    style: false,
+    color: false,
+    hsn: false,
+    gst: false,
     purPrice: true,
     salePrice: true,
-    status: true,
+    status: false,
     totalQty: true,
     variants: true,
   };
@@ -1198,161 +1198,135 @@ const ProductDashboard = () => {
   const totalSaleValue = dashboardStats.sale_value;
 
   return (
-    <div className="min-h-screen bg-background px-3 py-4 md:px-6 md:py-6 xl:px-8">
-      <div className="w-full">
-        {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/")}
-              className="h-8 w-8"
-            >
-              <Home className="h-4 w-4" />
-            </Button>
-            <h1 className="text-3xl font-bold text-foreground tracking-tight">Product Catalog</h1>
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
+      <div className="w-full min-w-0 max-w-none space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+              Product Catalog
+            </h1>
+            <p className="text-slate-400 text-base mt-0.5">Browse inventory, variants, and pricing</p>
           </div>
+          <Button
+            onClick={() => navigate("/product-entry")}
+            className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create New
+          </Button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
-          <Card className="border-l-4 border-l-blue-500 overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Stock Qty</p>
-                  <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">{totalStockQty.toLocaleString()}</p>
-                </div>
-                <div className="h-14 w-14 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center">
-                  <Boxes className="h-7 w-7 text-blue-600 dark:text-blue-400" />
-                </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Stock Qty</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Boxes className="h-4 w-4 text-white" />
               </div>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums">{totalStockQty.toLocaleString()}</div>
+              <p className="text-sm text-white/65 mt-0.5">Units on hand</p>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-violet-500 overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Total Items</p>
-                  <p className="text-3xl font-bold text-violet-700 dark:text-violet-300 tabular-nums">{totalItems.toLocaleString()}</p>
-                </div>
-                <div className="h-14 w-14 rounded-xl bg-violet-50 dark:bg-violet-950 flex items-center justify-center">
-                  <Tags className="h-7 w-7 text-violet-600 dark:text-violet-400" />
-                </div>
+          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Items</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Tags className="h-4 w-4 text-white" />
               </div>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums">{totalItems.toLocaleString()}</div>
+              <p className="text-sm text-white/65 mt-0.5">Active products</p>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-orange-500 overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Purchase Value</p>
-                  <p className="text-3xl font-bold text-orange-700 dark:text-orange-300 tabular-nums">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                </div>
-                <div className="h-14 w-14 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center">
-                  <TrendingDown className="h-7 w-7 text-orange-600 dark:text-orange-400" />
-                </div>
+          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-md rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Purchase Value</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingDown className="h-4 w-4 text-white" />
               </div>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums">₹{Math.round(totalPurchaseValue).toLocaleString("en-IN")}</div>
+              <p className="text-sm text-white/65 mt-0.5">At purchase price</p>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-1">Sale Value</p>
-                  <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                </div>
-                <div className="h-14 w-14 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center">
-                  <TrendingUp className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
-                </div>
+          <Card className="hover:shadow-xl transition-all duration-200 bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Sale Value</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-white" />
               </div>
+            </CardHeader>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums">₹{Math.round(totalSaleValue).toLocaleString("en-IN")}</div>
+              <p className="text-sm text-white/65 mt-0.5">At sale price</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Toolbar */}
-        <Card className="mb-5 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant={showFilters ? "default" : "outline"} 
-                  size="default" 
-                  className="gap-2"
-                  onClick={() => setShowFilters(!showFilters)}
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              className="h-10 text-base gap-2 border-slate-200"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="h-4 w-4" />
+              Filter
+              {hasActiveFilters && (
+                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
+                  {[selectedCategory !== "all", selectedProductType !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 text-base gap-2 border-slate-300 text-slate-600 hover:bg-slate-100"
+              onClick={handleExportToExcel}
+              disabled={productRows.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 text-base gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              onClick={() => setShowStockImportDialog(true)}
+              disabled={productRows.length === 0}
+            >
+              <Upload className="h-4 w-4" />
+              Import Stock
+            </Button>
+            <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Search name, brand, barcode, HSN..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-11 pr-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
                 >
-                  <Filter className="h-4 w-4" />
-                  Filter
-                  {hasActiveFilters && (
-                    <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                      {[selectedCategory !== "all", selectedProductType !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
-                    </Badge>
-                  )}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="default" 
-                  className="gap-2"
-                  onClick={handleExportToExcel}
-                  disabled={productRows.length === 0}
-                >
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-                <Button
-                  variant="outline"
-                  size="default"
-                  className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                  onClick={() => setShowStockImportDialog(true)}
-                  disabled={productRows.length === 0}
-                >
-                  <Upload className="h-4 w-4" />
-                  Import Stock
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-2 flex-1">
-                <div className="relative flex-1 max-w-2xl">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search name, brand, barcode, HSN... (multi-word AND)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-8 no-uppercase h-11 text-base"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
-                    >
-                      <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  )}
-                </div>
-                {searchQuery && (
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    Showing {totalCount.toLocaleString('en-IN')} results
-                  </span>
-                )}
-                <div id="erp-toolbar-portal-product" className="flex items-center gap-2" />
-                <div className="ml-auto">
-                  <Button
-                    size="default"
-                    className="gap-2 bg-primary hover:bg-primary/90 shadow-sm font-semibold"
-                    onClick={() => navigate("/product-entry")}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create New
-                  </Button>
-                </div>
-              </div>
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
             </div>
-          </CardContent>
-        </Card>
+            {searchQuery && (
+              <span className="text-sm text-slate-500 whitespace-nowrap">
+                {totalCount.toLocaleString("en-IN")} results
+              </span>
+            )}
+            <div id="erp-toolbar-portal-product" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
+          </div>
 
         {/* Filters Panel */}
         {showFilters && (
@@ -1623,10 +1597,8 @@ const ProductDashboard = () => {
           </Card>
         )}
 
-        {/* Table */}
-        <Card className="shadow-sm overflow-hidden">
-          <CardContent className="p-0">
-            {filteredRows.length === 0 ? (
+          <div className="p-0">
+            {filteredRows.length === 0 && !loading ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 {fetchError ? (
@@ -1645,13 +1617,14 @@ const ProductDashboard = () => {
                 )}
               </div>
             ) : (
-               <div className="text-[15px]">
-                 <ERPTable<ProductRow>
+              <ERPTable<ProductRow>
                 tableId="product_list"
                 columns={productColumns}
                 data={paginatedRows}
                 isLoading={loading && productRows.length === 0}
                 emptyMessage="No products found"
+                defaultDensity="comfortable"
+                className="[&_td]:!text-[15px] [&_th]:!text-[13px]"
                 renderSubRow={renderProductSubRow}
                 expandedRows={expandedRows}
                 onToggleExpand={toggleExpanded}
@@ -1659,64 +1632,46 @@ const ProductDashboard = () => {
                 onRowContextMenu={handleRowContextMenu}
                 showToolbar={false}
                 renderToolbar={(toolbar) => {
-                  const el = document.getElementById('erp-toolbar-portal-product');
+                  const el = document.getElementById("erp-toolbar-portal-product");
                   return el ? createPortal(toolbar, el) : toolbar;
                 }}
               />
-               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Pagination Controls */}
-        {filteredRows.length > 0 && (
-          <Card className="mt-5 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Rows per page:</span>
-                    <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-20 h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} products (Page {currentPage} of {totalPages})
-                  </div>
-                </div>
+          {filteredRows.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePreviousPage}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <div className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleNextPage}
-                    disabled={currentPage >= totalPages}
-                  >
-                    Next
-                  </Button>
+                  <span className="text-sm text-slate-500">Show:</span>
+                  <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
+                    <SelectTrigger className="w-20 h-9 text-sm border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-sm text-slate-500 tabular-nums">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1}–{Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} products
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" onClick={handlePreviousPage} disabled={currentPage === 1}>
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-600 font-medium tabular-nums px-1">Page {currentPage} of {totalPages}</span>
+                <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200" onClick={handleNextPage} disabled={currentPage >= totalPages}>
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
 
         {/* Bulk Delete Confirmation Dialog */}
         <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
