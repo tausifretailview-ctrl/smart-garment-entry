@@ -7494,6 +7494,27 @@ export type Database = {
       }
     }
     Functions: {
+      _customer_advance_available: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: number
+      }
+      _customer_cn_available_total: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: {
+          cn_available_total: number
+          cn_pending_count: number
+        }[]
+      }
+      _customer_cn_pool_row_available: {
+        Args: {
+          p_cn_credit_amount: number
+          p_cn_used_amount: number
+          p_credit_available_balance: number
+          p_credit_note_id: string
+          p_net_amount: number
+        }
+        Returns: number
+      }
       adjust_invoice_balance: {
         Args: {
           p_adjusted_by?: string
@@ -7724,6 +7745,25 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_customer_financial_snapshot: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: {
+          advance_available: number
+          cn_available_total: number
+          cn_pending_count: number
+          outstanding_dr: number
+        }[]
+      }
+      get_customer_financial_snapshot_batch: {
+        Args: { p_customer_ids: string[]; p_organization_id: string }
+        Returns: {
+          advance_available: number
+          cn_available_total: number
+          cn_pending_count: number
+          customer_id: string
+          outstanding_dr: number
+        }[]
+      }
       get_customer_ledger_anomalies: {
         Args: never
         Returns: {
@@ -7766,25 +7806,6 @@ export type Database = {
       get_customer_true_outstanding: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
-      }
-      get_customer_financial_snapshot: {
-        Args: { p_customer_id: string; p_organization_id: string }
-        Returns: {
-          outstanding_dr: number
-          advance_available: number
-          cn_available_total: number
-          cn_pending_count: number
-        }[]
-      }
-      get_customer_financial_snapshot_batch: {
-        Args: { p_organization_id: string; p_customer_ids: string[] }
-        Returns: {
-          customer_id: string
-          outstanding_dr: number
-          advance_available: number
-          cn_available_total: number
-          cn_pending_count: number
-        }[]
       }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
@@ -7872,6 +7893,10 @@ export type Database = {
         }[]
       }
       get_outstanding_summary: { Args: { p_org_id: string }; Returns: Json }
+      get_pending_gl_backfill_counts: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       get_pnl_aggregates: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
