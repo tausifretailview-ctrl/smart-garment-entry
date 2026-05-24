@@ -3,7 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import {
+  classifyCustomerSegment,
+  CUSTOMER_SEGMENT_LABELS,
+  fetchCustomerSaleStats,
+} from "@/utils/customerSegments";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -626,6 +631,18 @@ export function CustomerHistoryDialog({
   const refunds = salesHistory?.filter(s => (s.refund_amount || 0) > 0) || [];
   const isLoading = balanceLoading || salesLoading;
 
+  const { data: customerSaleStats, isLoading: saleStatsLoading } = useQuery({
+    queryKey: ["customer-sale-stats", customerId, organizationId],
+    queryFn: () => fetchCustomerSaleStats(organizationId, customerId!),
+    enabled: open && !isSchool && !!customerId && !!organizationId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const customerSegment = useMemo(
+    () => classifyCustomerSegment(customerSaleStats),
+    [customerSaleStats],
+  );
+
   /** Same headline numbers as Customer Ledger / Account Statement (RPC + balance snapshot). */
   const summary = useMemo(() => {
     const outstandingDr = snapshotOutstandingDr ?? balance;
@@ -733,114 +750,119 @@ export function CustomerHistoryDialog({
               );
             }
 
-            // Business mode — aligned with Customer Ledger / financial snapshot RPC
+            // Business mode — dashboard-style gradient KPIs
             const { outstandingDr, advanceAvailable, cnAvailable, cnAppliedOnInvoices } = summary;
             const showGrossSales =
               (totalSalesGross || 0) > (totalSales || 0) + 0.005;
+            const lifetimeRev = customerSaleStats?.revenue ?? 0;
+            const lifetimeOrders = customerSaleStats?.orders ?? 0;
+            const lastSale = customerSaleStats?.lastSaleDate;
+
             return (
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2 py-2">
-                <Card className="border-l-4 border-l-blue-500">
-                  <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Opening Bal</p>
-                    <p className="text-xs sm:text-sm font-bold text-blue-600 truncate tabular-nums mt-0.5">₹{openingBalance.toFixed(2)}</p>
-                  </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-green-500">
-                  <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Sales</p>
-                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{totalSales.toFixed(2)}</p>
-                    {showGrossSales && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">Gross ₹{(totalSalesGross || 0).toFixed(0)}</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-purple-500">
-                  <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Cash / UPI Paid</p>
-                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{(totalCashPaid || 0).toFixed(2)}</p>
-                    {(totalAdvanceApplied > 0 || totalCnApplied > 0) && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                        {totalAdvanceApplied > 0 && `Adv ₹${totalAdvanceApplied.toFixed(0)}`}
-                        {totalAdvanceApplied > 0 && totalCnApplied > 0 && " · "}
-                        {totalCnApplied > 0 && `CN ₹${totalCnApplied.toFixed(0)}`}
+              <div className="space-y-3 py-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <Card className="bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl">
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">Segment</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white">
+                        {saleStatsLoading ? "…" : CUSTOMER_SEGMENT_LABELS[customerSegment]}
                       </p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-orange-500">
-                  <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Advance Avail.</p>
-                    <p className="text-xs sm:text-sm font-bold text-orange-600 truncate tabular-nums mt-0.5">₹{advanceAvailable.toFixed(2)}</p>
-                    {totalAdvanceApplied > 0 && (
-                      <p className="text-[10px] text-orange-400 mt-0.5">₹{totalAdvanceApplied.toFixed(0)} applied</p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-pink-500">
-                  <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">CN Available</p>
-                    <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{cnAvailable.toFixed(2)}</p>
-                    <p className="text-[10px] text-pink-400 mt-0.5 truncate">
-                      {cnAvailable > 0.005
-                        ? "Pool to apply"
-                        : cnAppliedOnInvoices > 0
-                          ? `₹${cnAppliedOnInvoices.toLocaleString("en-IN")} applied`
-                          : "None"}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card
-                  className={cn(
-                    "border-l-4",
-                    outstandingDr > 0.005
-                      ? "border-l-red-500"
-                      : advanceAvailable > 0.005
-                        ? "border-l-teal-500"
-                        : "border-l-slate-400",
-                  )}
-                >
-                  <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">
-                      {outstandingDr > 0.005
-                        ? "Outstanding (Dr)"
-                        : advanceAvailable > 0.005
-                          ? "Unused Advance"
-                          : "Current Bal"}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5",
-                        outstandingDr > 0.005
-                          ? "text-red-600"
-                          : advanceAvailable > 0.005
-                            ? "text-teal-600"
-                            : "text-slate-500",
+                      <p className="text-xs text-white/65 mt-0.5">
+                        {lifetimeOrders} order{lifetimeOrders === 1 ? "" : "s"}
+                        {lastSale ? ` · Last ${lastSale}` : ""}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl">
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">Lifetime Sales</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white tabular-nums">
+                        {saleStatsLoading ? "…" : `₹${Math.round(lifetimeRev).toLocaleString("en-IN")}`}
+                      </p>
+                      {showGrossSales && (
+                        <p className="text-xs text-white/65 mt-0.5">Ledger net ₹{totalSales.toFixed(0)}</p>
                       )}
-                    >
-                      ₹
-                      {(outstandingDr > 0.005
-                        ? outstandingDr
-                        : advanceAvailable
-                      ).toFixed(2)}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-[10px] font-semibold mt-0.5",
-                        outstandingDr > 0.005
-                          ? "text-red-500"
-                          : advanceAvailable > 0.005
-                            ? "text-teal-600"
-                            : "text-slate-400",
-                      )}
-                    >
-                      {outstandingDr > 0.005
-                        ? "Customer owes"
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl">
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">Opening Balance</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white tabular-nums">₹{openingBalance.toFixed(0)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-md rounded-xl">
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">Cash / UPI Paid</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white tabular-nums">₹{(totalCashPaid || 0).toFixed(0)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <Card className="bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl">
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">Advance Available</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white tabular-nums">₹{advanceAvailable.toFixed(0)}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-md rounded-xl">
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">CN Available</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white tabular-nums">₹{cnAvailable.toFixed(0)}</p>
+                      <p className="text-xs text-white/65 mt-0.5 truncate">
+                        {cnAvailable > 0.005
+                          ? "Pool to apply"
+                          : cnAppliedOnInvoices > 0
+                            ? `₹${cnAppliedOnInvoices.toLocaleString("en-IN")} applied`
+                            : "None"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className={cn(
+                      "border-0 shadow-md rounded-xl bg-gradient-to-br",
+                      outstandingDr > 0.005
+                        ? "from-red-500 to-red-600"
                         : advanceAvailable > 0.005
-                          ? "Available for bills"
-                          : "Settled ✓"}
-                    </p>
-                  </CardContent>
-                </Card>
+                          ? "from-teal-500 to-teal-600"
+                          : "from-slate-500 to-slate-600",
+                    )}
+                  >
+                    <CardHeader className="pb-1 pt-3 px-3">
+                      <CardDescription className="text-sm font-medium text-white/80">
+                        {outstandingDr > 0.005
+                          ? "Outstanding (Dr)"
+                          : advanceAvailable > 0.005
+                            ? "Unused Advance"
+                            : "Current Balance"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3 pt-0">
+                      <p className="text-xl font-black text-white tabular-nums">
+                        ₹
+                        {(outstandingDr > 0.005 ? outstandingDr : advanceAvailable).toFixed(0)}
+                      </p>
+                      <p className="text-xs text-white/65 mt-0.5">
+                        {outstandingDr > 0.005
+                          ? "Customer owes"
+                          : advanceAvailable > 0.005
+                            ? "Available for bills"
+                            : "Settled"}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             );
           })()}
@@ -1356,22 +1378,16 @@ export function CustomerHistoryDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
-          {/* Gradient accent bar */}
-          <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
-          <div className="p-3 sm:p-5 pb-0">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0 bg-slate-50">
+          <div className="h-1 w-full bg-gradient-to-r from-blue-500 via-blue-600 to-violet-500 rounded-t-lg flex-shrink-0" />
+          <div className="p-4 sm:p-5 pb-0 bg-slate-50">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
-                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <ShoppingCart className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <div>{customerName}</div>
-                  <DialogDescription className="text-xs font-normal mt-0.5">
-                    Customer account history and transactions
-                  </DialogDescription>
-                </div>
+              <DialogTitle className="text-2xl font-extrabold text-blue-600 tracking-tight leading-tight">
+                {customerName}
               </DialogTitle>
+              <DialogDescription className="text-slate-400 text-base mt-0.5">
+                Customer account history and transactions
+              </DialogDescription>
             </DialogHeader>
           </div>
           {renderContent()}

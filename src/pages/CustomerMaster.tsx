@@ -92,6 +92,12 @@ interface Customer {
 
 const ITEMS_PER_PAGE = 50;
 
+/** Hidden by default; users can enable via Columns toolbar. */
+const CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
+  email: false,
+  gst_number: false,
+};
+
 type SegmentFilter = CustomerSegment | "all";
 
 const fmtInr = (n: number) =>
@@ -268,12 +274,18 @@ const CustomerMaster = () => {
     staleTime: 60000,
   });
 
-  const { data: segmentIndex, isLoading: segmentsLoading } = useQuery({
+  const {
+    data: segmentIndex,
+    isLoading: segmentsLoading,
+    isError: segmentsError,
+    refetch: refetchSegments,
+  } = useQuery({
     queryKey: ["customer-segments", currentOrganization?.id],
     queryFn: () => fetchCustomerSegmentIndex(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    retry: 2,
   });
 
   const { data: customersPage, isLoading } = useQuery({
@@ -731,7 +743,11 @@ const CustomerMaster = () => {
     {
       id: "srNo",
       header: "Sr No",
-      cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{startIndex + row.index + 1}</span>,
+      cell: ({ row }) => (
+        <span className="tabular-nums text-muted-foreground text-[15px]">
+          {startIndex + row.index + 1}
+        </span>
+      ),
       size: 64,
     },
     {
@@ -757,7 +773,9 @@ const CustomerMaster = () => {
       accessorKey: "phone",
       header: "Mobile",
       size: 130,
-      cell: ({ getValue }) => <span className="tabular-nums">{getValue() || "-"}</span>,
+      cell: ({ getValue }) => (
+        <span className="tabular-nums text-[15px]">{getValue() || "-"}</span>
+      ),
     },
     {
       id: "email",
@@ -808,10 +826,13 @@ const CustomerMaster = () => {
       header: "Segment",
       size: 100,
       cell: ({ row }) => {
+        if (segmentsLoading && !segmentIndex) {
+          return <span className="text-muted-foreground text-sm">…</span>;
+        }
         const seg = segmentIndex?.segments[row.original.id] ?? "regular";
         return (
           <span
-            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${segmentBadgeClass(seg)}`}
+            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${segmentBadgeClass(seg)}`}
           >
             {CUSTOMER_SEGMENT_LABELS[seg]}
           </span>
@@ -823,10 +844,14 @@ const CustomerMaster = () => {
       header: "Lifetime Sales",
       size: 130,
       cell: ({ row }) => {
-        const rev = segmentIndex?.stats[row.original.id]?.revenue;
+        if (segmentsLoading && !segmentIndex) {
+          return <span className="text-right text-muted-foreground text-sm">…</span>;
+        }
+        if (segmentsError) return <span className="text-right text-destructive text-sm">—</span>;
+        const st = segmentIndex?.stats[row.original.id];
         return (
-          <span className="text-right font-medium tabular-nums block">
-            {rev ? fmtInr(rev) : "-"}
+          <span className="text-right font-medium tabular-nums block text-[15px]">
+            {st ? fmtInr(st.revenue) : "-"}
           </span>
         );
       },
@@ -836,10 +861,14 @@ const CustomerMaster = () => {
       header: "Orders",
       size: 80,
       cell: ({ row }) => {
-        const orders = segmentIndex?.stats[row.original.id]?.orders;
+        if (segmentsLoading && !segmentIndex) {
+          return <span className="text-right text-muted-foreground text-sm">…</span>;
+        }
+        if (segmentsError) return <span className="text-right text-destructive text-sm">—</span>;
+        const st = segmentIndex?.stats[row.original.id];
         return (
-          <span className="text-right tabular-nums block">
-            {orders ? orders : "-"}
+          <span className="text-right tabular-nums block text-[15px]">
+            {st ? st.orders : "-"}
           </span>
         );
       },
@@ -849,8 +878,12 @@ const CustomerMaster = () => {
       header: "Last Sale",
       size: 110,
       cell: ({ row }) => {
+        if (segmentsLoading && !segmentIndex) {
+          return <span className="text-muted-foreground text-sm">…</span>;
+        }
+        if (segmentsError) return <span className="text-destructive text-sm">—</span>;
         const sd = segmentIndex?.stats[row.original.id]?.lastSaleDate;
-        return <span className="tabular-nums text-muted-foreground">{sd || "-"}</span>;
+        return <span className="tabular-nums text-muted-foreground text-[15px]">{sd || "-"}</span>;
       },
     },
     {
@@ -880,7 +913,16 @@ const CustomerMaster = () => {
         );
       },
     },
-  ], [customers, selectedCustomers, advanceBalances, startIndex, navigate, segmentIndex]);
+  ], [
+    customers,
+    selectedCustomers,
+    advanceBalances,
+    startIndex,
+    navigate,
+    segmentIndex,
+    segmentsLoading,
+    segmentsError,
+  ]);
 
   const isMobile = useIsMobile();
 
@@ -1104,6 +1146,18 @@ const CustomerMaster = () => {
           ))}
         </div>
 
+        {segmentsError && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm">
+            <span className="text-destructive font-medium">
+              Could not load lifetime sales / segment data for this organization.
+            </span>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => refetchSegments()}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              Retry
+            </Button>
+          </div>
+        )}
+
         {segmentFilter !== "all" && (
           <p className="text-sm text-muted-foreground">
             Showing{" "}
@@ -1122,31 +1176,40 @@ const CustomerMaster = () => {
           </p>
         )}
 
-        <div className="bg-card shadow-sm rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-[12px] text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium">
-                {segmentFilter === "all"
-                  ? `${filteredCount.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} records`
-                  : `${filteredCount.toLocaleString("en-IN")} in ${CUSTOMER_SEGMENT_LABELS[segmentFilter]}`}
-              </span>
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
+            <span className="text-sm text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full font-medium shrink-0">
+              {segmentFilter === "all"
+                ? `${filteredCount.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} records`
+                : `${filteredCount.toLocaleString("en-IN")} in ${CUSTOMER_SEGMENT_LABELS[segmentFilter]}`}
+            </span>
+
+            <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, phone, email..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
+              />
             </div>
 
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name, phone, email..." value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} className="h-9 text-sm pl-9 rounded-md border" />
-            </div>
-
-            <div id="erp-toolbar-portal-customer" className="flex items-center gap-2" />
+            <div id="erp-toolbar-portal-customer" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
 
             {isSomeSelected && (
-              <Button variant="destructive" size="sm" className="h-9 text-sm px-4 rounded-md shrink-0" onClick={handleBulkDelete} disabled={bulkDeleteCustomers.isPending}>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-10 text-sm px-4 shrink-0"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteCustomers.isPending}
+              >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Selected ({selectedCustomers.size})
               </Button>
             )}
 
-            <div className="flex gap-2 items-center ml-auto shrink-0">
+            <div className="flex gap-2 items-center shrink-0">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-9 text-sm px-4 rounded-md">
@@ -1244,8 +1307,6 @@ const CustomerMaster = () => {
             </div>
           </div>
 
-
-          {/* ERPTable */}
           <ERPTable
             tableId="customer_master"
             columns={tableColumns}
@@ -1257,30 +1318,49 @@ const CustomerMaster = () => {
                 ? `No ${CUSTOMER_SEGMENT_LABELS[segmentFilter].toLowerCase()} customers match your search`
                 : "No customers found"
             }
-            defaultColumnVisibility={{}}
-            defaultDensity="compact"
+            defaultColumnVisibility={CUSTOMER_MASTER_DEFAULT_COLUMN_VISIBILITY}
+            defaultDensity="comfortable"
+            className="[&_td]:!text-[15px] [&_th]:!text-[13px]"
             onRowContextMenu={handleRowContextMenu}
             showToolbar={false}
             renderToolbar={(toolbar) => {
-              const el = document.getElementById('erp-toolbar-portal-customer');
+              const el = document.getElementById("erp-toolbar-portal-customer");
               return el ? createPortal(toolbar, el) : toolbar;
             }}
           />
 
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-[13px] text-muted-foreground">
-                Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of {filteredCount.toLocaleString('en-IN')} customers
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+              <p className="text-sm text-slate-500 tabular-nums">
+                Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of{" "}
+                {filteredCount.toLocaleString("en-IN")} customers
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-9 text-sm rounded-md" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                <span className="text-[13px] text-muted-foreground tabular-nums">Page {currentPage} of {totalPages}</span>
-                <Button variant="outline" size="sm" className="h-9 text-sm rounded-md" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-sm border-slate-200"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-600 font-medium tabular-nums px-1">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-sm border-slate-200"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
               </div>
             </div>
           )}
-        </div>
+        </Card>
       </div>
 
       <ExcelImportDialog
