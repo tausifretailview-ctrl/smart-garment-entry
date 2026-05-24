@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 
 /**
@@ -35,7 +35,10 @@ export interface CustomerOutstandingParams {
   sales: Array<{
     id: string;
     net_amount: number | null;
-    paid_amount: number | null;
+    paid_amount?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
     sale_return_adjust?: number | null;
   }>;
   vouchers: VoucherLedgerRow[];
@@ -125,7 +128,7 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
   let totalAdvanceApplied = 0;
   let totalCnApplied = 0;
   p.sales.forEach((sale) => {
-    const salePaidAmount = sale.paid_amount || 0;
+    const salePaidAmount = Math.max(Number(sale.paid_amount || 0), salePaidAtSaleTender(sale));
     const cashVoucher = invoiceVoucherPayments[sale.id] || 0;
     const advVoucher = invoiceAdvPortions[sale.id] || 0;
     const cnVoucher = invoiceCnPortions[sale.id] || 0;
@@ -227,6 +230,8 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     { customerId: p.customerId },
   );
 
+  const totalCashPaid = Math.round(core.receiptCredits + core.paidAmountDrift);
+
   return {
     balance: core.balance,
     totalSales: core.totalSalesNet,
@@ -236,7 +241,7 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     unusedAdvanceTotal: core.unusedAdvance,
     adjustmentTotal: core.adjustmentTotal,
     saleReturnTotal: core.pendingStandaloneSaleReturns,
-    totalCashPaid: legacy.totalCashPaid,
+    totalCashPaid,
     totalAdvanceApplied: legacy.totalAdvanceApplied,
     totalCnApplied: legacy.totalCnApplied,
   };
@@ -463,16 +468,9 @@ export async function fetchCustomerBalanceSnapshot(
   const totalSalesGross = core.totalInvoicedGross;
   const totalSaleReturnAdjustOnSales = core.totalSaleReturnAdjustOnInvoices;
   const totalSales = core.totalSalesNet;
+  const totalCashPaid = Math.round(core.receiptCredits + core.paidAmountDrift);
   const totalPaid = Math.round(
-    core.totalRealPayments +
-      core.customerPaymentDebits +
-      core.totalAdvanceUsed +
-      core.unusedAdvance +
-      core.paidAmountDrift -
-      adjustmentTotal,
-  );
-  const totalCashPaid = Math.round(
-    core.receiptCredits + core.creditNoteCredits + core.paidAmountDrift,
+    totalCashPaid + core.creditNoteCredits + core.totalAdvanceUsed,
   );
 
   return {

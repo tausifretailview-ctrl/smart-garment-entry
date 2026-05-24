@@ -709,6 +709,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             id: s.id,
             net_amount: s.net_amount,
             paid_amount: s.paid_amount,
+            cash_amount: s.cash_amount,
+            card_amount: s.card_amount,
+            upi_amount: s.upi_amount,
             sale_return_adjust: s.sale_return_adjust,
           })),
           vouchers: vouchersByCustomer.get(customer.id) || [],
@@ -2538,6 +2541,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     };
   }, [transactions]);
 
+  /** KPI / integrity figures aligned with the rendered transaction list when available. */
+  const ledgerDerivedStats = useMemo(() => {
+    if (!selectedCustomer || isSchool) return null;
+    const hasTxn = (transactions?.length ?? 0) > 0;
+    const closingFromRows = hasTxn
+      ? Number(transactions![transactions!.length - 1].balance || 0)
+      : null;
+    return {
+      cashPaid: hasTxn && reconciliation.payments > 0 ? reconciliation.payments : null,
+      closingBalance: closingFromRows,
+    };
+  }, [selectedCustomer, isSchool, transactions, reconciliation]);
+
   // FIX 5 — Single, unambiguous "Returns / CR" stat. We classify each Sale
   // Return row from the rendered ledger as either Pending or Adjusted by
   // reading the status hint already embedded in the description by the
@@ -3383,7 +3399,11 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
                 {dbTrueOutstanding != null &&
                   !isSchool &&
-                  Math.abs(authoritativeBalance - dbTrueOutstanding) > 1 && (
+                  (() => {
+                    const appBalance =
+                      ledgerDerivedStats?.closingBalance ?? authoritativeBalance;
+                    return Math.abs(appBalance - dbTrueOutstanding) > 1;
+                  })() && (
                     <p className="text-xs text-red-600 dark:text-red-400 mt-2 text-left max-w-[240px] ml-auto">
                       <span className="inline-flex items-start gap-1 font-medium">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
@@ -3391,15 +3411,20 @@ Please clear your dues at the earliest. Thank you!`;
                         {Math.abs(dbTrueOutstanding).toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
                         })}{" "}
-                        {dbTrueOutstanding >= 0 ? "Dr" : "Cr"} vs snapshot balance ₹
-                        {Math.abs(authoritativeBalance).toLocaleString("en-IN", {
+                        {dbTrueOutstanding >= 0 ? "Dr" : "Cr"} vs ledger ₹
+                        {Math.abs(
+                          ledgerDerivedStats?.closingBalance ?? authoritativeBalance,
+                        ).toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
                         })}{" "}
-                        {authoritativeBalance >= 0 ? "Dr" : "Cr"}.
+                        {(ledgerDerivedStats?.closingBalance ?? authoritativeBalance) >= 0
+                          ? "Dr"
+                          : "Cr"}
+                        .
                       </span>
                       <span className="block text-[10px] text-muted-foreground font-normal mt-1">
-                        The large figure above may follow your date filter; this check is all-time vs
-                        the KPI snapshot.
+                        Run balance reconciliation in Supabase after deploy if this persists; pay-at-sale
+                        Cash/UPI must match receipt totals below.
                       </span>
                     </p>
                   )}
@@ -3442,7 +3467,9 @@ Please clear your dues at the earliest. Thank you!`;
                     {isSchool ? "Fees Received" : "Cash/UPI Paid"}
                   </div>
                   <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    ₹{(selectedCustomer.totalCashPaid ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{(
+                      ledgerDerivedStats?.cashPaid ?? selectedCustomer.totalCashPaid ?? 0
+                    ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
