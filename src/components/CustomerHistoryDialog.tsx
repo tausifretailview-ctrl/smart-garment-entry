@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History, Eye, X, Wallet, Scale, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -319,17 +319,15 @@ export function CustomerHistoryDialog({
     totalCashPaid,
     totalAdvanceApplied,
     totalCnApplied,
+    unusedAdvanceTotal,
     isLoading: balanceLoading,
-  } = useCustomerBalance(
-    customerId,
-    organizationId
-  );
+  } = useCustomerBalance(customerId, organizationId);
 
-  // Get advance balance
-  const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(
-    customerId,
-    organizationId
-  );
+  const {
+    outstandingDr: snapshotOutstandingDr,
+    advanceAvailable: snapshotAdvanceAvailable,
+    cnAvailableTotal: snapshotCnAvailable,
+  } = useCustomerFinancialSnapshot(customerId, organizationId);
 
   // School: same liability math as Fee Collection / ledger (session opening + structures; payments scoped to current year)
   const { data: schoolFeeData } = useQuery({
@@ -627,14 +625,30 @@ export function CustomerHistoryDialog({
 
   const refunds = salesHistory?.filter(s => (s.refund_amount || 0) > 0) || [];
   const isLoading = balanceLoading || salesLoading;
-  // Fix Apr 2026: subtract sale_return_adjust to match per-invoice outstanding.
-  // Test case: Mamta Footwear-Kandivali W (1ce7dbea-...) outstanding = ₹15,054
-  const displayBalance = useMemo(() => {
-    const saleReturnAdjustTotal = (salesHistory || [])
-      .filter((sale: any) => !isSaleRecordCancelled(sale))
-      .reduce((sum, sale: any) => sum + (Number(sale.sale_return_adjust) || 0), 0);
-    return balance - saleReturnAdjustTotal;
-  }, [balance, salesHistory]);
+
+  /** Same headline numbers as Customer Ledger / Account Statement (RPC + balance snapshot). */
+  const summary = useMemo(() => {
+    const outstandingDr = snapshotOutstandingDr ?? balance;
+    const advanceAvailable = snapshotAdvanceAvailable ?? unusedAdvanceTotal;
+    const cnAvailable = snapshotCnAvailable ?? 0;
+    const cnAppliedOnInvoices = Math.round(
+      (totalSaleReturnAdjustOnSales || 0) + (totalCnApplied || 0),
+    );
+    return {
+      outstandingDr,
+      advanceAvailable,
+      cnAvailable,
+      cnAppliedOnInvoices,
+    };
+  }, [
+    snapshotOutstandingDr,
+    snapshotAdvanceAvailable,
+    snapshotCnAvailable,
+    balance,
+    unusedAdvanceTotal,
+    totalSaleReturnAdjustOnSales,
+    totalCnApplied,
+  ]);
 
   // Keyboard navigation for Legacy tab
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -719,31 +733,10 @@ export function CustomerHistoryDialog({
               );
             }
 
-            // Business mode: original 6-card layout
-            const creditNotesPending = (creditNotes || []).reduce((sum, cn) => {
-              if (cn.status === 'active' || cn.status === 'partially_used') {
-                return sum + Math.max(0, (cn.credit_amount || 0) - (cn.used_amount || 0));
-              }
-              return sum;
-            }, 0);
-
-            // Sale returns also create credit for the customer — only count those
-            // that are still pending (not yet adjusted/refunded).
-            const saleReturnsPending = (saleReturns || []).reduce((sum: number, sr: any) => {
-              if (sr.credit_status && sr.credit_status !== 'pending') return sum;
-              const alreadyInCN = (creditNotes || []).some((cn: any) =>
-                cn.notes?.includes(sr.return_number) || cn.sale_id === sr.linked_sale_id
-              );
-              return alreadyInCN ? sum : sum + (sr.net_amount || 0);
-            }, 0);
-
-            const saleReturnsAdjusted = (saleReturns || []).reduce((sum: number, sr: any) => {
-              return sr.credit_status && sr.credit_status !== 'pending'
-                ? sum + (sr.net_amount || 0)
-                : sum;
-            }, 0);
-
-            const crPending = creditNotesPending + saleReturnsPending;
+            // Business mode — aligned with Customer Ledger / financial snapshot RPC
+            const { outstandingDr, advanceAvailable, cnAvailable, cnAppliedOnInvoices } = summary;
+            const showGrossSales =
+              (totalSalesGross || 0) > (totalSales || 0) + 0.005;
             return (
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2 py-2">
                 <Card className="border-l-4 border-l-blue-500">
@@ -755,20 +748,20 @@ export function CustomerHistoryDialog({
                 <Card className="border-l-4 border-l-green-500">
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Sales</p>
-                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{(totalSalesGross || totalSales).toFixed(2)}</p>
-                    {totalSaleReturnAdjustOnSales > 0 && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">Net ₹{totalSales.toFixed(0)}</p>
+                    <p className="text-xs sm:text-sm font-bold text-green-600 truncate tabular-nums mt-0.5">₹{totalSales.toFixed(2)}</p>
+                    {showGrossSales && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">Gross ₹{(totalSalesGross || 0).toFixed(0)}</p>
                     )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-purple-500">
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Total Paid</p>
-                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{(totalCashPaid || totalPaid).toFixed(2)}</p>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Cash / UPI Paid</p>
+                    <p className="text-xs sm:text-sm font-bold text-purple-600 truncate tabular-nums mt-0.5">₹{(totalCashPaid || 0).toFixed(2)}</p>
                     {(totalAdvanceApplied > 0 || totalCnApplied > 0) && (
                       <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                         {totalAdvanceApplied > 0 && `Adv ₹${totalAdvanceApplied.toFixed(0)}`}
-                        {totalAdvanceApplied > 0 && totalCnApplied > 0 && ' · '}
+                        {totalAdvanceApplied > 0 && totalCnApplied > 0 && " · "}
                         {totalCnApplied > 0 && `CN ₹${totalCnApplied.toFixed(0)}`}
                       </p>
                     )}
@@ -776,52 +769,75 @@ export function CustomerHistoryDialog({
                 </Card>
                 <Card className="border-l-4 border-l-orange-500">
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Advance</p>
-                    <p className="text-xs sm:text-sm font-bold text-orange-600 truncate tabular-nums mt-0.5">₹{advanceBalance.toFixed(2)}</p>
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Advance Avail.</p>
+                    <p className="text-xs sm:text-sm font-bold text-orange-600 truncate tabular-nums mt-0.5">₹{advanceAvailable.toFixed(2)}</p>
                     {totalAdvanceApplied > 0 && (
-                      <p className="text-[10px] text-orange-400 mt-0.5">₹{totalAdvanceApplied.toFixed(0)} adjusted</p>
+                      <p className="text-[10px] text-orange-400 mt-0.5">₹{totalAdvanceApplied.toFixed(0)} applied</p>
                     )}
                   </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-pink-500">
                   <CardContent className="p-2">
-                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">Returns / CR</p>
-                    <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{crPending.toFixed(2)}</p>
-                    <p className="text-[10px] text-pink-400 mt-0.5">
-                      {crPending > 0
-                        ? 'Pending adjustment'
-                        : saleReturnsAdjusted > 0
-                          ? `₹${saleReturnsAdjusted.toFixed(0)} adjusted`
-                          : 'None pending'}
+                    <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">CN Available</p>
+                    <p className="text-xs sm:text-sm font-bold text-pink-600 truncate tabular-nums mt-0.5">₹{cnAvailable.toFixed(2)}</p>
+                    <p className="text-[10px] text-pink-400 mt-0.5 truncate">
+                      {cnAvailable > 0.005
+                        ? "Pool to apply"
+                        : cnAppliedOnInvoices > 0
+                          ? `₹${cnAppliedOnInvoices.toLocaleString("en-IN")} applied`
+                          : "None"}
                     </p>
                   </CardContent>
                 </Card>
-                <Card className={`border-l-4 ${displayBalance > 0 ? 'border-l-red-500' : displayBalance < 0 ? 'border-l-emerald-500' : 'border-l-slate-400'}`}>
+                <Card
+                  className={cn(
+                    "border-l-4",
+                    outstandingDr > 0.005
+                      ? "border-l-red-500"
+                      : advanceAvailable > 0.005
+                        ? "border-l-teal-500"
+                        : "border-l-slate-400",
+                  )}
+                >
                   <CardContent className="p-2">
                     <p className="text-[9px] sm:text-[10px] uppercase tracking-wide font-semibold text-muted-foreground truncate">
-                      {displayBalance > 0
-                        ? 'Outstanding (Dr)'
-                        : displayBalance < 0
-                          ? (advanceBalance > 0
-                              ? 'Unused Advance'
-                              : crPending > 0
-                                ? 'SR Credit (Pending)'
-                                : 'Net Credit Bal')
-                          : 'Current Bal'}
+                      {outstandingDr > 0.005
+                        ? "Outstanding (Dr)"
+                        : advanceAvailable > 0.005
+                          ? "Unused Advance"
+                          : "Current Bal"}
                     </p>
-                    <p className={`text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5 ${displayBalance > 0 ? 'text-red-600' : displayBalance < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                      ₹{Math.abs(displayBalance).toFixed(2)}
+                    <p
+                      className={cn(
+                        "text-xs sm:text-sm font-bold truncate tabular-nums mt-0.5",
+                        outstandingDr > 0.005
+                          ? "text-red-600"
+                          : advanceAvailable > 0.005
+                            ? "text-teal-600"
+                            : "text-slate-500",
+                      )}
+                    >
+                      ₹
+                      {(outstandingDr > 0.005
+                        ? outstandingDr
+                        : advanceAvailable
+                      ).toFixed(2)}
                     </p>
-                    <p className={`text-[10px] font-semibold mt-0.5 ${displayBalance > 0 ? 'text-red-500' : displayBalance < 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {displayBalance > 0
-                        ? 'Customer Owes'
-                        : displayBalance < 0
-                          ? (advanceBalance > 0
-                              ? 'Available for future bills'
-                              : crPending > 0
-                                ? 'Credit note not yet applied'
-                                : 'Customer net credit')
-                          : 'Fully Settled ✓'}
+                    <p
+                      className={cn(
+                        "text-[10px] font-semibold mt-0.5",
+                        outstandingDr > 0.005
+                          ? "text-red-500"
+                          : advanceAvailable > 0.005
+                            ? "text-teal-600"
+                            : "text-slate-400",
+                      )}
+                    >
+                      {outstandingDr > 0.005
+                        ? "Customer owes"
+                        : advanceAvailable > 0.005
+                          ? "Available for bills"
+                          : "Settled ✓"}
                     </p>
                   </CardContent>
                 </Card>
