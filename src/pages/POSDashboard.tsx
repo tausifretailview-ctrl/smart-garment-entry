@@ -67,6 +67,7 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
+import { localDayEndUtcIso, localDayStartUtcIso, saleRowCalendarYmd } from "@/lib/localDayBounds";
 
 interface SaleItem {
   id: string;
@@ -200,31 +201,6 @@ const DEFAULT_POS_COLUMNS = {
   print: true,
   modify: true,
 };
-
-/** Local calendar yyyy-MM-dd as start/end instants (avoids timestamptz vs `YYYY-MM-DDT00:00:00` mismatch). */
-function localDayStartUtcIso(ymd: string): string | null {
-  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
-}
-
-function localDayEndUtcIso(ymd: string): string | null {
-  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
-}
-
-/** Calendar yyyy-MM-dd for a sale row (handles date-only strings without UTC midnight shift). */
-function saleRowCalendarYmd(sale: { sale_date?: string | null; created_at?: string | null }): string {
-  const raw = sale.sale_date || sale.created_at;
-  if (!raw) return "";
-  const s = String(raw).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const dt = new Date(s);
-  if (Number.isNaN(dt.getTime())) return "";
-  return format(dt, "yyyy-MM-dd");
-}
-
 const POSDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();

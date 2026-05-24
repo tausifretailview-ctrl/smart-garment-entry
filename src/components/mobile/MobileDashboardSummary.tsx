@@ -4,7 +4,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar } from "lucide-react";
-import { format } from "date-fns";
+import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 interface MobileDashboardSummaryProps {
@@ -23,7 +23,8 @@ export const MobileDashboardSummary = ({
   const { currentOrganization } = useOrganization();
   const { isOnline } = useNetworkStatus();
   
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayLocalYmd();
+  const { startIso, endIso } = localDayBounds(today, today);
 
   // Only fetch customers served (unique customer_ids) - the rest comes from parent RPC
   const { data: customersServed, isLoading: customersLoading } = useQuery({
@@ -36,8 +37,8 @@ export const MobileDashboardSummary = ({
         .select("customer_id")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .gte("sale_date", today)
-        .lte("sale_date", today + "T23:59:59");
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso);
       
       const uniqueCustomers = new Set(sales?.map(s => s.customer_id).filter(Boolean));
       return uniqueCustomers.size;

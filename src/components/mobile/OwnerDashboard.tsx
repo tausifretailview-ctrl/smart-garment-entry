@@ -9,6 +9,8 @@ import {
   ArrowDownRight, Clock, Star, AlertCircle,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow } from "date-fns";
+import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
+import { MOBILE_HOME_SALE_TYPES } from "@/lib/mobileShell";
 import { useEffect } from "react";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
@@ -47,7 +49,8 @@ export const OwnerDashboard = () => {
   const queryClient = useQueryClient();
   const { getRefreshInterval } = useTierBasedRefresh();
 
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayLocalYmd();
+  const { startIso: todayStartIso, endIso: todayEndIso } = localDayBounds(today, today);
 
   const { scrollRef, isRefreshing, pullHandlers, refresh: handleRefresh } = usePullToRefresh(
     () => invalidateOwnerDashboardQueries(queryClient)
@@ -67,8 +70,10 @@ export const OwnerDashboard = () => {
         .select("net_amount")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .gte("sale_date", today)
-        .lte("sale_date", today + "T23:59:59");
+        .eq("is_cancelled", false)
+        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+        .gte("sale_date", todayStartIso)
+        .lte("sale_date", todayEndIso);
       const total = data?.reduce((s, r) => s + (r.net_amount || 0), 0) || 0;
       return { total, count: data?.length || 0 };
     },
@@ -88,7 +93,7 @@ export const OwnerDashboard = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("bill_date", today)
-        .lte("bill_date", today + "T23:59:59");
+        .lte("bill_date", today);
       const total = data?.reduce((s, r) => s + (Number(r.net_amount) || 0), 0) || 0;
       return { total, count: data?.length || 0 };
     },
@@ -109,7 +114,7 @@ export const OwnerDashboard = () => {
         .eq("voucher_type", "receipt")
         .is("deleted_at", null)
         .gte("voucher_date", today)
-        .lte("voucher_date", today + "T23:59:59");
+        .lte("voucher_date", today);
       return data?.reduce((s, r) => s + (Number(r.total_amount) || 0), 0) || 0;
     },
     enabled: !!currentOrganization && isOnline,
@@ -142,17 +147,22 @@ export const OwnerDashboard = () => {
       if (!currentOrganization) return [];
       const days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), 6 - i));
       const startDate = format(days[0], "yyyy-MM-dd");
+      const endDate = format(days[6], "yyyy-MM-dd");
+      const { startIso, endIso } = localDayBounds(startDate, endDate);
       const { data } = await supabase
         .from("sales")
-        .select("net_amount, sale_date")
+        .select("net_amount, sale_date, created_at")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .gte("sale_date", startDate)
+        .eq("is_cancelled", false)
+        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso)
         .order("sale_date");
       return days.map((d) => {
         const dayStr = format(d, "yyyy-MM-dd");
         const label = format(d, "EEE");
-        const daySales = data?.filter((s) => s.sale_date?.startsWith(dayStr)) || [];
+        const daySales = data?.filter((s) => saleRowCalendarYmd(s) === dayStr) || [];
         return { name: label, sales: daySales.reduce((s, r) => s + (r.net_amount || 0), 0) };
       });
     },
@@ -247,8 +257,8 @@ export const OwnerDashboard = () => {
         .select("product_name, size, quantity, line_total, sales!inner(organization_id, sale_date, deleted_at)")
         .eq("sales.organization_id", currentOrganization.id)
         .is("sales.deleted_at", null)
-        .gte("sales.sale_date", today)
-        .lte("sales.sale_date", today + "T23:59:59");
+        .gte("sales.sale_date", todayStartIso)
+        .lte("sales.sale_date", todayEndIso);
       
       // aggregate by product_name + size
       const map = new Map<string, { name: string; size: string; qty: number; revenue: number }>();

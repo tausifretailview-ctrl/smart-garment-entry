@@ -68,12 +68,13 @@ const DailyCashierReport = () => {
       if (!currentOrganization?.id) return null;
 
       const { fetchAllSalesWithFilters } = await import("@/utils/fetchAllRows");
-      // Use local day bounds (same pattern as POS dashboard) to avoid UTC date-shift mismatches.
+      const { localDayBounds } = await import("@/lib/localDayBounds");
       const startDateStr = format(startDate, "yyyy-MM-dd");
       const endDateStr = format(endDate, "yyyy-MM-dd");
+      const { startIso, endIso } = localDayBounds(startDateStr, endDateStr);
       const allSales = await fetchAllSalesWithFilters(currentOrganization.id, {
-        startDate: `${startDateStr}T00:00:00`,
-        endDate: `${endDateStr}T23:59:59.999`,
+        startDate: startIso,
+        endDate: endIso,
       });
       
       return allSales;

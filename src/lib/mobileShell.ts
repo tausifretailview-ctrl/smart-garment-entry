@@ -1,3 +1,5 @@
+import { localDayBounds } from "@/lib/localDayBounds";
+
 /** Shared mobile shell spacing (bottom nav + safe area). */
 export const MOBILE_BOTTOM_NAV_HEIGHT = "4.25rem";
 
@@ -21,10 +23,7 @@ export const mobileFullscreenMainClass =
 
 /** Inclusive local-day bounds for `sales.sale_date` (timestamptz-safe). */
 export function mobileSalesDateBounds(startYmd: string, endYmd: string) {
-  return {
-    startIso: `${startYmd}T00:00:00`,
-    endIso: `${endYmd}T23:59:59.999`,
-  };
+  return localDayBounds(startYmd, endYmd);
 }
 
 /** Sale types shown on mobile home (ERP invoice + POS). */

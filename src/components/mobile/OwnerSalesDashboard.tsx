@@ -13,6 +13,7 @@ import {
   Banknote, Smartphone, Receipt, Users, Tag, CalendarIcon, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { localDayBounds } from "@/lib/localDayBounds";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
 } from "recharts";
@@ -61,6 +62,7 @@ const PIE_COLORS = [
 export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomRange, onViewAllBills, onViewBill }: Props) => {
   const { currentOrganization } = useOrganization();
   const { start, end } = getDateRange(period, customRange);
+  const { startIso, endIso } = localDayBounds(start, end);
   const [showFromCal, setShowFromCal] = useState(false);
   const [showToCal, setShowToCal] = useState(false);
 
@@ -75,8 +77,8 @@ export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomR
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("is_cancelled", false)
-        .gte("sale_date", start)
-        .lte("sale_date", end + "T23:59:59")
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso)
         .order("sale_date", { ascending: false });
       return sales || [];
     },
@@ -95,8 +97,8 @@ export const OwnerSalesDashboard = ({ period, setPeriod, customRange, setCustomR
         .eq("sales.organization_id", currentOrganization.id)
         .is("sales.deleted_at", null)
         .eq("sales.is_cancelled", false)
-        .gte("sales.sale_date", start)
-        .lte("sales.sale_date", end + "T23:59:59");
+        .gte("sales.sale_date", startIso)
+        .lte("sales.sale_date", endIso);
       return data || [];
     },
     enabled: !!currentOrganization,

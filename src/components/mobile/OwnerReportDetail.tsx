@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { localDayBounds } from "@/lib/localDayBounds";
 import type { ReportType } from "./OwnerReportsHub";
 
 /* ─── Helpers ─── */
@@ -176,16 +177,21 @@ const EmptyState = ({ message = "No data for selected period" }: { message?: str
 
 interface RProps { orgId?: string; start?: string; end?: string; }
 
+function saleDateBounds(start: string, end: string) {
+  return localDayBounds(start, end);
+}
+
 /* 1. Daily Sales */
 const DailySalesReport = ({ orgId, start, end }: RProps) => {
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-daily-sales", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
+      const { startIso, endIso } = saleDateBounds(start!, end!);
       const { data: sales } = await supabase.from("sales")
         .select("id, sale_number, customer_name, net_amount, sale_date, payment_status")
         .eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
-        .gte("sale_date", start!).lte("sale_date", end + "T23:59:59")
+        .gte("sale_date", startIso).lte("sale_date", endIso)
         .order("sale_date", { ascending: false }).limit(500);
       return sales || [];
     },
@@ -235,7 +241,7 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
       const { data: bills } = await supabase.from("purchase_bills")
         .select("id, software_bill_no, supplier_name, net_amount, bill_date, supplier_invoice_no")
         .eq("organization_id", orgId!).is("deleted_at", null)
-        .gte("bill_date", start!).lte("bill_date", end + "T23:59:59")
+        .gte("bill_date", start!).lte("bill_date", end!)
         .order("bill_date", { ascending: false }).limit(500);
       return bills || [];
     },
@@ -273,11 +279,12 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
     queryKey: ["rpt-pnl", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
+      const { startIso, endIso } = saleDateBounds(start!, end!);
       const [salesRes, purchaseRes] = await Promise.all([
         supabase.from("sales").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
-          .gte("sale_date", start!).lte("sale_date", end + "T23:59:59"),
+          .gte("sale_date", startIso).lte("sale_date", endIso),
         supabase.from("purchase_bills").select("net_amount").eq("organization_id", orgId!).is("deleted_at", null)
-          .gte("bill_date", start!).lte("bill_date", end + "T23:59:59"),
+          .gte("bill_date", start!).lte("bill_date", end!),
       ]);
       const totalSale = (salesRes.data || []).reduce((s, r) => s + (r.net_amount || 0), 0);
       const totalPurchase = (purchaseRes.data || []).reduce((s, r) => s + (r.net_amount || 0), 0);
@@ -487,11 +494,12 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
     queryKey: ["rpt-gst", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
+      const { startIso, endIso } = saleDateBounds(start!, end!);
       const { data: items } = await supabase.from("sale_items")
         .select("gst_percent, line_total, quantity, unit_price, sale_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
         .eq("sales.organization_id", orgId!)
         .is("sales.deleted_at", null).eq("sales.is_cancelled", false)
-        .gte("sales.sale_date", start!).lte("sales.sale_date", end + "T23:59:59");
+        .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso);
       return items || [];
     },
   });
@@ -545,11 +553,12 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
     queryKey: ["rpt-brand-sales", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
+      const { startIso, endIso } = saleDateBounds(start!, end!);
       const { data: items } = await supabase.from("sale_items")
         .select("product_id, quantity, line_total, sale_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
         .eq("sales.organization_id", orgId!)
         .is("sales.deleted_at", null).eq("sales.is_cancelled", false)
-        .gte("sales.sale_date", start!).lte("sales.sale_date", end + "T23:59:59");
+        .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso);
 
       const prodIds = [...new Set((items || []).map((i: any) => i.product_id))];
       if (!prodIds.length) return [];
@@ -597,11 +606,12 @@ const SizeSalesReport = ({ orgId, start, end }: RProps) => {
     queryKey: ["rpt-size-sales", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
+      const { startIso, endIso } = saleDateBounds(start!, end!);
       const { data: items } = await supabase.from("sale_items")
         .select("size, quantity, line_total, sale_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled)")
         .eq("sales.organization_id", orgId!)
         .is("sales.deleted_at", null).eq("sales.is_cancelled", false)
-        .gte("sales.sale_date", start!).lte("sales.sale_date", end + "T23:59:59");
+        .gte("sales.sale_date", startIso).lte("sales.sale_date", endIso);
 
       const map = new Map<string, { qty: number; total: number }>();
       (items || []).forEach((i: any) => {
@@ -640,10 +650,11 @@ const PaymentCollectionReport = ({ orgId, start, end }: RProps) => {
     queryKey: ["rpt-payment-collection", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
+      const { startIso, endIso } = saleDateBounds(start!, end!);
       const { data: sales } = await supabase.from("sales")
         .select("cash_amount, upi_amount, card_amount, net_amount, sale_date")
         .eq("organization_id", orgId!).is("deleted_at", null).eq("is_cancelled", false)
-        .gte("sale_date", start!).lte("sale_date", end + "T23:59:59");
+        .gte("sale_date", startIso).lte("sale_date", endIso);
       return sales || [];
     },
   });

@@ -18,6 +18,8 @@ import { invalidateOwnerDashboardQueries } from "@/lib/mobileHubRefresh";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
+import { MOBILE_HOME_SALE_TYPES } from "@/lib/mobileShell";
 
 type ErpDashboardStats = {
   total_sales: number;
@@ -81,7 +83,8 @@ export const MobileDashboard = () => {
   const [summaryVisible, setSummaryVisible] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayLocalYmd();
+  const { startIso: todayStartIso, endIso: todayEndIso } = localDayBounds(today, today);
   
   // Intersection Observer for lazy loading summary
   useEffect(() => {
@@ -110,7 +113,31 @@ export const MobileDashboard = () => {
     return "Good Evening";
   };
 
-  // Single RPC call replaces 4 separate queries
+  // Today's POS + invoice totals (local-day bounds — includes early-morning POS bills)
+  const { data: todaySalesLive, isLoading: todaySalesLoading } = useQuery({
+    queryKey: ["mobile-dashboard-today-sales", currentOrganization?.id, today],
+    queryFn: async () => {
+      if (!currentOrganization) return null;
+      const { data, error } = await supabase
+        .from("sales")
+        .select("net_amount, sale_type")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .eq("is_cancelled", false)
+        .in("sale_type", [...MOBILE_HOME_SALE_TYPES])
+        .gte("sale_date", todayStartIso)
+        .lte("sale_date", todayEndIso);
+      if (error) throw error;
+      const rows = data || [];
+      const total = rows.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
+      return { total, count: rows.length };
+    },
+    enabled: !!currentOrganization && isOnline,
+    staleTime: 60000,
+    retry: 2,
+  });
+
+  // Single RPC call replaces 4 separate queries (month + stock use this; today uses live query above)
   const { 
     data: dashStats, 
     isLoading,
@@ -196,14 +223,16 @@ export const MobileDashboard = () => {
         {/* Today's Sales — hero metric */}
         <div className="relative">
           <p className="text-xs text-white/50 uppercase tracking-wider mb-1">Today's Sales</p>
-          {isLoading ? (
+          {isLoading || todaySalesLoading ? (
             <Skeleton className="h-10 w-40 bg-white/10" />
           ) : (
             <p className="text-3xl font-bold text-white tracking-tight tabular-nums">
-              {formatCompactInr(dashStats?.total_sales)}
+              {formatCompactInr(todaySalesLive?.total ?? dashStats?.total_sales)}
             </p>
           )}
-          <p className="text-xs text-white/40 mt-1">{dashStats?.invoice_count ?? 0} invoices today</p>
+          <p className="text-xs text-white/40 mt-1">
+            {todaySalesLive?.count ?? dashStats?.invoice_count ?? 0} invoices today
+          </p>
         </div>
       </div>
 
@@ -426,7 +455,7 @@ export const MobileDashboard = () => {
       <div ref={summaryRef} className="px-4 mt-5">
         {summaryVisible ? (
           <MobileDashboardSummary 
-            invoiceCount={dashStats?.invoice_count ?? 0}
+            invoiceCount={todaySalesLive?.count ?? dashStats?.invoice_count ?? 0}
             itemsSold={dashStats?.sold_qty ?? 0}
             pendingCount={dashStats?.pending_count ?? 0}
             isLoading={isLoading}

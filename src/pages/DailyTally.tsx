@@ -26,6 +26,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { localDayBounds } from "@/lib/localDayBounds";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useReactToPrint } from "react-to-print";
@@ -88,18 +89,15 @@ const DailyTally = () => {
   const orgId = currentOrganization?.id;
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const canEditAnyDate = isAdmin || isManager;
-
-  // ─── Data queries ──────────────────────────────────────────────────
-  const startISO = `${dateStr}T00:00:00`;
-  const endISO = `${dateStr}T23:59:59`;
+  const { startIso, endIso } = localDayBounds(dateStr, dateStr);
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
 
-  // Sales (POS + Invoice) — FIX 1: static import
+  // Sales (POS + Invoice) — static import
   const { data: salesData, isLoading: salesLoading, refetch: refetchSales } = useQuery({
     queryKey: ["daily-tally-sales", orgId, dateStr],
     queryFn: async () => {
-      return fetchAllSalesWithFilters(orgId!, { startDate: startISO, endDate: endISO });
+      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso });
     },
     enabled: !!orgId,
     ...REPORT_CACHE,

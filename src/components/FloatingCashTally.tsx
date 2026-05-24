@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useReactToPrint } from "react-to-print";
+import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 
@@ -75,16 +76,13 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
   const orgId = currentOrganization?.id;
   const dateStr = format(selectedDate, "yyyy-MM-dd");
-
-  // ─── Data queries ──────────────────────────────────────────────────
-  const startISO = `${dateStr}T00:00:00`;
-  const endISO = `${dateStr}T23:59:59`;
+  const { startIso, endIso } = localDayBounds(dateStr, dateStr);
 
   const { data: salesData, refetch: refetchSales } = useQuery({
     queryKey: ["daily-tally-sales", orgId, dateStr],
     queryFn: async () => {
       const { fetchAllSalesWithFilters } = await import("@/utils/fetchAllRows");
-      return fetchAllSalesWithFilters(orgId!, { startDate: startISO, endDate: endISO });
+      return fetchAllSalesWithFilters(orgId!, { startDate: startIso, endDate: endIso });
     },
     enabled: !!orgId && open,
   });

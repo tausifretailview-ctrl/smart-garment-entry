@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, FileText, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { localDayBounds } from "@/lib/localDayBounds";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -41,6 +42,7 @@ const PAGE_SIZE = 20;
 export const OwnerSalesBillList = ({ period, customRange, onBack, onViewBill }: Props) => {
   const { currentOrganization } = useOrganization();
   const { start, end } = getDateRange(period, customRange);
+  const { startIso, endIso } = localDayBounds(start, end);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState(false);
@@ -55,8 +57,8 @@ export const OwnerSalesBillList = ({ period, customRange, onBack, onViewBill }: 
         .select("id, sale_number, net_amount, customer_name, sale_date, created_at, payment_status, payment_method, is_cancelled")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .gte("sale_date", start)
-        .lte("sale_date", end + "T23:59:59")
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso)
         .order("created_at", { ascending: false })
         .limit(500);
       return data || [];
