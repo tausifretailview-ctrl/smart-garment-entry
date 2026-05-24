@@ -6,7 +6,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -1105,8 +1104,6 @@ const CustomerMaster = () => {
   return (
     <div className="bg-slate-50/50 min-h-screen pb-24 lg:pb-0" onContextMenu={handlePageContextMenu}>
       <div className="space-y-4 p-4">
-        <BackToDashboard />
-
         <div>
           <h1 className="text-2xl font-bold text-blue-700">Customer Master</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
