@@ -127,7 +127,14 @@ export async function resolveSaleReturnCnAvailable(
 
 /**
  * `adjust_invoice_balance` checks `credit_notes.credit_amount - used_amount`.
- * If sale_return still shows a higher pool, align the CN header once (safe when used is low).
+ *
+ * Heal-down policy: if the sale_return shows a larger pool than the CN header
+ * actually has remaining, lower `sale_returns.credit_available_balance` down
+ * to the CN's live remaining. We never inflate `credit_notes.credit_amount`
+ * upward — that would silently grow CN headroom to paper over drift.
+ *
+ * Throws via `formatCnApplyError` if the requested amount truly exceeds the
+ * CN's live remaining after the heal.
  */
 export async function ensureCreditNoteHeadroom(
   client: SupabaseClient,
@@ -136,6 +143,7 @@ export async function ensureCreditNoteHeadroom(
     creditNoteId: string;
     amountNeeded: number;
     maxPoolFromReturn?: number | null;
+    saleReturnId?: string | null;
   },
 ): Promise<number> {
   const need = Math.max(0, Number(params.amountNeeded) || 0);
@@ -152,35 +160,26 @@ export async function ensureCreditNoteHeadroom(
 
   const used = Number(cn.used_amount || 0);
   const credit = Number(cn.credit_amount || 0);
-  let remaining = Math.max(0, credit - used);
-  if (remaining >= need - 0.01) return remaining;
+  const remaining = Math.max(0, credit - used);
 
+  // Heal-down: if the caller's sale-return pool is wider than the CN's live
+  // remaining, narrow `sale_returns.credit_available_balance` to match.
   const cap =
     params.maxPoolFromReturn != null && !Number.isNaN(Number(params.maxPoolFromReturn))
       ? Math.max(0, Number(params.maxPoolFromReturn))
       : null;
-  const targetCredit = cap != null ? Math.min(used + cap, used + need) : used + need;
-  const newCredit = Math.max(credit, targetCredit);
-
-  if (newCredit <= credit + 0.01) {
-    return remaining;
+  if (params.saleReturnId && cap != null && cap > remaining + 0.01) {
+    await client
+      .from("sale_returns")
+      .update({ credit_available_balance: Math.round(remaining * 100) / 100 })
+      .eq("id", params.saleReturnId)
+      .eq("organization_id", params.organizationId);
   }
 
-  const { error: updErr } = await client
-    .from("credit_notes")
-    .update({
-      credit_amount: Math.round(newCredit * 100) / 100,
-      status:
-        newCredit - used <= 0.01
-          ? "fully_used"
-          : used > 0.01
-            ? "partially_used"
-            : "active",
-    })
-    .eq("id", params.creditNoteId);
-  if (updErr) throw updErr;
+  if (need > remaining + 0.01) {
+    throw new Error("exceeds available credit note balance");
+  }
 
-  remaining = Math.max(0, newCredit - used);
   return remaining;
 }
 

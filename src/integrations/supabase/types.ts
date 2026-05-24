@@ -7525,7 +7525,7 @@ export type Database = {
           p_organization_id: string
           p_source_document_id: string
         }
-        Returns: boolean
+        Returns: Json
       }
       adjust_student_fee_balance: {
         Args: {
