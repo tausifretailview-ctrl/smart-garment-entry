@@ -7,6 +7,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
+import { fetchCustomerSegmentCounts } from "@/utils/customerSegments";
 import { useIsLgUp } from "@/hooks/use-mobile";
 import { useDashboardToolbar } from "@/contexts/DashboardToolbarContext";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -204,98 +205,6 @@ const getDateRange = (type: DateRangeType) => {
       };
   }
 };
-
-/** Classify each active customer from `customers` using last qualifying sale + lifetime stats. */
-async function fetchCustomerSegmentCounts(organizationId: string): Promise<{
-  vip: number;
-  regular: number;
-  risk: number;
-  lost: number;
-  total: number;
-}> {
-  const { data: custRows, error: cErr } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-  if (cErr) throw cErr;
-  const customerIds = new Set((custRows || []).map((r: { id: string }) => r.id));
-  const total = customerIds.size;
-
-  const agg = new Map<string, { last: string; orders: number; revenue: number }>();
-  const PAGE = 1000;
-  let from = 0;
-  for (;;) {
-    const { data: rows, error } = await supabase
-      .from("sales")
-      .select("customer_id, sale_date, net_amount, payment_status")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .not("customer_id", "is", null)
-      .order("sale_date", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    if (!rows?.length) break;
-    for (const row of rows as {
-      customer_id: string;
-      sale_date: string | null;
-      net_amount: number | null;
-      payment_status: string | null;
-    }[]) {
-      const st = String(row.payment_status || "").toLowerCase();
-      if (st === "cancelled" || st === "hold") continue;
-      const cid = row.customer_id;
-      if (!customerIds.has(cid)) continue;
-      const sd = String(row.sale_date || "").slice(0, 10);
-      if (!sd) continue;
-      const prev = agg.get(cid) || { last: "", orders: 0, revenue: 0 };
-      agg.set(cid, {
-        last: sd > prev.last ? sd : prev.last,
-        orders: prev.orders + 1,
-        revenue: prev.revenue + Number(row.net_amount || 0),
-      });
-    }
-    if (rows.length < PAGE) break;
-    from += PAGE;
-  }
-
-  const now = new Date();
-  const daysSince = (ymd: string) => {
-    const t = new Date(ymd + "T12:00:00").getTime();
-    return Math.floor((now.getTime() - t) / 86400000);
-  };
-
-  const VIP_RECENCY_DAYS = 90;
-  const RISK_RECENCY_DAYS = 365;
-  const VIP_MIN_ORDERS = 5;
-  const VIP_MIN_REVENUE = 50_000;
-
-  let vip = 0;
-  let regular = 0;
-  let risk = 0;
-  let lost = 0;
-
-  for (const cid of customerIds) {
-    const a = agg.get(cid);
-    if (!a?.last) {
-      regular++;
-      continue;
-    }
-    const d = daysSince(a.last);
-    if (d > RISK_RECENCY_DAYS) {
-      lost++;
-    } else if (d > VIP_RECENCY_DAYS) {
-      risk++;
-    } else if (a.orders >= VIP_MIN_ORDERS || a.revenue >= VIP_MIN_REVENUE) {
-      vip++;
-    } else {
-      regular++;
-    }
-  }
-
-  return { vip, regular, risk, lost, total };
-}
 
 // Note: Refresh intervals are now tier-based via useTierBasedRefresh hook
 // Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min

@@ -22,7 +22,39 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen, ChevronDown, Settings2 } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  FileSpreadsheet,
+  History,
+  Link2,
+  Phone,
+  Tag,
+  ShoppingCart,
+  Wallet,
+  FileText,
+  RefreshCw,
+  Eye,
+  ArrowUpDown,
+  BookOpen,
+  ChevronDown,
+  Settings2,
+  Users,
+  Crown,
+  AlertTriangle,
+  UserX,
+  Loader2,
+} from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import {
+  fetchCustomerSegmentIndex,
+  CUSTOMER_SEGMENT_HINTS,
+  CUSTOMER_SEGMENT_LABELS,
+  type CustomerSegment,
+} from "@/utils/customerSegments";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,8 +92,31 @@ interface Customer {
 
 const ITEMS_PER_PAGE = 50;
 
+type SegmentFilter = CustomerSegment | "all";
+
+const fmtInr = (n: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(n || 0);
+
+const segmentBadgeClass = (seg: CustomerSegment) => {
+  switch (seg) {
+    case "vip":
+      return "bg-amber-100 text-amber-800 border-amber-200";
+    case "regular":
+      return "bg-emerald-100 text-emerald-800 border-emerald-200";
+    case "risk":
+      return "bg-orange-100 text-orange-800 border-orange-200";
+    case "lost":
+      return "bg-slate-200 text-slate-700 border-slate-300";
+  }
+};
+
 const CustomerMaster = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
@@ -213,38 +268,104 @@ const CustomerMaster = () => {
     staleTime: 60000,
   });
 
+  const { data: segmentIndex, isLoading: segmentsLoading } = useQuery({
+    queryKey: ["customer-segments", currentOrganization?.id],
+    queryFn: () => fetchCustomerSegmentIndex(currentOrganization!.id),
+    enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   const { data: customersPage, isLoading } = useQuery({
-    queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage],
+    queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage, segmentFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return { customers: [] as Customer[], filteredCount: 0 };
-      
+
       const offset = (currentPage - 1) * ITEMS_PER_PAGE;
       const term = debouncedSearch.trim();
-      
+      const orgId = currentOrganization.id;
+
+      const fetchByIds = async (ids: string[]) => {
+        if (ids.length === 0) return [] as Customer[];
+        const { data, error } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .in("id", ids)
+          .order("customer_name", { ascending: true });
+        if (error) throw error;
+        const orderMap = new Map(ids.map((id, i) => [id, i]));
+        return ((data || []) as Customer[]).sort(
+          (a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0),
+        );
+      };
+
+      if (segmentFilter !== "all" && segmentIndex) {
+        const segmentIds = Object.entries(segmentIndex.segments)
+          .filter(([, seg]) => seg === segmentFilter)
+          .map(([id]) => id)
+          .sort((a, b) => {
+            const sa = segmentIndex.stats[a]?.lastSaleDate ?? "";
+            const sb = segmentIndex.stats[b]?.lastSaleDate ?? "";
+            if (sa !== sb) return sb.localeCompare(sa);
+            return (
+              (segmentIndex.stats[b]?.revenue ?? 0) -
+              (segmentIndex.stats[a]?.revenue ?? 0)
+            );
+          });
+
+        if (segmentIds.length === 0) {
+          return { customers: [], filteredCount: 0 };
+        }
+
+        if (term) {
+          const { data: searchRows, error: searchErr } = await supabase
+            .from("customers")
+            .select("id")
+            .eq("organization_id", orgId)
+            .is("deleted_at", null)
+            .or(
+              `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
+            );
+          if (searchErr) throw searchErr;
+          const idSet = new Set(segmentIds);
+          const intersection = (searchRows || [])
+            .map((r: { id: string }) => r.id)
+            .filter((id) => idSet.has(id));
+          const filteredCount = intersection.length;
+          const pageIds = intersection.slice(offset, offset + ITEMS_PER_PAGE);
+          const customers = await fetchByIds(pageIds);
+          return { customers, filteredCount };
+        }
+
+        const filteredCount = segmentIds.length;
+        const pageIds = segmentIds.slice(offset, offset + ITEMS_PER_PAGE);
+        const customers = await fetchByIds(pageIds);
+        return { customers, filteredCount };
+      }
+
       let query = supabase
         .from("customers")
         .select("*", { count: "exact" })
-        .eq("organization_id", currentOrganization.id)
+        .eq("organization_id", orgId)
         .is("deleted_at", null);
-      
+
       if (term) {
-        const filters: string[] = [
-          `customer_name.ilike.%${term}%`,
-          `phone.ilike.%${term}%`,
-          `email.ilike.%${term}%`,
-        ];
-        query = query.or(filters.join(','));
+        query = query.or(
+          `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
+        );
       }
-      
+
       const { data, error, count } = await query
         .order("created_at", { ascending: false })
         .order("id")
         .range(offset, offset + ITEMS_PER_PAGE - 1);
-      
+
       if (error) throw error;
       return { customers: (data || []) as Customer[], filteredCount: count || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && (segmentFilter === "all" || !!segmentIndex),
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
@@ -315,6 +436,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       invalidateCustomers();
       toast({ title: "Customer created successfully" });
       resetForm();
@@ -360,6 +482,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       toast({ title: "Customer updated successfully" });
       resetForm();
       setIsDialogOpen(false);
@@ -378,6 +501,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       toast({ title: "Customer moved to recycle bin" });
     },
     onError: (error: any) => {
@@ -393,6 +517,7 @@ const CustomerMaster = () => {
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       toast({ title: `${count} customers moved to recycle bin` });
       setSelectedCustomers(new Set());
     },
@@ -437,8 +562,14 @@ const CustomerMaster = () => {
     }
   };
 
-  const totalPages = Math.ceil(filteredCount / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredCount / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+
+  const handleSegmentFilter = (filter: SegmentFilter) => {
+    setSegmentFilter(filter);
+    setCurrentPage(1);
+    setSelectedCustomers(new Set());
+  };
 
   const handleSelectCustomer = (customerId: string, checked: boolean) => {
     const newSelected = new Set(selectedCustomers);
@@ -454,6 +585,58 @@ const CustomerMaster = () => {
   };
 
   const isSomeSelected = selectedCustomers.size > 0;
+
+  const segmentCounts = segmentIndex?.counts ?? {
+    total: totalCount,
+    vip: 0,
+    regular: 0,
+    risk: 0,
+    lost: 0,
+  };
+
+  const segmentCards: {
+    key: SegmentFilter;
+    label: string;
+    count: number;
+    gradient: string;
+    icon: React.ReactNode;
+  }[] = [
+    {
+      key: "all",
+      label: "Total Customers",
+      count: segmentCounts.total || totalCount,
+      gradient: "from-blue-500 to-blue-600",
+      icon: <Users className="h-4 w-4 text-white" />,
+    },
+    {
+      key: "regular",
+      label: "Regular",
+      count: segmentCounts.regular,
+      gradient: "from-emerald-500 to-emerald-600",
+      icon: <Users className="h-4 w-4 text-white" />,
+    },
+    {
+      key: "vip",
+      label: "VIP",
+      count: segmentCounts.vip,
+      gradient: "from-amber-500 to-amber-600",
+      icon: <Crown className="h-4 w-4 text-white" />,
+    },
+    {
+      key: "risk",
+      label: "At Risk",
+      count: segmentCounts.risk,
+      gradient: "from-orange-500 to-orange-600",
+      icon: <AlertTriangle className="h-4 w-4 text-white" />,
+    },
+    {
+      key: "lost",
+      label: "Lost",
+      count: segmentCounts.lost,
+      gradient: "from-slate-500 to-slate-600",
+      icon: <UserX className="h-4 w-4 text-white" />,
+    },
+  ];
 
   const handleExcelImport = async (
     mappedData: Record<string, any>[],
@@ -511,6 +694,7 @@ const CustomerMaster = () => {
     }
 
     queryClient.invalidateQueries({ queryKey: ["customers"] });
+    queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
     const skippedEmptyRows = mappedData.length - validRows.length;
     let description = `${successCount} customers imported`;
     if (skippedCount > 0) description += `, ${skippedCount} duplicates skipped`;
@@ -620,14 +804,54 @@ const CustomerMaster = () => {
       },
     },
     {
-      id: "status",
-      header: "Status",
-      size: 90,
-      cell: () => (
-        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200">
-          Active
-        </span>
-      ),
+      id: "segment",
+      header: "Segment",
+      size: 100,
+      cell: ({ row }) => {
+        const seg = segmentIndex?.segments[row.original.id] ?? "regular";
+        return (
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${segmentBadgeClass(seg)}`}
+          >
+            {CUSTOMER_SEGMENT_LABELS[seg]}
+          </span>
+        );
+      },
+    },
+    {
+      id: "lifetime_sales",
+      header: "Lifetime Sales",
+      size: 130,
+      cell: ({ row }) => {
+        const rev = segmentIndex?.stats[row.original.id]?.revenue;
+        return (
+          <span className="text-right font-medium tabular-nums block">
+            {rev ? fmtInr(rev) : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      id: "orders",
+      header: "Orders",
+      size: 80,
+      cell: ({ row }) => {
+        const orders = segmentIndex?.stats[row.original.id]?.orders;
+        return (
+          <span className="text-right tabular-nums block">
+            {orders ? orders : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      id: "last_sale",
+      header: "Last Sale",
+      size: 110,
+      cell: ({ row }) => {
+        const sd = segmentIndex?.stats[row.original.id]?.lastSaleDate;
+        return <span className="tabular-nums text-muted-foreground">{sd || "-"}</span>;
+      },
     },
     {
       id: "actions",
@@ -656,7 +880,7 @@ const CustomerMaster = () => {
         );
       },
     },
-  ], [customers, selectedCustomers, advanceBalances, startIndex, navigate]);
+  ], [customers, selectedCustomers, advanceBalances, startIndex, navigate, segmentIndex]);
 
   const isMobile = useIsMobile();
 
@@ -678,7 +902,7 @@ const CustomerMaster = () => {
         />
 
         {/* Search */}
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -687,6 +911,23 @@ const CustomerMaster = () => {
               onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-9 h-10 bg-background border-border/60 rounded-xl text-sm"
             />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {segmentCards.map((card) => (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => handleSegmentFilter(card.key)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors",
+                  segmentFilter === card.key
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border",
+                )}
+              >
+                {card.label} ({segmentsLoading ? "…" : card.count})
+              </button>
+            ))}
           </div>
         </div>
 
@@ -716,6 +957,19 @@ const CustomerMaster = () => {
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-sm text-foreground truncate">{c.customer_name?.toUpperCase()}</p>
+                    {segmentIndex && (
+                      <span
+                        className={cn(
+                          "inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+                          segmentBadgeClass(segmentIndex.segments[c.id] ?? "regular"),
+                        )}
+                      >
+                        {CUSTOMER_SEGMENT_LABELS[segmentIndex.segments[c.id] ?? "regular"]}
+                        {segmentIndex.stats[c.id]?.revenue
+                          ? ` · ${fmtInr(segmentIndex.stats[c.id].revenue)}`
+                          : ""}
+                      </span>
+                    )}
                     {c.phone && (
                       <a href={`tel:${c.phone}`} className="text-xs text-primary font-medium" onClick={(e) => e.stopPropagation()}>
                         {c.phone}
@@ -810,14 +1064,71 @@ const CustomerMaster = () => {
     <div className="bg-slate-50/50 min-h-screen pb-24 lg:pb-0" onContextMenu={handlePageContextMenu}>
       <div className="space-y-4 p-4">
         <BackToDashboard />
-        
-        <div className="bg-card shadow-sm rounded-lg p-5">
-          {/* Single-line Header: Title + Search + Tools + Add */}
+
+        <div>
+          <h1 className="text-2xl font-bold text-blue-700">Customer Master</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Segments use lifetime sales: VIP = recent + (5+ orders or ₹50k+), Risk = 91–365 days, Lost = 365+ days.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
+          {segmentCards.map((card) => (
+            <Card
+              key={card.key}
+              className={cn(
+                "cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br border-0 shadow-md rounded-xl min-w-0",
+                card.gradient,
+                segmentFilter === card.key && "ring-4 ring-white ring-offset-2 ring-offset-slate-100 scale-[1.02]",
+              )}
+              onClick={() => handleSegmentFilter(card.key)}
+              title={CUSTOMER_SEGMENT_HINTS[card.key]}
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+                <CardDescription className="text-base font-medium text-white/80">
+                  {card.label}
+                </CardDescription>
+                <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                  {card.icon}
+                </div>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 pt-0">
+                <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                  {segmentsLoading ? "…" : card.count.toLocaleString("en-IN")}
+                </div>
+                <p className="text-sm text-white/65 mt-0.5 line-clamp-2">
+                  {CUSTOMER_SEGMENT_HINTS[card.key]}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {segmentFilter !== "all" && (
+          <p className="text-sm text-muted-foreground">
+            Showing{" "}
+            <span className="font-semibold text-foreground">
+              {filteredCount.toLocaleString("en-IN")}
+            </span>{" "}
+            {CUSTOMER_SEGMENT_LABELS[segmentFilter]} customers
+            {" · "}
+            <button
+              type="button"
+              className="text-primary hover:underline font-medium"
+              onClick={() => handleSegmentFilter("all")}
+            >
+              Clear filter
+            </button>
+          </p>
+        )}
+
+        <div className="bg-card shadow-sm rounded-xl border border-slate-200 p-5">
           <div className="flex items-center gap-4 mb-4">
             <div className="flex items-center gap-3 shrink-0">
-              <h1 className="text-[20px] font-bold text-foreground">Customer Master</h1>
               <span className="text-[12px] text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium">
-                {totalCount.toLocaleString()} records
+                {segmentFilter === "all"
+                  ? `${filteredCount.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} records`
+                  : `${filteredCount.toLocaleString("en-IN")} in ${CUSTOMER_SEGMENT_LABELS[segmentFilter]}`}
               </span>
             </div>
 
@@ -940,8 +1251,12 @@ const CustomerMaster = () => {
             columns={tableColumns}
             data={customers}
             stickyFirstColumn={false}
-            isLoading={isLoading}
-            emptyMessage="No customers found"
+            isLoading={isLoading || (segmentFilter !== "all" && segmentsLoading)}
+            emptyMessage={
+              segmentFilter !== "all"
+                ? `No ${CUSTOMER_SEGMENT_LABELS[segmentFilter].toLowerCase()} customers match your search`
+                : "No customers found"
+            }
             defaultColumnVisibility={{}}
             defaultDensity="compact"
             onRowContextMenu={handleRowContextMenu}
