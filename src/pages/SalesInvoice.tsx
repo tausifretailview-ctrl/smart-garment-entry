@@ -120,6 +120,66 @@ const customerSchema = z.object({
   transport_details: z.string().trim().max(200).optional().or(z.literal("")),
 });
 
+/** Restore flat discount when opening a saved invoice (legacy rows may only have discount in discount_amount). */
+function resolveFlatDiscountFromSale(
+  invoice: {
+    gross_amount?: number | null;
+    net_amount?: number | null;
+    discount_amount?: number | null;
+    flat_discount_amount?: number | null;
+    flat_discount_percent?: number | null;
+    other_charges?: number | null;
+    round_off?: number | null;
+    points_redeemed_amount?: number | null;
+  },
+  saleItems: Array<{
+    unit_price?: number | null;
+    quantity?: number | null;
+    discount_percent?: number | null;
+    discount_amount?: number | null;
+    line_total?: number | null;
+  }>,
+): { percent: number; rupees: number } {
+  const percent = Number(invoice.flat_discount_percent || 0);
+  const rupees = Number(invoice.flat_discount_amount || 0);
+  if (rupees > 0.005 || percent > 0.005) {
+    return { percent, rupees };
+  }
+
+  const lineDisc = saleItems.reduce((sum, item) => {
+    const lt = Number(item.line_total ?? 0);
+    const base = Number(item.unit_price || 0) * Number(item.quantity || 0);
+    if (lt > 0 && base > 0) {
+      return sum + Math.max(0, base - lt);
+    }
+    const itemDiscAmt = Number(item.discount_amount || 0);
+    if (itemDiscAmt > 0) return sum + itemDiscAmt;
+    return sum + (base * Number(item.discount_percent || 0)) / 100;
+  }, 0);
+
+  const headerDisc = Number(invoice.discount_amount || 0);
+  const orphanHeader = Math.max(0, headerDisc - lineDisc);
+  const gross = Number(invoice.gross_amount || 0);
+  const net = Number(invoice.net_amount || 0);
+  const other = Number(invoice.other_charges || 0);
+  const round = Number(invoice.round_off || 0);
+  const points = Number(invoice.points_redeemed_amount || 0);
+  const implied = Math.max(0, gross - lineDisc - net + other - round - points);
+  const flatRupees = orphanHeader > 0.005 ? orphanHeader : implied;
+  return { percent: 0, rupees: Math.round(flatRupees * 100) / 100 };
+}
+
+function applyFlatDiscountFromInvoice(
+  invoice: Parameters<typeof resolveFlatDiscountFromSale>[0],
+  saleItems: Parameters<typeof resolveFlatDiscountFromSale>[1],
+  setPercent: (n: number) => void,
+  setRupees: (n: number) => void,
+) {
+  const flat = resolveFlatDiscountFromSale(invoice, saleItems);
+  setPercent(flat.percent);
+  setRupees(flat.rupees);
+}
+
 export default function SalesInvoice() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -480,6 +540,7 @@ export default function SalesInvoice() {
 
   // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
   useEffect(() => {
+    if (editingInvoiceId || isInitializingEditRef.current) return;
     if (selectedCustomer && !hasBrandDiscounts) {
       // Customer has NO brand discounts, so apply master discount as flat discount
       if (selectedCustomer.discount_percent && selectedCustomer.discount_percent > 0) {
@@ -829,8 +890,12 @@ export default function SalesInvoice() {
       setShippingAddress(invoiceData.shipping_address || "");
       setShippingInstructions(invoiceData.shipping_instructions || "");
       setSalesman(invoiceData.salesman || "");
-      setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
-      setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+      applyFlatDiscountFromInvoice(
+        invoiceData,
+        invoiceData.sale_items || [],
+        setFlatDiscountPercent,
+        setFlatDiscountRupees,
+      );
       setOtherCharges(invoiceData.other_charges || 0);
       setRoundOff(invoiceData.round_off || 0);
       
@@ -911,8 +976,12 @@ export default function SalesInvoice() {
           setShippingAddress(invoiceData.shipping_address || "");
           setShippingInstructions(invoiceData.shipping_instructions || "");
           setSalesman(invoiceData.salesman || "");
-          setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
-          setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+          applyFlatDiscountFromInvoice(
+            invoiceData,
+            invoiceData.sale_items || [],
+            setFlatDiscountPercent,
+            setFlatDiscountRupees,
+          );
           setOtherCharges(invoiceData.other_charges || 0);
           setRoundOff(invoiceData.round_off || 0);
           
@@ -1738,8 +1807,12 @@ export default function SalesInvoice() {
       setShippingAddress(invoiceData.shipping_address || "");
       setShippingInstructions(invoiceData.shipping_instructions || "");
       setSalesman(invoiceData.salesman || "");
-      setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
-      setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+      applyFlatDiscountFromInvoice(
+        invoiceData,
+        invoiceData.sale_items || [],
+        setFlatDiscountPercent,
+        setFlatDiscountRupees,
+      );
       setOtherCharges(invoiceData.other_charges || 0);
       setRoundOff(invoiceData.round_off || 0);
 
@@ -1786,6 +1859,10 @@ export default function SalesInvoice() {
         }
 
         const normalizedItems = transformedItems.map((base: any) => {
+          const storedLt = Number(base.lineTotal);
+          if (storedLt > 0.005) {
+            return base;
+          }
           const mult = getMtrMultiplier(base);
           const subTotal = base.salePrice * mult;
           const discAmt = (subTotal * (base.discountPercent || 0)) / 100;
@@ -2914,8 +2991,9 @@ Thank you for choosing us!`;
   // Auto-calculate round-off to make final amount a whole number
   const calculatedRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
   
-  // Auto-update roundOff when line items change (if not manually set)
+  // Auto-update roundOff when line items change (new invoices only — preserve saved round on edit)
   useEffect(() => {
+    if (editingInvoiceId || isInitializingEditRef.current) return;
     if (lineItems.filter(i => i.productId).length > 0) {
       const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
       if (Math.abs(newRoundOff - roundOff) > 0.001) {
@@ -2924,7 +3002,7 @@ Thank you for choosing us!`;
     } else if (roundOff !== 0) {
       setRoundOff(0);
     }
-  }, [netBeforeRoundOff, lineItems]);
+  }, [netBeforeRoundOff, lineItems, editingInvoiceId, roundOff]);
   
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
