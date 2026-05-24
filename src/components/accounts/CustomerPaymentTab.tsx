@@ -1643,9 +1643,9 @@ export function CustomerPaymentTab({
       </Card>
 
       {!embedded && (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Customer Payments</CardTitle>
+      <Card className="rounded-xl border border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b border-slate-100 bg-slate-50/50">
+          <CardTitle className="text-sm font-semibold text-slate-800">Recent Customer Payments</CardTitle>
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1710,13 +1710,13 @@ export function CustomerPaymentTab({
             )}
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="mb-4">
+        <CardContent className="p-3">
+          <div className="mb-3 w-full">
             <Input
               placeholder="Search by customer name, voucher no, or description..."
               value={paymentSearchTerm}
               onChange={(e) => { setPaymentSearchTerm(e.target.value); setCustomerPaymentsPage(1); }}
-              className={cn(isMobile ? "w-full h-10 rounded-xl" : "max-w-sm")}
+              className={cn("w-full h-9 text-sm border-slate-200", isMobile && "rounded-xl h-10")}
             />
           </div>
           {isMobile ? (

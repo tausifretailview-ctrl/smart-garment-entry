@@ -1,7 +1,17 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, DollarSign, Wallet, Receipt, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Wallet,
+  Receipt,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import type { LucideIcon } from "lucide-react";
 
 interface DashboardMetrics {
   totalReceivables: number;
@@ -31,6 +41,46 @@ interface AccountsDashboardCardsProps {
   onFailedJournalClick?: () => void;
 }
 
+function MetricCard({
+  label,
+  value,
+  sub,
+  gradient,
+  icon: Icon,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  gradient: string;
+  icon: LucideIcon;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Card
+      className={cn(
+        "cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl min-w-0",
+        gradient,
+        active && "ring-2 ring-white/80 ring-offset-2 ring-offset-slate-100",
+      )}
+      onClick={onClick}
+    >
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+        <CardDescription className="text-xs font-medium text-white/80 leading-tight">{label}</CardDescription>
+        <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+          <Icon className="h-3.5 w-3.5 text-white" />
+        </div>
+      </CardHeader>
+      <CardContent className="px-2.5 pb-2 pt-0">
+        <div className="text-lg xl:text-xl font-black text-white tabular-nums leading-tight truncate">{value}</div>
+        <p className="text-xs text-white/65 mt-0.5 truncate">{sub}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function AccountsDashboardCards({
   dashboardMetrics,
   paymentStats,
@@ -39,223 +89,102 @@ export function AccountsDashboardCards({
   failedJournalCount = 0,
   onFailedJournalClick,
 }: AccountsDashboardCardsProps) {
+  const plPositive = dashboardMetrics.currentMonthPL >= 0;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 shrink-0">
       {failedJournalCount > 0 && (
         <Card
-          className="border-l-4 border-l-red-600 bg-red-50/80 dark:bg-red-950/30 cursor-pointer hover:shadow-md transition-all"
+          className="border border-red-200 bg-red-50 dark:bg-red-950/30 cursor-pointer hover:shadow-md transition-all rounded-xl"
           onClick={onFailedJournalClick}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                  {failedJournalCount} transactions failed to post to ledger
-                </p>
-                <p className="text-xs text-red-600/90 dark:text-red-300/90 mt-1">
-                  Please review failed auto-journals in sales and purchase bills.
-                </p>
-              </div>
-              <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-300" />
+          <CardContent className="p-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                {failedJournalCount} transactions failed to post to ledger
+              </p>
+              <p className="text-xs text-red-600/90 dark:text-red-300/90 mt-0.5">
+                Review failed auto-journals in sales and purchase bills.
+              </p>
             </div>
+            <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
           </CardContent>
         </Card>
       )}
 
-      {/* Payment Stats Cards - Clickable */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {/* Total Invoices */}
-        <Card
-          className={cn(
-            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-blue-500 overflow-hidden",
-            paymentCardFilter === null && "ring-2 ring-blue-400 shadow-md"
-          )}
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 w-full">
+        <MetricCard
+          label="Total Invoices"
+          value={`₹${Math.round(paymentStats.totalAmount).toLocaleString("en-IN")}`}
+          sub={`${paymentStats.totalInvoices} invoices`}
+          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          icon={Receipt}
+          active={paymentCardFilter === null}
           onClick={() => onCardClick(null)}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Invoices</p>
-                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">
-                  ₹{Math.round(paymentStats.totalAmount).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">{paymentStats.totalInvoices} invoices</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center shrink-0">
-                <Receipt className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Paid */}
-        <Card
-          className={cn(
-            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-emerald-500 overflow-hidden",
-            paymentCardFilter === "completed" && "ring-2 ring-emerald-400 shadow-md"
-          )}
+        />
+        <MetricCard
+          label="Paid"
+          value={`₹${Math.round(paymentStats.completedAmount).toLocaleString("en-IN")}`}
+          sub={`${paymentStats.completedCount} completed`}
+          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          icon={CheckCircle2}
+          active={paymentCardFilter === "completed"}
           onClick={() => onCardClick("completed")}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Paid</p>
-                <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
-                  ₹{Math.round(paymentStats.completedAmount).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">{paymentStats.completedCount} completed</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Partial */}
-        <Card
-          className={cn(
-            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-amber-500 overflow-hidden",
-            paymentCardFilter === "partial" && "ring-2 ring-amber-400 shadow-md"
-          )}
+        />
+        <MetricCard
+          label="Partial"
+          value={`₹${Math.round(paymentStats.partialAmount).toLocaleString("en-IN")}`}
+          sub={`${paymentStats.partialCount} partial`}
+          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+          icon={Clock}
+          active={paymentCardFilter === "partial"}
           onClick={() => onCardClick("partial")}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Partial</p>
-                <div className="text-2xl font-bold text-amber-700 dark:text-amber-300 tabular-nums mt-1">
-                  ₹{Math.round(paymentStats.partialAmount).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">{paymentStats.partialCount} partial</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-amber-50 dark:bg-amber-950 flex items-center justify-center shrink-0">
-                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pending */}
-        <Card
-          className={cn(
-            "cursor-pointer transition-all hover:shadow-md border-l-4 border-l-red-500 overflow-hidden",
-            paymentCardFilter === "pending" && "ring-2 ring-red-400 shadow-md"
-          )}
+        />
+        <MetricCard
+          label="Pending"
+          value={`₹${Math.round(paymentStats.pendingAmount).toLocaleString("en-IN")}`}
+          sub={`${paymentStats.pendingCount} pending`}
+          gradient="bg-gradient-to-br from-red-500 to-red-600"
+          icon={AlertCircle}
+          active={paymentCardFilter === "pending"}
           onClick={() => onCardClick("pending")}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Pending</p>
-                <div className="text-2xl font-bold text-red-700 dark:text-red-300 tabular-nums mt-1">
-                  ₹{Math.round(paymentStats.pendingAmount).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">{paymentStats.pendingCount} pending</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
-                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Dashboard Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Receivables */}
-        <Card className="border-l-4 border-l-emerald-500 overflow-hidden shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Receivables</p>
-                <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
-                  ₹{Math.round(dashboardMetrics.totalReceivables).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">Customer payments received</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
-                <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Payables */}
-        <Card className="border-l-4 border-l-red-500 overflow-hidden shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Total Payables</p>
-                <div className="text-2xl font-bold text-red-700 dark:text-red-300 tabular-nums mt-1">
-                  ₹{Math.round(dashboardMetrics.totalPayables).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">Supplier & employee payments</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
-                <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Monthly Expenses */}
-        <Card className="border-l-4 border-l-orange-500 overflow-hidden shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Monthly Expenses</p>
-                <div className="text-2xl font-bold text-orange-700 dark:text-orange-300 tabular-nums mt-1">
-                  ₹{Math.round(dashboardMetrics.monthlyExpenses).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">Current month expenses</p>
-              </div>
-              <div className="h-11 w-11 rounded-xl bg-orange-50 dark:bg-orange-950 flex items-center justify-center shrink-0">
-                <DollarSign className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Current Month P/L */}
-        <Card className={cn(
-          "border-l-4 overflow-hidden shadow-sm",
-          dashboardMetrics.currentMonthPL >= 0
-            ? "border-l-green-500"
-            : "border-l-purple-500"
-        )}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">Current Month P/L</p>
-                <div className={cn(
-                  "text-2xl font-bold tabular-nums mt-1",
-                  dashboardMetrics.currentMonthPL >= 0
-                    ? "text-green-700 dark:text-green-300"
-                    : "text-purple-700 dark:text-purple-300"
-                )}>
-                  ₹{Math.round(Math.abs(dashboardMetrics.currentMonthPL)).toLocaleString('en-IN')}
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {dashboardMetrics.currentMonthPL >= 0 ? "🟢 Profit" : "🔴 Loss"} for {format(new Date(), "MMMM yyyy")}
-                </p>
-              </div>
-              <div className={cn(
-                "h-11 w-11 rounded-xl flex items-center justify-center shrink-0",
-                dashboardMetrics.currentMonthPL >= 0
-                  ? "bg-green-50 dark:bg-green-950"
-                  : "bg-purple-50 dark:bg-purple-950"
-              )}>
-                <Wallet className={cn(
-                  "h-5 w-5",
-                  dashboardMetrics.currentMonthPL >= 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-purple-600 dark:text-purple-400"
-                )} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        />
+        <MetricCard
+          label="Receivables"
+          value={`₹${Math.round(dashboardMetrics.totalReceivables).toLocaleString("en-IN")}`}
+          sub="Customer payments"
+          gradient="bg-gradient-to-br from-teal-500 to-teal-600"
+          icon={TrendingUp}
+          onClick={() => onCardClick(null)}
+        />
+        <MetricCard
+          label="Payables"
+          value={`₹${Math.round(dashboardMetrics.totalPayables).toLocaleString("en-IN")}`}
+          sub="Supplier & salary"
+          gradient="bg-gradient-to-br from-rose-500 to-rose-600"
+          icon={TrendingDown}
+          onClick={() => onCardClick(null)}
+        />
+        <MetricCard
+          label="Expenses"
+          value={`₹${Math.round(dashboardMetrics.monthlyExpenses).toLocaleString("en-IN")}`}
+          sub="This month"
+          gradient="bg-gradient-to-br from-orange-500 to-orange-600"
+          icon={DollarSign}
+          onClick={() => onCardClick(null)}
+        />
+        <MetricCard
+          label="Month P/L"
+          value={`₹${Math.round(Math.abs(dashboardMetrics.currentMonthPL)).toLocaleString("en-IN")}`}
+          sub={`${plPositive ? "Profit" : "Loss"} · ${format(new Date(), "MMM yyyy")}`}
+          gradient={cn(
+            plPositive
+              ? "bg-gradient-to-br from-green-500 to-green-600"
+              : "bg-gradient-to-br from-violet-500 to-violet-600",
+          )}
+          icon={Wallet}
+          onClick={() => onCardClick(null)}
+        />
       </div>
     </div>
   );

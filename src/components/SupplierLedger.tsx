@@ -513,7 +513,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
   if (selectedSupplier && transactions) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3">
         {supplierBillPaymentDrift && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -829,7 +829,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {supplierBillPaymentDrift && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -859,75 +859,65 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         </Alert>
       )}
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-blue-500 to-blue-600"
           onClick={() => setPaymentStatusFilter("all")}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Suppliers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{summary.totalSuppliers}</div>
-            <p className="text-xs text-muted-foreground mt-1">Active supplier accounts</p>
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-white/80">Total Suppliers</p>
+            <div className="text-2xl font-black text-white tabular-nums mt-0.5">{summary.totalSuppliers}</div>
+            <p className="text-xs text-white/65 mt-0.5">Active supplier accounts</p>
           </CardContent>
         </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-red-500 to-red-600"
           onClick={() => setPaymentStatusFilter("outstanding")}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Payable</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600 dark:text-red-400">
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-white/80">Total Payable</p>
+            <div className="text-2xl font-black text-white tabular-nums mt-0.5">
               ₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Amount pending payment</p>
+            <p className="text-xs text-white/65 mt-0.5">Amount pending payment</p>
           </CardContent>
         </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600"
           onClick={() => setPaymentStatusFilter("all")}
         >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Purchases</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-white/80">Total Purchases</p>
+            <div className="text-2xl font-black text-white tabular-nums mt-0.5">
               ₹{summary.totalPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Total purchase value</p>
+            <p className="text-xs text-white/65 mt-0.5">Total purchase value</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Supplier List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Supplier Ledger</CardTitle>
-          <CardDescription>
-            View detailed transaction history for each supplier. For SQL audits, use views{" "}
-            <span className="font-mono text-xs">supplier_bill_payment_voucher_drift</span> and{" "}
-            <span className="font-mono text-xs">supplier_cn_bill_integrity_check</span>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
-            <div className="relative flex-1 w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="text-sm font-semibold text-slate-800">Supplier Ledger</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Transaction history per supplier</p>
+        </div>
+        <div className="p-2 sm:p-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3 w-full">
+            <div className="relative flex-[2] min-w-[140px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Search by name, phone, or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-9 h-9 text-sm border-slate-200"
               />
             </div>
             
             <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
                 <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
               <SelectContent>
@@ -942,14 +932,14 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
               <Button
                 variant="ghost"
                 onClick={() => setPaymentStatusFilter("all")}
-                className="w-full md:w-auto"
+                className="h-9 shrink-0"
               >
-                Clear Filters
+                Clear
               </Button>
             )}
           </div>
 
-          <div className="rounded-md border">
+          <div className="rounded-lg border border-slate-200 overflow-auto max-h-[min(52vh,520px)]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1042,8 +1032,8 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

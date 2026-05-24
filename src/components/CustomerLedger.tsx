@@ -3179,11 +3179,12 @@ Please clear your dues at the earliest. Thank you!`;
 
     return (
       <>
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
+            className="h-9 shrink-0"
             onClick={() => {
               setShowOverpaymentRefundDialog(false);
               setSelectedCustomer(null);
@@ -3193,7 +3194,7 @@ Please clear your dues at the earliest. Thank you!`;
             Back to Customers
           </Button>
           
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 justify-end">
             {isSchool && (
               <Select
                 value={selectedAcademicYearId}
@@ -3205,7 +3206,7 @@ Please clear your dues at the earliest. Thank you!`;
                   }
                 }}
               >
-                <SelectTrigger className="w-full md:w-[190px]">
+                <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
                   <SelectValue placeholder="Academic Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3221,8 +3222,8 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
+                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                   {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
                 </Button>
               </PopoverTrigger>
@@ -3238,8 +3239,8 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
+                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                   {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
                 </Button>
               </PopoverTrigger>
@@ -3256,6 +3257,7 @@ Please clear your dues at the earliest. Thank you!`;
             {(startDate || endDate) && (
               <Button
                 variant="ghost"
+                className="h-9 shrink-0"
                 onClick={() => {
                   setStartDate(undefined);
                   setEndDate(undefined);
@@ -3268,8 +3270,8 @@ Please clear your dues at the earliest. Thank you!`;
             <Button
               variant="outline"
               size="sm"
+              className="h-9 shrink-0"
               onClick={handleExportToExcel}
-              className={isMobile ? "flex-1" : ""}
             >
               <Download className="mr-2 h-4 w-4" />
               {isMobile ? "Excel" : "Export Excel"}
@@ -3403,10 +3405,10 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-0">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
-                <Card className="border-l-4 border-l-orange-400 overflow-hidden">
+                <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                   <CardContent className="p-3">
                     <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Opening Balance</div>
                     <div className={cn(
@@ -3421,7 +3423,7 @@ Please clear your dues at the earliest. Thank you!`;
                   </CardContent>
                 </Card>
               )}
-              <Card className="border-l-4 border-l-blue-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     {isSchool ? ((selectedCustomer as any).hasStructures === false ? "Opening Balance" : "Total Fees") : "Total Sales"}
@@ -3431,7 +3433,7 @@ Please clear your dues at the earliest. Thank you!`;
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-l-4 border-l-emerald-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
                     {isSchool ? "Fees Received" : "Cash/UPI Paid"}
@@ -3443,7 +3445,7 @@ Please clear your dues at the earliest. Thank you!`;
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-l-4 border-l-purple-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Adjusted</div>
                   <div className="text-lg font-bold text-purple-600 dark:text-purple-300 tabular-nums">
@@ -3451,7 +3453,7 @@ Please clear your dues at the earliest. Thank you!`;
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-l-4 border-l-indigo-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Received</div>
                   <div className="text-lg font-bold text-indigo-600 dark:text-indigo-300 tabular-nums">
@@ -3460,7 +3462,7 @@ Please clear your dues at the earliest. Thank you!`;
                   <div className="text-[10px] text-muted-foreground mt-0.5">Applied + Unused</div>
                 </CardContent>
               </Card>
-              <Card className="border-l-4 border-l-teal-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Advance Balance</div>
                   <div className={cn(
@@ -3476,7 +3478,7 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </CardContent>
               </Card>
-              <Card className="border-l-4 border-l-amber-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">Returns / CR</div>
                   {saleReturnsSummary.pending + saleReturnsSummary.partialPending > 0 ? (
@@ -3501,7 +3503,7 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </CardContent>
               </Card>
-              <Card className="border-l-4 border-l-orange-400 overflow-hidden">
+              <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                 <CardContent className="p-3">
                   <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">CN Available</div>
                   <div className={cn(
@@ -3941,7 +3943,7 @@ Please clear your dues at the earliest. Thank you!`;
               <TabsContent value="payments">
                 {/* Payment Summary Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-                  <Card className="border-l-4 border-l-emerald-500 overflow-hidden">
+                  <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
                       <div className="text-xs text-muted-foreground mb-1">Total Received</div>
                       <div className="text-lg font-bold text-green-600 dark:text-green-400">
@@ -3950,7 +3952,7 @@ Please clear your dues at the earliest. Thank you!`;
                       <div className="text-xs text-muted-foreground">{paymentSummary.count} payments</div>
                     </CardContent>
                   </Card>
-                  <Card className="border-l-4 border-l-green-400 overflow-hidden">
+                  <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <Banknote className="h-3 w-3" /> Cash
@@ -3960,7 +3962,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="border-l-4 border-l-blue-400 overflow-hidden">
+                  <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <CreditCard className="h-3 w-3" /> Card
@@ -3970,7 +3972,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="border-l-4 border-l-violet-400 overflow-hidden">
+                  <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                         <Wallet className="h-3 w-3" /> UPI
@@ -3980,7 +3982,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="border-l-4 border-l-slate-400 overflow-hidden">
+                  <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
                       <div className="text-xs text-muted-foreground mb-1">Recorded Separately</div>
                       <div className="text-lg font-bold">
@@ -4231,7 +4233,7 @@ Please clear your dues at the earliest. Thank you!`;
                 <>
                   <TabsContent value="advance-adjusted" className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <Card className="border-l-4 border-l-teal-500 overflow-hidden">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                         <CardContent className="p-3">
                           <div className="text-xs text-muted-foreground mb-1">Total applied (period)</div>
                           <div className="text-lg font-bold text-teal-700 dark:text-teal-400">
@@ -4239,14 +4241,14 @@ Please clear your dues at the earliest. Thank you!`;
                           </div>
                         </CardContent>
                       </Card>
-                      <Card className="border-l-4 border-l-slate-500 overflow-hidden">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                         <CardContent className="p-3">
                           <div className="text-xs text-muted-foreground mb-1">Invoices touched</div>
                           <div className="text-lg font-bold">{advanceAllocSummary.invoiceCount}</div>
                           <div className="text-xs text-muted-foreground">Distinct sale</div>
                         </CardContent>
                       </Card>
-                      <Card className="border-l-4 border-l-blue-500 overflow-hidden">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                         <CardContent className="p-3">
                           <div className="text-xs text-muted-foreground mb-1">Voucher date range</div>
                           <div className="text-sm font-medium leading-snug">
@@ -4325,7 +4327,7 @@ Please clear your dues at the earliest. Thank you!`;
 
                   <TabsContent value="cn-adjusted" className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <Card className="border-l-4 border-l-purple-500 overflow-hidden">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                         <CardContent className="p-3">
                           <div className="text-xs text-muted-foreground mb-1">Total applied (period)</div>
                           <div className="text-lg font-bold text-purple-700 dark:text-purple-400">
@@ -4333,14 +4335,14 @@ Please clear your dues at the earliest. Thank you!`;
                           </div>
                         </CardContent>
                       </Card>
-                      <Card className="border-l-4 border-l-slate-500 overflow-hidden">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                         <CardContent className="p-3">
                           <div className="text-xs text-muted-foreground mb-1">Invoices touched</div>
                           <div className="text-lg font-bold">{cnAllocSummary.invoiceCount}</div>
                           <div className="text-xs text-muted-foreground">Distinct sale</div>
                         </CardContent>
                       </Card>
-                      <Card className="border-l-4 border-l-blue-500 overflow-hidden">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                         <CardContent className="p-3">
                           <div className="text-xs text-muted-foreground mb-1">Voucher date range</div>
                           <div className="text-sm font-medium leading-snug">
@@ -4439,76 +4441,76 @@ Please clear your dues at the earliest. Thank you!`;
 
   return (
     <>
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <Card
-          className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-blue-500 overflow-hidden"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-blue-500 to-blue-600"
           onClick={() => setPaymentStatusFilter("all")}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {isSchool ? 'Total Students' : 'Total Customers'}
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/80">
+                  {isSchool ? "Total Students" : "Total Customers"}
                 </p>
-                <div className="text-3xl font-bold text-blue-700 dark:text-blue-300 tabular-nums mt-1">
+                <div className="text-2xl font-black text-white tabular-nums mt-0.5">
                   {summary.totalCustomers}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isSchool ? 'Active student accounts' : 'Active customer accounts'}
+                <p className="text-xs text-white/65 mt-0.5 truncate">
+                  {isSchool ? "Active student accounts" : "Active customer accounts"}
                 </p>
               </div>
-              <div className="h-11 w-11 rounded-xl bg-blue-50 dark:bg-blue-950 flex items-center justify-center shrink-0">
-                <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                <Users className="h-4 w-4 text-white" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card
-          className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-red-500 overflow-hidden"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-red-500 to-red-600"
           onClick={() => setPaymentStatusFilter("outstanding")}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {isSchool ? 'Total Fees Due' : 'Total Outstanding'}
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/80">
+                  {isSchool ? "Total Fees Due" : "Total Outstanding"}
                 </p>
-                <div className="text-3xl font-bold text-red-600 dark:text-red-400 tabular-nums mt-1">
+                <div className="text-2xl font-black text-white tabular-nums mt-0.5">
                   ₹{summary.totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isSchool ? 'Fees pending collection' : 'Amount pending collection'}
+                <p className="text-xs text-white/65 mt-0.5 truncate">
+                  {isSchool ? "Fees pending collection" : "Amount pending collection"}
                 </p>
               </div>
-              <div className="h-11 w-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center shrink-0">
-                <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                <AlertCircle className="h-4 w-4 text-white" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card
-          className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-emerald-500 overflow-hidden"
+          className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600"
           onClick={() => setPaymentStatusFilter("all")}
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {isSchool ? 'Total Fees Charged' : 'Total Receivable'}
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-white/80">
+                  {isSchool ? "Total Fees Charged" : "Total Receivable"}
                 </p>
-                <div className="text-3xl font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-1">
+                <div className="text-2xl font-black text-white tabular-nums mt-0.5">
                   ₹{summary.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isSchool ? 'Total fees value' : 'Total sales value'}
+                <p className="text-xs text-white/65 mt-0.5 truncate">
+                  {isSchool ? "Total fees value" : "Total sales value"}
                 </p>
               </div>
-              <div className="h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center shrink-0">
-                <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                <TrendingUp className="h-4 w-4 text-white" />
               </div>
             </div>
           </CardContent>
@@ -4516,30 +4518,30 @@ Please clear your dues at the earliest. Thank you!`;
       </div>
 
       {/* Customer List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <BookOpen className="h-5 w-5 text-primary" />
-            {isSchool ? 'Student Account Ledger' : 'Customer Ledger'}
-          </CardTitle>
-          <CardDescription>
-            {isSchool ? 'View detailed fee and payment history for each student' : 'View detailed transaction history for each customer'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
-            <div className="relative flex-1 w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-blue-600" />
+            {isSchool ? "Student Account Ledger" : "Customer Ledger"}
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {isSchool ? "Fee and payment history per student" : "Transaction history per customer"}
+          </p>
+        </div>
+        <div className="p-2 sm:p-3">
+          <div className="flex flex-wrap items-center gap-2 mb-3 w-full">
+            <div className="relative flex-[2] min-w-[140px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Search by name, phone, or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-9 h-9 text-sm border-slate-200"
               />
             </div>
             
             <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
                 <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
               <SelectContent>
@@ -4561,7 +4563,7 @@ Please clear your dues at the earliest. Thank you!`;
                   }
                 }}
               >
-                <SelectTrigger className="w-full md:w-[190px]">
+                <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
                   <SelectValue placeholder="Academic Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -4577,8 +4579,8 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-[240px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
+                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                   {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
                 </Button>
               </PopoverTrigger>
@@ -4594,8 +4596,8 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-[240px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
+                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
+                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                   {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
                 </Button>
               </PopoverTrigger>
@@ -4618,20 +4620,20 @@ Please clear your dues at the earliest. Thank you!`;
                   setPaymentStatusFilter("all");
                   setSelectedAcademicYearId("all");
                 }}
-                className="w-full md:w-auto"
+                className="h-9 shrink-0"
               >
-                Clear Filters
+                Clear
               </Button>
             )}
 
-            <div className="flex items-center gap-2 ml-auto">
-              <Button variant="outline" size="sm" onClick={handleExportCustomerListExcel}>
-                <Download className="mr-2 h-4 w-4" />
-                {isMobile ? "Excel" : "Export Excel"}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <Button variant="outline" size="sm" className="h-9" onClick={handleExportCustomerListExcel}>
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                {isMobile ? "Excel" : "Excel"}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleExportCustomerListPDF}>
-                <FileDown className="mr-2 h-4 w-4" />
-                {isMobile ? "PDF" : "Export PDF"}
+              <Button variant="outline" size="sm" className="h-9" onClick={handleExportCustomerListPDF}>
+                <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                {isMobile ? "PDF" : "PDF"}
               </Button>
             </div>
           </div>
@@ -4724,7 +4726,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           ) : (
             /* Desktop Table View */
-            <div className="rounded-md border">
+            <div className="rounded-lg border border-slate-200 overflow-auto max-h-[min(52vh,520px)]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -4858,8 +4860,8 @@ Please clear your dues at the earliest. Thank you!`;
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       {customerForHistory && (
         <CustomerHistoryDialog
           open={showCustomerHistory}

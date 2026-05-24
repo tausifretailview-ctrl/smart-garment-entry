@@ -343,48 +343,42 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-l-4 border-l-destructive">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <IndianRupee className="h-4 w-4" /> Total Outstanding
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tabular-nums">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-red-500 to-red-600">
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-white/80 flex items-center gap-1">
+              <IndianRupee className="h-3.5 w-3.5" /> Total Outstanding
+            </p>
+            <div className="text-2xl font-black text-white tabular-nums mt-0.5">
               ₹{Math.round(totalOutstanding).toLocaleString("en-IN")}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">{totalInvoices} unpaid invoices</p>
+            <p className="text-xs text-white/65 mt-0.5">{totalInvoices} unpaid invoices</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-warning">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" /> Customers with Dues
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tabular-nums">{totalCustomers}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+        <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-amber-500 to-amber-600">
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-white/80 flex items-center gap-1">
+              <Users className="h-3.5 w-3.5" /> Customers with Dues
+            </p>
+            <div className="text-2xl font-black text-white tabular-nums mt-0.5">{totalCustomers}</div>
+            <p className="text-xs text-white/65 mt-0.5">
               Avg ₹{totalCustomers > 0 ? Math.round(totalOutstanding / totalCustomers).toLocaleString("en-IN") : 0} per customer
             </p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" /> Overdue (&gt;30 days)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tabular-nums text-destructive">
+        <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-violet-500 to-violet-600">
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-white/80 flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" /> Overdue (&gt;30 days)
+            </p>
+            <div className="text-2xl font-black text-white tabular-nums mt-0.5">
               ₹{Math.round(
                 agingBuckets.slice(2).reduce((s, b) => s + b.amount, 0)
               ).toLocaleString("en-IN")}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-white/65 mt-0.5">
               {agingBuckets.slice(2).reduce((s, b) => s + b.count, 0)} customers overdue
             </p>
           </CardContent>
@@ -392,9 +386,9 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
       </div>
 
       {/* Aging Buckets */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Aging Analysis</CardTitle>
+      <Card className="rounded-xl border border-slate-200 shadow-sm">
+        <CardHeader className="pb-2 px-3 pt-3 border-b border-slate-100 bg-slate-50/50">
+          <CardTitle className="text-sm font-semibold text-slate-800">Aging Analysis</CardTitle>
           <CardDescription>Outstanding amounts grouped by invoice age</CardDescription>
         </CardHeader>
         <CardContent>

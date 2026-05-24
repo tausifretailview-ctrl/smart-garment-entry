@@ -7,7 +7,7 @@ import { ArrowDownLeft, ArrowUpRight, BookOpen, AlertCircle, Receipt, FileText a
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, Coins, LayoutDashboard, Loader2, BookMarked, Trash2 } from "lucide-react";
+import { Plus, Coins, Loader2, BookMarked, Trash2 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -708,46 +708,42 @@ export default function Accounts() {
   }
 
   return (
-    <div className="w-full px-6 py-6 pb-24 lg:pb-6 space-y-6 min-h-screen bg-gradient-to-br from-background via-slate-50/30 to-background dark:via-slate-900/20">
+    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-24 lg:pb-4 overflow-hidden">
       <BackToDashboard label="Back to Payments" to="/payments-dashboard" />
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-md">
-            <LayoutDashboard className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Accounts Management
-            </h1>
-            <p className="text-sm text-muted-foreground">Payments · Expenses · Vouchers · Financial Reports</p>
-          </div>
+      <div className="flex items-center justify-between shrink-0 mb-1">
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+            Accounts Management
+          </h1>
+          <p className="text-slate-400 text-base mt-0.5">Payments · Expenses · Vouchers · Financial Reports</p>
         </div>
       </div>
 
-      <AccountsDashboardCards
-        dashboardMetrics={dashboardMetrics}
-        paymentStats={paymentStats}
-        paymentCardFilter={paymentCardFilter}
-        onCardClick={handleCardClick}
-        failedJournalCount={failedJournalCount}
-        onFailedJournalClick={() => setShowFailedJournalsDialog(true)}
-      />
+      <div className="shrink-0 my-2">
+        <AccountsDashboardCards
+          dashboardMetrics={dashboardMetrics}
+          paymentStats={paymentStats}
+          paymentCardFilter={paymentCardFilter}
+          onCardClick={handleCardClick}
+          failedJournalCount={failedJournalCount}
+          onFailedJournalClick={() => setShowFailedJournalsDialog(true)}
+        />
+      </div>
 
       {isAdmin && currentOrganization?.id && (
-        <Card className="border-dashed">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BookMarked className="h-4 w-4" />
+        <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm shrink-0">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <BookMarked className="h-4 w-4 text-blue-600" />
               Accounting migration
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               Post pending sale and purchase journals and expense vouchers that never reached the GL. Safe to re-run: existing
-              journals are skipped. Check the browser console for per-row errors. Use reset only before a full re-backfill if you
-              need to clear incorrect GL rows (platform admin or org admin).
+              journals are skipped. Use reset only before a full re-backfill if you need to clear incorrect GL rows (platform admin or org admin).
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+          <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
             <Button type="button" variant="secondary" disabled={ledgerMigrationBusy} onClick={handleHistoricalBackfill}>
               {backfillRunning ? (
                 <>
@@ -805,35 +801,38 @@ export default function Accounts() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-10 h-10 bg-muted/60 p-1 rounded-xl">
-          <TabsTrigger value="customer-ledger" className="rounded-lg text-xs font-medium">Customer Ledger</TabsTrigger>
-          <TabsTrigger value="supplier-ledger" className="rounded-lg text-xs font-medium">Supplier Ledger</TabsTrigger>
-          <TabsTrigger value="outstanding" className="rounded-lg text-xs font-medium">Outstanding</TabsTrigger>
-          <TabsTrigger value="customer-payment" className="rounded-lg text-xs font-medium">Customer Payment</TabsTrigger>
-          <TabsTrigger value="supplier-payment" className="rounded-lg text-xs font-medium">Supplier Payment</TabsTrigger>
-          <TabsTrigger value="employee-salary" className="rounded-lg text-xs font-medium">Employee Salary</TabsTrigger>
-          <TabsTrigger value="expenses" className="rounded-lg text-xs font-medium">Expenses</TabsTrigger>
-          <TabsTrigger value="voucher-entry" className="rounded-lg text-xs font-medium">Voucher Entry</TabsTrigger>
-          <TabsTrigger value="reconciliation" className="rounded-lg text-xs font-medium">Reconciliation</TabsTrigger>
-          {isAdmin && <TabsTrigger value="balance-adjustment" className="rounded-lg text-xs font-medium">Balance Adj.</TabsTrigger>}
-        </TabsList>
+      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex flex-col flex-1 min-h-0 gap-0">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm shrink-0 overflow-hidden">
+          <TabsList className="w-full h-auto p-0 bg-slate-50/80 border-b border-slate-100 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
+          <TabsTrigger value="customer-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Customer Ledger</TabsTrigger>
+          <TabsTrigger value="supplier-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Supplier Ledger</TabsTrigger>
+          <TabsTrigger value="outstanding" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Outstanding</TabsTrigger>
+          <TabsTrigger value="customer-payment" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Customer Payment</TabsTrigger>
+          <TabsTrigger value="supplier-payment" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Supplier Payment</TabsTrigger>
+          <TabsTrigger value="employee-salary" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Employee Salary</TabsTrigger>
+          <TabsTrigger value="expenses" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Expenses</TabsTrigger>
+          <TabsTrigger value="voucher-entry" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Voucher Entry</TabsTrigger>
+          <TabsTrigger value="reconciliation" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Reconciliation</TabsTrigger>
+          {isAdmin && <TabsTrigger value="balance-adjustment" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Balance Adj.</TabsTrigger>}
+          </TabsList>
+        </div>
 
-        <TabsContent value="customer-ledger" className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3">
+        <TabsContent value="customer-ledger" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && (
             <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
           )}
         </TabsContent>
 
-        <TabsContent value="supplier-ledger" className="space-y-6">
+        <TabsContent value="supplier-ledger" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && <SupplierLedger organizationId={currentOrganization.id} />}
         </TabsContent>
 
-        <TabsContent value="outstanding" className="space-y-6">
+        <TabsContent value="outstanding" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && <OutstandingDashboardTab organizationId={currentOrganization.id} />}
         </TabsContent>
 
-        <TabsContent value="customer-payment" className="space-y-6">
+        <TabsContent value="customer-payment" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && (
             <CustomerPaymentTab
               organizationId={currentOrganization.id}
@@ -848,25 +847,25 @@ export default function Accounts() {
           )}
         </TabsContent>
 
-        <TabsContent value="supplier-payment" className="space-y-6">
+        <TabsContent value="supplier-payment" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && (
             <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} />
           )}
         </TabsContent>
 
-        <TabsContent value="employee-salary" className="space-y-6">
+        <TabsContent value="employee-salary" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />}
         </TabsContent>
 
-        <TabsContent value="expenses" className="space-y-6">
+        <TabsContent value="expenses" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />}
         </TabsContent>
 
-        <TabsContent value="voucher-entry" className="space-y-6">
+        <TabsContent value="voucher-entry" className="mt-0 space-y-4 outline-none">
           <VoucherEntryTab vouchers={vouchers} />
         </TabsContent>
 
-        <TabsContent value="reconciliation" className="space-y-6">
+        <TabsContent value="reconciliation" className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && (
             <Tabs defaultValue="payments" className="w-full space-y-4">
               <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
@@ -888,7 +887,7 @@ export default function Accounts() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="balance-adjustment" className="space-y-6">
+          <TabsContent value="balance-adjustment" className="mt-0 space-y-4 outline-none">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5" /> Customer Balance Adjustment</CardTitle>
@@ -903,6 +902,7 @@ export default function Accounts() {
             <RecentBalanceAdjustments organizationId={currentOrganization?.id || ""} />
           </TabsContent>
         )}
+        </div>
       </Tabs>
 
       <AccountsPaymentDialogs dialogs={paymentDialogs} />
