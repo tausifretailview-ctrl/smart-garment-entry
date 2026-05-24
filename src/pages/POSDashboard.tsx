@@ -2222,18 +2222,19 @@ const POSDashboard = () => {
         </div>
 
         <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0 flex-nowrap overflow-x-auto">
-              <div className="relative flex-1 min-w-[160px] max-w-md">
+          <div className="flex w-full items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
+              <div className="relative flex-[2] min-w-[140px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search sale no, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white"
+                  className="pl-10 h-9 w-full text-sm border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
-              <Select value={periodFilter} onValueChange={handlePeriodChange}>
-                <SelectTrigger className="w-[100px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+              <div className="flex-1 min-w-[88px]">
+              <Select value={periodFilter} onValueChange={handlePeriodChange} className="w-full">
+                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
@@ -2244,8 +2245,10 @@ const POSDashboard = () => {
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
+              </div>
               {periodFilter !== 'all' &&
                 (periodFilter === 'daily' ? (
+                  <div className="flex-1 min-w-[110px]">
                   <Input
                     type="date"
                     value={startDate}
@@ -2254,11 +2257,13 @@ const POSDashboard = () => {
                       setStartDate(v);
                       setEndDate(v);
                     }}
-                    className="w-[130px] h-9 text-sm shrink-0"
+                    className="w-full h-9 text-sm"
                     aria-label="Sale date"
                   />
+                  </div>
                 ) : periodFilter === 'custom' ? (
                   <>
+                    <div className="flex-1 min-w-[110px]">
                     <Input
                       type="date"
                       value={startDate}
@@ -2266,9 +2271,11 @@ const POSDashboard = () => {
                         setStartDate(e.target.value);
                         setPeriodFilter('custom');
                       }}
-                      className="w-[130px] h-9 text-sm shrink-0"
+                      className="w-full h-9 text-sm"
                       aria-label="Start date"
                     />
+                    </div>
+                    <div className="flex-1 min-w-[110px]">
                     <Input
                       type="date"
                       value={endDate}
@@ -2276,11 +2283,13 @@ const POSDashboard = () => {
                         setEndDate(e.target.value);
                         setPeriodFilter('custom');
                       }}
-                      className="w-[130px] h-9 text-sm shrink-0"
+                      className="w-full h-9 text-sm"
                       aria-label="End date"
                     />
+                    </div>
                   </>
                 ) : (
+                  <div className="flex-1 min-w-[110px]">
                   <Input
                     type="date"
                     value={endDate}
@@ -2300,12 +2309,14 @@ const POSDashboard = () => {
                         setEndDate(v);
                       }
                     }}
-                    className="w-[130px] h-9 text-sm shrink-0"
+                    className="w-full h-9 text-sm"
                     aria-label={periodFilter === 'monthly' ? 'Month up to date' : 'Quarter up to date'}
                   />
+                  </div>
                 ))}
-              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-                <SelectTrigger className="w-[115px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+              <div className="flex-1 min-w-[88px]">
+              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter} className="w-full">
+                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Method" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
@@ -2317,9 +2328,11 @@ const POSDashboard = () => {
                   <SelectItem value="pay_later">Pay Later</SelectItem>
                 </SelectContent>
               </Select>
+              </div>
+              <div className="flex-1 min-w-[100px]">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[115px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between shrink-0 px-2">
+                  <Button variant="outline" className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between px-2">
                     {paymentStatusFilter.length === 0 ? 'All Status' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Sel`}
                     <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
                   </Button>
@@ -2347,8 +2360,10 @@ const POSDashboard = () => {
                   </div>
                 </PopoverContent>
               </Popover>
-              <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
-                <SelectTrigger className="w-[100px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+              </div>
+              <div className="flex-1 min-w-[88px]">
+              <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter} className="w-full">
+                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Bills" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
@@ -2358,8 +2373,10 @@ const POSDashboard = () => {
                   <SelectItem value="cn">CN Only</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={cancelFilter} onValueChange={setCancelFilter}>
-                <SelectTrigger className="w-[105px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0" title="Cancellation status filter">
+              </div>
+              <div className="flex-1 min-w-[88px]">
+              <Select value={cancelFilter} onValueChange={setCancelFilter} className="w-full">
+                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white" title="Cancellation status filter">
                   <SelectValue placeholder="Active" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
@@ -2368,8 +2385,10 @@ const POSDashboard = () => {
                   <SelectItem value="all">All (Active + Cancelled)</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-[105px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+              </div>
+              <div className="flex-1 min-w-[88px]">
+              <Select value={userFilter} onValueChange={setUserFilter} className="w-full">
+                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Users" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
@@ -2381,12 +2400,11 @@ const POSDashboard = () => {
                   ))}
                 </SelectContent>
               </Select>
-              
-              
+              </div>
               {/* Column Settings Popover */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-slate-200" title="Column Settings">
+                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-slate-200 flex-shrink-0" title="Column Settings">
                     <Settings2 className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
