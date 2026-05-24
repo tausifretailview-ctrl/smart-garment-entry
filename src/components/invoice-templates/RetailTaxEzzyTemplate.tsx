@@ -1,5 +1,6 @@
 import React from "react";
 import { numberToWords } from "@/lib/utils";
+import { getGstInclusiveNetBase } from "@/utils/gstRegisterUtils";
 import "@/styles/print-invoice-core.css";
 
 interface InvoiceItem {
@@ -175,14 +176,18 @@ export const RetailTaxEzzyTemplate: React.FC<RetailTaxEzzyTemplateProps> = ({
   > = {};
   const isInterState = igstAmount > 0;
 
+  const linesTotal = items.reduce((s, i) => s + i.total, 0);
+  const gstNetBase = getGstInclusiveNetBase(items, discount, saleReturnAdjust);
+  const gstNetMultiplier = linesTotal > 0 ? gstNetBase / linesTotal : 0;
+
   // GST is inclusive of price for retail: tax = net * gst / (100 + gst)
-  // applied on the post-discount line total. Do not change this formula
-  // without updating the totals box (MRP Total / Discount / GST) below.
+  // on amount after bill-level discount (e.g. flat POS discount), not pre-discount MRP.
   items.forEach((item) => {
     const gstPct = item.gstPercent || 0;
     if (gstPct > 0) {
-      const taxOnItem = (item.total * gstPct) / (100 + gstPct);
-      const taxableVal = item.total - taxOnItem;
+      const lineNetForGst = item.total * gstNetMultiplier;
+      const taxOnItem = (lineNetForGst * gstPct) / (100 + gstPct);
+      const taxableVal = lineNetForGst - taxOnItem;
       if (!gstBreakup[gstPct]) {
         gstBreakup[gstPct] = { taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
       }

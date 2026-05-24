@@ -20,7 +20,12 @@ import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
 import { ModernThermalReceipt80mm } from './ModernThermalReceipt80mm';
 import QRCode from 'qrcode';
-import { calculateGSTBreakup, normalizeGstTaxType, type GstTaxType } from '@/utils/gstRegisterUtils';
+import {
+  calculateGSTBreakup,
+  getGstInclusiveNetBase,
+  normalizeGstTaxType,
+  type GstTaxType,
+} from '@/utils/gstRegisterUtils';
 
 interface InvoiceItem {
   sr: number;
@@ -250,10 +255,18 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       !!buyerGstin &&
       sellerGstin.substring(0, 2) !== buyerGstin.substring(0, 2);
 
+    const linesTotal = props.items.reduce((s, item) => s + item.total, 0);
+    const gstNetBase = getGstInclusiveNetBase(
+      props.items,
+      props.discount,
+      props.saleReturnAdjust || 0
+    );
+    const gstNetMultiplier = linesTotal > 0 ? gstNetBase / linesTotal : 0;
+
     const gstBreakup = calculateGSTBreakup(
       props.items.map((item) => ({
         gst_percent: item.gstPercent || 0,
-        line_total: item.total,
+        line_total: item.total * gstNetMultiplier,
       })),
       taxType,
       isInterState

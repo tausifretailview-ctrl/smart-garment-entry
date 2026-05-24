@@ -163,6 +163,39 @@ export const computeTallyLineDisplay = (
 export const normalizeGstTaxType = (value?: string | null): GstTaxType =>
   value === 'exclusive' || value === 'gst_exclusive' ? 'exclusive' : 'inclusive';
 
+/** Invoice print line shape for gross vs net discount detection. */
+export type InvoiceLineForGst = {
+  qty: number;
+  rate: number;
+  total: number;
+};
+
+/**
+ * Bill-level discount shown on the invoice footer but not embedded in per-line `total`
+ * (e.g. POS flat discount after line items are summed).
+ */
+export const getBillLevelDiscountNotInLineTotals = (
+  items: InvoiceLineForGst[],
+  discountShown: number
+): number => {
+  const linesTotal = items.reduce((s, i) => s + (i.total || 0), 0);
+  const grossLines = items.reduce((s, i) => s + (i.qty || 0) * (i.rate || 0), 0);
+  const discountAlreadyInLines = Math.max(0, grossLines - linesTotal);
+  return Math.max(0, (discountShown || 0) - discountAlreadyInLines);
+};
+
+/** Inclusive-GST net base after bill discount and sale-return adjust (excludes round-off). */
+export const getGstInclusiveNetBase = (
+  items: InvoiceLineForGst[],
+  discountShown: number,
+  saleReturnAdjust = 0
+): number => {
+  const linesTotal = items.reduce((s, i) => s + (i.total || 0), 0);
+  const billLevel = getBillLevelDiscountNotInLineTotals(items, discountShown);
+  const srAdjust = Math.max(0, saleReturnAdjust || 0);
+  return Math.max(0, linesTotal - billLevel - srAdjust);
+};
+
 // FIX G10: Calculate GST breakup — accumulate exact values, round only at the end
 export const calculateGSTBreakup = (
   items: Array<{ gst_percent: number; line_total: number; unit_price?: number; quantity?: number }>,
