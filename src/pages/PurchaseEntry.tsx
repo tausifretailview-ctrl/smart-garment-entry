@@ -4453,9 +4453,33 @@ const PurchaseEntry = () => {
         </section>
 
         <section className="flex-1 min-h-0 px-6 pb-2 overflow-hidden bg-slate-100 relative">
-          <div className="h-full overflow-x-auto overflow-y-auto rounded-lg border border-slate-200 shadow-sm bg-white">
-            <Table className="table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table">
-              <TableHeader className='sticky top-0 z-10 erp-invoice-table-header'>
+          <div className="h-full flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white">
+            {lineItems.length > 100 && (
+              <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
+                <span className="font-medium">📦 Large bill: {lineItems.length} items</span>
+                <span>Showing {Math.min(visibleItemCount, lineItems.length)} rows — scroll to load more</span>
+              </div>
+            )}
+            <div
+              className={`relative flex-1 min-h-0 overflow-x-auto overflow-y-auto isolate ${isBillLocked ? "pointer-events-none" : ""}`}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
+                if (nearBottom && visibleItemCount < lineItems.length) {
+                  setVisibleItemCount((prev) => Math.min(prev + ITEMS_PER_PAGE, lineItems.length));
+                }
+              }}
+            >
+              {isBillLocked && (
+                <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
+                  <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
+                    <Lock className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Locked — click Unlock to edit</span>
+                  </div>
+                </div>
+              )}
+              <Table className="table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table">
+                <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-[40px]">
                       <input
@@ -4468,44 +4492,19 @@ const PurchaseEntry = () => {
                     <TableHead className="w-[60px]">SR.NO</TableHead>
                     <TableHead className="w-[260px]">ITEM NAME</TableHead>
                     {showPurCol.size && <TableHead className="w-[50px]">SIZE</TableHead>}
-                    <TableHead className="w-[120px]">{isMobileERPMode ? 'IMEI NUMBER' : 'BARCODE'}</TableHead>
+                    <TableHead className="w-[120px]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
                     <TableHead className="w-[110px] text-right">QTY</TableHead>
-                    <TableHead className='w-[140px] text-right pur-rate-col'>PUR.RATE</TableHead>
-                    <TableHead className='w-[140px] text-right sale-rate-col'>SALE.RATE</TableHead>
+                    <TableHead className="w-[140px] text-right pur-rate-col">PUR.RATE</TableHead>
+                    <TableHead className="w-[140px] text-right sale-rate-col">SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-[140px] text-right">MRP</TableHead>}
                     {showPurCol.gst && <TableHead className="w-[110px] text-right">GST %</TableHead>}
                     <TableHead className="w-[120px] text-right">SUB TOTAL</TableHead>
                     {showPurCol.disc_percent && <TableHead className="w-[110px] text-right">DISC %</TableHead>}
-                    <TableHead className='w-[120px] text-right total-col'>TOTAL</TableHead>
+                    <TableHead className="w-[120px] text-right total-col">TOTAL</TableHead>
                     <TableHead className="w-[40px]"></TableHead>
                     <TableHead className="w-[40px]">Action</TableHead>
                   </TableRow>
                 </TableHeader>
-              </Table>
-              {lineItems.length > 100 && (
-                <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground">
-                  <span className="font-medium">📦 Large bill: {lineItems.length} items</span>
-                  <span>Showing {Math.min(visibleItemCount, lineItems.length)} rows — scroll to load more</span>
-                </div>
-              )}
-              <div className={`relative max-h-[50vh] overflow-y-auto isolate ${isBillLocked ? 'pointer-events-none' : ''}`}
-                onScroll={(e) => {
-                  const el = e.currentTarget;
-                  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
-                  if (nearBottom && visibleItemCount < lineItems.length) {
-                    setVisibleItemCount(prev => Math.min(prev + ITEMS_PER_PAGE, lineItems.length));
-                  }
-                }}
-              >
-              {isBillLocked && (
-                <div className="absolute inset-0 bg-background/60 z-10 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
-                  <div className="flex items-center gap-2 bg-amber-100 dark:bg-amber-900 border border-amber-300 rounded-lg px-4 py-2">
-                    <Lock className="h-4 w-4 text-amber-600" />
-                    <span className="text-sm font-medium text-amber-700 dark:text-amber-300">Locked — click Unlock to edit</span>
-                  </div>
-                </div>
-              )}
-              <Table className="table-fixed min-w-[1460px]">
                 <TableBody>
                   {lineItems.slice(0, visibleItemCount).map((item, index) => {
                     const subTotal = computePurchaseLineSubTotal(item);
@@ -4848,10 +4847,11 @@ const PurchaseEntry = () => {
                   )}
                 </TableBody>
               </Table>
+            </div>
+            {lineItems.length === 0 && (
+              <p className="text-xs text-center py-2 text-muted-foreground shrink-0">Tip: Press Alt+↓ to copy the last row</p>
+            )}
           </div>
-          {lineItems.length === 0 && (
-            <p className="text-xs text-center py-2 text-muted-foreground shrink-0">Tip: Press Alt+↓ to copy the last row</p>
-          )}
         </section>
 
       </main>
