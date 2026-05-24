@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -456,6 +456,23 @@ const DailyCashierReport = () => {
 
   const totals = calculateTotals();
 
+  const eligibleSalesForList = useMemo(() => {
+    const isHoldLikeSale = (sale: any) => {
+      if (sale?.payment_status === "hold") return true;
+      return sale?.payment_status === "pending" && String(sale?.sale_number || "").startsWith("Hold/");
+    };
+    return (salesData || []).filter((sale: any) => {
+      if (sale?.is_cancelled) return false;
+      if (sale?.payment_status === "cancelled") return false;
+      return !isHoldLikeSale(sale);
+    });
+  }, [salesData]);
+
+  const getSaleDiscount = (sale: any) =>
+    (Number(sale.discount_amount) || 0) +
+    (Number(sale.flat_discount_amount) || 0) +
+    (Number(sale.points_redeemed_amount) || 0);
+
   const handlePrint = () => {
     window.print();
   };
@@ -671,12 +688,37 @@ const DailyCashierReport = () => {
         </div>
 
         <div className="px-4 space-y-4 pb-4">
-          {/* Hero sales card */}
-          <div className="bg-primary rounded-2xl p-4 text-primary-foreground">
-            <p className="text-xs font-medium opacity-80">Total Sales</p>
-            {isLoading ? <Skeleton className="h-8 w-32 bg-primary-foreground/20 mt-1" />
-              : <p className="text-2xl font-bold tabular-nums mt-1">{formatCurrency(totals.totalSale)}</p>}
-            <p className="text-xs opacity-70 mt-1">{totals.totalBills} invoices</p>
+          {/* Gross → Discount → Net summary */}
+          <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 text-white">
+              <p className="text-xs font-medium opacity-90">Gross Sale</p>
+              {isLoading ? <Skeleton className="h-8 w-32 bg-white/20 mt-1" />
+                : <p className="text-2xl font-bold tabular-nums mt-1">{formatCurrency(totals.grossSale)}</p>}
+              <p className="text-xs opacity-75 mt-1">{totals.totalBills} bills</p>
+            </div>
+            <div className="px-4 py-3 space-y-2 border-b border-border/40">
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-muted-foreground">Less: Discount</p>
+                {isLoading ? <Skeleton className="h-5 w-20" />
+                  : <p className="text-sm font-bold tabular-nums text-red-600">−{formatCurrency(totals.totalDiscount)}</p>}
+              </div>
+              {totals.totalSRAdjusted > 0 && (
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-muted-foreground">S/R Adjusted</p>
+                  <p className="text-sm font-bold tabular-nums text-amber-600">−{formatCurrency(totals.totalSRAdjusted)}</p>
+                </div>
+              )}
+            </div>
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3">
+              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Net Sale</p>
+              {isLoading ? <Skeleton className="h-8 w-32 mt-1" />
+                : <p className="text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 mt-0.5">{formatCurrency(totals.totalSale)}</p>}
+              {!isLoading && totals.totalDiscount > 0 && (
+                <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-1">
+                  {formatCurrency(totals.grossSale)} − {formatCurrency(totals.totalDiscount)} = {formatCurrency(totals.totalSale)}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Payment breakdown */}
@@ -717,18 +759,25 @@ const DailyCashierReport = () => {
             <div className="space-y-2">
               {isLoading ? Array.from({length:4}).map((_,i) => (
                 <Skeleton key={i} className="h-10 rounded-lg" />
-              )) : (salesData || []).slice(0, 30).map((sale: any) => (
-                <div key={sale.id} className="flex justify-between items-center py-1.5 border-b border-border/30 last:border-0">
-                  <div className="min-w-0">
+              )) : eligibleSalesForList.slice(0, 30).map((sale: any) => {
+                const billDiscount = getSaleDiscount(sale);
+                return (
+                <div key={sale.id} className="flex justify-between items-start py-1.5 border-b border-border/30 last:border-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-foreground">{sale.sale_number}</p>
                     <p className="text-[10px] text-muted-foreground truncate">{sale.customer_name || 'Walk-in'}</p>
+                    {billDiscount > 0 && (
+                      <p className="text-[10px] text-red-600 mt-0.5">
+                        Gross {formatCurrency(Number(sale.gross_amount) || 0)} - Disc {formatCurrency(billDiscount)}
+                      </p>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold tabular-nums">₹{(sale.net_amount||0).toLocaleString("en-IN")}</p>
-                    <p className="text-[10px] text-muted-foreground">{sale.payment_method}</p>
+                  <div className="text-right shrink-0 ml-2">
+                    <p className="text-xs font-bold tabular-nums">{formatCurrency(Number(sale.net_amount) || 0)}</p>
+                    <p className="text-[10px] text-muted-foreground capitalize">{sale.payment_method?.replace("_", " ")}</p>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           </div>
         </div>
