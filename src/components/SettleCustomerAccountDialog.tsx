@@ -260,6 +260,7 @@ export function SettleCustomerAccountDialog({
         creditNoteId,
         amountNeeded: useFromSR,
         maxPoolFromReturn: avail,
+        saleReturnId: sr.id,
       });
 
       const { error: rpcErr } = await sb.rpc("adjust_invoice_balance", {
@@ -271,15 +272,7 @@ export function SettleCustomerAccountDialog({
       });
       if (rpcErr) throw rpcErr;
 
-      await createReceiptVoucher(supabase, {
-        organizationId,
-        referenceId: inv.id,
-        amount: useFromSR,
-        paymentMethod: "credit_note_adjustment",
-        description: `Credit note ${sr.return_number || "SR"} adjusted against ${inv.sale_number}`,
-        voucherDate,
-        createdBy: userId ?? null,
-      });
+      // adjust_invoice_balance now writes the credit_note_adjustment voucher inline.
 
       const { data: cnRow } = await supabase
         .from("credit_notes")
