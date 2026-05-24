@@ -98,7 +98,7 @@ const sheetPresets: Record<string, { cols: number; rows?: number; width: string;
   novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "auto" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "auto" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
-  a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
+  a4_12x4: { cols: 4, rows: 12, width: "48mm", height: "24mm", gap: "0mm" },
   // Thermal Roll Presets (1UP)
   thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", thermal: true },
   thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", thermal: true },

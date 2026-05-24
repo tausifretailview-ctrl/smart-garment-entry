@@ -20,6 +20,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
+import { computeA4SheetMargins } from '@/utils/a4SheetLayout';
 import {
   DndContext,
   closestCenter,
@@ -241,7 +242,18 @@ const sheetPresets = {
   a4_40sheet: { cols: 5, rows: 8, width: "38mm", height: "35mm", gap: "1mm", category: "a4" },
   a4_39x35_40sheet: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "0.6mm", category: "a4" },
   a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
-  a4_12x4: { cols: 4, rows: 12, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
+  a4_12x4: {
+    cols: 4,
+    rows: 12,
+    width: "48mm",
+    height: "24mm",
+    gap: "0mm",
+    category: "a4",
+    defaultTop: 0,
+    defaultLeft: 0,
+    defaultBottom: 0,
+    defaultRight: 0,
+  },
   a4_36sheet: { cols: 4, rows: 9, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
   a4_32sheet: { cols: 4, rows: 8, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
   a4_35square: { cols: 5, rows: 7, width: "35mm", height: "35mm", gap: "2mm", category: "a4" },
@@ -299,7 +311,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   a4_40sheet: { label: "A4 40-Sheet", description: "38×35mm, 5×8 (40 labels) ✓ Exact", group: "A4 - Medium Labels" },
   a4_39x35_40sheet: { label: "A4 40-Sheet (39×35mm)", description: "39×35mm, 5×8 (40 labels) — Al Nisa", group: "A4 - Medium Labels" },
   a4_35x37: { label: "A4 35×37mm", description: "35×37mm, 5×8 (40 labels)", group: "A4 - Medium Labels" },
-  a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12", group: "A4 - Medium Labels" },
+  a4_12x4: { label: "A4 48-Sheet", description: "48×24mm, 4×12 (standard)", group: "A4 - Medium Labels" },
   a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
   a4_32sheet: { label: "A4 32-Sheet", description: "52×30mm, 4×8 (retail)", group: "A4 - Medium Labels" },
   a4_35square: { label: "A4 35-Square", description: "35×35mm, 5×7 (square)", group: "A4 - Medium Labels" },
@@ -1119,20 +1131,35 @@ export default function BarcodePrinting() {
   const [businessName, setBusinessName] = useState("SMART INVENTORY");
   const [printScale, setPrintScale] = useState(100);
   
-  // Auto-load default offsets and scale when novajet40 is selected
-  // Only set default offsets for specific presets, don't auto-reset printScale
+  // Auto-load calibrated page offsets when switching sheet type
   useEffect(() => {
-    const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number }> = {
-      novajet40: { defaultTop: 2, defaultLeft: 1 },
-      a4_40sheet: { defaultTop: 2, defaultLeft: 1 },
+    const preset = sheetPresets[sheetType] as {
+      defaultTop?: number;
+      defaultLeft?: number;
+      defaultBottom?: number;
+      defaultRight?: number;
+      width?: string;
+      height?: string;
+      cols?: number;
+      rows?: number;
+      gap?: string;
     };
-    
-    const preset = sheetPresets[sheetType];
-    if (preset) {
-      if (preset.defaultTop !== undefined) setTopOffset(preset.defaultTop);
-      if (preset.defaultLeft !== undefined) setLeftOffset(preset.defaultLeft);
+    if (preset?.defaultTop !== undefined) setTopOffset(preset.defaultTop);
+    if (preset?.defaultLeft !== undefined) setLeftOffset(preset.defaultLeft);
+    if (preset?.defaultBottom !== undefined) setBottomOffset(preset.defaultBottom);
+    if (preset?.defaultRight !== undefined) setRightOffset(preset.defaultRight);
+
+    // Keep Precision Pro dimensions aligned with standard A4 48-sheet
+    if (sheetType === 'a4_12x4') {
+      setPrecisionSettings((prev) => ({
+        ...prev,
+        labelWidth: 48,
+        labelHeight: 24,
+        a4Cols: 4,
+        a4Rows: 12,
+        vGap: 0,
+      }));
     }
-    // Don't auto-reset printScale - let user control it
   }, [sheetType]);
   
   // Custom dimensions state
@@ -3213,15 +3240,12 @@ export default function BarcodePrinting() {
     const rows = sheetType === 'custom' ? (customRows || 8) : ((sheetPresets[sheetType] as any).rows || 8);
     const gap = sheetType === 'custom' ? customGap : parseFloat(sheetPresets[sheetType].gap);
 
-    const totalLabelW = cols * w + (cols - 1) * gap;
-    const totalLabelH = rows * h + (rows - 1) * gap;
-
-    const marginTop    = Math.max(0, ((297 - totalLabelH) / 2) + topOffset);
-    const marginBottom = Math.max(0, ((297 - totalLabelH) / 2) - topOffset);
-    const marginLeft   = Math.max(0, ((210 - totalLabelW) / 2) + leftOffset);
-    const marginRight  = Math.max(0, ((210 - totalLabelW) / 2) - leftOffset);
-
-    return { marginTop, marginBottom, marginLeft, marginRight };
+    return computeA4SheetMargins(cols, rows, w, h, gap, {
+      top: topOffset,
+      left: leftOffset,
+      bottom: bottomOffset,
+      right: rightOffset,
+    });
   };
 
   const generatePreview = (targetElementId: string) => {
@@ -3336,14 +3360,13 @@ export default function BarcodePrinting() {
             border: 1px dashed hsl(var(--border));
           `;
         } else {
+          const previewMargins = getSheetPageMargins();
           gridDiv.style.cssText = `
             display: grid;
             grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
             grid-template-rows: repeat(${rowsPerPage}, ${dimensions.height}mm);
             gap: ${dimensions.gap}mm;
-            margin-top: ${topOffset}mm;
-            margin-left: ${leftOffset}mm;
-            margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
+            margin: ${previewMargins.marginTop}mm ${previewMargins.marginRight}mm ${page < numPages - 1 ? '20px' : previewMargins.marginBottom + 'mm'} ${previewMargins.marginLeft}mm;
           `;
         }
 
@@ -3454,7 +3477,9 @@ export default function BarcodePrinting() {
               page-break-after: always;
               break-after: page;
             `
-          : `
+          : (() => {
+               const pageMargins = getSheetPageMargins();
+               return `
                display: grid;
                grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
                grid-template-rows: repeat(${rowsOnPage}, ${dimensions.height}mm);
@@ -3462,9 +3487,11 @@ export default function BarcodePrinting() {
                align-content: start;
                width: ${dimensions.cols * dimensions.width + (dimensions.cols - 1) * dimensions.gap}mm;
                height: ${rowsOnPage * dimensions.height + (rowsOnPage - 1) * dimensions.gap}mm;
+               margin: ${pageMargins.marginTop}mm ${pageMargins.marginRight}mm ${pageMargins.marginBottom}mm ${pageMargins.marginLeft}mm;
                page-break-after: always;
                break-after: page;
              `;
+             })();
 
         if (isThermal1Up() && page > 0) {
           gridDiv.style.pageBreakBefore = 'always';
@@ -4501,7 +4528,7 @@ export default function BarcodePrinting() {
                   
                   {/* A4 Sheet Presets - Medium */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">📄 A4 - Medium Labels</div>
-                  <SelectItem value="a4_12x4">A4 48-Sheet (50×24mm, 4×12)</SelectItem>
+                  <SelectItem value="a4_12x4">A4 48-Sheet (48×24mm, 4×12)</SelectItem>
                   <SelectItem value="a4_36sheet">A4 36-Sheet (48×30mm, 4×9)</SelectItem>
                   <SelectItem value="a4_32sheet">A4 32-Sheet (52×30mm, retail)</SelectItem>
                   <SelectItem value="a4_35square">A4 35-Square (35×35mm, square)</SelectItem>

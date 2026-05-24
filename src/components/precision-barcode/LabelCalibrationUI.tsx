@@ -51,6 +51,7 @@ const A4_SHEET_PRESETS = [
   { name: "Novajet 24 (64×34mm, 3×8)", width: 64, height: 34, cols: 3, rows: 8, xOffset: 5, yOffset: 5, vGap: 0 },
   { name: "Novajet 12 (100×44mm, 2×6)", width: 100, height: 44, cols: 2, rows: 6, xOffset: 5, yOffset: 5, vGap: 0 },
   { name: "39×35mm (4×7)", width: 39, height: 35, cols: 4, rows: 7, xOffset: 13, yOffset: 11, vGap: 3.5 },
+  { name: "A4 48-Sheet (48×24mm, 4×12)", width: 48, height: 24, cols: 4, rows: 12, xOffset: 0, yOffset: 0, vGap: 0 },
   { name: "48×25mm (4×11)", width: 48, height: 25, cols: 4, rows: 11, xOffset: 5, yOffset: 5, vGap: 0 },
   { name: "65×38mm (3×7)", width: 65, height: 38, cols: 3, rows: 7, xOffset: 5, yOffset: 10, vGap: 2 },
   { name: "A4 Custom", width: 50, height: 25, cols: 4, rows: 12, xOffset: 5, yOffset: 5, vGap: 2 },

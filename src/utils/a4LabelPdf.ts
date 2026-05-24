@@ -1,6 +1,7 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
 import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
+import { computeA4SheetMargins, A4_PAGE_WIDTH_MM, A4_PAGE_HEIGHT_MM } from '@/utils/a4SheetLayout';
 
 const mmToPt = (mm: number): number => mm * 2.8346;
 
@@ -99,19 +100,21 @@ export const generateA4LabelPdf = async (
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  const PAGE_W = mmToPt(210);
-  const PAGE_H = mmToPt(297);
+  const PAGE_W = mmToPt(A4_PAGE_WIDTH_MM);
+  const PAGE_H = mmToPt(A4_PAGE_HEIGHT_MM);
   const labelW = mmToPt(labelWidthMm);
   const labelH = mmToPt(labelHeightMm);
   const gap = mmToPt(gapMm);
-  const contentWidthMm = cols * labelWidthMm + (cols - 1) * gapMm;
-  const contentHeightMm = rows * labelHeightMm + (rows - 1) * gapMm;
-  const printableWidthMm = Math.max(0, 210 - leftOffsetMm - rightOffsetMm);
-  const printableHeightMm = Math.max(0, 297 - topOffsetMm - bottomOffsetMm);
-  const centeredPadXmm = Math.max(0, (printableWidthMm - contentWidthMm) / 2);
-  const centeredPadYmm = Math.max(0, (printableHeightMm - contentHeightMm) / 2);
-  const marginLeft = mmToPt(leftOffsetMm + centeredPadXmm);
-  const marginTop = mmToPt(topOffsetMm + centeredPadYmm);
+  const { marginLeft: marginLeftMm, marginTop: marginTopMm } = computeA4SheetMargins(
+    cols,
+    rows,
+    labelWidthMm,
+    labelHeightMm,
+    gapMm,
+    { top: topOffsetMm, left: leftOffsetMm, bottom: bottomOffsetMm, right: rightOffsetMm },
+  );
+  const marginLeft = mmToPt(marginLeftMm);
+  const marginTop = mmToPt(marginTopMm);
 
   const allLabels: (LabelItem | null)[] = [];
   for (let s = 0; s < skipSlots; s++) allLabels.push(null);
