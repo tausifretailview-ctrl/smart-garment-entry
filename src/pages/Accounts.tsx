@@ -42,7 +42,9 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { PendingGlBackfillStatus } from "@/components/accounts/PendingGlBackfillStatus";
 import {
+  fetchPendingGlBackfillCounts,
   formatHistoricalBackfillSummary,
   resetOrganizationGlLedger,
   runHistoricalAccountingBackfill,
@@ -108,6 +110,18 @@ export default function Accounts() {
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
+  });
+
+  const {
+    data: pendingGlCounts,
+    isLoading: pendingGlCountsLoading,
+    refetch: refetchPendingGlCounts,
+  } = useQuery({
+    queryKey: ["pending-gl-backfill-counts", currentOrganization?.id],
+    enabled: !!currentOrganization?.id && isAdmin,
+    queryFn: () => fetchPendingGlBackfillCounts(currentOrganization!.id, supabase),
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: failedJournalCount = 0 } = useQuery({
@@ -349,6 +363,7 @@ export default function Accounts() {
   const invalidateLedgerQueries = (organizationId: string) => {
     queryClient.invalidateQueries({ queryKey: ["failed-journal-count", organizationId] });
     queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["pending-gl-backfill-counts", organizationId] });
     queryClient.invalidateQueries({ queryKey: ["journal-vouchers", organizationId] });
     queryClient.invalidateQueries({ queryKey: ["voucher-entries", organizationId] });
     queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
@@ -787,8 +802,23 @@ export default function Accounts() {
                 sales, purchases, returns, and vouchers (expenses, salaries, receipts, supplier payments). Safe to re-run.
               </p>
             </CardDescription>
+            <PendingGlBackfillStatus
+              counts={pendingGlCounts}
+              loading={pendingGlCountsLoading}
+              onFailedClick={() => setShowFailedJournalsDialog(true)}
+            />
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={ledgerMigrationBusy || pendingGlCountsLoading}
+              onClick={() => void refetchPendingGlCounts()}
+            >
+              Refresh counts
+            </Button>
             <Button type="button" variant="secondary" disabled={ledgerMigrationBusy} onClick={handleHistoricalBackfill}>
               {backfillRunning ? (
                 <>

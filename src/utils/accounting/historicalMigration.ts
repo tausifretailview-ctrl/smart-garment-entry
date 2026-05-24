@@ -19,6 +19,59 @@ export type HistoricalBackfillSummary = {
   accountingEngineEnabled: boolean;
 };
 
+export type PendingGlBackfillCounts = {
+  pendingSales: number;
+  pendingPurchases: number;
+  pendingSaleReturns: number;
+  pendingPurchaseReturns: number;
+  failedSales: number;
+  failedPurchases: number;
+  vouchersWithoutJournal: number;
+  totalPending: number;
+  totalFailed: number;
+  accountingEngineEnabled: boolean;
+};
+
+const EMPTY_PENDING_COUNTS: PendingGlBackfillCounts = {
+  pendingSales: 0,
+  pendingPurchases: 0,
+  pendingSaleReturns: 0,
+  pendingPurchaseReturns: 0,
+  failedSales: 0,
+  failedPurchases: 0,
+  vouchersWithoutJournal: 0,
+  totalPending: 0,
+  totalFailed: 0,
+  accountingEngineEnabled: true,
+};
+
+export async function fetchPendingGlBackfillCounts(
+  organizationId: string,
+  client: SupabaseClient<Database>,
+): Promise<PendingGlBackfillCounts> {
+  if (!organizationId) return { ...EMPTY_PENDING_COUNTS };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (client.rpc as any)("get_pending_gl_backfill_counts", {
+    p_org_id: organizationId,
+  });
+  if (error) throw error;
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    pendingSales: Number(row.pending_sales ?? 0),
+    pendingPurchases: Number(row.pending_purchases ?? 0),
+    pendingSaleReturns: Number(row.pending_sale_returns ?? 0),
+    pendingPurchaseReturns: Number(row.pending_purchase_returns ?? 0),
+    failedSales: Number(row.failed_sales ?? 0),
+    failedPurchases: Number(row.failed_purchases ?? 0),
+    vouchersWithoutJournal: Number(row.vouchers_without_journal ?? 0),
+    totalPending: Number(row.total_pending ?? 0),
+    totalFailed: Number(row.total_failed ?? 0),
+    accountingEngineEnabled: Boolean(row.accounting_engine_enabled ?? true),
+  };
+}
+
 export type AllOrganizationsBackfillResult = {
   organizationsProcessed: number;
   organizationsSkipped: number;
