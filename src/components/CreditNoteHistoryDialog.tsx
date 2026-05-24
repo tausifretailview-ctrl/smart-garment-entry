@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, ArrowLeft, History, CheckCircle2, Receipt } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 
 interface CreditNoteHistoryDialogProps {
   open: boolean;
@@ -160,15 +161,40 @@ export function CreditNoteHistoryDialog({
       }
 
       const adjustments = adjustmentsRes.data || [];
-      const invoiceIds = [...new Set(adjustments.map((a) => a.invoice_id).filter(Boolean))];
+      const linkedSaleIds = [
+        ...new Set(
+          linkedReturns.map((r) => r.linked_sale_id).filter(Boolean) as string[],
+        ),
+      ];
+      const invoiceIds = [
+        ...new Set([
+          ...adjustments.map((a) => a.invoice_id).filter(Boolean),
+          ...linkedSaleIds,
+        ]),
+      ];
       let saleNumberMap: Record<string, string> = {};
+      let billingApplies: Array<{
+        sale_id: string;
+        sale_number: string;
+        amount: number;
+        apply_date: string;
+      }> = [];
       if (invoiceIds.length > 0) {
         const { data: sales } = await supabase
           .from("sales")
-          .select("id, sale_number")
+          .select("id, sale_number, sale_date, sale_return_adjust")
           .in("id", invoiceIds);
         (sales || []).forEach((s) => {
           saleNumberMap[s.id] = s.sale_number;
+          const sra = Number(s.sale_return_adjust || 0);
+          if (sra > 0.005) {
+            billingApplies.push({
+              sale_id: s.id,
+              sale_number: s.sale_number,
+              amount: sra,
+              apply_date: String(s.sale_date || "").slice(0, 10),
+            });
+          }
         });
       }
 
@@ -236,6 +262,7 @@ export function CreditNoteHistoryDialog({
           ...a,
           sale_number: saleNumberMap[a.invoice_id] || null,
         })),
+        billingApplies,
         refundVouchers,
         cnApplyVouchers,
       };
@@ -245,18 +272,35 @@ export function CreditNoteHistoryDialog({
   const timeline = useMemo((): TimelineEntry[] => {
     if (!data) return [];
     const entries: TimelineEntry[] = [];
-    const { creditNote, linkedReturns, adjustments, refundVouchers, cnApplyVouchers } = data;
+    const {
+      creditNote,
+      linkedReturns,
+      adjustments,
+      billingApplies,
+      refundVouchers,
+      cnApplyVouchers,
+    } = data;
 
+    const firstReturnDate = linkedReturns[0]?.return_date;
     if (creditNote) {
+      const issuedTs =
+        creditNote.issue_date ||
+        (firstReturnDate ? `${String(firstReturnDate).slice(0, 10)}T12:00:00` : null) ||
+        creditNote.created_at ||
+        new Date().toISOString();
+      const srNote = linkedReturns[0]?.return_number
+        ? `Credit note from sale return ${linkedReturns[0].return_number}`
+        : null;
       entries.push({
         id: `issued-${creditNote.id}`,
         type: "issued",
-        timestamp: creditNote.created_at || creditNote.issue_date || new Date().toISOString(),
+        timestamp: issuedTs,
         icon: "📋",
         title: "Credit Note Issued",
         lines: [
           `Amount: ${fmtMoney(creditNote.credit_amount || 0)}`,
           `Customer: ${creditNote.customer_name}`,
+          ...(srNote ? [srNote] : []),
           ...(creditNote.notes ? [creditNote.notes] : []),
         ],
       });
@@ -267,7 +311,7 @@ export function CreditNoteHistoryDialog({
       entries.push({
         id: `sr-${sr.id}`,
         type: "sale_return",
-        timestamp: sr.created_at || sr.return_date,
+        timestamp: sr.return_date || sr.created_at,
         icon: "🔄",
         title: "Sale Return Linked",
         lines: [
@@ -275,20 +319,31 @@ export function CreditNoteHistoryDialog({
           `Status: ${formatCnStatus(sr.credit_status)}`,
         ],
       });
-
-      if (sr.linked_sale_id && adjustments.length === 0) {
-        entries.push({
-          id: `direct-sr-${sr.id}`,
-          type: "direct_sr",
-          timestamp: sr.created_at || sr.return_date,
-          icon: "📄",
-          title: "S/R Adjusted on Invoice",
-          lines: ["Applied at billing (linked invoice)"],
-        });
-      }
     }
 
     const adjustmentInvoiceIds = new Set(adjustments.map((a) => a.invoice_id));
+    const billingApplyKeys = new Set<string>();
+
+    for (const ba of billingApplies || []) {
+      const key = `${ba.sale_id}-${ba.amount}`;
+      billingApplyKeys.add(key);
+      const cnAt =
+        resolveCnAdjustDateForSale(ba.sale_id, cnApplyVouchers, linkedReturns) ||
+        ba.apply_date ||
+        firstReturnDate;
+      entries.push({
+        id: `billing-${ba.sale_id}`,
+        type: "invoice_apply",
+        timestamp: cnAt ? `${cnAt}T12:00:00` : new Date().toISOString(),
+        icon: "💳",
+        title: "Applied to Invoice",
+        lines: [
+          `${ba.sale_number} — ${fmtMoney(ba.amount)}`,
+          "CN / S-R applied at billing or linked invoice",
+        ],
+      });
+    }
+
     for (const adj of adjustments) {
       entries.push({
         id: `adj-${adj.id}`,
@@ -306,6 +361,8 @@ export function CreditNoteHistoryDialog({
     for (const v of cnApplyVouchers) {
       const refId = (v as { reference_id?: string }).reference_id;
       if (refId && adjustmentInvoiceIds.has(refId)) continue;
+      const amt = Number(v.total_amount || 0);
+      if (refId && billingApplyKeys.has(`${refId}-${amt}`)) continue;
       entries.push({
         id: `vapply-${v.id}`,
         type: "invoice_apply",
@@ -313,7 +370,7 @@ export function CreditNoteHistoryDialog({
         icon: "💳",
         title: "Applied to Invoice",
         lines: [
-          `${v.voucher_number} — ${fmtMoney(v.total_amount || 0)}`,
+          `${v.voucher_number} — ${fmtMoney(amt)}`,
           v.description || "",
         ].filter(Boolean),
       });
@@ -350,20 +407,55 @@ export function CreditNoteHistoryDialog({
         remaining: status === "refunded" ? 0 : net,
         settled: status === "refunded" || status === "adjusted",
         pendingCn: true,
+        statusLabel: formatCnStatus(data.saleReturn.credit_status),
       };
     }
     const cn = data.creditNote;
-    const applied = data.adjustments.reduce((s, a) => s + (a.amount_applied || 0), 0);
+    const cnAmount = Number(cn.credit_amount || 0);
+    const usedOnRow = Number(cn.used_amount || 0);
+
+    const seenApply = new Set<string>();
+    let applied = 0;
+    const addApply = (saleId: string, amount: number) => {
+      const key = `${saleId}-${Math.round(amount * 100)}`;
+      if (amount <= 0.005 || seenApply.has(key)) return;
+      seenApply.add(key);
+      applied += amount;
+    };
+
+    for (const a of data.adjustments) {
+      addApply(a.invoice_id, Number(a.amount_applied || 0));
+    }
+    for (const ba of data.billingApplies || []) {
+      addApply(ba.sale_id, ba.amount);
+    }
+    for (const v of data.cnApplyVouchers) {
+      const refId = String((v as { reference_id?: string }).reference_id || "");
+      addApply(refId, Number(v.total_amount || 0));
+    }
+
     const refunded = data.refundVouchers.reduce((s, v) => s + (v.total_amount || 0), 0);
-    const remaining = Math.max(0, (cn.credit_amount || 0) - (cn.used_amount || 0));
+    const remainingFromActivity = Math.max(0, cnAmount - applied - refunded);
+    const remainingFromRow = Math.max(0, cnAmount - usedOnRow);
+    const remaining =
+      applied > 0.005 ? remainingFromActivity : remainingFromRow;
+    const settled = remaining <= 0.01;
+
+    let statusLabel = formatCnStatus(cn.status);
+    if (!settled && applied > 0.005) {
+      statusLabel = "Partially Used";
+    } else if (settled) {
+      statusLabel = "Fully Used";
+    }
 
     return {
-      cnAmount: cn.credit_amount || 0,
-      applied,
+      cnAmount,
+      applied: applied > 0.005 ? applied : usedOnRow > refunded ? usedOnRow - refunded : 0,
       refunded,
       remaining,
-      settled: remaining <= 0.01,
+      settled,
       pendingCn: false,
+      statusLabel,
     };
   }, [data]);
 
@@ -416,7 +508,7 @@ export function CreditNoteHistoryDialog({
                   <span className="font-semibold">{fmtMoney(creditNote.credit_amount || 0)}</span>
                 </span>
                 <Badge variant="secondary" className="text-xs h-5">
-                  {formatCnStatus(creditNote.status)}
+                  {balanceSummary?.statusLabel ?? formatCnStatus(creditNote.status)}
                 </Badge>
                 {saleReturn && (
                   <Badge variant="outline" className="text-xs h-5">
