@@ -93,6 +93,7 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -632,7 +633,7 @@ export default function SalesInvoiceDashboard() {
 
       const { data: receiptRows, error: receiptErr } = await supabase
         .from('voucher_entries')
-        .select('reference_id, total_amount, payment_method, description')
+        .select('reference_id, total_amount, payment_method, description, voucher_date, voucher_type')
         .eq('organization_id', currentOrganization.id)
         .eq('voucher_type', 'receipt')
         // Phase 1.2: also catch legacy mis-tagged rows (reference_type='customer'
@@ -641,6 +642,13 @@ export default function SalesInvoiceDashboard() {
         .is('deleted_at', null)
         .in('reference_id', saleIds);
       if (receiptErr) throw receiptErr;
+
+      const { data: linkedReturns } = await supabase
+        .from("sale_returns")
+        .select("linked_sale_id, return_date, return_number")
+        .eq("organization_id", currentOrganization.id)
+        .in("linked_sale_id", saleIds)
+        .is("deleted_at", null);
 
       const splitBySale = splitSaleLinkedReceiptRows(receiptRows || []);
 
@@ -702,11 +710,16 @@ export default function SalesInvoiceDashboard() {
           paid_amount: inv.paid_amount,
           split: splitBySale.get(inv.id) ?? null,
         });
+        const cnAdjustYmd =
+          Number(inv.sale_return_adjust || 0) > 0.005
+            ? resolveCnAdjustDateForSale(inv.id, receiptRows || [], linkedReturns || [])
+            : null;
         return {
           ...inv,
           paid_amount: rec.paid_amount,
           payment_status: rec.payment_status,
           outstanding: rec.outstanding,
+          cn_adjust_date: cnAdjustYmd,
         };
       });
 
@@ -3527,7 +3540,12 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="text-right max-w-[4rem] whitespace-normal" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
                               {(invoice.sale_return_adjust || 0) > 0 && (
-                                <span className="block text-xs text-amber-600 leading-tight">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
+                                <span className="block text-xs text-amber-600 leading-tight">
+                                  +S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString("en-IN")}
+                                  {invoice.cn_adjust_date && (
+                                    <> · adj. {format(new Date(invoice.cn_adjust_date + "T12:00:00"), "dd/MM/yyyy")}</>
+                                  )}
+                                </span>
                               )}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>

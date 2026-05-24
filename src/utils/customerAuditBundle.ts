@@ -15,6 +15,45 @@ export interface AuditRow {
   debit: number;
   credit: number;
   internal: boolean;
+  /** Footnote when `internal` (e.g. CN adjust memo vs voucher reclassification). */
+  internalHint?: string;
+}
+
+/** Earliest CN/S-R application date for a sale (voucher date or linked return date). */
+export function resolveCnAdjustDateForSale(
+  saleId: string,
+  vouchers: Array<{
+    reference_id?: string | null;
+    voucher_date?: string | null;
+    voucher_type?: string | null;
+    payment_method?: string | null;
+    description?: string | null;
+  }>,
+  saleReturns: Array<{ linked_sale_id?: string | null; return_date?: string | null }>,
+): string | null {
+  const dates: string[] = [];
+  for (const v of vouchers) {
+    if (String(v.reference_id || "") !== saleId) continue;
+    if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
+    const pm = String(v.payment_method || "").toLowerCase();
+    const desc = String(v.description || "").toLowerCase();
+    const isCn =
+      pm === "credit_note_adjustment" ||
+      desc.includes("credit note adjusted") ||
+      desc.includes("cn adjusted") ||
+      desc.includes("sale return");
+    if (!isCn) continue;
+    const d = String(v.voucher_date || "").slice(0, 10);
+    if (d) dates.push(d);
+  }
+  for (const sr of saleReturns) {
+    if (String(sr.linked_sale_id || "") !== saleId) continue;
+    const d = String(sr.return_date || "").slice(0, 10);
+    if (d) dates.push(d);
+  }
+  if (dates.length === 0) return null;
+  dates.sort();
+  return dates[0] ?? null;
 }
 
 /** Receipt credit to customer / AR: cash (`total_amount`) + settlement discount (`discount_amount`). */
@@ -87,30 +126,36 @@ export function buildAuditRows(
     const net = Number(s.net_amount || 0);
     const sn = String(s.sale_number || "").trim() || "—";
     const sra = Number(s.sale_return_adjust || 0);
-    // sales.net_amount is stored POST-adjust. To keep the running balance correct
-    // when we also push a separate "Sale return adjust" credit row below, the
-    // Sale debit must be GROSS (net + sra). Net effect on balance = net Dr.
-    const debitForDisplay = sra > 0.005 ? net + sra : net;
+    // Match Customer Ledger: invoice debit = post-adjust net (actual bill), not gross net+sra.
     rows.push({
       id: `sale-${s.id}`,
       at: d,
       type: "Sale",
       ref: sn,
       particulars: `Invoice ${sn}`,
-      debit: debitForDisplay,
+      debit: net,
       credit: 0,
       internal: false,
     });
     if (sra > 0.005) {
+      const cnAt =
+        resolveCnAdjustDateForSale(String((s as { id: string }).id), params.vouchers, params.saleReturns) || d;
+      const linkedSr = params.saleReturns.find(
+        (sr) => String(sr.linked_sale_id || "") === String((s as { id: string }).id),
+      );
+      const rn = linkedSr ? String(linkedSr.return_number || "").trim() : "";
       rows.push({
-        id: `sra-${s.id}`,
-        at: d,
+        id: `sra-memo-${(s as { id: string }).id}`,
+        at: cnAt,
         type: "Sale return adjust",
-        ref: sn,
-        particulars: `Sale return / credit adjusted to ${sn}`,
+        ref: rn || sn,
+        particulars: rn
+          ? `Credit note from return ${rn} adjusted to invoice ${sn} — ₹${sra.toLocaleString("en-IN")}`
+          : `Sale return / credit adjusted to ${sn} — ₹${sra.toLocaleString("en-IN")}`,
         debit: 0,
         credit: sra,
-        internal: false,
+        internal: true,
+        internalHint: "(CN/S-R adjustment — shown for date sequence; balance already in invoice net)",
       });
     }
 

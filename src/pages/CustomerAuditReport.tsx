@@ -711,7 +711,7 @@ export default function CustomerAuditReport() {
                             {r.particulars}
                             {r.internal && (
                               <span className="block text-[11px] not-italic text-muted-foreground mt-0.5">
-                                (reclassification — does not change balance)
+                                {r.internalHint ?? "(reclassification — does not change balance)"}
                               </span>
                             )}
                           </TableCell>
