@@ -23,6 +23,11 @@ import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { insertLedgerCredit } from "@/lib/customerLedger";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
+import {
+  ensureCreditNoteHeadroom,
+  formatCnApplyError,
+  resolveSaleReturnCnAvailable,
+} from "@/utils/saleReturnCnBalance";
 
 interface AdjustCustomerCreditNoteDialogProps {
   open: boolean;
@@ -73,29 +78,19 @@ export function AdjustCustomerCreditNoteDialog({
     queryKey: ["cn-adjust-return-meta", saleReturnId, currentOrganization?.id, open],
     queryFn: async () => {
       if (!saleReturnId || !currentOrganization?.id || !open) return null;
-      const { data, error } = await supabase
-        .from("sale_returns")
-        .select("net_amount, credit_available_balance, credit_status")
-        .eq("id", saleReturnId)
-        .eq("organization_id", currentOrganization.id)
-        .single();
-      if (error) throw error;
-      return data as {
-        net_amount: number;
-        credit_available_balance: number | null;
-        credit_status: string | null;
-      };
+      return resolveSaleReturnCnAvailable(supabase, {
+        organizationId: currentOrganization.id,
+        saleReturnId,
+        healCabDrift: true,
+      });
     },
     enabled: open && !!saleReturnId && !!currentOrganization?.id,
     staleTime: 0,
   });
 
   const cnAvailable = useMemo(() => {
-    if (returnMeta?.credit_available_balance != null && !Number.isNaN(Number(returnMeta.credit_available_balance))) {
-      return Math.max(0, Math.round(Number(returnMeta.credit_available_balance)));
-    }
-    const net = Number(returnMeta?.net_amount ?? creditAmount ?? 0);
-    return Math.max(0, Math.round(net));
+    if (returnMeta) return Math.max(0, Math.round(returnMeta.available));
+    return Math.max(0, Math.round(Number(creditAmount || 0)));
   }, [returnMeta, creditAmount]);
 
   const { data: unpaidSales = [], isLoading: salesLoading } = useQuery({
@@ -260,6 +255,12 @@ export function AdjustCustomerCreditNoteDialog({
 
       for (const { saleId, amount } of entries) {
         const applyAmt = Number(amount);
+        await ensureCreditNoteHeadroom(supabase, {
+          organizationId: currentOrganization!.id,
+          creditNoteId: effectiveCreditNoteId,
+          amountNeeded: applyAmt,
+          maxPoolFromReturn: maxCredit,
+        });
         const { data: rpcData, error } = await sb.rpc("adjust_invoice_balance", {
           p_organization_id: currentOrganization!.id,
           p_invoice_id: saleId,
@@ -352,11 +353,11 @@ export function AdjustCustomerCreditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       toast({
         title: "Error",
-        description: err?.message || "Failed to apply credit note to invoices",
+        description: formatCnApplyError(err),
         variant: "destructive",
       });
       return false;
@@ -366,19 +367,20 @@ export function AdjustCustomerCreditNoteDialog({
   const handleApply = async () => {
     if (loading) return;
 
+    const liveResolved = await resolveSaleReturnCnAvailable(supabase, {
+      organizationId: currentOrganization!.id,
+      saleReturnId,
+      healCabDrift: true,
+    });
+    const liveCn = liveResolved.available;
+
     const { data: currentReturn, error: currentReturnError } = await supabase
       .from("sale_returns")
-      .select("credit_status, net_amount, credit_available_balance")
+      .select("credit_status")
       .eq("id", saleReturnId)
       .single();
 
     if (currentReturnError) throw currentReturnError;
-
-    const liveCn =
-      (currentReturn as any)?.credit_available_balance != null &&
-      !Number.isNaN(Number((currentReturn as any).credit_available_balance))
-        ? Math.max(0, Number((currentReturn as any).credit_available_balance))
-        : Math.max(0, Number((currentReturn as any)?.net_amount ?? creditAmount));
 
     const status = String((currentReturn as any)?.credit_status || "");
     const hasNoCreditLeft = liveCn <= 0.01;
@@ -634,8 +636,14 @@ export function AdjustCustomerCreditNoteDialog({
                   overAllocated && "border-destructive"
                 )}
               >
+                {returnMeta?.cabDrift != null && Math.abs(returnMeta.cabDrift) > 0.01 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Accounts CN balance was ₹{returnMeta.creditAvailableBalance?.toLocaleString("en-IN")} on the
+                    return; live credit note pool is ₹{cnAvailable.toLocaleString("en-IN")} (synced).
+                  </p>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total CN available</span>
+                  <span className="text-muted-foreground">Total CN available (live)</span>
                   <span className="font-semibold tabular-nums">₹{cnAvailable.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between">

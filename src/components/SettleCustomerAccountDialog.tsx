@@ -38,6 +38,7 @@ import {
   splitSaleLinkedReceiptRows,
 } from "@/utils/customerBalanceUtils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
+import { ensureCreditNoteHeadroom, formatCnApplyError } from "@/utils/saleReturnCnBalance";
 
 export interface SettleCustomerAccountDialogProps {
   open: boolean;
@@ -259,6 +260,13 @@ export function SettleCustomerAccountDialog({
       });
       if (!creditNoteId) continue;
 
+      await ensureCreditNoteHeadroom(supabase, {
+        organizationId,
+        creditNoteId,
+        amountNeeded: useFromSR,
+        maxPoolFromReturn: avail,
+      });
+
       const { error: rpcErr } = await sb.rpc("adjust_invoice_balance", {
         p_organization_id: organizationId,
         p_invoice_id: inv.id,
@@ -477,9 +485,8 @@ export function SettleCustomerAccountDialog({
 
       onSuccess?.();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
       console.error("Settlement error:", err);
-      toast({ title: "Settlement failed", description: message, variant: "destructive" });
+      toast({ title: "Settlement failed", description: formatCnApplyError(err), variant: "destructive" });
     } finally {
       setIsProcessing(false);
     }

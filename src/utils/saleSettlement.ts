@@ -4,6 +4,11 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  creditNoteLiveRemaining,
+  resolveCnAvailableFromRows,
+  type CreditNoteLiveRow,
+} from "@/utils/saleReturnCnBalance";
 
 const SETTLEMENT_TOLERANCE = 0.5;
 
@@ -215,7 +220,7 @@ export async function getAvailableCN(
   const { data: srs, error } = await supabase
     .from("sale_returns")
     .select(
-      "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type",
+      "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type, credit_note_id",
     )
     .eq("customer_id", customerId)
     .eq("organization_id", organizationId)
@@ -231,7 +236,7 @@ export async function getAvailableCN(
     const { data: unlinked, error: uErr } = await supabase
       .from("sale_returns")
       .select(
-        "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type",
+        "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type, credit_note_id",
       )
       .eq("customer_id", customerId)
       .eq("organization_id", organizationId)
@@ -248,20 +253,39 @@ export async function getAvailableCN(
 
   if (rows.length === 0) return { total: 0, returns: [] };
 
-  const returns: AvailableCNReturn[] = rows.map((sr) => ({
-    id: sr.id,
-    net_amount: Number(sr.net_amount || 0),
-    available:
-      sr.credit_available_balance != null
-        ? Number(sr.credit_available_balance)
-        : Number(sr.net_amount || 0),
-    credit_status: sr.credit_status || "pending",
-    return_number: sr.return_number,
-    linked_sale_id: sr.linked_sale_id,
-    return_date: sr.return_date,
-    credit_available_balance: sr.credit_available_balance,
-    refund_type: sr.refund_type,
-  }));
+  const cnIds = [
+    ...new Set(rows.map((r) => String((r as { credit_note_id?: string }).credit_note_id || "").trim()).filter(Boolean)),
+  ];
+  const cnById = new Map<string, CreditNoteLiveRow>();
+  if (cnIds.length > 0) {
+    const { data: cnRows, error: cnErr } = await supabase
+      .from("credit_notes")
+      .select("id, credit_amount, used_amount")
+      .eq("organization_id", organizationId)
+      .in("id", cnIds)
+      .is("deleted_at", null);
+    if (cnErr) throw cnErr;
+    for (const c of cnRows || []) {
+      cnById.set((c as { id: string }).id, c as CreditNoteLiveRow);
+    }
+  }
+
+  const returns: AvailableCNReturn[] = rows.map((sr) => {
+    const cnId = String((sr as { credit_note_id?: string }).credit_note_id || "").trim();
+    const cn = cnId ? cnById.get(cnId) : null;
+    const available = resolveCnAvailableFromRows(sr, cn);
+    return {
+      id: sr.id,
+      net_amount: Number(sr.net_amount || 0),
+      available,
+      credit_status: sr.credit_status || "pending",
+      return_number: sr.return_number,
+      linked_sale_id: sr.linked_sale_id,
+      return_date: sr.return_date,
+      credit_available_balance: cn ? creditNoteLiveRemaining(cn) : sr.credit_available_balance,
+      refund_type: sr.refund_type,
+    };
+  });
 
   return {
     total: returns.reduce((sum, r) => sum + r.available, 0),
