@@ -20,7 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -49,6 +49,10 @@ import {
   NetProfitSummary,
 } from "@/utils/accountingReportUtils";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { AccountingReportKpiCards, type AccountingKpiItem } from "@/components/accounting/AccountingReportKpiCards";
+import { AccountingReportTable } from "@/components/accounting/AccountingReportTable";
+import { accountsHistoryCardClass } from "@/components/accounts/accountsHistoryUi";
+import { cn } from "@/lib/utils";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -537,6 +541,157 @@ export default function AccountingReports() {
     (acc, e) => ({ debit: acc.debit + e.debit, credit: acc.credit + e.credit }),
     { debit: 0, credit: 0 }
   );
+  const tbBalanced = Math.abs(tbTotals.debit - tbTotals.credit) <= 0.01;
+
+  const trialBalanceKpis = useMemo((): AccountingKpiItem[] => {
+    if (trialBalance.length === 0) return [];
+    const assets = trialBalance
+      .filter((e) => e.accountType === "Asset")
+      .reduce((s, e) => s + e.debit - e.credit, 0);
+    const revenue = trialBalance
+      .filter((e) => e.accountType === "Revenue")
+      .reduce((s, e) => s + e.credit - e.debit, 0);
+    const expenses = trialBalance
+      .filter((e) => e.accountType === "Expense")
+      .reduce((s, e) => s + e.debit - e.credit, 0);
+    return [
+      {
+        label: "Total Debits",
+        value: formatCurrency(tbTotals.debit),
+        sub: "Trial balance",
+        gradient: "bg-gradient-to-br from-blue-600 to-blue-800",
+        icon: Scale,
+      },
+      tbBalanced
+        ? {
+            label: "Total Credits",
+            value: formatCurrency(tbTotals.credit),
+            sub: "Matched",
+            gradient: "bg-gradient-to-br from-emerald-600 to-emerald-800",
+            icon: CheckCircle2,
+            highlight: true,
+          }
+        : {
+            label: "Difference",
+            value: formatCurrency(Math.abs(tbTotals.debit - tbTotals.credit)),
+            sub: "Debits − credits",
+            gradient: "bg-gradient-to-br from-rose-600 to-rose-800",
+            icon: AlertTriangle,
+          },
+      {
+        label: "Assets",
+        value: formatCurrency(assets),
+        sub: "Cash, debtors, stock",
+        gradient: "bg-gradient-to-br from-indigo-600 to-indigo-800",
+        icon: Wallet,
+      },
+      {
+        label: "Revenue (net)",
+        value: formatCurrency(revenue),
+        sub: "Incl. discounts & round-off",
+        gradient: "bg-gradient-to-br from-violet-600 to-violet-800",
+        icon: TrendingUp,
+      },
+      {
+        label: "Expenses",
+        value: formatCurrency(expenses),
+        sub: "Operating + salaries",
+        gradient: "bg-gradient-to-br from-orange-600 to-orange-800",
+        icon: Receipt,
+      },
+    ];
+  }, [trialBalance, tbTotals.debit, tbTotals.credit, tbBalanced]);
+
+  const profitLossKpis = useMemo((): AccountingKpiItem[] => {
+    if (!profitLoss) return [];
+    return [
+      {
+        label: "Net Sales",
+        value: formatCurrency(profitLoss.netSales),
+        sub: "After returns",
+        gradient: "bg-gradient-to-br from-blue-600 to-blue-800",
+        icon: TrendingUp,
+      },
+      {
+        label: "COGS",
+        value: formatCurrency(profitLoss.cogs),
+        sub: "Stock movement",
+        gradient: "bg-gradient-to-br from-slate-600 to-slate-800",
+        icon: FileSpreadsheet,
+      },
+      {
+        label: "Gross Profit",
+        value: formatCurrency(Math.abs(profitLoss.grossProfit)),
+        sub: profitLoss.isGrossLoss ? "Gross loss" : "Before expenses",
+        gradient: profitLoss.isGrossLoss
+          ? "bg-gradient-to-br from-rose-600 to-rose-800"
+          : "bg-gradient-to-br from-emerald-600 to-emerald-800",
+        icon: profitLoss.isGrossLoss ? TrendingDown : TrendingUp,
+      },
+      {
+        label: "Total Expenses",
+        value: formatCurrency(profitLoss.totalExpenses),
+        sub:
+          profitLoss.employeeSalaries > 0
+            ? `Includes employee salaries`
+            : "Operating + salaries",
+        gradient: "bg-gradient-to-br from-orange-600 to-orange-800",
+        icon: Wallet,
+      },
+      {
+        label: profitLoss.isNetLoss ? "Net Loss" : "Net Profit",
+        value: formatCurrency(Math.abs(profitLoss.netProfit)),
+        sub: `${profitLoss.profitMargin.toFixed(1)}% margin`,
+        gradient: profitLoss.isNetLoss
+          ? "bg-gradient-to-br from-red-600 to-red-800"
+          : "bg-gradient-to-br from-green-600 to-green-800",
+        icon: profitLoss.isNetLoss ? TrendingDown : PieChart,
+        highlight: true,
+      },
+    ];
+  }, [profitLoss]);
+
+  const balanceSheetKpis = useMemo((): AccountingKpiItem[] => {
+    if (!balanceSheet) return [];
+    return [
+      {
+        label: "Total Assets",
+        value: formatCurrency(balanceSheet.assets.totalAssets),
+        sub: "Cash + AR + inventory",
+        gradient: "bg-gradient-to-br from-blue-600 to-blue-800",
+        icon: TrendingUp,
+      },
+      {
+        label: "Cash & Bank",
+        value: formatCurrency(balanceSheet.assets.cashBank),
+        sub: "After expense vouchers",
+        gradient: "bg-gradient-to-br from-cyan-600 to-cyan-800",
+        icon: Wallet,
+      },
+      {
+        label: "Receivables",
+        value: formatCurrency(balanceSheet.assets.accountsReceivable),
+        sub: "Customer ledger snapshot",
+        gradient: "bg-gradient-to-br from-indigo-600 to-indigo-800",
+        icon: Users,
+      },
+      {
+        label: "Payables",
+        value: formatCurrency(balanceSheet.liabilities.accountsPayable),
+        sub: "Supplier outstanding",
+        gradient: "bg-gradient-to-br from-orange-600 to-orange-800",
+        icon: Receipt,
+      },
+      {
+        label: "Owner's Equity",
+        value: formatCurrency(balanceSheet.equity.closingCapital),
+        sub: "Assets − liabilities",
+        gradient: "bg-gradient-to-br from-emerald-600 to-emerald-800",
+        icon: Landmark,
+        highlight: true,
+      },
+    ];
+  }, [balanceSheet]);
 
   const glTbTotals = glTrialBalance.reduce(
     (acc, e) => ({ debit: acc.debit + e.debit, credit: acc.credit + e.credit }),
@@ -557,11 +712,12 @@ export default function AccountingReports() {
   const journalVouchersHref = `${getOrgPath("/journal-vouchers")}?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`;
 
   return (
-    <div className="space-y-6 p-6 print:p-0">
+    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-8 print:bg-white print:p-0">
+      <div className="space-y-4 print:space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Calculator className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-700">
+            <Calculator className="h-6 w-6" />
             Accounting Reports
           </h1>
           <p className="text-muted-foreground max-w-2xl">
@@ -591,38 +747,23 @@ export default function AccountingReports() {
         </div>
       </div>
 
-      <Alert className="print:hidden border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-800">
-        <Info className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-        <AlertTitle className="text-amber-900 dark:text-amber-100">Existing businesses — review before you rely on numbers</AlertTitle>
-        <AlertDescription className="text-amber-900/90 dark:text-amber-100/90 text-sm space-y-2">
+      <Alert className="print:hidden border-amber-200/80 bg-amber-50/60 rounded-xl">
+        <Info className="h-4 w-4 text-amber-700" />
+        <AlertTitle className="text-sm text-amber-900">Audit before sign-off</AlertTitle>
+        <AlertDescription className="text-xs text-amber-900/90 space-y-1">
           <p>
-            Your team can already use <strong className="font-medium">Trial Balance</strong>, <strong className="font-medium">P&L</strong>, and{" "}
-            <strong className="font-medium">Balance Sheet</strong> on the operational tabs: they reflect data already captured in the app
-            (invoices, bills, returns, expenses, etc.).
+            Operational tabs use live invoices, stock, expenses, and salaries (sales <code className="text-[10px]">net_amount</code> includes discounts, round-off, and other charges). GL tabs use posted journals only—compare both for the same date.
           </p>
-          <p>
-            <strong className="font-medium">GL</strong> tabs and <strong className="font-medium">Journal vouchers</strong> only include periods where
-            double-entry journals were posted. If the accounting engine was off for part of your history, or vouchers were edited before journals
-            existed, GL totals may not match operational totals until you reconcile or use a clear cut-over date.
-          </p>
-          <p className="font-medium text-foreground">Suggested audit for an existing organization</p>
-          <ol className="list-decimal pl-5 space-y-1">
-            <li>Pick a reporting period and an &quot;as of&quot; date you care about (e.g. end of last month).</li>
-            <li>Run operational Trial Balance and GL Trial for the same date; investigate any large differences via Journal vouchers.</li>
-            <li>Spot-check high-value customers and cash using Customer account statement and Daily cash tally.</li>
-            <li>Use Tally export for a parallel check or import if you already run Tally.</li>
-          </ol>
-          <p className="text-xs pt-1 opacity-90">
-            Positioning: this product gives strong operational and GST reporting plus optional double-entry GL—it is not a replacement for every
-            statutory or enterprise-ERP workflow without your own review (auditors, partners, or internal sign-off still apply).
+          <p className="opacity-90">
+            Receivables match Customer Ledger snapshot. Trial balance omits duplicate purchase debits (stock is on the balance sheet).
           </p>
         </AlertDescription>
       </Alert>
 
-      <Card className="print:hidden border-primary/20 bg-muted/30">
+      <Card className={cn("print:hidden shadow-sm rounded-xl border-slate-200", accountsHistoryCardClass)}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Table2 className="h-5 w-5 text-primary" />
+          <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
+            <Table2 className="h-5 w-5" />
             Tally and reconcile your accounts
           </CardTitle>
           <CardDescription>
@@ -712,121 +853,130 @@ export default function AccountingReports() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex w-full flex-wrap gap-1 h-auto print:hidden justify-start">
-          <TabsTrigger value="trial-balance" className="flex items-center gap-2 shrink-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 flex-1 flex flex-col min-h-0">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden print:hidden">
+        <TabsList className="w-full h-auto p-0 bg-slate-50/80 border-b border-slate-100 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
+          <TabsTrigger value="trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none flex items-center gap-2">
             <Scale className="h-4 w-4" />
             Trial Balance
           </TabsTrigger>
-          <TabsTrigger value="gl-trial-balance" className="flex items-center gap-2 shrink-0">
+          <TabsTrigger value="gl-trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <BookText className="h-4 w-4" />
             GL Trial
           </TabsTrigger>
-          <TabsTrigger value="gl-profit-loss" className="flex items-center gap-2 shrink-0">
+          <TabsTrigger value="gl-profit-loss" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             GL P&L
           </TabsTrigger>
-          <TabsTrigger value="gl-balance-sheet" className="flex items-center gap-2 shrink-0">
+          <TabsTrigger value="gl-balance-sheet" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <Landmark className="h-4 w-4" />
             GL Balance
           </TabsTrigger>
-          <TabsTrigger value="profit-loss" className="flex items-center gap-2 shrink-0">
+          <TabsTrigger value="profit-loss" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Profit & Loss
           </TabsTrigger>
-          <TabsTrigger value="balance-sheet" className="flex items-center gap-2 shrink-0">
+          <TabsTrigger value="balance-sheet" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" />
             Balance Sheet
           </TabsTrigger>
-          <TabsTrigger value="net-profit" className="flex items-center gap-2 shrink-0">
+          <TabsTrigger value="net-profit" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <PieChart className="h-4 w-4" />
             Net Profit
           </TabsTrigger>
         </TabsList>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-3 sm:p-4 min-h-0 flex-1">
 
         {/* Trial Balance */}
-        <TabsContent value="trial-balance" className="space-y-4">
-          <Card className="print:shadow-none print:border-0">
-            <CardHeader className="print:pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2 print:hidden">
-                  <Scale className="h-5 w-5" />
-                  Trial Balance
-                </CardTitle>
-              </div>
-              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
-              <div className="hidden print:block">
-                <ReportHeader 
-                  title="Trial Balance" 
-                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
-                  organization={currentOrganization || undefined}
-                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Account Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Debit (₹)</TableHead>
-                      <TableHead className="text-right">Credit (₹)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {trialBalance.map((entry, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{entry.accountName}</TableCell>
-                        <TableCell>{entry.accountType}</TableCell>
-                        <TableCell className="text-right">
-                          {entry.debit > 0 ? formatCurrency(entry.debit) : "-"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {entry.credit > 0 ? formatCurrency(entry.credit) : "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {trialBalance.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          No data available. Select a date to load the report.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                  {trialBalance.length > 0 && (
-                    <TableFooter>
-                      <TableRow className="font-bold bg-muted/50">
+        <TabsContent value="trial-balance" className="space-y-4 mt-0 outline-none">
+          <div className="print:hidden space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Scale className="h-5 w-5 text-blue-600" />
+                Trial Balance
+              </h2>
+            </div>
+            <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+            <AccountingReportKpiCards items={trialBalanceKpis} />
+          </div>
+          <div className="hidden print:block">
+            <ReportHeader
+              title="Trial Balance"
+              subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+              organization={currentOrganization || undefined}
+              generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+            />
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : (
+            <>
+              <AccountingReportTable
+                columns={[
+                  {
+                    key: "name",
+                    header: "Account Name",
+                    cell: (entry) => <span className="font-medium">{entry.accountName}</span>,
+                  },
+                  {
+                    key: "type",
+                    header: "Type",
+                    cell: (entry) => entry.accountType,
+                  },
+                  {
+                    key: "debit",
+                    header: "Debit (₹)",
+                    className: "text-right font-mono tabular-nums",
+                    cell: (entry) => (entry.debit > 0 ? formatCurrency(entry.debit) : "—"),
+                  },
+                  {
+                    key: "credit",
+                    header: "Credit (₹)",
+                    className: "text-right font-mono tabular-nums",
+                    cell: (entry) => (entry.credit > 0 ? formatCurrency(entry.credit) : "—"),
+                  },
+                ]}
+                rows={trialBalance}
+                rowKey={(entry, idx) => `${entry.accountName}-${idx}`}
+                emptyMessage="Select a date to load the trial balance."
+                footer={
+                  trialBalance.length > 0 ? (
+                    <>
+                      <TableRow className="font-bold bg-slate-100">
                         <TableCell colSpan={2}>Total</TableCell>
-                        <TableCell className="text-right">{formatCurrency(tbTotals.debit)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(tbTotals.credit)}</TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(tbTotals.debit)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(tbTotals.credit)}
+                        </TableCell>
                       </TableRow>
-                      {Math.abs(tbTotals.debit - tbTotals.credit) > 0.01 && (
-                        <>
-                          <TableRow className="text-destructive">
-                            <TableCell colSpan={4} className="text-center">
-                              ⚠️ Trial Balance does not match. Difference: {formatCurrency(Math.abs(tbTotals.debit - tbTotals.credit))}
-                            </TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center text-xs text-muted-foreground">
-                              Note: Trial balance differences may indicate unrecorded transactions.
-                            </TableCell>
-                          </TableRow>
-                        </>
+                      {tbBalanced ? (
+                        <TableRow className="bg-emerald-50 text-emerald-800">
+                          <TableCell colSpan={4} className="text-center text-sm font-medium">
+                            Trial balance matched — debits equal credits
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        <TableRow className="text-destructive">
+                          <TableCell colSpan={4} className="text-center text-sm">
+                            Difference: {formatCurrency(Math.abs(tbTotals.debit - tbTotals.credit))}
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableFooter>
-                  )}
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                    </>
+                  ) : undefined
+                }
+              />
+              <p className="text-xs text-muted-foreground print:hidden">
+                Purchases are in inventory (not duplicated). Revenue uses invoice net amounts (discounts, round-off, other charges included). Receivables match Customer Ledger.
+              </p>
+            </>
+          )}
         </TabsContent>
 
         {/* GL Trial Balance — from journal_lines / chart_of_accounts */}
@@ -1332,28 +1482,16 @@ export default function AccountingReports() {
         </TabsContent>
 
         {/* Profit & Loss - Enhanced GST-Compliant */}
-        <TabsContent value="profit-loss" className="space-y-4">
-          <Card className="print:shadow-none print:border-0">
-            <CardHeader className="print:pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2 print:hidden">
-                  <TrendingUp className="h-5 w-5" />
-                  Profit & Loss Statement
-                  <Badge variant="outline" className="ml-2">GST Compliant</Badge>
-                </CardTitle>
-              </div>
-              <PeriodSelector periodType={periodType} setPeriodType={setPeriodType} fromDate={fromDate} toDate={toDate} setFromDate={setFromDate} setToDate={setToDate} />
-              {/* Print Header */}
-              <div className="hidden print:block">
-                <ReportHeader 
-                  title="Profit & Loss Statement" 
-                  subtitle={profitLoss?.periodLabel || `${format(new Date(fromDate), "dd MMM yyyy")} - ${format(new Date(toDate), "dd MMM yyyy")}`}
-                  organization={currentOrganization || undefined}
-                  generatedAt={profitLoss?.generatedAt}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
+        <TabsContent value="profit-loss" className="space-y-4 mt-0 outline-none">
+          <div className="print:hidden space-y-3">
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-blue-600" />
+              Profit & Loss
+              <Badge variant="outline" className="font-normal text-xs">GST exclusive</Badge>
+            </h2>
+            <PeriodSelector periodType={periodType} setPeriodType={setPeriodType} fromDate={fromDate} toDate={toDate} setFromDate={setFromDate} setToDate={setToDate} />
+            <AccountingReportKpiCards items={profitLossKpis} />
+          </div>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1525,36 +1663,31 @@ export default function AccountingReports() {
                   No data available. Select a period to load the report.
                 </div>
               )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* Balance Sheet */}
-        <TabsContent value="balance-sheet" className="space-y-4">
-          <Card className="print:shadow-none print:border-0">
-            <CardHeader className="print:pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2 print:hidden">
-                  <FileSpreadsheet className="h-5 w-5" />
-                  Balance Sheet
-                </CardTitle>
-              </div>
-              <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
-              <div className="hidden print:block">
-                <ReportHeader 
-                  title="Balance Sheet" 
-                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
-                  organization={currentOrganization || undefined}
-                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
-                />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : balanceSheet ? (
+        <TabsContent value="balance-sheet" className="space-y-4 mt-0 outline-none">
+          <div className="print:hidden space-y-3">
+            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+              Balance Sheet
+            </h2>
+            <AsOfDatePresets asOfDate={asOfDate} setAsOfDate={setAsOfDate} />
+            <AccountingReportKpiCards items={balanceSheetKpis} />
+          </div>
+          <div className="hidden print:block">
+            <ReportHeader
+              title="Balance Sheet"
+              subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+              organization={currentOrganization || undefined}
+              generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+            />
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : balanceSheet ? (
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Assets */}
                   <div className="space-y-4">
@@ -1639,8 +1772,6 @@ export default function AccountingReports() {
                   No data available. Select a date to load the report.
                 </div>
               )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* Net Profit Summary - Income Statement Format */}
@@ -1850,7 +1981,9 @@ export default function AccountingReports() {
             </CardContent>
           </Card>
         </TabsContent>
+        </div>
       </Tabs>
+      </div>
 
       <Sheet
         open={glLedgerOpen}

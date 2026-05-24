@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchOrganizationCustomerAccountTotals } from "@/utils/customerFinancialSnapshot";
 import { fetchAllSaleItems, fetchVariantsByIds } from "@/utils/fetchAllRows";
 import { format, parseISO, subDays } from "date-fns";
 
@@ -36,6 +37,7 @@ export interface ProfitLossData {
   
   // Expenses by Category
   expensesByCategory: ExpenseCategory[];
+  employeeSalaries: number;
   totalExpenses: number;
   
   // Net Profit
@@ -651,97 +653,236 @@ export function buildGlBalanceSheetFromTrial(
   };
 }
 
-// Calculate Trial Balance — uses server-side RPC
+const roundMoney = (n: number) => Math.round(n * 100) / 100;
+
+type VoucherDateFilter =
+  | { asOfDate: string }
+  | { fromDate: string; toDate: string };
+
+/** Operating expense vouchers (voucher_type = expense). */
+export async function fetchVoucherExpenseTotal(
+  organizationId: string,
+  dateFilter: VoucherDateFilter,
+): Promise<number> {
+  let query = supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "expense")
+    .is("deleted_at", null);
+
+  if ("asOfDate" in dateFilter) {
+    query = query.lte("voucher_date", dateFilter.asOfDate);
+  } else {
+    query = query
+      .gte("voucher_date", dateFilter.fromDate)
+      .lte("voucher_date", dateFilter.toDate);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return roundMoney(
+    (data || []).reduce(
+      (sum, row) => sum + Number((row as { total_amount?: number }).total_amount || 0),
+      0,
+    ),
+  );
+}
+
+/** Employee salary payments (payment vouchers with reference_type = employee). */
+export async function fetchEmployeeSalaryTotal(
+  organizationId: string,
+  dateFilter: VoucherDateFilter,
+): Promise<number> {
+  let query = supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "payment")
+    .eq("reference_type", "employee")
+    .is("deleted_at", null);
+
+  if ("asOfDate" in dateFilter) {
+    query = query.lte("voucher_date", dateFilter.asOfDate);
+  } else {
+    query = query
+      .gte("voucher_date", dateFilter.fromDate)
+      .lte("voucher_date", dateFilter.toDate);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return roundMoney(
+    (data || []).reduce(
+      (sum, row) => sum + Number((row as { total_amount?: number }).total_amount || 0),
+      0,
+    ),
+  );
+}
+
+function pushSignedTrialEntry(
+  entries: TrialBalanceEntry[],
+  accountName: string,
+  accountType: string,
+  signedAmount: number,
+) {
+  const amt = roundMoney(signedAmount);
+  if (Math.abs(amt) < 0.005) return;
+  entries.push({
+    accountName,
+    accountType,
+    debit: amt > 0 ? amt : 0,
+    credit: amt < 0 ? Math.abs(amt) : 0,
+  });
+}
+
+/** Cash from receipts/payments; expense vouchers are deducted separately (not in RPC cash_balance). */
+export async function fetchOperationalCashBalance(
+  organizationId: string,
+  asOfDate: string,
+): Promise<number> {
+  const { data: agg, error } = await supabase.rpc("get_trial_balance_aggregates", {
+    p_org_id: organizationId,
+    p_as_of_date: asOfDate,
+  });
+  if (error) throw error;
+  const expensePaid = await fetchVoucherExpenseTotal(organizationId, { asOfDate });
+  return roundMoney(Number((agg as { cash_balance?: number })?.cash_balance || 0) - expensePaid);
+}
+
+/** Add equity plug so operational TB debits equal credits (inventory vs COGS timing). */
+function balanceOperationalTrialBalance(entries: TrialBalanceEntry[]): TrialBalanceEntry[] {
+  const totals = entries.reduce(
+    (acc, e) => ({ debit: acc.debit + e.debit, credit: acc.credit + e.credit }),
+    { debit: 0, credit: 0 },
+  );
+  const diff = roundMoney(totals.debit - totals.credit);
+  if (Math.abs(diff) <= 0.01) return entries;
+
+  if (diff > 0) {
+    entries.push({
+      accountName: "Net Position / Retained Earnings (balancing)",
+      accountType: "Equity",
+      debit: 0,
+      credit: diff,
+    });
+  } else {
+    entries.push({
+      accountName: "Net Position / Accumulated Loss (balancing)",
+      accountType: "Equity",
+      debit: Math.abs(diff),
+      credit: 0,
+    });
+  }
+  return entries;
+}
+
+// Calculate Trial Balance — operational view (aligned with Customer Ledger snapshot)
 export async function calculateTrialBalance(
   organizationId: string,
   asOfDate: string
 ): Promise<TrialBalanceEntry[]> {
   const entries: TrialBalanceEntry[] = [];
 
-  // Single RPC replaces 6+ client-side queries with .reduce()
-  const { data: agg, error } = await supabase.rpc('get_trial_balance_aggregates', {
-    p_org_id: organizationId,
-    p_as_of_date: asOfDate,
-  });
+  const [
+    { data: agg, error },
+    customerTotals,
+    totalExpensesPaid,
+    totalSalariesPaid,
+    { data: stockValue, error: stockError },
+  ] = await Promise.all([
+    supabase.rpc("get_trial_balance_aggregates", {
+      p_org_id: organizationId,
+      p_as_of_date: asOfDate,
+    }),
+    fetchOrganizationCustomerAccountTotals(organizationId),
+    fetchVoucherExpenseTotal(organizationId, { asOfDate }),
+    fetchEmployeeSalaryTotal(organizationId, { asOfDate }),
+    supabase.rpc("get_stock_value", { p_org_id: organizationId }),
+  ]);
 
   if (error) throw error;
+  if (stockError) throw stockError;
 
-  const aggData = agg as any;
-  const totalDebtors = aggData?.total_debtors || 0;
+  const aggData = agg as {
+    total_creditors?: number;
+    total_sales?: number;
+    total_sale_returns?: number;
+    total_purchase_returns?: number;
+    cash_balance?: number;
+  };
+
   const totalCreditors = aggData?.total_creditors || 0;
   const totalSalesRevenue = aggData?.total_sales || 0;
-  const totalPurchasesAmount = aggData?.total_purchases || 0;
   const totalSaleReturns = aggData?.total_sale_returns || 0;
   const totalPurchaseReturns = aggData?.total_purchase_returns || 0;
+  const totalDebtors = customerTotals.totalOutstandingDr;
 
-  // Fetch expense vouchers for cash calculation
-  const { data: expenseVouchers } = await supabase
-    .from("voucher_entries")
-    .select("total_amount")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "expense")
-    .lte("voucher_date", asOfDate)
-    .is("deleted_at", null);
-  const totalExpensesPaid = expenseVouchers?.reduce((sum, v) => sum + ((v as any).total_amount || 0), 0) || 0;
+  const cashBalance = roundMoney(
+    Number(aggData?.cash_balance || 0) - totalExpensesPaid,
+  );
+  const inventory = Number(stockValue) || 0;
 
-  const cashBalance = (aggData?.cash_balance || 0) - totalExpensesPaid;
-
-  // Get stock value via RPC
-  const { data: stockValue } = await supabase.rpc('get_stock_value', { p_org_id: organizationId });
-
-  // Build trial balance entries
-  if (cashBalance !== 0) {
+  // Sales net_amount already includes discounts, round-off, and other charges.
+  pushSignedTrialEntry(entries, "Cash & Bank", "Asset", cashBalance);
+  pushSignedTrialEntry(entries, "Accounts Receivable (Debtors)", "Asset", totalDebtors);
+  if (inventory > 0) {
     entries.push({
-      accountName: "Cash & Bank",
+      accountName: "Inventory (Stock)",
       accountType: "Asset",
-      debit: cashBalance > 0 ? cashBalance : 0,
-      credit: cashBalance < 0 ? Math.abs(cashBalance) : 0,
+      debit: roundMoney(inventory),
+      credit: 0,
     });
   }
-
-  if (totalDebtors !== 0) {
-    entries.push({
-      accountName: "Accounts Receivable (Debtors)",
-      accountType: "Asset",
-      debit: totalDebtors > 0 ? totalDebtors : 0,
-      credit: totalDebtors < 0 ? Math.abs(totalDebtors) : 0,
-    });
-  }
-
-  if ((stockValue || 0) > 0) {
-    entries.push({ accountName: "Inventory (Stock)", accountType: "Asset", debit: stockValue || 0, credit: 0 });
-  }
-
-  if (totalCreditors !== 0) {
-    entries.push({
-      accountName: "Accounts Payable (Creditors)",
-      accountType: "Liability",
-      debit: totalCreditors < 0 ? Math.abs(totalCreditors) : 0,
-      credit: totalCreditors > 0 ? totalCreditors : 0,
-    });
-  }
+  pushSignedTrialEntry(entries, "Accounts Payable (Creditors)", "Liability", -totalCreditors);
 
   if (totalSalesRevenue > 0) {
-    entries.push({ accountName: "Sales Revenue", accountType: "Revenue", debit: 0, credit: totalSalesRevenue });
+    entries.push({
+      accountName: "Sales Revenue (incl. discounts & round-off)",
+      accountType: "Revenue",
+      debit: 0,
+      credit: roundMoney(totalSalesRevenue),
+    });
   }
 
   if (totalSaleReturns > 0) {
-    entries.push({ accountName: "Sales Returns", accountType: "Revenue", debit: totalSaleReturns, credit: 0 });
-  }
-
-  if (totalPurchasesAmount > 0) {
-    entries.push({ accountName: "Purchases", accountType: "Expense", debit: totalPurchasesAmount, credit: 0 });
+    entries.push({
+      accountName: "Sales Returns",
+      accountType: "Revenue",
+      debit: roundMoney(totalSaleReturns),
+      credit: 0,
+    });
   }
 
   if (totalPurchaseReturns > 0) {
-    entries.push({ accountName: "Purchase Returns", accountType: "Expense", debit: 0, credit: totalPurchaseReturns });
+    entries.push({
+      accountName: "Purchase Returns",
+      accountType: "Expense",
+      debit: 0,
+      credit: roundMoney(totalPurchaseReturns),
+    });
   }
 
+  // Purchases are reflected in inventory / COGS — not as a separate TB debit (avoids double-count).
   if (totalExpensesPaid > 0) {
-    entries.push({ accountName: "Operating Expenses", accountType: "Expense", debit: totalExpensesPaid, credit: 0 });
+    entries.push({
+      accountName: "Operating Expenses",
+      accountType: "Expense",
+      debit: roundMoney(totalExpensesPaid),
+      credit: 0,
+    });
   }
 
-  return entries;
+  if (totalSalariesPaid > 0) {
+    entries.push({
+      accountName: "Employee Salaries",
+      accountType: "Expense",
+      debit: roundMoney(totalSalariesPaid),
+      credit: 0,
+    });
+  }
+
+  return balanceOperationalTrialBalance(entries);
 }
 
 // Calculate Stock Value at current date — uses server-side RPC
@@ -899,7 +1040,20 @@ export async function calculateProfitLoss(
     amount: Number(e.amount) || 0,
   }));
 
-  const totalExpenses = expensesByCategory.reduce((sum, e) => sum + e.amount, 0);
+  const employeeSalaries = await fetchEmployeeSalaryTotal(organizationId, {
+    fromDate,
+    toDate,
+  });
+
+  if (employeeSalaries > 0) {
+    expensesByCategory.push({
+      category: "Employee Salaries",
+      amount: employeeSalaries,
+    });
+  }
+
+  const totalExpenses =
+    expensesByCategory.reduce((sum, e) => sum + e.amount, 0);
 
   const netProfit = grossProfit - totalExpenses;
   const isNetLoss = netProfit < 0;
@@ -930,6 +1084,7 @@ export async function calculateProfitLoss(
     grossProfit,
     isGrossLoss,
     expensesByCategory,
+    employeeSalaries,
     totalExpenses,
     netProfit,
     isNetLoss,
@@ -940,38 +1095,42 @@ export async function calculateProfitLoss(
   };
 }
 
-// Calculate Balance Sheet — uses server-side RPC
+// Calculate Balance Sheet — operational snapshot (matches trial balance)
 export async function calculateBalanceSheet(
   organizationId: string,
   asOfDate: string
 ): Promise<BalanceSheetData> {
-  // Single RPC replaces 4 queries + client-side loops
-  const { data: agg, error } = await supabase.rpc('get_trial_balance_aggregates', {
-    p_org_id: organizationId,
-    p_as_of_date: asOfDate,
-  });
+  const [{ data: agg, error }, customerTotals, cashBank, inventory] = await Promise.all([
+    supabase.rpc("get_trial_balance_aggregates", {
+      p_org_id: organizationId,
+      p_as_of_date: asOfDate,
+    }),
+    fetchOrganizationCustomerAccountTotals(organizationId),
+    fetchOperationalCashBalance(organizationId, asOfDate),
+    calculateStockValue(organizationId),
+  ]);
   if (error) throw error;
 
-  const aggData = agg as any;
-  const cashBank = aggData?.cash_balance || 0;
-  const accountsReceivable = aggData?.accounts_receivable || 0;
-  const accountsPayable = aggData?.accounts_payable || 0;
+  const accountsPayable = Math.max(
+    0,
+    Number((agg as { accounts_payable?: number })?.accounts_payable || 0),
+  );
+  const accountsReceivable = Math.max(0, customerTotals.totalOutstandingDr);
+  const cash = Math.max(0, cashBank);
 
-  const inventory = await calculateStockValue(organizationId);
-
-  const totalAssets = Math.max(0, cashBank) + Math.max(0, accountsReceivable) + inventory;
-  const totalLiabilities = Math.max(0, accountsPayable);
-  const closingCapital = totalAssets - totalLiabilities;
+  const totalAssets = cash + accountsReceivable + inventory;
+  const totalLiabilities = accountsPayable;
+  const closingCapital = roundMoney(totalAssets - totalLiabilities);
 
   return {
     assets: {
-      cashBank: Math.max(0, cashBank),
-      accountsReceivable: Math.max(0, accountsReceivable),
+      cashBank: cash,
+      accountsReceivable,
       inventory,
-      totalAssets,
+      totalAssets: roundMoney(totalAssets),
     },
     liabilities: {
-      accountsPayable: Math.max(0, accountsPayable),
+      accountsPayable,
       gstPayable: 0,
       totalLiabilities,
     },
@@ -1002,7 +1161,12 @@ export async function calculateNetProfitSummary(
   const salesReturnsTotal = np?.sales_returns || 0;
   const netRevenue = totalSales - salesReturnsTotal;
   const inputGST = np?.input_gst || 0;
-  const totalExpenses = np?.total_expenses || 0;
+  const voucherExpenses = np?.total_expenses || 0;
+  const employeeSalaries = await fetchEmployeeSalaryTotal(organizationId, {
+    fromDate,
+    toDate,
+  });
+  const totalExpenses = voucherExpenses + employeeSalaries;
   
   // COGS still needs per-item calculation (pur_price × quantity from sale_items)
   // We still need sale IDs to fetch sale_items for COGS
