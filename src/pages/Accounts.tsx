@@ -803,9 +803,14 @@ export default function Accounts() {
       {isAdmin && currentOrganization?.id && (
         <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm shrink-0">
           <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
               <BookMarked className="h-4 w-4 text-blue-600" />
               Accounting migration
+              {backfillAllLastResult && backfillAllLastResult.organizationsFailed === 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
+                  Backfill success
+                </span>
+              )}
             </CardTitle>
             <CardDescription className="text-xs space-y-1.5">
               <p>
@@ -827,6 +832,7 @@ export default function Accounts() {
               progress={backfillAllProgress}
               result={backfillAllLastResult}
               error={backfillAllError}
+              currentOrgPendingTotal={pendingGlCounts?.totalPending}
               onDismiss={() => {
                 setBackfillAllLastResult(null);
                 setBackfillAllError(null);
