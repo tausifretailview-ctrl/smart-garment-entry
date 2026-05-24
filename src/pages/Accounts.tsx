@@ -125,7 +125,7 @@ export default function Accounts() {
     refetch: refetchPendingGlCounts,
   } = useQuery({
     queryKey: ["pending-gl-backfill-counts", currentOrganization?.id],
-    enabled: !!currentOrganization?.id && isAdmin,
+    enabled: !!currentOrganization?.id && (isAdmin || isPlatformAdmin),
     queryFn: () => fetchPendingGlBackfillCounts(currentOrganization!.id, supabase),
     staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
@@ -827,17 +827,19 @@ export default function Accounts() {
               loading={pendingGlCountsLoading}
               onFailedClick={() => setShowFailedJournalsDialog(true)}
             />
-            <AllOrgBackfillStatus
-              running={backfillAllOrgsRunning}
-              progress={backfillAllProgress}
-              result={backfillAllLastResult}
-              error={backfillAllError}
-              currentOrgPendingTotal={pendingGlCounts?.totalPending}
-              onDismiss={() => {
-                setBackfillAllLastResult(null);
-                setBackfillAllError(null);
-              }}
-            />
+            {isPlatformAdmin && (
+              <AllOrgBackfillStatus
+                running={backfillAllOrgsRunning}
+                progress={backfillAllProgress}
+                result={backfillAllLastResult}
+                error={backfillAllError}
+                currentOrgPendingTotal={pendingGlCounts?.totalPending}
+                onDismiss={() => {
+                  setBackfillAllLastResult(null);
+                  setBackfillAllError(null);
+                }}
+              />
+            )}
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
             <Button
@@ -850,44 +852,56 @@ export default function Accounts() {
             >
               Refresh counts
             </Button>
-            <Button type="button" variant="secondary" disabled={ledgerMigrationBusy} onClick={handleHistoricalBackfill}>
-              {backfillRunning ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Running backfill…
-                </>
-              ) : (
-                "Run Historical Ledger Backfill"
-              )}
-            </Button>
             {isPlatformAdmin && (
-              <Button
-                type="button"
-                variant="default"
-                className="bg-blue-700 hover:bg-blue-800"
-                disabled={ledgerMigrationBusy}
-                onClick={() => void handleHistoricalBackfillAllOrganizations()}
-              >
-                {backfillAllOrgsRunning ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Backfilling all orgs…
-                  </>
-                ) : (
-                  "Backfill all organizations"
-                )}
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={ledgerMigrationBusy}
+                  onClick={handleHistoricalBackfill}
+                >
+                  {backfillRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Running backfill…
+                    </>
+                  ) : (
+                    "Run Historical Ledger Backfill"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  className="bg-blue-700 hover:bg-blue-800"
+                  disabled={ledgerMigrationBusy}
+                  onClick={() => void handleHistoricalBackfillAllOrganizations()}
+                >
+                  {backfillAllOrgsRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Backfilling all orgs…
+                    </>
+                  ) : (
+                    "Backfill all organizations"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                  disabled={ledgerMigrationBusy}
+                  onClick={() => setResetLedgerDialogOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Reset GL ledger
+                </Button>
+              </>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              className="text-destructive border-destructive/40 hover:bg-destructive/10"
-              disabled={ledgerMigrationBusy}
-              onClick={() => setResetLedgerDialogOpen(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Reset GL ledger
-            </Button>
+            {!isPlatformAdmin && (
+              <p className="text-xs text-muted-foreground w-full">
+                GL backfill and reset are managed by platform admin only.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
