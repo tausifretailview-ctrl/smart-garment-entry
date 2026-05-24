@@ -73,6 +73,7 @@ interface RetailERPTemplateProps {
   declarationText?: string;
   termsConditions?: string[];
   notes?: string;
+  otherCharges?: number;
 
   showHSN?: boolean;
   showBarcode?: boolean;
@@ -151,6 +152,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   qrCodeUrl,
   termsConditions = [],
   notes,
+  otherCharges = 0,
   showHSN = true,
   showDiscountOnRate = true,
   showGSTBreakdown = true,
@@ -213,6 +215,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - Number(roundOff || 0);
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
   const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
+  const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
+  const derivedOtherCharges = Math.max(
+    0,
+    Number(grandTotal || 0) - displaySubTotal + Number(saleReturnAdjust || 0) - displayDiscount - Number(roundOff || 0)
+  );
+  const displayOtherCharges =
+    explicitOtherCharges > 0.005 ? explicitOtherCharges : derivedOtherCharges > 0.005 ? derivedOtherCharges : 0;
   const totalsLabel = "Sub Total";
   const totalsValue = displaySubTotal;
 
@@ -633,6 +642,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {displayDiscount > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
                           <span>Discount</span><span>- ₹{fmt(displayDiscount)}</span>
+                        </div>
+                      )}
+                      {displayOtherCharges > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", borderBottom: B, padding: isA4 ? "3px 8px" : "3px 6px", fontSize: isA4 ? "14px" : "11px", fontWeight: "900", color: "#000" }}>
+                          <span>Other Charges</span><span>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
                       {roundOff !== 0 && (

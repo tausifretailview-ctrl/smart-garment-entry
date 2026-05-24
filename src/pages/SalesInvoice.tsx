@@ -1903,6 +1903,8 @@ export default function SalesInvoice() {
         netAmount: invoiceData.net_amount,
         grossAmount: invoiceData.gross_amount,
         totalDiscount: invoiceData.discount_amount + (invoiceData.flat_discount_amount || 0),
+        notes: invoiceData.notes || "",
+        otherCharges: Number(invoiceData.other_charges || 0),
         customer: {
           id: invoiceData.customer_id,
           customer_name: customerMeta?.customer_name || invoiceData.customer_name,
@@ -2523,6 +2525,8 @@ Thank you for choosing us!`;
           netAmount,
           grossAmount,
           totalDiscount,
+          notes,
+          otherCharges,
           customer: selectedCustomer,
         });
         setShowPrintDialog(true);
@@ -2815,6 +2819,8 @@ Thank you for choosing us!`;
           netAmount,
           grossAmount,
           totalDiscount,
+          notes,
+          otherCharges,
           customer: selectedCustomer,
         };
 
@@ -3216,7 +3222,7 @@ Thank you for choosing us!`;
         </AlertDialog>
         <SizeGridDialog open={showSizeGrid} onClose={() => setShowSizeGrid(false)} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <InvoiceWrapper ref={printRef} billNo={savedInvoiceData?.invoiceNumber || `DRAFT`} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData?.filledItems || filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+          <InvoiceWrapper ref={printRef} billNo={savedInvoiceData?.invoiceNumber || `DRAFT`} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData?.filledItems || filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
         {pendingPriceSelection && <PriceSelectionDialog open={showPriceSelectionDialog} onOpenChange={(open) => { setShowPriceSelectionDialog(open); if (!open) setPendingPriceSelection(null); }} productName={pendingPriceSelection.product?.product_name || ''} size={pendingPriceSelection.variant?.size || ''} masterPrice={pendingPriceSelection.masterPrice} lastPurchasePrice={pendingPriceSelection.lastPurchasePrice} customerPrice={pendingPriceSelection.customerPrice} onSelect={(source, prices) => { const { product, variant } = pendingPriceSelection; setShowPriceSelectionDialog(false); setPendingPriceSelection(null); addProductToInvoice(product, variant, prices); }} />}
@@ -4478,6 +4484,9 @@ Thank you for choosing us!`;
             subTotal={savedInvoiceData?.grossAmount ?? grossAmount}
             discount={savedInvoiceData?.totalDiscount ?? totalDiscount}
             grandTotal={savedInvoiceData?.netAmount ?? netAmount}
+            notes={savedInvoiceData?.notes ?? notes}
+            otherCharges={savedInvoiceData?.otherCharges ?? otherCharges}
+            roundOff={roundOff}
             paymentMethod="Cash"
             taxType={taxType}
             financerDetails={financerDetails}

@@ -220,6 +220,8 @@ export default function PublicInvoiceView() {
     totalTax: Math.round((totalCGST + totalSGST + totalIGST) * 100) / 100,
     roundOff: sale.round_off,
     grandTotal: sale.net_amount,
+    notes: sale.notes || "",
+    otherCharges: sale.other_charges || 0,
     paymentMethod: sale.payment_method,
     cashAmount: sale.cash_amount || 0,
     cardAmount: sale.card_amount || 0,

@@ -70,6 +70,7 @@ interface RetailTemplateProps {
   declarationText?: string;
   termsConditions?: string[];
   notes?: string;
+  otherCharges?: number;
 
   showHSN?: boolean;
   showBarcode?: boolean;
@@ -135,6 +136,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   qrCodeUrl,
   termsConditions = [],
   notes,
+  otherCharges = 0,
   amountWithDecimal = true,
   amountWithGrouping = true,
   format = "a5-vertical",
@@ -144,6 +146,8 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const isA4 = format === "a4";
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : 15;
   const MIN_BLANK_ROWS = 2;
+  const invoiceNoteText =
+    notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
 
   const fmt = (amount: number) => {
     const value = amountWithDecimal ? amount.toFixed(2) : Math.round(amount).toString();
@@ -184,6 +188,13 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0);
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
   const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
+  const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
+  const derivedOtherCharges = Math.max(
+    0,
+    Number(grandTotal || 0) - displaySubTotal + Number(saleReturnAdjust || 0) - displayDiscount
+  );
+  const displayOtherCharges =
+    explicitOtherCharges > 0.005 ? explicitOtherCharges : derivedOtherCharges > 0.005 ? derivedOtherCharges : 0;
   const billTotal = grandTotal;
   const receivedToday = paidAmount;
   const currentBalance = billTotal - receivedToday;
@@ -403,9 +414,47 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               </table>
 
               {/* ===== FOOTER ===== */}
+              {isLastPage && invoiceNoteText ? (
+                <div
+                  style={{
+                    display: "flex",
+                    borderTop: B2,
+                    borderBottom: B,
+                    fontSize: fsBody,
+                    minHeight: isA4 ? "56px" : "48px",
+                  }}
+                >
+                  <div
+                    style={{
+                      flex: 1,
+                      borderRight: B,
+                      padding: isA4 ? "6px 10px" : "5px 8px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "flex-start",
+                    }}
+                  >
+                    <span style={{ fontSize: isA4 ? "11px" : "9px", fontWeight: 800, marginBottom: "2px" }}>
+                      Note:
+                    </span>
+                    <span
+                      style={{
+                        fontSize: isA4 ? "12px" : "10px",
+                        fontWeight: invoiceNoteText ? 700 : 500,
+                        lineHeight: 1.35,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        color: invoiceNoteText ? "#000" : "#6b7280",
+                      }}
+                    >
+                      {invoiceNoteText || "\u00a0"}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
               <div
                 className="retail-footer"
-                style={{ display: "grid", gridTemplateColumns: "70% 30%", borderTop: B2, fontSize: fsBody }}
+                style={{ display: "grid", gridTemplateColumns: "70% 30%", borderTop: isLastPage && invoiceNoteText ? "none" : B2, fontSize: fsBody }}
               >
                 {/* Left Column */}
                 <div style={{ borderRight: B, padding: "6px 8px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
@@ -418,11 +467,6 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                             <li key={i}>{t}</li>
                           ))}
                         </ul>
-                      </div>
-                    )}
-                    {notes && notes.trim() && !/^\d+$/.test(notes.trim()) && (
-                      <div style={{ marginTop: termsConditions.length > 0 ? "4px" : "0", paddingTop: termsConditions.length > 0 ? "4px" : "0", borderTop: termsConditions.length > 0 ? "1px dashed #999" : "none", fontSize: isA4 ? "10px" : "8px", fontStyle: "italic" }}>
-                        <strong style={{ fontStyle: "normal" }}>Note:</strong> {notes}
                       </div>
                     )}
                     {qrCodeUrl && isLastPage && (
@@ -453,6 +497,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px", color: "#b45309" }}>
                           <span>S/R Adjust</span>
                           <span>- ₹{fmt(saleReturnAdjust)}</span>
+                        </div>
+                      )}
+                      {displayOtherCharges > 0 && (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "28px", borderBottom: B, padding: "0 8px" }}>
+                          <span>Other Charges</span>
+                          <span>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand, backgroundColor: "#f5f5f5" }}>

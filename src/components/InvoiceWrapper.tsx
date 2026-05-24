@@ -130,6 +130,8 @@ interface InvoiceWrapperProps {
   /** GST inclusive = prices include tax; exclusive = taxable amounts with GST added at bottom (Tally tax invoice). */
   taxType?: GstTaxType | string;
   notes?: string;
+  /** Freight / alteration / other charges added on top of line items (sale invoice). */
+  otherCharges?: number;
   isDcInvoice?: boolean;
   financerDetails?: {
     financer_name: string;
@@ -381,6 +383,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       // Salesman and Notes
       salesman: props.salesman,
       notes: props.notes,
+      otherCharges: props.otherCharges ?? 0,
       
       // Wholesale mode settings
       enableWholesaleGrouping: enableWholesaleMode,
