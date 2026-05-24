@@ -1,4 +1,10 @@
 import React from "react";
+import {
+  computeTallyLineDisplay,
+  normalizeGstTaxType,
+  splitLineGstFromTotal,
+  type GstTaxType,
+} from "@/utils/gstRegisterUtils";
 
 interface InvoiceItem {
   sr: number;
@@ -36,6 +42,8 @@ interface TallyTaxInvoiceTemplateProps {
   customerGSTIN?: string;
   customerTransportDetails?: string;
   salesman?: string;
+  /** inclusive = rate/amount include GST, GST bifurcated at bottom; exclusive = taxable amounts, GST added in summary */
+  taxType?: GstTaxType | string;
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
@@ -210,14 +218,15 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   customerGSTIN,
   customerTransportDetails,
   salesman,
+  taxType: taxTypeProp = "inclusive",
   items,
   subtotal,
   discount,
-  taxableAmount,
+  taxableAmount: _taxableAmountProp,
   cgstAmount = 0,
   sgstAmount = 0,
   igstAmount = 0,
-  totalTax,
+  totalTax: totalTaxProp,
   roundOff,
   grandTotal,
   paymentMethod,
@@ -238,6 +247,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   stampImageBase64,
   stampSize = "medium",
 }) => {
+  const taxType = normalizeGstTaxType(taxTypeProp);
+  const isGstInclusive = taxType === "inclusive";
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
   const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
@@ -259,8 +270,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   > = {};
   items.forEach((item) => {
     const gstPct = item.gstPercent || 0;
-    const gstAmt = gstPct > 0 ? (item.total * gstPct) / (100 + gstPct) : 0;
-    const taxable = item.total - gstAmt;
+    const { taxable, gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
     const hsn = item.hsn || "N/A";
     const key = `${hsn}-${gstPct}`;
     if (!hsnBreakup[key]) hsnBreakup[key] = { hsn, taxableValue: 0, rate: gstPct, cgst: 0, sgst: 0, igst: 0, total: 0 };
@@ -274,6 +284,11 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
     hsnBreakup[key].total += gstAmt;
   });
 
+  const computedTaxableAmount = Object.values(hsnBreakup).reduce((s, r) => s + r.taxableValue, 0);
+  const computedTotalTax = Object.values(hsnBreakup).reduce((s, r) => s + r.total, 0);
+  const taxableAmount = computedTaxableAmount > 0 ? computedTaxableAmount : _taxableAmountProp;
+  const totalTax = computedTotalTax > 0 ? computedTotalTax : totalTaxProp;
+
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
   const defaultDeclaration = `We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.\nWARRANTY TO CUSTOMER IS DIRECTLY FROM MANUFACTURER.\nDEALER IS NOT RESPONSIBLE. GOODS ONCE SOLD WILL NOT BE TAKEN BACK OR EXCHANGED.`;
 
@@ -286,7 +301,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   items.forEach((item) => {
     const gstPct = item.gstPercent || 0;
     if (gstPct > 0) {
-      const gstAmt = (item.total * gstPct) / (100 + gstPct);
+      const { gst: gstAmt } = splitLineGstFromTotal(item.total, gstPct);
       if (isInterState) {
         totalIgst += gstAmt;
       } else {
@@ -361,6 +376,18 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           }}
         >
           {grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE'}
+        </div>
+        <div
+          style={{
+            textAlign: "center",
+            borderBottom: b,
+            padding: "3px 0",
+            fontSize: "9px",
+            flexShrink: 0,
+            backgroundColor: "#fafafa",
+          }}
+        >
+          {isGstInclusive ? "Amounts are GST Inclusive (GST bifurcation below)" : "Amounts are GST Exclusive (GST added below)"}
         </div>
 
         {/* Seller + Invoice Details */}
@@ -555,9 +582,12 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             <tbody>
               {items.map((item, index) => {
                 const gstPct = item.gstPercent || 0;
-                const gstAmt = gstPct > 0 ? (item.total * gstPct) / (100 + gstPct) : 0;
-                const taxableAmt = item.total - gstAmt;
-                const rateExclTax = item.qty > 0 ? taxableAmt / item.qty : 0;
+                const { gst: gstAmt, displayRate, displayAmount } = computeTallyLineDisplay(
+                  item.total,
+                  gstPct,
+                  item.qty,
+                  taxType
+                );
                 return (
                   <tr key={index}>
                     <td style={{ ...cellNoRowBorder, textAlign: "center", verticalAlign: "top", fontWeight: "bold" }}>
@@ -585,10 +615,10 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                     <td style={{ ...cellNoRowBorder, textAlign: "center", verticalAlign: "top", fontWeight: "bold" }}>
                       {item.qty} Pcs
                     </td>
-                    <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top" }}>{fmt(rateExclTax)}</td>
+                    <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top" }}>{fmt(displayRate)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top" }}>{fmt(gstAmt)}</td>
                     <td style={{ ...cellNoRowBorder, textAlign: "right", verticalAlign: "top", fontWeight: "bold" }}>
-                      {fmt(taxableAmt)}
+                      {fmt(displayAmount)}
                     </td>
                   </tr>
                 );
@@ -612,7 +642,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <tr>
                   <td style={cellNoRowBorder}></td>
                   <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px", fontStyle: "italic" }}>
-                    Output GST @ {summaryGstRate}%
+                    {isGstInclusive ? "GST Bifurcation" : "Add GST"} @ {summaryGstRate}%
                   </td>
                   {showHSN && <td style={cellNoRowBorder}></td>}
                   <td style={cellNoRowBorder}></td>

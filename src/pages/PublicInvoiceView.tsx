@@ -157,11 +157,15 @@ export default function PublicInvoiceView() {
     ? customerGSTIN.substring(0, 2) !== settings.gst_number.substring(0, 2)
     : false;
 
+  const invoiceTaxType =
+    (sale as { tax_type?: string }).tax_type ||
+    (settings?.default_tax_type as string) ||
+    'inclusive';
+
   saleItems.forEach((item: any) => {
     const gstPercent = item.gst_percent || 0;
     if (gstPercent > 0) {
-      const taxableValue = item.line_total;
-      const totalTaxOnItem = taxableValue * gstPercent / (100 + gstPercent);
+      const totalTaxOnItem = (item.line_total * gstPercent) / (100 + gstPercent);
       if (isInterState) {
         totalIGST += totalTaxOnItem;
       } else {
@@ -187,6 +191,7 @@ export default function PublicInvoiceView() {
     customerGSTIN,
     customerTransportDetails: customerExtra?.transport_details || "",
     salesman: sale.salesman || "",
+    taxType: invoiceTaxType,
     notes: sale.notes || "",
     items: saleItems.map((item: any, index: number) => ({
       sr: index + 1,

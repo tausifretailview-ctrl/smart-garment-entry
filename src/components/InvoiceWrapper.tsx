@@ -20,6 +20,7 @@ import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
 import { ModernThermalReceipt80mm } from './ModernThermalReceipt80mm';
 import QRCode from 'qrcode';
+import { calculateGSTBreakup, normalizeGstTaxType, type GstTaxType } from '@/utils/gstRegisterUtils';
 
 interface InvoiceItem {
   sr: number;
@@ -121,6 +122,8 @@ interface InvoiceWrapperProps {
   declarationText?: string;
   termsConditions?: string[];
   salesman?: string;
+  /** GST inclusive = prices include tax; exclusive = taxable amounts with GST added at bottom (Tally tax invoice). */
+  taxType?: GstTaxType | string;
   notes?: string;
   isDcInvoice?: boolean;
   financerDetails?: {
@@ -237,26 +240,51 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     // Filter blank terms so empty slots don't render as blank lines/bullets
     const filteredTerms = rawTerms?.filter((t: string) => t && t.trim()) ?? [];
     
-    // Calculate tax amounts - GST is INCLUSIVE in item totals
-    // For each item: GST amount = (item.total * gstPercent) / (100 + gstPercent)
-    // IMPORTANT: item.total is already AFTER discount, so we extract GST from post-discount amounts
-    const totalLineAmount = props.items.reduce((sum, item) => sum + item.total, 0);
-    const totalGstFromItems = props.items.reduce((sum, item) => {
-      const gstPct = item.gstPercent || 0;
-      if (gstPct <= 0) return sum;
-      // GST is included in total, so extract it
-      const gstAmt = (item.total * gstPct) / (100 + gstPct);
-      return sum + gstAmt;
-    }, 0);
-    
-    // Taxable amount = Total line items - GST (GST is extracted from already-discounted line totals)
-    // Do NOT subtract discount again since item.total already reflects the discount
-    const taxableAmount = totalLineAmount - totalGstFromItems;
-    const totalTax = totalGstFromItems;
-    
-    // CGST and SGST are each exactly half of total GST
-    const cgstAmount = totalTax / 2;
-    const sgstAmount = totalTax / 2;
+    const taxType = normalizeGstTaxType(
+      props.taxType ?? (settings?.sale_settings as { default_tax_type?: string })?.default_tax_type
+    );
+    const sellerGstin = settings?.gst_number || '';
+    const buyerGstin = props.customerGSTIN || '';
+    const isInterState =
+      !!sellerGstin &&
+      !!buyerGstin &&
+      sellerGstin.substring(0, 2) !== buyerGstin.substring(0, 2);
+
+    const gstBreakup = calculateGSTBreakup(
+      props.items.map((item) => ({
+        gst_percent: item.gstPercent || 0,
+        line_total: item.total,
+      })),
+      taxType,
+      isInterState
+    );
+
+    const taxableAmount =
+      gstBreakup.taxable_0 +
+      gstBreakup.taxable_5 +
+      gstBreakup.taxable_12 +
+      gstBreakup.taxable_18 +
+      gstBreakup.taxable_28;
+    const totalTax =
+      gstBreakup.cgst_2_5 +
+      gstBreakup.sgst_2_5 +
+      gstBreakup.igst_5 +
+      gstBreakup.cgst_6 +
+      gstBreakup.sgst_6 +
+      gstBreakup.igst_12 +
+      gstBreakup.cgst_9 +
+      gstBreakup.sgst_9 +
+      gstBreakup.igst_18 +
+      gstBreakup.cgst_14 +
+      gstBreakup.sgst_14 +
+      gstBreakup.igst_28;
+
+    const cgstAmount =
+      gstBreakup.cgst_2_5 + gstBreakup.cgst_6 + gstBreakup.cgst_9 + gstBreakup.cgst_14;
+    const sgstAmount =
+      gstBreakup.sgst_2_5 + gstBreakup.sgst_6 + gstBreakup.sgst_9 + gstBreakup.sgst_14;
+    const igstAmount =
+      gstBreakup.igst_5 + gstBreakup.igst_12 + gstBreakup.igst_18 + gstBreakup.igst_28;
     // Use direct prop if available, otherwise calculate as fallback
     // Fallback accounts for discount, sale return, and points redemption to avoid double-counting
     const roundOff = props.roundOff ?? 
@@ -289,8 +317,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       taxableAmount,
       cgstAmount,
       sgstAmount,
-      igstAmount: 0,
+      igstAmount,
       totalTax,
+      taxType,
       roundOff,
       grandTotal: props.grandTotal,
       

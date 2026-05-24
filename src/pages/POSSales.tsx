@@ -77,6 +77,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
@@ -756,6 +763,15 @@ export default function POSSales() {
   const posInvoiceTemplate: 'professional' | 'modern' | 'classic' | 'compact' =
     (_posSaleSettings.invoice_template as 'professional' | 'modern' | 'classic' | 'compact') || 'professional';
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
+  const defaultPosTaxType =
+    (_posSaleSettings.default_tax_type === 'exclusive' ? 'exclusive' : 'inclusive') as 'inclusive' | 'exclusive';
+  const [taxType, setTaxType] = useState<'inclusive' | 'exclusive'>(defaultPosTaxType);
+
+  useEffect(() => {
+    setTaxType(defaultPosTaxType);
+  }, [defaultPosTaxType]);
+
+  const invoiceTaxType = (savedInvoiceData?.taxType as 'inclusive' | 'exclusive' | undefined) || taxType;
 
   // Direct print hook
   const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(
@@ -2378,6 +2394,7 @@ export default function POSSales() {
       paidAmount: 0,
       previousBalance: customerBalance || 0,
       isEstimate: true,
+      taxType,
     };
     
     setSavedInvoiceData(estimateData);
@@ -2822,6 +2839,7 @@ export default function POSSales() {
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
         salesman: salesmanForPrint || null,
+        taxType,
         financerDetails: financerDetails || null,
       };
       
@@ -3117,6 +3135,7 @@ export default function POSSales() {
         cardAmount: result.card_amount || 0,
         creditAmount: (paymentData.creditAmount || 0) + (creditApplied || 0),
         salesman: salesmanForPrint || null,
+        taxType,
         financerDetails: financerDetails || null,
       } : null;
       
@@ -4123,6 +4142,7 @@ export default function POSSales() {
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+            taxType={invoiceTaxType}
             financerDetails={savedInvoiceData?.financerDetails || financerDetails}
           />
         </div>
@@ -4367,6 +4387,7 @@ export default function POSSales() {
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+            taxType={invoiceTaxType}
             financerDetails={savedInvoiceData?.financerDetails || financerDetails}
           />
         </div>
@@ -4872,6 +4893,20 @@ export default function POSSales() {
           </Popover>
           
           {/* Customer Discount & Points moved to bottom after Note section */}
+
+          {/* GST Type — Tally tax invoice / billing */}
+          <div className="w-32 shrink-0">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">GST Type</Label>
+            <Select value={taxType} onValueChange={(v: "inclusive" | "exclusive") => setTaxType(v)}>
+              <SelectTrigger className="h-10 text-xs border-border/80">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inclusive">Inclusive</SelectItem>
+                <SelectItem value="exclusive">Exclusive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Salesperson Search - After Customer Name */}
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
@@ -5811,6 +5846,7 @@ export default function POSSales() {
                 previousBalance={customerBalance || 0}
                 roundOff={roundOff}
                 salesman={selectedSalesman || ''}
+                taxType={invoiceTaxType}
                 financerDetails={financerDetails}
                 notes={saleNotes}
               />
@@ -5992,6 +6028,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
                 roundOff={savedInvoiceData.roundOff ?? 0}
                 salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+                taxType={invoiceTaxType}
                 financerDetails={savedInvoiceData?.financerDetails || financerDetails}
               />
             )}
@@ -6065,6 +6102,7 @@ export default function POSSales() {
                 previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
                 roundOff={savedInvoiceData?.roundOff ?? roundOff}
                 salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
+                taxType={invoiceTaxType}
                 financerDetails={savedInvoiceData?.financerDetails || financerDetails}
               />
             </div>

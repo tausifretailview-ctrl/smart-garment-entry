@@ -122,6 +122,47 @@ export const calculateTaxableFromInclusive = (total: number, gstPercent: number)
   return total / (1 + gstPercent / 100);
 };
 
+export type GstTaxType = 'inclusive' | 'exclusive';
+
+/** Split final line total into taxable base + GST (works for both stored pricing modes). */
+export const splitLineGstFromTotal = (
+  lineTotal: number,
+  gstPercent: number
+): { taxable: number; gst: number } => {
+  const rate = gstPercent || 0;
+  if (rate <= 0 || !lineTotal) return { taxable: lineTotal || 0, gst: 0 };
+  const gst = (lineTotal * rate) / (100 + rate);
+  return { taxable: lineTotal - gst, gst };
+};
+
+/** Line display for Tally tax invoice — inclusive shows amounts with GST; exclusive shows taxable only. */
+export const computeTallyLineDisplay = (
+  lineTotal: number,
+  gstPercent: number,
+  qty: number,
+  taxType: GstTaxType = 'inclusive'
+): { taxable: number; gst: number; displayRate: number; displayAmount: number } => {
+  const { taxable, gst } = splitLineGstFromTotal(lineTotal, gstPercent);
+  const safeQty = qty > 0 ? qty : 1;
+  if (taxType === 'inclusive') {
+    return {
+      taxable,
+      gst,
+      displayRate: lineTotal / safeQty,
+      displayAmount: lineTotal,
+    };
+  }
+  return {
+    taxable,
+    gst,
+    displayRate: taxable / safeQty,
+    displayAmount: taxable,
+  };
+};
+
+export const normalizeGstTaxType = (value?: string | null): GstTaxType =>
+  value === 'exclusive' || value === 'gst_exclusive' ? 'exclusive' : 'inclusive';
+
 // FIX G10: Calculate GST breakup — accumulate exact values, round only at the end
 export const calculateGSTBreakup = (
   items: Array<{ gst_percent: number; line_total: number; unit_price?: number; quantity?: number }>,

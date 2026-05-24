@@ -3340,6 +3340,7 @@ const POSDashboard = () => {
               paidAmount={getEffectivePaidAmountForDashboard(previewSale)}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
+              taxType={saleSettings?.default_tax_type || 'inclusive'}
               financerDetails={previewFinancerDetails}
             />
           )}
@@ -3486,6 +3487,7 @@ const POSDashboard = () => {
             previousBalance={printData.previousBalance}
             salesman={printData.salesman || ''}
             notes={printData.notes || ''}
+            taxType={saleSettings?.default_tax_type || 'inclusive'}
             financerDetails={printData.financerDetails || null}
             format={posBillFormat}
             template={posInvoiceTemplate}
