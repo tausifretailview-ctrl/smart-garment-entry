@@ -37,11 +37,9 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
-import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -4025,7 +4023,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-slate-100" data-entry-form>
+    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 pb-6" data-entry-form>
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -4049,24 +4047,22 @@ const PurchaseEntry = () => {
           </div>
         </div>
       )}
-      <header className="bg-gradient-to-r from-slate-900 to-slate-800 h-14 flex items-center px-5 gap-3 shrink-0 shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/60">
-        {/* Back button */}
+      <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/50">
+        <div className="h-[52px] flex items-center px-5 gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
-          className="text-white/70 hover:text-white hover:bg-white/10 h-8 gap-1.5">
+          className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
           <ChevronLeft className="h-4 w-4" />
-          Purchase Dashboard
+          <span className="hidden sm:inline">Dashboard</span>
         </Button>
-        <div className="w-px h-6 bg-white/15" />
+        <div className="w-px h-6 bg-white/15 mx-1" />
 
-        {/* Title */}
-        <h1 className="text-white font-bold text-[14px] tracking-tight whitespace-nowrap">
+        <span className="text-white font-bold text-[15px] whitespace-nowrap">
           {isEditMode ? 'Edit Purchase Bill' : 'Purchase Entry'}
-        </h1>
+        </span>
 
-        {/* Auto bill number badge */}
-        {softwareBillNo && (
-          <span className="bg-green-500 text-white font-mono text-[11px] font-bold px-2.5 py-1 rounded-full tracking-wide whitespace-nowrap">
-            {softwareBillNo}
+        {(softwareBillNo || !isEditMode) && (
+          <span className="bg-green-600 text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md whitespace-nowrap">
+            {softwareBillNo || 'NEW'}
           </span>
         )}
         {navBillIndex !== null && allBillIds && (
@@ -4074,28 +4070,11 @@ const PurchaseEntry = () => {
             {navBillIndex + 1} of {allBillIds.length}
           </span>
         )}
+        {isLoadingNavBill && <Loader2 className="h-4 w-4 animate-spin text-white/60" />}
 
-        {/* Last bill info pill - center */}
-        {!isEditMode && lastPurchaseBill && (
-          <div className="hidden md:flex items-center gap-2 bg-white/10 rounded-lg px-4 py-1.5 border border-white/20 text-[11px] mx-auto">
-            <span className="text-white/50">Last Bill:</span>
-            <span className="text-green-300 font-semibold font-mono">
-              {lastPurchaseBill.software_bill_no}
-            </span>
-            {lastPurchaseBill.supplier_invoice_no && (
-              <>
-                <span className="text-white/30">|</span>
-                <span className="text-white/50">Sup Inv:</span>
-                <span className="text-green-300 font-semibold font-mono">
-                  {lastPurchaseBill.supplier_invoice_no}
-                </span>
-              </>
-            )}
-          </div>
-        )}
+        <div className="flex-1" />
 
-        {/* Nav + Print on the right */}
-        <div className="flex items-center gap-1 ml-auto">
+        <div className="flex items-center gap-1">
           {/* Navigation buttons */}
           <Button variant="ghost" size="sm" onClick={handleLastBill}
             disabled={isLoadingNavBill || !allBillIds?.length}
@@ -4148,25 +4127,28 @@ const PurchaseEntry = () => {
             <Plus className="h-3.5 w-3.5" />
             <span>New</span>
           </Button>
-          <div className="w-px h-6 bg-white/15 mx-1" />
-          <InlineTotalQty
-            totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)}
-            itemCount={lineItems.filter(i => i.product_id).length}
-          />
         </div>
+        </div>
+
+        {!isEditMode && lastPurchaseBill && (
+          <div className="h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center gap-2 text-[12px] px-5 overflow-x-auto">
+            <span className="text-white/50 shrink-0">Last:</span>
+            <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.software_bill_no}</span>
+            {lastPurchaseBill.supplier_invoice_no && (
+              <>
+                <span className="text-white/25">|</span>
+                <span className="text-white/50 shrink-0">Sup Inv:</span>
+                <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.supplier_invoice_no}</span>
+              </>
+            )}
+          </div>
+        )}
       </header>
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-        {/* Supplier & Bill Details Card */}
-        <section className='bg-white border-b border-slate-200 px-6 py-4 flex-shrink-0'>
-          <div className='flex items-center gap-2 mb-3'>
-            <div className='w-[3px] h-[18px] bg-green-600 rounded-full flex-shrink-0' />
-            <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>
-              Supplier & Bill Details
-            </span>
-          </div>
-            <div className='flex flex-wrap lg:flex-nowrap items-end gap-3'>
+        <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0 shadow-sm">
+            <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
               <div className="space-y-2 flex-1 min-w-[140px]">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
@@ -4294,15 +4276,6 @@ const PurchaseEntry = () => {
                 </label>
               </div>
 
-              {/* Live Total Qty — pinned right */}
-              <div className="flex items-end ml-auto flex-shrink-0">
-                <div className="flex items-center gap-2 h-10 px-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-700 rounded-md">
-                  <ShoppingCart className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 whitespace-nowrap">Total Qty:</span>
-                  <span className="text-sm font-bold text-blue-900 dark:text-blue-100 font-mono">{lineItems.reduce((s, i) => s + (i.qty || 0), 0)}</span>
-                </div>
-              </div>
-
             </div>
 
             {/* DC Warning */}
@@ -4318,7 +4291,7 @@ const PurchaseEntry = () => {
 
         {/* Locked Banner */}
         {isBillLocked && (
-          <div className="flex items-center justify-between px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg mx-4 mt-2">
+          <div className="shrink-0 flex items-center justify-between px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg mx-4 mt-2">
             <div className="flex items-center gap-2">
               <Lock className="h-4 w-4 text-amber-600 shrink-0" />
               <div>
@@ -4338,22 +4311,31 @@ const PurchaseEntry = () => {
           </div>
         )}
 
-        {/* Products Table Card */}
-        <section className='bg-green-50/40 border-b border-green-100 px-6 py-3 flex-shrink-0'>
-          <div className='flex items-center gap-3 flex-wrap mt-2'>
-            <div className='flex items-center gap-2'>
-              <div className='w-[3px] h-[18px] bg-green-600 rounded-full flex-shrink-0' />
-              <span className='text-[10px] font-bold uppercase tracking-widest text-slate-400'>
-                Products
+        <section className="bg-slate-50 border-b border-slate-200 px-5 py-3 shrink-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={cn("text-sm", entryMode === "grid" ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                Size Grid
+              </span>
+              <Switch
+                id="entry-mode"
+                checked={entryMode === "inline"}
+                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              />
+              <span className={cn("text-sm", entryMode === "inline" ? "font-semibold text-foreground" : "text-muted-foreground")}>
+                Inline Rows
               </span>
             </div>
-              <div className='flex-1'>
+
+              <div className="relative flex-1 min-w-[280px]">
                 <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
                     ref={searchInputRef}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     disabled={isBillLocked}
+                    className="pl-10 h-10 text-sm bg-card border-border uppercase"
                     onKeyDown={(e) => {
                       if (searchResults.length === 0) return;
                       
@@ -4372,8 +4354,7 @@ const PurchaseEntry = () => {
                         handleProductSelect(searchResults[selectedSearchIndex]);
                       }
                     }}
-                    placeholder="Search by name, brand, category, style or barcode..."
-                    className="pr-10"
+                    placeholder="SEARCH BY NAME, BRAND, CATEGORY, STYLE OR BARCODE..."
                   />
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   {showSearch && searchResults.length > 0 && (
@@ -4440,11 +4421,12 @@ const PurchaseEntry = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 <Button
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
-                  className="gap-2"
+                  size="sm"
+                  className="h-10 gap-2 border-slate-300"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Import Excel
@@ -4452,32 +4434,27 @@ const PurchaseEntry = () => {
                 <Button
                   onClick={() => setShowProductDialog(true)}
                   variant="outline"
-                  className="gap-2"
+                  size="sm"
+                  className="h-10 gap-2 border-slate-300"
                   disabled={isBillLocked}
                 >
                   <Plus className="h-4 w-4" />
                   Add New Product
                 </Button>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="entry-mode" className="text-sm">Entry Mode:</Label>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-sm", entryMode === "grid" ? "font-semibold" : "text-muted-foreground")}>
-                      Size Grid
-                    </span>
-                    <Switch
-                      id="entry-mode"
-                      checked={entryMode === "inline"}
-                      onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-                    />
-                    <span className={cn("text-sm", entryMode === "inline" ? "font-semibold" : "text-muted-foreground")}>
-                      Inline Rows
-                    </span>
-                  </div>
-                </div>
               </div>
+
+            <div className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg ml-auto shrink-0">
+              <span className="text-[12px] font-semibold text-white/80">Total Qty</span>
+              <span className="text-[18px] font-black text-white tabular-nums font-mono leading-none">
+                {lineItems.reduce((sum, item) => sum + item.qty, 0)}
+              </span>
+            </div>
           </div>
-          <div className='flex-1 overflow-auto border-0'>
-            <Table className='table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table'>
+        </section>
+
+        <section className="flex-1 min-h-0 px-6 pb-2 overflow-hidden bg-slate-100 relative">
+          <div className="h-full overflow-x-auto overflow-y-auto rounded-lg border border-slate-200 shadow-sm bg-white">
+            <Table className="table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table">
               <TableHeader className='sticky top-0 z-10 erp-invoice-table-header'>
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -4871,29 +4848,25 @@ const PurchaseEntry = () => {
                   )}
                 </TableBody>
               </Table>
-              </div>
-            </div>
-            {lineItems.length === 0 && (
-              <p className="text-xs text-center mt-2 text-muted-foreground">Tip: Press Alt+↓ to copy the last row</p>
-            )}
+          </div>
+          {lineItems.length === 0 && (
+            <p className="text-xs text-center py-2 text-muted-foreground shrink-0">Tip: Press Alt+↓ to copy the last row</p>
+          )}
         </section>
 
       </main>
 
-      <footer className="sticky bottom-0 z-20 shrink-0">
-        {/* Top Row: GROSS AMT + BILL DISC inputs + Net Amount — single line */}
-        <div className="bg-gradient-to-r from-teal-700 to-teal-800 text-white overflow-x-auto">
-          <div className="flex items-center px-4 py-2.5 gap-0 min-w-max">
-            {/* GROSS AMT */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Gross Amt</span>
+      <footer className="shrink-0 relative z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-green-600">
+          <div className="flex items-center px-4 py-3 gap-0 min-w-max">
+            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Gross Amt</span>
             <span className="bg-white/10 rounded-sm px-3 h-9 flex items-center text-[15px] font-bold font-mono tabular-nums min-w-[80px] justify-end">
               {Math.round(totals.grossAmount).toLocaleString("en-IN")}
             </span>
 
-            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
-            {/* BILL DISC % */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Bill Disc %</span>
+            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Bill Disc %</span>
             <Input type="number" step="0.01"
               value={totals.grossAmount > 0 ? Number((discountAmount / totals.grossAmount * 100).toFixed(2)) || "" : ""}
               onChange={(e) => {
@@ -4905,10 +4878,9 @@ const PurchaseEntry = () => {
               className="w-[72px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
-            {/* BILL DISC ₹ */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Bill Disc ₹</span>
+            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Bill Disc ₹</span>
             <Input type="number" step="0.01" value={discountAmount || ""}
               onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
@@ -4916,10 +4888,9 @@ const PurchaseEntry = () => {
               className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            <div className="w-px h-8 bg-teal-500/50 mx-3 shrink-0" />
+            <div className="w-px h-8 bg-slate-600 mx-3 shrink-0" />
 
-            {/* Other Charges */}
-            <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100 mr-2 whitespace-nowrap">Charges</span>
+            <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Charges</span>
             <Input type="number" step="0.01" value={otherCharges || ""}
               onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
               onWheel={(e) => (e.target as HTMLInputElement).blur()}
@@ -4927,24 +4898,22 @@ const PurchaseEntry = () => {
               className="w-[80px] h-9 text-[15px] text-right bg-white text-slate-800 font-bold font-mono border-0 rounded-sm"
             />
 
-            {/* Right-pinned Net Amount */}
-            <div className="ml-auto pl-4 border-l-2 border-teal-500/40 flex items-center gap-3 shrink-0">
-              <span className="text-[13px] font-extrabold uppercase tracking-wider text-teal-100">Net</span>
-              <span className="text-[26px] font-black font-mono tabular-nums leading-none">₹{totals.netAmount.toLocaleString('en-IN')}</span>
+            <div className="ml-auto pl-4 border-l-2 border-green-600/60 flex flex-col items-end shrink-0">
+              <span className="text-[13px] font-extrabold uppercase tracking-wider text-yellow-400">Net Payable</span>
+              <span className="text-[36px] font-black font-mono tabular-nums leading-none text-green-400">₹{totals.netAmount.toLocaleString("en-IN")}</span>
             </div>
           </div>
         </div>
 
-        {/* Bottom Bar: Formula strip + action buttons */}
-        <div className="bg-teal-900 flex items-center px-4 py-1.5 gap-3">
-          <div className="flex items-center gap-2 text-[13px] text-teal-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+        <div className="bg-slate-950 flex flex-wrap items-center px-4 py-2 gap-3">
+          <div className="flex items-center gap-2 text-[15px] text-slate-300 font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
             <span>Gross <span className="text-white font-bold">₹{Math.round(totals.grossAmount).toLocaleString("en-IN")}</span></span>
-            <span className="text-teal-500">—</span>
-            <span>Disc <span className="text-red-300 font-bold">₹{(totals.itemDiscount + discountAmount).toFixed(0)}</span></span>
-            <span className="text-teal-500">+</span>
-            <span>GST <span className="text-white font-bold">₹{totals.gstAmount.toFixed(0)}</span></span>
-            <span className="text-teal-500">=</span>
-            <span>Net <span className="text-emerald-300 font-extrabold">₹{totals.netAmount.toLocaleString('en-IN')}</span></span>
+            <span className="text-slate-600">—</span>
+            <span>Disc <span className="text-red-300 font-extrabold">₹{(totals.itemDiscount + discountAmount).toFixed(0)}</span></span>
+            <span className="text-slate-600">+</span>
+            <span>GST <span className="text-white font-extrabold">₹{totals.gstAmount.toFixed(0)}</span></span>
+            <span className="text-slate-600">=</span>
+            <span>Net <span className="text-emerald-300 font-black">₹{totals.netAmount.toLocaleString("en-IN")}</span></span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -4952,7 +4921,7 @@ const PurchaseEntry = () => {
               <Button onClick={handlePrintBarcodes}
                 disabled={lineItems.length === 0}
                 size="sm"
-                className="h-8 px-4 text-xs bg-purple-500 hover:bg-purple-600 text-white font-bold gap-1.5 border border-purple-400 shadow-sm">
+                className="h-9 px-4 text-[13px] bg-purple-600 hover:bg-purple-500 text-white font-bold gap-1.5 border border-purple-400 shadow-sm">
                 <Printer className="h-3.5 w-3.5" />
                 Print Barcodes
                 {selectedForPrint.size > 0 && ` (${selectedForPrint.size})`}
@@ -4961,7 +4930,7 @@ const PurchaseEntry = () => {
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-3 text-xs text-red-300 hover:bg-red-900/50 hover:text-red-200 gap-1"
+              className="h-9 px-3 text-[13px] font-bold text-red-300 hover:bg-red-900/50 hover:text-red-200 gap-1.5"
             >
               <X className="h-3.5 w-3.5" />
               Cancel
@@ -4970,7 +4939,7 @@ const PurchaseEntry = () => {
               size="sm"
               onClick={handleSave}
               disabled={loading || lineItems.length === 0 || isBillLocked}
-              className="h-8 px-5 text-xs bg-white text-teal-900 hover:bg-teal-100 font-bold gap-1.5 shadow-sm"
+              className="h-9 px-5 text-[14px] bg-green-600 text-white hover:bg-green-500 font-extrabold gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.4)]"
             >
               {loading ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>

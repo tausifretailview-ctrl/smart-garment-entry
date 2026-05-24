@@ -22,7 +22,7 @@ interface FullScreenLayoutProps {
 
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
-  const isSalesInvoicePage = /\/sales-invoice\/?$/.test(location.pathname);
+  const isEntryFullscreenPage = /\/(sales-invoice|purchase-entry)\/?$/.test(location.pathname);
 
   return (
     <ChatProvider>
@@ -33,7 +33,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
 
             <div
               className={
-                isSalesInvoicePage
+                isEntryFullscreenPage
                   ? "flex h-screen w-full overflow-hidden bg-background"
                   : "flex min-h-screen w-full bg-background"
               }
@@ -43,12 +43,12 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               </div>
               <SidebarInset
                 className={
-                  isSalesInvoicePage
+                  isEntryFullscreenPage
                     ? "flex flex-col flex-1 min-h-0 overflow-hidden min-w-0"
                     : "flex flex-col flex-1 min-w-0"
                 }
               >
-                {!isSalesInvoicePage && (
+                {!isEntryFullscreenPage && (
                   <>
                     <div className="hidden lg:block">
                       <Header />
@@ -59,7 +59,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                 )}
                 <main
                   className={
-                    isSalesInvoicePage
+                    isEntryFullscreenPage
                       ? `${mobileFullscreenMainClass} animate-fade-in`
                       : `${mobileMainContentClass} animate-fade-in`
                   }
