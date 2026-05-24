@@ -22,6 +22,36 @@ export function voucherCreditAmount(v: { total_amount?: number | null; discount_
   return Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0));
 }
 
+/** Tender captured on the sale row itself (cash / card / UPI columns) — matches classic Customer Ledger. */
+export function salePaidAtSaleTender(sale: {
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+}): number {
+  const cash = Number(sale.cash_amount || 0);
+  const card = Number(sale.card_amount || 0);
+  const upi = Number(sale.upi_amount || 0);
+  return Math.max(0, cash) + Math.max(0, card) + Math.max(0, upi);
+}
+
+export function payAtSaleParticulars(sale: {
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+  sale_number?: string | null;
+}): string {
+  const parts: string[] = [];
+  const cash = Number(sale.cash_amount || 0);
+  const card = Number(sale.card_amount || 0);
+  const upi = Number(sale.upi_amount || 0);
+  if (cash > 0) parts.push(`Cash: ₹${cash.toLocaleString("en-IN")}`);
+  if (card > 0) parts.push(`Card: ₹${card.toLocaleString("en-IN")}`);
+  if (upi > 0) parts.push(`UPI: ₹${upi.toLocaleString("en-IN")}`);
+  const sn = String(sale.sale_number || "").trim();
+  const base = sn ? `Payment at sale — ${sn}` : "Payment at sale";
+  return parts.length > 0 ? `${base} (${parts.join(", ")})` : base;
+}
+
 export type BuildAuditRowsOptions = {
   /** When true, sale/customer advance & CN application receipts are memo-only (matches CustomerLedgerPage). */
   ledgerAlignedApplicationReceipts?: boolean;
@@ -42,6 +72,12 @@ export function buildAuditRows(
 ): AuditRow[] {
   const useLedgerAlignedApps = options?.ledgerAlignedApplicationReceipts === true;
   const rows: AuditRow[] = [];
+
+  const salesWithAtSaleTender = new Set<string>(
+    params.sales
+      .filter((s) => salePaidAtSaleTender(s) > 0.005)
+      .map((s) => String((s as { id: string }).id)),
+  );
 
   for (const s of params.sales) {
     const st = String(s.payment_status || "").toLowerCase();
@@ -74,6 +110,20 @@ export function buildAuditRows(
         particulars: `Sale return / credit adjusted to ${sn}`,
         debit: 0,
         credit: sra,
+        internal: false,
+      });
+    }
+
+    const paidAtSale = salePaidAtSaleTender(s);
+    if (paidAtSale > 0.005) {
+      rows.push({
+        id: `pas-${(s as { id: string }).id}`,
+        at: d,
+        type: "Receipt",
+        ref: sn,
+        particulars: payAtSaleParticulars(s),
+        debit: 0,
+        credit: paidAtSale,
         internal: false,
       });
     }
@@ -131,6 +181,16 @@ export function buildAuditRows(
     }
 
     if (vt === "receipt") {
+      const refId = String(v.reference_id || "");
+      const desc = String(v.description || "").toLowerCase();
+      if (
+        refT === "sale" &&
+        refId &&
+        salesWithAtSaleTender.has(refId) &&
+        desc.startsWith("phase 4 backfill")
+      ) {
+        continue;
+      }
       const cr = voucherCreditAmount(v);
       if (cr <= 0) continue;
       rows.push({
@@ -262,7 +322,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
   const { data: allSales, error: salesErr } = await client
     .from("sales")
     .select(
-      "id, sale_number, sale_date, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+      "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
     )
     .eq("customer_id", customerId)
     .eq("organization_id", orgId)

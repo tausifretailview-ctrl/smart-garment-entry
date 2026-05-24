@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import { payAtSaleParticulars, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -141,7 +142,9 @@ export default function CustomerLedgerPage() {
       // ensure in-range invoices are never dropped by RPC-side joins/filters.
       let salesQuery = supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, payment_status, sale_return_adjust")
+        .select(
+          "id, sale_number, sale_date, net_amount, payment_status, sale_return_adjust, cash_amount, card_amount, upi_amount, paid_amount",
+        )
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -307,6 +310,7 @@ export default function CustomerLedgerPage() {
       const saleAdvCnApplied = new Map<string, number>();
 
       const saleReceiptLedgerRows: LedgerRow[] = [];
+      const receiptTotalBySaleId = new Map<string, number>();
       if (saleIds.length > 0) {
         let veSaleQ = supabase
           .from("voucher_entries")
@@ -335,8 +339,8 @@ export default function CustomerLedgerPage() {
           const isAdvanceApplied = pm === "advance_adjustment";
           const isCnApplied = pm === "credit_note_adjustment";
           const isMemoApplication = isAdvanceApplied || isCnApplied;
+          const refSaleId = (v as any).reference_id as string | null;
           if (isMemoApplication) {
-            const refSaleId = (v as any).reference_id as string | null;
             const refSaleNumber = refSaleId ? saleIdToNumber.get(refSaleId) : null;
             if (refSaleNumber) {
               saleAdvCnApplied.set(
@@ -344,6 +348,8 @@ export default function CustomerLedgerPage() {
                 (saleAdvCnApplied.get(refSaleNumber) || 0) + cr,
               );
             }
+          } else if (refSaleId) {
+            receiptTotalBySaleId.set(refSaleId, (receiptTotalBySaleId.get(refSaleId) || 0) + cr);
           }
           const descBase =
             (v as any).description ||
@@ -363,6 +369,47 @@ export default function CustomerLedgerPage() {
           });
         }
       }
+
+      // Pay-at-sale tender (cash/card/UPI on the bill) — same source as classic Customer Ledger.
+      const existingPayAtSaleRefs = new Set<string>();
+      for (const row of [
+        ...rpcRowsNormalized,
+        ...saleReceiptLedgerRows,
+      ]) {
+        const cr = Number(row.credit || 0);
+        if (cr <= 0.005) continue;
+        const vt = (row.voucher_type || "").toUpperCase();
+        if (vt !== "RECEIPT") continue;
+        const vn = (row.voucher_no || "").trim();
+        if (vn) existingPayAtSaleRefs.add(vn);
+        const p = (row.particulars || "").toLowerCase();
+        if (p.includes("payment at sale")) {
+          const m = (row.particulars || "").match(/(?:INV|POS)\/[\d-]+\/[\d]+/i);
+          if (m) existingPayAtSaleRefs.add(m[0].trim());
+        }
+      }
+
+      const payAtSaleLedgerRows: LedgerRow[] = (inRangeSales || [])
+        .filter((sale: any) => {
+          const sn = (sale.sale_number || "").trim();
+          if (!sn) return false;
+          const tender = salePaidAtSaleTender(sale);
+          if (tender <= 0.005) return false;
+          if (existingPayAtSaleRefs.has(sn)) return false;
+          const voucherPaid = receiptTotalBySaleId.get(sale.id) || 0;
+          if (voucherPaid >= tender - 0.01) return false;
+          return true;
+        })
+        .map((sale: any) => ({
+          id: `pas-${sale.id}`,
+          transaction_date: sale.sale_date,
+          voucher_type: "RECEIPT",
+          voucher_no: sale.sale_number || null,
+          particulars: payAtSaleParticulars(sale),
+          debit: 0,
+          credit: salePaidAtSaleTender(sale),
+          running_balance: 0,
+        }));
 
       // Opening balance payments & customer-level payment (refund) vouchers.
       let veCustQ = supabase
@@ -563,6 +610,7 @@ export default function CustomerLedgerPage() {
             };
           }),
           ...missingInvoiceRows,
+          ...payAtSaleLedgerRows,
           ...returnRows,
           ...creditNoteRows,
           ...saleReceiptLedgerRows,
