@@ -42,13 +42,17 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { AllOrgBackfillStatus } from "@/components/accounts/AllOrgBackfillStatus";
 import { PendingGlBackfillStatus } from "@/components/accounts/PendingGlBackfillStatus";
 import {
   fetchPendingGlBackfillCounts,
+  formatAllOrganizationsBackfillResult,
   formatHistoricalBackfillSummary,
   resetOrganizationGlLedger,
   runHistoricalAccountingBackfill,
   runHistoricalAccountingBackfillAllOrganizations,
+  type AllOrganizationsBackfillResult,
+  type AllOrgsBackfillProgress,
 } from "@/utils/accounting/historicalMigration";
 
 // Extracted tab components
@@ -82,6 +86,9 @@ export default function Accounts() {
   const [failedJournalSourceFilter, setFailedJournalSourceFilter] = useState<"all" | "sale" | "purchase">("all");
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillAllOrgsRunning, setBackfillAllOrgsRunning] = useState(false);
+  const [backfillAllProgress, setBackfillAllProgress] = useState<AllOrgsBackfillProgress | null>(null);
+  const [backfillAllLastResult, setBackfillAllLastResult] = useState<AllOrganizationsBackfillResult | null>(null);
+  const [backfillAllError, setBackfillAllError] = useState<string | null>(null);
   const [resetLedgerDialogOpen, setResetLedgerDialogOpen] = useState(false);
   const [resetLedgerRunning, setResetLedgerRunning] = useState(false);
   const ledgerMigrationBusy = backfillRunning || backfillAllOrgsRunning || resetLedgerRunning;
@@ -397,22 +404,30 @@ export default function Accounts() {
   const handleHistoricalBackfillAllOrganizations = async () => {
     if (!isPlatformAdmin || ledgerMigrationBusy) return;
     setBackfillAllOrgsRunning(true);
+    setBackfillAllProgress(null);
+    setBackfillAllLastResult(null);
+    setBackfillAllError(null);
     try {
-      const result = await runHistoricalAccountingBackfillAllOrganizations(supabase);
-      toast.success(
-        `All-org backfill done. Processed: ${result.organizationsProcessed}, GL off (skipped): ${result.organizationsSkipped}, failed: ${result.organizationsFailed}.`,
-        { duration: 12000 },
-      );
+      const result = await runHistoricalAccountingBackfillAllOrganizations(supabase, {
+        onProgress: (p) => setBackfillAllProgress(p),
+      });
+      setBackfillAllLastResult(result);
+      const summaryText = formatAllOrganizationsBackfillResult(result);
+      toast.success(`All-organization backfill finished. ${summaryText}`, { duration: 15000 });
       if (currentOrganization?.id) {
         invalidateLedgerQueries(currentOrganization.id);
       }
       queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+      void refetchPendingGlCounts();
       console.info("[historical backfill all orgs]", result);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "All-org backfill failed");
+      const message = e instanceof Error ? e.message : "All-org backfill failed";
+      setBackfillAllError(message);
+      toast.error(message, { duration: 15000 });
       console.error(e);
     } finally {
       setBackfillAllOrgsRunning(false);
+      setBackfillAllProgress(null);
     }
   };
 
@@ -806,6 +821,16 @@ export default function Accounts() {
               counts={pendingGlCounts}
               loading={pendingGlCountsLoading}
               onFailedClick={() => setShowFailedJournalsDialog(true)}
+            />
+            <AllOrgBackfillStatus
+              running={backfillAllOrgsRunning}
+              progress={backfillAllProgress}
+              result={backfillAllLastResult}
+              error={backfillAllError}
+              onDismiss={() => {
+                setBackfillAllLastResult(null);
+                setBackfillAllError(null);
+              }}
             />
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2 px-4 pb-3">

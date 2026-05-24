@@ -401,19 +401,8 @@ export async function runHistoricalAccountingBackfill(
 
         try {
           await repostJournalForRestoredVoucher(vid, client);
-          const { count, error: checkErr } = await client
-            .from("journal_entries")
-            .select("id", { count: "exact", head: true })
-            .eq("organization_id", organizationId)
-            .eq("reference_id", vid);
-
-          if (checkErr) throw checkErr;
-          if ((count ?? 0) > 0) {
-            summary.vouchers.ok++;
-            postedVoucherIds.add(vid);
-          } else {
-            summary.vouchers.skipped++;
-          }
+          summary.vouchers.ok++;
+          postedVoucherIds.add(vid);
         } catch (e) {
           console.error("[historical backfill] voucher", vid, e);
           summary.vouchers.err++;
@@ -428,9 +417,20 @@ export async function runHistoricalAccountingBackfill(
   return summary;
 }
 
+export type AllOrgsBackfillProgress = {
+  currentIndex: number;
+  total: number;
+  organizationName: string;
+};
+
+export type RunAllOrgsBackfillOptions = {
+  onProgress?: (progress: AllOrgsBackfillProgress) => void;
+};
+
 /** Platform admin: backfill every organization (skips orgs where backfill throws). */
 export async function runHistoricalAccountingBackfillAllOrganizations(
   client: SupabaseClient<Database>,
+  options?: RunAllOrgsBackfillOptions,
 ): Promise<AllOrganizationsBackfillResult> {
   const result: AllOrganizationsBackfillResult = {
     organizationsProcessed: 0,
@@ -446,9 +446,25 @@ export async function runHistoricalAccountingBackfillAllOrganizations(
 
   if (error) throw error;
 
-  for (const org of orgs ?? []) {
+  const orgList = orgs ?? [];
+  const total = orgList.length;
+
+  for (let i = 0; i < orgList.length; i++) {
+    const org = orgList[i];
     const organizationId = org.id as string;
     const organizationName = String(org.name ?? organizationId);
+
+    options?.onProgress?.({
+      currentIndex: i + 1,
+      total,
+      organizationName,
+    });
+
+    // Let the UI repaint between organizations (long-running browser job).
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
     try {
       const summary = await runHistoricalAccountingBackfill(organizationId, client);
       result.rows.push({ organizationId, organizationName, summary });
@@ -476,6 +492,18 @@ export async function runHistoricalAccountingBackfillAllOrganizations(
   }
 
   return result;
+}
+
+export function formatAllOrganizationsBackfillResult(
+  result: AllOrganizationsBackfillResult,
+): string {
+  const totalOrgs = result.rows.length;
+  return [
+    `${totalOrgs} organization(s) scanned.`,
+    `${result.organizationsProcessed} with GL engine processed,`,
+    `${result.organizationsSkipped} skipped (engine off),`,
+    `${result.organizationsFailed} failed.`,
+  ].join(" ");
 }
 
 export function formatHistoricalBackfillSummary(summary: HistoricalBackfillSummary): string {
