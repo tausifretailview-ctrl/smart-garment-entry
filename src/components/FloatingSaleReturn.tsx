@@ -20,6 +20,7 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -63,6 +64,8 @@ interface SaleItemRecord {
   per_qty_net_amount: number;
   unit_price: number;
   line_total: number;
+  net_after_discount?: number;
+  discount_percent?: number;
 }
 
 interface FloatingSaleReturnProps {
@@ -102,6 +105,8 @@ export const FloatingSaleReturn = ({
   /** When refund type is direct refund: how the shop paid the customer (Cash → 1000, UPI/Card/Bank → 1010). */
   const [directRefundPaymentMethod, setDirectRefundPaymentMethod] = useState<DirectRefundPaymentMethod>("cash");
   const [useOriginalPrice, setUseOriginalPrice] = useState(false);
+  const [billFlatDiscount, setBillFlatDiscount] = useState(0);
+  const [billRoundOff, setBillRoundOff] = useState(0);
 
   // Inline customer picker (used when no customer was passed from POS)
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -315,7 +320,7 @@ export const FloatingSaleReturn = ({
     try {
       const { data: sale } = await supabase
         .from("sales")
-        .select("id")
+        .select("id, flat_discount_amount, round_off")
         .eq("sale_number", billNumber.trim())
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
@@ -325,15 +330,19 @@ export const FloatingSaleReturn = ({
         toast({ title: "Not Found", description: `No sale found with number "${billNumber.trim()}"`, variant: "destructive" });
         setBillSaleId(null);
         setBillItems([]);
+        setBillFlatDiscount(0);
+        setBillRoundOff(0);
         setBillLookupLoading(false);
         return;
       }
 
       setBillSaleId(sale.id);
+      setBillFlatDiscount(Number(sale.flat_discount_amount) || 0);
+      setBillRoundOff(Number(sale.round_off) || 0);
 
       const { data: items } = await supabase
         .from("sale_items")
-        .select("variant_id, product_id, product_name, size, barcode, quantity, per_qty_net_amount, unit_price, line_total")
+        .select("variant_id, product_id, product_name, size, barcode, quantity, per_qty_net_amount, unit_price, line_total, net_after_discount, discount_percent")
         .eq("sale_id", sale.id)
         .is("deleted_at", null);
 
@@ -348,41 +357,37 @@ export const FloatingSaleReturn = ({
   };
 
   const fetchUnitPrice = async (variantId: string, fallbackPrice: number): Promise<number> => {
+    const priceOpts = {
+      useOriginalPrice,
+      billFlatDiscount: billFlatDiscount,
+      billRoundOff: billRoundOff,
+    };
+
     if (billSaleId && billItems.length > 0) {
       const billItem = billItems.find(bi => bi.variant_id === variantId);
       if (billItem) {
-        if (useOriginalPrice && billItem.unit_price && billItem.unit_price > 0) {
-          return billItem.unit_price;
-        }
-        if (billItem.per_qty_net_amount && billItem.per_qty_net_amount > 0) {
-          return billItem.per_qty_net_amount;
-        }
-        if (billItem.line_total && billItem.quantity) {
-          return billItem.line_total / billItem.quantity;
-        }
+        const resolved = resolveSaleReturnUnitPrice(billItem, priceOpts);
+        if (resolved > 0) return resolved;
       }
     }
 
-    const priceField = useOriginalPrice ? "unit_price" : "per_qty_net_amount";
-    const { data: saleItemData } = await supabase
+    let query = supabase
       .from("sale_items")
-      .select(`${priceField}, unit_price, per_qty_net_amount, line_total, quantity`)
+      .select("unit_price, per_qty_net_amount, line_total, quantity, net_after_discount, discount_percent")
       .eq("variant_id", variantId)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .is("deleted_at", null);
+
+    if (billSaleId) {
+      query = query.eq("sale_id", billSaleId);
+    } else {
+      query = query.order("created_at", { ascending: false }).limit(1);
+    }
+
+    const { data: saleItemData } = await query.maybeSingle();
 
     if (saleItemData) {
-      if (useOriginalPrice && saleItemData.unit_price && saleItemData.unit_price > 0) {
-        return saleItemData.unit_price;
-      }
-      if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
-        return saleItemData.per_qty_net_amount;
-      }
-      if (saleItemData.line_total && saleItemData.quantity) {
-        return saleItemData.line_total / saleItemData.quantity;
-      }
+      const resolved = resolveSaleReturnUnitPrice(saleItemData, priceOpts);
+      if (resolved > 0) return resolved;
     }
     return fallbackPrice;
   };
@@ -1103,7 +1108,15 @@ export const FloatingSaleReturn = ({
                   <span className="flex items-center gap-3 shrink-0 ml-2">
                     <span className="text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-mono dark:bg-violet-900/30 dark:text-violet-400">{bi.size}</span>
                     <span className="text-xs text-muted-foreground">×{bi.quantity}</span>
-                    <span className="text-xs font-semibold">₹{Math.round(bi.per_qty_net_amount || (bi.line_total / bi.quantity) || 0)}</span>
+                    <span className="text-xs font-semibold">
+                      ₹{Math.round(
+                        resolveSaleReturnUnitPrice(bi, {
+                          useOriginalPrice,
+                          billFlatDiscount,
+                          billRoundOff,
+                        }),
+                      )}
+                    </span>
                     {alreadyAdded && <span className="text-[10px] text-green-600">✓ Added</span>}
                   </span>
                 </button>

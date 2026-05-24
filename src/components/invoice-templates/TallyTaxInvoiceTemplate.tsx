@@ -377,18 +377,6 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
         >
           {grandTotal < 0 ? 'CREDIT NOTE' : 'TAX INVOICE'}
         </div>
-        <div
-          style={{
-            textAlign: "center",
-            borderBottom: b,
-            padding: "3px 0",
-            fontSize: "9px",
-            flexShrink: 0,
-            backgroundColor: "#fafafa",
-          }}
-        >
-          {isGstInclusive ? "Amounts are GST Inclusive (GST bifurcation below)" : "Amounts are GST Exclusive (GST added below)"}
-        </div>
 
         {/* Seller + Invoice Details */}
         <div style={{ display: "flex", borderBottom: b, flexShrink: 0 }}>

@@ -23,6 +23,11 @@ import { Trash2, Search, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  resolveSaleReturnLineTotal,
+  resolveSaleReturnUnitPrice,
+  type SaleItemPriceFields,
+} from "@/utils/saleReturnPricing";
 
 interface Customer {
   id: string;
@@ -129,7 +134,13 @@ export default function SaleReturnEntry() {
     hsnCode: string;
     productId: string;
     quantity: number;
+    paidLineTotal: number;
+    originalUnitPrice?: number;
+    discountPercent?: number;
+    rawItem: SaleItemPriceFields;
   }>>([]);
+  const [linkedSaleFlatDiscount, setLinkedSaleFlatDiscount] = useState(0);
+  const [linkedSaleRoundOff, setLinkedSaleRoundOff] = useState(0);
   const [saleLoading, setSaleLoading] = useState(false);
   const [saleLoaded, setSaleLoaded] = useState(false);
   const [selectedSaleItemIds, setSelectedSaleItemIds] = useState<Set<string>>(new Set());
@@ -326,11 +337,17 @@ export default function SaleReturnEntry() {
       barcodeMatch
     );
   });
+  const saleReturnPriceOpts = () => ({
+    useOriginalPrice: useOriginalPriceForReturn,
+    billFlatDiscount: linkedSaleFlatDiscount,
+    billRoundOff: linkedSaleRoundOff,
+  });
+
   // Get unit price from a specific sale's items for a given variant
   const getPriceFromSale = async (
-    variantId: string, 
+    variantId: string,
     specificSaleId?: string,
-    useOriginalPrice?: boolean
+    useOriginalPrice?: boolean,
   ): Promise<{ price: number; originalPrice?: number; discountPercent?: number } | null> => {
     try {
       let query = supabase
@@ -348,30 +365,31 @@ export default function SaleReturnEntry() {
       const { data } = await query.maybeSingle();
       if (!data) return null;
 
-      const origPrice = (data.unit_price && data.unit_price > 0) ? data.unit_price : undefined;
-      const discPct = (data.discount_percent && data.discount_percent > 0) ? data.discount_percent : undefined;
-
-      let price: number | null = null;
-      const qty = Number(data.quantity) || 0;
-      const perQtyFromNetAfter =
-        data.net_after_discount != null &&
-        qty > 0 &&
-        Number(data.net_after_discount) > 0.005
-          ? Number(data.net_after_discount) / qty
-          : null;
-      if (useOriginalPrice) {
-        // Return original price before discount (for exchange scenarios)
-        if (data.unit_price && data.unit_price > 0) price = data.unit_price;
-        else if (data.per_qty_net_amount && data.per_qty_net_amount > 0) price = data.per_qty_net_amount;
-      } else {
-        // DEFAULT: paid unit — prefer net_after_discount (post flat/round) then per_qty_net_amount
-        if (perQtyFromNetAfter != null && perQtyFromNetAfter > 0.005) price = perQtyFromNetAfter;
-        else if (data.per_qty_net_amount && data.per_qty_net_amount > 0.005) price = data.per_qty_net_amount;
-        else if (data.line_total && data.quantity) price = data.line_total / data.quantity;
-        else if (data.unit_price && data.unit_price > 0) price = data.unit_price;
+      let billFlat = linkedSaleFlatDiscount;
+      let billRound = linkedSaleRoundOff;
+      if (specificSaleId && billFlat <= 0.01 && Math.abs(billRound) < 0.001) {
+        const { data: saleHdr } = await supabase
+          .from('sales')
+          .select('flat_discount_amount, round_off')
+          .eq('id', specificSaleId)
+          .maybeSingle();
+        if (saleHdr) {
+          billFlat = Number(saleHdr.flat_discount_amount) || 0;
+          billRound = Number(saleHdr.round_off) || 0;
+        }
       }
 
-      if (price === null) return null;
+      const opts = {
+        useOriginalPrice: useOriginalPrice ?? useOriginalPriceForReturn,
+        billFlatDiscount: billFlat,
+        billRoundOff: billRound,
+      };
+      const price = resolveSaleReturnUnitPrice(data, opts);
+      if (price <= 0) return null;
+
+      const origPrice = data.unit_price && data.unit_price > 0 ? data.unit_price : undefined;
+      const discPct =
+        data.discount_percent && data.discount_percent > 0 ? data.discount_percent : undefined;
       return { price, originalPrice: origPrice, discountPercent: discPct };
     } catch {
       return null;
@@ -573,7 +591,9 @@ export default function SaleReturnEntry() {
     try {
       const { data: sale, error: saleError } = await supabase
         .from('sales')
-        .select('id, customer_id, sale_items(id, product_id, variant_id, product_name, size, color, barcode, unit_price, gst_percent, hsn_code, quantity, line_total)')
+        .select(
+          'id, customer_id, flat_discount_amount, round_off, sale_items(id, product_id, variant_id, product_name, size, color, barcode, unit_price, gst_percent, hsn_code, quantity, line_total, per_qty_net_amount, net_after_discount, discount_percent)',
+        )
         .eq('organization_id', currentOrganization.id)
         .eq('sale_number', originalSaleNumber.trim())
         .is('deleted_at', null)
@@ -600,19 +620,51 @@ export default function SaleReturnEntry() {
         }
       }
 
+      const billFlat = Number((sale as any).flat_discount_amount) || 0;
+      const billRound = Number((sale as any).round_off) || 0;
+      setLinkedSaleFlatDiscount(billFlat);
+      setLinkedSaleRoundOff(billRound);
+
+      const priceOpts = {
+        useOriginalPrice: useOriginalPriceForReturn,
+        billFlatDiscount: billFlat,
+        billRoundOff: billRound,
+      };
+
       const saleItemsArr = (sale as any).sale_items || [];
-      const items = saleItemsArr.map((item: any) => ({
-        variantId: item.variant_id || '',
-        productName: item.product_name || '',
-        size: item.size || '',
-        color: item.color || null,
-        barcode: item.barcode || null,
-        unitPrice: item.unit_price || 0,
-        gstPercent: item.gst_percent || 0,
-        hsnCode: item.hsn_code || '',
-        productId: item.product_id || '',
-        quantity: item.quantity || 1,
-      }));
+      const items = saleItemsArr.map((item: any) => {
+        const raw: SaleItemPriceFields = {
+          unit_price: item.unit_price,
+          per_qty_net_amount: item.per_qty_net_amount,
+          net_after_discount: item.net_after_discount,
+          line_total: item.line_total,
+          quantity: item.quantity,
+          discount_percent: item.discount_percent,
+        };
+        const qty = Number(item.quantity) || 1;
+        const unitPrice = resolveSaleReturnUnitPrice(raw, priceOpts);
+        const paidLineTotal = resolveSaleReturnLineTotal(raw, qty, priceOpts);
+        return {
+          variantId: item.variant_id || '',
+          productName: item.product_name || '',
+          size: item.size || '',
+          color: item.color || null,
+          barcode: item.barcode || null,
+          unitPrice,
+          gstPercent: item.gst_percent || 0,
+          hsnCode: item.hsn_code || '',
+          productId: item.product_id || '',
+          quantity: qty,
+          paidLineTotal,
+          originalUnitPrice:
+            item.unit_price && item.unit_price > 0 ? item.unit_price : undefined,
+          discountPercent:
+            item.discount_percent && item.discount_percent > 0
+              ? item.discount_percent
+              : undefined,
+          rawItem: raw,
+        };
+      });
 
       setOriginalSaleId(sale.id);
       setSaleItems(items);
@@ -636,8 +688,11 @@ export default function SaleReturnEntry() {
 
   const addSelectedSaleItems = () => {
     const toAdd = saleItems.filter(item => selectedSaleItemIds.has(item.variantId));
+    const priceOpts = saleReturnPriceOpts();
     toAdd.forEach(item => {
-      const lineTotal = item.unitPrice * item.quantity;
+      const lineTotal = resolveSaleReturnLineTotal(item.rawItem, item.quantity, priceOpts);
+      const unitPrice =
+        item.quantity > 0 ? lineTotal / item.quantity : item.unitPrice;
       setReturnItems(prev => {
         const exists = prev.find(p => p.variantId === item.variantId);
         if (exists) return prev;
@@ -649,10 +704,12 @@ export default function SaleReturnEntry() {
           color: item.color || undefined,
           barcode: item.barcode,
           quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          unitPrice,
           gstPercent: item.gstPercent,
           lineTotal,
           hsnCode: item.hsnCode,
+          originalPrice: item.originalUnitPrice,
+          discountPercent: item.discountPercent,
         }];
       });
     });
@@ -1188,6 +1245,8 @@ export default function SaleReturnEntry() {
                   onChange={(e) => {
                     setOriginalSaleNumber(e.target.value);
                     setOriginalSaleId('');
+                    setLinkedSaleFlatDiscount(0);
+                    setLinkedSaleRoundOff(0);
                     setSaleLoaded(false);
                     setSaleItems([]);
                     setSelectedSaleItemIds(new Set());
@@ -1276,7 +1335,15 @@ export default function SaleReturnEntry() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-bold text-foreground">₹{item.unitPrice.toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {item.quantity} | GST: {item.gstPercent}%</p>
+                    {item.originalUnitPrice != null &&
+                      Math.abs(item.originalUnitPrice - item.unitPrice) > 0.01 && (
+                        <p className="text-xs text-muted-foreground line-through">
+                          ₹{item.originalUnitPrice.toFixed(2)}
+                        </p>
+                      )}
+                    <p className="text-xs text-muted-foreground">
+                      Qty: {item.quantity} | Line: ₹{item.paidLineTotal.toFixed(2)} | GST: {item.gstPercent}%
+                    </p>
                   </div>
                 </div>
               );
