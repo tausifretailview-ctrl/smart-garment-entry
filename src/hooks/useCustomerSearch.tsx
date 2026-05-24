@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
+import { fetchAllCustomers, fetchCustomerTrueOutstandingMap } from "@/utils/fetchAllRows";
 
 interface Customer {
   id: string;
@@ -167,82 +168,21 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
 };
 
 /**
- * Hook to get customer balances and advance amounts for dropdown display
- * Includes both sales.paid_amount and voucher_entries payments for accurate balance
+ * Hook to get customer balances and advance amounts for dropdown display.
+ * Lifetime outstanding uses `get_customer_true_outstanding` (same RPC as Customer Ledger).
  */
 export const useCustomerBalances = () => {
   const { currentOrganization } = useOrganization();
 
-  const { data: customerBalances = {} } = useQuery({
+  const { data: customerOutstanding = {} } = useQuery({
     queryKey: ["customer-balances-search", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return {};
-      
-      // Fetch all sales with customer_id
-      const { data: sales, error: salesError } = await supabase
-        .from("sales")
-        .select("id, customer_id, net_amount, paid_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .not("customer_id", "is", null);
-      
-      if (salesError) throw salesError;
-      
-      // Fetch all voucher receipt payments
-      const { data: vouchers, error: vouchersError } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount")
-        .eq("organization_id", currentOrganization.id)
-        .eq("voucher_type", "receipt")
-        .is("deleted_at", null);
-      
-      if (vouchersError) throw vouchersError;
 
-      // Create maps for voucher payments
-      const openingBalancePayments: Record<string, number> = {};
-      const invoiceVoucherPayments: Record<string, number> = {};
-      
-      const saleToCustomerMap: Record<string, string> = {};
-      sales?.forEach(sale => {
-        if (sale.customer_id) {
-          saleToCustomerMap[sale.id] = sale.customer_id;
-        }
-      });
-
-      vouchers?.forEach(v => {
-        if (!v.reference_id) return;
-        
-        const customerId = saleToCustomerMap[v.reference_id];
-        if (customerId) {
-          invoiceVoucherPayments[v.reference_id] = (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
-        } else if (v.reference_type === 'customer') {
-          openingBalancePayments[v.reference_id] = (openingBalancePayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
-        }
-      });
-      
-      // Aggregate by customer_id
-      const balanceMap: Record<string, { totalSales: number; totalPaid: number }> = {};
-      sales?.forEach((sale) => {
-        if (!sale.customer_id) return;
-        if (!balanceMap[sale.customer_id]) {
-          balanceMap[sale.customer_id] = { totalSales: 0, totalPaid: 0 };
-        }
-        balanceMap[sale.customer_id].totalSales += sale.net_amount || 0;
-        
-        const salePaidAmount = sale.paid_amount || 0;
-        const invoiceVoucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        balanceMap[sale.customer_id].totalPaid += Math.max(salePaidAmount, invoiceVoucherAmount);
-      });
-
-      // Add opening balance payments
-      Object.entries(openingBalancePayments).forEach(([customerId, amount]) => {
-        if (!balanceMap[customerId]) {
-          balanceMap[customerId] = { totalSales: 0, totalPaid: 0 };
-        }
-        balanceMap[customerId].totalPaid += amount;
-      });
-      
-      return balanceMap;
+      const rows = await fetchAllCustomers(currentOrganization.id);
+      const ids = rows.map((c: { id: string }) => c.id).filter(Boolean);
+      const map = await fetchCustomerTrueOutstandingMap(currentOrganization.id, ids);
+      return Object.fromEntries(map) as Record<string, number>;
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30 * 1000,
@@ -307,11 +247,10 @@ export const useCustomerBalances = () => {
     refetchOnWindowFocus: true,
   });
 
-  const getCustomerBalance = useCallback((customer: Customer) => {
-    const openingBalance = customer.opening_balance || 0;
-    const salesData = customerBalances[customer.id] || { totalSales: 0, totalPaid: 0 };
-    return openingBalance + salesData.totalSales - salesData.totalPaid;
-  }, [customerBalances]);
+  const getCustomerBalance = useCallback(
+    (customer: Customer) => customerOutstanding[customer.id] ?? 0,
+    [customerOutstanding],
+  );
 
   const getCustomerAdvance = useCallback((customerId: string) => {
     return advanceBalances[customerId] || 0;
@@ -322,7 +261,7 @@ export const useCustomerBalances = () => {
   }, [creditNoteBalances]);
 
   return {
-    customerBalances,
+    customerBalances: customerOutstanding,
     getCustomerBalance,
     getCustomerAdvance,
     getCustomerCreditNote,

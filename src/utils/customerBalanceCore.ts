@@ -1,3 +1,5 @@
+import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
+
 /**
  * Single source of truth for customer lifetime outstanding.
  * Formula aligned with `reconcile_customer_balance` / `get_customer_true_outstanding` (SQL)
@@ -75,6 +77,9 @@ export type CustomerBalanceCoreSale = {
   net_amount?: number | null;
   sale_return_adjust?: number | null;
   paid_amount?: number | null;
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
   payment_status?: string | null;
   is_cancelled?: boolean | null;
 };
@@ -193,7 +198,7 @@ export function computePaidAmountDrift(
 
   let drift = 0;
   for (const s of validSales) {
-    const paid = Number(s.paid_amount || 0);
+    const paid = Math.max(Number(s.paid_amount || 0), salePaidAtSaleTender(s));
     if (paid <= 0 || !s.id) continue;
     const voucherSum = voucherTotalsBySale.get(s.id) || 0;
     const gap = paid - voucherSum;

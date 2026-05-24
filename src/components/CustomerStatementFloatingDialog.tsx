@@ -107,16 +107,21 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
   }, [customers, search, dueOnly, getCustomerBalance, currentOrganization?.id]);
 
   const selected = useMemo(() => customers.find((c) => c.id === selectedId) ?? null, [customers, selectedId]);
+  const orgId = currentOrganization?.id ?? "";
 
   const snapshot = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
+
+  /** Same lifetime outstanding as the list (Customer Ledger / `get_customer_true_outstanding`). */
+  const ledgerOutstanding = useMemo(() => {
+    if (!selected || !orgId) return 0;
+    return getCustomerBalance(toBalanceCustomer(selected, orgId));
+  }, [selected, orgId, getCustomerBalance]);
 
   const openAuditPage = () => {
     if (!selectedId) return;
     onOpenChange(false);
     orgNavigate(`/customer-account-statement-audit?customer=${encodeURIComponent(selectedId)}`);
   };
-
-  const orgId = currentOrganization?.id ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,8 +162,8 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                 Customer statement — quick lookup
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Search customers, see receivable balance (same basis as POS customer picker). Open the full audit
-                register for the selected customer.
+                Search customers, see receivable balance (same basis as Customer Ledger and POS customer picker).
+                Open the full audit register for the selected customer.
               </DialogDescription>
             </DialogHeader>
 
@@ -280,19 +285,19 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                   <Card className="shrink-0">
                     <CardContent className="p-3 space-y-2 text-sm">
                       <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground">Outstanding (snapshot)</span>
+                        <span className="text-muted-foreground">Outstanding (ledger)</span>
                         <span
                           className={cn(
                             "font-bold tabular-nums",
-                            snapshot.balance > 0.005
+                            ledgerOutstanding > 0.005
                               ? "text-red-600 dark:text-red-400"
-                              : snapshot.balance < -0.005
+                              : ledgerOutstanding < -0.005
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : "",
                           )}
                         >
-                          ₹{inr.format(Math.abs(snapshot.balance))}
-                          {snapshot.balance > 0.005 ? " Dr" : snapshot.balance < -0.005 ? " Cr" : ""}
+                          ₹{inr.format(Math.abs(ledgerOutstanding))}
+                          {ledgerOutstanding > 0.005 ? " Dr" : ledgerOutstanding < -0.005 ? " Cr" : ""}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground border-t pt-2">
