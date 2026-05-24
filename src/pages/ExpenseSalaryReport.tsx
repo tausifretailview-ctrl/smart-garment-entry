@@ -11,7 +11,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, FileSpreadsheet, Printer, TrendingDown, Wallet, IndianRupee, Layers } from "lucide-react";
+import {
+  CalendarIcon,
+  FileSpreadsheet,
+  Printer,
+  TrendingDown,
+  Wallet,
+  IndianRupee,
+  Layers,
+  Loader2,
+} from "lucide-react";
+import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
+import {
+  accountsHistoryTableClass,
+  accountsHistoryThClass,
+} from "@/components/accounts/accountsHistoryUi";
+import { CardDescription } from "@/components/ui/card";
+import {
+  fetchExpenseSalaryReportRows,
+  type ExpenseSalaryReportRow,
+} from "@/utils/expenseSalaryReportData";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, eachDayOfInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -53,29 +72,7 @@ type DatePreset = "today" | "this_week" | "this_month" | "last_month" | "custom"
 type EntryTypeFilter = "all" | "expense" | "salary";
 type SortDirection = "asc" | "desc";
 
-interface VoucherEntryLite {
-  id: string;
-  voucher_date: string;
-  voucher_number: string | null;
-  voucher_type: string | null;
-  reference_type: string | null;
-  reference_id: string | null;
-  category: string | null;
-  description: string | null;
-  payment_method: string | null;
-  total_amount: number | null;
-}
-
-interface ReportRow {
-  id: string;
-  date: string;
-  type: "Expense" | "Salary";
-  categoryOrEmployee: string;
-  description: string;
-  paymentMethod: string;
-  amount: number;
-  voucherNumber: string;
-}
+type ReportRow = ExpenseSalaryReportRow;
 
 const getPresetRange = (preset: DatePreset) => {
   const today = new Date();
@@ -87,17 +84,6 @@ const getPresetRange = (preset: DatePreset) => {
   }
   // default this_month
   return { from: startOfMonth(today), to: today };
-};
-
-const normalizeMethod = (raw?: string | null) => {
-  const method = (raw || "").toLowerCase().trim();
-  if (method === "upi") return "UPI";
-  if (method === "card") return "Card";
-  if (method === "cash") return "Cash";
-  if (method.includes("bank")) return "Bank Transfer";
-  if (method.includes("cheque") || method.includes("check")) return "Cheque";
-  if (!method) return "Cash";
-  return "Bank Transfer";
 };
 
 export default function ExpenseSalaryReport() {
@@ -142,61 +128,26 @@ export default function ExpenseSalaryReport() {
   const { data: reportRows = [], isLoading } = useQuery({
     queryKey: ["expense-salary-report", currentOrganization?.id, fromDateStr, toDateStr],
     enabled: !!currentOrganization?.id,
-    queryFn: async (): Promise<ReportRow[]> => {
-      const { data: vouchers, error } = await supabase
-        .from("voucher_entries")
-        .select("id, voucher_date, voucher_number, voucher_type, reference_type, reference_id, category, description, payment_method, total_amount")
-        .eq("organization_id", currentOrganization!.id)
-        .eq("voucher_type", "payment")
-        .is("deleted_at", null)
-        .gte("voucher_date", fromDateStr)
-        .lte("voucher_date", toDateStr)
-        .or("reference_type.in.(expense,employee),category.not.is.null");
+    queryFn: () =>
+      fetchExpenseSalaryReportRows(currentOrganization!.id, fromDateStr, toDateStr, supabase),
+  });
 
+  const { data: pnlExpenseTotal } = useQuery({
+    queryKey: ["expense-salary-pnl-check", currentOrganization?.id, fromDateStr, toDateStr],
+    enabled: !!currentOrganization?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_expense_by_category", {
+        p_org_id: currentOrganization!.id,
+        p_from_date: fromDateStr,
+        p_to_date: toDateStr,
+      });
       if (error) throw error;
-
-      const allVouchers = (vouchers || []) as VoucherEntryLite[];
-
-      const employeeIds = Array.from(
-        new Set(
-          allVouchers
-            .filter((v) => v.reference_type === "employee" && v.reference_id)
-            .map((v) => v.reference_id as string)
-        )
+      return ((data as Array<{ amount?: number }>) || []).reduce(
+        (sum, row) => sum + Number(row.amount || 0),
+        0,
       );
-
-      let employeeNameById = new Map<string, string>();
-      if (employeeIds.length > 0) {
-        const { data: employees, error: employeeErr } = await supabase
-          .from("employees")
-          .select("id, employee_name")
-          .in("id", employeeIds);
-        if (employeeErr) throw employeeErr;
-        employeeNameById = new Map((employees || []).map((e: any) => [e.id, e.employee_name || "Employee"]));
-      }
-
-      return allVouchers
-        .filter((v) => {
-          const isSalary = v.reference_type === "employee";
-          const isExpense = v.reference_type === "expense" || !!v.category;
-          return isSalary || isExpense;
-        })
-        .map((v) => {
-          const isSalary = v.reference_type === "employee";
-          return {
-            id: v.id,
-            date: v.voucher_date || "",
-            type: isSalary ? "Salary" : "Expense",
-            categoryOrEmployee: isSalary
-              ? employeeNameById.get(v.reference_id || "") || "Employee"
-              : (v.category || "Uncategorized"),
-            description: v.description || "",
-            paymentMethod: normalizeMethod(v.payment_method),
-            amount: Number(v.total_amount || 0),
-            voucherNumber: v.voucher_number || "-",
-          } satisfies ReportRow;
-        });
     },
+    staleTime: 60_000,
   });
 
   const categories = useMemo(() => {
@@ -333,15 +284,25 @@ export default function ExpenseSalaryReport() {
 
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
+  const reportExpenseTotal = useMemo(
+    () => reportRows.filter((r) => r.type === "Expense").reduce((s, r) => s + r.amount, 0),
+    [reportRows],
+  );
+  const pnlExpenseAligned =
+    pnlExpenseTotal == null || Math.abs(reportExpenseTotal - pnlExpenseTotal) <= 0.01;
+
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-24 lg:pb-6 print:bg-white print:p-0">
+      <div ref={printRef} className="space-y-4 print:space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap print:hidden">
-        <div className="flex items-center gap-3">
+        <div className="space-y-1">
           <BackToDashboard />
-          <div>
-            <h1 className="text-2xl font-bold">Expense &amp; Salary Report</h1>
-            <p className="text-sm text-muted-foreground">
-              {format(activeRange.from, "dd MMM yyyy")} - {format(activeRange.to, "dd MMM yyyy")}
+          <div className="pt-2">
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+              Expense &amp; Salary Report
+            </h1>
+            <p className="text-slate-400 text-base mt-0.5">
+              {format(activeRange.from, "dd MMM yyyy")} – {format(activeRange.to, "dd MMM yyyy")}
             </p>
           </div>
         </div>
@@ -395,7 +356,6 @@ export default function ExpenseSalaryReport() {
         </div>
       </div>
 
-      <div ref={printRef} className="space-y-6">
         <div className="hidden print:block text-center border-b pb-3">
           <h2 className="text-lg font-bold">Expense &amp; Salary Report</h2>
           <p className="text-sm">
@@ -403,40 +363,66 @@ export default function ExpenseSalaryReport() {
           </p>
         </div>
 
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><TrendingDown className="h-4 w-4 text-rose-600" />Total Expenses</CardTitle>
+        {!pnlExpenseAligned && !isLoading && (
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 print:hidden">
+            Expense total on this report ({fmt(reportExpenseTotal)}) differs from P&amp;L expense RPC (
+            {fmt(pnlExpenseTotal ?? 0)}). Refresh the page; if it persists, check for deleted vouchers in range.
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 print:hidden">
+          <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-rose-500 to-rose-600">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Total Expenses</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingDown className="h-3.5 w-3.5 text-white" />
+              </div>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(kpis.totalExpenses)}</div></CardContent>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-lg xl:text-xl font-black text-white tabular-nums">{fmt(kpis.totalExpenses)}</div>
+              <p className="text-xs text-white/65">voucher_type = expense</p>
+            </CardContent>
           </Card>
-          <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><Wallet className="h-4 w-4 text-indigo-600" />Total Salary Paid</CardTitle>
+          <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Total Salary Paid</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+                <Wallet className="h-3.5 w-3.5 text-white" />
+              </div>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(kpis.totalSalary)}</div></CardContent>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-lg xl:text-xl font-black text-white tabular-nums">{fmt(kpis.totalSalary)}</div>
+              <p className="text-xs text-white/65">Employee salary vouchers</p>
+            </CardContent>
           </Card>
-          <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><Layers className="h-4 w-4 text-emerald-600" />Combined Total</CardTitle>
+          <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Combined Total</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+                <Layers className="h-3.5 w-3.5 text-white" />
+              </div>
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{fmt(kpis.combined)}</div></CardContent>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-lg xl:text-xl font-black text-white tabular-nums">{fmt(kpis.combined)}</div>
+              <p className="text-xs text-white/65">Matches P&amp;L outflows</p>
+            </CardContent>
           </Card>
-          <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><IndianRupee className="h-4 w-4 text-amber-600" />Top Category</CardTitle>
+          <Card className="border-0 shadow-md rounded-xl bg-gradient-to-br from-amber-500 to-amber-600">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Top Category</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center">
+                <IndianRupee className="h-3.5 w-3.5 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="font-semibold truncate">{kpis.topCategory}</div>
-              <div className="text-lg font-bold">{fmt(kpis.topCategoryAmount)}</div>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-sm font-bold text-white truncate">{kpis.topCategory}</div>
+              <div className="text-lg xl:text-xl font-black text-white tabular-nums">{fmt(kpis.topCategoryAmount)}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
-          <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 print:hidden">
+          <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <CardHeader><CardTitle className="text-base">Expenses by Category</CardTitle></CardHeader>
             <CardContent className="h-[300px]">
               {expensePieData.length === 0 ? (
@@ -469,7 +455,7 @@ export default function ExpenseSalaryReport() {
             </CardContent>
           </Card>
 
-          <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
+          <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <CardHeader><CardTitle className="text-base">Daily Expense Trend</CardTitle></CardHeader>
             <CardContent className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -487,28 +473,36 @@ export default function ExpenseSalaryReport() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700 print:hidden">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
-              <Input
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                placeholder="Search description, narration, employee"
-                className="xl:col-span-2"
-              />
-
+        <AccountsHistoryPanel
+          className="print:border print:shadow-none"
+          title="Transactions"
+          toolbar={
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {filteredRows.length} rows · Page {currentPage} of {totalPages}
+            </span>
+          }
+          searchPlaceholder="Search description, narration, employee…"
+          searchValue={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          filters={
+            <>
               <Select value={categoryFilter} onValueChange={(value) => { setCategoryFilter(value); setCurrentPage(1); }}>
-                <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+                <SelectTrigger className="w-[140px] h-9 text-sm border-slate-200 bg-slate-50">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
                 <SelectContent>
                   {categories.map((c) => (
                     <SelectItem key={c} value={c}>{c === "all" ? "All Categories" : c}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-
               <Select value={paymentMethodFilter} onValueChange={(value) => { setPaymentMethodFilter(value); setCurrentPage(1); }}>
-                <SelectTrigger><SelectValue placeholder="Payment Method" /></SelectTrigger>
+                <SelectTrigger className="w-[130px] h-9 text-sm border-slate-200 bg-slate-50">
+                  <SelectValue placeholder="Method" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Methods</SelectItem>
                   <SelectItem value="Cash">Cash</SelectItem>
@@ -518,91 +512,30 @@ export default function ExpenseSalaryReport() {
                   <SelectItem value="Cheque">Cheque</SelectItem>
                 </SelectContent>
               </Select>
-
-              <Tabs value={typeFilter} onValueChange={(v) => { setTypeFilter(v as EntryTypeFilter); setCurrentPage(1); }} className="xl:col-span-1">
-                <TabsList className="grid grid-cols-3">
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="expense">Exp</TabsTrigger>
-                  <TabsTrigger value="salary">Sal</TabsTrigger>
+              <Tabs value={typeFilter} onValueChange={(v) => { setTypeFilter(v as EntryTypeFilter); setCurrentPage(1); }}>
+                <TabsList className="h-9">
+                  <TabsTrigger value="all" className="text-xs px-2">All</TabsTrigger>
+                  <TabsTrigger value="expense" className="text-xs px-2">Exp</TabsTrigger>
+                  <TabsTrigger value="salary" className="text-xs px-2">Sal</TabsTrigger>
                 </TabsList>
               </Tabs>
-
-              <Button variant="outline" onClick={resetFilters}>Reset Filters</Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Table */}
-        <Card className="border-[1.5px] border-slate-200 dark:border-slate-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center justify-between gap-2">
-              <span>Transactions</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                {filteredRows.length} rows • Page {currentPage} of {totalPages}
+              <Button variant="outline" size="sm" className="h-9" onClick={resetFilters}>
+                Reset
+              </Button>
+              <Button variant="outline" size="sm" className="h-9 gap-1" onClick={handleExportExcel}>
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                CSV
+              </Button>
+            </>
+          }
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+              <span>
+                Filtered total: <strong className="tabular-nums">{fmt(filteredTotal)}</strong>
+                {filteredRows.length !== reportRows.length && (
+                  <span className="text-muted-foreground"> (of {reportRows.length} in period)</span>
+                )}
               </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>
-                      <button
-                        type="button"
-                        className="font-semibold hover:underline"
-                        onClick={() => setSortDirection((p) => (p === "asc" ? "desc" : "asc"))}
-                      >
-                        Date {sortDirection === "asc" ? "↑" : "↓"}
-                      </button>
-                    </TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Category / Employee Name</TableHead>
-                    <TableHead>Description / Narration</TableHead>
-                    <TableHead>Payment Method</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Voucher #</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8">Loading...</TableCell></TableRow>
-                  ) : paginatedRows.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No rows found</TableCell></TableRow>
-                  ) : (
-                    paginatedRows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{format(new Date(row.date), "dd/MM/yyyy")}</TableCell>
-                        <TableCell>
-                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", row.type === "Salary" ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700")}>
-                            {row.type}
-                          </span>
-                        </TableCell>
-                        <TableCell>{row.categoryOrEmployee}</TableCell>
-                        <TableCell className="max-w-[360px] truncate" title={row.description}>{row.description || "-"}</TableCell>
-                        <TableCell>{row.paymentMethod}</TableCell>
-                        <TableCell className="text-right tabular-nums font-semibold">{fmt(row.amount)}</TableCell>
-                        <TableCell>{row.voucherNumber}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-right font-semibold">
-                      Total ({isLoading ? 0 : paginatedRows.length} visible rows)
-                    </TableCell>
-                    <TableCell className="text-right font-bold tabular-nums">{fmt(visibleTotal)}</TableCell>
-                    <TableCell />
-                  </TableRow>
-                </TableFooter>
-              </Table>
-            </div>
-
-            <div className="flex items-center justify-between mt-4 gap-2 print:hidden">
-              <div className="text-xs text-muted-foreground">
-                Filtered total: <span className="font-semibold text-foreground">{fmt(filteredTotal)}</span>
-              </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" disabled={currentPage <= 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
                   Previous
@@ -612,8 +545,80 @@ export default function ExpenseSalaryReport() {
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          }
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              Loading transactions…
+            </div>
+          ) : (
+            <Table className={accountsHistoryTableClass}>
+              <TableHeader>
+                <TableRow className="bg-slate-900 hover:bg-slate-900">
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900")}>
+                    <button
+                      type="button"
+                      className="text-white hover:underline"
+                      onClick={() => setSortDirection((p) => (p === "asc" ? "desc" : "asc"))}
+                    >
+                      Date {sortDirection === "asc" ? "↑" : "↓"}
+                    </button>
+                  </TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900")}>Type</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900")}>Category / Employee</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900")}>Description</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900")}>Method</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900 text-right")}>Amount</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-white bg-slate-900")}>Voucher #</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                      No transactions in this period or filter.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedRows.map((row) => (
+                    <TableRow key={row.id} className="hover:bg-slate-50/80">
+                      <TableCell>{format(new Date(row.date), "dd/MM/yyyy")}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "text-xs px-2 py-0.5 rounded-full font-medium",
+                            row.type === "Salary" ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700",
+                          )}
+                        >
+                          {row.type}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-medium">{row.categoryOrEmployee}</TableCell>
+                      <TableCell className="max-w-[280px] truncate" title={row.description}>
+                        {row.description || "—"}
+                      </TableCell>
+                      <TableCell>{row.paymentMethod}</TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">{fmt(row.amount)}</TableCell>
+                      <TableCell className="font-mono text-xs">{row.voucherNumber}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+              {paginatedRows.length > 0 && (
+                <TableFooter>
+                  <TableRow className="bg-slate-50">
+                    <TableCell colSpan={5} className="text-right font-semibold">
+                      Page subtotal ({paginatedRows.length} rows)
+                    </TableCell>
+                    <TableCell className="text-right font-bold tabular-nums">{fmt(visibleTotal)}</TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableFooter>
+              )}
+            </Table>
+          )}
+        </AccountsHistoryPanel>
       </div>
     </div>
   );
