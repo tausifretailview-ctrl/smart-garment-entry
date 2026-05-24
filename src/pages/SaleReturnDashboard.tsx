@@ -18,11 +18,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, Download, CalendarIcon } from "lucide-react";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package } from "lucide-react";
+import { TableSkeleton } from "@/components/ui/skeletons";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
@@ -88,6 +89,16 @@ interface BusinessDetails {
   mobile_number: string | null;
   gst_number: string | null;
 }
+
+const getCreditStatusBadgeClass = (ret: SaleReturn): string => {
+  const status = (ret.credit_status || "").toLowerCase();
+  if (status === "refunded") return "bg-slate-500 hover:bg-slate-600 text-white";
+  if (status === "adjusted" && ret.linked_sale_id) return "bg-green-500 hover:bg-green-600 text-white";
+  if (status === "partially_adjusted") return "bg-orange-400 hover:bg-orange-500 text-white";
+  if (status === "adjusted") return "bg-teal-500 hover:bg-teal-600 text-white";
+  if (status === "adjusted_outstanding") return "bg-violet-500 hover:bg-violet-600 text-white";
+  return "bg-red-500 hover:bg-red-600 text-white";
+};
 
 const formatCreditStatusLabel = (ret: SaleReturn) => {
   if (ret.credit_status === "refunded") return "Refunded to Customer";
@@ -1021,94 +1032,124 @@ export default function SaleReturnDashboard() {
   }
 
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Sale Returns</h1>
-          <Button onClick={() => navigate("/sale-return-entry")}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Return
-          </Button>
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
+      <div className="w-full min-w-0 max-w-none space-y-5">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+              Sale Returns
+            </h1>
+            <p className="text-slate-400 text-base mt-0.5">View and manage all sale returns</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportExcel}
+              className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export Excel
+            </Button>
+            <Button
+              onClick={() => navigate("/sale-return-entry")}
+              className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Return
+            </Button>
+          </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Total Returns</CardDescription>
-              <Receipt className="h-4 w-4 text-white" />
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Returns</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Receipt className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{totalReturns}</div>
-              <p className="text-xs text-white/70">All return records</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">{totalReturns}</div>
+              <p className="text-sm text-white/65 mt-0.5">All return records</p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Total Return Value</CardDescription>
-              <TrendingDown className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Return Value</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingDown className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{totalValue.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Net refund value</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                ₹{Math.round(totalValue).toLocaleString("en-IN")}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">Net refund value</p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Total Qty</CardDescription>
-              <Receipt className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Qty</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Package className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{totalQty}</div>
-              <p className="text-xs text-white/70">Items returned</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">{totalQty}</div>
+              <p className="text-sm text-white/65 mt-0.5">Items returned</p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-rose-500 to-rose-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Average Return Value</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-rose-500 to-rose-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Average Return Value</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <IndianRupee className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{averageValue.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Per return</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                ₹{Math.round(averageValue).toLocaleString("en-IN")}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">Per return</p>
             </CardContent>
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+          <div className="space-y-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
+              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   placeholder="Search return no, customer, product, barcode..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground whitespace-nowrap">From</label>
+                <label className="text-sm text-slate-500 whitespace-nowrap">From</label>
                 <Input
                   type="date"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                  className="w-[150px]"
+                  className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground whitespace-nowrap">To</label>
+                <label className="text-sm text-slate-500 whitespace-nowrap">To</label>
                 <Input
                   type="date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                  className="w-[150px]"
+                  className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[165px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1120,94 +1161,110 @@ export default function SaleReturnDashboard() {
                   <SelectItem value="partially_adjusted">Partially Adjusted</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" onClick={handleExportExcel}>
-                <Download className="h-4 w-4 mr-1" />
-                Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handlePrintTable()}>
-                <Printer className="h-4 w-4 mr-1" />
+              <Button
+                variant="outline"
+                onClick={() => handlePrintTable()}
+                className="h-10 text-base border-slate-200 bg-slate-50 hover:bg-white gap-2"
+              >
+                <Printer className="h-4 w-4" />
                 Print
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div ref={tableRef}>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading...</div>
-            ) : returns.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No returns found</div>
-            ) : (
-              <Table>
-                <TableHeader className="sticky top-0 z-10 bg-black backdrop-blur supports-[backdrop-filter]:bg-black [&_th]:text-white [&_th]:font-bold">
-                  <TableRow>
-                    <TableHead className="w-12 print:hidden text-[13px] font-semibold"></TableHead>
-                    <TableHead className="text-[13px] font-semibold">Return No</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Date</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Customer</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Mobile</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Original Sale No</TableHead>
-                    <TableHead className="text-right text-[13px] font-semibold">Qty</TableHead>
-                    <TableHead className="text-right text-[13px] font-semibold">Gross</TableHead>
-                    <TableHead className="text-right text-[13px] font-semibold">GST</TableHead>
-                    <TableHead className="text-right text-[13px] font-semibold">Net Amount</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Status</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Credit Note</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Adjusted In Invoice</TableHead>
-                    <TableHead className="text-right text-[13px] font-semibold">Adjusted Amt</TableHead>
-                    <TableHead className="text-[13px] font-semibold">Settlement</TableHead>
-                    <TableHead className="text-right print:hidden text-[13px] font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {returns.map((ret) => (
-                    <>
-                      <TableRow key={ret.id} className="text-[13px] md:text-sm">
-                        <TableCell className="print:hidden">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => toggleRow(ret.id)}
-                          >
-                            {expandedRows.has(ret.id) ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{ret.return_number || "-"}</Badge>
-                        </TableCell>
-                        <TableCell>{new Date(ret.return_date).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <button
-                            className="text-primary hover:underline cursor-pointer bg-transparent border-none p-0 font-inherit text-left"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
-                              setShowCustomerHistory(true);
-                            }}
-                          >
-                            {ret.customer_name}
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-[13px] md:text-sm">{ret.customer_phone || "-"}</TableCell>
-                        <TableCell>
-                          {ret.original_sale_number ? (
-                            <Badge variant="outline">{ret.original_sale_number}</Badge>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">{ret.total_qty || 0}</TableCell>
-                        <TableCell className="text-right">₹{ret.gross_amount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">₹{ret.gst_amount.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">₹{ret.net_amount.toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-[12px] bg-slate-50 text-slate-700 border-slate-300">
-                            {formatCreditStatusLabel(ret)}
-                          </Badge>
-                        </TableCell>
+
+            <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain px-4 pb-4">
+              <div ref={tableRef}>
+                {loading || returnsLoading ? (
+                  <div className="py-6">
+                    <TableSkeleton rows={8} columns={12} />
+                  </div>
+                ) : returns.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground text-base">No returns found</div>
+                ) : (
+                  <Table className="w-full min-w-[1100px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className="w-10 px-1 print:hidden" />
+                        <TableHead className="font-semibold min-w-[7rem]">Return No</TableHead>
+                        <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
+                        <TableHead className="font-semibold min-w-[8rem]">Customer</TableHead>
+                        <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>
+                        <TableHead className="font-semibold min-w-[7rem]">Original Sale</TableHead>
+                        <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
+                        <TableHead className="text-right font-semibold w-[4rem]">Gross</TableHead>
+                        <TableHead className="text-right font-semibold w-[4rem]">GST</TableHead>
+                        <TableHead className="text-right font-semibold w-[5rem]">Net Amt</TableHead>
+                        <TableHead className="font-semibold min-w-[5.5rem] px-1">Status</TableHead>
+                        <TableHead className="font-semibold min-w-[5rem]">Credit Note</TableHead>
+                        <TableHead className="font-semibold min-w-[6rem]">Adj. Invoice</TableHead>
+                        <TableHead className="text-right font-semibold w-[4.5rem]">Adj. Amt</TableHead>
+                        <TableHead className="font-semibold min-w-[5rem]">Settlement</TableHead>
+                        <TableHead className="text-right font-semibold w-[8.5rem] print:hidden px-1">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {returns.map((ret) => (
+                        <>
+                          <TableRow key={ret.id} className="cursor-pointer hover:bg-accent/50">
+                            <TableCell className="print:hidden">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRow(ret.id)}>
+                                {expandedRows.has(ret.id) ? (
+                                  <ChevronUp className="h-4 w-4" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                            <TableCell className="font-medium align-top">
+                              <span
+                                className="text-primary cursor-pointer hover:underline break-words"
+                                onClick={() => toggleRow(ret.id)}
+                              >
+                                {ret.return_number || "-"}
+                              </span>
+                            </TableCell>
+                            <TableCell onClick={() => toggleRow(ret.id)}>
+                              {format(new Date(ret.return_date), "dd/MM/yyyy")}
+                            </TableCell>
+                            <TableCell
+                              className="cursor-pointer text-blue-600 hover:underline align-top break-words"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
+                                setShowCustomerHistory(true);
+                              }}
+                            >
+                              {ret.customer_name?.toUpperCase()}
+                            </TableCell>
+                            <TableCell onClick={() => toggleRow(ret.id)}>{ret.customer_phone || "-"}</TableCell>
+                            <TableCell onClick={() => toggleRow(ret.id)}>
+                              {ret.original_sale_number ? (
+                                <span className="text-sm text-foreground/80">{ret.original_sale_number}</span>
+                              ) : (
+                                "-"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center" onClick={() => toggleRow(ret.id)}>
+                              {ret.total_qty || 0}
+                            </TableCell>
+                            <TableCell className="text-right" onClick={() => toggleRow(ret.id)}>
+                              ₹{Math.round(ret.gross_amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-right" onClick={() => toggleRow(ret.id)}>
+                              ₹{Math.round(ret.gst_amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-right font-medium" onClick={() => toggleRow(ret.id)}>
+                              ₹{Math.round(ret.net_amount).toLocaleString("en-IN")}
+                            </TableCell>
+                            <TableCell className="text-center" onClick={() => toggleRow(ret.id)}>
+                              <Badge
+                                className={cn(
+                                  "min-w-0 max-w-full justify-center whitespace-normal text-center text-xs px-2 py-0.5 leading-tight",
+                                  getCreditStatusBadgeClass(ret)
+                                )}
+                              >
+                                {formatCreditStatusLabel(ret)}
+                              </Badge>
+                            </TableCell>
                         <TableCell>
                           {ret.credit_note_number ? (
                             <button
@@ -1235,25 +1292,24 @@ export default function SaleReturnDashboard() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell>
-                          {ret.adjusted_sale_number ? (
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">
-                              {ret.adjusted_sale_number} {ret.adjusted_sale_type === 'pos' ? '(S/R Adjusted)' : ''}
-                            </Badge>
-                          ) : ret.original_sale_number ? (
-                            <Badge variant="outline">{ret.original_sale_number}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-[13px]">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ₹{(ret.actual_adjusted_amt ?? ret.net_amount).toFixed(2)}
-                          {(ret.remaining_cn_amt ?? 0) > 0 && (
-                            <span className="block text-xs text-amber-600 font-normal">
-                              ₹{ret.remaining_cn_amt!.toFixed(2)} remaining
-                            </span>
-                          )}
-                        </TableCell>
+                            <TableCell onClick={() => toggleRow(ret.id)}>
+                              {ret.adjusted_sale_number ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs px-2 py-0.5 font-normal">
+                                  {ret.adjusted_sale_number}
+                                  {ret.adjusted_sale_type === "pos" ? " (S/R)" : ""}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium" onClick={() => toggleRow(ret.id)}>
+                              ₹{Math.round(ret.actual_adjusted_amt ?? ret.net_amount).toLocaleString("en-IN")}
+                              {(ret.remaining_cn_amt ?? 0) > 0 && (
+                                <span className="block text-xs text-amber-600 font-normal leading-tight">
+                                  ₹{Math.round(ret.remaining_cn_amt!).toLocaleString("en-IN")} remaining
+                                </span>
+                              )}
+                            </TableCell>
                         <TableCell>
                           {ret.refund_type === 'cash_refund' && (
                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
@@ -1401,25 +1457,46 @@ export default function SaleReturnDashboard() {
                   ))}
                 </TableBody>
               </Table>
-            )}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages} ({totalReturns} total)
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
-                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
-                </div>
+                )}
               </div>
-            )}
-          </CardContent>
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-0 py-3 border-t border-slate-100 mt-2">
+                  <div className="text-sm text-slate-500">
+                    Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                    {Math.min(currentPage * pageSize, totalReturns)} of {totalReturns} returns
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="h-9 text-sm px-3 border-slate-200"
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-slate-600 font-medium flex items-center px-2">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-9 text-sm px-3 border-slate-200"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </Card>
 
         {saleReturnDialogs}
       </div>
+    </div>
   );
 }
