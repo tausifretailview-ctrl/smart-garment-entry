@@ -1731,7 +1731,7 @@ const PurchaseBillDashboard = () => {
   if (isMobile) {
     const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
     return (
-      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+      <div className="flex flex-col min-h-screen bg-slate-50 pb-24">
         <MobilePageHeader
           title="Purchase Bills"
           subtitle={`${summaryStats.totalBills} bills`}
@@ -1876,33 +1876,28 @@ const PurchaseBillDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background px-6 py-6">
-      <div className="w-full space-y-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Receipt className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">Purchase Bills</h1>
-              <p className="text-sm text-muted-foreground">Manage supplier invoices & payments</p>
-            </div>
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
+      <div className="w-full min-w-0 max-w-none space-y-5">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+              Purchase Bills
+            </h1>
+            <p className="text-slate-400 text-base mt-0.5">Manage supplier invoices & payments</p>
           </div>
-          <div className="flex gap-2">
-            <Button 
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <Button
               onClick={handleExportExcel}
               variant="outline"
-              size="sm"
-              className="gap-2"
+              className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium"
             >
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
-            <Button 
-              onClick={handleFixMissingProductNames} 
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-muted-foreground"
+            <Button
+              onClick={handleFixMissingProductNames}
+              variant="outline"
+              className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium"
               disabled={isFixing}
             >
               {isFixing ? (
@@ -1912,30 +1907,61 @@ const PurchaseBillDashboard = () => {
               )}
               Fix Missing Data
             </Button>
-            <Button onClick={() => navigate("/purchase-entry")} className="gap-2 shadow-sm font-semibold">
+            <Button
+              onClick={() => navigate("/purchase-entry")}
+              className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
+            >
               <Plus className="h-4 w-4" />
               New Purchase
             </Button>
+            {selectedBills.size > 0 && (
+              <>
+                {canDelete && (
+                  <Button
+                    variant="destructive"
+                    className="h-10 text-base"
+                    onClick={handleBulkDeleteClick}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                    Delete Selected ({selectedBills.size})
+                  </Button>
+                )}
+                {canCancel && (
+                  <Button
+                    variant="outline"
+                    className="h-10 text-base border-orange-500 text-orange-600 hover:bg-orange-50"
+                    onClick={() => setShowBulkCancelDialog(true)}
+                    disabled={isBulkCancelling}
+                  >
+                    {isBulkCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
+                    Cancel Selected ({selectedBills.size})
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-        {/* Draft Resume Card */}
         {hasDraft && draftData && (
-          <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 mb-4">
-            <CardHeader className="pb-3">
+          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
+            <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-5 w-5 text-amber-600" />
+                  </div>
                   <div>
-                    <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+                    <h3 className="text-base font-bold text-amber-800">
                       {(draftData as any)?.editBillId ? "Unsaved Purchase Edit" : "Unsaved Purchase Draft"}
-                    </CardTitle>
-                    <CardDescription className="text-amber-700 dark:text-amber-400">
-                      {(draftData as any)?.items?.length || 0} items • Saved {lastSaved ? formatDistanceToNow(lastSaved, { addSuffix: true }) : "recently"}
+                    </h3>
+                    <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
+                      {(draftData as any)?.items?.length || 0} items
+                      {lastSaved ? ` • Saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : " • Saved recently"}
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1946,7 +1972,7 @@ const PurchaseBillDashboard = () => {
                         description: "The unsaved purchase bill has been removed",
                       });
                     }}
-                    className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                    className="gap-1.5 h-9 text-sm border-amber-300 text-amber-700 hover:bg-amber-100"
                   >
                     <X className="h-4 w-4" />
                     Discard
@@ -1956,7 +1982,7 @@ const PurchaseBillDashboard = () => {
                     onClick={() => {
                       navigate("/purchase-entry", { state: { loadDraft: true } });
                     }}
-                    className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                    className="gap-1.5 h-9 text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold shadow-sm"
                   >
                     <Edit className="h-4 w-4" />
                     Resume Draft
@@ -1967,101 +1993,103 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
-        {/* Summary Statistics */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Total Bills</CardDescription>
-              <Receipt className="h-4 w-4 text-white" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Bills</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Receipt className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white tabular-nums">{summaryStats.totalBills}</div>
-              <p className="text-sm text-white/70 mt-1">{summaryStats.totalQty.toLocaleString('en-IN')} items purchased</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                {summaryStats.totalBills}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">
+                {summaryStats.totalQty.toLocaleString("en-IN")} items purchased
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Paid</CardDescription>
-              <CheckCircle2 className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Paid</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <CheckCircle2 className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.paidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-sm text-white/70 mt-1">Paid bills</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                ₹{summaryStats.paidAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">Paid bills</p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Partial</CardDescription>
-              <Clock className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Partial</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Clock className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.partialAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-sm text-white/70 mt-1">Partially paid</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                ₹{summaryStats.partialAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">Partially paid</p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Unpaid</CardDescription>
-              <Wallet className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Unpaid</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <Wallet className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.unpaidAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-sm text-white/70 mt-1">Bills pending</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                ₹{summaryStats.unpaidAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">Bills pending</p>
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium text-white/80">Total Amount</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
+              <CardDescription className="text-base font-medium text-white/80">Total Amount</CardDescription>
+              <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
+                <IndianRupee className="h-4 w-4 text-white" />
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white tabular-nums">₹{summaryStats.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
-              <p className="text-sm text-white/70 mt-1">Avg ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : "0"} / bill</p>
+            <CardContent className="px-3 pb-3 pt-0">
+              <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">
+                ₹{summaryStats.totalAmount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+              </div>
+              <p className="text-sm text-white/65 mt-0.5">
+                Avg ₹
+                {filteredBills.length > 0
+                  ? (summaryStats.totalAmount / filteredBills.length).toLocaleString("en-IN", {
+                      maximumFractionDigits: 0,
+                    })
+                  : "0"}{" "}
+                / bill
+              </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Bulk Actions */}
-        {selectedBills.size > 0 && (
-          <Card className="mb-4 border-primary bg-primary/5 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium">
-                    {selectedBills.size} bill(s) selected
-                  </span>
-                  {canDelete && (
-                    <Button variant="destructive" size="sm" onClick={handleBulkDeleteClick} disabled={isDeleting}>
-                      {isDeleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                      Delete Selected ({selectedBills.size})
-                    </Button>
-                  )}
-                  {canCancel && (
-                    <Button variant="outline" size="sm" onClick={() => setShowBulkCancelDialog(true)} disabled={isBulkCancelling}>
-                      {isBulkCancelling ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
-                      Cancel Selected ({selectedBills.size})
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="shadow-sm">
-          <CardContent className="p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px] max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
+          <div className="space-y-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
+              <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                   placeholder="Search by bill no, supplier, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9"
+                  className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Input
@@ -2069,17 +2097,17 @@ const PurchaseBillDashboard = () => {
                 placeholder="Start Date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-[150px] h-9"
+                className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
               />
               <Input
                 type="date"
                 placeholder="End Date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-[150px] h-9"
+                className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
               />
               <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-                <SelectTrigger className="w-[180px] h-9 gap-2">
+                <SelectTrigger className="w-[180px] h-10 text-base gap-2 border-slate-200 bg-slate-50 hover:bg-white">
                   <ArrowUpDown className="h-4 w-4" />
                   <SelectValue />
                 </SelectTrigger>
@@ -2087,9 +2115,9 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="desc">Newest First (DESC)</SelectItem>
                   <SelectItem value="asc">Oldest First (ASC)</SelectItem>
                 </SelectContent>
-                </Select>
+              </Select>
               <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-                <SelectTrigger className="w-[150px] h-9 gap-2">
+                <SelectTrigger className="w-[150px] h-10 text-base gap-2 border-slate-200 bg-slate-50 hover:bg-white">
                   <Wallet className="h-4 w-4" />
                   <SelectValue placeholder="Payment" />
                 </SelectTrigger>
@@ -2103,7 +2131,7 @@ const PurchaseBillDashboard = () => {
                 </SelectContent>
               </Select>
               <Select value={dcFilter} onValueChange={setDcFilter}>
-                <SelectTrigger className="w-[130px] h-9 gap-2">
+                <SelectTrigger className="w-[130px] h-10 text-base gap-2 border-slate-200 bg-slate-50 hover:bg-white">
                   <FileText className="h-4 w-4" />
                   <SelectValue placeholder="Bill Type" />
                 </SelectTrigger>
@@ -2113,15 +2141,11 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="gst">GST Only</SelectItem>
                 </SelectContent>
               </Select>
-              <div id="erp-toolbar-portal-purchase" className="flex items-center gap-2 ml-auto" />
+              <div id="erp-toolbar-portal-purchase" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="shadow-sm overflow-hidden">
-          <CardContent className="p-0">
             {filteredBills.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground bg-white">
                 <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No purchase bills found</p>
                 <p className="text-sm">Create your first purchase bill to get started</p>
@@ -2141,24 +2165,23 @@ const PurchaseBillDashboard = () => {
                 onRowContextMenu={handleRowContextMenu}
                 showToolbar={false}
                 renderToolbar={(toolbar) => {
-                  const el = document.getElementById('erp-toolbar-portal-purchase');
+                  const el = document.getElementById("erp-toolbar-portal-purchase");
                   return el ? createPortal(toolbar, el) : toolbar;
                 }}
               />
             )}
-          </CardContent>
-        </Card>
 
-        {/* Pagination Controls */}
-        {filteredBills.length > 0 && (
-          <Card className="mt-4 shadow-sm">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            {filteredBills.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="text-sm text-slate-500 tabular-nums">
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                    {Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} bills
+                  </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Rows per page:</span>
+                    <span className="text-sm text-slate-500">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-20 h-10">
+                      <SelectTrigger className="w-20 h-9 text-sm border-slate-200">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -2170,9 +2193,6 @@ const PurchaseBillDashboard = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="text-xs text-muted-foreground tabular-nums">
-                    Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredBills.length)} of <span className="font-semibold text-foreground">{filteredBills.length}</span> bills
-                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -2180,25 +2200,27 @@ const PurchaseBillDashboard = () => {
                     size="sm"
                     onClick={handlePreviousPage}
                     disabled={currentPage === 1}
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Previous
                   </Button>
-                  <div className="text-sm text-muted-foreground">
+                  <span className="text-sm text-slate-600 font-medium tabular-nums px-1">
                     Page {currentPage} of {totalPages}
-                  </div>
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleNextPage}
                     disabled={currentPage === totalPages}
+                    className="h-9 text-sm px-3 border-slate-200"
                   >
                     Next
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
+          </div>
+        </Card>
       </div>
 
       {/* Cancel Bill Dialog - reverses stock & marks bill cancelled */}
