@@ -189,12 +189,12 @@ function isPaidCompletedForDashboard(sale: Sale): boolean {
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
 const DEFAULT_POS_COLUMNS = {
-  phone: false,  // Hidden by default
+  phone: false,
   status: true,
-  refund: true,
-  refundStatus: true,
-  creditNoteAmt: true,
-  creditNoteStatus: true,
+  refund: false,
+  refundStatus: false,
+  creditNoteAmt: false,
+  creditNoteStatus: false,
   whatsapp: true,
   copyLink: true,
   preview: true,
@@ -2084,22 +2084,21 @@ const POSDashboard = () => {
           )}
         </div>
       ) : (
-    <div className="min-h-screen bg-background px-8 py-6">
-      
-      <div className="w-full space-y-4">
-        <div className="flex items-center justify-between">
+    <div className="h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 min-h-0 overflow-hidden">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3">
+        <div className="flex items-center justify-between shrink-0">
           <div>
-            <h1 className="text-[26px] font-bold tracking-tight text-foreground">
+            <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
               POS Dashboard
             </h1>
-            <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
+            <p className="text-slate-400 text-base mt-0.5">View and manage all POS sales</p>
           </div>
           <div className="flex gap-2 items-center">
-            <Button variant="outline" onClick={handleExportExcel} className="gap-2">
+            <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
               <FileSpreadsheet className="h-4 w-4" />
               Export Excel
             </Button>
-            <Button onClick={() => navigate("/pos-sales")} className="gap-2">
+            <Button onClick={() => navigate("/pos-sales")} className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2">
               <Plus className="h-4 w-4" />
               New Sale
             </Button>
@@ -2128,162 +2127,113 @@ const POSDashboard = () => {
           </div>
         </div>
 
-        {/* Summary Statistics - Flat Solid Color Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-blue-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter([])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Total Bills</CardDescription>
-              <Receipt className="h-4 w-4 text-white" />
+        {/* Summary — same vibrant card style as Sales Invoice Dashboard */}
+        <div className="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 gap-2 w-full shrink-0">
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter([])}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Total Bills</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><Receipt className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">{summaryStats.totalBills}</div>
-              <p className="text-xs text-white/80 mt-0.5">Qty: {summaryStats.totalQty}</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">{summaryStats.totalBills}</div>
+              <p className="text-xs text-white/65">Qty: {summaryStats.totalQty}</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-emerald-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter(["completed"])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Completed</CardDescription>
-              <CheckCircle2 className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter(["completed"])}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Completed</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><CheckCircle2 className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">{summaryStats.completedCount}</div>
-              <p className="text-xs text-white/80 mt-0.5">₹{summaryStats.completedAmount.toFixed(0)}</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">{summaryStats.completedCount}</div>
+              <p className="text-xs text-white/65">₹{summaryStats.completedAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-orange-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter(["pending"])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Pending/Partial</CardDescription>
-              <Clock className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter(["pending"])}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Pending</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><Clock className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">{summaryStats.pendingCount}</div>
-              <p className="text-xs text-white/80 mt-0.5">₹{summaryStats.pendingAmount.toFixed(0)}</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">{summaryStats.pendingCount}</div>
+              <p className="text-xs text-white/65">₹{summaryStats.pendingAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-violet-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter([])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Sale Amount</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter([])}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Sale Amount</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><IndianRupee className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/80 mt-0.5">Disc: ₹{summaryStats.totalDiscount.toFixed(0)}</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-xs text-white/65">Disc ₹{summaryStats.totalDiscount.toFixed(0)}</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-teal-600 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter([])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Net Sale</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter([])}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Net Sale</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><IndianRupee className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">
-                ₹{summaryStats.netSale.toFixed(0)}
-              </div>
-              <p className="text-[10px] text-white/80 mt-0.5 leading-tight">
-                From final invoice net amounts (after discount/SR/refund/round off)
-              </p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">₹{summaryStats.netSale.toFixed(0)}</div>
+              <p className="text-xs text-white/65">After disc/SR</p>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Payment Method Totals */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-green-500 border-0 shadow-none"
-            onClick={() => setPaymentMethodFilter("cash")}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Total Cash</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-green-500 to-green-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentMethodFilter("cash")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Cash</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><IndianRupee className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalCash.toFixed(0)}</div>
-              <p className="text-xs text-white/80 mt-0.5">{summaryStats.cashBillCount} Bills</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">₹{summaryStats.totalCash.toFixed(0)}</div>
+              <p className="text-xs text-white/65">{summaryStats.cashBillCount} bills</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-cyan-500 border-0 shadow-none"
-            onClick={() => setPaymentMethodFilter("card")}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Total Card</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-cyan-500 to-cyan-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentMethodFilter("card")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Card</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><IndianRupee className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalCard.toFixed(0)}</div>
-              <p className="text-xs text-white/80 mt-0.5">{summaryStats.cardBillCount} Bills</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">₹{summaryStats.totalCard.toFixed(0)}</div>
+              <p className="text-xs text-white/65">{summaryStats.cardBillCount} bills</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-purple-500 border-0 shadow-none"
-            onClick={() => setPaymentMethodFilter("upi")}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Total UPI</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-purple-500 to-purple-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentMethodFilter("upi")}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">UPI</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><IndianRupee className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalUpi.toFixed(0)}</div>
-              <p className="text-xs text-white/80 mt-0.5">{summaryStats.upiBillCount} Bills</p>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">₹{summaryStats.totalUpi.toFixed(0)}</div>
+              <p className="text-xs text-white/65">{summaryStats.upiBillCount} bills</p>
             </CardContent>
           </Card>
-
-          <Card 
-            className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-red-500 border-0 shadow-none"
-            onClick={() => setPaymentStatusFilter(["pending"])}
-          >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 pb-1">
-              <CardDescription className="text-xs font-semibold text-white/90">Total Balance</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+          <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter(["pending"])}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+              <CardDescription className="text-xs font-medium text-white/80">Balance</CardDescription>
+              <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center"><IndianRupee className="h-3.5 w-3.5 text-white" /></div>
             </CardHeader>
-            <CardContent className="p-4 pt-1">
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalBalance.toFixed(0)}</div>
+            <CardContent className="px-2.5 pb-2 pt-0">
+              <div className="text-xl font-black text-white tabular-nums truncate">₹{summaryStats.totalBalance.toFixed(0)}</div>
+              <p className="text-xs text-white/65">Outstanding</p>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-border/50 shadow-lg">
-          <CardHeader className="p-4 pb-3">
-            <CardTitle className="flex items-center gap-2 text-[18px]">
-              <Receipt className="h-4 w-4 text-primary" />
-              Sales Records
-            </CardTitle>
-            <CardDescription className="text-[13px]">Search and filter your sales history</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 p-4 pt-0">
-            <div className="flex gap-3 flex-wrap">
-              <div className="flex-[2] min-w-[280px] relative">
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0 flex-nowrap overflow-x-auto">
+              <div className="relative flex-1 min-w-[160px] max-w-md">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by sale number, customer, barcode..."
+                  placeholder="Search sale no, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Select value={periodFilter} onValueChange={handlePeriodChange}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-[100px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
@@ -2304,7 +2254,7 @@ const POSDashboard = () => {
                       setStartDate(v);
                       setEndDate(v);
                     }}
-                    className="w-40"
+                    className="w-[130px] h-9 text-sm shrink-0"
                     aria-label="Sale date"
                   />
                 ) : periodFilter === 'custom' ? (
@@ -2316,7 +2266,7 @@ const POSDashboard = () => {
                         setStartDate(e.target.value);
                         setPeriodFilter('custom');
                       }}
-                      className="w-40"
+                      className="w-[130px] h-9 text-sm shrink-0"
                       aria-label="Start date"
                     />
                     <Input
@@ -2326,7 +2276,7 @@ const POSDashboard = () => {
                         setEndDate(e.target.value);
                         setPeriodFilter('custom');
                       }}
-                      className="w-40"
+                      className="w-[130px] h-9 text-sm shrink-0"
                       aria-label="End date"
                     />
                   </>
@@ -2350,13 +2300,13 @@ const POSDashboard = () => {
                         setEndDate(v);
                       }
                     }}
-                    className="w-40"
+                    className="w-[130px] h-9 text-sm shrink-0"
                     aria-label={periodFilter === 'monthly' ? 'Month up to date' : 'Quarter up to date'}
                   />
                 ))}
               <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Payment Method" />
+                <SelectTrigger className="w-[115px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+                  <SelectValue placeholder="Method" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
                   <SelectItem value="all">All Methods</SelectItem>
@@ -2369,9 +2319,9 @@ const POSDashboard = () => {
               </Select>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-40 justify-between">
-                    {paymentStatusFilter.length === 0 ? 'All Status' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Selected`}
-                    <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                  <Button variant="outline" className="w-[115px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between shrink-0 px-2">
+                    {paymentStatusFilter.length === 0 ? 'All Status' : paymentStatusFilter.length === 1 ? paymentStatusFilter[0].charAt(0).toUpperCase() + paymentStatusFilter[0].slice(1) : `${paymentStatusFilter.length} Sel`}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[180px] p-2" align="start">
@@ -2398,8 +2348,8 @@ const POSDashboard = () => {
                 </PopoverContent>
               </Popover>
               <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
-                <SelectTrigger className="w-36">
-                  <SelectValue placeholder="Bill Type" />
+                <SelectTrigger className="w-[100px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+                  <SelectValue placeholder="Bills" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
                   <SelectItem value="all">All Bills</SelectItem>
@@ -2409,8 +2359,8 @@ const POSDashboard = () => {
                 </SelectContent>
               </Select>
               <Select value={cancelFilter} onValueChange={setCancelFilter}>
-                <SelectTrigger className="w-36" title="Cancellation status filter">
-                  <SelectValue placeholder="Status" />
+                <SelectTrigger className="w-[105px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0" title="Cancellation status filter">
+                  <SelectValue placeholder="Active" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
                   <SelectItem value="active">Active Only</SelectItem>
@@ -2419,8 +2369,8 @@ const POSDashboard = () => {
                 </SelectContent>
               </Select>
               <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="All Users" />
+                <SelectTrigger className="w-[105px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
+                  <SelectValue placeholder="Users" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
                   <SelectItem value="all">All Users</SelectItem>
@@ -2436,7 +2386,7 @@ const POSDashboard = () => {
               {/* Column Settings Popover */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" title="Column Settings">
+                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-slate-200" title="Column Settings">
                     <Settings2 className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
@@ -2536,10 +2486,11 @@ const POSDashboard = () => {
                   </div>
                 </PopoverContent>
               </Popover>
-            </div>
+          </div>
 
+          <div className="flex-1 min-h-0 flex flex-col">
             {loading ? (
-              <div className="rounded-md border max-h-[600px] overflow-hidden">
+              <div className="flex-1 min-h-0 border-t overflow-hidden">
                 <div className="h-10 bg-muted/70 border-b" />
                 <div className="divide-y">
                   {Array.from({ length: 10 }).map((_, i) => (
@@ -2558,37 +2509,37 @@ const POSDashboard = () => {
             ) : (
               <div 
                 ref={tableContainerRef}
-                className="rounded-md border max-h-[600px] overflow-auto"
+                className="flex-1 min-h-0 overflow-auto border-t"
               >
-                <Table>
-                  <TableHeader>
-                    <TableRow className="h-10 bg-muted/70">
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold w-[40px]">
+                <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_tbody_td]:text-sm [&_tbody_td]:align-top">
+                  <TableHeader className="!static">
+                    <TableRow>
+                      <TableHead className="w-10 px-1">
                         <Checkbox
                           checked={selectedSales.size === filteredSales.length && filteredSales.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] w-[30px]"></TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Sale Number</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Customer</TableHead>
-                      {columnSettings.phone && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Phone</TableHead>}
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Salesman</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Date</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Qty</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Amount</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Cash</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Card</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">UPI</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Paid</TableHead>
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Balance</TableHead>
-                      {columnSettings.refund && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Refund</TableHead>}
-                      {columnSettings.refundStatus && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Ref. Status</TableHead>}
-                      {columnSettings.creditNoteAmt && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">C/Note Amt</TableHead>}
-                      {columnSettings.creditNoteStatus && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">C/Note</TableHead>}
-                      {columnSettings.status && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Pay Status</TableHead>}
-                      {isEInvoiceEnabled && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">E-Invoice</TableHead>}
-                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Actions</TableHead>
+                      <TableHead className="w-10 px-1"></TableHead>
+                      <TableHead className="font-semibold min-w-[7rem]">Sale No</TableHead>
+                      <TableHead className="font-semibold min-w-[8rem]">Customer</TableHead>
+                      {columnSettings.phone && <TableHead className="font-semibold w-[5rem]">Phone</TableHead>}
+                      <TableHead className="font-semibold w-[4.5rem]">Salesman</TableHead>
+                      <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
+                      <TableHead className="text-center font-semibold w-[2.75rem]">Qty</TableHead>
+                      <TableHead className="text-right font-semibold w-[4.5rem]">Amount</TableHead>
+                      <TableHead className="text-right font-semibold w-[3.5rem]">Cash</TableHead>
+                      <TableHead className="text-right font-semibold w-[3.5rem]">Card</TableHead>
+                      <TableHead className="text-right font-semibold w-[3.5rem]">UPI</TableHead>
+                      <TableHead className="text-right font-semibold w-[3.5rem]">Paid</TableHead>
+                      <TableHead className="text-right font-semibold w-[4rem]">Balance</TableHead>
+                      {columnSettings.refund && <TableHead className="text-right font-semibold w-[3.5rem]">Refund</TableHead>}
+                      {columnSettings.refundStatus && <TableHead className="font-semibold w-[4rem]">Ref. Status</TableHead>}
+                      {columnSettings.creditNoteAmt && <TableHead className="text-right font-semibold w-[4rem]">C/Note</TableHead>}
+                      {columnSettings.creditNoteStatus && <TableHead className="font-semibold w-[4rem]">CN St</TableHead>}
+                      {columnSettings.status && <TableHead className="font-semibold w-[5rem]">Status</TableHead>}
+                      {isEInvoiceEnabled && <TableHead className="font-semibold w-[4.5rem]">E-Inv</TableHead>}
+                      <TableHead className="text-right font-semibold w-[8rem]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2617,10 +2568,10 @@ const POSDashboard = () => {
                                 <ChevronRight className="h-3.5 w-3.5" />
                               )}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm font-medium" onClick={() => toggleExpanded(sale.id)}>
-                              <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-1">
-                                  <span>{sale.sale_number}</span>
+                            <TableCell className="text-sm font-medium" onClick={() => toggleExpanded(sale.id)}>
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-primary font-semibold">{sale.sale_number}</span>
                                   {sale.sale_type === 'delivery_challan' && (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300 leading-none">
                                       DC
@@ -2884,13 +2835,12 @@ const POSDashboard = () => {
                                 )}
                               </TableCell>
                             )}
-                            <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-0.5">
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-1">
                                 {(!isPaidCompletedForDashboard(sale) && sale.payment_status !== 'hold') && (
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openPaymentDialog(sale);
@@ -2904,7 +2854,6 @@ const POSDashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => handleCopyLink(sale, e)}
                                     title="Copy Invoice Link"
                                   >
@@ -2915,7 +2864,6 @@ const POSDashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => handlePreviewClick(sale, e)}
                                     title="Preview Invoice"
                                   >
@@ -2926,7 +2874,6 @@ const POSDashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => handleWhatsAppShare(sale, e)}
                                     title="Share on WhatsApp"
                                     disabled={!sale.customer_phone}
@@ -2938,7 +2885,6 @@ const POSDashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => handleResendWhatsAppAPI(sale, e)}
                                     title="Resend via WhatsApp API"
                                     disabled={!sale.customer_phone || isSendingWhatsAppAPI}
@@ -2950,7 +2896,6 @@ const POSDashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => handlePrintClick(sale, e)}
                                     title="Print Invoice (Ctrl+P)"
                                   >
@@ -2965,7 +2910,6 @@ const POSDashboard = () => {
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      className="h-7 w-7"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleGenerateEInvoice(sale);
@@ -2984,7 +2928,6 @@ const POSDashboard = () => {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7"
                                     onClick={(e) => { e.stopPropagation(); handleDownloadEInvoicePDF(sale); }}
                                     title="Print/Download E-Invoice"
                                     disabled={isDownloadingEInvoice === sale.id}
@@ -2996,7 +2939,6 @@ const POSDashboard = () => {
                                    <Button
                                      variant="ghost"
                                      size="icon"
-                                     className="h-7 w-7"
                                      onClick={(e) => handleEditSale(sale.id, e)}
                                    >
                                      <Edit className="h-3.5 w-3.5" />
@@ -3242,15 +3184,15 @@ const POSDashboard = () => {
             )}
 
             {filteredSales.length > 0 && (
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm text-muted-foreground">
+              <div className="flex items-center justify-between shrink-0 border-t border-slate-100 px-3 py-2 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="text-xs text-muted-foreground">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredSales.length)} of {filteredSales.length} sales
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <span className="text-xs text-muted-foreground">Show:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-20 h-8">
+                      <SelectTrigger className="w-[4.5rem] h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
@@ -3288,7 +3230,7 @@ const POSDashboard = () => {
                 </div>
               </div>
             )}
-          </CardContent>
+          </div>
         </Card>
       </div>
     </div>
