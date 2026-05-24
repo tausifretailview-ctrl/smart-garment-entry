@@ -22,7 +22,6 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { insertLedgerCredit } from "@/lib/customerLedger";
-import { createReceiptVoucher } from "@/utils/saleSettlement";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   ensureCreditNoteHeadroom,
@@ -261,6 +260,7 @@ export function AdjustCustomerCreditNoteDialog({
           creditNoteId: effectiveCreditNoteId,
           amountNeeded: applyAmt,
           maxPoolFromReturn: maxCredit,
+          saleReturnId,
         });
         const { data: rpcData, error } = await sb.rpc("adjust_invoice_balance", {
           p_organization_id: currentOrganization!.id,
@@ -292,25 +292,8 @@ export function AdjustCustomerCreditNoteDialog({
           }
 
           if (!voucherEntryId) {
-            // adjust_invoice_balance does not create a voucher_entries row; create one now
-            // so the credit-note application is auditable and the GL journal can reference it.
-            const saleNumber = (unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId;
-            const cnApplyDesc = `Credit note ${returnNumber} → ${saleNumber}`;
-
-            const created = await createReceiptVoucher(supabase, {
-              organizationId: currentOrganization!.id,
-              referenceId: saleId,
-              referenceType: "sale",
-              amount: applyAmt,
-              paymentMethod: "credit_note_adjustment",
-              description: cnApplyDesc,
-              voucherDate: today,
-            });
-            voucherEntryId = created.id;
-          }
-
-          if (!voucherEntryId) {
-            throw new Error("Failed to create receipt voucher for credit-note adjustment.");
+            // adjust_invoice_balance now writes the voucher inline; absence means RPC failed silently.
+            throw new Error("Receipt voucher missing for credit-note adjustment.");
           }
 
           const saleNumber = (unpaidSales.find((s: any) => s.id === saleId) as any)?.sale_number || saleId;
