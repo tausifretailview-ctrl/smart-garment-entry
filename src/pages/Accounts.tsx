@@ -42,7 +42,12 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { resetOrganizationGlLedger, runHistoricalAccountingBackfill } from "@/utils/accounting/historicalMigration";
+import {
+  formatHistoricalBackfillSummary,
+  resetOrganizationGlLedger,
+  runHistoricalAccountingBackfill,
+  runHistoricalAccountingBackfillAllOrganizations,
+} from "@/utils/accounting/historicalMigration";
 
 // Extracted tab components
 import { AccountsDashboardCards } from "@/components/accounts/AccountsDashboardCards";
@@ -59,7 +64,7 @@ export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
-  const { isAdmin } = useUserRoles();
+  const { isAdmin, isPlatformAdmin } = useUserRoles();
   const [searchParams] = useSearchParams();
   const urlTab = searchParams.get("tab");
   const urlCustomerId = searchParams.get("customer");
@@ -74,9 +79,10 @@ export default function Accounts() {
   const [showFailedJournalsDialog, setShowFailedJournalsDialog] = useState(false);
   const [failedJournalSourceFilter, setFailedJournalSourceFilter] = useState<"all" | "sale" | "purchase">("all");
   const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillAllOrgsRunning, setBackfillAllOrgsRunning] = useState(false);
   const [resetLedgerDialogOpen, setResetLedgerDialogOpen] = useState(false);
   const [resetLedgerRunning, setResetLedgerRunning] = useState(false);
-  const ledgerMigrationBusy = backfillRunning || resetLedgerRunning;
+  const ledgerMigrationBusy = backfillRunning || backfillAllOrgsRunning || resetLedgerRunning;
 
   const { data: settings } = useSettings();
   const paymentDialogs = useAccountsPaymentDialogs(settings);
@@ -340,25 +346,58 @@ export default function Accounts() {
     return failedJournalRows.filter((row) => row.source === failedJournalSourceFilter);
   }, [failedJournalRows, failedJournalSourceFilter]);
 
+  const invalidateLedgerQueries = (organizationId: string) => {
+    queryClient.invalidateQueries({ queryKey: ["failed-journal-count", organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["journal-vouchers", organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["voucher-entries", organizationId] });
+    queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+    queryClient.invalidateQueries({ queryKey: ["customer-financial-snapshot"] });
+  };
+
   const handleHistoricalBackfill = async () => {
     if (!currentOrganization?.id || ledgerMigrationBusy) return;
     setBackfillRunning(true);
     try {
       const summary = await runHistoricalAccountingBackfill(currentOrganization.id, supabase);
-      toast.success(
-        `Historical ledger backfill finished. Sales: ${summary.sales.ok} ok, ${summary.sales.err} errors · Purchases: ${summary.purchases.ok} ok, ${summary.purchases.err} errors · Sale returns: ${summary.saleReturns.ok} ok, ${summary.saleReturns.err} errors · Purchase returns: ${summary.purchaseReturns.ok} ok, ${summary.purchaseReturns.err} errors · Expenses: ${summary.expenses.ok} ok, ${summary.expenses.err} errors.`
-      );
-      queryClient.invalidateQueries({ queryKey: ["failed-journal-count", currentOrganization.id] });
-      queryClient.invalidateQueries({ queryKey: ["failed-journal-rows", currentOrganization.id] });
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers", currentOrganization.id] });
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries", currentOrganization.id] });
-      queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+      toast.success(`Historical ledger backfill finished. ${formatHistoricalBackfillSummary(summary)}`, {
+        duration: 8000,
+      });
+      if (!summary.accountingEngineEnabled) {
+        toast.info(
+          "Accounting engine is off for this org — operational reports still work; enable the engine in Settings to post GL journals.",
+          { duration: 10000 },
+        );
+      }
+      invalidateLedgerQueries(currentOrganization.id);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Backfill failed";
       toast.error(message);
       console.error(e);
     } finally {
       setBackfillRunning(false);
+    }
+  };
+
+  const handleHistoricalBackfillAllOrganizations = async () => {
+    if (!isPlatformAdmin || ledgerMigrationBusy) return;
+    setBackfillAllOrgsRunning(true);
+    try {
+      const result = await runHistoricalAccountingBackfillAllOrganizations(supabase);
+      toast.success(
+        `All-org backfill done. Processed: ${result.organizationsProcessed}, GL off (skipped): ${result.organizationsSkipped}, failed: ${result.organizationsFailed}.`,
+        { duration: 12000 },
+      );
+      if (currentOrganization?.id) {
+        invalidateLedgerQueries(currentOrganization.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+      console.info("[historical backfill all orgs]", result);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "All-org backfill failed");
+      console.error(e);
+    } finally {
+      setBackfillAllOrgsRunning(false);
     }
   };
 
@@ -738,9 +777,15 @@ export default function Accounts() {
               <BookMarked className="h-4 w-4 text-blue-600" />
               Accounting migration
             </CardTitle>
-            <CardDescription className="text-xs">
-              Post pending sale and purchase journals and expense vouchers that never reached the GL. Safe to re-run: existing
-              journals are skipped. Use reset only before a full re-backfill if you need to clear incorrect GL rows (platform admin or org admin).
+            <CardDescription className="text-xs space-y-1.5">
+              <p>
+                <strong className="text-foreground">Operational tally</strong> (Customer Ledger, Payments, Trial Balance / P&amp;L tabs)
+                uses live invoices and the customer snapshot SQL — apply pending Supabase migrations; no GL backfill required.
+              </p>
+              <p>
+                <strong className="text-foreground">GL tally</strong> (GL Trial / GL P&amp;L): run backfill once per org to post pending
+                sales, purchases, returns, and vouchers (expenses, salaries, receipts, supplier payments). Safe to re-run.
+              </p>
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
@@ -754,6 +799,24 @@ export default function Accounts() {
                 "Run Historical Ledger Backfill"
               )}
             </Button>
+            {isPlatformAdmin && (
+              <Button
+                type="button"
+                variant="default"
+                className="bg-blue-700 hover:bg-blue-800"
+                disabled={ledgerMigrationBusy}
+                onClick={() => void handleHistoricalBackfillAllOrganizations()}
+              >
+                {backfillAllOrgsRunning ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Backfilling all orgs…
+                  </>
+                ) : (
+                  "Backfill all organizations"
+                )}
+              </Button>
+            )}
             <Button
               type="button"
               variant="outline"

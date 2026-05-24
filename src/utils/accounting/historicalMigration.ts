@@ -1,20 +1,47 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
-  recordExpenseVoucherJournalEntry,
   recordPurchaseJournalEntry,
   recordPurchaseReturnJournalEntry,
   recordSaleJournalEntry,
   recordSaleReturnJournalEntry,
+  repostJournalForRestoredVoucher,
 } from "@/utils/accounting/journalService";
 
 export type HistoricalBackfillSummary = {
   sales: { ok: number; err: number };
   purchases: { ok: number; err: number };
-  expenses: { ok: number; err: number };
+  /** Receipts, supplier payments, salaries, and expense vouchers */
+  vouchers: { ok: number; err: number; skipped: number };
   saleReturns: { ok: number; err: number };
   purchaseReturns: { ok: number; err: number };
+  accountingEngineEnabled: boolean;
 };
+
+export type AllOrganizationsBackfillResult = {
+  organizationsProcessed: number;
+  organizationsSkipped: number;
+  organizationsFailed: number;
+  rows: Array<{
+    organizationId: string;
+    organizationName: string;
+    summary: HistoricalBackfillSummary;
+    error?: string;
+  }>;
+};
+
+/** Journal reference types that point at voucher_entries.id */
+const VOUCHER_JOURNAL_REFERENCE_TYPES = [
+  "CustomerReceipt",
+  "SupplierPayment",
+  "ExpenseVoucher",
+  "SalaryVoucher",
+  "StudentFeeReceipt",
+  "CustomerCreditNoteApplication",
+  "CustomerAdvanceApplication",
+  "Payment",
+] as const;
 
 function journalErrorMessage(e: unknown, maxLen = 2000): string {
   const msg = e instanceof Error ? e.message : String(e);
@@ -27,6 +54,32 @@ const PAGE_SIZE = 500;
  * Post journals for legacy rows that never left `pending` (sales, purchase_bills, sale_returns, purchase_returns)
  * and expense vouchers that have no `journal_entries` row yet. Per-row try/catch so one bad row does not stop the batch.
  */
+async function loadVoucherIdsWithPostedJournals(
+  organizationId: string,
+  client: SupabaseClient<Database>,
+): Promise<Set<string>> {
+  const posted = new Set<string>();
+  let offset = 0;
+  for (;;) {
+    const { data: jeRows, error: jeErr } = await client
+      .from("journal_entries")
+      .select("reference_id")
+      .eq("organization_id", organizationId)
+      .in("reference_type", [...VOUCHER_JOURNAL_REFERENCE_TYPES])
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (jeErr) throw jeErr;
+    if (!jeRows?.length) break;
+    for (const r of jeRows) {
+      if (r.reference_id) posted.add(String(r.reference_id));
+    }
+    if (jeRows.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+  return posted;
+}
+
 export async function runHistoricalAccountingBackfill(
   organizationId: string,
   client: SupabaseClient<Database>
@@ -34,12 +87,24 @@ export async function runHistoricalAccountingBackfill(
   const summary: HistoricalBackfillSummary = {
     sales: { ok: 0, err: 0 },
     purchases: { ok: 0, err: 0 },
-    expenses: { ok: 0, err: 0 },
+    vouchers: { ok: 0, err: 0, skipped: 0 },
     saleReturns: { ok: 0, err: 0 },
     purchaseReturns: { ok: 0, err: 0 },
+    accountingEngineEnabled: false,
   };
 
   if (!organizationId) return summary;
+
+  const { data: settings, error: settingsErr } = await client
+    .from("settings")
+    .select("accounting_engine_enabled")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (settingsErr) throw settingsErr;
+
+  summary.accountingEngineEnabled = isAccountingEngineEnabled(
+    settings as { accounting_engine_enabled?: boolean } | null,
+  );
 
   // —— Sales ——
   let saleOffset = 0;
@@ -252,94 +317,125 @@ export async function runHistoricalAccountingBackfill(
     purchaseReturnOffset += PAGE_SIZE;
   }
 
-  // —— Expense vouchers (no journal_status on voucher_entries; skip if journal already exists) ——
-  const postedExpenseVoucherIds = new Set<string>();
-  let jeOffset = 0;
-  for (;;) {
-    const { data: jeRows, error: jeErr } = await client
-      .from("journal_entries")
-      .select("reference_id")
-      .eq("organization_id", organizationId)
-      .eq("reference_type", "ExpenseVoucher")
-      .order("id", { ascending: true })
-      .range(jeOffset, jeOffset + PAGE_SIZE - 1);
+  // —— Vouchers (expense, salary, customer receipt, supplier payment, advance/CN) ——
+  if (summary.accountingEngineEnabled) {
+    const postedVoucherIds = await loadVoucherIdsWithPostedJournals(organizationId, client);
+    let voucherOffset = 0;
+    for (;;) {
+      const { data: vouchers, error: vErr } = await client
+        .from("voucher_entries")
+        .select("id, total_amount, voucher_type, reference_type, payment_method")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .order("id", { ascending: true })
+        .range(voucherOffset, voucherOffset + PAGE_SIZE - 1);
 
-    if (jeErr) throw jeErr;
-    if (!jeRows?.length) break;
-    for (const r of jeRows) {
-      if (r.reference_id) postedExpenseVoucherIds.add(String(r.reference_id));
-    }
-    if (jeRows.length < PAGE_SIZE) break;
-    jeOffset += PAGE_SIZE;
-  }
+      if (vErr) throw vErr;
+      if (!vouchers?.length) break;
 
-  const { data: categories, error: catErr } = await client
-    .from("expense_categories")
-    .select("name, ledger_account_id")
-    .eq("organization_id", organizationId);
+      for (const v of vouchers) {
+        const vid = v.id as string;
+        if (postedVoucherIds.has(vid)) {
+          summary.vouchers.skipped++;
+          continue;
+        }
 
-  if (catErr) throw catErr;
-  const categoryToLedger = new Map<string, string | null>();
-  for (const c of categories ?? []) {
-    categoryToLedger.set(String(c.name), c.ledger_account_id ?? null);
-  }
-
-  let voucherOffset = 0;
-  for (;;) {
-    const { data: vouchers, error: vErr } = await client
-      .from("voucher_entries")
-      .select("id, total_amount, payment_method, voucher_date, category, description")
-      .eq("organization_id", organizationId)
-      .eq("voucher_type", "expense")
-      .is("deleted_at", null)
-      .order("id", { ascending: true })
-      .range(voucherOffset, voucherOffset + PAGE_SIZE - 1);
-
-    if (vErr) throw vErr;
-    if (!vouchers?.length) break;
-
-    for (const v of vouchers) {
-      const vid = v.id as string;
-      if (postedExpenseVoucherIds.has(vid)) continue;
-
-      try {
         const amt = Number(v.total_amount ?? 0);
         if (amt <= 0) {
-          summary.expenses.ok++;
+          summary.vouchers.skipped++;
           continue;
         }
-        const cat = v.category != null ? String(v.category) : "";
-        const mappedLedgerId = cat ? categoryToLedger.get(cat) ?? undefined : undefined;
-        const dateStr = v.voucher_date != null ? String(v.voucher_date).slice(0, 10) : undefined;
-        if (!dateStr) {
-          summary.expenses.err++;
-          console.error("[historical backfill] expense missing voucher_date", vid);
-          continue;
-        }
-        await recordExpenseVoucherJournalEntry(
-          vid,
-          organizationId,
-          amt,
-          String(v.payment_method ?? "cash"),
-          dateStr,
-          v.description != null && String(v.description).trim() !== ""
-            ? String(v.description)
-            : cat || "Expense",
-          client,
-          mappedLedgerId ?? null
-        );
-        summary.expenses.ok++;
-      } catch (e) {
-        console.error("[historical backfill] expense voucher", vid, e);
-        summary.expenses.err++;
-      }
-    }
 
-    if (vouchers.length < PAGE_SIZE) break;
-    voucherOffset += PAGE_SIZE;
+        try {
+          await repostJournalForRestoredVoucher(vid, client);
+          const { count, error: checkErr } = await client
+            .from("journal_entries")
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", organizationId)
+            .eq("reference_id", vid);
+
+          if (checkErr) throw checkErr;
+          if ((count ?? 0) > 0) {
+            summary.vouchers.ok++;
+            postedVoucherIds.add(vid);
+          } else {
+            summary.vouchers.skipped++;
+          }
+        } catch (e) {
+          console.error("[historical backfill] voucher", vid, e);
+          summary.vouchers.err++;
+        }
+      }
+
+      if (vouchers.length < PAGE_SIZE) break;
+      voucherOffset += PAGE_SIZE;
+    }
   }
 
   return summary;
+}
+
+/** Platform admin: backfill every organization (skips orgs where backfill throws). */
+export async function runHistoricalAccountingBackfillAllOrganizations(
+  client: SupabaseClient<Database>,
+): Promise<AllOrganizationsBackfillResult> {
+  const result: AllOrganizationsBackfillResult = {
+    organizationsProcessed: 0,
+    organizationsSkipped: 0,
+    organizationsFailed: 0,
+    rows: [],
+  };
+
+  const { data: orgs, error } = await client
+    .from("organizations")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+
+  for (const org of orgs ?? []) {
+    const organizationId = org.id as string;
+    const organizationName = String(org.name ?? organizationId);
+    try {
+      const summary = await runHistoricalAccountingBackfill(organizationId, client);
+      result.rows.push({ organizationId, organizationName, summary });
+      if (!summary.accountingEngineEnabled) {
+        result.organizationsSkipped++;
+      } else {
+        result.organizationsProcessed++;
+      }
+    } catch (e) {
+      result.organizationsFailed++;
+      result.rows.push({
+        organizationId,
+        organizationName,
+        summary: {
+          sales: { ok: 0, err: 0 },
+          purchases: { ok: 0, err: 0 },
+          vouchers: { ok: 0, err: 0, skipped: 0 },
+          saleReturns: { ok: 0, err: 0 },
+          purchaseReturns: { ok: 0, err: 0 },
+          accountingEngineEnabled: false,
+        },
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  return result;
+}
+
+export function formatHistoricalBackfillSummary(summary: HistoricalBackfillSummary): string {
+  const parts = [
+    `Sales ${summary.sales.ok} ok / ${summary.sales.err} err`,
+    `Purchases ${summary.purchases.ok} ok / ${summary.purchases.err} err`,
+    `Returns ${summary.saleReturns.ok + summary.purchaseReturns.ok} ok`,
+    `Vouchers ${summary.vouchers.ok} posted, ${summary.vouchers.skipped} skipped, ${summary.vouchers.err} err`,
+  ];
+  if (!summary.accountingEngineEnabled) {
+    parts.push("GL engine off — voucher journals skipped");
+  }
+  return parts.join(" · ");
 }
 
 export type AdminResetOrgGlResult = {
