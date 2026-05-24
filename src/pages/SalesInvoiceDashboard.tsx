@@ -3447,7 +3447,7 @@ export default function SalesInvoiceDashboard() {
                       {columnSettings.phone && <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>}
                       <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
                       <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
-                      <TableHead className="text-right font-semibold w-[3.5rem] max-w-[4rem] px-1">DIS</TableHead>
+                      <TableHead className="text-right font-semibold min-w-[8.5rem] w-[10%] px-1">DIS</TableHead>
                       <TableHead className="font-semibold w-[4.75rem] text-right">Amount</TableHead>
                       {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Status</TableHead>}
                       {columnSettings.status && <TableHead className="text-right font-semibold w-[4.25rem] px-1">Balance</TableHead>}
@@ -3539,16 +3539,20 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.total_qty || 0}
                             </TableCell>
-                            <TableCell className="text-right max-w-[4rem] whitespace-normal" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                              ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
-                              {(invoice.sale_return_adjust || 0) > 0 && (
-                                <span className="block text-xs text-amber-600 leading-tight">
-                                  +S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString("en-IN")}
-                                  {invoice.cn_adjust_date && (
-                                    <> · adj. {format(new Date(invoice.cn_adjust_date + "T12:00:00"), "dd/MM/yyyy")}</>
-                                  )}
+                            <TableCell className="text-right min-w-[8.5rem]" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="tabular-nums">
+                                  ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString("en-IN")}
                                 </span>
-                              )}
+                                {(invoice.sale_return_adjust || 0) > 0 && (
+                                  <span className="text-xs text-amber-600 whitespace-nowrap tabular-nums leading-none">
+                                    +S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString("en-IN")}
+                                    {invoice.cn_adjust_date
+                                      ? ` · adj. ${format(new Date(invoice.cn_adjust_date + "T12:00:00"), "dd/MM/yyyy")}`
+                                      : ""}
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
