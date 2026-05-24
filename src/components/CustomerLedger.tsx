@@ -19,6 +19,7 @@ import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -3610,17 +3611,17 @@ Please clear your dues at the earliest. Thank you!`;
               </TabsList>
 
               <TabsContent value="transactions">
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[120px]">Date</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Type</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Reference</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Description</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-red-500">Debit</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-emerald-600">Credit</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-500">Balance</TableHead>
+                <div className={accountsHistoryTableWrapClass}>
+                  <Table className={accountsHistoryTableClass}>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={cn(accountsHistoryThClass, "w-[120px]")}>Date</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Type</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Reference</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Description</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Debit</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Credit</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -3992,18 +3993,18 @@ Please clear your dues at the earliest. Thank you!`;
                   </Card>
                 </div>
 
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Date</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher No.</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice No.</TableHead>
-                        <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Invoice Amount</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-green-600">Cash</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-blue-600">Card</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-violet-600">UPI</TableHead>
-                        <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-emerald-600">Total Paid</TableHead>
+                <div className={accountsHistoryTableWrapClass}>
+                  <Table className={accountsHistoryTableClass}>
+                    <TableHeader className="!static">
+                      <TableRow>
+                        <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Voucher No.</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Invoice No.</TableHead>
+                        <TableHead className={accountsHistoryThClass}>Invoice Amount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Cash</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Card</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>UPI</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Total Paid</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -4138,9 +4139,9 @@ Please clear your dues at the earliest. Thank you!`;
 
                       {/* Unapplied opening balance payments */}
                       {unappliedPayments.length > 0 ? (
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
+                        <div className={accountsHistoryTableWrapClass}>
+                          <Table className={accountsHistoryTableClass}>
+                            <TableHeader className="!static">
                               <TableRow className="bg-muted/40">
                                 <TableHead className="text-xs font-bold uppercase">Date</TableHead>
                                 <TableHead className="text-xs font-bold uppercase">Reference</TableHead>
@@ -4257,9 +4258,9 @@ Please clear your dues at the earliest. Thank you!`;
                         </CardContent>
                       </Card>
                     </div>
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
+                    <div className={accountsHistoryTableWrapClass}>
+                      <Table className={accountsHistoryTableClass}>
+                        <TableHeader className="!static">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher no.</TableHead>
@@ -4351,9 +4352,9 @@ Please clear your dues at the earliest. Thank you!`;
                         </CardContent>
                       </Card>
                     </div>
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
+                    <div className={accountsHistoryTableWrapClass}>
+                      <Table className={accountsHistoryTableClass}>
+                        <TableHeader className="!static">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Voucher no.</TableHead>
@@ -4726,17 +4727,17 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           ) : (
             /* Desktop Table View */
-            <div className="rounded-lg border border-slate-200 overflow-auto max-h-[min(52vh,520px)]">
-              <Table>
-                <TableHeader>
+            <div className={accountsHistoryTableWrapClass}>
+              <Table className={accountsHistoryTableClass}>
+                <TableHeader className="!static">
                   <TableRow>
-                    <TableHead>{isSchool ? 'Student Name' : 'Customer Name'}</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">{isSchool ? 'Total Fees' : 'Total Sales'}</TableHead>
-                    <TableHead className="text-right">{isSchool ? 'Fees Paid' : 'Total Paid'}</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead className={accountsHistoryThClass}>{isSchool ? "Student Name" : "Customer Name"}</TableHead>
+                    <TableHead className={accountsHistoryThClass}>Contact</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>{isSchool ? "Total Fees" : "Total Sales"}</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>{isSchool ? "Fees Paid" : "Total Paid"}</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-center")}>Status</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

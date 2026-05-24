@@ -14,6 +14,7 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import * as XLSX from "xlsx";
 
@@ -272,22 +273,22 @@ export function ReconciliationTab({ organizationId, customers }: ReconciliationT
           </div>
 
           {/* Table */}
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
+          <div className={accountsHistoryTableWrapClass}>
+            <Table className={accountsHistoryTableClass}>
+              <TableHeader className="!static">
                 <TableRow>
-                  <TableHead>Voucher No</TableHead>
-                  <TableHead>Payment Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Invoice No</TableHead>
-                  <TableHead>Invoice Date</TableHead>
-                  <TableHead className="text-right">Invoice Amt</TableHead>
-                  <TableHead className="text-right">Payment Breakdown</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  {isAdmin && <TableHead className="text-center">Actions</TableHead>}
+                  <TableHead className={accountsHistoryThClass}>Voucher No</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Payment Date</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Customer</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Invoice No</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Invoice Date</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Invoice Amt</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Payment Breakdown</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Paid</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Method</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Status</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
+                  {isAdmin && <TableHead className={cn(accountsHistoryThClass, "text-center")}>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -298,7 +299,7 @@ export function ReconciliationTab({ organizationId, customers }: ReconciliationT
                   const cardAmt = invoice?.card_amount || 0;
                   const upiAmt = invoice?.upi_amount || 0;
                   return (
-                    <TableRow key={payment.id}>
+                    <TableRow key={payment.id} className="hover:bg-accent/50">
                       <TableCell className="font-medium">{payment.voucher_number}</TableCell>
                       <TableCell>{format(new Date(payment.voucher_date), "dd/MM/yyyy")}</TableCell>
                       <TableCell>

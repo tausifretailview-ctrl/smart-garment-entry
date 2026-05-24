@@ -41,6 +41,8 @@ import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
 import { AdaptivePaymentMethodPicker } from "@/components/mobile/AdaptivePaymentMethodPicker";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
+import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
+import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
@@ -1643,13 +1645,17 @@ export function CustomerPaymentTab({
       </Card>
 
       {!embedded && (
-      <Card className="rounded-xl border border-slate-200 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b border-slate-100 bg-slate-50/50">
-          <CardTitle className="text-sm font-semibold text-slate-800">Recent Customer Payments</CardTitle>
-          <div className="flex items-center gap-2">
+      <AccountsHistoryPanel
+        title="Recent Customer Payments"
+        searchPlaceholder="Search by customer name, voucher no, or description..."
+        searchValue={paymentSearchTerm}
+        onSearchChange={(v) => { setPaymentSearchTerm(v); setCustomerPaymentsPage(1); }}
+        disableTableScroll={isMobile}
+        toolbar={
+          <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <Filter className="mr-2 h-4 w-4" />
                   Payment Mode{paymentMethodFilter.length > 0 ? ` (${paymentMethodFilter.length})` : ""}
                 </Button>
@@ -1667,7 +1673,7 @@ export function CustomerPaymentTab({
                         checked ? [...prev, m] : prev.filter((x) => x !== m)
                       );
                     }}
-                    className="uppercase text-xs"
+                    className="text-xs"
                   >
                     {m.replace("_", " ")}
                   </DropdownMenuCheckboxItem>
@@ -1685,7 +1691,7 @@ export function CustomerPaymentTab({
             {isAdmin && selectedPaymentIds.length > 0 && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
+                  <Button variant="destructive" size="sm" className="h-9">
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete Selected ({selectedPaymentIds.length})
                   </Button>
@@ -1708,17 +1714,25 @@ export function CustomerPaymentTab({
                 </AlertDialogContent>
               </AlertDialog>
             )}
-          </div>
-        </CardHeader>
-        <CardContent className="p-3">
-          <div className="mb-3 w-full">
-            <Input
-              placeholder="Search by customer name, voucher no, or description..."
-              value={paymentSearchTerm}
-              onChange={(e) => { setPaymentSearchTerm(e.target.value); setCustomerPaymentsPage(1); }}
-              className={cn("w-full h-9 text-sm border-slate-200", isMobile && "rounded-xl h-10")}
-            />
-          </div>
+          </>
+        }
+        footer={
+          totalPages > 1 ? (
+            <>
+              <p className="text-muted-foreground">Showing {startIndex + 1}-{Math.min(endIndex, customerPayments.length)} of {customerPayments.length} receipts</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.max(1, p - 1))} disabled={customerPaymentsPage === 1}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                </Button>
+                <span className="font-medium px-2">Page {customerPaymentsPage} of {totalPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.min(totalPages, p + 1))} disabled={customerPaymentsPage === totalPages}>
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </>
+          ) : undefined
+        }
+      >
           {isMobile ? (
             <div className="space-y-2.5">
               {paginatedPayments.length === 0 ? (
@@ -1860,20 +1874,20 @@ export function CustomerPaymentTab({
               )}
             </div>
           ) : (
-          <Table>
-            <TableHeader>
+          <Table className={accountsHistoryTableClass}>
+            <TableHeader className="!static">
               <TableRow>
-                {isAdmin && <TableHead className="w-10"></TableHead>}
-                <TableHead>Voucher No</TableHead>
-                <TableHead>Payment Date</TableHead>
-                <TableHead>Entry Date &amp; Time</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Cheque/Txn Date</TableHead>
-                <TableHead>Discount</TableHead>
-                <TableHead>Description</TableHead>
-                {isAdmin && <TableHead>Actions</TableHead>}
+                {isAdmin && <TableHead className={cn(accountsHistoryThClass, "w-10")}></TableHead>}
+                <TableHead className={accountsHistoryThClass}>Voucher No</TableHead>
+                <TableHead className={accountsHistoryThClass}>Payment Date</TableHead>
+                <TableHead className={accountsHistoryThClass}>Entry Date &amp; Time</TableHead>
+                <TableHead className={accountsHistoryThClass}>Customer</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Amount</TableHead>
+                <TableHead className={accountsHistoryThClass}>Method</TableHead>
+                <TableHead className={accountsHistoryThClass}>Cheque/Txn Date</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Discount</TableHead>
+                <TableHead className={accountsHistoryThClass}>Description</TableHead>
+                {isAdmin && <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1893,7 +1907,7 @@ export function CustomerPaymentTab({
                 const dateMatch = desc.match(/(?:UPI Date|Date):\s*(\d{2}\/\d{2}\/\d{4})/);
                 const extractedDate = dateMatch ? dateMatch[1] : "-";
                 return (
-                  <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>
+                  <TableRow key={voucher.id} className={cn("hover:bg-accent/50", isSelected && "bg-primary/10")}>
                     {isAdmin && (
                       <TableCell>
                         <Checkbox checked={isSelected} onCheckedChange={(checked) => {
@@ -1994,22 +2008,7 @@ export function CustomerPaymentTab({
             ) : null}
           </Table>
           )}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground">Showing {startIndex + 1}-{Math.min(endIndex, customerPayments.length)} of {customerPayments.length} receipts</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.max(1, p - 1))} disabled={customerPaymentsPage === 1}>
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
-                </Button>
-                <span className="text-sm font-medium px-2">Page {customerPaymentsPage} of {totalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.min(totalPages, p + 1))} disabled={customerPaymentsPage === totalPages}>
-                  Next <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      </AccountsHistoryPanel>
       )}
 
       {/* Reassign Payment Dialog */}

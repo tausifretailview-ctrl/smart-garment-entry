@@ -23,6 +23,8 @@ import {
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
+import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { fetchSupplierBalanceSnapshot, fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -761,59 +763,68 @@ export function SupplierPaymentTab({
       </Card>
 
       {!embedded && (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Supplier Payments</CardTitle>
-          <div className="flex items-center gap-2">
-            {isAdmin && selectedPaymentIds.length > 0 && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Selected ({selectedPaymentIds.length})
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Selected Payments?</AlertDialogTitle>
-                    <AlertDialogDescription>This will delete {selectedPaymentIds.length} payment(s).</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => {
-                      const selected = supplierPayments.filter((v) => selectedPaymentIds.includes(v.id));
-                      selected.forEach((v) => deletePayment.mutate(v));
-                      setSelectedPaymentIds([]);
-                    }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Delete All
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
-            <Input
-              placeholder="Search by supplier name, voucher no, or description..."
-              value={paymentSearchTerm}
-              onChange={(e) => { setPaymentSearchTerm(e.target.value); setPaymentsPage(1); }}
-              className="max-w-sm"
-            />
-          </div>
-          <Table>
-            <TableHeader>
+      <AccountsHistoryPanel
+        title="Recent Supplier Payments"
+        searchPlaceholder="Search by supplier name, voucher no, or description..."
+        searchValue={paymentSearchTerm}
+        onSearchChange={(v) => { setPaymentSearchTerm(v); setPaymentsPage(1); }}
+        toolbar={
+          isAdmin && selectedPaymentIds.length > 0 ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="h-9">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedPaymentIds.length})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Selected Payments?</AlertDialogTitle>
+                  <AlertDialogDescription>This will delete {selectedPaymentIds.length} payment(s).</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => {
+                    const selected = supplierPayments.filter((v) => selectedPaymentIds.includes(v.id));
+                    selected.forEach((v) => deletePayment.mutate(v));
+                    setSelectedPaymentIds([]);
+                  }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Delete All
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : undefined
+        }
+        footer={
+          totalPaymentPages > 1 ? (
+            <>
+              <p className="text-muted-foreground">Showing {startIdx + 1}-{Math.min(endIdx, supplierPayments.length)} of {supplierPayments.length} payments</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setPaymentsPage(p => Math.max(1, p - 1))} disabled={paymentsPage === 1}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                </Button>
+                <span className="font-medium px-2">Page {paymentsPage} of {totalPaymentPages}</span>
+                <Button variant="outline" size="sm" onClick={() => setPaymentsPage(p => Math.min(totalPaymentPages, p + 1))} disabled={paymentsPage === totalPaymentPages}>
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </>
+          ) : undefined
+        }
+      >
+          <Table className={accountsHistoryTableClass}>
+            <TableHeader className="!static">
               <TableRow>
-                {isAdmin && <TableHead className="w-10"></TableHead>}
-                <TableHead>Voucher No</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Entry Date &amp; Time</TableHead>
-                <TableHead>Supplier</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Description</TableHead>
-                {isAdmin && <TableHead>Actions</TableHead>}
+                {isAdmin && <TableHead className={cn(accountsHistoryThClass, "w-10")}></TableHead>}
+                <TableHead className={accountsHistoryThClass}>Voucher No</TableHead>
+                <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                <TableHead className={accountsHistoryThClass}>Entry Date &amp; Time</TableHead>
+                <TableHead className={accountsHistoryThClass}>Supplier</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Amount</TableHead>
+                <TableHead className={accountsHistoryThClass}>Method</TableHead>
+                <TableHead className={accountsHistoryThClass}>Description</TableHead>
+                {isAdmin && <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -824,7 +835,7 @@ export function SupplierPaymentTab({
                   "-";
                 const isSelected = selectedPaymentIds.includes(voucher.id);
                 return (
-                  <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>
+                  <TableRow key={voucher.id} className={cn("hover:bg-accent/50", isSelected && "bg-primary/10")}>
                     {isAdmin && (
                       <TableCell>
                         <Checkbox checked={isSelected} onCheckedChange={(checked) => {
@@ -862,22 +873,7 @@ export function SupplierPaymentTab({
               })}
             </TableBody>
           </Table>
-          {totalPaymentPages > 1 && (
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground">Showing {startIdx + 1}-{Math.min(endIdx, supplierPayments.length)} of {supplierPayments.length} payments</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setPaymentsPage(p => Math.max(1, p - 1))} disabled={paymentsPage === 1}>
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
-                </Button>
-                <span className="text-sm font-medium px-2">Page {paymentsPage} of {totalPaymentPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setPaymentsPage(p => Math.min(totalPaymentPages, p + 1))} disabled={paymentsPage === totalPaymentPages}>
-                  Next <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      </AccountsHistoryPanel>
       )}
 
       <ChequePrintDialog

@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
+import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
+import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 
 interface OutstandingDashboardTabProps {
   organizationId: string;
@@ -466,48 +468,39 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
       )}
 
       {/* Customer outstanding list */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Customer-wise Outstanding</CardTitle>
-              <CardDescription>
-                {isMobile ? "Tap a customer for aging summary" : "Detailed breakdown with aging columns"}
-              </CardDescription>
-            </div>
-            <div className={cn("flex gap-2", isMobile ? "flex-col w-full" : "items-center")}>
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search customer..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className={cn("pl-9", isMobile ? "w-full h-10 rounded-xl" : "w-52")}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Select value={minAmount} onValueChange={setMinAmount}>
-                  <SelectTrigger className={isMobile ? "flex-1" : "w-36"}>
-                    <SelectValue placeholder="Min amount" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All amounts</SelectItem>
-                    <SelectItem value="1000">≥ ₹1,000</SelectItem>
-                    <SelectItem value="5000">≥ ₹5,000</SelectItem>
-                    <SelectItem value="10000">≥ ₹10,000</SelectItem>
-                    <SelectItem value="50000">≥ ₹50,000</SelectItem>
-                  </SelectContent>
-                </Select>
-                {!isMobile && (
-                  <Button variant="outline" size="sm" onClick={handleExport} className="gap-1.5">
-                    <FileDown className="h-4 w-4" /> Export
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+      <AccountsHistoryPanel
+        title="Customer-wise Outstanding"
+        searchPlaceholder="Search customer…"
+        searchValue={search}
+        onSearchChange={setSearch}
+        disableTableScroll={isMobile}
+        toolbar={
+          !isMobile ? (
+            <Button variant="outline" size="sm" onClick={handleExport} className="h-9 gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
+              <FileDown className="h-4 w-4" /> Export
+            </Button>
+          ) : undefined
+        }
+        footer={
+          <span className="text-muted-foreground w-full">
+            Showing {filteredCustomers.length} of {customers.length} customers
+          </span>
+        }
+        filters={
+          <Select value={minAmount} onValueChange={setMinAmount}>
+            <SelectTrigger className={cn("h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white", isMobile ? "flex-1 min-w-[120px]" : "w-36")}>
+              <SelectValue placeholder="Min amount" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All amounts</SelectItem>
+              <SelectItem value="1000">≥ ₹1,000</SelectItem>
+              <SelectItem value="5000">≥ ₹5,000</SelectItem>
+              <SelectItem value="10000">≥ ₹10,000</SelectItem>
+              <SelectItem value="50000">≥ ₹50,000</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+      >
           {isMobile && (
             <MobileStatStrip
               stats={[
@@ -559,26 +552,25 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
               )}
             </div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
+              <Table className={accountsHistoryTableClass}>
+                <TableHeader className="!static">
                   <TableRow>
-                    <TableHead className="cursor-pointer select-none" onClick={() => handleSort("name")}>
+                    <TableHead className={cn(accountsHistoryThClass, "cursor-pointer select-none")} onClick={() => handleSort("name")}>
                       <div className="flex items-center">Customer <SortIcon field="name" /></div>
                     </TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("totalOutstanding")}>
+                    <TableHead className={accountsHistoryThClass}>Phone</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "cursor-pointer select-none text-right")} onClick={() => handleSort("totalOutstanding")}>
                       <div className="flex items-center justify-end">Outstanding <SortIcon field="totalOutstanding" /></div>
                     </TableHead>
-                    <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("invoiceCount")}>
+                    <TableHead className={cn(accountsHistoryThClass, "cursor-pointer select-none text-right")} onClick={() => handleSort("invoiceCount")}>
                       <div className="flex items-center justify-end">Invoices <SortIcon field="invoiceCount" /></div>
                     </TableHead>
-                    <TableHead className="text-right">0-7d</TableHead>
-                    <TableHead className="text-right">8-30d</TableHead>
-                    <TableHead className="text-right">31-60d</TableHead>
-                    <TableHead className="text-right">61-90d</TableHead>
-                    <TableHead className="text-right">90d+</TableHead>
-                    <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("oldestDays")}>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>0-7d</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>8-30d</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>31-60d</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>61-90d</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>90d+</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "cursor-pointer select-none text-right")} onClick={() => handleSort("oldestDays")}>
                       <div className="flex items-center justify-end">Oldest <SortIcon field="oldestDays" /></div>
                     </TableHead>
                   </TableRow>
@@ -628,13 +620,8 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
                   )}
                 </TableBody>
               </Table>
-            </div>
           )}
-          <div className="text-xs text-muted-foreground mt-2">
-            Showing {filteredCustomers.length} of {customers.length} customers
-          </div>
-        </CardContent>
-      </Card>
+      </AccountsHistoryPanel>
     </div>
   );
 }

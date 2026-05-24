@@ -21,6 +21,8 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
+import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 
 interface ExpensesTabProps {
   organizationId: string;
@@ -629,25 +631,21 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
       </Card>
 
       {!embedded && (
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-            <CardTitle className="text-base">Expense Ledger</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportExcel} className="gap-1.5 text-xs">
-              <FileDown className="h-3.5 w-3.5" /> Export Excel
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Filters */}
-          <div className="flex flex-wrap items-end gap-2 mb-4">
-            <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-9 pl-8 text-xs" />
-            </div>
+      <AccountsHistoryPanel
+        title="Expense Ledger"
+        searchPlaceholder="Search expenses…"
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        toolbar={
+          <Button variant="outline" size="sm" onClick={exportExcel} className="h-9 gap-1.5 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+            <FileDown className="h-3.5 w-3.5" /> Export Excel
+          </Button>
+        }
+        filters={
+          <>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="h-9 text-xs gap-1.5">
+                <Button variant="outline" className="h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
                   <CalendarIcon className="h-3.5 w-3.5" />
                   {filterDateFrom ? format(filterDateFrom, "dd/MM") : "From"}
                 </Button>
@@ -656,7 +654,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
             </Popover>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="h-9 text-xs gap-1.5">
+                <Button variant="outline" className="h-9 text-sm gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
                   <CalendarIcon className="h-3.5 w-3.5" />
                   {filterDateTo ? format(filterDateTo, "dd/MM") : "To"}
                 </Button>
@@ -664,39 +662,38 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
               <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} className="pointer-events-auto" /></PopoverContent>
             </Popover>
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-              <SelectTrigger className="h-9 w-[140px] text-xs"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[140px] text-sm border-slate-200 bg-slate-50 hover:bg-white"><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Categories</SelectItem>
-                {uniqueCategories.map((c) => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterPayment} onValueChange={setFilterPayment}>
-              <SelectTrigger className="h-9 w-[120px] text-xs"><SelectValue placeholder="Payment" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[120px] text-sm border-slate-200 bg-slate-50 hover:bg-white"><SelectValue placeholder="Payment" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Methods</SelectItem>
-                {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>)}
+                <SelectItem value="all">All Methods</SelectItem>
+                {PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
               </SelectContent>
             </Select>
             {(filterDateFrom || filterDateTo || filterCategory !== "all" || filterPayment !== "all" || searchQuery) && (
-              <Button variant="ghost" size="sm" className="text-xs h-9" onClick={() => { setSearchQuery(""); setFilterDateFrom(undefined); setFilterDateTo(undefined); setFilterCategory("all"); setFilterPayment("all"); }}>
+              <Button variant="ghost" size="sm" className="h-9" onClick={() => { setSearchQuery(""); setFilterDateFrom(undefined); setFilterDateTo(undefined); setFilterCategory("all"); setFilterPayment("all"); }}>
                 Clear
               </Button>
             )}
-          </div>
-
-          {/* Table */}
-          <div className="rounded-md border overflow-auto">
-            <Table>
-              <TableHeader>
+          </>
+        }
+      >
+            <Table className={accountsHistoryTableClass}>
+              <TableHeader className="!static">
                 <TableRow>
-                  <TableHead className="text-xs w-[120px]">Voucher No</TableHead>
-                  <TableHead className="text-xs w-[90px]">Date</TableHead>
-                  <TableHead className="text-xs w-[150px]">Entry Dt/Time</TableHead>
-                  <TableHead className="text-xs">Category</TableHead>
-                  <TableHead className="text-xs">Narration</TableHead>
-                  <TableHead className="text-xs w-[80px]">Payment</TableHead>
-                  <TableHead className="text-xs text-right w-[100px]">Amount</TableHead>
-                  <TableHead className="text-xs w-[100px] text-center">Actions</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[120px]")}>Voucher No</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[90px]")}>Date</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[150px]")}>Entry Dt/Time</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Category</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Narration</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[80px]")}>Payment</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right w-[100px]")}>Amount</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "w-[100px] text-center")}>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -706,7 +703,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
                   <TableRow><TableCell colSpan={8} className="text-center text-xs py-8 text-muted-foreground">No expenses found</TableCell></TableRow>
                 ) : (
                   filteredExpenses.map((v) => (
-                    <TableRow key={v.id}>
+                    <TableRow key={v.id} className="hover:bg-accent/50">
                       <TableCell className="text-xs font-medium">{v.voucher_number}</TableCell>
                       <TableCell className="text-xs">{format(new Date(v.voucher_date), "dd/MM/yyyy")}</TableCell>
                       <TableCell className="text-xs">{formatEntryDateTime(v.created_at)}</TableCell>
@@ -733,9 +730,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
                 )}
               </TableBody>
             </Table>
-          </div>
-        </CardContent>
-      </Card>
+      </AccountsHistoryPanel>
       )}
 
       {/* Edit Dialog */}

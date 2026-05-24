@@ -18,8 +18,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
+import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { format } from "date-fns";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -274,26 +276,22 @@ export function EmployeeSalaryTab({ organizationId, vouchers, embedded = false }
       </Card>
 
       {!embedded && (
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Salary Payments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+      <AccountsHistoryPanel title="Recent Salary Payments">
+          <Table className={accountsHistoryTableClass}>
+            <TableHeader className="!static">
               <TableRow>
-                <TableHead>Voucher No</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Entry Date &amp; Time</TableHead>
-                <TableHead>Employee</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="w-[56px] text-center"> </TableHead>
+                <TableHead className={accountsHistoryThClass}>Voucher No</TableHead>
+                <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                <TableHead className={accountsHistoryThClass}>Entry Date &amp; Time</TableHead>
+                <TableHead className={accountsHistoryThClass}>Employee</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Amount</TableHead>
+                <TableHead className={accountsHistoryThClass}>Description</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "w-[56px] text-center")}> </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {salaryRows.map((voucher) => (
-                <TableRow key={voucher.id}>
+                <TableRow key={voucher.id} className="hover:bg-accent/50">
                   <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                   <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
                   <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
@@ -320,8 +318,7 @@ export function EmployeeSalaryTab({ organizationId, vouchers, embedded = false }
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+      </AccountsHistoryPanel>
       )}
 
       <AlertDialog open={!!salaryDeleteTarget} onOpenChange={(open) => !open && setSalaryDeleteTarget(null)}>

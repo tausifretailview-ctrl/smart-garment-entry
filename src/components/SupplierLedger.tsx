@@ -10,6 +10,7 @@ import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import * as XLSX from "xlsx";
@@ -704,17 +705,17 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
             <Separator className="my-6" />
 
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
+            <div className={accountsHistoryTableWrapClass}>
+              <Table className={accountsHistoryTableClass}>
+                <TableHeader className="!static">
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Debit (Paid)</TableHead>
-                    <TableHead className="text-right">Credit (Bill)</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                    <TableHead className={accountsHistoryThClass}>Type</TableHead>
+                    <TableHead className={accountsHistoryThClass}>Reference</TableHead>
+                    <TableHead className={accountsHistoryThClass}>Description</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Debit (Paid)</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Credit (Bill)</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -940,16 +941,16 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           </div>
 
           <div className="rounded-lg border border-slate-200 overflow-auto max-h-[min(52vh,520px)]">
-            <Table>
-              <TableHeader>
+            <Table className={accountsHistoryTableClass}>
+              <TableHeader className="!static">
                 <TableRow>
-                  <TableHead>Supplier Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead className="text-right">Total Purchases</TableHead>
-                  <TableHead className="text-right">Total Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Supplier Name</TableHead>
+                  <TableHead className={accountsHistoryThClass}>Contact</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Total Purchases</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Total Paid</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-center")}>Status</TableHead>
+                  <TableHead className={cn(accountsHistoryThClass, "text-right")}>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
