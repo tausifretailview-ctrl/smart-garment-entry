@@ -1,17 +1,39 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter, Link2 } from "lucide-react";
+import {
+  Search,
+  MessageCircle,
+  Settings2,
+  IndianRupee,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Calendar as CalendarIcon,
+  Printer,
+  Send,
+  ChevronLeft,
+  ChevronRight,
+  Link2,
+  Wallet,
+  BookOpen,
+  TrendingUp,
+  Receipt,
+  Building2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -32,6 +54,20 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/MobileListCard";
+import { useOrganizationCustomerAccountTotals } from "@/hooks/useOrganizationCustomerAccountTotals";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
+import {
+  fetchCustomerFinancialSnapshot,
+  formatSnapshotInr,
+  invalidateCustomerFinancialSnapshot,
+} from "@/utils/customerFinancialSnapshot";
+import {
+  accountsHistoryFooterClass,
+  accountsHistorySearchInputClass,
+  accountsHistoryTableClass,
+  accountsHistoryTableWrapClass,
+  accountsHistoryThClass,
+} from "@/components/accounts/accountsHistoryUi";
 
 interface Invoice {
   id: string;
@@ -76,8 +112,50 @@ const defaultColumnSettings: ColumnSettings = {
   recordPayment: true,
 };
 
+function MetricCard({
+  label,
+  value,
+  sub,
+  gradient,
+  icon: Icon,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  gradient: string;
+  icon: LucideIcon;
+  onClick?: () => void;
+}) {
+  return (
+    <Card
+      className={cn(
+        "border-0 shadow-md rounded-xl min-w-0",
+        gradient,
+        onClick && "cursor-pointer hover:shadow-lg transition-all",
+      )}
+      onClick={onClick}
+    >
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
+        <CardDescription className="text-xs font-medium text-white/80 leading-tight">{label}</CardDescription>
+        <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+          <Icon className="h-3.5 w-3.5 text-white" />
+        </div>
+      </CardHeader>
+      <CardContent className="px-2.5 pb-2 pt-0">
+        <div className="text-lg xl:text-xl font-black text-white tabular-nums leading-tight truncate">{value}</div>
+        <p className="text-xs text-white/65 mt-0.5 line-clamp-2">{sub}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PaymentsDashboard() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const customerIdParam = searchParams.get("customerId");
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
@@ -115,8 +193,35 @@ export default function PaymentsDashboard() {
     defaultColumnSettings
   );
 
-  // Fetch company settings for receipt branding (centralized, cached 5min)
   const { data: settings } = useSettings();
+
+  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+
+  const { totals: accountTotals, isLoading: accountTotalsLoading } = useOrganizationCustomerAccountTotals(
+    currentOrganization?.id,
+  );
+
+  const { snapshot: filteredCustomerSnapshot } = useCustomerFinancialSnapshot(
+    customerIdParam,
+    currentOrganization?.id,
+  );
+
+  const { data: accountsMetrics } = useQuery({
+    queryKey: ["accounts-dashboard-metrics", currentOrganization?.id, monthStart, monthEnd],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_accounts_dashboard_metrics", {
+        p_org_id: currentOrganization!.id,
+        p_month_start: monthStart,
+        p_month_end: monthEnd,
+      });
+      if (error) throw error;
+      return data as { totalPayables?: number; totalReceivables?: number };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
   const { data: invoices, isLoading, refetch } = useQuery<Invoice[]>({
     queryKey: ['payment-invoices', currentOrganization?.id, statusFilter, dateFrom, dateTo],
@@ -161,15 +266,28 @@ export default function PaymentsDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  // Calculate summary statistics
-  const summaryStats = {
-    total: invoices?.length || 0,
-    totalRevenue: invoices?.reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0) || 0,
-    pendingAmount: invoices?.filter(inv => inv.payment_status !== 'completed')
-      .reduce((sum, inv) => sum + (Number(inv.net_amount || 0) - Number(inv.paid_amount || 0)), 0) || 0,
-    completedAmount: invoices?.filter(inv => inv.payment_status === 'completed')
-      .reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0) || 0,
-  };
+  const summaryStats = useMemo(() => {
+    const rows = invoices || [];
+    const totalRevenue = rows.reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0);
+    const pendingAmount = rows
+      .filter((inv) => inv.payment_status !== "completed")
+      .reduce((sum, inv) => sum + Math.max(0, Number(inv.net_amount || 0) - Number(inv.paid_amount || 0)), 0);
+    const completedAmount = rows
+      .filter((inv) => inv.payment_status === "completed")
+      .reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0);
+    return {
+      total: rows.length,
+      totalRevenue,
+      pendingAmount,
+      completedAmount,
+      collectionRate: totalRevenue > 0 ? (completedAmount / totalRevenue) * 100 : 0,
+    };
+  }, [invoices]);
+
+  const periodLabel =
+    dateFrom || dateTo
+      ? `${dateFrom ? format(dateFrom, "dd MMM yyyy") : "…"} – ${dateTo ? format(dateTo, "dd MMM yyyy") : "…"}`
+      : "All dates in list";
 
   // Quick date filter handlers
   const setTodayFilter = () => {
@@ -201,16 +319,19 @@ export default function PaymentsDashboard() {
     setDateTo(undefined);
   };
 
-  // Filter invoices based on search
-  const filteredInvoices = invoices?.filter(invoice => {
+  const filteredInvoices = useMemo(() => {
     const searchLower = searchQuery.toLowerCase();
-    return (
-      invoice.sale_number?.toLowerCase().includes(searchLower) ||
-      invoice.customer_name?.toLowerCase().includes(searchLower) ||
-      invoice.customer_phone?.toLowerCase().includes(searchLower) ||
-      invoice.customer_email?.toLowerCase().includes(searchLower)
-    );
-  }) || [];
+    return (invoices || []).filter((invoice) => {
+      if (customerIdParam && invoice.customer_id !== customerIdParam) return false;
+      if (!searchLower) return true;
+      return (
+        invoice.sale_number?.toLowerCase().includes(searchLower) ||
+        invoice.customer_name?.toLowerCase().includes(searchLower) ||
+        invoice.customer_phone?.toLowerCase().includes(searchLower) ||
+        invoice.customer_email?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [invoices, searchQuery, customerIdParam]);
 
   // Pagination
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
@@ -232,28 +353,18 @@ export default function PaymentsDashboard() {
     const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
     const organizationName = currentOrganization?.name || '';
 
-    let customerBalance = 0;
-    if (invoice.customer_id) {
+    let customerBalance = Math.max(0, Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0));
+    if (invoice.customer_id && currentOrganization?.id) {
       try {
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('opening_balance')
-          .eq('id', invoice.customer_id)
-          .single();
-        const openingBalance = customer?.opening_balance || 0;
-        const { data: sales } = await supabase
-          .from('sales')
-          .select('net_amount, paid_amount')
-          .eq('customer_id', invoice.customer_id)
-          .eq('organization_id', currentOrganization?.id);
-        const totalSales = sales?.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0) || 0;
-        const totalPaid = sales?.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0) || 0;
-        customerBalance = openingBalance + totalSales - totalPaid;
-      } catch (e) {
-        customerBalance = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
+        const snap = await fetchCustomerFinancialSnapshot(
+          supabase,
+          currentOrganization.id,
+          invoice.customer_id,
+        );
+        customerBalance = snap.outstandingDr;
+      } catch {
+        /* keep invoice pending as fallback */
       }
-    } else {
-      customerBalance = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
     }
 
     const reminderMessage = formatMessage('payment_reminder', {
@@ -415,6 +526,11 @@ export default function PaymentsDashboard() {
         currentBalance: netAmount - newPaidAmount,
       });
 
+      if (currentOrganization?.id) {
+        invalidateCustomerFinancialSnapshot(queryClient, currentOrganization.id, selectedInvoice.customer_id);
+        queryClient.invalidateQueries({ queryKey: ["payment-invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["accounts-dashboard-metrics", currentOrganization.id] });
+      }
       refetch();
     } catch (error: any) {
       console.error('Error recording payment:', error);
@@ -755,14 +871,24 @@ Thank you for your business!`;
             stats={[
               { label: "Revenue", value: fmtShort(summaryStats.totalRevenue), color: "text-blue-600", bg: "bg-blue-50" },
               { label: "Collected", value: fmtShort(summaryStats.completedAmount), color: "text-emerald-600", bg: "bg-emerald-50" },
-              { label: "Pending", value: fmtShort(summaryStats.pendingAmount), color: "text-rose-600", bg: "bg-rose-50" },
+              { label: "Inv. Due", value: fmtShort(summaryStats.pendingAmount), color: "text-rose-600", bg: "bg-rose-50" },
               {
-                label: "Rate",
-                value: summaryStats.totalRevenue > 0
-                  ? `${((summaryStats.completedAmount / summaryStats.totalRevenue) * 100).toFixed(0)}%`
-                  : "0%",
-                color: "text-violet-600",
-                bg: "bg-violet-50",
+                label: "Cust. Due",
+                value: accountTotalsLoading ? "…" : fmtShort(accountTotals.totalOutstandingDr),
+                color: "text-orange-600",
+                bg: "bg-orange-50",
+              },
+              {
+                label: "Advance",
+                value: accountTotalsLoading ? "…" : fmtShort(accountTotals.totalAdvanceAvailable),
+                color: "text-teal-600",
+                bg: "bg-teal-50",
+              },
+              {
+                label: "CN",
+                value: accountTotalsLoading ? "…" : fmtShort(accountTotals.totalCnAvailable),
+                color: "text-amber-600",
+                bg: "bg-amber-50",
               },
             ]}
           />
@@ -883,231 +1009,256 @@ Thank you for your business!`;
     );
   }
 
+  const fmtInr = (n: number) => `₹${formatSnapshotInr(n, n >= 100000 ? 0 : 2)}`;
+
+  const datePresetActive = (from: Date, to: Date) =>
+    dateFrom &&
+    dateTo &&
+    format(dateFrom, "yyyy-MM-dd") === format(from, "yyyy-MM-dd") &&
+    format(dateTo, "yyyy-MM-dd") === format(to, "yyyy-MM-dd");
+
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-      
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Payments Dashboard</h1>
-            <p className="text-muted-foreground">Track and manage invoice payments</p>
+    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 shrink-0 mb-2">
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">Payments Dashboard</h1>
+          <p className="text-slate-400 text-base mt-0.5">Invoice collections · customer & supplier account totals</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" className="h-9" onClick={() => navigate("/accounts")}>
+            Accounts Management
+          </Button>
+        </div>
+      </div>
+
+      {customerIdParam && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 mb-2 flex flex-wrap items-center gap-3 text-sm">
+          <span className="font-medium text-blue-900">Customer filter active</span>
+          <span className="text-blue-800 tabular-nums">
+            Outstanding ₹{formatSnapshotInr(filteredCustomerSnapshot.outstandingDr)} · Advance ₹
+            {formatSnapshotInr(filteredCustomerSnapshot.advanceAvailable)} · CN ₹
+            {formatSnapshotInr(filteredCustomerSnapshot.cnAvailableTotal)}
+            {filteredCustomerSnapshot.cnPendingCount > 0
+              ? ` (${filteredCustomerSnapshot.cnPendingCount} pending)`
+              : ""}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 ml-auto"
+            onClick={() => {
+              searchParams.delete("customerId");
+              setSearchParams(searchParams);
+            }}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Clear customer
+          </Button>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-500 mb-2 shrink-0">
+        Invoice cards reflect filters ({periodLabel}). Account cards use ledger snapshot (same as Customer Ledger).
+      </p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 shrink-0 mb-2">
+        <MetricCard
+          label="Invoices"
+          value={String(summaryStats.total)}
+          sub={`Revenue ${fmtInr(summaryStats.totalRevenue)}`}
+          gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+          icon={Receipt}
+        />
+        <MetricCard
+          label="Collected"
+          value={fmtInr(summaryStats.completedAmount)}
+          sub="Paid invoices in period"
+          gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+          icon={CheckCircle}
+        />
+        <MetricCard
+          label="Invoice Due"
+          value={fmtInr(summaryStats.pendingAmount)}
+          sub="Unpaid on listed invoices"
+          gradient="bg-gradient-to-br from-red-500 to-red-600"
+          icon={AlertCircle}
+        />
+        <MetricCard
+          label="Collection %"
+          value={`${summaryStats.collectionRate.toFixed(1)}%`}
+          sub="Completed ÷ revenue"
+          gradient="bg-gradient-to-br from-violet-500 to-violet-600"
+          icon={Clock}
+        />
+        <MetricCard
+          label="Customer Due"
+          value={accountTotalsLoading ? "…" : fmtInr(accountTotals.totalOutstandingDr)}
+          sub={`${accountTotals.customersWithOutstanding} with balance · ledger`}
+          gradient="bg-gradient-to-br from-rose-500 to-rose-600"
+          icon={TrendingUp}
+          onClick={() => navigate("/accounts")}
+        />
+        <MetricCard
+          label="Advance"
+          value={accountTotalsLoading ? "…" : fmtInr(accountTotals.totalAdvanceAvailable)}
+          sub={`${accountTotals.customersWithAdvance} customers`}
+          gradient="bg-gradient-to-br from-teal-500 to-teal-600"
+          icon={Wallet}
+          onClick={() => navigate("/accounts?tab=customer-payment")}
+        />
+        <MetricCard
+          label="CN Available"
+          value={accountTotalsLoading ? "…" : fmtInr(accountTotals.totalCnAvailable)}
+          sub={`${accountTotals.totalCnPendingCount} pending returns`}
+          gradient="bg-gradient-to-br from-amber-500 to-amber-600"
+          icon={BookOpen}
+          onClick={() => navigate("/accounts?tab=customer-ledger")}
+        />
+        <MetricCard
+          label="Supplier Payable"
+          value={fmtInr(Number(accountsMetrics?.totalPayables || 0))}
+          sub="Matches Accounts dashboard"
+          gradient="bg-gradient-to-br from-orange-500 to-orange-600"
+          icon={Building2}
+          onClick={() => navigate("/accounts?tab=supplier-ledger")}
+        />
+      </div>
+
+      <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex flex-wrap gap-1.5 shrink-0">
+            <Button
+              variant={datePresetActive(new Date(), new Date()) ? "default" : "outline"}
+              size="sm"
+              className="h-9"
+              onClick={setTodayFilter}
+            >
+              Today
+            </Button>
+            <Button
+              variant={datePresetActive(startOfMonth(new Date()), endOfMonth(new Date())) ? "default" : "outline"}
+              size="sm"
+              className="h-9"
+              onClick={setMonthlyFilter}
+            >
+              Monthly
+            </Button>
+            <Button
+              variant={datePresetActive(startOfQuarter(new Date()), endOfQuarter(new Date())) ? "default" : "outline"}
+              size="sm"
+              className="h-9"
+              onClick={setQuarterlyFilter}
+            >
+              Quarterly
+            </Button>
+            <Button
+              variant={datePresetActive(startOfYear(new Date()), endOfYear(new Date())) ? "default" : "outline"}
+              size="sm"
+              className="h-9"
+              onClick={setYearlyFilter}
+            >
+              Year
+            </Button>
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="sm" className="h-9" onClick={clearDateFilter}>
+                Clear dates
+              </Button>
+            )}
           </div>
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by invoice, customer, phone..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className={accountsHistorySearchInputClass}
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-[140px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="partial">Partial</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-start min-w-[130px]">
+                <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} className={cn("p-3 pointer-events-auto")} />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-start min-w-[130px]">
+                <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                {dateTo ? format(dateTo, "dd MMM yyyy") : "To"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar mode="single" selected={dateTo} onSelect={setDateTo} className={cn("p-3 pointer-events-auto")} />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" className="h-9 w-9 border-slate-200 shrink-0">
+                <Settings2 className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80">
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm">Column visibility</h4>
+                {Object.entries(columnSettings).map(([key, value]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={key}
+                      checked={value}
+                      onCheckedChange={(checked) => updateColumnSetting(key, checked === true)}
+                    />
+                    <Label htmlFor={key} className="cursor-pointer capitalize text-sm">
+                      {key.replace(/([A-Z])/g, " $1").trim()}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
-              <IndianRupee className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summaryStats.total}</div>
-              <p className="text-xs text-muted-foreground">
-                Total Revenue: ₹{summaryStats.totalRevenue.toFixed(2)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                ₹{summaryStats.completedAmount.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">Received payments</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending</CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                ₹{summaryStats.pendingAmount.toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">Outstanding amount</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Collection Rate</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {summaryStats.totalRevenue > 0 
-                  ? ((summaryStats.completedAmount / summaryStats.totalRevenue) * 100).toFixed(1)
-                  : 0}%
-              </div>
-              <p className="text-xs text-muted-foreground">Payment collection rate</p>
-            </CardContent>
-          </Card>
+        <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50/50 text-xs text-slate-600 shrink-0">
+          Invoice payments ({filteredInvoices.length}) · showing {paginatedInvoices.length} on this page
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Quick Date Filters */}
-              <div className="flex flex-wrap gap-2">
-                <Button 
-                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"} 
-                  size="sm"
-                  onClick={setTodayFilter}
-                >
-                  Today
-                </Button>
-                <Button 
-                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(startOfMonth(new Date()), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(endOfMonth(new Date()), 'yyyy-MM-dd') ? "default" : "outline"}
-                  size="sm"
-                  onClick={setMonthlyFilter}
-                >
-                  Monthly
-                </Button>
-                <Button 
-                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(startOfQuarter(new Date()), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(endOfQuarter(new Date()), 'yyyy-MM-dd') ? "default" : "outline"}
-                  size="sm"
-                  onClick={setQuarterlyFilter}
-                >
-                  Quarterly
-                </Button>
-                <Button 
-                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(startOfYear(new Date()), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(endOfYear(new Date()), 'yyyy-MM-dd') ? "default" : "outline"}
-                  size="sm"
-                  onClick={setYearlyFilter}
-                >
-                  Year
-                </Button>
-                {(dateFrom || dateTo) && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={clearDateFilter}
-                  >
-                    Clear Dates
-                  </Button>
-                )}
-              </div>
-
-              {/* Search and Filters */}
-              <div className="grid gap-4 md:grid-cols-5">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by invoice, customer, phone..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Payment Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="partial">Partial</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From Date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar 
-                      mode="single" 
-                      selected={dateFrom} 
-                      onSelect={setDateFrom}
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateTo ? format(dateTo, "dd MMM yyyy") : "To Date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar 
-                      mode="single" 
-                      selected={dateTo} 
-                      onSelect={setDateTo}
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
-
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <Settings2 className="h-4 w-4" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80">
-                    <div className="space-y-4">
-                      <h4 className="font-medium">Column Visibility</h4>
-                      {Object.entries(columnSettings).map(([key, value]) => (
-                        <div key={key} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={key}
-                            checked={value}
-                            onChange={(e) => updateColumnSetting(key, e.target.checked)}
-                            className="h-4 w-4"
-                          />
-                          <Label htmlFor={key} className="cursor-pointer capitalize">
-                            {key.replace(/([A-Z])/g, ' $1').trim()}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Payments Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Invoice Payments ({filteredInvoices.length})</CardTitle>
-            <CardDescription>Showing {paginatedInvoices.length} of {filteredInvoices.length} invoices</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
+        <div className={cn(accountsHistoryTableWrapClass, "flex-1")}>
+              <Table className={accountsHistoryTableClass}>
+                <TableHeader className="!static">
                   <TableRow>
-                    {columnSettings.saleNumber && <TableHead>Invoice No.</TableHead>}
-                    {columnSettings.customer && <TableHead>Customer</TableHead>}
-                    {columnSettings.saleDate && <TableHead>Sale Date</TableHead>}
-                    {columnSettings.dueDate && <TableHead>Due Date</TableHead>}
-                    {columnSettings.netAmount && <TableHead>Total Amount</TableHead>}
-                    {columnSettings.paidAmount && <TableHead>Paid Amount</TableHead>}
-                    {columnSettings.pendingAmount && <TableHead>Pending</TableHead>}
-                    {columnSettings.status && <TableHead>Status</TableHead>}
-                    <TableHead>Actions</TableHead>
+                    {columnSettings.saleNumber && <TableHead className={accountsHistoryThClass}>Invoice No.</TableHead>}
+                    {columnSettings.customer && <TableHead className={accountsHistoryThClass}>Customer</TableHead>}
+                    {columnSettings.saleDate && <TableHead className={accountsHistoryThClass}>Sale Date</TableHead>}
+                    {columnSettings.dueDate && <TableHead className={accountsHistoryThClass}>Due Date</TableHead>}
+                    {columnSettings.netAmount && <TableHead className={cn(accountsHistoryThClass, "text-right")}>Total</TableHead>}
+                    {columnSettings.paidAmount && <TableHead className={cn(accountsHistoryThClass, "text-right")}>Paid</TableHead>}
+                    {columnSettings.pendingAmount && <TableHead className={cn(accountsHistoryThClass, "text-right")}>Pending</TableHead>}
+                    {columnSettings.status && <TableHead className={accountsHistoryThClass}>Status</TableHead>}
+                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1128,7 +1279,7 @@ Thank you for your business!`;
                       const pendingAmount = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
                       
                       return (
-                        <TableRow key={invoice.id}>
+                        <TableRow key={invoice.id} className="hover:bg-accent/50">
                           {columnSettings.saleNumber && (
                             <TableCell className="font-medium">{invoice.sale_number}</TableCell>
                           )}
@@ -1221,55 +1372,58 @@ Thank you for your business!`;
                   )}
                 </TableBody>
               </Table>
-            </div>
+        </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Items per page:</span>
-                  <Select value={itemsPerPage.toString()} onValueChange={(value) => {
-                    setItemsPerPage(parseInt(value));
-                    setCurrentPage(1);
-                  }}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="25">25</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
+        {(totalPages > 1 || filteredInvoices.length > 0) && (
+          <div className={accountsHistoryFooterClass}>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Per page:</span>
+              <Select
+                value={itemsPerPage.toString()}
+                onValueChange={(value) => {
+                  setItemsPerPage(parseInt(value, 10));
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-20 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {totalPages > 1 ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="font-medium">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
               </div>
+            ) : (
+              <span className="text-muted-foreground">{filteredInvoices.length} invoices</span>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        )}
+      </Card>
       {dashboardDialogs}
     </div>
   );

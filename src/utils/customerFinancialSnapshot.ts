@@ -95,6 +95,66 @@ export async function fetchCustomerFinancialSnapshotMap(
   return map;
 }
 
+export type OrganizationCustomerAccountTotals = {
+  customerCount: number;
+  customersWithOutstanding: number;
+  customersWithAdvance: number;
+  customersWithCn: number;
+  totalOutstandingDr: number;
+  totalAdvanceAvailable: number;
+  totalCnAvailable: number;
+  totalCnPendingCount: number;
+};
+
+/**
+ * Sum snapshot metrics across all customers (matches Customer Ledger / Accounts totals).
+ */
+export async function fetchOrganizationCustomerAccountTotals(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+): Promise<OrganizationCustomerAccountTotals> {
+  const empty: OrganizationCustomerAccountTotals = {
+    customerCount: 0,
+    customersWithOutstanding: 0,
+    customersWithAdvance: 0,
+    customersWithCn: 0,
+    totalOutstandingDr: 0,
+    totalAdvanceAvailable: 0,
+    totalCnAvailable: 0,
+    totalCnPendingCount: 0,
+  };
+  if (!organizationId) return empty;
+
+  const { data: customers, error } = await client
+    .from("customers")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+  if (error) throw error;
+
+  const ids = (customers || []).map((c: { id: string }) => c.id).filter(Boolean);
+  if (ids.length === 0) return empty;
+
+  const map = await fetchCustomerFinancialSnapshotMap(organizationId, ids, client);
+
+  const totals = { ...empty, customerCount: ids.length };
+  for (const snap of map.values()) {
+    if (snap.outstandingDr > 0) totals.customersWithOutstanding += 1;
+    if (snap.advanceAvailable > 0.009) totals.customersWithAdvance += 1;
+    if (snap.cnAvailableTotal > 0.009) totals.customersWithCn += 1;
+    totals.totalOutstandingDr += snap.outstandingDr;
+    totals.totalAdvanceAvailable += snap.advanceAvailable;
+    totals.totalCnAvailable += snap.cnAvailableTotal;
+    totals.totalCnPendingCount += snap.cnPendingCount;
+  }
+
+  totals.totalOutstandingDr = Math.round(totals.totalOutstandingDr);
+  totals.totalAdvanceAvailable = Math.round(totals.totalAdvanceAvailable * 100) / 100;
+  totals.totalCnAvailable = Math.round(totals.totalCnAvailable * 100) / 100;
+
+  return totals;
+}
+
 export function formatSnapshotInr(n: number, fractionDigits = 2): string {
   return new Intl.NumberFormat("en-IN", {
     minimumFractionDigits: fractionDigits,
@@ -112,6 +172,9 @@ export function invalidateCustomerFinancialSnapshot(
     queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY],
   });
   if (organizationId) {
+    queryClient.invalidateQueries({
+      queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "org-totals", organizationId],
+    });
     queryClient.invalidateQueries({
       queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, organizationId],
     });
