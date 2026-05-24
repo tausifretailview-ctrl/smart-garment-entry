@@ -470,6 +470,7 @@ export function DeliveryChallanPOSDialog({ open, onOpenChange }: DeliveryChallan
       // Invalidate all relevant queries
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['pos-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['cashier-report-sales-v2'] });
       queryClient.invalidateQueries({ queryKey: ['cashier-report-sales'] });
       queryClient.invalidateQueries({ queryKey: ['pos-dashboard-sales'] });
 

@@ -19,6 +19,7 @@ import { addDays, subDays } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { localDayBounds } from "@/lib/localDayBounds";
 import {
   Table,
   TableBody,
@@ -60,26 +61,31 @@ const DailyCashierReport = () => {
   };
 
   const { startDate, endDate } = getDateRange();
+  const rangeStartYmd = format(startDate, "yyyy-MM-dd");
+  const rangeEndYmd = format(endDate, "yyyy-MM-dd");
 
-  // Fetch sales for selected period using range pagination
+  // Fetch sales — same local-day bounds as Floating POS cashier (includes early-morning POS bills)
   const { data: salesData, isLoading: salesLoading } = useQuery({
-    queryKey: ["cashier-report-sales", currentOrganization?.id, selectedDate, period],
+    queryKey: ["cashier-report-sales-v2", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
-      if (!currentOrganization?.id) return null;
+      if (!currentOrganization?.id) return [];
 
-      const { fetchAllSalesWithFilters } = await import("@/utils/fetchAllRows");
-      const { localDayBounds } = await import("@/lib/localDayBounds");
-      const startDateStr = format(startDate, "yyyy-MM-dd");
-      const endDateStr = format(endDate, "yyyy-MM-dd");
-      const { startIso, endIso } = localDayBounds(startDateStr, endDateStr);
-      const allSales = await fetchAllSalesWithFilters(currentOrganization.id, {
-        startDate: startIso,
-        endDate: endIso,
-      });
-      
-      return allSales;
+      const { startIso, endIso } = localDayBounds(rangeStartYmd, rangeEndYmd);
+      const { data, error } = await supabase
+        .from("sales")
+        .select(
+          "id, sale_number, sale_date, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_method, payment_status, sale_return_adjust, refund_amount, sale_type, is_cancelled"
+        )
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", startIso)
+        .lte("sale_date", endIso)
+        .is("deleted_at", null);
+
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 0,
   });
 
   // Fetch payment receipts (RCP) for selected period using range pagination
@@ -245,7 +251,11 @@ const DailyCashierReport = () => {
 
     const getEffectiveNet = (sale: any) => Number(sale?.net_amount) || 0;
 
-    const eligibleSales = (salesData || []).filter((sale: any) => !isHoldLikeSale(sale));
+    const eligibleSales = (salesData || []).filter((sale: any) => {
+      if (sale?.is_cancelled) return false;
+      if (sale?.payment_status === "cancelled") return false;
+      return !isHoldLikeSale(sale);
+    });
 
     // Process sales data
     if (eligibleSales.length) {
@@ -666,7 +676,7 @@ const DailyCashierReport = () => {
             <p className="text-xs font-medium opacity-80">Total Sales</p>
             {isLoading ? <Skeleton className="h-8 w-32 bg-primary-foreground/20 mt-1" />
               : <p className="text-2xl font-bold tabular-nums mt-1">{formatCurrency(totals.totalSale)}</p>}
-            <p className="text-xs opacity-70 mt-1">{(salesData?.length || 0)} invoices</p>
+            <p className="text-xs opacity-70 mt-1">{totals.totalBills} invoices</p>
           </div>
 
           {/* Payment breakdown */}
