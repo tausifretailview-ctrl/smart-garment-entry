@@ -29,17 +29,12 @@ function isThirdParty(apiProvider?: string | null): boolean {
 }
 
 function resolveBaseUrl(settings: OrgWhatsAppSettings): string {
-  const provider = settings.api_provider || "meta_direct";
-  if (isThirdParty(provider)) {
-    const custom = settings.custom_api_url?.trim();
-    if (!custom) {
-      throw new Error("Third-party API URL is not configured.");
-    }
-    return normalizeWhatsAppApiBaseUrl(custom);
-  }
+  // Platform standard: third-party provider only (e.g. WappConnect Meta proxy).
   const custom = settings.custom_api_url?.trim();
-  if (custom) return normalizeWhatsAppApiBaseUrl(custom);
-  return "https://graph.facebook.com";
+  if (!custom) {
+    throw new Error("Third-party API URL is not configured. Save WhatsApp settings with Custom API URL.");
+  }
+  return normalizeWhatsAppApiBaseUrl(custom);
 }
 
 function resolveWabaId(settings: OrgWhatsAppSettings): string {
@@ -110,7 +105,7 @@ serve(async (req) => {
 
       const defaultCreds = platformSettings.setting_value as OrgWhatsAppSettings;
       credentials = {
-        api_provider: defaultCreds.api_provider || "meta_direct",
+        api_provider: "third_party",
         custom_api_url: defaultCreds.custom_api_url,
         api_version: defaultCreds.api_version || "v21.0",
         waba_id: defaultCreds.waba_id,
@@ -174,7 +169,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         count: approvedTemplates.length,
-        provider: credentials.api_provider || "meta_direct",
+        provider: credentials.api_provider || "third_party",
         apiBase: resolveBaseUrl(credentials),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },

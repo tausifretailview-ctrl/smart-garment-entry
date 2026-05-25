@@ -582,7 +582,7 @@ serve(async (req) => {
         access_token: defaultCreds.access_token as string,
         waba_id: defaultCreds.waba_id as string | null,
         business_id: defaultCreds.business_id as string | null,
-        api_provider: (defaultCreds.api_provider as string | null) || 'meta_direct',
+        api_provider: 'third_party',
         custom_api_url: defaultCreds.custom_api_url as string | null,
         api_version: defaultCreds.api_version as string | null,
       };
@@ -612,13 +612,10 @@ serve(async (req) => {
     }
 
     const resolveApiBaseUrl = (): string => {
-      const provider = apiCredentials.api_provider || 'meta_direct';
+      // Platform standard: third-party provider only.
       const custom = String(apiCredentials.custom_api_url ?? '').trim();
-      if (provider === 'third_party') {
-        if (!custom) return 'https://graph.facebook.com';
-        return normalizeWhatsAppApiBaseUrl(custom);
-      }
-      return custom ? normalizeWhatsAppApiBaseUrl(custom) : 'https://graph.facebook.com';
+      if (!custom) return 'https://graph.facebook.com';
+      return normalizeWhatsAppApiBaseUrl(custom);
     };
 
     const resolveWabaId = (): string | null => {
@@ -645,10 +642,7 @@ serve(async (req) => {
       api_version: apiCredentials.api_version,
     };
 
-    const whatsappSendErrorFallback =
-      settings.api_provider === "third_party"
-        ? "Failed to send message via WhatsApp provider API"
-        : "Failed to send message via Meta WhatsApp API";
+    const whatsappSendErrorFallback = "Failed to send WhatsApp message via provider API";
 
     const formattedPhone = formatPhoneNumber(phone);
     
@@ -1403,8 +1397,12 @@ serve(async (req) => {
         const imgResponseData = await imgResponse.json();
         console.log('Image API Response:', JSON.stringify(imgResponseData));
 
-        if (imgResponse.ok && imgResponseData.messages?.[0]?.id) {
-          console.log('Image sent successfully:', imgResponseData.messages[0].id);
+        const imgMetaId = imgResponseData?.messages?.[0]?.id;
+        const imgBspQueued =
+          imgResponseData?.message?.message_status === 'queued' ||
+          !!imgResponseData?.message?.queue_id;
+        if (imgResponse.ok && (imgMetaId || imgBspQueued)) {
+          console.log('Image sent successfully:', imgMetaId || imgResponseData?.message?.queue_id);
         } else {
           console.error('Image send failed:', imgResponseData);
         }
@@ -1445,8 +1443,12 @@ serve(async (req) => {
         const docResponseData = await docResponse.json();
         console.log('Document API Response:', JSON.stringify(docResponseData));
 
-        if (docResponse.ok && docResponseData.messages?.[0]?.id) {
-          documentMessageId = docResponseData.messages[0].id;
+        const docMetaId = docResponseData?.messages?.[0]?.id;
+        const docBspQueued =
+          docResponseData?.message?.message_status === 'queued' ||
+          !!docResponseData?.message?.queue_id;
+        if (docResponse.ok && (docMetaId || docBspQueued)) {
+          documentMessageId = docMetaId || docResponseData?.message?.queue_id;
           console.log('Document sent successfully:', documentMessageId);
           
           // Log the document message separately with success status
