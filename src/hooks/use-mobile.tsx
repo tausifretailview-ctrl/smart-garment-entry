@@ -1,38 +1,86 @@
 import * as React from "react";
 
 const MOBILE_BREAKPOINT = 768;
-const TABLET_BREAKPOINT = 1180; // iPad Pro 12.9" landscape
+/** Max width for touch-tablet POS; desktop mice use full desktop POS below this. */
+const TABLET_BREAKPOINT = 1180;
+
+function isIPadDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad/.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && "ontouchend" in document)
+  );
+}
+
+/** True when the primary input is a mouse/trackpad (typical PC browser). */
+function hasFinePointer(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.matchMedia("(pointer: fine)").matches;
+}
+
+/** Touch-first device without a fine pointer (many tablets). */
+function isTouchTabletDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(pointer: coarse)").matches && !hasFinePointer();
+}
+
+function computeIsMobile(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < MOBILE_BREAKPOINT;
+}
+
+/**
+ * Tablet POS layout: iPad, or touch-only devices in the medium width band.
+ * Desktop browsers (fine pointer) always use desktop POS when width >= 768,
+ * even on smaller monitors or non-maximized windows.
+ */
+function computeIsTablet(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window.innerWidth;
+  if (w < MOBILE_BREAKPOINT) return false;
+
+  if (isIPadDevice()) return true;
+
+  // PC/laptop with mouse — never switch to tablet POS based on width alone
+  if (hasFinePointer()) return false;
+
+  return isTouchTabletDevice() && w < TABLET_BREAKPOINT;
+}
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+  const [isMobile, setIsMobile] = React.useState(computeIsMobile);
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    };
+    const onChange = () => setIsMobile(computeIsMobile());
     mql.addEventListener("change", onChange);
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-    return () => mql.removeEventListener("change", onChange);
+    window.addEventListener("resize", onChange);
+    setIsMobile(computeIsMobile());
+    return () => {
+      mql.removeEventListener("change", onChange);
+      window.removeEventListener("resize", onChange);
+    };
   }, []);
 
-  return !!isMobile;
+  return isMobile;
 }
 
 export function useIsTablet() {
-  const [isTablet, setIsTablet] = React.useState<boolean>(false);
+  const [isTablet, setIsTablet] = React.useState(computeIsTablet);
 
   React.useEffect(() => {
-    const check = () => {
-      const w = window.innerWidth;
-      const isIPad =
-        /iPad/.test(navigator.userAgent) ||
-        (/Macintosh/.test(navigator.userAgent) && "ontouchend" in document);
-      setIsTablet(isIPad || (w >= MOBILE_BREAKPOINT && w < TABLET_BREAKPOINT));
+    const onChange = () => setIsTablet(computeIsTablet());
+    window.addEventListener("resize", onChange);
+    const coarseMql = window.matchMedia("(pointer: coarse)");
+    const fineMql = window.matchMedia("(pointer: fine)");
+    coarseMql.addEventListener("change", onChange);
+    fineMql.addEventListener("change", onChange);
+    setIsTablet(computeIsTablet());
+    return () => {
+      window.removeEventListener("resize", onChange);
+      coarseMql.removeEventListener("change", onChange);
+      fineMql.removeEventListener("change", onChange);
     };
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
   }, []);
 
   return isTablet;
@@ -57,10 +105,7 @@ export function useIsIPad() {
   const [isIPad, setIsIPad] = React.useState(false);
 
   React.useEffect(() => {
-    setIsIPad(
-      /iPad/.test(navigator.userAgent) ||
-      (/Macintosh/.test(navigator.userAgent) && "ontouchend" in document)
-    );
+    setIsIPad(isIPadDevice());
   }, []);
 
   return isIPad;
