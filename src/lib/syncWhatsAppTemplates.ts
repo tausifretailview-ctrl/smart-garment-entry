@@ -102,9 +102,9 @@ export async function syncWhatsAppTemplatesFromProvider(
         template_category: template.category,
         template_language: template.language,
         template_status: template.status,
-        components: template.components,
+        components: template.components as any,
         updated_at: new Date().toISOString(),
-      },
+      } as any,
       { onConflict: "organization_id,template_name,template_language" },
     );
 
