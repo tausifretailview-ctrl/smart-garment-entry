@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildWhatsAppAuthHeaders,
+  normalizeWhatsAppAccessToken,
+  parseWhatsAppProviderError,
+} from "../_shared/whatsappAuth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -628,16 +633,23 @@ serve(async (req) => {
     const apiVersion = apiCredentials.api_version || 'v21.0';
     const resolvedWabaId = resolveWabaId();
     
+    const normalizedAccessToken = normalizeWhatsAppAccessToken(apiCredentials.access_token);
+
     const settings = {
       ...orgSettings,
       phone_number_id: apiCredentials.phone_number_id,
-      access_token: apiCredentials.access_token,
+      access_token: normalizedAccessToken,
       waba_id: resolvedWabaId,
       business_id: apiCredentials.business_id,
       api_provider: apiCredentials.api_provider,
       custom_api_url: apiCredentials.custom_api_url,
       api_version: apiCredentials.api_version,
     };
+
+    const whatsappSendErrorFallback =
+      settings.api_provider === "third_party"
+        ? "Failed to send message via WhatsApp provider API"
+        : "Failed to send message via Meta WhatsApp API";
 
     const formattedPhone = formatPhoneNumber(phone);
     
@@ -1226,15 +1238,12 @@ serve(async (req) => {
 
     const response = await fetch(metaApiUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.access_token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: buildWhatsAppAuthHeaders(settings.access_token),
       body: JSON.stringify(payload),
     });
 
     const responseData = await response.json();
-    console.log('Meta API Response:', JSON.stringify(responseData));
+    console.log('WhatsApp API Response:', JSON.stringify(responseData));
 
     // Update log entry with response
     if (logEntry) {
@@ -1252,7 +1261,11 @@ serve(async (req) => {
         updateData.wamid = successId;
       } else {
         updateData.status = 'failed';
-        updateData.error_message = responseData.error?.message || responseData?.message || 'Unknown error from Meta API';
+        updateData.error_message = parseWhatsAppProviderError(
+          responseData,
+          response.status,
+          whatsappSendErrorFallback,
+        );
       }
 
       await supabase
@@ -1265,12 +1278,12 @@ serve(async (req) => {
     const bspQueuedCheck = responseData?.message?.message_status === 'queued' || !!responseData?.message?.queue_id;
 
     if (!response.ok && !bspQueuedCheck) {
-      console.error('Meta API Error:', responseData);
+      console.error('WhatsApp API Error:', responseData);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: responseData.error?.message || 'Failed to send message via WhatsApp API',
-          details: responseData.error
+          error: parseWhatsAppProviderError(responseData, response.status, whatsappSendErrorFallback),
+          details: responseData
         }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

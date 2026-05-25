@@ -1,5 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
+  buildWhatsAppAuthHeaders,
+  normalizeWhatsAppAccessToken,
+  parseWhatsAppProviderError,
+} from "@/lib/whatsappApiAuth";
+import {
   buildMessageTemplatesListUrl,
   isThirdPartyWhatsAppProvider,
   type WhatsAppApiSettingsLike,
@@ -60,7 +65,7 @@ export async function syncWhatsAppTemplatesFromProvider(
   organizationId: string,
   settings: WhatsAppTemplateSyncSettings,
 ): Promise<{ count: number; provider: string }> {
-  const token = settings.access_token?.trim();
+  const token = normalizeWhatsAppAccessToken(settings.access_token);
   if (!token) {
     throw new Error("WhatsApp access token is not configured. Save settings first.");
   }
@@ -71,21 +76,18 @@ export async function syncWhatsAppTemplatesFromProvider(
     : "Meta";
 
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: buildWhatsAppAuthHeaders(token),
   });
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const apiMsg =
-      (data as { error?: { message?: string } })?.error?.message ||
-      (data as { message?: string })?.message ||
-      `HTTP ${response.status}`;
+    const apiMsg = parseWhatsAppProviderError(data, response.status, `HTTP ${response.status}`);
     throw new Error(
-      `Failed to fetch templates from ${providerLabel}: ${apiMsg}. ` +
+      `Failed to fetch templates from ${providerLabel}: ${apiMsg} ` +
         (isThirdPartyWhatsAppProvider(settings.api_provider)
-          ? "Check Custom API URL, Business/WABA ID, and token in Third-Party Provider settings."
-          : "Check WABA ID and access token."),
+          ? "(Check Custom API URL, WhatsApp Business Account ID, and a fresh Access Token from WappConnect.)"
+          : "(Check WABA ID and access token.)"),
     );
   }
 

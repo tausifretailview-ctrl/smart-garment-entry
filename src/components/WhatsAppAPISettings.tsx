@@ -16,6 +16,7 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
+import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MessageSquare, 
@@ -238,6 +239,9 @@ export const WhatsAppAPISettings = () => {
     if (businessId && !wabaId) payload.waba_id = businessId;
     if (wabaId && !businessId) payload.business_id = wabaId;
     payload.custom_api_url = payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url;
+    if (payload.access_token) {
+      payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
+    }
 
     updateSettings(payload);
   };

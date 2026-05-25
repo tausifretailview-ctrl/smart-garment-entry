@@ -119,12 +119,27 @@ const getFriendlyErrorHint = (
     };
   }
 
+  // 401 / unauthorized (Meta or third-party BSP e.g. WappConnect)
+  if (
+    raw.includes('unauthorized') ||
+    raw.includes('401') ||
+    (providerResponse?.success === false && typeof providerResponse?.error === 'string')
+  ) {
+    return {
+      title: 'WhatsApp API not authorized',
+      reason:
+        'The provider rejected the request (invalid or expired access token). This is not a template or phone-number issue.',
+      action:
+        'Go to Settings → WhatsApp API, copy a fresh Access Token from your WappConnect dashboard (token only, no "Bearer " prefix), Save, then use Test Connection.',
+    };
+  }
+
   // 190 / 200 / token errors
   if (errCode === 190 || raw.includes('access token') || raw.includes('expired') || raw.includes('invalid token')) {
     return {
       title: 'WhatsApp API token expired or invalid',
-      reason: 'The Meta API access token is expired or no longer valid.',
-      action: 'Go to Settings → WhatsApp API and update the access token.',
+      reason: 'The WhatsApp API access token is expired or no longer valid.',
+      action: 'Go to Settings → WhatsApp API and update the access token from your provider dashboard.',
     };
   }
 

@@ -1,5 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildWhatsAppAuthHeaders,
+  normalizeWhatsAppAccessToken,
+  parseWhatsAppProviderError,
+} from "../_shared/whatsappAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,30 +134,32 @@ serve(async (req) => {
       credentials = orgSettings;
     }
 
-    if (!credentials?.access_token?.trim()) {
+    const accessToken = normalizeWhatsAppAccessToken(credentials?.access_token);
+    if (!accessToken) {
       throw new Error("WhatsApp access token is not configured");
     }
 
     const templatesUrl = buildTemplatesUrl(credentials);
     const providerLabel = isThirdParty(credentials.api_provider) ? "third-party provider" : "Meta";
 
-    console.log(`Syncing templates via ${providerLabel}: ${templatesUrl.replace(credentials.access_token!, "***")}`);
+    console.log(`Syncing templates via ${providerLabel}: ${templatesUrl.replace(accessToken, "***")}`);
 
     const response = await fetch(templatesUrl, {
-      headers: { Authorization: `Bearer ${credentials.access_token!.trim()}` },
+      headers: buildWhatsAppAuthHeaders(accessToken),
     });
 
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const msg =
-        data?.error?.message ||
-        data?.message ||
-        `Failed to fetch templates from ${providerLabel} (${response.status})`;
+      const msg = parseWhatsAppProviderError(
+        data,
+        response.status,
+        `Failed to fetch templates from ${providerLabel} (HTTP ${response.status})`,
+      );
       const hint = isThirdParty(credentials.api_provider)
-        ? " Verify Custom API URL (e.g. https://crmapi.wappconnect.com/api/meta), WABA/Business ID, and access token."
-        : " Verify WhatsApp Business Account ID (WABA) and permanent access token.";
-      throw new Error(msg + hint);
+        ? " Check Custom API URL, WhatsApp Business Account ID, and a fresh Access Token from WappConnect (paste token only, without Bearer prefix)."
+        : " Check WhatsApp Business Account ID (WABA) and permanent access token.";
+      throw new Error(`${msg}.${hint}`);
     }
 
     const templates = data.data || [];
