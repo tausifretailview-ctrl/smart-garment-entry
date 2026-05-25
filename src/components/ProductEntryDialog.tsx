@@ -1905,7 +1905,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Select size group" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className={purchaseTypography.selectContent}>
                         {sizeGroups.map((group) => (
                           <SelectItem key={group.id} value={group.id}>
                             {group.group_name} ({group.sizes.join(", ")})
@@ -1913,7 +1913,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button type="button" variant="outline" onClick={() => setShowCreateSizeGroup(true)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowCreateSizeGroup(true)}
+                      className={isPurchaseBillForm ? "h-10 text-[15px] px-3" : undefined}
+                    >
                       <Plus className="h-4 w-4 mr-1" /> New
                     </Button>
                   </div>
@@ -1944,10 +1949,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       return (
                         <div className="space-y-2 mt-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-semibold text-foreground">
+                            <span className={cn("font-semibold text-foreground", isPurchaseBillForm ? "text-base" : "text-sm")}>
                               Size-wise Quantity
                             </span>
-                            <span className="text-sm text-muted-foreground">
+                            <span className={cn("text-muted-foreground", isPurchaseBillForm ? "text-[15px]" : "text-sm")}>
                               Total: {totalQty} pcs · {activeSizeCount} sizes
                             </span>
                           </div>
@@ -1958,7 +1963,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                               <table className="w-full border-collapse">
                                 <thead>
                                   <tr>
-                                    <th className="text-xs font-bold text-foreground px-1.5 py-1 text-left sticky left-0 bg-muted/30 z-10 min-w-[70px]">Color</th>
+                                    <th className={cn("font-bold text-foreground px-1.5 py-1 text-left sticky left-0 bg-muted/30 z-10 min-w-[70px]", isPurchaseBillForm ? "text-sm" : "text-xs")}>Color</th>
                                     {allSizes.map(size => (
                                       <th key={size} className="px-0.5 py-1 text-center min-w-[52px]">
                                         <button
@@ -1971,7 +1976,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                             });
                                           }}
                                           className={cn(
-                                            "text-xs font-bold px-1.5 py-0.5 rounded transition-colors",
+                                            isPurchaseBillForm ? "text-sm font-bold px-1.5 py-0.5 rounded transition-colors" : "text-xs font-bold px-1.5 py-0.5 rounded transition-colors",
                                             disabledSizes.has(size)
                                               ? "text-muted-foreground/40 line-through bg-muted/50"
                                               : "text-muted-foreground hover:text-primary"
@@ -1981,7 +1986,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         </button>
                                       </th>
                                     ))}
-                                    <th className="text-xs font-bold text-primary px-1.5 py-1 text-center min-w-[44px]">Total</th>
+                                    <th className={cn("font-bold text-primary px-1.5 py-1 text-center min-w-[44px]", isPurchaseBillForm ? "text-sm" : "text-xs")}>Total</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1991,7 +1996,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                       .reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
                                     return (
                                       <tr key={color} className={cIdx % 2 === 1 ? "bg-muted/40" : ""}>
-                                        <td className="text-xs font-bold text-foreground px-1.5 py-1 sticky left-0 z-10" style={{ backgroundColor: cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)' }}>
+                                        <td className={cn("font-bold text-foreground px-1.5 py-1 sticky left-0 z-10", isPurchaseBillForm ? "text-sm" : "text-xs")} style={{ backgroundColor: cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)' }}>
                                           {color}
                                         </td>
                                         {allSizes.map((size) => {
@@ -2042,7 +2047,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                                   }}
                                                   id={`size-qty-${color}-${size}`}
                                                   className={cn(
-                                                    "h-7 w-14 text-center text-sm font-semibold p-0.5 no-uppercase",
+                                                    "text-center font-semibold p-0.5 no-uppercase",
+                                                    isPurchaseBillForm ? "h-9 w-16 text-[15px]" : "h-7 w-14 text-sm",
                                                     qty > 0 && "border-emerald-400 text-emerald-800"
                                                   )}
                                                 />
