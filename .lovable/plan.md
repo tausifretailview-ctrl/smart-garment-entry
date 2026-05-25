@@ -1,100 +1,68 @@
+## Verification status — `customer_accounts_consistency_v1`
 
-# Customer Balance Consistency — Implementation Plan
+Cross-checked spec (`docs/customer-accounts-consistency-v1.md`) against repo. Core migration + client changes are in place. Two small follow-ups + a memory update remain.
 
-Aligns runtime behavior with `mem/features/accounts/customer-balance-logic.md` rules 1–7 and `docs/customer-accounts-consistency-v1.md` (Option A). Reconciliation formula and `sale_return_adjust` semantics stay as-is; we are removing divergence and double-writes around CN application.
+### ✅ Already shipped (matches Option A)
 
-## Scope
+**Migration `20260524190704_..._customer_accounts_consistency_v1.sql`**
+- `adjust_invoice_balance` → returns `jsonb` (`success`, `voucher_entry_id`, `voucher_number`, `amount_applied`, `sale_return_adjust`, `payment_status`).
+- `FOR UPDATE` lock on `sales`; rejects deleted / cancelled / `hold` / `cancelled` status.
+- Caps `p_amount_applied = LEAST(amount, net − paid − sale_return_adjust)`.
+- Bumps `sale_return_adjust += amount` only — stops writing `credit_applied`.
+- Recomputes `payment_status` from `paid + sale_return_adjust` vs `net`.
+- Updates `credit_notes` / `customer_advances` pool with capped amount.
+- Inserts a single `voucher_entries` row inline with `payment_method = 'credit_note_adjustment' | 'advance_adjustment'`, `reference_type = 'sale'`, atomic `generate_voucher_number('receipt', …)`.
+- Writes `invoice_adjustments` audit row.
 
-In:
-- `adjust_invoice_balance` RPC — single voucher writer, capped, jsonb return.
-- `apply_credit_note_to_sale` RPC — align footprint, atomic voucher numbering.
-- Client dialogs (Adjust CN, Settle) — stop double-inserting CN vouchers.
-- `ensureCreditNoteHeadroom` — heal-down, never inflate CN header.
-- Cosmetic backfill of `credit_applied`.
+**Migration — `apply_credit_note_to_sale`**
+- Atomic `generate_voucher_number` (no more `MAX+1`).
+- Outstanding cap `LEAST(p_apply_amount, net − paid − sale_return_adjust)`.
+- Switched from `paid_amount +=` to `sale_return_adjust +=` (single footprint).
+- `payment_status` now accounts for `sale_return_adjust`.
+- Returns `jsonb` (`applied_amount`, `notes_used`, `voucher_number`).
+- Guards: `deleted_at IS NULL`, `is_cancelled = false`, status not `hold`/`cancelled`, customer match.
 
-Out (unchanged):
-- `consumeAdvanceFIFO` / advance lifecycle.
-- `reconcile_customer_balances` formula.
-- `useCustomerBalance` / `customerBalanceCore` math.
-- `reconcileSaleInvoiceDisplay` dedupe (kept until all paths converge).
+**Client**
+- `AdjustCustomerCreditNoteDialog.applyInvoiceAllocationsViaRpc` — reads `voucher_entry_id` from RPC jsonb, removed `createReceiptVoucher` fallback for CN, keeps `ensureCreditNoteHeadroom` pre-RPC.
+- `SettleCustomerAccountDialog.applyCnFifo` — removed `createReceiptVoucher` after `adjust_invoice_balance`; kept `syncSaleFromVouchers` and `sale_returns.credit_available_balance` sync.
+- `saleReturnCnBalance.ensureCreditNoteHeadroom` — heals `sale_returns.credit_available_balance` **down** to `cnRemaining`; throws via `formatCnApplyError` when `need > remaining`. No longer inflates `credit_notes.credit_amount`.
 
-## Changes
+**Types**
+- `src/integrations/supabase/types.ts`: `adjust_invoice_balance.Returns = Json`.
 
-### 1. Migration: `customer_accounts_consistency_v1.sql`
+### ⚠️ Residual gaps to close in this pass
 
-**`adjust_invoice_balance` (returns `jsonb`)**
-- Lock sale `FOR UPDATE`; reject when `deleted_at IS NOT NULL`, `is_cancelled = true`, or `payment_status IN ('hold','cancelled')`.
-- Cap: `p_amount_applied := LEAST(p_amount_applied, net_amount - paid_amount - sale_return_adjust)`; error if `<= 0`.
-- Keep `sale_return_adjust += amount` (Option A). Stop writing `credit_applied` (leave existing values; no new writes).
-- Recompute `payment_status` from `paid + sale_return_adjust` vs `net` (unchanged logic).
-- Keep `credit_notes` / `customer_advances` pool update + `invoice_adjustments` insert.
-- **New:** insert `voucher_entries` inline:
-  - `CREDIT_NOTE` → `payment_method='credit_note_adjustment'`
-  - `ADVANCE_PAYMENT` → `payment_method='advance_adjustment'`
-  - `voucher_number := generate_voucher_number('receipt', voucher_date)` (atomic)
-  - `reference_type='sale'`, `reference_id=p_invoice_id`, organization-scoped.
-- Return `{ success, voucher_entry_id, amount_applied, sale_return_adjust, payment_status }`.
+1. **`src/pages/salesman/SalesmanCustomerAccount.tsx`** still sums `credit_applied` into outstanding (lines 105, 297, 304). For new CN apply rows we no longer write `credit_applied`, so this branch under-deducts on new data and double-deducts on legacy rows where the mirror was historically stored. Fix the formula to:
+   ```text
+   outstanding = net_amount − paid_amount − sale_return_adjust
+   ```
+   Drop the `credit_applied` column from the select and the subtraction.
 
-**`apply_credit_note_to_sale`**
-- Replace `SELECT MAX(...)+1` with `generate_voucher_number('receipt', ...)`.
-- Switch sale write from `paid_amount +=` to `sale_return_adjust +=` (single footprint with above).
-- Add outstanding cap: `LEAST(p_apply_amount, net - paid - sale_return_adjust)`.
-- Fix `payment_status` calc to include `sale_return_adjust`.
-- Keep existing `deleted_at` / `is_cancelled` guards.
+2. **`SettleCustomerAccountDialog.tsx`** — leftover `createReceiptVoucher` import (line 32). Still used legitimately for cash/refund vouchers at line 431; keep import, just confirmed no stray CN-path call remains.
 
-**Backfill (cosmetic, optional in same migration)**
-- For rows where `credit_applied ≈ sale_return_adjust > 0`: leave or zero `credit_applied`. Do **not** touch `sale_return_adjust`.
-- Do not zero `sale_return_adjust` even where matching CN vouchers exist (display layer dedupes).
+3. **`FloatingSaleReturn.tsx`** — out of scope for v1 (POS exchange + pending-CN-redeem-at-POS). The `createReceiptVoucher` at line 915 writes `reference_type = 'customer'`, not a duplicate of the RPC voucher. Mark explicitly as **Phase 2 (deprecation of `apply_credit_note_to_sale` legacy hook)** — no change now.
 
-### 2. Types regen
-- `src/integrations/supabase/types.ts` — `adjust_invoice_balance` return type → `Json`.
+### 📝 Memory update
 
-### 3. Client edits
+Refresh `mem/features/accounts/customer-balance-logic.md`:
+- Add: `adjust_invoice_balance` and `apply_credit_note_to_sale` now share the **Option A** footprint — RPC is the **only** voucher writer for `credit_note_adjustment` / `advance_adjustment`; clients must not double-insert.
+- Add: `credit_applied` is **legacy / no longer written**; outstanding formula is `net − paid − sale_return_adjust` everywhere.
+- Add: `ensureCreditNoteHeadroom` heals `sale_returns.credit_available_balance` down; never inflates `credit_notes.credit_amount`.
+- Link → `docs/customer-accounts-consistency-v1.md` and migration `20260524190704_...customer_accounts_consistency_v1.sql`.
 
-**`src/components/AdjustCustomerCreditNoteDialog.tsx`** (`applyInvoiceAllocationsViaRpc`)
-- Read `voucher_entry_id` from RPC jsonb result.
-- Remove fallback `createReceiptVoucher` for CN.
-- Keep `recordJournalEntry` using returned voucher id.
-- Keep `ensureCreditNoteHeadroom` call until (4) ships in same change.
+### Execution
 
-**`src/components/SettleCustomerAccountDialog.tsx`** (`applyCnFifo`)
-- Remove `createReceiptVoucher` after `adjust_invoice_balance`.
-- Keep final `syncSaleFromVouchers` (still needed for cash/discount vouchers).
-- Keep `sale_returns.credit_available_balance` post-apply sync.
+1. Edit `SalesmanCustomerAccount.tsx` — drop `credit_applied` from select + outstanding calc.
+2. Update `mem/features/accounts/customer-balance-logic.md` with the post-shipment facts above (and leave `mem://index.md` entry unchanged — same description still applies).
+3. Smoke-run acceptance checklist (manual on a customer with mixed CN + advance + returns):
+   - Adjust CN → one `credit_note_adjustment` voucher per row, `sale_return_adjust` bumped once, CN `used_amount` up.
+   - Settle FIFO with CN → same; `syncSaleFromVouchers` leaves display clean.
+   - `apply_credit_note_to_sale` via POS exchange → single voucher, unique number.
+   - `reconcile_customer_balances` vs `useCustomerBalance` snapshot within ₹1.
 
-**`src/utils/saleReturnCnBalance.ts`** (`ensureCreditNoteHeadroom`)
-- Compute `cnRemaining = credit_amount - used_amount`.
-- If pool > `cnRemaining`: update `sale_returns.credit_available_balance` **down** to `cnRemaining`. Never `UPDATE credit_notes SET credit_amount = ...` upward.
-- If `amountNeeded > cnRemaining` after heal: throw `formatCnApplyError`.
+### Out of scope (matches spec)
 
-**Optional cleanup**
-- `src/pages/salesman/SalesmanCustomerAccount.tsx`: drop `credit_applied` from outstanding calc; rely on `sale_return_adjust`.
-
-## Acceptance tests (manual, per customer)
-
-1. Adjust CN → invoice: `sale_return_adjust ↑` once, exactly one `credit_note_adjustment` voucher, CN `used_amount ↑`, outstanding ↓.
-2. Settle FIFO with CN: same; `syncSaleFromVouchers` leaves display consistent; no duplicate CN.
-3. `apply_credit_note_to_sale` (hook/exchange): same footprint; voucher number unique under concurrent inserts.
-4. Advance-only settle: unchanged (`consumeAdvanceFIFO`).
-5. `reconcile_customer_balances` vs `useCustomerBalance` snapshot: within ₹1.
-6. Return pool > CN header: CN header **not** inflated; pool healed or clear error.
-7. Apply > outstanding: RPC caps or rejects.
-8. Cancelled / deleted sale: RPC rejects.
-
-## Order of execution
-
-1. Write & approve migration (RPCs + cosmetic backfill).
-2. Wait for types regen.
-3. Update three client files (Adjust CN, Settle, headroom helper).
-4. Optional salesman page cleanup.
-5. Run acceptance tests on a customer with mixed CN/advance history.
-
-## Risk
-
-Low–medium. Behavior change is "RPC owns the CN voucher; client stops inserting a duplicate." Balance display already tolerates the transition via `reconcileSaleInvoiceDisplay` dedupe.
-
-## Out of scope (explicit)
-
-- Switching CN apply to `paid_amount += amount` (would break `sale_return_adjust`-based reconciliation).
-- `customer_advances` redesign, `credit_note_amount` semantics, reconciliation formula changes.
-- Deprecating `apply_credit_note_to_sale` entirely — phase 2.
+- Switching CN apply to `paid_amount +=` only.
+- `customer_advances` lifecycle / `sales.credit_note_amount` semantics changes.
+- Deprecating `apply_credit_note_to_sale` entirely (Phase 2).
+- `customerBalanceCore` / `customerFinancialSnapshot` / reconciliation formula changes.
