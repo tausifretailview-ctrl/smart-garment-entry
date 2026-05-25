@@ -22,6 +22,11 @@ import {
   isThirdPartyWhatsAppProvider,
   resolveWabaIdForTemplates,
 } from "@/lib/whatsappApiUrl";
+import {
+  isEdgeFunctionUnreachableError,
+  parseEdgeFunctionInvokeError,
+  syncWhatsAppTemplatesFromProvider,
+} from "@/lib/syncWhatsAppTemplates";
 
 export const SyncMetaTemplates = () => {
   const { currentOrganization } = useOrganization();
@@ -38,15 +43,41 @@ export const SyncMetaTemplates = () => {
   const syncMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id) throw new Error("No organization");
+      if (!settings?.access_token?.trim()) {
+        throw new Error("Configure access token and save settings first");
+      }
 
       const { data, error } = await supabase.functions.invoke("sync-whatsapp-templates", {
         body: { organizationId: currentOrganization.id },
       });
 
-      if (error) throw new Error(error.message || "Failed to sync templates");
-      if (!data?.success) throw new Error(data?.error || "Failed to sync templates");
+      if (data && data.success === false) {
+        throw new Error(data.error || "Failed to sync templates");
+      }
 
-      return data.count as number;
+      if (!error && data?.success) {
+        return data.count as number;
+      }
+
+      // Edge function missing or unreachable — sync directly using saved org credentials
+      if (error && (isEdgeFunctionUnreachableError(error) || !data)) {
+        console.warn("sync-whatsapp-templates edge call failed, using direct provider API", error);
+        const result = await syncWhatsAppTemplatesFromProvider(currentOrganization.id, {
+          api_provider: settings.api_provider,
+          custom_api_url: settings.custom_api_url,
+          api_version: settings.api_version,
+          waba_id: settings.waba_id,
+          business_id: settings.business_id,
+          access_token: settings.access_token,
+        });
+        return result.count;
+      }
+
+      if (error) {
+        throw new Error(await parseEdgeFunctionInvokeError(error));
+      }
+
+      throw new Error("Failed to sync templates");
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["meta-templates"] });

@@ -53,7 +53,7 @@ function resolveWabaId(settings: OrgWhatsAppSettings): string {
 
 function buildTemplatesUrl(settings: OrgWhatsAppSettings): string {
   const baseUrl = resolveBaseUrl(settings);
-  const version = (settings.api_version || "v21.0").trim().replace(/^\/+/, "");
+  const version = (settings.api_version || "v21.0").trim().replace(/^\/+/, "").toLowerCase();
   const wabaId = resolveWabaId(settings);
   if (!wabaId) {
     throw new Error(
@@ -139,17 +139,20 @@ serve(async (req) => {
     console.log(`Syncing templates via ${providerLabel}: ${templatesUrl.replace(credentials.access_token!, "***")}`);
 
     const response = await fetch(templatesUrl, {
-      headers: { Authorization: `Bearer ${credentials.access_token}` },
+      headers: { Authorization: `Bearer ${credentials.access_token!.trim()}` },
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       const msg =
         data?.error?.message ||
         data?.message ||
         `Failed to fetch templates from ${providerLabel} (${response.status})`;
-      throw new Error(msg);
+      const hint = isThirdParty(credentials.api_provider)
+        ? " Verify Custom API URL (e.g. https://crmapi.wappconnect.com/api/meta), WABA/Business ID, and access token."
+        : " Verify WhatsApp Business Account ID (WABA) and permanent access token.";
+      throw new Error(msg + hint);
     }
 
     const templates = data.data || [];

@@ -61,7 +61,7 @@ export function buildMessageTemplatesListUrl(
   extraQuery?: Record<string, string>,
 ): string {
   const baseUrl = resolveWhatsAppApiBaseUrl(settings);
-  const version = (settings.api_version || "v21.0").trim().replace(/^\/+/, "");
+  const version = (settings.api_version || "v21.0").trim().replace(/^\/+/, "").toLowerCase();
   const wabaId = resolveWabaIdForTemplates(settings);
 
   if (!wabaId) {
@@ -82,5 +82,9 @@ export function buildMessageTemplatesListUrl(
 
 export function canSyncWhatsAppTemplates(settings: WhatsAppApiSettingsLike | null | undefined): boolean {
   if (!settings?.access_token?.trim()) return false;
-  return !!resolveWabaIdForTemplates(settings);
+  if (!resolveWabaIdForTemplates(settings)) return false;
+  if (isThirdPartyWhatsAppProvider(settings.api_provider) && !settings.custom_api_url?.trim()) {
+    return false;
+  }
+  return true;
 }
