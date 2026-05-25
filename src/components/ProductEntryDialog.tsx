@@ -281,11 +281,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             setVariants(newVariants);
             setShowVariants(true);
           } else {
-            // Build a map of existing qty values to preserve them
+            // Preserve qty and per-cell sale prices when colors/sizes change
             const existingQtyMap = new Map<string, number>();
+            const existingSalePriceMap = new Map<string, number>();
             variants.forEach(v => {
+              const key = `${v.color}||${v.size}`;
               if ((v.purchase_qty || 0) > 0) {
-                existingQtyMap.set(`${v.color}||${v.size}`, v.purchase_qty || 0);
+                existingQtyMap.set(key, v.purchase_qty || 0);
+              }
+              if ((v.sale_price || 0) > 0) {
+                existingSalePriceMap.set(key, v.sale_price);
               }
             });
             const newVariants: ProductVariant[] = [];
@@ -297,7 +302,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   color,
                   size,
                   pur_price: formData.default_pur_price ?? 0,
-                  sale_price: formData.default_sale_price ?? 0,
+                  sale_price: existingSalePriceMap.get(key) ?? formData.default_sale_price ?? 0,
                   mrp: formData.default_mrp ?? null,
                   barcode: "",
                   active: true,
@@ -1958,14 +1963,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           </div>
 
                           {isMultiColor ? (
-                            /* ── Color × Size Matrix ── */
-                            <div className="overflow-x-auto p-2 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
-                              <table className="w-full border-collapse">
+                            /* ── Color × Size Matrix (qty + sale price per cell) ── */
+                            <div className="overflow-x-auto p-3 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                              <table className="w-full border-collapse table-fixed">
                                 <thead>
                                   <tr>
-                                    <th className={cn("font-bold text-foreground px-1.5 py-1 text-left sticky left-0 bg-muted/30 z-10 min-w-[70px]", isPurchaseBillForm ? "text-sm" : "text-xs")}>Color</th>
+                                    <th className={cn("font-bold text-foreground px-2 py-2 text-left sticky left-0 bg-muted/30 z-10 w-[88px]", isPurchaseBillForm ? "text-sm" : "text-xs")}>Color</th>
                                     {allSizes.map(size => (
-                                      <th key={size} className="px-0.5 py-1 text-center min-w-[52px]">
+                                      <th
+                                        key={size}
+                                        className={cn(
+                                          "px-1 py-2 text-center align-bottom",
+                                          isPurchaseBillForm ? "min-w-[5.5rem] w-[5.5rem]" : "min-w-[4.5rem] w-[4.5rem]"
+                                        )}
+                                      >
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -1976,7 +1987,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                             });
                                           }}
                                           className={cn(
-                                            isPurchaseBillForm ? "text-sm font-bold px-1.5 py-0.5 rounded transition-colors" : "text-xs font-bold px-1.5 py-0.5 rounded transition-colors",
+                                            "inline-flex items-center justify-center gap-0.5 font-bold rounded transition-colors",
+                                            isPurchaseBillForm ? "text-sm px-2 py-1" : "text-xs px-1.5 py-0.5",
                                             disabledSizes.has(size)
                                               ? "text-muted-foreground/40 line-through bg-muted/50"
                                               : "text-muted-foreground hover:text-primary"
@@ -1986,7 +1998,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         </button>
                                       </th>
                                     ))}
-                                    <th className={cn("font-bold text-primary px-1.5 py-1 text-center min-w-[44px]", isPurchaseBillForm ? "text-sm" : "text-xs")}>Total</th>
+                                    <th className={cn("font-bold text-primary px-2 py-2 text-center align-bottom w-[52px]", isPurchaseBillForm ? "text-sm" : "text-xs")}>Total</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1994,9 +2006,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                     const colorTotal = variants
                                       .filter(v => v.color === color && !disabledSizes.has(v.size))
                                       .reduce((sum, v) => sum + (v.purchase_qty || 0), 0);
+                                    const rowBg = cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)';
                                     return (
                                       <tr key={color} className={cIdx % 2 === 1 ? "bg-muted/40" : ""}>
-                                        <td className={cn("font-bold text-foreground px-1.5 py-1 sticky left-0 z-10", isPurchaseBillForm ? "text-sm" : "text-xs")} style={{ backgroundColor: cIdx % 2 === 1 ? 'hsl(var(--muted) / 0.4)' : 'hsl(var(--muted) / 0.3)' }}>
+                                        <td
+                                          className={cn("font-bold text-foreground px-2 py-2 sticky left-0 z-10 align-middle", isPurchaseBillForm ? "text-sm" : "text-xs")}
+                                          style={{ backgroundColor: rowBg }}
+                                        >
                                           {color}
                                         </td>
                                         {allSizes.map((size) => {
@@ -2004,59 +2020,124 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                           const isDisabled = disabledSizes.has(size);
                                           const variant = variants.find(v => v.size === size && v.color === color);
                                           const qty = variant?.purchase_qty || 0;
+                                          const salePrice = variant?.sale_price;
+                                          const cellInputClass = cn(
+                                            "text-center font-semibold p-0.5 no-uppercase w-full",
+                                            isPurchaseBillForm ? "h-9 text-[15px]" : "h-7 text-sm"
+                                          );
                                           return (
-                                            <td key={size} className="px-0.5 py-0.5 text-center">
+                                            <td key={size} className="px-1 py-1.5 align-top text-center">
                                               {isDisabled ? (
-                                                <span className="text-muted-foreground/30 text-xs">—</span>
+                                                <span className="inline-flex h-16 items-center justify-center text-muted-foreground/30 text-sm">—</span>
                                               ) : (
-                                                <Input
-                                                  type="number"
-                                                  min="0"
-                                                  value={qty === 0 ? '' : qty}
-                                                  placeholder="0"
-                                                  onChange={(e) => {
-                                                    const val = parseInt(e.target.value) || 0;
-                                                    setVariants(prev => prev.map(v =>
-                                                      v.size === size && v.color === color
-                                                        ? { ...v, purchase_qty: val }
-                                                        : v
-                                                    ));
-                                                  }}
-                                                  onFocus={(e) => e.target.select()}
-                                                  onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
-                                                      e.preventDefault();
-                                                      const nextSize = getNextEnabledSize(sIdx);
-                                                      if (nextSize) {
-                                                        document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
-                                                      } else {
-                                                        const nextColor = colorsToUse[cIdx + 1];
-                                                        if (nextColor) {
-                                                          const firstEnabled = allSizes.find(s => !disabledSizes.has(s));
-                                                          if (firstEnabled) document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
+                                                <div className={cn("flex flex-col items-center gap-1 mx-auto", isPurchaseBillForm ? "w-[5.25rem]" : "w-[4.25rem]")}>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={qty === 0 ? '' : qty}
+                                                    placeholder="0"
+                                                    onChange={(e) => {
+                                                      const val = parseInt(e.target.value) || 0;
+                                                      setVariants(prev => {
+                                                        const exists = prev.some(v => v.size === size && v.color === color);
+                                                        if (exists) {
+                                                          return prev.map(v =>
+                                                            v.size === size && v.color === color
+                                                              ? { ...v, purchase_qty: val }
+                                                              : v
+                                                          );
+                                                        }
+                                                        return [...prev, {
+                                                          color,
+                                                          size,
+                                                          pur_price: formData.default_pur_price ?? 0,
+                                                          sale_price: formData.default_sale_price ?? 0,
+                                                          mrp: formData.default_mrp ?? null,
+                                                          barcode: "",
+                                                          active: true,
+                                                          opening_qty: 0,
+                                                          purchase_qty: val,
+                                                        }];
+                                                      });
+                                                    }}
+                                                    onFocus={(e) => e.target.select()}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                                                        e.preventDefault();
+                                                        const nextSize = getNextEnabledSize(sIdx);
+                                                        if (nextSize) {
+                                                          document.getElementById(`size-qty-${color}-${nextSize}`)?.focus();
                                                         } else {
-                                                          const firstPur = document.getElementById('variant-pur-price-0');
-                                                          if (firstPur) {
-                                                            firstPur.focus();
+                                                          const nextColor = colorsToUse[cIdx + 1];
+                                                          if (nextColor) {
+                                                            const firstEnabled = allSizes.find(s => !disabledSizes.has(s));
+                                                            if (firstEnabled) {
+                                                              document.getElementById(`size-qty-${nextColor}-${firstEnabled}`)?.focus();
+                                                            }
                                                           } else {
-                                                            document.getElementById('btn-add-all-sizes')?.focus();
+                                                            const firstPur = document.getElementById('variant-pur-price-0');
+                                                            if (firstPur) {
+                                                              firstPur.focus();
+                                                            } else {
+                                                              document.getElementById('btn-add-all-sizes')?.focus();
+                                                            }
                                                           }
                                                         }
                                                       }
-                                                    }
-                                                  }}
-                                                  id={`size-qty-${color}-${size}`}
-                                                  className={cn(
-                                                    "text-center font-semibold p-0.5 no-uppercase",
-                                                    isPurchaseBillForm ? "h-9 w-16 text-[15px]" : "h-7 w-14 text-sm",
-                                                    qty > 0 && "border-emerald-400 text-emerald-800"
-                                                  )}
-                                                />
+                                                    }}
+                                                    id={`size-qty-${color}-${size}`}
+                                                    className={cn(
+                                                      cellInputClass,
+                                                      qty > 0 && "border-emerald-400 text-emerald-800"
+                                                    )}
+                                                  />
+                                                  <span className={cn("text-muted-foreground font-medium tracking-wide uppercase leading-none", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>
+                                                    Sale ₹
+                                                  </span>
+                                                  <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    tabIndex={-1}
+                                                    value={(salePrice !== undefined && salePrice !== null && salePrice > 0) ? salePrice : ''}
+                                                    placeholder={formData.default_sale_price ? String(formData.default_sale_price) : "0"}
+                                                    onChange={(e) => {
+                                                      const val = parseFloat(e.target.value) || 0;
+                                                      setVariants(prev => {
+                                                        const exists = prev.some(v => v.size === size && v.color === color);
+                                                        if (exists) {
+                                                          return prev.map(v =>
+                                                            v.size === size && v.color === color
+                                                              ? { ...v, sale_price: val }
+                                                              : v
+                                                          );
+                                                        }
+                                                        return [...prev, {
+                                                          color,
+                                                          size,
+                                                          pur_price: formData.default_pur_price ?? 0,
+                                                          sale_price: val,
+                                                          mrp: formData.default_mrp ?? null,
+                                                          barcode: "",
+                                                          active: true,
+                                                          opening_qty: 0,
+                                                          purchase_qty: 0,
+                                                        }];
+                                                      });
+                                                    }}
+                                                    onFocus={(e) => e.target.select()}
+                                                    id={`size-sale-${color}-${size}`}
+                                                    className={cn(
+                                                      cellInputClass,
+                                                      salePrice && salePrice > 0 && "border-blue-300 text-blue-800"
+                                                    )}
+                                                  />
+                                                </div>
                                               )}
                                             </td>
                                           );
                                         })}
-                                        <td className={cn("font-bold text-primary px-1.5 py-1 text-center", isPurchaseBillForm ? "text-sm" : "text-xs")}>
+                                        <td className={cn("font-bold text-primary px-2 py-2 text-center align-middle", isPurchaseBillForm ? "text-sm" : "text-xs")}>
                                           {colorTotal > 0 ? colorTotal : ''}
                                         </td>
                                       </tr>
@@ -2083,7 +2164,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                             </div>
                           ) : (
                             /* ── Single color / no color: single-row grid with toggle ── */
-                            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2.5 p-4 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3 p-4 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
                               {allSizes.map((size) => {
                                 const sIdx = allSizes.indexOf(size);
                                 const isDisabled = disabledSizes.has(size);
@@ -2094,7 +2175,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   <div
                                     key={size}
                                     className={cn(
-                                      "flex flex-col items-center gap-2 p-3 rounded-lg border-[1.5px] transition-colors relative",
+                                      "flex flex-col items-center gap-1.5 p-3 rounded-lg border-[1.5px] transition-colors relative min-w-[5.25rem]",
                                       isDisabled
                                         ? "bg-muted/50 border-border/50 opacity-50"
                                         : qty > 0
@@ -2200,8 +2281,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                       <span className={cn("flex items-center justify-center text-muted-foreground/30", isPurchaseBillForm ? "h-10 w-[4.5rem] text-[15px]" : "h-9 w-16 text-sm")}>—</span>
                                     )}
                                     {!isDisabled && (
-                                      <div className="flex flex-col items-center w-full">
-                                        <span className={cn("text-muted-foreground font-medium mb-0.5 tracking-wide uppercase", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>Sale ₹</span>
+                                      <div className="flex flex-col items-center w-full gap-1">
+                                        <span className={cn("text-muted-foreground font-medium tracking-wide uppercase leading-none", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>Sale ₹</span>
                                         <Input
                                           type="number"
                                           min="0"
@@ -2215,15 +2296,34 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                           placeholder={formData.default_sale_price ? String(formData.default_sale_price) : "0"}
                                           onChange={(e) => {
                                             const val = parseFloat(e.target.value) || 0;
-                                            setVariants(prev => prev.map(v =>
-                                              v.size === size && v.color === (formData.colors[0] || "")
-                                                ? { ...v, sale_price: val }
-                                                : v
-                                            ));
+                                            const colorKey = formData.colors[0] || "";
+                                            setVariants(prev => {
+                                              const exists = prev.some(v => v.size === size && v.color === colorKey);
+                                              if (exists) {
+                                                return prev.map(v =>
+                                                  v.size === size && v.color === colorKey
+                                                    ? { ...v, sale_price: val }
+                                                    : v
+                                                );
+                                              }
+                                              return [...prev, {
+                                                color: colorKey,
+                                                size,
+                                                pur_price: formData.default_pur_price ?? 0,
+                                                sale_price: val,
+                                                mrp: formData.default_mrp ?? null,
+                                                barcode: "",
+                                                active: true,
+                                                opening_qty: 0,
+                                                purchase_qty: 0,
+                                              }];
+                                            });
                                           }}
+                                          onFocus={(e) => e.target.select()}
+                                          id={`size-sale-${formData.colors[0] || "default"}-${size}`}
                                           className={cn(
-                                            "text-center font-semibold p-0.5 no-uppercase",
-                                            isPurchaseBillForm ? "h-9 w-[4.5rem] text-sm" : "h-7 w-16 text-xs",
+                                            "text-center font-semibold p-0.5 no-uppercase w-full",
+                                            isPurchaseBillForm ? "h-9 text-[15px]" : "h-7 text-sm",
                                             (() => {
                                               const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
                                               return v?.sale_price && v.sale_price > 0 ? "border-blue-300 text-blue-800" : "";
