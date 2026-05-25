@@ -48,7 +48,7 @@ export const PlatformWhatsAppSettings = () => {
     waba_id: "",
     access_token: "",
     business_name: "",
-    api_provider: "meta_direct",
+    api_provider: "third_party",
     custom_api_url: "",
     api_version: "v21.0",
     business_id: "",
