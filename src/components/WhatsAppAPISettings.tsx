@@ -17,6 +17,7 @@ import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
+import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MessageSquare, 
@@ -135,13 +136,17 @@ export const WhatsAppAPISettings = () => {
       setFormData({
         phone_number_id: settings.phone_number_id || DEFAULT_WHATSAPP_THIRD_PARTY.phone_number_id,
         waba_id: settings.waba_id || DEFAULT_WHATSAPP_THIRD_PARTY.waba_id,
-        access_token: settings.access_token || "",
         business_name: settings.business_name || "",
         is_active: settings.is_active ?? DEFAULT_WHATSAPP_THIRD_PARTY.is_active,
         use_default_api: settings.use_default_api === true,
         api_provider: "third_party",
-        custom_api_url: (settings as any).custom_api_url || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
-        api_version: (settings as any).api_version || DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+        custom_api_url: normalizeWhatsAppApiBaseUrl(
+          (settings as any).custom_api_url || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+        ),
+        api_version: normalizeWhatsAppApiVersion(
+          (settings as any).api_version || DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+        ),
+        access_token: normalizeWhatsAppAccessToken(settings.access_token || ""),
         business_id: (settings as any).business_id || DEFAULT_WHATSAPP_THIRD_PARTY.business_id,
         auto_send_invoice: settings.auto_send_invoice || false,
         auto_send_quotation: settings.auto_send_quotation || false,
@@ -238,7 +243,10 @@ export const WhatsAppAPISettings = () => {
     const wabaId = payload.waba_id?.trim();
     if (businessId && !wabaId) payload.waba_id = businessId;
     if (wabaId && !businessId) payload.business_id = wabaId;
-    payload.custom_api_url = payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url;
+    payload.custom_api_url = normalizeWhatsAppApiBaseUrl(
+      payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+    );
+    payload.api_version = normalizeWhatsAppApiVersion(payload.api_version);
     if (payload.access_token) {
       payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
     }
@@ -410,9 +418,10 @@ export const WhatsAppAPISettings = () => {
                   placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
                   value={formData.custom_api_url}
                   onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
+                  className="font-mono no-uppercase"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Base URL from your third-party WhatsApp API provider
+                  Use lowercase URL exactly as in your provider dashboard (e.g. https://crmapi.wappconnect.com/api/meta)
                 </p>
               </div>
 
@@ -421,10 +430,14 @@ export const WhatsAppAPISettings = () => {
                   <Label htmlFor="api_version">API Version</Label>
                   <Input
                     id="api_version"
-                    placeholder="e.g., v21.0"
+                    placeholder="e.g., v19.0"
                     value={formData.api_version}
                     onChange={(e) => handleInputChange("api_version", e.target.value)}
+                    className="font-mono no-uppercase"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Match provider dashboard (e.g. v19.0 — lowercase v)
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -471,10 +484,10 @@ export const WhatsAppAPISettings = () => {
                   <Input
                     id="access_token"
                     type={showToken ? "text" : "password"}
-                    placeholder="Access token from your provider (may be temporary)"
+                    placeholder="Paste token exactly from provider (case-sensitive)"
                     value={formData.access_token}
                     onChange={(e) => handleInputChange("access_token", e.target.value)}
-                    className="pr-10"
+                    className="pr-10 font-mono no-uppercase"
                   />
                   <Button
                     type="button"

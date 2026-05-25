@@ -13,18 +13,40 @@ export function isThirdPartyWhatsAppProvider(apiProvider?: string | null): boole
   return apiProvider === "third_party";
 }
 
-/** Normalize provider base URL (trim, lowercase scheme, no trailing slash). */
+/** Normalize provider base URL (lowercase scheme/host/path, no trailing slash). */
 export function normalizeWhatsAppApiBaseUrl(url: string): string {
   let normalized = url.trim();
   if (!normalized) return "";
 
-  if (/^https?:\/\//i.test(normalized)) {
-    normalized = normalized.replace(/^https?:\/\//i, (m) => m.toLowerCase());
-  } else {
+  if (!/^https?:\/\//i.test(normalized)) {
     normalized = `https://${normalized}`;
   }
 
-  return normalized.replace(/\/+$/, "");
+  try {
+    const parsed = new URL(normalized);
+    const protocol = parsed.protocol.toLowerCase();
+    const host = parsed.hostname.toLowerCase();
+    const port =
+      parsed.port &&
+      !((protocol === "https:" && parsed.port === "443") || (protocol === "http:" && parsed.port === "80"))
+        ? `:${parsed.port}`
+        : "";
+    let path = parsed.pathname.replace(/\/+$/, "");
+    if (path && path !== "/") {
+      path = path.toLowerCase();
+    } else {
+      path = "";
+    }
+    return `${protocol}//${host}${port}${path}`;
+  } catch {
+    return normalized.toLowerCase().replace(/\/+$/, "");
+  }
+}
+
+/** Normalize API version label (e.g. V21.0 → v21.0). */
+export function normalizeWhatsAppApiVersion(raw: string | null | undefined): string {
+  const v = (raw || "v21.0").trim().replace(/^\/+/, "");
+  return v.toLowerCase();
 }
 
 /** Base URL for Graph-style API calls. */
@@ -61,7 +83,7 @@ export function buildMessageTemplatesListUrl(
   extraQuery?: Record<string, string>,
 ): string {
   const baseUrl = resolveWhatsAppApiBaseUrl(settings);
-  const version = (settings.api_version || "v21.0").trim().replace(/^\/+/, "").toLowerCase();
+  const version = normalizeWhatsAppApiVersion(settings.api_version);
   const wabaId = resolveWabaIdForTemplates(settings);
 
   if (!wabaId) {

@@ -5,6 +5,7 @@ import {
   normalizeWhatsAppAccessToken,
   parseWhatsAppProviderError,
 } from "../_shared/whatsappAuth.ts";
+import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,17 +28,6 @@ function isThirdParty(apiProvider?: string | null): boolean {
   return apiProvider === "third_party";
 }
 
-function normalizeBaseUrl(url: string): string {
-  let normalized = url.trim();
-  if (!normalized) return "";
-  if (/^https?:\/\//i.test(normalized)) {
-    normalized = normalized.replace(/^https?:\/\//i, (m) => m.toLowerCase());
-  } else {
-    normalized = `https://${normalized}`;
-  }
-  return normalized.replace(/\/+$/, "");
-}
-
 function resolveBaseUrl(settings: OrgWhatsAppSettings): string {
   const provider = settings.api_provider || "meta_direct";
   if (isThirdParty(provider)) {
@@ -45,10 +35,10 @@ function resolveBaseUrl(settings: OrgWhatsAppSettings): string {
     if (!custom) {
       throw new Error("Third-party API URL is not configured.");
     }
-    return normalizeBaseUrl(custom);
+    return normalizeWhatsAppApiBaseUrl(custom);
   }
   const custom = settings.custom_api_url?.trim();
-  if (custom) return normalizeBaseUrl(custom);
+  if (custom) return normalizeWhatsAppApiBaseUrl(custom);
   return "https://graph.facebook.com";
 }
 
@@ -58,7 +48,7 @@ function resolveWabaId(settings: OrgWhatsAppSettings): string {
 
 function buildTemplatesUrl(settings: OrgWhatsAppSettings): string {
   const baseUrl = resolveBaseUrl(settings);
-  const version = (settings.api_version || "v21.0").trim().replace(/^\/+/, "").toLowerCase();
+  const version = normalizeWhatsAppApiVersion(settings.api_version);
   const wabaId = resolveWabaId(settings);
   if (!wabaId) {
     throw new Error(

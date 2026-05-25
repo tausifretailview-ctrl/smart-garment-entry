@@ -5,6 +5,7 @@ import {
   normalizeWhatsAppAccessToken,
   parseWhatsAppProviderError,
 } from "../_shared/whatsappAuth.ts";
+import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -615,11 +616,9 @@ serve(async (req) => {
       const custom = String(apiCredentials.custom_api_url ?? '').trim();
       if (provider === 'third_party') {
         if (!custom) return 'https://graph.facebook.com';
-        let normalized = custom;
-        if (!/^https?:\/\//i.test(normalized)) normalized = `https://${normalized}`;
-        return normalized.replace(/\/+$/, '');
+        return normalizeWhatsAppApiBaseUrl(custom);
       }
-      return custom ? custom.replace(/\/+$/, '') : 'https://graph.facebook.com';
+      return custom ? normalizeWhatsAppApiBaseUrl(custom) : 'https://graph.facebook.com';
     };
 
     const resolveWabaId = (): string | null => {
@@ -630,7 +629,7 @@ serve(async (req) => {
 
     // Create a merged settings object for template fetching
     const apiBaseUrl = resolveApiBaseUrl();
-    const apiVersion = apiCredentials.api_version || 'v21.0';
+    const apiVersion = normalizeWhatsAppApiVersion(apiCredentials.api_version);
     const resolvedWabaId = resolveWabaId();
     
     const normalizedAccessToken = normalizeWhatsAppAccessToken(apiCredentials.access_token);

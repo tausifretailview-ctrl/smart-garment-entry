@@ -18,13 +18,15 @@ import {
   Phone
 } from "lucide-react";
 import { toast } from "sonner";
+import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
+import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
+import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface PlatformWhatsAppCredentials {
@@ -128,11 +130,15 @@ export const PlatformWhatsAppSettings = () => {
       setFormData({
         phone_number_id: value.phone_number_id || DEFAULT_WHATSAPP_THIRD_PARTY.phone_number_id,
         waba_id: value.waba_id || DEFAULT_WHATSAPP_THIRD_PARTY.waba_id,
-        access_token: value.access_token || "",
+        access_token: normalizeWhatsAppAccessToken(value.access_token || ""),
         business_name: value.business_name || "",
         api_provider: "third_party",
-        custom_api_url: value.custom_api_url || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
-        api_version: value.api_version || DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+        custom_api_url: normalizeWhatsAppApiBaseUrl(
+          value.custom_api_url || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+        ),
+        api_version: normalizeWhatsAppApiVersion(
+          value.api_version || DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+        ),
         business_id: value.business_id || DEFAULT_WHATSAPP_THIRD_PARTY.business_id,
       });
     }
@@ -147,6 +153,13 @@ export const PlatformWhatsAppSettings = () => {
       const wabaId = payload.waba_id?.trim();
       if (businessId && !wabaId) payload.waba_id = businessId;
       if (wabaId && !businessId) payload.business_id = wabaId;
+      payload.custom_api_url = normalizeWhatsAppApiBaseUrl(
+        payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+      );
+      payload.api_version = normalizeWhatsAppApiVersion(payload.api_version);
+      if (payload.access_token) {
+        payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
+      }
       const jsonValue = JSON.parse(JSON.stringify(payload));
       const { error } = await supabase
         .from('platform_settings')
@@ -231,6 +244,7 @@ export const PlatformWhatsAppSettings = () => {
               placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
               value={formData.custom_api_url}
               onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
+              className="font-mono no-uppercase"
             />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -238,9 +252,10 @@ export const PlatformWhatsAppSettings = () => {
               <Label htmlFor="platform_api_version">API Version</Label>
               <Input
                 id="platform_api_version"
-                placeholder="e.g., v21.0"
+                placeholder="e.g., v19.0"
                 value={formData.api_version}
                 onChange={(e) => handleInputChange("api_version", e.target.value)}
+                className="font-mono no-uppercase"
               />
             </div>
             <div className="space-y-2">
@@ -282,10 +297,10 @@ export const PlatformWhatsAppSettings = () => {
               <Input
                 id="access_token"
                 type={showToken ? "text" : "password"}
-                placeholder={formData.api_provider === "third_party" ? "Access Token (may be temporary)" : "Permanent Access Token"}
+                placeholder="Paste token exactly from provider (case-sensitive)"
                 value={formData.access_token}
                 onChange={(e) => handleInputChange("access_token", e.target.value)}
-                className="pr-10"
+                className="pr-10 font-mono no-uppercase"
               />
               <Button
                 type="button"
