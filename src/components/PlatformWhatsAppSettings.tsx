@@ -24,6 +24,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface PlatformWhatsAppCredentials {
@@ -31,7 +32,7 @@ interface PlatformWhatsAppCredentials {
   waba_id: string;
   access_token: string;
   business_name: string;
-  api_provider: "meta_direct" | "third_party";
+  api_provider: "third_party";
   custom_api_url: string;
   api_version: string;
   business_id: string;
@@ -125,14 +126,14 @@ export const PlatformWhatsAppSettings = () => {
     if (platformSettings?.setting_value) {
       const value = platformSettings.setting_value as unknown as PlatformWhatsAppCredentials;
       setFormData({
-        phone_number_id: value.phone_number_id || "",
-        waba_id: value.waba_id || "",
+        phone_number_id: value.phone_number_id || DEFAULT_WHATSAPP_THIRD_PARTY.phone_number_id,
+        waba_id: value.waba_id || DEFAULT_WHATSAPP_THIRD_PARTY.waba_id,
         access_token: value.access_token || "",
         business_name: value.business_name || "",
-        api_provider: value.api_provider || "meta_direct",
-        custom_api_url: value.custom_api_url || "",
-        api_version: value.api_version || "v21.0",
-        business_id: value.business_id || "",
+        api_provider: "third_party",
+        custom_api_url: value.custom_api_url || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+        api_version: value.api_version || DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+        business_id: value.business_id || DEFAULT_WHATSAPP_THIRD_PARTY.business_id,
       });
     }
   }, [platformSettings]);
@@ -141,7 +142,12 @@ export const PlatformWhatsAppSettings = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       // Cast to JSON-compatible format
-      const jsonValue = JSON.parse(JSON.stringify(formData));
+      const payload = { ...formData, api_provider: "third_party" as const };
+      const businessId = payload.business_id?.trim();
+      const wabaId = payload.waba_id?.trim();
+      if (businessId && !wabaId) payload.waba_id = businessId;
+      if (wabaId && !businessId) payload.business_id = wabaId;
+      const jsonValue = JSON.parse(JSON.stringify(payload));
       const { error } = await supabase
         .from('platform_settings')
         .update({ 
@@ -218,65 +224,35 @@ export const PlatformWhatsAppSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* API Provider Toggle */}
           <div className="space-y-2">
-            <Label>API Provider</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={formData.api_provider === "meta_direct" ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleInputChange("api_provider", "meta_direct")}
-                className="flex-1"
-              >
-                Direct Meta API
-              </Button>
-              <Button
-                type="button"
-                variant={formData.api_provider === "third_party" ? "default" : "outline"}
-                size="sm"
-                onClick={() => handleInputChange("api_provider", "third_party")}
-                className="flex-1"
-              >
-                Third-Party Provider
-              </Button>
+            <Label htmlFor="platform_custom_api_url">Custom API URL</Label>
+            <Input
+              id="platform_custom_api_url"
+              placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
+              value={formData.custom_api_url}
+              onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="platform_api_version">API Version</Label>
+              <Input
+                id="platform_api_version"
+                placeholder="e.g., v21.0"
+                value={formData.api_version}
+                onChange={(e) => handleInputChange("api_version", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="platform_business_id">Business ID / WABA ID</Label>
+              <Input
+                id="platform_business_id"
+                placeholder="e.g., 247325313237950"
+                value={formData.business_id}
+                onChange={(e) => handleInputChange("business_id", e.target.value)}
+              />
             </div>
           </div>
-
-          {/* Third-party specific fields */}
-          {formData.api_provider === "third_party" && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="platform_custom_api_url">Custom API URL</Label>
-                <Input
-                  id="platform_custom_api_url"
-                  placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
-                  value={formData.custom_api_url}
-                  onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="platform_api_version">API Version</Label>
-                  <Input
-                    id="platform_api_version"
-                    placeholder="e.g., v19.0"
-                    value={formData.api_version}
-                    onChange={(e) => handleInputChange("api_version", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="platform_business_id">Business ID</Label>
-                  <Input
-                    id="platform_business_id"
-                    placeholder="e.g., 24732513237950"
-                    value={formData.business_id}
-                    onChange={(e) => handleInputChange("business_id", e.target.value)}
-                  />
-                </div>
-              </div>
-            </>
-          )}
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">

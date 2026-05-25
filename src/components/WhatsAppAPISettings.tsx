@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
+import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MessageSquare, 
@@ -67,14 +68,13 @@ export const WhatsAppAPISettings = () => {
     phone_number_id: "",
     waba_id: "",
     access_token: "",
-    business_name: "",
-    is_active: false,
-    use_default_api: true,
-    // Third-party provider fields
-    api_provider: "meta_direct" as "meta_direct" | "third_party",
-    custom_api_url: "",
-    api_version: "v21.0",
-    business_id: "",
+    business_name: DEFAULT_WHATSAPP_THIRD_PARTY.business_name,
+    is_active: DEFAULT_WHATSAPP_THIRD_PARTY.is_active,
+    use_default_api: DEFAULT_WHATSAPP_THIRD_PARTY.use_default_api,
+    api_provider: "third_party" as const,
+    custom_api_url: DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+    api_version: DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+    business_id: DEFAULT_WHATSAPP_THIRD_PARTY.business_id,
     auto_send_invoice: false,
     auto_send_quotation: false,
     auto_send_sale_order: false,
@@ -132,17 +132,16 @@ export const WhatsAppAPISettings = () => {
   useEffect(() => {
     if (settings) {
       setFormData({
-        phone_number_id: settings.phone_number_id || "",
-        waba_id: settings.waba_id || "",
+        phone_number_id: settings.phone_number_id || DEFAULT_WHATSAPP_THIRD_PARTY.phone_number_id,
+        waba_id: settings.waba_id || DEFAULT_WHATSAPP_THIRD_PARTY.waba_id,
         access_token: settings.access_token || "",
         business_name: settings.business_name || "",
-        is_active: settings.is_active || false,
-        use_default_api: settings.use_default_api !== false, // Default to true
-        // Third-party provider fields
-        api_provider: (settings as any).api_provider || "meta_direct",
-        custom_api_url: (settings as any).custom_api_url || "",
-        api_version: (settings as any).api_version || "v21.0",
-        business_id: (settings as any).business_id || "",
+        is_active: settings.is_active ?? DEFAULT_WHATSAPP_THIRD_PARTY.is_active,
+        use_default_api: settings.use_default_api === true,
+        api_provider: "third_party",
+        custom_api_url: (settings as any).custom_api_url || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url,
+        api_version: (settings as any).api_version || DEFAULT_WHATSAPP_THIRD_PARTY.api_version,
+        business_id: (settings as any).business_id || DEFAULT_WHATSAPP_THIRD_PARTY.business_id,
         auto_send_invoice: settings.auto_send_invoice || false,
         auto_send_quotation: settings.auto_send_quotation || false,
         auto_send_sale_order: settings.auto_send_sale_order || false,
@@ -233,15 +232,12 @@ export const WhatsAppAPISettings = () => {
       setSharedNumberWarning(null);
     }
     
-    const payload = { ...formData };
-    // Third-party dashboards often label WABA as "Business ID" — keep both in sync for template sync
-    if (payload.api_provider === "third_party") {
-      const businessId = payload.business_id?.trim();
-      const wabaId = payload.waba_id?.trim();
-      if (businessId && !wabaId) payload.waba_id = businessId;
-      if (wabaId && !businessId) payload.business_id = wabaId;
-      payload.custom_api_url = payload.custom_api_url?.trim() || "";
-    }
+    const payload = { ...formData, api_provider: "third_party" as const };
+    const businessId = payload.business_id?.trim();
+    const wabaId = payload.waba_id?.trim();
+    if (businessId && !wabaId) payload.waba_id = businessId;
+    if (wabaId && !businessId) payload.business_id = wabaId;
+    payload.custom_api_url = payload.custom_api_url?.trim() || DEFAULT_WHATSAPP_THIRD_PARTY.custom_api_url;
 
     updateSettings(payload);
   };
@@ -342,45 +338,17 @@ export const WhatsAppAPISettings = () => {
           ) : (
             <>
               <Separator />
-              
-              {/* API Provider Toggle */}
-              <div className="space-y-2">
-                <Label>API Provider</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={formData.api_provider === "meta_direct" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleInputChange("api_provider", "meta_direct")}
-                    className="flex-1"
-                  >
-                    Direct Meta API
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={formData.api_provider === "third_party" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handleInputChange("api_provider", "third_party")}
-                    className="flex-1"
-                  >
-                    Third-Party Provider
-                  </Button>
-                </div>
-              </div>
 
-              {/* Third-party specific fields */}
-              {formData.api_provider === "third_party" && (
-                <>
-                  <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-                    <AlertCircle className="h-4 w-4 text-amber-600" />
-                    <AlertTitle className="text-amber-800 dark:text-amber-200">Third-Party Provider</AlertTitle>
-                    <AlertDescription className="text-sm text-amber-700 dark:text-amber-300">
-                      Third-party providers may use temporary access tokens that need periodic renewal. Make sure to update the token before it expires.
-                    </AlertDescription>
-                  </Alert>
+              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800 dark:text-amber-200">Third-Party WhatsApp API</AlertTitle>
+                <AlertDescription className="text-sm text-amber-700 dark:text-amber-300">
+                  Messages are sent via your provider (e.g. WappConnect). Access tokens may be temporary — renew before they expire.
+                </AlertDescription>
+              </Alert>
 
-                  {/* Webhook Configuration Section */}
-                  <div className="p-4 bg-muted rounded-lg space-y-3">
+              {/* Webhook Configuration Section */}
+              <div className="p-4 bg-muted rounded-lg space-y-3">
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-primary" />
                       <Label className="font-medium">Webhook Configuration</Label>
@@ -431,74 +399,65 @@ export const WhatsAppAPISettings = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="custom_api_url">Custom API URL</Label>
-                    <Input
-                      id="custom_api_url"
-                      placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
-                      value={formData.custom_api_url}
-                      onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The base URL provided by your third-party WhatsApp API provider
-                    </p>
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="custom_api_url">Custom API URL</Label>
+                <Input
+                  id="custom_api_url"
+                  placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
+                  value={formData.custom_api_url}
+                  onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Base URL from your third-party WhatsApp API provider
+                </p>
+              </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="api_version">API Version</Label>
-                      <Input
-                        id="api_version"
-                        placeholder="e.g., v19.0"
-                        value={formData.api_version}
-                        onChange={(e) => handleInputChange("api_version", e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        API version (default: v21.0)
-                      </p>
-                    </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="api_version">API Version</Label>
+                  <Input
+                    id="api_version"
+                    placeholder="e.g., v21.0"
+                    value={formData.api_version}
+                    onChange={(e) => handleInputChange("api_version", e.target.value)}
+                  />
+                </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="business_id">Business ID / WABA ID</Label>
-                      <Input
-                        id="business_id"
-                        placeholder="e.g., 247325313237950"
-                        value={formData.business_id}
-                        onChange={(e) => handleInputChange("business_id", e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Required for template sync if WABA ID is not set — use the ID from your provider dashboard
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
+                <div className="space-y-2">
+                  <Label htmlFor="business_id">Business ID / WABA ID</Label>
+                  <Input
+                    id="business_id"
+                    placeholder="e.g., 247325313237950"
+                    value={formData.business_id}
+                    onChange={(e) => handleInputChange("business_id", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used for template sync if WhatsApp Business Account ID is empty
+                  </p>
+                </div>
+              </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="phone_number_id">Phone Number ID</Label>
                   <Input
                     id="phone_number_id"
-                    placeholder="e.g., 123456789012345"
+                    placeholder="e.g., 997588563431761"
                     value={formData.phone_number_id}
                     onChange={(e) => handleInputChange("phone_number_id", e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.api_provider === "third_party" ? "Phone Number ID from your provider" : "Found in WhatsApp Manager → Phone Numbers"}
-                  </p>
+                  <p className="text-xs text-muted-foreground">From your provider dashboard</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="waba_id">WhatsApp Business Account ID</Label>
                   <Input
                     id="waba_id"
-                    placeholder="e.g., 123456789012345"
+                    placeholder="e.g., 2393068857780985"
                     value={formData.waba_id}
                     onChange={(e) => handleInputChange("waba_id", e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.api_provider === "third_party" ? "WABA ID from your provider" : "Found in WhatsApp Manager → Account settings"}
-                  </p>
+                  <p className="text-xs text-muted-foreground">WABA ID from your provider</p>
                 </div>
               </div>
 
@@ -508,7 +467,7 @@ export const WhatsAppAPISettings = () => {
                   <Input
                     id="access_token"
                     type={showToken ? "text" : "password"}
-                    placeholder={formData.api_provider === "third_party" ? "Access Token from your provider (may be temporary)" : "Permanent Access Token from System User"}
+                    placeholder="Access token from your provider (may be temporary)"
                     value={formData.access_token}
                     onChange={(e) => handleInputChange("access_token", e.target.value)}
                     className="pr-10"
@@ -524,9 +483,7 @@ export const WhatsAppAPISettings = () => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {formData.api_provider === "third_party" 
-                    ? "⚠️ Token may be temporary — update before it expires" 
-                    : "Create a System User in Business Settings → System Users → Generate Token"}
+                  Token may be temporary — update before it expires
                 </p>
               </div>
             </>

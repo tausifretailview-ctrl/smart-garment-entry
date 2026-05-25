@@ -29,7 +29,7 @@ export function normalizeWhatsAppApiBaseUrl(url: string): string {
 
 /** Base URL for Graph-style API calls. */
 export function resolveWhatsAppApiBaseUrl(settings: WhatsAppApiSettingsLike): string {
-  const provider = settings.api_provider || "meta_direct";
+  const provider = settings.api_provider || "third_party";
 
   if (isThirdPartyWhatsAppProvider(provider)) {
     const custom = settings.custom_api_url?.trim();
