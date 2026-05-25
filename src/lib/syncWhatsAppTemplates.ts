@@ -113,6 +113,6 @@ export async function syncWhatsAppTemplatesFromProvider(
 
   return {
     count: approvedTemplates.length,
-    provider: settings.api_provider || "meta_direct",
+    provider: settings.api_provider || "third_party",
   };
 }
