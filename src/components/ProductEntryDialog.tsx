@@ -2056,7 +2056,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                             </td>
                                           );
                                         })}
-                                        <td className="text-xs font-bold text-primary px-1.5 py-1 text-center">
+                                        <td className={cn("font-bold text-primary px-1.5 py-1 text-center", isPurchaseBillForm ? "text-sm" : "text-xs")}>
                                           {colorTotal > 0 ? colorTotal : ''}
                                         </td>
                                       </tr>
@@ -2070,12 +2070,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                     const ct = variants.filter(v => v.color === color && !disabledSizes.has(v.size)).reduce((s, v) => s + (v.purchase_qty || 0), 0);
                                     if (ct === 0) return null;
                                     return (
-                                      <span key={color} className="text-xs font-medium text-muted-foreground">
+                                      <span key={color} className={cn("font-medium text-muted-foreground", isPurchaseBillForm ? "text-sm" : "text-xs")}>
                                         {color}: <span className="font-bold text-foreground">{ct}</span>
                                       </span>
                                     );
                                   })}
-                                  <span className="text-xs font-bold text-primary ml-auto">
+                                  <span className={cn("font-bold text-primary ml-auto", isPurchaseBillForm ? "text-sm" : "text-xs")}>
                                     Grand Total: {totalQty}
                                   </span>
                                 </div>
@@ -2113,16 +2113,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         });
                                       }}
                                       className={cn(
-                                        "text-sm font-bold flex items-center gap-1 cursor-pointer transition-colors tracking-wide",
+                                        isPurchaseBillForm ? "text-base font-bold flex items-center gap-1 cursor-pointer transition-colors tracking-wide" : "text-sm font-bold flex items-center gap-1 cursor-pointer transition-colors tracking-wide",
                                         isDisabled
                                           ? "text-muted-foreground/40 line-through"
                                           : qty > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
                                       )}
                                     >
                                       {isDisabled ? (
-                                        <X className="h-3.5 w-3.5 text-muted-foreground/40" />
+                                        <X className={cn("text-muted-foreground/40", isPurchaseBillForm ? "h-4 w-4" : "h-3.5 w-3.5")} />
                                       ) : (
-                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                        <Check className={cn("text-emerald-600", isPurchaseBillForm ? "h-4 w-4" : "h-3.5 w-3.5")} />
                                       )}
                                       {size === 'Free' ? 'Qty' : size}
                                     </button>
@@ -2191,16 +2191,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         }}
                                         id={`size-qty-${size}`}
                                         className={cn(
-                                          "h-9 w-16 text-center text-base font-bold p-1 no-uppercase",
+                                          "text-center font-bold p-1 no-uppercase",
+                                          isPurchaseBillForm ? "h-10 w-[4.5rem] text-[15px]" : "h-9 w-16 text-base",
                                           qty > 0 && "border-emerald-400 text-emerald-800"
                                         )}
                                       />
                                     ) : (
-                                      <span className="h-9 w-16 flex items-center justify-center text-muted-foreground/30 text-sm">—</span>
+                                      <span className={cn("flex items-center justify-center text-muted-foreground/30", isPurchaseBillForm ? "h-10 w-[4.5rem] text-[15px]" : "h-9 w-16 text-sm")}>—</span>
                                     )}
                                     {!isDisabled && (
                                       <div className="flex flex-col items-center w-full">
-                                        <span className="text-[9px] text-muted-foreground font-medium mb-0.5 tracking-wide uppercase">Sale ₹</span>
+                                        <span className={cn("text-muted-foreground font-medium mb-0.5 tracking-wide uppercase", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>Sale ₹</span>
                                         <Input
                                           type="number"
                                           min="0"
@@ -2221,7 +2222,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                             ));
                                           }}
                                           className={cn(
-                                            "h-7 w-16 text-center text-xs font-semibold p-0.5 no-uppercase",
+                                            "text-center font-semibold p-0.5 no-uppercase",
+                                            isPurchaseBillForm ? "h-9 w-[4.5rem] text-sm" : "h-7 w-16 text-xs",
                                             (() => {
                                               const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
                                               return v?.sale_price && v.sale_price > 0 ? "border-blue-300 text-blue-800" : "";
@@ -2552,9 +2554,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
             </button>
           </div>
 
-          <DialogFooter className="px-6 py-4 border-t bg-muted/20 flex-shrink-0">
+          <DialogFooter className={cn("px-6 py-4 border-t bg-muted/20 flex-shrink-0", isPurchaseBillForm && "py-5")}>
             {hideOpeningQty && (
-              <span className="text-sm text-muted-foreground mr-auto">
+              <span className={cn("text-muted-foreground mr-auto", isPurchaseBillForm ? "text-[15px] font-medium" : "text-sm")}>
                 {(() => {
                   const activeVariants = variants.filter(v => 
                     !disabledSizes.has(v.size) && 
@@ -2568,14 +2570,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 })()}
               </span>
             )}
-            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={loading} className="font-outfit font-semibold">
+            <Button
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+              className={cn("font-outfit font-semibold", isPurchaseBillForm && "h-11 text-[15px] px-5")}
+            >
               Cancel
             </Button>
             <Button
               id="btn-add-all-sizes"
               onClick={handleSave}
               disabled={loading}
-              className="gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white"
+              className={cn(
+                "gap-1.5 min-w-[140px] font-outfit font-semibold shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700 text-white",
+                isPurchaseBillForm && "h-11 text-[15px] px-5 min-w-[180px]"
+              )}
             >
               {loading ? (
                 <>
