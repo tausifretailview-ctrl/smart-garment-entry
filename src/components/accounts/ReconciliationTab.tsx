@@ -61,7 +61,7 @@ export function ReconciliationTab({ organizationId, customers }: ReconciliationT
               customerName = invoice.customer_name || "Walk-in Customer";
               customerPhone = invoice.customer_phone || "";
               if (invoice.customer_id) {
-                const { data: customer } = await supabase.from("customers").select("*").eq("id", invoice.customer_id).maybeSingle();
+                const { data: customer } = await supabase.from("customers").select("customer_name, phone").eq("id", invoice.customer_id).maybeSingle();
                 if (customer) { customerName = customer.customer_name || customerName; customerPhone = customer.phone || customerPhone; }
               }
             }
