@@ -1289,10 +1289,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const purchaseTypography = isPurchaseBillForm
     ? {
         dialog:
-          "text-[15px] [&_label]:text-[15px] [&_label]:font-semibold [&_input]:h-10 [&_input]:text-[15px] [&_button[role=combobox]]:h-10 [&_button[role=combobox]]:text-[15px]",
+          "text-[15px] [&_label]:text-[15px] [&_label]:font-semibold [&_button[role=combobox]]:h-10 [&_button[role=combobox]]:text-[15px]",
         selectContent: "text-[15px]",
+        /** Larger bold text; box height stays compact (h-8). */
+        priceInput:
+          "!h-8 min-h-8 max-h-8 py-1 px-2 !text-[17px] !font-bold leading-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+        qtyInput:
+          "!h-8 min-h-8 max-h-8 py-1 px-1 !text-[17px] !font-bold leading-none text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+        priceFieldLabel: "font-bold text-[15px]",
       }
-    : { dialog: "", selectContent: "" };
+    : {
+        dialog: "",
+        selectContent: "",
+        priceInput: "",
+        qtyInput: "",
+        priceFieldLabel: "",
+      };
 
   return (
     <>
@@ -1618,9 +1630,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="default_pur_price" className={purchaseTypography.priceFieldLabel}>
+                    Purchase Price <span className="text-destructive">*</span>
+                  </Label>
                   <CalculatorInput
                     id="default_pur_price"
+                    className={purchaseTypography.priceInput}
                     value={formData.default_pur_price ?? ""}
                     onChange={(val) => {
                       const purPrice = val || undefined;
@@ -1641,7 +1656,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                 {isColumnVisible('product_entry', 'markup') && (
                 <div className="space-y-2">
-                  <Label htmlFor="markup_percent" className={isPurchaseBillForm ? undefined : "text-xs"}>Markup %</Label>
+                  <Label htmlFor="markup_percent" className={cn(isPurchaseBillForm ? purchaseTypography.priceFieldLabel : "text-xs")}>
+                    Markup %
+                  </Label>
                   <Input
                     id="markup_percent"
                     type="number"
@@ -1663,15 +1680,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     }}
                     onKeyDown={handleEnterAsTab}
                     placeholder="%"
-                    className="h-11"
+                    className={cn(isPurchaseBillForm ? purchaseTypography.priceInput : "h-11")}
                   />
                 </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="default_sale_price" className={purchaseTypography.priceFieldLabel}>
+                    Sale Price <span className="text-destructive">*</span>
+                  </Label>
                   <CalculatorInput
                     id="default_sale_price"
+                    className={purchaseTypography.priceInput}
                     value={formData.default_sale_price ?? ""}
                     onChange={(val) => {
                       const salePrice = val || undefined;
@@ -2021,9 +2041,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                           const variant = variants.find(v => v.size === size && v.color === color);
                                           const qty = variant?.purchase_qty || 0;
                                           const salePrice = variant?.sale_price;
-                                          const cellInputClass = cn(
-                                            "text-center font-semibold p-0.5 no-uppercase w-full",
-                                            isPurchaseBillForm ? "h-9 text-[15px]" : "h-7 text-sm"
+                                          const cellQtyClass = cn(
+                                            "text-center p-0.5 no-uppercase w-full",
+                                            isPurchaseBillForm ? purchaseTypography.qtyInput : "h-7 text-sm font-semibold"
+                                          );
+                                          const cellSaleClass = cn(
+                                            "text-center p-0.5 no-uppercase w-full",
+                                            isPurchaseBillForm ? purchaseTypography.priceInput : "h-7 text-sm font-semibold"
                                           );
                                           return (
                                             <td key={size} className="px-1 py-1.5 align-top text-center">
@@ -2087,11 +2111,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                                     }}
                                                     id={`size-qty-${color}-${size}`}
                                                     className={cn(
-                                                      cellInputClass,
+                                                      cellQtyClass,
                                                       qty > 0 && "border-emerald-400 text-emerald-800"
                                                     )}
                                                   />
-                                                  <span className={cn("text-muted-foreground font-medium tracking-wide uppercase leading-none", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>
+                                                  <span className={cn("text-muted-foreground font-bold tracking-wide uppercase leading-none", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>
                                                     Sale ₹
                                                   </span>
                                                   <Input
@@ -2128,7 +2152,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                                     onFocus={(e) => e.target.select()}
                                                     id={`size-sale-${color}-${size}`}
                                                     className={cn(
-                                                      cellInputClass,
+                                                      cellSaleClass,
                                                       salePrice && salePrice > 0 && "border-blue-300 text-blue-800"
                                                     )}
                                                   />
@@ -2272,17 +2296,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                         }}
                                         id={`size-qty-${size}`}
                                         className={cn(
-                                          "text-center font-bold p-1 no-uppercase",
-                                          isPurchaseBillForm ? "h-10 w-[4.5rem] text-[15px]" : "h-9 w-16 text-base",
+                                          "text-center p-1 no-uppercase w-full",
+                                          isPurchaseBillForm ? purchaseTypography.qtyInput : "h-9 w-16 text-base font-bold",
                                           qty > 0 && "border-emerald-400 text-emerald-800"
                                         )}
                                       />
                                     ) : (
-                                      <span className={cn("flex items-center justify-center text-muted-foreground/30", isPurchaseBillForm ? "h-10 w-[4.5rem] text-[15px]" : "h-9 w-16 text-sm")}>—</span>
+                                      <span className={cn("flex items-center justify-center text-muted-foreground/30 w-full", isPurchaseBillForm ? "h-8 text-[17px] font-bold" : "h-9 w-16 text-sm")}>—</span>
                                     )}
                                     {!isDisabled && (
                                       <div className="flex flex-col items-center w-full gap-1">
-                                        <span className={cn("text-muted-foreground font-medium tracking-wide uppercase leading-none", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>Sale ₹</span>
+                                        <span className={cn("text-muted-foreground font-bold tracking-wide uppercase leading-none", isPurchaseBillForm ? "text-[11px]" : "text-[9px]")}>Sale ₹</span>
                                         <Input
                                           type="number"
                                           min="0"
@@ -2322,8 +2346,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                           onFocus={(e) => e.target.select()}
                                           id={`size-sale-${formData.colors[0] || "default"}-${size}`}
                                           className={cn(
-                                            "text-center font-semibold p-0.5 no-uppercase w-full",
-                                            isPurchaseBillForm ? "h-9 text-[15px]" : "h-7 text-sm",
+                                            "text-center p-0.5 no-uppercase w-full",
+                                            isPurchaseBillForm ? purchaseTypography.priceInput : "h-7 text-sm font-semibold",
                                             (() => {
                                               const v = variants.find(vv => vv.size === size && vv.color === (formData.colors[0] || ""));
                                               return v?.sale_price && v.sale_price > 0 ? "border-blue-300 text-blue-800" : "";
@@ -2524,8 +2548,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                           <TableRow className="bg-gradient-to-r from-violet-100/80 to-purple-100/60 border-b border-violet-200/60">
                             {formData.colors.length > 0 && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Color</TableHead>}
                             <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Size</TableHead>
-                            <TableHead className="text-[13px] py-3 font-bold text-amber-700 font-outfit bg-amber-50/50">Pur Price<span className="text-destructive ml-0.5">*</span></TableHead>
-                            <TableHead className="text-[13px] py-3 font-bold text-emerald-700 font-outfit bg-emerald-50/50">Sale Price<span className="text-destructive ml-0.5">*</span></TableHead>
+                            <TableHead className={cn("py-3 font-bold text-amber-700 font-outfit bg-amber-50/50", isPurchaseBillForm ? "text-[15px]" : "text-[13px]")}>
+                              Pur Price<span className="text-destructive ml-0.5">*</span>
+                            </TableHead>
+                            <TableHead className={cn("py-3 font-bold text-emerald-700 font-outfit bg-emerald-50/50", isPurchaseBillForm ? "text-[15px]" : "text-[13px]")}>
+                              Sale Price<span className="text-destructive ml-0.5">*</span>
+                            </TableHead>
                             {showMrp && <TableHead className="text-[13px] py-3 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
                             <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
                             {!hideOpeningQty && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Qty</TableHead>}
@@ -2557,7 +2585,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                   id={`variant-pur-price-${index}`}
                                   value={variant.pur_price || ""}
                                   onChange={(val) => handleVariantChange(index, "pur_price", val)}
-                                  className={cn("w-28 h-9 text-sm border-amber-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
+                                  className={cn(
+                                    "w-28 border-amber-200",
+                                    isPurchaseBillForm ? purchaseTypography.priceInput : "h-9 text-sm",
+                                    variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5"
+                                  )}
                                   placeholder="0"
                                 />
                                 {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
@@ -2568,7 +2600,11 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                 <CalculatorInput
                                   value={variant.sale_price || ""}
                                   onChange={(val) => handleVariantChange(index, "sale_price", val)}
-                                  className={cn("w-28 h-9 text-sm border-emerald-200", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5")}
+                                  className={cn(
+                                    "w-28 border-emerald-200",
+                                    isPurchaseBillForm ? purchaseTypography.priceInput : "h-9 text-sm",
+                                    variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive bg-destructive/5"
+                                  )}
                                   placeholder="0"
                                 />
                               </TableCell>
