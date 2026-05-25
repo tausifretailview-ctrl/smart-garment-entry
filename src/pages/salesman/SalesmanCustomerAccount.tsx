@@ -102,7 +102,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch sales
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount, sale_return_adjust, credit_applied")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, created_at, discount_amount, flat_discount_amount, gross_amount, sale_return_adjust")
         .eq("customer_id", customerId!)
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -294,14 +294,14 @@ const SalesmanCustomerAccount = () => {
       // Build pending invoices list with per-invoice balance
       const pendingList = (salesData || [])
         // Don't trust stored payment_status — compute balance from receipts +
-        // paid_amount + sale_return_adjust + credit_applied. Just skip cancelled.
+        // paid_amount + sale_return_adjust. `credit_applied` is legacy (no longer
+        // written by adjust_invoice_balance); CN apply now lives in sale_return_adjust.
         .filter(sale => sale.payment_status !== 'cancelled' && sale.payment_status !== 'hold')
         .map(sale => {
           const voucherPaid = voucherPaymentsBySaleId[sale.id] || 0;
           const effectivePaid =
             Math.max(Number(sale.paid_amount) || 0, voucherPaid) +
-            (Number((sale as any).sale_return_adjust) || 0) +
-            (Number((sale as any).credit_applied) || 0);
+            (Number((sale as any).sale_return_adjust) || 0);
           const balance = Math.max(0, Math.round(sale.net_amount - effectivePaid));
           const saleDate = new Date(sale.sale_date);
           const daysOverdue = Math.floor((Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
