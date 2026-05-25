@@ -51,6 +51,7 @@ import {
   roundMoney,
   normalizePurchaseUnitPrice,
   computePurchaseLineSubTotal,
+  computePurchaseBillGst,
   getPurchaseLineMultiplier,
   isPurchaseFreightOrChargeRow,
   extractChargeAmountFromRow,
@@ -1406,7 +1407,7 @@ const PurchaseEntry = () => {
     }, 0);
     const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
     const grossAfterAllDiscount = grossAfterItemDiscount - discountAmount;
-    const gst = isDcPurchase ? 0 : lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+    const gst = computePurchaseBillGst(lineItems, discountAmount, isDcPurchase);
     const netBeforeRoundOff = grossAfterAllDiscount + gst + otherCharges;
     // Auto round-off: calculate round-off so net amount is always a whole number
     const autoRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
@@ -2798,7 +2799,7 @@ const PurchaseEntry = () => {
             const sub = getMtrMultiplier(r) * r.pur_price;
             return sum + (sub * r.discount_percent / 100);
           }, 0);
-          const calcGst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+          const calcGst = computePurchaseBillGst(lineItems, discountAmount, isDcPurchase);
           const calcNet = (calcGross - calcItemDisc - discountAmount) + (isDcPurchase ? 0 : calcGst) + otherCharges + roundOff;
 
           const match = sameDayBills.find((b: any) => {
@@ -2869,7 +2870,7 @@ const PurchaseEntry = () => {
       }, 0);
       const calculatedTotalDiscount = calculatedItemDiscount + discountAmount;
       const calculatedGrossAfterDiscount = calculatedGrossBeforeDiscount - calculatedTotalDiscount;
-      const calculatedGst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+      const calculatedGst = computePurchaseBillGst(lineItems, discountAmount, isDcPurchase);
       const calculatedNet = calculatedGrossAfterDiscount + calculatedGst + otherCharges + roundOff;
 
       if (isEditMode && editingBillId) {
@@ -3384,11 +3385,15 @@ const PurchaseEntry = () => {
     return sum + roundMoney(sub * r.discount_percent / 100);
   }, 0);
 
+  const grossAfterItemDiscount = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+  const taxableAmount = roundMoney(grossAfterItemDiscount - discountAmount);
+
   const totals = { 
     totalQty: lineItems.reduce((sum, item) => sum + item.qty, 0),
     totalDiscount: discountAmount,
     itemDiscount: itemDiscountTotal,
     grossAmount, 
+    taxableAmount,
     gstAmount, 
     netAmount 
   };
@@ -4910,8 +4915,16 @@ const PurchaseEntry = () => {
             <span>Gross <span className="text-white font-bold">₹{Math.round(totals.grossAmount).toLocaleString("en-IN")}</span></span>
             <span className="text-slate-600">—</span>
             <span>Disc <span className="text-red-300 font-extrabold">₹{(totals.itemDiscount + discountAmount).toFixed(0)}</span></span>
+            <span className="text-slate-600">=</span>
+            <span>Taxable <span className="text-white font-bold">₹{totals.taxableAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
             <span className="text-slate-600">+</span>
-            <span>GST <span className="text-white font-extrabold">₹{totals.gstAmount.toFixed(0)}</span></span>
+            <span>GST <span className="text-white font-extrabold">₹{totals.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+            {otherCharges !== 0 && (
+              <>
+                <span className="text-slate-600">{otherCharges > 0 ? "+" : "−"}</span>
+                <span>Charges <span className="text-white font-extrabold">₹{Math.abs(otherCharges).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+              </>
+            )}
             <span className="text-slate-600">=</span>
             <span>Net <span className="text-emerald-300 font-black">₹{totals.netAmount.toLocaleString("en-IN")}</span></span>
           </div>

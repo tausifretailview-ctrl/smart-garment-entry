@@ -1280,10 +1280,24 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     return fieldSettings[fieldName]?.label || defaultLabel;
   };
 
+  const isPurchaseBillForm = !!hideOpeningQty;
+  const purchaseTypography = isPurchaseBillForm
+    ? {
+        dialog:
+          "text-[15px] [&_label]:text-[15px] [&_label]:font-semibold [&_input]:h-10 [&_input]:text-[15px] [&_button[role=combobox]]:h-10 [&_button[role=combobox]]:text-[15px]",
+        selectContent: "text-[15px]",
+      }
+    : { dialog: "", selectContent: "" };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[92vh] p-0 font-outfit flex flex-col overflow-hidden">
+        <DialogContent
+          className={cn(
+            "max-w-6xl max-h-[92vh] p-0 font-outfit flex flex-col overflow-hidden",
+            purchaseTypography.dialog
+          )}
+        >
           {/* Purchase Context Header */}
           <div className="mx-6 mt-6 mb-2 rounded-xl border-[1.5px] border-success/30 bg-gradient-to-br from-success/5 to-success/10 p-4">
             <div className="flex items-center gap-3">
@@ -1291,8 +1305,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 <span className="text-lg">🧾</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-success">Purchase Bill — Add New Product</h3>
-                <p className="text-[11px] text-muted-foreground">Fill product details to add directly to purchase bill</p>
+                <h3 className={cn("font-bold text-success", isPurchaseBillForm ? "text-base" : "text-sm")}>
+                  Purchase Bill — Add New Product
+                </h3>
+                <p className={cn("text-muted-foreground", isPurchaseBillForm ? "text-sm" : "text-[11px]")}>
+                  Fill product details to add directly to purchase bill
+                </p>
               </div>
             </div>
           </div>
@@ -1345,7 +1363,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }`}
                     >
                       <span className="text-sm">{pt.icon}</span>
-                      <span className={`text-xs font-bold ${formData.product_type === pt.value ? 'text-primary' : 'text-foreground'}`}>{pt.label}</span>
+                      <span className={cn("font-bold", isPurchaseBillForm ? "text-sm" : "text-xs", formData.product_type === pt.value ? 'text-primary' : 'text-foreground')}>{pt.label}</span>
                     </button>
                   ))}
                 </div>
@@ -1402,7 +1420,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               {/* ── 📋 Product Details ────────────────────────── */}
               <div className="flex items-center gap-2 pt-1">
                 <span className="text-sm">📋</span>
-                <span className="text-[13px] font-bold text-foreground font-outfit">Product Details</span>
+                <span className={cn("font-bold text-foreground font-outfit", isPurchaseBillForm ? "text-base" : "text-[13px]")}>Product Details</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -1529,7 +1547,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={purchaseTypography.selectContent}>
                       {[0, 5, 12, 18, 28].map((rate) => (
                         <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>
                       ))}
@@ -1542,12 +1560,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 <div className="space-y-2">
                   <Label htmlFor="sale_gst" className="text-green-600 dark:text-green-400">Sale GST %</Label>
                   {formData.purchase_gst_percent !== formData.sale_gst_percent && (
-                    <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    <span className={cn("ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300", isPurchaseBillForm ? "text-xs" : "text-[10px]")}>
                       ≠ Purchase
                     </span>
                   )}
                   {isGarmentGstAutoBumped(formData.default_sale_price, garmentGstSettings) && (
-                    <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                    <span className={cn("ml-1 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300", isPurchaseBillForm ? "text-xs" : "text-[10px]")}>
                       Auto 18% (&gt;₹{getGarmentGstThreshold(garmentGstSettings)})
                     </span>
                   )}
@@ -1566,7 +1584,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       }}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={purchaseTypography.selectContent}>
                       {[0, 5, 12, 18, 28].map((rate) => (
                         <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>
                       ))}
@@ -1584,7 +1602,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={purchaseTypography.selectContent}>
                       {UOM_OPTIONS.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
@@ -1618,7 +1636,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                 {isColumnVisible('product_entry', 'markup') && (
                 <div className="space-y-2">
-                  <Label htmlFor="markup_percent" className="text-xs">Markup %</Label>
+                  <Label htmlFor="markup_percent" className={isPurchaseBillForm ? undefined : "text-xs"}>Markup %</Label>
                   <Input
                     id="markup_percent"
                     type="number"
@@ -1780,7 +1798,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         <option key={color} value={color} />
                       ))}
                     </datalist>
-                    <Button type="button" variant="secondary" onClick={handleAddColor}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddColor}
+                      className={isPurchaseBillForm ? "h-10 text-[15px] px-4" : undefined}
+                    >
                       Add
                     </Button>
                   </div>

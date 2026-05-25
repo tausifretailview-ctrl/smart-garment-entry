@@ -40,6 +40,24 @@ export const computePurchaseLineSubTotal = (item: {
   return roundMoney(getPurchaseLineMultiplier(item) * (Number(item.pur_price) || 0));
 };
 
+/** GST on line totals after bill-level discount is allocated proportionally (matches supplier invoices). */
+export const computePurchaseBillGst = (
+  lineItems: Array<{ line_total: number; gst_per: number }>,
+  billDiscountAmount: number,
+  isDcPurchase: boolean
+): number => {
+  if (isDcPurchase) return 0;
+  const grossAfterItemDiscount = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+  if (grossAfterItemDiscount <= 0) return 0;
+  return lineItems.reduce((sum, r) => {
+    const proportionalBillDiscount = roundMoney(
+      (r.line_total / grossAfterItemDiscount) * billDiscountAmount
+    );
+    const taxableLine = roundMoney(r.line_total - proportionalBillDiscount);
+    return sum + roundMoney(taxableLine * r.gst_per / 100);
+  }, 0);
+};
+
 const CHARGE_ROW_PATTERN =
   /courier|freight|convenience|conveince|transport\s*charge|shipping|carriage|delivery\s*charge|other\s*charge/i;
 
