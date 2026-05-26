@@ -135,6 +135,7 @@ export default function CustomerAccountStatementAuditPage() {
         customerAdvances: auditBundle.advances,
         advanceRefunds: auditBundle.refunds,
         adjustmentTotal,
+        saleReturns: auditBundle.saleReturns,
       },
       { ledgerAlignedApplicationReceipts: true },
     );
@@ -199,8 +200,8 @@ export default function CustomerAccountStatementAuditPage() {
     staleTime: 30_000,
   });
 
-  /** Period register closing (running total); CN on invoice is in sale debit, not double-counted. */
-  const finalOutstanding = registerClosing;
+  /** Headline closing = lifetime Dr (Customer Ledger); table uses period register running total. */
+  const finalOutstanding = lifetimeClosing ?? registerClosing;
   const lifetimeMismatch =
     lifetimeClosing != null && Math.abs(lifetimeClosing - registerClosing) > 1;
 
@@ -448,15 +449,13 @@ export default function CustomerAccountStatementAuditPage() {
               {finalOutstanding > 0.005 ? (
                 <Card className="shadow-sm border-l-4 border-l-red-500 text-red-700 dark:text-red-400 md:col-span-2">
                   <CardContent className="p-4">
-                    <div className="text-xs uppercase tracking-wide font-medium opacity-80">Closing (register)</div>
+                    <div className="text-xs uppercase tracking-wide font-medium opacity-80">Closing (Dr)</div>
                     <div className="text-2xl font-bold mt-1 tabular-nums">₹ {fmt(finalOutstanding)} Dr</div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Period register (CN on invoice in sale debit; S/R adjust rows are memo-only)
-                      {lifetimeMismatch && lifetimeClosing != null
-                        ? ` · Lifetime (Customer Ledger) ₹${fmt(lifetimeClosing)} Dr`
-                        : lifetimeClosing != null
-                          ? " · Matches Customer Ledger"
-                          : ""}
+                      Lifetime outstanding (matches Customer Ledger)
+                      {lifetimeMismatch
+                        ? ` · Period register ₹${fmt(registerClosing)} Dr`
+                        : ""}
                     </p>
                   </CardContent>
                 </Card>

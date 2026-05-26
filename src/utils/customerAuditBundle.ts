@@ -563,6 +563,7 @@ export function computeAuditFormulaOutstanding(bundle: CustomerAuditBundle): Ret
     advanceRefunds: bundle.refunds,
     adjustmentTotal,
     saleReturns: bundle.saleReturns,
+    options: { ledgerAlignedApplicationReceipts: true },
   });
   const totalAdvanceReceived = bundle.advances.reduce(
     (sum: number, a: { amount?: number | null }) => sum + Number(a.amount || 0),
@@ -581,6 +582,6 @@ export function computeAuditFormulaOutstanding(bundle: CustomerAuditBundle): Ret
     unusedAdvance: core.unusedAdvance,
     advanceRefundedTotal: core.advanceRefundedTotal,
     adjustmentTotal: core.adjustmentTotal,
-    outstanding: core.auditFormulaOutstanding,
+    outstanding: core.balance,
   };
 }

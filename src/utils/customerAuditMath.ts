@@ -151,6 +151,11 @@ export const computeCustomerOutstanding = (
     customerAdvances: Array<{ amount: number; used_amount: number; status: string }>;
     advanceRefunds: Array<{ refund_amount: number }>;
     adjustmentTotal?: number;
+    saleReturns?: Array<{
+      net_amount?: number | null;
+      credit_status?: string | null;
+      linked_sale_id?: string | null;
+    }>;
   },
   options?: ComputeCustomerOutstandingOptions,
 ) => {
@@ -162,13 +167,14 @@ export const computeCustomerOutstanding = (
     customerAdvances: params.customerAdvances,
     advanceRefunds: params.advanceRefunds,
     adjustmentTotal: params.adjustmentTotal,
+    saleReturns: params.saleReturns,
     options,
   });
 
   warnCustomerBalanceMismatch(
     "customerAuditMath.computeCustomerOutstanding",
     legacy.outstanding,
-    core.auditFormulaOutstanding,
+    core.balance,
   );
 
   return {
@@ -184,7 +190,7 @@ export const computeCustomerOutstanding = (
     unusedAdvance: core.unusedAdvance,
     advanceRefundedTotal: core.advanceRefundedTotal,
     adjustmentTotal: core.adjustmentTotal,
-    /** RPC/audit lifetime formula (excludes paidAmountDrift and pending standalone SR). */
-    outstanding: core.auditFormulaOutstanding,
+    /** Lifetime Dr — matches Customer Ledger / useCustomerBalance. */
+    outstanding: core.balance,
   };
 };

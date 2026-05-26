@@ -35,6 +35,7 @@ import {
   fetchCustomerAuditBundle,
   type AuditRow,
 } from "@/utils/customerAuditBundle";
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -161,18 +162,15 @@ export default function CustomerAuditReport() {
   });
 
   const { data: dbTrueBalance } = useQuery({
-    queryKey: ["customer-true-outstanding", customerId, currentOrganization?.id],
+    queryKey: ["customer-financial-snapshot-dr", customerId, currentOrganization?.id],
     queryFn: async () => {
       if (!customerId || !currentOrganization?.id) return null;
-      const { data, error } = await (supabase.rpc as any)("get_customer_true_outstanding", {
-        p_customer_id: customerId,
-        p_organization_id: currentOrganization.id,
-      });
-      if (error) {
-        console.error("Balance integrity check failed:", error);
-        return null;
-      }
-      return Number(data);
+      const snap = await fetchCustomerFinancialSnapshot(
+        supabase,
+        currentOrganization.id,
+        customerId,
+      );
+      return snap.outstandingDr;
     },
     enabled: !!customerId && !!currentOrganization?.id,
     staleTime: 30_000,
@@ -223,26 +221,33 @@ export default function CustomerAuditReport() {
       (sum: number, a: any) => sum + Number(a.outstanding_difference || 0),
       0,
     );
-    return computeCustomerOutstanding({
-      openingBalance: Number(auditBundle.customer.opening_balance || 0),
-      sales: salesInRange,
-      voucherEntries: vouchersInRange,
-      customerAdvances: auditBundle.advances,
-      advanceRefunds: auditBundle.refunds,
-      adjustmentTotal,
-    });
+    return computeCustomerOutstanding(
+      {
+        openingBalance: Number(auditBundle.customer.opening_balance || 0),
+        sales: salesInRange,
+        voucherEntries: vouchersInRange,
+        customerAdvances: auditBundle.advances,
+        advanceRefunds: auditBundle.refunds,
+        adjustmentTotal,
+        saleReturns: auditBundle.saleReturns,
+      },
+      { ledgerAlignedApplicationReceipts: true },
+    );
   }, [auditBundle, fromYmd, toYmd]);
 
   const allRows = useMemo(() => {
     if (!auditBundle) return [];
-    return buildAuditRows({
-      sales: auditBundle.allSales,
-      saleReturns: auditBundle.saleReturns,
-      vouchers: auditBundle.vouchersMerged,
-      advances: auditBundle.advances,
-      refunds: auditBundle.refunds,
-      balanceAdjustments: auditBundle.balanceAdjustments,
-    });
+    return buildAuditRows(
+      {
+        sales: auditBundle.allSales,
+        saleReturns: auditBundle.saleReturns,
+        vouchers: auditBundle.vouchersMerged,
+        advances: auditBundle.advances,
+        refunds: auditBundle.refunds,
+        balanceAdjustments: auditBundle.balanceAdjustments,
+      },
+      { ledgerAlignedApplicationReceipts: true },
+    );
   }, [auditBundle]);
 
   const cancelledInvoices = useMemo(() => {
@@ -289,9 +294,19 @@ export default function CustomerAuditReport() {
     return { openingCarried: carried, displayRows: disp, rowBalances: balances };
   }, [allRows, auditBundle, fromYmd, toYmd]);
 
+  /** Lifetime Dr (all-time) — same as Customer Ledger / quick lookup. */
+  const lifetimeFormula = useMemo(() => {
+    if (!auditBundle) return null;
+    return computeAuditFormulaOutstanding(auditBundle);
+  }, [auditBundle]);
+
   const outstandingFromRunningBalance =
     displayRows.length > 0 ? (rowBalances[rowBalances.length - 1] ?? openingCarried) : openingCarried;
-  const finalOutstanding = outstandingFromRunningBalance;
+
+  const lifetimeOutstanding = lifetimeFormula?.outstanding ?? null;
+  const finalOutstanding = lifetimeOutstanding ?? outstandingFromRunningBalance;
+  const registerMismatch =
+    lifetimeOutstanding != null && Math.abs(lifetimeOutstanding - outstandingFromRunningBalance) > 1;
 
   useEffect(() => {
     if (!selectedCustomer || !math) return;
@@ -350,18 +365,15 @@ export default function CustomerAuditReport() {
       {
         label: thirdLabel,
         value: thirdValue,
+        sub: registerMismatch
+          ? `Lifetime (Customer Ledger) · period register ₹ ${fmt(outstandingFromRunningBalance)} Dr`
+          : "Matches Customer Ledger running total",
         gradient: thirdGradient,
         icon: IndianRupee,
         highlight: Math.abs(finalOutstanding) > 0.005,
       },
     ];
-  }, [math, card2Total, finalOutstanding]);
-
-  /** Lifetime audit formula (all-time); compare to DB RPC — not FY-scoped `math`. */
-  const lifetimeFormula = useMemo(() => {
-    if (!auditBundle) return null;
-    return computeAuditFormulaOutstanding(auditBundle);
-  }, [auditBundle]);
+  }, [math, card2Total, finalOutstanding, registerMismatch, outstandingFromRunningBalance]);
 
   const runIntegrityCheck = async () => {
     if (!customerId || !currentOrganization?.id) return;
@@ -477,7 +489,7 @@ export default function CustomerAuditReport() {
     rows.push(["Credit notes", -math.creditNoteCredits]);
     rows.push(["Advance applied to invoices", -math.totalAdvanceUsed]);
     rows.push(["Unused advance (net)", -math.unusedAdvance]);
-    rows.push(["Outstanding (+ = Dr)", math.outstanding]);
+    rows.push(["Outstanding (+ = Dr)", finalOutstanding]);
 
     if (cancelledInvoices.length > 0) {
       rows.push([]);
@@ -861,12 +873,19 @@ export default function CustomerAuditReport() {
                   </p>
                   <div className="flex justify-between gap-4 border-t border-border pt-2 font-semibold text-base">
                     <span>
-                      {math.outstanding >= 0 ? "OUTSTANDING (Dr)" : "CREDIT (Cr)"}
+                      {finalOutstanding >= 0 ? "OUTSTANDING (Dr)" : "CREDIT (Cr)"}
                     </span>
                     <span>
-                      ₹ {fmt(Math.abs(math.outstanding))} {math.outstanding >= 0 ? "Dr" : "Cr"}
+                      ₹ {fmt(Math.abs(finalOutstanding))}{" "}
+                      {finalOutstanding >= 0 ? "Dr" : "Cr"}
                     </span>
                   </div>
+                  {registerMismatch && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Period formula ₹ {fmt(Math.abs(math.outstanding))}{" "}
+                      {math.outstanding >= 0 ? "Dr" : "Cr"} — headline uses lifetime balance (Customer Ledger).
+                    </p>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground border-t pt-3">
                   Adv Adj entries appear above as &quot;Internal Transfer&quot; but do not affect the
