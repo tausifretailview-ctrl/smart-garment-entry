@@ -1,6 +1,27 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  type JournalReferenceType,
+  type PostJournalEntryInput,
+  type PostJournalEntryResult,
+  type PostJournalLineInput,
+} from "@/utils/accounting/accountingTypes";
+import { mergeJournalLines } from "@/utils/accounting/journalLineUtils";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
+import {
+  buildPurchaseJournalV2,
+  buildPurchaseReturnJournalV2,
+  buildSaleJournalV2,
+  buildSaleReturnJournalV2,
+  isTallyV2PostingEnabled,
+} from "@/utils/accounting/tallyV2JournalPosters";
+
+export type {
+  JournalReferenceType,
+  PostJournalEntryInput,
+  PostJournalEntryResult,
+  PostJournalLineInput,
+} from "@/utils/accounting/accountingTypes";
 
 const round2 = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -63,47 +84,6 @@ function resolveReturnSettlementAccount(
   return ap;
 }
 
-/** Matches `journal_entries.reference_type` CHECK constraint. */
-export type JournalReferenceType =
-  | "Sale"
-  | "Purchase"
-  | "Payment"
-  | "StudentFeeReceipt"
-  | "StudentFeeBalanceAdjustment"
-  | "ExpenseVoucher"
-  | "SalaryVoucher"
-  | "CustomerReceipt"
-  | "SupplierPayment"
-  | "CustomerAdvanceApplication"
-  | "CustomerCreditNoteApplication"
-  | "CustomerAdvanceReceipt"
-  | "CustomerAdvanceRefund"
-  | "SaleReturn"
-  | "PurchaseReturn"
-  | "ManualJournal"
-  | "Contra"
-  | "RoundOff";
-
-export type PostJournalLineInput = {
-  accountId: string;
-  debitAmount: number;
-  creditAmount: number;
-};
-
-export type PostJournalEntryInput = {
-  organizationId: string;
-  date: string;
-  referenceType: JournalReferenceType;
-  referenceId: string;
-  description: string;
-  lines: PostJournalLineInput[];
-  client?: any;
-};
-
-export type PostJournalEntryResult =
-  | { status: "created"; journalEntryId: string }
-  | { status: "already_exists"; journalEntryId: string };
-
 function isUniqueViolation(err: unknown): boolean {
   const e = err as { code?: string };
   return e?.code === "23505";
@@ -121,8 +101,16 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
   if (!referenceId) throw new Error("referenceId is required");
   if (!lines?.length) throw new Error("Journal must have at least one line");
 
-  const normalized: Array<{ account_id: string; debit_amount: number; credit_amount: number }> = [];
-  for (const line of lines) {
+  const mergedLines = mergeJournalLines(lines);
+  const normalized: Array<{
+    account_id: string;
+    debit_amount: number;
+    credit_amount: number;
+    party_type: string | null;
+    party_id: string | null;
+    party_name_snapshot: string | null;
+  }> = [];
+  for (const line of mergedLines) {
     const dr = round2(line.debitAmount);
     const cr = round2(line.creditAmount);
     if (dr < 0 || cr < 0) throw new Error("Journal line amounts cannot be negative");
@@ -133,6 +121,9 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
       account_id: line.accountId,
       debit_amount: dr,
       credit_amount: cr,
+      party_type: line.partyType ?? null,
+      party_id: line.partyId ?? null,
+      party_name_snapshot: line.partyNameSnapshot ?? null,
     });
   }
 
@@ -193,6 +184,9 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
     account_id: line.account_id,
     debit_amount: line.debit_amount,
     credit_amount: line.credit_amount,
+    party_type: line.party_type,
+    party_id: line.party_id,
+    party_name_snapshot: line.party_name_snapshot,
   }));
 
   const { error: lineErr } = await client.from("journal_lines").insert(payload);
@@ -704,47 +698,79 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
 }
 
 /**
- * Records strict double-entry for a sale: DR Cash/Bank (paid), DR AR (receivable), CR Sales Revenue (net).
- * GL trial balance columns come from `get_gl_trial_balance` (movement is raw DR/CR on each account).
- * @param entryDate Optional `YYYY-MM-DD` for the journal header (defaults to today).
+ * Records double-entry for a sale (Tally v2 when Stock-in-Hand 1300 exists).
  */
 export async function recordSaleJournalEntry(
   saleId: string,
   organizationId: string,
-  netAmount: number,
-  paidAmount: number,
-  paymentMethod: string,
-  client: any = supabase,
-  entryDate?: string
-) {
+  arg3: any = supabase,
+  arg4?: any,
+  arg5?: any,
+  arg6?: any,
+  arg7?: any
+): Promise<string | null> {
   if (!saleId) throw new Error("saleId is required");
   if (!organizationId) throw new Error("organizationId is required");
+
+  const legacyMode = typeof arg3 === "number";
+  const client = legacyMode ? (arg6 ?? supabase) : (arg3 ?? supabase);
+  const entryDate = legacyMode
+    ? typeof arg7 === "string"
+      ? arg7
+      : undefined
+    : typeof arg4 === "string"
+      ? arg4
+      : undefined;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  if (isTallyV2PostingEnabled(systemAccounts)) {
+    const built = await buildSaleJournalV2(saleId, organizationId, client, entryDate);
+    if (!built) return null;
+    const result = await postJournalEntry({
+      organizationId,
+      date: built.date,
+      referenceType: built.referenceType,
+      referenceId: built.referenceId,
+      description: built.description,
+      lines: built.lines,
+      client,
+    });
+    return result.journalEntryId;
+  }
+
+  let netAmount = legacyMode ? Number(arg3) : 0;
+  let paidAmount = legacyMode ? Number(arg4 ?? 0) : 0;
+  let paymentMethod = legacyMode ? String(arg5 ?? "") : "";
+  if (!legacyMode) {
+    const { data: sale, error } = await client
+      .from("sales")
+      .select("net_amount, paid_amount, payment_method")
+      .eq("id", saleId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!sale) throw new Error(`Sale not found: ${saleId}`);
+    netAmount = Number(sale.net_amount ?? 0);
+    paidAmount = Number(sale.paid_amount ?? 0);
+    paymentMethod = String(sale.payment_method ?? "");
+  }
 
   const net = round2(netAmount);
   const paid = round2(Math.max(0, Math.min(paidAmount, net)));
   const receivable = round2(Math.max(0, net - paid));
-
   if (net <= 0) return null;
 
-  const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const arAccount = getAccountByCode(systemAccounts, "1200");
   const salesRevenue = getAccountByCode(systemAccounts, "4000");
-
   if (!arAccount || !salesRevenue) {
     throw new Error("Missing required system accounts for journaling (AR/Sales Revenue)");
   }
 
   const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
-
   const lines: PostJournalLineInput[] = [
     { accountId: salesRevenue.id, debitAmount: 0, creditAmount: net },
   ];
-  if (paid > 0) {
-    lines.push({ accountId: receiptAccount.id, debitAmount: paid, creditAmount: 0 });
-  }
-  if (receivable > 0) {
-    lines.push({ accountId: arAccount.id, debitAmount: receivable, creditAmount: 0 });
-  }
+  if (paid > 0) lines.push({ accountId: receiptAccount.id, debitAmount: paid, creditAmount: 0 });
+  if (receivable > 0) lines.push({ accountId: arAccount.id, debitAmount: receivable, creditAmount: 0 });
 
   const journalDate =
     entryDate && /^\d{4}-\d{2}-\d{2}/.test(entryDate)
@@ -763,46 +789,89 @@ export async function recordSaleJournalEntry(
 }
 
 /**
- * Records strict double-entry for a purchase bill: DR COGS (net), CR Cash/Bank (paid), CR AP (payable).
- * @param entryDate Optional `YYYY-MM-DD` for the journal header (defaults to today).
+ * Records double-entry for a purchase bill (Tally v2: Stock-in-Hand + Input GST when 1300 exists).
  */
 export async function recordPurchaseJournalEntry(
   purchaseId: string,
   organizationId: string,
-  netAmount: number,
-  paidAmount: number,
-  paymentMethod: string,
-  client: any = supabase,
-  entryDate?: string
-) {
+  arg3: any = supabase,
+  arg4?: any,
+  arg5?: any,
+  arg6?: any,
+  arg7?: any
+): Promise<string | null> {
   if (!purchaseId) throw new Error("purchaseId is required");
   if (!organizationId) throw new Error("organizationId is required");
+
+  const legacyMode = typeof arg3 === "number";
+  const client = legacyMode ? (arg6 ?? supabase) : (arg3 ?? supabase);
+  const entryDate = legacyMode
+    ? typeof arg7 === "string"
+      ? arg7
+      : typeof arg6 === "string"
+        ? arg6
+        : undefined
+    : typeof arg4 === "string"
+      ? arg4
+      : undefined;
+  const paymentMethodOverride = legacyMode
+    ? String(arg5 ?? "")
+    : typeof arg5 === "string"
+      ? arg5
+      : null;
+
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  if (isTallyV2PostingEnabled(systemAccounts)) {
+    const built = await buildPurchaseJournalV2(
+      purchaseId,
+      organizationId,
+      client,
+      entryDate,
+      paymentMethodOverride
+    );
+    if (!built) return null;
+    const result = await postJournalEntry({
+      organizationId,
+      date: built.date,
+      referenceType: built.referenceType,
+      referenceId: built.referenceId,
+      description: built.description,
+      lines: built.lines,
+      client,
+    });
+    return result.journalEntryId;
+  }
+
+  let netAmount = legacyMode ? Number(arg3) : 0;
+  let paidAmount = legacyMode ? Number(arg4 ?? 0) : 0;
+  let paymentMethod = legacyMode ? String(arg5 ?? "") : "pay_later";
+  if (!legacyMode) {
+    const { data: bill, error } = await client
+      .from("purchase_bills")
+      .select("net_amount, paid_amount")
+      .eq("id", purchaseId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!bill) throw new Error(`Purchase bill not found: ${purchaseId}`);
+    netAmount = Number(bill.net_amount ?? 0);
+    paidAmount = Number(bill.paid_amount ?? 0);
+  }
 
   const net = round2(netAmount);
   const paid = round2(Math.max(0, Math.min(paidAmount, net)));
   const payable = round2(Math.max(0, net - paid));
-
   if (net <= 0) return null;
 
-  const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const apAccount = getAccountByCode(systemAccounts, "2000");
   const cogsAccount = getAccountByCode(systemAccounts, "5000");
-
   if (!apAccount || !cogsAccount) {
     throw new Error("Missing required system accounts for journaling (AP/COGS)");
   }
 
   const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
-
-  const lines: PostJournalLineInput[] = [
-    { accountId: cogsAccount.id, debitAmount: net, creditAmount: 0 },
-  ];
-  if (paid > 0) {
-    lines.push({ accountId: paymentAccount.id, debitAmount: 0, creditAmount: paid });
-  }
-  if (payable > 0) {
-    lines.push({ accountId: apAccount.id, debitAmount: 0, creditAmount: payable });
-  }
+  const lines: PostJournalLineInput[] = [{ accountId: cogsAccount.id, debitAmount: net, creditAmount: 0 }];
+  if (paid > 0) lines.push({ accountId: paymentAccount.id, debitAmount: 0, creditAmount: paid });
+  if (payable > 0) lines.push({ accountId: apAccount.id, debitAmount: 0, creditAmount: payable });
 
   const journalDate =
     entryDate && /^\d{4}-\d{2}-\d{2}/.test(entryDate)
@@ -821,9 +890,7 @@ export async function recordPurchaseJournalEntry(
 }
 
 /**
- * Sale return (`sale_returns.id`): DR 4050 Sales Returns & Allowances; CR side from `paymentMethod`:
- * `cash` → 1000; `upi` | `card` | `bank_transfer` → 1010; null/empty → 1200 AR (on-account / credit note path).
- * If `paymentMethod` is omitted and `refund_type` is `cash_refund`, treats as `cash`. Exchange returns skip GL (returns null).
+ * Sale return GL (Tally v2: GST + COGS reversal when 1300 exists).
  */
 export async function recordSaleReturnJournalEntry(
   saleReturnId: string,
@@ -838,15 +905,29 @@ export async function recordSaleReturnJournalEntry(
   if (!saleReturnId) throw new Error("saleReturnId is required");
   if (!organizationId) throw new Error("organizationId is required");
 
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  if (isTallyV2PostingEnabled(systemAccounts)) {
+    const built = await buildSaleReturnJournalV2(saleReturnId, organizationId, client, paymentMethod);
+    if (!built) return null;
+    const result = await postJournalEntry({
+      organizationId,
+      date: built.date,
+      referenceType: built.referenceType,
+      referenceId: built.referenceId,
+      description: description.trim() || built.description,
+      lines: built.lines,
+      client,
+    });
+    return result.journalEntryId;
+  }
+
   const net = round2(netAmount);
   if (net <= 0) return null;
 
   const rt = (refundType || "").toLowerCase().trim();
   if (rt === "exchange") return null;
 
-  const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const returnsAccount = getAccountByCode(systemAccounts, "4050");
-
   if (!returnsAccount) {
     throw new Error("Missing chart account Sales Returns & Allowances (4050)");
   }
@@ -878,8 +959,7 @@ export async function recordSaleReturnJournalEntry(
 }
 
 /**
- * Purchase return (`purchase_returns.id`): DR 2000 AP (on-account) or 1000/1010 when `paymentMethod` is
- * `cash` | `upi` | `card` | `bank_transfer`; CR 5050 Purchase Returns (contra expense).
+ * Purchase return GL (Tally v2: stock + input GST reversal when 1300 exists).
  */
 export async function recordPurchaseReturnJournalEntry(
   purchaseReturnId: string,
@@ -893,12 +973,26 @@ export async function recordPurchaseReturnJournalEntry(
   if (!purchaseReturnId) throw new Error("purchaseReturnId is required");
   if (!organizationId) throw new Error("organizationId is required");
 
+  const systemAccounts = await seedDefaultAccounts(organizationId, client);
+  if (isTallyV2PostingEnabled(systemAccounts)) {
+    const built = await buildPurchaseReturnJournalV2(purchaseReturnId, organizationId, client, paymentMethod);
+    if (!built) return null;
+    const result = await postJournalEntry({
+      organizationId,
+      date: built.date,
+      referenceType: built.referenceType,
+      referenceId: built.referenceId,
+      description: description.trim() || built.description,
+      lines: built.lines,
+      client,
+    });
+    return result.journalEntryId;
+  }
+
   const net = round2(netAmount);
   if (net <= 0) return null;
 
-  const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const purchaseReturnsAccount = getAccountByCode(systemAccounts, "5050");
-
   if (!purchaseReturnsAccount) {
     throw new Error("Missing chart account Purchase Returns (5050)");
   }
