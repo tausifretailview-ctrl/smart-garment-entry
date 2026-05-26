@@ -707,7 +707,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         return {
           ...customer,
           opening_balance: Math.round(openingBalance),
-          totalSales: co.totalSalesGross,
+          totalSales: co.totalSales,
+          totalSalesGross: co.totalSalesGross,
           totalPaid: co.totalPaid,
           balance: co.balance,
           unusedAdvanceTotal: Math.round(effectiveUnusedAdvances),

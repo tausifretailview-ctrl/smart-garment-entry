@@ -12,8 +12,11 @@ export interface AuditRow {
   type: string;
   ref: string;
   particulars: string;
+  /** Balance-affecting debit (receivable after invoice CN/S/R). */
   debit: number;
   credit: number;
+  /** Optional gross bill for display (before invoice CN/S/R). */
+  displayDebit?: number;
   internal: boolean;
   /** Footnote when `internal` (e.g. CN adjust memo vs voucher reclassification). */
   internalHint?: string;
@@ -134,6 +137,7 @@ export function buildAuditRows(
       ref: sn,
       particulars: `Invoice ${sn}`,
       debit: receivable,
+      displayDebit: sra > 0.005 ? net : receivable,
       credit: 0,
       internal: false,
     });

@@ -181,6 +181,9 @@ export function invalidateCustomerFinancialSnapshot(
     queryClient.invalidateQueries({
       queryKey: ["customer-balances-search", organizationId],
     });
+    queryClient.invalidateQueries({
+      queryKey: ["customers", organizationId],
+    });
   }
   if (organizationId && customerId) {
     queryClient.invalidateQueries({

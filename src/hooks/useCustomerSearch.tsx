@@ -8,6 +8,7 @@ import {
   fetchCustomerFinancialSnapshotMap,
   type CustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
+import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
 
 interface Customer {
   id: string;
@@ -173,7 +174,8 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
 
 /**
  * Hook to get customer balances and advance amounts for dropdown display.
- * All three metrics from `get_customer_financial_snapshot_batch` (single SQL authority).
+ * Outstanding Dr uses client ledger math (matches Customer Ledger / useCustomerBalance).
+ * Advance/CN from financial snapshot RPC.
  */
 export const useCustomerBalances = () => {
   const { currentOrganization } = useOrganization();
@@ -185,8 +187,24 @@ export const useCustomerBalances = () => {
 
       const rows = await fetchAllCustomers(currentOrganization.id);
       const ids = rows.map((c: { id: string }) => c.id).filter(Boolean);
-      const map = await fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids);
-      return Object.fromEntries(map) as Record<string, CustomerFinancialSnapshot>;
+      const [snapshotMap, lifetimeMap] = await Promise.all([
+        fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids),
+        fetchCustomerLifetimeBalanceMap(currentOrganization.id),
+      ]);
+      const merged: Record<string, CustomerFinancialSnapshot> = {};
+      for (const id of ids) {
+        const snap = snapshotMap.get(id) ?? {
+          outstandingDr: 0,
+          advanceAvailable: 0,
+          cnAvailableTotal: 0,
+          cnPendingCount: 0,
+        };
+        merged[id] = {
+          ...snap,
+          outstandingDr: lifetimeMap.get(id) ?? snap.outstandingDr,
+        };
+      }
+      return merged;
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30 * 1000,

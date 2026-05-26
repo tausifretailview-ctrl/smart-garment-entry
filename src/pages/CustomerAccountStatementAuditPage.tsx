@@ -18,6 +18,7 @@ import {
   type AuditRow,
 } from "@/utils/customerAuditBundle";
 import { computeCustomerOutstanding } from "@/utils/customerAuditMath";
+import { computeCustomerBalanceCore } from "@/utils/customerBalanceCore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,8 +181,33 @@ export default function CustomerAccountStatementAuditPage() {
     return { openingCarried: carried, displayRows: disp, rowBalances: balances };
   }, [allRows, auditBundle, fromYmd, toYmd]);
 
-  const finalOutstanding =
+  const registerClosing =
     displayRows.length > 0 ? (rowBalances[rowBalances.length - 1] ?? openingCarried) : openingCarried;
+
+  /** Lifetime Dr — matches Customer Ledger detail / Customer Payment (not period register drift). */
+  const lifetimeClosing = useMemo(() => {
+    if (!auditBundle || !customerId) return null;
+    const adjustmentTotal = (auditBundle.balanceAdjustments || []).reduce(
+      (sum: number, a: { outstanding_difference?: number | null }) =>
+        sum + Number(a.outstanding_difference || 0),
+      0,
+    );
+    return computeCustomerBalanceCore({
+      openingBalance: Number(auditBundle.customer.opening_balance || 0),
+      customerId,
+      sales: auditBundle.allSales,
+      voucherEntries: auditBundle.vouchersMerged,
+      customerAdvances: auditBundle.advances,
+      advanceRefunds: auditBundle.refunds,
+      adjustmentTotal,
+      saleReturns: auditBundle.saleReturns,
+      options: { ledgerAlignedApplicationReceipts: true },
+    }).balance;
+  }, [auditBundle, customerId]);
+
+  const finalOutstanding = lifetimeClosing ?? registerClosing;
+  const registerMismatch =
+    lifetimeClosing != null && Math.abs(lifetimeClosing - registerClosing) > 1;
 
   const { totalDebit, totalCredit } = useMemo(() => {
     let d = 0;
@@ -205,7 +231,8 @@ export default function CustomerAccountStatementAuditPage() {
       ["Phone", selectedCustomer.phone || ""],
       ["Period", `${fromYmd} → ${toYmd}`],
       ["Opening carried (B/F)", openingCarried],
-      ["Closing balance (register)", finalOutstanding],
+      ["Closing balance (lifetime)", finalOutstanding],
+      ["Closing balance (period register)", registerClosing],
       [],
       ["Date", "Type", "VCH/REF NO", "Particulars", "Debit", "Credit", "Balance Dr/Cr"],
     ];
@@ -428,7 +455,12 @@ export default function CustomerAccountStatementAuditPage() {
                   <CardContent className="p-4">
                     <div className="text-xs uppercase tracking-wide font-medium opacity-80">Closing (register)</div>
                     <div className="text-2xl font-bold mt-1 tabular-nums">₹ {fmt(finalOutstanding)} Dr</div>
-                    <p className="text-[10px] text-muted-foreground mt-1">End of period — same running total as audit</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Lifetime outstanding (matches Customer Ledger)
+                      {registerMismatch
+                        ? ` · Period register ₹${fmt(registerClosing)} Dr`
+                        : ""}
+                    </p>
                   </CardContent>
                 </Card>
               ) : finalOutstanding < -0.005 ? (
@@ -507,7 +539,24 @@ export default function CustomerAccountStatementAuditPage() {
                             )}
                           </TableCell>
                           <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums">
-                            {r.debit > 0 ? fmt(r.debit) : "—"}
+                            {r.debit > 0 ? (
+                              <div className="flex flex-col items-end">
+                                <span>
+                                  {fmt(
+                                    r.displayDebit != null && r.displayDebit > r.debit
+                                      ? r.displayDebit
+                                      : r.debit,
+                                  )}
+                                </span>
+                                {r.displayDebit != null && r.displayDebit > r.debit + 0.005 && (
+                                  <span className="text-[10px] text-amber-700 dark:text-amber-400 font-normal">
+                                    Rec. {fmt(r.debit)}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              "—"
+                            )}
                           </TableCell>
                           <TableCell className="border px-3 py-1.5 text-right font-mono tabular-nums">
                             {r.credit > 0 ? fmt(r.credit) : "—"}

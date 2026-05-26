@@ -30,11 +30,8 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
-import {
-  fetchAllCustomers,
-  fetchAllSalesSummary,
-  fetchCustomerTrueOutstandingMap,
-} from "@/utils/fetchAllRows";
+import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
@@ -262,10 +259,7 @@ export function CustomerPaymentTab({
           activeCustomerIds.has(c.id) || Math.abs(Number(c.opening_balance || 0)) > 0.01,
       );
 
-      const balanceMap = await fetchCustomerTrueOutstandingMap(
-        organizationId,
-        candidates.map((c: { id: string }) => c.id),
-      );
+      const balanceMap = await fetchCustomerLifetimeBalanceMap(organizationId);
 
       return allCustomers
         .map((c: any) => ({
@@ -423,7 +417,9 @@ export function CustomerPaymentTab({
     cnAvailableTotal: snapshotCnAvailable,
   } = useCustomerFinancialSnapshot(referenceId || null, organizationId);
 
+  /** Same lifetime Dr as Customer Ledger detail (useCustomerBalance); snapshot is fallback only. */
   const lifetimeOutstanding =
+    customerBalance ??
     snapshotOutstandingDr ??
     customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
 
@@ -1337,13 +1333,14 @@ export function CustomerPaymentTab({
                 showOutstanding
               />
                 {referenceId && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && (() => {
-                  const lifetimeDr = lifetimeOutstanding ?? customerBalance ?? 0;
+                  const lifetimeDr = lifetimeOutstanding ?? 0;
                   const showAsNoOutstanding =
                     lifetimeDr <= 0 && listedInvoicePendingTotal < MIN_PENDING_RUPEE;
-                  const displayBalance =
+                  const displayBalance = Math.round(
                     lifetimeDr >= MIN_PENDING_RUPEE
-                      ? Math.round(lifetimeDr)
-                      : Math.round(listedInvoicePendingTotal);
+                      ? lifetimeDr
+                      : listedInvoicePendingTotal,
+                  );
                   return (
                   <div className={cn("mt-2 p-3 border rounded-md", showAsNoOutstanding ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800")}>
                     {showAsNoOutstanding ? (

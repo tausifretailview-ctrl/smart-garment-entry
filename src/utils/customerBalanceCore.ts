@@ -218,18 +218,31 @@ export function computePendingStandaloneSaleReturns(
   sales?: CustomerBalanceCoreSale[],
 ): number {
   if (!saleReturns?.length) return 0;
+  const salesList = sales || [];
   const saleReturnAdjustById = new Map<string, number>();
-  for (const s of sales || []) {
+  let totalSraOnInvoices = 0;
+  for (const s of salesList) {
     if (s.id) saleReturnAdjustById.set(s.id, Number(s.sale_return_adjust || 0));
+    totalSraOnInvoices += Number(s.sale_return_adjust || 0);
   }
-  return saleReturns.reduce((sum, sr) => {
-    const status = normalizeStatus(sr.credit_status);
-    if (status !== "pending") return sum;
+
+  const pendingRows = saleReturns.filter(
+    (sr) => normalizeStatus(sr.credit_status) === "pending",
+  );
+  let sum = 0;
+  let sraPool = totalSraOnInvoices;
+
+  for (const sr of pendingRows) {
     const net = Number(sr.net_amount) || 0;
     const linked = String(sr.linked_sale_id || "").trim();
-    const linkedAdjust = linked ? saleReturnAdjustById.get(linked) || 0 : 0;
-    return sum + Math.max(0, net - linkedAdjust);
-  }, 0);
+    const absorb = linked
+      ? Math.min(net, saleReturnAdjustById.get(linked) || 0)
+      : Math.min(net, sraPool);
+    sraPool = Math.max(0, sraPool - absorb);
+    sum += Math.max(0, net - absorb);
+  }
+
+  return sum;
 }
 
 /**
