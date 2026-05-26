@@ -79,7 +79,10 @@ export type JournalReferenceType =
   | "CustomerAdvanceReceipt"
   | "CustomerAdvanceRefund"
   | "SaleReturn"
-  | "PurchaseReturn";
+  | "PurchaseReturn"
+  | "ManualJournal"
+  | "Contra"
+  | "RoundOff";
 
 export type PostJournalLineInput = {
   accountId: string;
