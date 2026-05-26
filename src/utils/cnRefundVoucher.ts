@@ -10,11 +10,13 @@ export function isCnRefundPaymentVoucher(v: {
   if (String(v.voucher_type || "").toLowerCase() !== "payment") return false;
   if (String(v.reference_type || "").toLowerCase() !== "customer") return false;
   const pm = String(v.payment_method || "").toLowerCase();
+  if (pm === "advance_refund") return false;
+  const vn = String(v.voucher_number || "").toUpperCase();
+  if (vn.startsWith("ARF/")) return false;
   if (pm === "cn_refund") return true;
   const desc = String(v.description || "").toLowerCase();
   if (desc.includes("credit note refund")) return true;
   if (desc.includes("refund paid for sale return")) return true;
-  const vn = String(v.voucher_number || "").toUpperCase();
   if (vn.startsWith("RF/") || vn.startsWith("CN-REFUND")) return true;
   return false;
 }

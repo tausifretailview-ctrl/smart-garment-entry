@@ -173,6 +173,8 @@ export type Database = {
           reason: string | null
           refund_amount: number
           refund_date: string
+          refund_number: string | null
+          voucher_entry_id: string | null
         }
         Insert: {
           advance_id: string
@@ -184,6 +186,8 @@ export type Database = {
           reason?: string | null
           refund_amount: number
           refund_date?: string
+          refund_number?: string | null
+          voucher_entry_id?: string | null
         }
         Update: {
           advance_id?: string
@@ -195,6 +199,8 @@ export type Database = {
           reason?: string | null
           refund_amount?: number
           refund_date?: string
+          refund_number?: string | null
+          voucher_entry_id?: string | null
         }
         Relationships: [
           {

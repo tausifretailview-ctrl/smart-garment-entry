@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2 } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +45,19 @@ import {
   isCnRefundPaymentVoucher,
   parseSaleReturnRefFromCnRefundDescription,
 } from "@/utils/cnRefundVoucher";
+import { isAdvanceRefundPaymentVoucher } from "@/utils/advanceRefundVoucher";
+import { deleteAdvanceRefund } from "@/utils/advanceRefundService";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
@@ -83,7 +95,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'cn_refund' | 'credit_note';
+  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'adv_refund' | 'cn_refund' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
@@ -1493,7 +1505,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       if (customerAdvanceIds.length > 0) {
         const { data: advanceRefundsData } = await supabase
           .from("advance_refunds")
-          .select("id, advance_id, refund_amount, refund_date, payment_method, reason, created_at")
+          .select("id, advance_id, refund_amount, refund_date, payment_method, reason, created_at, refund_number, voucher_entry_id, customer_advances(advance_number)")
           .eq("organization_id", organizationId)
           .in("advance_id", customerAdvanceIds)
           .order("refund_date", { ascending: true });
@@ -1714,7 +1726,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         ...(filteredAdvanceRefunds || []).map((refund: any) => ({
           date: refund.refund_date,
           timestamp: refund.created_at,
-          type: 'refund' as const,
+          type: 'adv_refund' as const,
           data: refund,
         })),
         ...(creditNotesData || [])
@@ -1749,6 +1761,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           cn_adjustment: 1,
           advance: 1,
           refund: 1,
+          adv_refund: 1,
           cn_refund: 1,
           credit_note: 1,
           advance_application: 1.5,
@@ -2089,7 +2102,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
               amount: balanceCredit,
             });
           }
-        } else if (item.type === 'refund') {
+        } else if (item.type === 'adv_refund') {
           const refund = item.data as any;
           const amount = refund.refund_amount || 0;
           runningBalance += amount;
@@ -2099,14 +2112,17 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             : 'Cash';
           let description = `Advance Refund - ${methodText}`;
           if (refund.reason) description += ` (${refund.reason})`;
+          const advanceNo =
+            refund.customer_advances?.advance_number ||
+            (refund.advance_id ? String(refund.advance_id).slice(0, 8) : "");
 
           allTransactions.push({
-            id: `refund-${refund.id}`,
+            id: `adv-refund-${refund.id}`,
             date: refund.refund_date,
             timestamp: refund.created_at || null,
-            type: 'refund',
-            reference: 'REFUND',
-            description,
+            type: 'adv_refund',
+            reference: refund.refund_number || 'ARF',
+            description: advanceNo ? `${description} · ${advanceNo}` : description,
             debit: amount,
             credit: 0,
             balance: runningBalance,
@@ -2137,6 +2153,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const discountAmount = Number(voucher.discount_amount) || 0;
           const totalCredit = cashReceived + discountAmount;
           if (voucher.voucher_type === 'payment' && voucher.reference_type === 'customer') {
+            if (isAdvanceRefundPaymentVoucher(voucher)) {
+              return;
+            }
             runningBalance += totalCredit;
             const cnRefund = isCnRefundPaymentVoucher(voucher);
             allTransactions.push({
@@ -2876,10 +2895,93 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     return { total, returnCount };
   }, [cnRefundRows]);
 
+  type AdvRefundLedgerRow = {
+    id: string;
+    refund_date: string;
+    refund_number: string;
+    advance_number: string;
+    amount: number;
+    payment_method: string;
+    reason: string;
+  };
+
+  const { data: advRefundRows = [], isPending: advRefundPending } = useQuery({
+    queryKey: [
+      "customer-ledger-adv-refunds",
+      organizationId,
+      selectedCustomer?.id,
+      isSchool,
+      startDate ? format(startDate, "yyyy-MM-dd") : null,
+      endDate ? format(endDate, "yyyy-MM-dd") : null,
+    ],
+    queryFn: async (): Promise<AdvRefundLedgerRow[]> => {
+      if (!organizationId || !selectedCustomer?.id || isSchool) return [];
+      const { data: advances, error: advErr } = await supabase
+        .from("customer_advances")
+        .select("id, advance_number")
+        .eq("organization_id", organizationId)
+        .eq("customer_id", selectedCustomer.id);
+      if (advErr) throw advErr;
+      const advanceIds = (advances || []).map((a) => a.id);
+      if (advanceIds.length === 0) return [];
+      const advanceNoById = new Map(
+        (advances || []).map((a) => [a.id, String(a.advance_number || "—")]),
+      );
+      let rq = supabase
+        .from("advance_refunds")
+        .select(
+          "id, advance_id, refund_amount, refund_date, payment_method, reason, refund_number, created_at",
+        )
+        .eq("organization_id", organizationId)
+        .in("advance_id", advanceIds)
+        .order("refund_date", { ascending: true });
+      if (startDate) rq = rq.gte("refund_date", format(startDate, "yyyy-MM-dd"));
+      if (endDate) rq = rq.lte("refund_date", format(endDate, "yyyy-MM-dd"));
+      const { data: refunds, error } = await rq;
+      if (error) throw error;
+      return (refunds || []).map((r) => ({
+        id: String(r.id),
+        refund_date: String(r.refund_date || "").slice(0, 10),
+        refund_number: String(r.refund_number || "").trim() || "—",
+        advance_number: advanceNoById.get(r.advance_id) || "—",
+        amount: Math.round((Number(r.refund_amount) || 0) * 100) / 100,
+        payment_method: String(r.payment_method || "").trim() || "—",
+        reason: String(r.reason || "").trim(),
+      }));
+    },
+    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
+    staleTime: 30_000,
+  });
+
+  const advRefundSummary = useMemo(() => {
+    const total = advRefundRows.reduce((s, r) => s + r.amount, 0);
+    const advanceCount = new Set(advRefundRows.map((r) => r.advance_number).filter((n) => n !== "—")).size;
+    return { total, advanceCount };
+  }, [advRefundRows]);
+
+  const deleteAdvRefundMutation = useMutation({
+    mutationFn: async (refundId: string) => {
+      await deleteAdvanceRefund({ organizationId, refundId, client: supabase });
+    },
+    onSuccess: () => {
+      toast.success("Advance refund deleted — balance restored");
+      queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-ledger-adv-refunds"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Could not delete refund"),
+  });
+
   useEffect(() => {
     if (
       isSchool &&
-      (activeTab === "advance-adjusted" || activeTab === "cn-adjusted" || activeTab === "cn-refund")
+      (activeTab === "advance-adjusted" ||
+        activeTab === "cn-adjusted" ||
+        activeTab === "cn-refund" ||
+        activeTab === "adv-refund")
     ) {
       setActiveTab("transactions");
     }
@@ -3845,6 +3947,10 @@ Please clear your dues at the earliest. Thank you!`;
                       <Undo2 className="h-4 w-4" />
                       CN Refund
                     </TabsTrigger>
+                    <TabsTrigger value="adv-refund" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                      <Wallet className="h-4 w-4" />
+                      Adv Refund
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -3931,9 +4037,13 @@ Please clear your dues at the earliest. Thank you!`;
                                     <Badge className={cn("text-xs", getBadgeStyle('cn_refund'))}>
                                       CN.Refund
                                     </Badge>
-                                  ) : transaction.type === 'refund' ? (
+                                  ) : transaction.type === 'adv_refund' ? (
                                     <Badge className={cn("text-xs", getBadgeStyle('adv_refund'))}>
                                       Adv. Refund
+                                    </Badge>
+                                  ) : transaction.type === 'refund' ? (
+                                    <Badge className={cn("text-xs", getBadgeStyle('adv_refund'))}>
+                                      Refund
                                     </Badge>
                                   ) : transaction.type === 'credit_note' ? (
                                     <Badge className="bg-purple-100 text-purple-700 border border-purple-300 text-xs">
@@ -4159,7 +4269,7 @@ Please clear your dues at the earliest. Thank you!`;
                       const cnOnInvoices = reconciliation.invoiceCnApplied;
                       const advanceAdjusted = reconciliation.advanceApplied;
                       const advanceRefunded = Math.max(0, ledgerRows
-                        .filter((t) => t.type === 'refund')
+                        .filter((t) => t.type === 'adv_refund')
                         .reduce((sum, t) => sum + (t.debit || 0), 0));
                       const cnRefunded = Math.max(0, ledgerRows
                         .filter((t) => t.type === 'cn_refund')
@@ -4839,6 +4949,125 @@ Please clear your dues at the earliest. Thank you!`;
                     <p className="text-sm text-muted-foreground border-t pt-3">
                       Refunds are stored as <span className="font-mono text-xs">voucher_entries</span> (payment / CN refund) and appear in Transactions with tag{" "}
                       <span className="font-semibold text-rose-700 dark:text-rose-400">CN.Refund</span>.
+                    </p>
+                  </TabsContent>
+
+                  <TabsContent value="adv-refund" className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Total refunded (period)</div>
+                          <div className="text-lg font-bold text-red-700 dark:text-red-400">
+                            ₹{advRefundSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Advance bookings</div>
+                          <div className="text-lg font-bold">{advRefundSummary.advanceCount}</div>
+                          <div className="text-xs text-muted-foreground">With ARF voucher</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Refund date range</div>
+                          <div className="text-sm font-medium leading-snug">
+                            {startDate ? format(startDate, "dd MMM yyyy") : "All"} — {endDate ? format(endDate, "dd MMM yyyy") : "Today"}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    <div className={accountsHistoryTableWrapClass}>
+                      <Table className={accountsHistoryTableClass}>
+                        <TableHeader className="!static">
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">ARF voucher</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Advance No</TableHead>
+                            <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-red-600">Amount</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Mode</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 min-w-[100px]">Reason</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[90px]">Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {advRefundPending ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                                <Loader2 className="h-6 w-6 animate-spin inline align-middle mr-2 text-primary" />
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : advRefundRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                                No advance refunds in this period
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            advRefundRows.map((row) => (
+                              <TableRow key={row.id}>
+                                <TableCell className="text-sm tabular-nums whitespace-nowrap">
+                                  {row.refund_date
+                                    ? format(new Date(`${row.refund_date}T12:00:00`), "dd MMM yyyy")
+                                    : "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="font-mono text-xs bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300 border-red-200">
+                                    {row.refund_number}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">{row.advance_number}</TableCell>
+                                <TableCell className="text-right font-medium text-red-700 dark:text-red-400">
+                                  ₹{row.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-sm uppercase">{row.payment_method}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                                  {row.reason || "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-destructive hover:text-destructive"
+                                        disabled={deleteAdvRefundMutation.isPending}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete advance refund?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This removes {row.refund_number} (₹{row.amount.toLocaleString("en-IN")}) and restores the advance balance. Use only for refunds recorded by mistake.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          onClick={() => deleteAdvRefundMutation.mutate(row.id)}
+                                        >
+                                          Delete refund
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <p className="text-sm text-muted-foreground border-t pt-3">
+                      Advance refunds use voucher series <span className="font-mono text-xs">ARF/YY-YY/N</span> and appear in Transactions with tag{" "}
+                      <span className="font-semibold text-red-700 dark:text-red-400">Adv. Refund</span>.
+                      Record new refunds from <span className="font-semibold">Advance Booking</span>.
                     </p>
                   </TabsContent>
                 </>
