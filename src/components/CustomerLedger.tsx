@@ -35,9 +35,11 @@ import {
   computeCustomerOutstanding,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
+  type SaleReceiptVoucherSplit,
   type VoucherLedgerRow,
   type SaleReturnLedgerRow,
 } from "@/utils/customerBalanceUtils";
+import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
@@ -504,7 +506,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Fetch ALL voucher payments (both opening balance and invoice payments)
       const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount, voucher_type, description, payment_method')
+        .select('reference_id, reference_type, total_amount, discount_amount, voucher_type, description, payment_method')
         .eq('organization_id', organizationId)
         .in('voucher_type', ['receipt', 'payment'])
         .is('deleted_at', null);
@@ -631,6 +633,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           reference_id: v.reference_id,
           reference_type: v.reference_type,
           total_amount: v.total_amount,
+          discount_amount: v.discount_amount,
           payment_method: v.payment_method,
           description: v.description,
         };
@@ -1467,13 +1470,45 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
-      const voucherPaymentsBySaleId: Record<string, number> = {};
-      (vouchersData || []).forEach((voucher) => {
-        if (voucher.reference_id) {
-          voucherPaymentsBySaleId[voucher.reference_id] = 
-            (voucherPaymentsBySaleId[voucher.reference_id] || 0) + (voucher.total_amount || 0);
+      const saleReceiptSplitMap = splitSaleLinkedReceiptRows(
+        [...(vouchersData || []), ...(openingBalancePayments || [])]
+          .filter((v: any) => v.voucher_type === "receipt")
+          .map((v: any) => ({
+            reference_id: v.reference_id,
+            total_amount: v.total_amount,
+            discount_amount: v.discount_amount,
+            payment_method: v.payment_method,
+            description: v.description,
+          })),
+      );
+
+      // Align sales.paid_amount / payment_status with receipts (incl. settlement discount)
+      for (const sale of salesData || []) {
+        const split = saleReceiptSplitMap.get(sale.id);
+        if (!split) continue;
+        const { paidAmount, paymentStatus } = derivePaidAndStatus({
+          netAmount: Number(sale.net_amount || 0),
+          saleReturnAdjust: Number(sale.sale_return_adjust || 0),
+          cashReceived: split.cash,
+          advanceApplied: split.adv,
+          cnApplied: split.cn,
+          discountGiven: split.discount,
+        });
+        const prevPaid = Number(sale.paid_amount || 0);
+        const prevStatus = String(sale.payment_status || "");
+        if (
+          Math.abs(prevPaid - paidAmount) > 0.009 ||
+          prevStatus !== paymentStatus
+        ) {
+          sale.paid_amount = paidAmount;
+          sale.payment_status = paymentStatus;
+          void supabase
+            .from("sales")
+            .update({ paid_amount: paidAmount, payment_status: paymentStatus })
+            .eq("id", sale.id)
+            .eq("organization_id", organizationId);
         }
-      });
+      }
 
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
@@ -1650,16 +1685,22 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             data: cn,
           })),
       ].sort((a, b) => {
-        // Primary sort by transaction date (not created_at) for correct chronological order
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        if (dateA !== dateB) return dateA - dateB;
-        // Secondary sort by created_at for same-date entries
-        const tsA = a.timestamp ? new Date(a.timestamp).getTime() : dateA;
-        const tsB = b.timestamp ? new Date(b.timestamp).getTime() : dateB;
+        const sortMs = (item: (typeof combined)[0]) =>
+          item.timestamp ? new Date(item.timestamp).getTime() : new Date(item.date).getTime();
+        const tsA = sortMs(a);
+        const tsB = sortMs(b);
         if (tsA !== tsB) return tsA - tsB;
-        // Tertiary tiebreaker by type
-        const typeOrder: Record<string, number> = { invoice: 0, cn_adjustment: 1, advance: 1, refund: 1, credit_note: 1, advance_application: 1.5, payment: 2, adjustment: 3 };
+        // Same moment: invoice before payment (then other types)
+        const typeOrder: Record<string, number> = {
+          invoice: 0,
+          cn_adjustment: 1,
+          advance: 1,
+          refund: 1,
+          credit_note: 1,
+          advance_application: 1.5,
+          payment: 2,
+          adjustment: 3,
+        };
         return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
       });
 
@@ -1700,7 +1741,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const showGross = false;
           const invoiceDescription = `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`;
 
-          const split = { cash: 0, cn: 0, adv: 0 };
+          const split = saleReceiptSplitMap.get(sale.id) ?? {
+            cash: 0,
+            cn: 0,
+            adv: 0,
+            discount: 0,
+          };
           const recDisplay = reconcileSaleInvoiceDisplay({
             net_amount: sale.net_amount,
             sale_return_adjust: sale.sale_return_adjust,

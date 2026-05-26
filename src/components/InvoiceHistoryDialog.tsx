@@ -278,7 +278,7 @@ export function InvoiceHistoryDialog({
     if (!data?.sale) return null;
     const sale = data.sale;
     const splitMap = splitSaleLinkedReceiptRows(data.vouchers || []);
-    const split = splitMap.get(sale.id) ?? { cash: 0, cn: 0, adv: 0 };
+    const split = splitMap.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
     const rec = reconcileSaleInvoiceDisplay({
       net_amount: Number(sale.net_amount || 0),
       sale_return_adjust: Number(sale.sale_return_adjust || 0),

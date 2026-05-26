@@ -61,7 +61,7 @@ import {
 const OPENING_BALANCE_ID = "__opening_balance__";
 /** Per-invoice due — same rules as Sales Invoice Dashboard (avoids double-counting CN in paid_amount + sr). */
 const getInvoiceOutstanding = (invoice: any, split?: SaleReceiptVoucherSplit | null) => {
-  const s = split ?? { cash: 0, cn: 0, adv: 0 };
+  const s = split ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
   const voucherBucketSum = s.cash + s.adv + s.cn;
   const paidForReconcile = Math.max(0, Number(invoice?.paid_amount || 0) - voucherBucketSum);
   return reconcileSaleInvoiceDisplay({
@@ -124,29 +124,32 @@ async function syncSalePaymentFromVouchers(
   if (vchErr) throw vchErr;
 
   const splitMap = splitSaleLinkedReceiptRows(receiptRows || []);
-  const split = splitMap.get(invoiceId) ?? { cash: 0, cn: 0, adv: 0 };
-  const voucherBucketSum = split.cash + split.adv + split.cn;
-  const legacyPaid = Number(freshSale.paid_amount || 0);
-  // Row paid_amount may already include receipt vouchers; strip them before reconcile.
-  const paidForReconcile = Math.max(0, legacyPaid - voucherBucketSum);
-  const rec = reconcileSaleInvoiceDisplay({
-    net_amount: Number(freshSale.net_amount || 0),
-    sale_return_adjust: Number(freshSale.sale_return_adjust || 0),
-    paid_amount: paidForReconcile,
-    split,
+  const split = splitMap.get(invoiceId) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+  const { paidAmount, paymentStatus } = derivePaidAndStatus({
+    netAmount: Number(freshSale.net_amount || 0),
+    saleReturnAdjust: Number(freshSale.sale_return_adjust || 0),
+    cashReceived: split.cash,
+    advanceApplied: split.adv,
+    cnApplied: split.cn,
+    discountGiven: split.discount,
   });
 
   const { error: updErr } = await client
     .from("sales")
     .update({
-      paid_amount: rec.paid_amount,
-      payment_status: rec.payment_status,
+      paid_amount: paidAmount,
+      payment_status: paymentStatus,
       payment_date: voucherDateYmd,
     })
     .eq("id", invoiceId)
     .eq("organization_id", organizationId);
   if (updErr) throw updErr;
-  return rec;
+  return reconcileSaleInvoiceDisplay({
+    net_amount: Number(freshSale.net_amount || 0),
+    sale_return_adjust: Number(freshSale.sale_return_adjust || 0),
+    paid_amount: paidAmount,
+    split,
+  });
 }
 
 async function rollbackCustomerReceiptVouchers(
@@ -309,7 +312,7 @@ export function CustomerPaymentTab({
       // Sync paid_amount / payment_status from receipt vouchers (ledger-consistent).
       const updates = salesRows
         .map((sale: any) => {
-          const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0 };
+          const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
           const voucherBucketSum = split.cash + split.adv + split.cn;
           const paidForReconcile = Math.max(0, Number(sale.paid_amount || 0) - voucherBucketSum);
           const rec = reconcileSaleInvoiceDisplay({

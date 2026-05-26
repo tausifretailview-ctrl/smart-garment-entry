@@ -633,7 +633,7 @@ export default function SalesInvoiceDashboard() {
 
       const { data: receiptRows, error: receiptErr } = await supabase
         .from('voucher_entries')
-        .select('reference_id, total_amount, payment_method, description, voucher_date, voucher_type')
+        .select('reference_id, total_amount, discount_amount, payment_method, description, voucher_date, voucher_type')
         .eq('organization_id', currentOrganization.id)
         .eq('voucher_type', 'receipt')
         // Phase 1.2: also catch legacy mis-tagged rows (reference_type='customer'
@@ -656,7 +656,7 @@ export default function SalesInvoiceDashboard() {
       const staleUpdates = invoices
         .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
         .map((inv: any) => {
-          const split = splitBySale.get(inv.id) ?? { cash: 0, cn: 0, adv: 0 };
+          const split = splitBySale.get(inv.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
           const rec = reconcileSaleInvoiceDisplay({
             net_amount: inv.net_amount,
             sale_return_adjust: inv.sale_return_adjust,
@@ -669,7 +669,7 @@ export default function SalesInvoiceDashboard() {
             cashReceived: split.cash,
             advanceApplied: split.adv,
             cnApplied: split.cn,
-            discountGiven: 0,
+            discountGiven: split.discount,
             paymentMethod: inv.payment_method,
           });
           warnSettlementPathMismatch(

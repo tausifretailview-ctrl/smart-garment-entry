@@ -194,7 +194,7 @@ export function computePaidAmountDrift(
     if (!refId) continue;
     voucherTotalsBySale.set(
       refId,
-      (voucherTotalsBySale.get(refId) || 0) + (Number(v.total_amount) || 0),
+      (voucherTotalsBySale.get(refId) || 0) + voucherCredit(v),
     );
   }
 

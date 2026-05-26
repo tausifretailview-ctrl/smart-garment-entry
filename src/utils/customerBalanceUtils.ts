@@ -19,9 +19,15 @@ export type VoucherLedgerRow = {
   reference_id: string | null;
   reference_type?: string | null;
   total_amount?: number | null;
+  discount_amount?: number | null;
   payment_method?: string | null;
   description?: string | null;
 };
+
+/** Cash + settlement discount on a receipt voucher (matches SQL reconcile_customer_balance). */
+export function voucherReceiptSettlementAmount(v: VoucherLedgerRow): number {
+  return Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0));
+}
 
 export type SaleReturnLedgerRow = {
   net_amount: number | null;
@@ -110,11 +116,11 @@ function computeCustomerOutstandingLegacy(p: CustomerOutstandingParams): Custome
           (invoiceCnPortions[v.reference_id] || 0) + (Number(v.total_amount) || 0);
       } else {
         invoiceVoucherPayments[v.reference_id] =
-          (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+          (invoiceVoucherPayments[v.reference_id] || 0) + voucherReceiptSettlementAmount(v);
       }
     } else if (v.reference_type === "customer" && v.reference_id === p.customerId) {
       if (!isAdv && !isCn) {
-        openingBalanceVoucherPayments += Number(v.total_amount) || 0;
+        openingBalanceVoucherPayments += voucherReceiptSettlementAmount(v);
       }
     }
   });
@@ -205,6 +211,7 @@ export function computeCustomerOutstanding(p: CustomerOutstandingParams): Custom
     reference_type: v.reference_type,
     reference_id: v.reference_id,
     total_amount: v.total_amount,
+    discount_amount: v.discount_amount,
     payment_method: v.payment_method,
     description: v.description,
   }));
@@ -255,6 +262,7 @@ export type SaleReceiptVoucherSplit = {
   cash: number;
   cn: number;
   adv: number;
+  discount: number;
 };
 
 /**
@@ -265,26 +273,32 @@ export function splitSaleLinkedReceiptRows(
   rows: Array<{
     reference_id: string | null;
     total_amount?: number | null;
+    discount_amount?: number | null;
     payment_method?: string | null;
     description?: string | null;
   }>
 ): Map<string, SaleReceiptVoucherSplit> {
   const map = new Map<string, SaleReceiptVoucherSplit>();
-  const empty = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0 });
+  const empty = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0, discount: 0 });
 
   for (const r of rows) {
     if (!r.reference_id) continue;
     const v: VoucherLedgerRow = {
       reference_id: r.reference_id,
       total_amount: r.total_amount,
+      discount_amount: r.discount_amount,
       payment_method: r.payment_method,
       description: r.description,
     };
-    const amt = Number(r.total_amount || 0);
+    const cashAmt = Number(r.total_amount || 0);
+    const discAmt = Number(r.discount_amount || 0);
     const cur = map.get(r.reference_id) || empty();
-    if (isAdvVoucher(v)) cur.adv += amt;
-    else if (isCnVoucher(v)) cur.cn += amt;
-    else cur.cash += amt;
+    if (isAdvVoucher(v)) cur.adv += cashAmt;
+    else if (isCnVoucher(v)) cur.cn += cashAmt;
+    else {
+      cur.cash += cashAmt;
+      cur.discount += discAmt;
+    }
     map.set(r.reference_id, cur);
   }
   return map;
@@ -307,7 +321,12 @@ export function reconcileSaleInvoiceDisplay(params: {
   const net = Number(params.net_amount || 0);
   const sr = Number(params.sale_return_adjust || 0);
   const salePaid = Number(params.paid_amount || 0);
-  const { cash = 0, cn = 0, adv = 0 } = params.split || { cash: 0, cn: 0, adv: 0 };
+  const { cash = 0, cn = 0, adv = 0, discount = 0 } = params.split || {
+    cash: 0,
+    cn: 0,
+    adv: 0,
+    discount: 0,
+  };
   const advCn = adv + cn;
   let effectiveCash = Math.max(salePaid - advCn, cash);
 
@@ -325,7 +344,7 @@ export function reconcileSaleInvoiceDisplay(params: {
   // credit_note_adjustment voucher for the same amount), subtract the portion
   // already represented in sr from the cn bucket.
   const cnNotInSr = Math.max(0, cn - Math.max(0, sr));
-  const cappedNonCash = Math.min(exposureAfterCashLike, adv + cnNotInSr);
+  const cappedNonCash = Math.min(exposureAfterCashLike, adv + cnNotInSr + discount);
   const outstanding = Math.max(0, Math.round(net - sr - effectiveCash - cappedNonCash));
   const settledDisplay = Math.max(
     0,
