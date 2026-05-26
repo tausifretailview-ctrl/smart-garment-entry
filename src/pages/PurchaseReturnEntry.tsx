@@ -416,182 +416,19 @@ const PurchaseReturnEntry = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fast barcode scanning - check for exact match first
-  const handleBarcodeSearch = useCallback(async (barcode: string) => {
-    if (!barcode || barcode.length < 1 || !currentOrganization?.id) return null;
-    
-    try {
-      // Try exact barcode match first for fast scanning
-      const { data: exactMatch, error } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          color,
-          pur_price,
-          mrp,
-          barcode,
-          stock_qty,
-          active,
-          deleted_at,
-          product_id,
-          products (
-            id,
-            product_name,
-            brand,
-            hsn_code,
-            gst_per,
-            purchase_gst_percent,
-            organization_id,
-            deleted_at
-          )
-        `)
-        .eq("barcode", barcode)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .eq("products.organization_id", currentOrganization.id)
-        .limit(1);
-
-      if (!error && exactMatch && exactMatch.length > 0) {
-        const v = exactMatch[0] as any;
-        // Verify organization and not deleted
-        if (v.products?.organization_id === currentOrganization.id && !v.products?.deleted_at) {
-          return {
-            id: v.id,
-            product_id: v.products?.id || "",
-            size: v.size,
-            color: v.color || "",
-            pur_price: v.pur_price,
-            barcode: v.barcode || "",
-            product_name: v.products?.product_name || "",
-            brand: v.products?.brand || "",
-            gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
-            hsn_code: v.products?.hsn_code || "",
-            stock_qty: v.stock_qty || 0,
-            mrp: v.mrp ?? 0,
-          } as ProductVariant;
-        }
-      }
-      return null;
-    } catch (error) {
-      console.error("Barcode search error:", error);
-      return null;
-    }
-  }, [currentOrganization?.id]);
-
   // Keep lineItemsRef in sync
   useEffect(() => {
     lineItemsRef.current = lineItems;
   }, [lineItems]);
 
-  // Barcode scanner detection hook
+  const lastInputTimeRef = useRef(0);
+  const processingBarcodeRef = useRef(false);
+
   const barcodeScanner = useBarcodeScanner({
     minBarcodeLength: 4,
     maxKeystrokeInterval: 50,
     autoSubmitDelay: 120,
   });
-
-  // Pending barcode from scanner Enter key
-  const pendingBarcodeRef = useRef<string | null>(null);
-  // Lock to prevent multiple processBarcodeInput calls per single scan
-  const processingBarcodeRef = useRef(false);
-  // Direct fallback timer — fires after scanner stops typing regardless of avg interval
-  const directScanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastInputTimeRef = useRef<number>(0);
-
-  // Process a scanned barcode: exact match → auto-add, else fall back to search
-  const processBarcodeInput = useCallback(async (barcode: string) => {
-    if (!barcode || !currentOrganization?.id) return;
-    // Prevent duplicate processing from multiple triggers
-    if (processingBarcodeRef.current) return;
-    processingBarcodeRef.current = true;
-    barcodeScanner.markSubmitted(barcode);
-    
-    try {
-      const variant = await handleBarcodeSearch(barcode);
-      if (variant) {
-        // Soft stock warnings only. Save-time DB trigger is authoritative.
-        if ((variant.stock_qty || 0) <= 0) {
-          toast({
-            title: "Low Stock Warning",
-            description: `${variant.product_name} - ${variant.size} has 0 stock. Return will be blocked by system if insufficient.`,
-            variant: "default",
-          });
-        }
-
-        const currentItems = lineItemsRef.current;
-        const existingItem = currentItems.find(item => item.sku_id === variant.id);
-        if (existingItem) {
-          const nextQty = existingItem.qty + 1;
-          if (nextQty > (variant.stock_qty || 0)) {
-            toast({
-              title: "Stock Warning",
-              description: `${variant.product_name}: Qty ${nextQty} exceeds current stock ${variant.stock_qty || 0}. System will validate on save.`,
-              variant: "default",
-            });
-          }
-          updateLineItem(existingItem.temp_id, "qty", nextQty);
-          toast({
-            title: "Quantity Updated",
-            description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
-          });
-        } else {
-          handleProductSelect(variant);
-          toast({
-            title: "Item Added",
-            description: `${variant.product_name} - ${variant.size}`,
-          });
-        }
-        setSearchQuery("");
-        setShowSearch(false);
-        setSearchResults([]);
-        barcodeScanner.reset();
-        setTimeout(() => searchInputRef.current?.focus(), 50);
-      } else {
-        // No exact barcode match — don't open dropdown for scanner input
-      }
-    } finally {
-      // Release lock after a short delay to prevent re-triggering from stale effects
-      setTimeout(() => {
-        processingBarcodeRef.current = false;
-      }, 200);
-    }
-  }, [handleBarcodeSearch, currentOrganization?.id, toast, barcodeScanner]);
-
-  // Handle search with debounce for manual typing only — barcode scans are handled by processBarcodeInput
-  useEffect(() => {
-    if (!searchQuery || searchQuery.length < 1) {
-      setSearchResults([]);
-      setShowSearch(false);
-      return;
-    }
-
-    // If barcode is being processed or scanner pattern detected, skip dropdown search entirely
-    if (processingBarcodeRef.current) return;
-
-    // Clear any existing timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    // Check if current typing pattern looks like a barcode scanner - auto-process without Enter
-    if (barcodeScanner.isScannerInput && searchQuery.length >= 4) {
-      // Fast scanner input detected — process immediately, no dropdown, no Enter needed
-      processBarcodeInput(searchQuery.trim());
-      return;
-    }
-
-    // Regular manual typing — debounce and show dropdown
-    searchTimeoutRef.current = setTimeout(() => {
-      searchProducts(searchQuery);
-    }, 300);
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchQuery, barcodeScanner.isScannerInput, processBarcodeInput]);
 
   useEffect(() => {
     const totals = calculatePurchaseReturnTotals(lineItems, taxType, discountAmount);
@@ -623,98 +460,6 @@ const PurchaseReturnEntry = () => {
     setDiscountPercent(gross > 0 ? (amount / gross) * 100 : 0);
   };
 
-  const searchProducts = async (query: string) => {
-    if (!query || query.length < 1 || !currentOrganization?.id) {
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const { data: matchingProducts } = await supabase
-        .from("products")
-        .select("id")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`);
-
-      const productIds = matchingProducts?.map(p => p.id) || [];
-
-      let variantsQuery = supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          color,
-          pur_price,
-          mrp,
-          barcode,
-          stock_qty,
-          active,
-          deleted_at,
-          product_id,
-          products (
-            id,
-            product_name,
-            brand,
-            hsn_code,
-            gst_per,
-            purchase_gst_percent,
-            organization_id,
-            deleted_at
-          )
-        `)
-        .eq("active", true)
-        .is("deleted_at", null);
-
-      if (productIds.length > 0) {
-        variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
-      } else {
-        variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
-      }
-
-      const { data, error } = await variantsQuery.limit(50);
-
-      if (error) throw error;
-
-      // Filter by organization, non-deleted products, and map results
-      const results = (data || [])
-        .filter((v: any) => v.products?.organization_id === currentOrganization.id && !v.products?.deleted_at)
-        .map((v: any) => ({
-          id: v.id,
-          product_id: v.products?.id || "",
-          size: v.size,
-          color: v.color || "",
-          pur_price: v.pur_price,
-          barcode: v.barcode || "",
-          product_name: v.products?.product_name || "",
-          brand: v.products?.brand || "",
-          gst_per: v.products?.purchase_gst_percent || v.products?.gst_per || 0,
-          hsn_code: v.products?.hsn_code || "",
-          stock_qty: v.stock_qty || 0,
-          mrp: v.mrp ?? 0,
-        }));
-
-      // Apply smart sorting
-      const sortedResults = sortSearchResults(results, query, {
-        barcode: 'barcode',
-        productName: 'product_name',
-      });
-
-      setSearchResults(sortedResults);
-      setShowSearch(sortedResults.length > 0);
-    } catch (error: any) {
-      console.error(error);
-      toast({
-        title: "Error",
-        description: "Failed to search products",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
   // Get price from a specific purchase bill's items for a given variant
   const getPriceFromBill = async (skuId: string, specificBillId?: string): Promise<number | null> => {
     try {
@@ -739,6 +484,298 @@ const PurchaseReturnEntry = () => {
       return null;
     }
   };
+
+  const VARIANT_SELECT = `
+    id,
+    size,
+    color,
+    pur_price,
+    mrp,
+    barcode,
+    stock_qty,
+    active,
+    deleted_at,
+    product_id,
+    products (
+      id,
+      product_name,
+      brand,
+      hsn_code,
+      gst_per,
+      purchase_gst_percent,
+      organization_id,
+      deleted_at
+    )
+  `;
+
+  const mapVariantFromDbRow = useCallback((v: Record<string, unknown>): ProductVariant | null => {
+    const products = v.products as Record<string, unknown> | null;
+    if (!products || products.deleted_at) return null;
+    if (products.organization_id !== currentOrganization?.id) return null;
+    return {
+      id: String(v.id),
+      product_id: String(products.id || ""),
+      size: String(v.size || ""),
+      color: String(v.color || ""),
+      pur_price: Number(v.pur_price || 0),
+      barcode: String(v.barcode || ""),
+      product_name: String(products.product_name || ""),
+      brand: String(products.brand || ""),
+      gst_per: Number(products.purchase_gst_percent || products.gst_per || 0),
+      hsn_code: String(products.hsn_code || ""),
+      stock_qty: Number(v.stock_qty || 0),
+      mrp: Number(v.mrp ?? 0),
+    };
+  }, [currentOrganization?.id]);
+
+  const lookupVariantByBarcode = useCallback(
+    async (raw: string): Promise<ProductVariant | null> => {
+      const barcode = raw.trim();
+      if (!barcode || !currentOrganization?.id) return null;
+
+      const base = () =>
+        supabase
+          .from("product_variants")
+          .select(VARIANT_SELECT)
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null);
+
+      const { data: exactRows, error: exactErr } = await base().eq("barcode", barcode).limit(5);
+      if (!exactErr && exactRows?.length) {
+        const mapped = exactRows.map((r) => mapVariantFromDbRow(r as Record<string, unknown>)).filter(Boolean);
+        if (mapped.length === 1) return mapped[0] as ProductVariant;
+        const ci = mapped.find((m) => m!.barcode.trim().toLowerCase() === barcode.toLowerCase());
+        if (ci) return ci;
+      }
+
+      const { data: ilikeRows, error: ilikeErr } = await base().ilike("barcode", barcode).limit(5);
+      if (!ilikeErr && ilikeRows?.length) {
+        const mapped = ilikeRows
+          .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
+          .filter(Boolean) as ProductVariant[];
+        const ci = mapped.find((m) => m.barcode.trim().toLowerCase() === barcode.toLowerCase());
+        return ci || (mapped.length === 1 ? mapped[0] : null);
+      }
+
+      return null;
+    },
+    [currentOrganization?.id, mapVariantFromDbRow],
+  );
+
+  const fetchSearchVariants = useCallback(
+    async (query: string): Promise<ProductVariant[]> => {
+      if (!query || !currentOrganization?.id) return [];
+
+      const { data: matchingProducts } = await supabase
+        .from("products")
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`);
+
+      const productIds = matchingProducts?.map((p) => p.id) || [];
+
+      let variantsQuery = supabase
+        .from("product_variants")
+        .select(VARIANT_SELECT)
+        .eq("organization_id", currentOrganization.id)
+        .eq("active", true)
+        .is("deleted_at", null);
+
+      if (productIds.length > 0) {
+        variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+      } else {
+        variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+      }
+
+      const { data, error } = await variantsQuery.limit(50);
+      if (error) throw error;
+
+      const results = (data || [])
+        .map((v) => mapVariantFromDbRow(v as Record<string, unknown>))
+        .filter(Boolean) as ProductVariant[];
+
+      return sortSearchResults(results, query, {
+        barcode: "barcode",
+        productName: "product_name",
+      });
+    },
+    [currentOrganization?.id, mapVariantFromDbRow],
+  );
+
+  const searchProducts = useCallback(
+    async (query: string) => {
+      if (!query || query.length < 1 || !currentOrganization?.id) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const sortedResults = await fetchSearchVariants(query);
+        setSearchResults(sortedResults);
+        setShowSearch(sortedResults.length > 0);
+      } catch (error: unknown) {
+        console.error(error);
+        toast({
+          title: "Error",
+          description: "Failed to search products",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [currentOrganization?.id, fetchSearchVariants, toast],
+  );
+
+  const addVariantToReturn = useCallback(
+    async (variant: ProductVariant) => {
+      const currentItems = lineItemsRef.current;
+      const existingItem = currentItems.find((item) => item.sku_id === variant.id);
+
+      if (existingItem) {
+        const nextQty = existingItem.qty + 1;
+        if (nextQty > (variant.stock_qty || 0)) {
+          toast({
+            title: "Stock Warning",
+            description: `${variant.product_name}: Qty ${nextQty} exceeds current stock ${variant.stock_qty || 0}. System will validate on save.`,
+            variant: "default",
+          });
+        }
+        setLineItems((prev) =>
+          prev.map((item) => {
+            if (item.temp_id !== existingItem.temp_id) return item;
+            const updated = { ...item, qty: nextQty };
+            const baseAmount = updated.qty * updated.pur_price;
+            updated.discount_amount = baseAmount * (updated.discount_percent / 100);
+            updated.line_total = baseAmount - updated.discount_amount;
+            return updated;
+          }),
+        );
+        toast({
+          title: "Quantity Updated",
+          description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
+        });
+        return;
+      }
+
+      if ((variant.stock_qty || 0) <= 0) {
+        toast({
+          title: "Low Stock Warning",
+          description: `${variant.product_name} - ${variant.size} has 0 stock. Return will be blocked by system if insufficient.`,
+          variant: "default",
+        });
+      }
+
+      const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
+      const unitPrice = fetchedPrice ?? variant.pur_price;
+      const newItem: LineItem = {
+        temp_id: `${Date.now()}-${Math.random()}`,
+        product_id: variant.product_id,
+        sku_id: variant.id,
+        product_name: variant.product_name,
+        size: variant.size,
+        color: variant.color,
+        qty: 1,
+        pur_price: unitPrice,
+        gst_per: variant.gst_per || (typeof defaultTaxRate === "number" ? defaultTaxRate : Number(defaultTaxRate) || 0),
+        hsn_code: variant.hsn_code,
+        barcode: variant.barcode,
+        line_total: unitPrice,
+        brand: variant.brand,
+        discount_percent: 0,
+        discount_amount: 0,
+        mrp: variant.mrp ?? 0,
+      };
+      setLineItems((prev) => [...prev, newItem]);
+      toast({
+        title: "Item Added",
+        description: `${variant.product_name} - ${variant.size}`,
+      });
+    },
+    [toast, originalBillId, defaultTaxRate],
+  );
+
+  /** POS-style: scan / Enter adds line directly; dropdown only for slow manual typing. */
+  const searchAndAddProduct = useCallback(
+    async (searchTerm: string, options?: { fromScan?: boolean }) => {
+      const trimmed = searchTerm.trim();
+      if (!trimmed || !currentOrganization?.id) return;
+      if (processingBarcodeRef.current) return;
+
+      processingBarcodeRef.current = true;
+      barcodeScanner.markSubmitted(trimmed);
+      barcodeScanner.cancelAutoSubmit();
+
+      try {
+        let variant = await lookupVariantByBarcode(trimmed);
+
+        if (!variant) {
+          const results = await fetchSearchVariants(trimmed);
+          if (results.length === 0) {
+            toast({
+              title: "Product not found",
+              description: `No product for barcode "${trimmed}"`,
+              variant: "destructive",
+            });
+            return;
+          }
+          const exact = results.find(
+            (r) => r.barcode.trim().toLowerCase() === trimmed.toLowerCase(),
+          );
+          variant = exact || results[0];
+        }
+
+        await addVariantToReturn(variant);
+        setSearchQuery("");
+        setShowSearch(false);
+        setSearchResults([]);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      } finally {
+        setTimeout(() => {
+          processingBarcodeRef.current = false;
+        }, 150);
+      }
+    },
+    [
+      currentOrganization?.id,
+      lookupVariantByBarcode,
+      fetchSearchVariants,
+      addVariantToReturn,
+      toast,
+      barcodeScanner,
+    ],
+  );
+
+  useEffect(() => {
+    if (!searchQuery || searchQuery.length < 1) {
+      setSearchResults([]);
+      setShowSearch(false);
+      return;
+    }
+    if (processingBarcodeRef.current) return;
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    const now = Date.now();
+    const delta = now - lastInputTimeRef.current;
+    if (
+      barcodeScanner.detectScannerInput(searchQuery, delta) ||
+      barcodeScanner.isScannerInput
+    ) {
+      return;
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      void searchProducts(searchQuery);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [searchQuery, barcodeScanner, searchProducts]);
 
   // Load items from a specific purchase bill (matches Purchase Entry "Supplier Invoice No" first, then software bill no)
   const loadBillByNumber = async () => {
@@ -915,61 +952,10 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
-    // Soft stock warnings only. Save-time DB trigger is authoritative.
-    const currentItems = lineItemsRef.current;
-    const existingItem = currentItems.find(item => item.sku_id === variant.id);
-    
-    if (existingItem) {
-      const nextQty = existingItem.qty + 1;
-      if (nextQty > (variant.stock_qty || 0)) {
-        toast({
-          title: "Stock Warning",
-          description: `${variant.product_name}: Qty ${nextQty} exceeds current stock ${variant.stock_qty || 0}. System will validate on save.`,
-          variant: "default",
-        });
-      }
-      updateLineItem(existingItem.temp_id, "qty", nextQty);
-      toast({
-        title: "Quantity Updated",
-        description: `${variant.product_name} - ${variant.size} (Qty: ${nextQty})`,
-      });
-    } else {
-      // Warn when stock is 0, but do not block adding.
-      if ((variant.stock_qty || 0) <= 0) {
-        toast({
-          title: "Low Stock Warning",
-          description: `${variant.product_name} - ${variant.size} has 0 stock. Return will be blocked by system if insufficient.`,
-          variant: "default",
-        });
-      }
-      // Get price from specific bill if available, else most recent purchase
-      const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
-      const unitPrice = fetchedPrice ?? variant.pur_price;
-      const lineTotal = 1 * unitPrice;
-      const newItem: LineItem = {
-        temp_id: Date.now().toString() + Math.random(),
-        product_id: variant.product_id,
-        sku_id: variant.id,
-        product_name: variant.product_name,
-        size: variant.size,
-        color: variant.color,
-        qty: 1,
-        pur_price: unitPrice,
-        gst_per: variant.gst_per || (typeof defaultTaxRate === 'number' ? defaultTaxRate : Number(defaultTaxRate) || 0),
-        hsn_code: variant.hsn_code,
-        barcode: variant.barcode,
-        line_total: lineTotal,
-        brand: variant.brand,
-        discount_percent: 0,
-        discount_amount: 0,
-        mrp: variant.mrp ?? 0,
-      };
-      setLineItems(prev => [...prev, newItem]);
-    }
+    await addVariantToReturn(variant);
     setSearchQuery("");
     setShowSearch(false);
     setSearchResults([]);
-    // Focus back on search input for continuous scanning
     setTimeout(() => searchInputRef.current?.focus(), 100);
   };
 
@@ -1657,27 +1643,29 @@ const PurchaseReturnEntry = () => {
                   placeholder="Scan barcode or search products..."
                   value={searchQuery}
                   onChange={(e) => {
-                    barcodeScanner.recordKeystroke();
                     const newValue = e.target.value;
-                    setSearchQuery(newValue);
-                    // Auto-submit for hardware scanners that don't send Enter
-                    if (newValue.trim().length >= 4) {
-                      barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
-                        processBarcodeInput(val.trim());
-                      });
-                    // Direct fallback: fire after 150ms idle for any fast input
                     const now = Date.now();
                     const delta = now - lastInputTimeRef.current;
                     lastInputTimeRef.current = now;
-                    if (directScanTimerRef.current) clearTimeout(directScanTimerRef.current);
-                    if (delta < 60 || newValue.length >= 6) {
-                      directScanTimerRef.current = setTimeout(() => {
-                        const v = newValue.trim();
-                        if (v.length >= 4 && !processingBarcodeRef.current) {
-                          processBarcodeInput(v);
-                        }
-                      }, 150);
+                    barcodeScanner.recordKeystroke();
+                    setSearchQuery(newValue);
+
+                    if (searchTimeoutRef.current) {
+                      clearTimeout(searchTimeoutRef.current);
+                      searchTimeoutRef.current = null;
                     }
+
+                    const isScannerLike =
+                      barcodeScanner.detectScannerInput(newValue, delta) ||
+                      (newValue.length >= 4 && delta < 50);
+
+                    if (isScannerLike) {
+                      setShowSearch(false);
+                      setSearchResults([]);
+                      barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
+                        void searchAndAddProduct(val, { fromScan: true });
+                      });
+                      return;
                     }
                   }}
                   onFocus={() => {
@@ -1693,16 +1681,13 @@ const PurchaseReturnEntry = () => {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                    if (directScanTimerRef.current) { clearTimeout(directScanTimerRef.current); directScanTimerRef.current = null; }
-                      const value = searchQuery.trim();
-                      if (value.length >= 4) {
-                        processBarcodeInput(value);
-                      } else if (searchResults.length > 0) {
-                        handleProductSelect(searchResults[0]);
-                      }
+                      barcodeScanner.cancelAutoSubmit();
+                      const value = (e.currentTarget.value || searchQuery).trim();
+                      if (!value) return;
+                      void searchAndAddProduct(value, { fromScan: true });
                     }
                     if (e.key === "Escape") {
-                    if (directScanTimerRef.current) { clearTimeout(directScanTimerRef.current); directScanTimerRef.current = null; }
+                      barcodeScanner.cancelAutoSubmit();
                       setShowSearch(false);
                       setSearchResults([]);
                       setSearchQuery("");
@@ -1715,7 +1700,7 @@ const PurchaseReturnEntry = () => {
               </div>
               <CameraScanButton
                 onBarcodeScanned={(barcode) => {
-                  processBarcodeInput(barcode);
+                  void searchAndAddProduct(barcode, { fromScan: true });
                 }}
                 className="h-10"
               />
