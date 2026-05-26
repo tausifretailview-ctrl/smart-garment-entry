@@ -18,7 +18,6 @@ import {
   type AuditRow,
 } from "@/utils/customerAuditBundle";
 import { computeCustomerOutstanding } from "@/utils/customerAuditMath";
-import { computeCustomerBalanceCore } from "@/utils/customerBalanceCore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -184,29 +183,25 @@ export default function CustomerAccountStatementAuditPage() {
   const registerClosing =
     displayRows.length > 0 ? (rowBalances[rowBalances.length - 1] ?? openingCarried) : openingCarried;
 
-  /** Lifetime Dr — matches Customer Ledger detail / Customer Payment (not period register drift). */
-  const lifetimeClosing = useMemo(() => {
-    if (!auditBundle || !customerId) return null;
-    const adjustmentTotal = (auditBundle.balanceAdjustments || []).reduce(
-      (sum: number, a: { outstanding_difference?: number | null }) =>
-        sum + Number(a.outstanding_difference || 0),
-      0,
-    );
-    return computeCustomerBalanceCore({
-      openingBalance: Number(auditBundle.customer.opening_balance || 0),
-      customerId,
-      sales: auditBundle.allSales,
-      voucherEntries: auditBundle.vouchersMerged,
-      customerAdvances: auditBundle.advances,
-      advanceRefunds: auditBundle.refunds,
-      adjustmentTotal,
-      saleReturns: auditBundle.saleReturns,
-      options: { ledgerAlignedApplicationReceipts: true },
-    }).balance;
-  }, [auditBundle, customerId]);
+  /** Lifetime Dr — same path as Customer Ledger / useCustomerBalance (fetchCustomerBalanceSnapshot). */
+  const { data: lifetimeClosing } = useQuery({
+    queryKey: ["customer-audit-statement-lifetime", currentOrganization?.id, customerId],
+    enabled: !!currentOrganization?.id && !!customerId && !!auditBundle,
+    queryFn: async () => {
+      const { fetchCustomerBalanceSnapshot } = await import("@/utils/customerBalanceUtils");
+      const snap = await fetchCustomerBalanceSnapshot(
+        supabase,
+        currentOrganization!.id,
+        customerId!,
+      );
+      return snap.balance;
+    },
+    staleTime: 30_000,
+  });
 
-  const finalOutstanding = lifetimeClosing ?? registerClosing;
-  const registerMismatch =
+  /** Period register closing (running total); CN on invoice is in sale debit, not double-counted. */
+  const finalOutstanding = registerClosing;
+  const lifetimeMismatch =
     lifetimeClosing != null && Math.abs(lifetimeClosing - registerClosing) > 1;
 
   const { totalDebit, totalCredit } = useMemo(() => {
@@ -456,10 +451,12 @@ export default function CustomerAccountStatementAuditPage() {
                     <div className="text-xs uppercase tracking-wide font-medium opacity-80">Closing (register)</div>
                     <div className="text-2xl font-bold mt-1 tabular-nums">₹ {fmt(finalOutstanding)} Dr</div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Lifetime outstanding (matches Customer Ledger)
-                      {registerMismatch
-                        ? ` · Period register ₹${fmt(registerClosing)} Dr`
-                        : ""}
+                      Period register (CN on invoice in sale debit; S/R adjust rows are memo-only)
+                      {lifetimeMismatch && lifetimeClosing != null
+                        ? ` · Lifetime (Customer Ledger) ₹${fmt(lifetimeClosing)} Dr`
+                        : lifetimeClosing != null
+                          ? " · Matches Customer Ledger"
+                          : ""}
                     </p>
                   </CardContent>
                 </Card>

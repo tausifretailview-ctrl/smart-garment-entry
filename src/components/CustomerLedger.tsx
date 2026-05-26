@@ -3527,9 +3527,9 @@ Please clear your dues at the earliest. Thank you!`;
                         {(ledgerDerivedStats?.closingBalance ?? authoritativeBalance) >= 0
                           ? "Dr"
                           : "Cr"}
-                        . Apply migration{" "}
-                        <code className="text-[10px]">20260627120000_fix_pending_sr_sra_pool</code>{" "}
-                        if this persists.
+                        . Run migration{" "}
+                        <code className="text-[10px]">20260628120000_fix_reconcile_gross_invoiced_cn_receipts</code>{" "}
+                        in Supabase SQL editor, then hard-refresh.
                       </span>
                     </p>
                   )}
