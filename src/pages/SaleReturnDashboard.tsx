@@ -778,17 +778,24 @@ export default function SaleReturnDashboard() {
                     const {
                       data: { user },
                     } = await supabase.auth.getUser();
+                    const refundDate = new Date().toISOString().split("T")[0];
+                    const { data: rfNumber, error: rfNumErr } = await supabase.rpc(
+                      "generate_voucher_number",
+                      { p_type: "cn_refund", p_date: refundDate },
+                    );
+                    if (rfNumErr) throw rfNumErr;
                     const noteSuffix = refundNote.trim() ? ` — ${refundNote.trim()}` : "";
+                    const returnNo = selectedReturnForRefund.return_number || "sale return";
                     const { error: voucherError } = await supabase.from("voucher_entries").insert({
                       organization_id: currentOrganization.id,
                       voucher_type: "payment",
-                      voucher_number: `CN-REFUND-${Date.now()}`,
-                      voucher_date: new Date().toISOString().split("T")[0],
+                      voucher_number: String(rfNumber || `RF/${refundDate}`),
+                      voucher_date: refundDate,
                       reference_type: "customer",
                       reference_id: selectedReturnForRefund.customer_id,
                       total_amount: amount,
                       payment_method: refundMode,
-                      description: `Credit note refund for ${selectedReturnForRefund.return_number || "sale return"} to ${selectedReturnForRefund.customer_name}${noteSuffix}`,
+                      description: `Credit note refund for ${returnNo} to ${selectedReturnForRefund.customer_name}${noteSuffix}`,
                       created_by: user?.id || null,
                     });
                     if (voucherError) throw voucherError;
@@ -811,6 +818,9 @@ export default function SaleReturnDashboard() {
                     queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
                     queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
                     queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+                    queryClient.invalidateQueries({ queryKey: ["customer-transactions"] });
+                    queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+                    queryClient.invalidateQueries({ queryKey: ["customer-ledger-cn-refunds"] });
                   } catch (err: unknown) {
                     const message = err instanceof Error ? err.message : String(err);
                     toast({ title: "Refund failed", description: message, variant: "destructive" });

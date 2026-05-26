@@ -773,19 +773,17 @@ export const FloatingSaleReturn = ({
       // For cash_refund: create payment voucher so ledger balance updates
       if (refundType === "cash_refund" && effectiveCustomerId) {
         try {
-          const { data: lastV } = await supabase
-            .from("voucher_entries")
-            .select("voucher_number")
-            .eq("organization_id", organizationId)
-            .eq("voucher_type", "payment")
-            .order("created_at", { ascending: false })
-            .limit(1);
-          const lastNum = lastV?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+          const refundDateYmd = returnDateYmd;
+          const { data: rfNumber, error: rfNumErr } = await supabase.rpc("generate_voucher_number", {
+            p_type: "cn_refund",
+            p_date: refundDateYmd,
+          });
+          if (rfNumErr) throw rfNumErr;
           await supabase.from("voucher_entries").insert({
             organization_id: organizationId,
-            voucher_number: `PAY-${String(parseInt(lastNum) + 1).padStart(5, "0")}`,
+            voucher_number: String(rfNumber || `RF/${refundDateYmd}`),
             voucher_type: "payment",
-            voucher_date: new Date().toISOString().split("T")[0],
+            voucher_date: refundDateYmd,
             reference_type: "customer",
             reference_id: effectiveCustomerId,
             description: `Refund paid for sale return: ${returnNumber}`,

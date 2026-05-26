@@ -42,6 +42,10 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import { computeAuditPeriodOutstanding, fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import {
+  isCnRefundPaymentVoucher,
+  parseSaleReturnRefFromCnRefundDescription,
+} from "@/utils/cnRefundVoucher";
 import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePriorYearsCarryForward } from "@/lib/schoolFeeYearBalances";
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 
@@ -79,7 +83,7 @@ interface Transaction {
   id: string;
   date: string;
   timestamp: string | null;
-  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'credit_note';
+  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'cn_refund' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
@@ -154,6 +158,8 @@ const getBadgeStyle = (type: string, status?: string) => {
       return 'bg-green-100 text-green-700 border border-green-200';
     case 'adv_refund':
       return 'bg-red-100 text-red-700 border border-red-200';
+    case 'cn_refund':
+      return 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-300';
     case 'advance_applied':
       return 'bg-gray-100 text-gray-600 border border-gray-200';
     default:
@@ -1714,6 +1720,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           cn_adjustment: 1,
           advance: 1,
           refund: 1,
+          cn_refund: 1,
           credit_note: 1,
           advance_application: 1.5,
           payment: 2,
@@ -2102,11 +2109,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const totalCredit = cashReceived + discountAmount;
           if (voucher.voucher_type === 'payment' && voucher.reference_type === 'customer') {
             runningBalance += totalCredit;
+            const cnRefund = isCnRefundPaymentVoucher(voucher);
             allTransactions.push({
               id: voucher.id,
               date: voucher.voucher_date,
               timestamp: item.timestamp || null,
-              type: 'refund',
+              type: cnRefund ? 'cn_refund' : 'refund',
               reference: voucher.voucher_number,
               description: cleanDescription(voucher.description || 'Payment / refund paid to customer'),
               debit: totalCredit,
@@ -2776,8 +2784,74 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     return { total, invoiceCount };
   }, [cnAllocRows]);
 
+  type CnRefundLedgerRow = {
+    id: string;
+    voucher_date: string;
+    voucher_number: string;
+    return_number: string;
+    amount: number;
+    payment_method: string;
+    description: string;
+  };
+
+  const { data: cnRefundRows = [], isPending: cnRefundPending } = useQuery({
+    queryKey: [
+      "customer-ledger-cn-refunds",
+      organizationId,
+      selectedCustomer?.id,
+      isSchool,
+      startDate ? format(startDate, "yyyy-MM-dd") : null,
+      endDate ? format(endDate, "yyyy-MM-dd") : null,
+    ],
+    queryFn: async (): Promise<CnRefundLedgerRow[]> => {
+      if (!organizationId || !selectedCustomer?.id || isSchool) return [];
+      let vq = supabase
+        .from("voucher_entries")
+        .select(
+          "id, voucher_date, voucher_number, total_amount, description, payment_method, created_at",
+        )
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "payment")
+        .eq("reference_type", "customer")
+        .eq("reference_id", selectedCustomer.id)
+        .is("deleted_at", null)
+        .order("voucher_date", { ascending: true });
+      if (startDate) vq = vq.gte("voucher_date", format(startDate, "yyyy-MM-dd"));
+      if (endDate) vq = vq.lte("voucher_date", format(endDate, "yyyy-MM-dd"));
+      const { data: vouchers, error } = await vq;
+      if (error) throw error;
+      const rows: CnRefundLedgerRow[] = [];
+      for (const v of vouchers || []) {
+        if (!isCnRefundPaymentVoucher(v)) continue;
+        const desc = String(v.description || "").trim();
+        rows.push({
+          id: String(v.id),
+          voucher_date: String(v.voucher_date || "").slice(0, 10),
+          voucher_number: String(v.voucher_number || "").trim() || "—",
+          return_number:
+            parseSaleReturnRefFromCnRefundDescription(desc) || "—",
+          amount: Math.round((Number(v.total_amount) || 0) * 100) / 100,
+          payment_method: String(v.payment_method || "").trim() || "—",
+          description: desc || "CN refund",
+        });
+      }
+      return rows;
+    },
+    enabled: Boolean(organizationId && selectedCustomer?.id && !isSchool),
+    staleTime: 30_000,
+  });
+
+  const cnRefundSummary = useMemo(() => {
+    const total = cnRefundRows.reduce((s, r) => s + r.amount, 0);
+    const returnCount = new Set(cnRefundRows.map((r) => r.return_number).filter((n) => n !== "—")).size;
+    return { total, returnCount };
+  }, [cnRefundRows]);
+
   useEffect(() => {
-    if (isSchool && (activeTab === "advance-adjusted" || activeTab === "cn-adjusted")) {
+    if (
+      isSchool &&
+      (activeTab === "advance-adjusted" || activeTab === "cn-adjusted" || activeTab === "cn-refund")
+    ) {
       setActiveTab("transactions");
     }
   }, [isSchool, activeTab]);
@@ -3738,6 +3812,10 @@ Please clear your dues at the earliest. Thank you!`;
                       <BookOpen className="h-4 w-4" />
                       CN adjusted
                     </TabsTrigger>
+                    <TabsTrigger value="cn-refund" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                      <Undo2 className="h-4 w-4" />
+                      CN Refund
+                    </TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -3819,6 +3897,10 @@ Please clear your dues at the earliest. Thank you!`;
                                   ) : transaction.type === 'return' ? (
                                     <Badge className={cn("text-xs", getBadgeStyle('sale_return', transaction.status))}>
                                       {transaction.status === 'pending' ? 'Pending CN' : 'CN Used'}
+                                    </Badge>
+                                  ) : transaction.type === 'cn_refund' ? (
+                                    <Badge className={cn("text-xs", getBadgeStyle('cn_refund'))}>
+                                      CN.Refund
                                     </Badge>
                                   ) : transaction.type === 'refund' ? (
                                     <Badge className={cn("text-xs", getBadgeStyle('adv_refund'))}>
@@ -4050,6 +4132,9 @@ Please clear your dues at the earliest. Thank you!`;
                       const advanceRefunded = Math.max(0, ledgerRows
                         .filter((t) => t.type === 'refund')
                         .reduce((sum, t) => sum + (t.debit || 0), 0));
+                      const cnRefunded = Math.max(0, ledgerRows
+                        .filter((t) => t.type === 'cn_refund')
+                        .reduce((sum, t) => sum + (t.debit || 0), 0));
                       const outstanding =
                         ledgerRows.length > 0
                           ? ledgerRows[ledgerRows.length - 1].balance
@@ -4103,6 +4188,12 @@ Please clear your dues at the earliest. Thank you!`;
                         <div className="flex justify-between">
                           <span>(−) Advance Refunded Out</span>
                           <span className="font-medium">₹{Math.round(advanceRefunded).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
+                      {cnRefunded > 0 && (
+                        <div className="flex justify-between text-rose-700 dark:text-rose-400">
+                          <span>(+) CN Refunded to Customer</span>
+                          <span className="font-medium">₹{Math.round(cnRefunded).toLocaleString("en-IN")}</span>
                         </div>
                       )}
                       {reconciliation.adjustments !== 0 && (
@@ -4623,6 +4714,102 @@ Please clear your dues at the earliest. Thank you!`;
                       <span className="font-semibold text-foreground">
                         ₹{cnAvailable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </span>
+                    </p>
+                  </TabsContent>
+
+                  <TabsContent value="cn-refund" className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Total refunded (period)</div>
+                          <div className="text-lg font-bold text-rose-700 dark:text-rose-400">
+                            ₹{cnRefundSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Sale returns</div>
+                          <div className="text-lg font-bold">{cnRefundSummary.returnCount}</div>
+                          <div className="text-xs text-muted-foreground">With RF voucher</div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                        <CardContent className="p-3">
+                          <div className="text-xs text-muted-foreground mb-1">Voucher date range</div>
+                          <div className="text-sm font-medium leading-snug">
+                            {startDate ? format(startDate, "dd MMM yyyy") : "All"} — {endDate ? format(endDate, "dd MMM yyyy") : "Today"}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    <div className={accountsHistoryTableWrapClass}>
+                      <Table className={accountsHistoryTableClass}>
+                        <TableHeader className="!static">
+                          <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">RF voucher</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Sale return</TableHead>
+                            <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-rose-600">Amount</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500">Mode</TableHead>
+                            <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 min-w-[120px]">Description</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {cnRefundPending ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                                <Loader2 className="h-6 w-6 animate-spin inline align-middle mr-2 text-primary" />
+                                Loading…
+                              </TableCell>
+                            </TableRow>
+                          ) : cnRefundRows.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                                No CN refunds in this period
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            cnRefundRows.map((row) => (
+                              <TableRow key={row.id}>
+                                <TableCell className="text-sm tabular-nums whitespace-nowrap">
+                                  {row.voucher_date
+                                    ? format(new Date(`${row.voucher_date}T12:00:00`), "dd MMM yyyy")
+                                    : "—"}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="font-mono text-xs bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 border-rose-200">
+                                    {row.voucher_number}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">{row.return_number}</TableCell>
+                                <TableCell className="text-right font-medium text-rose-700 dark:text-rose-400">
+                                  ₹{row.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </TableCell>
+                                <TableCell className="text-sm uppercase">{row.payment_method}</TableCell>
+                                <TableCell className="text-sm text-muted-foreground max-w-[280px]">
+                                  {row.description.length > 64 ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-default line-clamp-2">{row.description.slice(0, 64)}…</span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top" className="max-w-sm">
+                                        <p className="text-xs whitespace-pre-wrap">{row.description}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    row.description || "—"
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <p className="text-sm text-muted-foreground border-t pt-3">
+                      Refunds are stored as <span className="font-mono text-xs">voucher_entries</span> (payment / CN refund) and appear in Transactions with tag{" "}
+                      <span className="font-semibold text-rose-700 dark:text-rose-400">CN.Refund</span>.
                     </p>
                   </TabsContent>
                 </>
