@@ -563,6 +563,7 @@ export const useSaveSale = () => {
         customerId: saleData.customerId,
         paymentMethod,
         saleReturnAdjust: saleData.saleReturnAdjust,
+        grossAmount: saleData.grossAmount,
         paidAmount:
           paymentBreakdown?.totalPaid ??
           (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),
@@ -1112,6 +1113,7 @@ export const useSaveSale = () => {
         customerId: saleData.customerId,
         paymentMethod,
         saleReturnAdjust: saleData.saleReturnAdjust,
+        grossAmount: saleData.grossAmount,
       });
     } catch (invErr) {
       savingLockRef.current = false;
@@ -1658,6 +1660,7 @@ export const useSaveSale = () => {
         customerId: saleData.customerId,
         paymentMethod,
         saleReturnAdjust: saleData.saleReturnAdjust,
+        grossAmount: saleData.grossAmount,
         paidAmount:
           paymentBreakdown?.totalPaid ??
           (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),

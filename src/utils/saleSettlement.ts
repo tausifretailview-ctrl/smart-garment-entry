@@ -293,6 +293,18 @@ export async function getAvailableCN(
   };
 }
 
+/** Sum line gross (MRP × qty) from cart rows — used when net is ₹0 after 100% discount. */
+function sumMerchandiseGrossFromItems(items: unknown[]): number {
+  if (!items?.length) return 0;
+  return items.reduce((sum, raw) => {
+    const row = raw as { quantity?: number; mrp?: number };
+    const qty = Number(row.quantity) || 0;
+    const mrp = Number(row.mrp) || 0;
+    if (qty <= 0 || mrp <= 0) return sum;
+    return sum + mrp * qty;
+  }, 0);
+}
+
 /**
  * Validate before any sale insert/update. Throws before DB writes.
  */
@@ -303,8 +315,11 @@ export function preSaveInvariants(params: {
   paymentMethod?: string;
   saleReturnAdjust?: number;
   paidAmount?: number;
+  /** Pre-discount bill total (POS grossAmount). Allows zero net when gross is positive (100% discount). */
+  grossAmount?: number;
 }): void {
-  const { netAmount, items, customerId, paymentMethod, saleReturnAdjust, paidAmount } = params;
+  const { netAmount, items, customerId, paymentMethod, saleReturnAdjust, paidAmount, grossAmount } =
+    params;
 
   if (paymentMethod === "pay_later" && !customerId) {
     throw new Error("Credit sale (Pay Later) requires a customer. Please select a customer.");
@@ -317,9 +332,13 @@ export function preSaveInvariants(params: {
   const srAdjust = saleReturnAdjust || 0;
   // POS / useSaveSale: net_amount is payable after S/R adjust; merchandise bill = net + S/R (see getExchangeAmounts).
   const billAmount = netAmount + srAdjust;
+  const merchandiseGross = Math.max(
+    Number(grossAmount) || 0,
+    sumMerchandiseGrossFromItems(items),
+  );
 
-  // Allow net 0 / negative when S/R adjust covers an exchange (see getExchangeAmounts).
-  if (netAmount <= 0 && srAdjust <= 0) {
+  // Allow ₹0 payable when items have value (100% line discount / complimentary) or S/R exchange covers bill.
+  if (netAmount <= 0 && srAdjust <= 0 && merchandiseGross <= SETTLEMENT_TOLERANCE) {
     throw new Error("Net amount must be greater than zero.");
   }
 
