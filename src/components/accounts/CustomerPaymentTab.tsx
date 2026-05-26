@@ -79,6 +79,25 @@ const MIN_PENDING_RUPEE = 1;
 const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
 const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
 
+/** Settlement (invoice total), optional % discount → cash received + discount rupees. */
+function resolvePaymentBreakdown(
+  settlementRaw: string,
+  discountPercentRaw: string,
+  discountAmountRaw: string,
+) {
+  const settlement = roundToRupee(settlementRaw);
+  const pct = Math.min(100, Math.max(0, toNumberOrZero(discountPercentRaw)));
+  let discount = 0;
+  if (pct > 0 && settlement > 0) {
+    discount = roundToRupee((settlement * pct) / 100);
+  } else {
+    discount = roundToRupee(discountAmountRaw);
+    if (discount > settlement && settlement > 0) discount = settlement;
+  }
+  const cash = roundToRupee(Math.max(0, settlement - discount));
+  return { settlement, discount, cash, discountPercent: pct };
+}
+
 /** Ledger-consistent paid_amount / status from receipt vouchers (avoids double-counting with paid_amount). */
 async function syncSalePaymentFromVouchers(
   invoiceId: string,
@@ -182,6 +201,7 @@ export function CustomerPaymentTab({
   const [transactionId, setTransactionId] = useState("");
   const [upiPaymentDate, setUpiPaymentDate] = useState<Date | undefined>(undefined);
   const [upiCalendarOpen, setUpiCalendarOpen] = useState(false);
+  const [discountPercent, setDiscountPercent] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
   const savingRef = useRef(false);
@@ -445,6 +465,14 @@ export function CustomerPaymentTab({
     }
   }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherSplits, allocatedAmounts]);
 
+  useEffect(() => {
+    const pct = toNumberOrZero(discountPercent);
+    if (pct <= 0) return;
+    const settlement = roundToRupee(amount);
+    if (settlement <= 0) return;
+    setDiscountAmount(roundToRupee((settlement * pct) / 100).toFixed(2));
+  }, [amount, discountPercent]);
+
   const resetForm = () => {
     setVoucherDate(new Date());
     setReferenceId("");
@@ -457,6 +485,7 @@ export function CustomerPaymentTab({
     setChequeDate(undefined);
     setTransactionId("");
     setUpiPaymentDate(undefined);
+    setDiscountPercent("");
     setDiscountAmount("");
     setDiscountReason("");
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
@@ -613,8 +642,11 @@ export function CustomerPaymentTab({
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
       const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
-      const paymentAmount = roundToRupee(amount);
-      const discountValue = roundToRupee(discountAmount);
+      const { cash: paymentAmount, discount: discountValue } = resolvePaymentBreakdown(
+        amount,
+        discountPercent,
+        discountAmount,
+      );
       let remainingCash = paymentAmount;
       let remainingDiscount = discountValue;
       /** Apply settlement to invoices/OB: use cash first, then discount (matches “received + waived” mentally). */
@@ -963,7 +995,15 @@ export function CustomerPaymentTab({
         );
       }
 
-      return { voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod, discountAmount: discountValue, discountReason };
+      return {
+        voucherNumber,
+        processedInvoices,
+        isOpeningBalancePayment,
+        paymentMethod,
+        paidAmount: paymentAmount,
+        discountAmount: discountValue,
+        discountReason,
+      };
       } finally {
         savingRef.current = false;
       }
@@ -980,7 +1020,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
 
-      const totalPaid = roundToRupee(amount);
+      const totalPaid = data.paidAmount ?? roundToRupee(amount);
       const discountValue = data.discountAmount || 0;
       queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
 
@@ -1144,19 +1184,22 @@ export function CustomerPaymentTab({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || roundToRupee(amount) <= 0) { toast.error("Please enter a valid amount"); return; }
+    const breakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
+    if (breakdown.cash <= 0 && breakdown.settlement <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
     if (!referenceId) { toast.error("Please select a customer"); return; }
     if (selectedInvoiceIds.length > 0) {
       const selectedPayable = getSelectedPayableTotal();
-      const pay = roundToRupee(amount);
-      const disc = roundToRupee(discountAmount);
-      if (pay > roundToRupee(selectedPayable)) {
-        toast.error(`Amount cannot exceed pending total of ₹${selectedPayable.toFixed(2)}`);
+      const { settlement, discount, cash } = breakdown;
+      if (settlement > roundToRupee(selectedPayable)) {
+        toast.error(`Settlement amount cannot exceed pending total of ₹${selectedPayable.toFixed(2)}`);
         setAmount(roundToRupee(selectedPayable).toFixed(2));
         return;
       }
-      if (pay + disc > roundToRupee(selectedPayable) + SETTLEMENT_TOLERANCE_RUPEE) {
-        toast.error(`Payment + discount cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
+      if (cash + discount > roundToRupee(selectedPayable) + SETTLEMENT_TOLERANCE_RUPEE) {
+        toast.error(`Cash + discount cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
         return;
       }
     }
@@ -1176,8 +1219,10 @@ export function CustomerPaymentTab({
     }
     const hasSelectableRows = (customerInvoices && customerInvoices.length > 0) || openingBalanceRemaining > 0;
     if (hasSelectableRows && selectedInvoiceIds.length === 0) { toast.error("Please select at least one invoice or Opening Balance"); return; }
-    const discountValue = roundToRupee(discountAmount);
-    if (discountValue > 0 && !discountReason.trim()) { toast.error("Please enter a discount reason"); return; }
+    if (breakdown.discount > 0 && !discountReason.trim()) {
+      toast.error("Please enter a discount reason");
+      return;
+    }
     createVoucher.mutate();
   };
 
@@ -1519,93 +1564,143 @@ export function CustomerPaymentTab({
                 </div>
               )}
 
-              {/* Amount */}
-              <div className="space-y-2">
-                <Label>Amount</Label>
-                <Input
-                  type="number"
-                  step="1"
-                  placeholder="Enter amount"
-                  value={amount}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "") {
-                      setAmount("");
-                      return;
-                    }
-                    const entered = roundToRupee(raw);
-                    const maxAllowed = selectedInvoiceIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : Infinity;
-                    setAmount(Math.min(entered, maxAllowed).toFixed(2));
-                  }}
-                  required
-                />
-              </div>
-
-              {/* Discount Fields */}
+              {/* Settlement + discount */}
               {(() => {
-                const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => {
-                  const outstanding = getInvoiceOutstanding(inv, customerInvoiceVoucherSplits.get(inv.id));
-                  return sum + Math.min(outstanding, getAllocatedAmount(inv.id, outstanding));
-                }, 0) || 0;
-                const obPart = selectedInvoiceIds.includes(OPENING_BALANCE_ID) ? Number(openingBalanceRemaining || 0) : 0;
-                const selectedInvoiceTotal = selectedInvoiceIds.length > 0
-                  ? invoicePart + obPart
-                  : (customerBalance || 0);
-                const paymentValue = roundToRupee(amount);
-                const suggestedDiscount = Math.max(0, selectedInvoiceTotal - paymentValue);
-                const showDiscountFields = paymentValue > 0 && paymentValue < selectedInvoiceTotal;
-                return showDiscountFields && (
-                  <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
-                    <div className="flex items-center gap-2 text-foreground">
-                      <TrendingDown className="h-4 w-4" />
-                      <span className="text-sm font-medium">Discount Settlement</span>
+                const breakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
+                const selectedPayable =
+                  selectedInvoiceIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : 0;
+                return (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>
+                        {selectedInvoiceIds.length > 0 ? "Settlement Amount" : "Amount"}
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Enter amount"
+                        value={amount}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            setAmount("");
+                            return;
+                          }
+                          const entered = roundToRupee(raw);
+                          const maxAllowed =
+                            selectedInvoiceIds.length > 0
+                              ? roundToRupee(getSelectedPayableTotal())
+                              : Infinity;
+                          setAmount(Math.min(entered, maxAllowed).toFixed(2));
+                        }}
+                        required
+                        className="no-uppercase"
+                      />
+                      {selectedInvoiceIds.length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Total against selected invoice(s). Add discount % below to calculate cash received.
+                        </p>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Discount Amount</Label>
-                        <Input
-                          type="number"
-                          step="1"
-                          placeholder={`Suggested: ₹${roundToRupee(suggestedDiscount).toFixed(2)}`}
-                          value={discountAmount}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            if (raw === "") {
-                              setDiscountAmount("");
-                              return;
-                            }
-                            setDiscountAmount(roundToRupee(raw).toFixed(2));
-                          }}
-                        />
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setDiscountAmount(roundToRupee(suggestedDiscount).toFixed(2))} className="text-xs text-primary hover:text-primary/80">
-                          Apply ₹{suggestedDiscount.toFixed(2)} discount
-                        </Button>
+
+                    <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
+                      <div className="flex items-center gap-2 text-foreground">
+                        <TrendingDown className="h-4 w-4" />
+                        <span className="text-sm font-medium">Discount (optional)</span>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Discount Reason <span className="text-red-500">*</span></Label>
-                        <Input placeholder="e.g., Customer loyalty" value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} required={roundToRupee(discountAmount) > 0} />
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label>Discount %</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            max={100}
+                            placeholder="e.g. 20"
+                            value={discountPercent}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === "") {
+                                setDiscountPercent("");
+                                return;
+                              }
+                              const pct = Math.min(100, Math.max(0, toNumberOrZero(raw)));
+                              setDiscountPercent(String(pct));
+                            }}
+                            className="no-uppercase"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Discount Amount (₹)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Auto from %"
+                            value={discountAmount}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setDiscountPercent("");
+                              if (raw === "") {
+                                setDiscountAmount("");
+                                return;
+                              }
+                              setDiscountAmount(roundToRupee(raw).toFixed(2));
+                            }}
+                            className="no-uppercase"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>
+                            Discount Reason
+                            {breakdown.discount > 0 && <span className="text-red-500"> *</span>}
+                          </Label>
+                          <Input
+                            placeholder="e.g., Early payment"
+                            value={discountReason}
+                            onChange={(e) => setDiscountReason(e.target.value)}
+                            className="no-uppercase"
+                          />
+                        </div>
                       </div>
+
+                      {breakdown.settlement > 0 && (
+                        <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md space-y-1.5">
+                          <div className="flex justify-between items-center text-sm">
+                            <span>Settlement (invoice total):</span>
+                            <span className="font-medium">
+                              ₹{breakdown.settlement.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          {breakdown.discount > 0 && (
+                            <div className="flex justify-between items-center text-sm text-muted-foreground">
+                              <span>
+                                − Discount
+                                {breakdown.discountPercent > 0
+                                  ? ` (${breakdown.discountPercent}%)`
+                                  : ""}
+                                :
+                              </span>
+                              <span className="font-medium text-amber-700 dark:text-amber-400">
+                                ₹{breakdown.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          <Separator className="my-2" />
+                          <div className="flex justify-between items-center text-base font-bold text-green-700 dark:text-green-400">
+                            <span>Amount Received (Cash):</span>
+                            <span>
+                              ₹{breakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          {selectedPayable > 0 &&
+                            breakdown.settlement >= selectedPayable - SETTLEMENT_TOLERANCE_RUPEE && (
+                              <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                                ✓ Selected invoice(s) will be fully settled
+                              </p>
+                            )}
+                        </div>
+                      )}
                     </div>
-                    {roundToRupee(discountAmount) > 0 && (
-                      <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
-                        <div className="flex justify-between items-center text-sm">
-                          <span>Payment Amount:</span>
-                          <span className="font-medium">₹{paymentValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-muted-foreground">
-                          <span>+ Discount:</span>
-                          <span className="font-medium">₹{roundToRupee(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        <Separator className="my-2" />
-                        <div className="flex justify-between items-center text-sm font-bold text-green-700 dark:text-green-400">
-                          <span>Total Settled:</span>
-                          <span>₹{(paymentValue + roundToRupee(discountAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                        {(paymentValue + roundToRupee(discountAmount)) >= selectedInvoiceTotal && (
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-2">✓ Invoice(s) will be marked as fully paid</p>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })()}
@@ -1619,8 +1714,11 @@ export function CustomerPaymentTab({
 
             {/* Submit button with validation */}
             {(() => {
-              const paymentAmount = roundToRupee(amount);
-              const discountValue = roundToRupee(discountAmount);
+              const { cash: paymentAmount, discount: discountValue } = resolvePaymentBreakdown(
+                amount,
+                discountPercent,
+                discountAmount,
+              );
               const totalSettled = paymentAmount + discountValue;
               const outstandingBalance = lifetimeOutstanding ?? customerBalance ?? 0;
               const isExcessPayment = Math.round(totalSettled) > Math.round(outstandingBalance) && outstandingBalance > 0;
