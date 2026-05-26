@@ -11,7 +11,10 @@ import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
-import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
+import {
+  fetchSupplierBalanceSnapshot,
+  fetchSupplierBalanceSnapshotsForOrg,
+} from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -91,6 +94,13 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
   const suppliers = ledgerData?.suppliers;
   const balanceSnapshotError = ledgerData?.balanceSnapshotError ?? null;
+
+  const { data: selectedSupplierSnapshot } = useQuery({
+    queryKey: ["supplier-balance-snapshot", organizationId, selectedSupplier?.id],
+    queryFn: async () =>
+      fetchSupplierBalanceSnapshot(supabase, organizationId, selectedSupplier!.id),
+    enabled: !!organizationId && !!selectedSupplier?.id,
+  });
 
   // Fetch detailed transactions for selected supplier
   const { data: transactions } = useQuery({
@@ -443,6 +453,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     enabled: !!selectedSupplier?.id,
   });
 
+  const ledgerClosingBalance = useMemo(() => {
+    if (!transactions?.length) return null;
+    return transactions[transactions.length - 1]?.balance ?? 0;
+  }, [transactions]);
+
   // Filter suppliers based on search and payment status
   const filteredSuppliers = useMemo(() => {
     if (!suppliers) return [];
@@ -638,7 +653,13 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-muted-foreground mb-1">Outstanding Payable</div>
+                <div className="text-sm text-muted-foreground mb-1">
+                  {selectedSupplier.balance > 0
+                    ? "Outstanding Payable (Cr)"
+                    : selectedSupplier.balance < 0
+                      ? "Credit / Overpayment"
+                      : "Balance"}
+                </div>
                 <div className={cn(
                   "text-3xl font-bold",
                   selectedSupplier.balance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
@@ -649,11 +670,28 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                   <Badge variant="destructive" className="mt-2">Payable</Badge>
                 )}
                 {selectedSupplier.balance < 0 && (
-                  <Badge variant="default" className="mt-2 bg-green-600">Advance Paid</Badge>
+                  <Badge variant="default" className="mt-2 bg-green-600">Supplier Credit</Badge>
                 )}
                 {selectedSupplier.balance === 0 && (
                   <Badge variant="outline" className="mt-2">Settled</Badge>
                 )}
+                {ledgerClosingBalance != null &&
+                  Math.abs(ledgerClosingBalance - selectedSupplier.balance) > 1 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 max-w-[260px] ml-auto text-left">
+                      <span className="inline-flex items-start gap-1 font-medium">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        Ledger running total ₹
+                        {Math.abs(ledgerClosingBalance).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                        })}{" "}
+                        {ledgerClosingBalance >= 0 ? "payable" : "credit"} vs account balance ₹
+                        {Math.abs(selectedSupplier.balance).toLocaleString("en-IN", {
+                          minimumFractionDigits: 2,
+                        })}
+                        . Check bill payments and purchase return credit notes.
+                      </span>
+                    </p>
+                  )}
               </div>
             </div>
           </CardHeader>
@@ -691,6 +729,18 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                   </div>
                 </CardContent>
               </Card>
+              {(selectedSupplierSnapshot?.totalCreditNotesNet ?? 0) > 0 && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-sm text-muted-foreground mb-1">Unapplied CN / Returns</div>
+                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                      ₹{(selectedSupplierSnapshot?.totalCreditNotesNet ?? 0).toLocaleString("en-IN", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Payment Rate</div>

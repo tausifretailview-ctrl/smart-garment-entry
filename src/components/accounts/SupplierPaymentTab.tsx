@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,9 +25,22 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
-import { fetchSupplierBalanceSnapshot, fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
+import {
+  fetchSupplierBalanceSnapshot,
+  fetchSupplierBalanceSnapshotsForOrg,
+} from "@/utils/supplierBalanceUtils";
+import {
+  SUPPLIER_MIN_PENDING_RUPEE,
+  allocateSupplierCreditToBills,
+  getSupplierBillRawOutstanding,
+  sumSupplierBillNetPayable,
+} from "@/utils/supplierBillOutstanding";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 interface SupplierPaymentTabProps {
   organizationId: string;
@@ -94,19 +107,19 @@ export function SupplierPaymentTab({
     enabled: !!organizationId,
   });
 
-  // Supplier balance
-  const { data: supplierBalance } = useQuery({
-    queryKey: ["supplier-balance", organizationId, referenceId],
-    queryFn: async () => {
-      const snap = await fetchSupplierBalanceSnapshot(supabase, organizationId, referenceId);
-      return snap.balance;
-    },
+  // Supplier balance snapshot (same source as Supplier Ledger)
+  const { data: supplierSnapshot } = useQuery({
+    queryKey: ["supplier-balance-snapshot", organizationId, referenceId],
+    queryFn: async () =>
+      fetchSupplierBalanceSnapshot(supabase, organizationId, referenceId),
     enabled: !!referenceId && !!organizationId,
   });
 
+  const lifetimePayable = supplierSnapshot?.balance ?? 0;
+
   // Supplier bills
-  const { data: supplierBills } = useQuery({
-    queryKey: ["supplier-bills", referenceId],
+  const { data: supplierBillsData } = useQuery({
+    queryKey: ["supplier-bills", organizationId, referenceId],
     queryFn: async () => {
       const { data, error } = await supabase.from("purchase_bills").select("*").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
       if (error) throw error;
@@ -160,14 +173,16 @@ export function SupplierPaymentTab({
         );
       }
 
-      return bills.filter((bill: any) => {
-        const net = Number(bill.net_amount || 0);
-        const paid = Math.max(Number(bill.paid_amount || 0), Number(voucherPaidByBill.get(bill.id) || 0));
-        return Math.max(0, net - paid) > 0.009;
-      });
+      return {
+        bills: bills.filter((bill: any) => getSupplierBillRawOutstanding(bill, voucherPaidByBill) > 0.009),
+        voucherPaidByBill,
+      };
     },
-    enabled: !!referenceId,
+    enabled: !!referenceId && !!organizationId,
   });
+
+  const supplierBills = supplierBillsData?.bills;
+  const voucherPaidByBill = supplierBillsData?.voucherPaidByBill;
 
   const { data: adjustedOutstandingCreditTotal = 0 } = useQuery({
     queryKey: ["supplier-adjusted-outstanding-credit", organizationId, referenceId],
@@ -186,23 +201,68 @@ export function SupplierPaymentTab({
     enabled: !!organizationId && !!referenceId,
   });
 
-  const getSelectedPayableTotal = () => {
-    const selectedSubtotal = (supplierBills ?? [])
+  const cnCreditPool = useMemo(
+    () =>
+      roundMoney(
+        (supplierSnapshot?.totalCreditNotesNet ?? 0) + Number(adjustedOutstandingCreditTotal || 0),
+      ),
+    [supplierSnapshot?.totalCreditNotesNet, adjustedOutstandingCreditTotal],
+  );
+
+  const billOutstandingMap = useMemo(
+    () =>
+      allocateSupplierCreditToBills(
+        supplierBills ?? [],
+        cnCreditPool,
+        voucherPaidByBill,
+      ),
+    [supplierBills, cnCreditPool, voucherPaidByBill],
+  );
+
+  const listedBillPendingTotal = useMemo(
+    () => sumSupplierBillNetPayable(billOutstandingMap),
+    [billOutstandingMap],
+  );
+
+  const payableBills = useMemo(
+    () =>
+      (supplierBills ?? []).filter(
+        (bill) =>
+          (billOutstandingMap.get(bill.id)?.netPayable ?? 0) >= SUPPLIER_MIN_PENDING_RUPEE,
+      ),
+    [supplierBills, billOutstandingMap],
+  );
+
+  const getSelectedPayableTotal = () =>
+    (supplierBills ?? [])
       .filter((bill) => selectedSupplierBillIds.includes(bill.id))
       .reduce(
-        (sum, bill) => sum + Math.max(0, Number(bill.net_amount || 0) - Number(bill.paid_amount || 0)),
-        0
+        (sum, bill) => sum + (billOutstandingMap.get(bill.id)?.netPayable ?? 0),
+        0,
       );
-    const appliedCreditNotes = Math.min(Number(adjustedOutstandingCreditTotal || 0), selectedSubtotal);
-    return Math.max(0, selectedSubtotal - appliedCreditNotes);
-  };
+
+  const getSelectedRawSubtotal = () =>
+    (supplierBills ?? [])
+      .filter((bill) => selectedSupplierBillIds.includes(bill.id))
+      .reduce(
+        (sum, bill) => sum + (billOutstandingMap.get(bill.id)?.rawOutstanding ?? 0),
+        0,
+      );
+
+  const getSelectedCreditApplied = () =>
+    (supplierBills ?? [])
+      .filter((bill) => selectedSupplierBillIds.includes(bill.id))
+      .reduce(
+        (sum, bill) => sum + (billOutstandingMap.get(bill.id)?.creditAllocated ?? 0),
+        0,
+      );
 
   // Auto-fill amount
   useEffect(() => {
     if (selectedSupplierBillIds.length > 0 && supplierBills) {
       setAmount(getSelectedPayableTotal().toFixed(2));
     }
-  }, [selectedSupplierBillIds, supplierBills, adjustedOutstandingCreditTotal]);
+  }, [selectedSupplierBillIds, supplierBills, billOutstandingMap]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
@@ -234,8 +294,18 @@ export function SupplierPaymentTab({
 
       if (!referenceId) throw new Error("Please select a supplier to record payment");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
+      if (
+        lifetimePayable <= SUPPLIER_MIN_PENDING_RUPEE &&
+        listedBillPendingTotal < SUPPLIER_MIN_PENDING_RUPEE &&
+        selectedSupplierBillIds.length === 0
+      ) {
+        throw new Error("Supplier has credit / overpayment balance — no payment required");
+      }
       if (selectedSupplierBillIds.length > 0) {
         const selectedPayable = getSelectedPayableTotal();
+        if (selectedPayable <= SUPPLIER_MIN_PENDING_RUPEE) {
+          throw new Error("Selected bills are fully covered by credit notes — no cash payment needed");
+        }
         if ((parseFloat(amount) || 0) > selectedPayable + 0.01) {
           throw new Error(`Amount cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
         }
@@ -252,8 +322,10 @@ export function SupplierPaymentTab({
           const currentPaid = bill.paid_amount || 0;
           const prevPaid = Number(currentPaid);
           const prevStatus = (bill.payment_status || "unpaid") as string;
-          const outstanding = (bill.net_amount || 0) - currentPaid;
-          const amountToApply = Math.min(remainingAmount, outstanding);
+          const netDue =
+            billOutstandingMap.get(billId)?.netPayable ??
+            Math.max(0, Number(bill.net_amount || 0) - Number(currentPaid));
+          const amountToApply = Math.min(remainingAmount, netDue);
           if (amountToApply <= 0) continue;
           const newPaidAmount = Math.min(Number(bill.net_amount || 0), currentPaid + amountToApply);
           const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
@@ -382,6 +454,7 @@ export function SupplierPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
@@ -464,6 +537,7 @@ export function SupplierPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     },
@@ -579,16 +653,58 @@ export function SupplierPaymentTab({
                     </Command>
                   </PopoverContent>
                 </Popover>
-                {referenceId && supplierBalance !== undefined && (
-                  <div className="mt-2 p-3 bg-gradient-to-r from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border border-rose-200 dark:border-rose-800 rounded-md">
-                    <p className="text-sm font-medium text-rose-900 dark:text-rose-100">Total Outstanding: <span className="text-lg font-bold">₹{Math.round(supplierBalance).toLocaleString('en-IN')}</span></p>
-                    {adjustedOutstandingCreditTotal > 0 && (
+                {referenceId && supplierSnapshot !== undefined && (() => {
+                  const lifetimeCr = lifetimePayable < -SUPPLIER_MIN_PENDING_RUPEE;
+                  const showAsNoPayable =
+                    lifetimePayable <= SUPPLIER_MIN_PENDING_RUPEE &&
+                    listedBillPendingTotal < SUPPLIER_MIN_PENDING_RUPEE;
+                  const displayPayable = Math.round(
+                    lifetimePayable >= SUPPLIER_MIN_PENDING_RUPEE
+                      ? lifetimePayable
+                      : listedBillPendingTotal,
+                  );
+                  return (
+                  <div className={cn(
+                    "mt-2 p-3 border rounded-md",
+                    lifetimeCr
+                      ? "bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-300 dark:border-emerald-700"
+                      : showAsNoPayable
+                        ? "bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 border-slate-200 dark:border-slate-700"
+                        : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800",
+                  )}>
+                    {lifetimeCr ? (
+                      <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                        Credit / Overpayment with Supplier:{" "}
+                        <span className="text-lg font-bold">
+                          ₹{Math.abs(Math.round(lifetimePayable)).toLocaleString("en-IN")}
+                        </span>
+                      </p>
+                    ) : showAsNoPayable ? (
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                        No payable balance — supplier account is settled or in credit
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        Payable Balance:{" "}
+                        <span className="text-lg font-bold">
+                          ₹{displayPayable.toLocaleString("en-IN")}
+                        </span>
+                        {lifetimePayable < SUPPLIER_MIN_PENDING_RUPEE && listedBillPendingTotal >= SUPPLIER_MIN_PENDING_RUPEE && (
+                          <span className="block text-xs font-normal mt-1 text-amber-800 dark:text-amber-200">
+                            Bill list includes amounts offset by purchase return / credit notes (₹
+                            {cnCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })} credit pool)
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {cnCreditPool > 0 && !lifetimeCr && listedBillPendingTotal >= SUPPLIER_MIN_PENDING_RUPEE && (
                       <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-                        Includes less credit adjusted to outstanding: ₹{Number(adjustedOutstandingCreditTotal).toFixed(2)}
+                        Unapplied supplier credit available: ₹{cnCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </p>
                     )}
                   </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
 
@@ -603,7 +719,7 @@ export function SupplierPaymentTab({
                     </Button>
                   )}
                 </div>
-                {supplierBills && supplierBills.length > 0 ? (
+                {payableBills.length > 0 ? (
                   <div className="border rounded-lg max-h-[250px] overflow-y-auto">
                     <Table>
                       <TableHeader>
@@ -613,14 +729,20 @@ export function SupplierPaymentTab({
                           <TableHead>Date</TableHead>
                           <TableHead className="text-right">Bill Amt</TableHead>
                           <TableHead className="text-right">Paid</TableHead>
-                          <TableHead className="text-right">Outstanding</TableHead>
+                          {cnCreditPool > 0 && <TableHead className="text-right">CN Offset</TableHead>}
+                          <TableHead className="text-right">Payable</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {supplierBills.map((bill) => {
+                        {payableBills.map((bill) => {
                           const netAmount = Number(bill.net_amount || 0);
-                          const paidAmount = Number(bill.paid_amount || 0);
-                          const outstanding = netAmount - paidAmount;
+                          const paidAmount = Math.max(
+                            Number(bill.paid_amount || 0),
+                            Number(voucherPaidByBill?.get(bill.id) || 0),
+                          );
+                          const breakdown = billOutstandingMap.get(bill.id);
+                          const cnOffset = breakdown?.creditAllocated ?? 0;
+                          const netPayable = breakdown?.netPayable ?? 0;
                           const isSelected = selectedSupplierBillIds.includes(bill.id);
                           const billDate = bill.bill_date ? new Date(bill.bill_date) : null;
                           const billDateText = billDate && !Number.isNaN(billDate.getTime()) ? format(billDate, "dd/MM/yyyy") : "-";
@@ -642,12 +764,23 @@ export function SupplierPaymentTab({
                               <TableCell>{billDateText}</TableCell>
                               <TableCell className="text-right">₹{netAmount.toFixed(2)}</TableCell>
                               <TableCell className="text-right text-muted-foreground">₹{paidAmount.toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">₹{outstanding.toFixed(2)}</TableCell>
+                              {cnCreditPool > 0 && (
+                                <TableCell className="text-right text-emerald-600 dark:text-emerald-400">
+                                  {cnOffset > 0 ? `-₹${cnOffset.toFixed(2)}` : "—"}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">₹{netPayable.toFixed(2)}</TableCell>
                             </TableRow>
                           );
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                ) : supplierBills && supplierBills.length > 0 ? (
+                  <div className="border rounded-lg p-4 text-center text-muted-foreground bg-muted/30">
+                    {lifetimePayable < -SUPPLIER_MIN_PENDING_RUPEE
+                      ? "All bills are covered by credit / overpayment — no cash payment needed"
+                      : "Pending bill amounts are fully offset by supplier credit notes"}
                   </div>
                 ) : (
                   <div className="border rounded-lg p-4 text-center text-muted-foreground bg-muted/30">No outstanding bills found for this supplier</div>
@@ -658,18 +791,20 @@ export function SupplierPaymentTab({
                       <div className="space-y-0.5">
                         <div className="font-medium">
                           {selectedSupplierBillIds.length} bill(s) selected • Subtotal: <span className="text-primary font-bold">
-                            ₹{(supplierBills ?? []).filter(b => selectedSupplierBillIds.includes(b.id)).reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0).toFixed(2)}
+                            ₹{getSelectedRawSubtotal().toFixed(2)}
                           </span>
                         </div>
-                        <div className="text-emerald-700 dark:text-emerald-400">
-                          Less: Applied Credit Notes: -₹{Math.min(Number(adjustedOutstandingCreditTotal || 0), (supplierBills ?? []).filter(b => selectedSupplierBillIds.includes(b.id)).reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0)).toFixed(2)}
-                        </div>
+                        {getSelectedCreditApplied() > 0 && (
+                          <div className="text-emerald-700 dark:text-emerald-400">
+                            Less: Credit Notes / Returns: -₹{getSelectedCreditApplied().toFixed(2)}
+                          </div>
+                        )}
                         <div className="font-semibold text-foreground">
                           Grand Total: ₹{getSelectedPayableTotal().toFixed(2)}
                         </div>
                       </div>
                     ) : (
-                      <span className="text-muted-foreground flex items-center gap-1"><AlertCircle className="h-4 w-4" /> No bills selected = Opening Balance / Advance payment</span>
+                      <span className="text-muted-foreground flex items-center gap-1"><AlertCircle className="h-4 w-4" /> No bills selected = Opening Balance payment (only when payable balance &gt; 0)</span>
                     )}
                   </div>
                 </div>
@@ -748,7 +883,18 @@ export function SupplierPaymentTab({
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" className="w-full md:w-auto" disabled={createVoucher.isPending || savingRef.current}>
+              <Button
+                type="submit"
+                className="w-full md:w-auto"
+                disabled={
+                  createVoucher.isPending ||
+                  savingRef.current ||
+                  (referenceId &&
+                    lifetimePayable <= SUPPLIER_MIN_PENDING_RUPEE &&
+                    listedBillPendingTotal < SUPPLIER_MIN_PENDING_RUPEE &&
+                    selectedSupplierBillIds.length === 0)
+                }
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 {createVoucher.isPending ? "Recording..." : "Record Payment"}
               </Button>

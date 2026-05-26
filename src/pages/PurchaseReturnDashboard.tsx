@@ -1136,6 +1136,9 @@ const PurchaseReturnDashboard = () => {
             queryClient.invalidateQueries({ queryKey: ["supplier-transactions"] });
             queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
             queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+            queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
+            queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
+            queryClient.invalidateQueries({ queryKey: ["supplier-adjusted-outstanding-credit"] });
             queryClient.invalidateQueries({ queryKey: ["floating-supplier-ledger"] });
             queryClient.invalidateQueries({ queryKey: ["floating-supplier-balance-snap"] });
             queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
