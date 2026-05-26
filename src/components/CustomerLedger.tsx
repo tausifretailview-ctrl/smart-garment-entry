@@ -46,7 +46,10 @@ import {
   parseSaleReturnRefFromCnRefundDescription,
 } from "@/utils/cnRefundVoucher";
 import { isAdvanceRefundPaymentVoucher } from "@/utils/advanceRefundVoucher";
-import { deleteAdvanceRefund } from "@/utils/advanceRefundService";
+import {
+  deleteAdvanceRefund,
+  fetchAdvanceRefundsForAdvances,
+} from "@/utils/advanceRefundService";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1503,13 +1506,12 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
       let filteredAdvanceRefunds: any[] = [];
       if (customerAdvanceIds.length > 0) {
-        const { data: advanceRefundsData } = await supabase
-          .from("advance_refunds")
-          .select("id, advance_id, refund_amount, refund_date, payment_method, reason, created_at, refund_number, voucher_entry_id, customer_advances(advance_number)")
-          .eq("organization_id", organizationId)
-          .in("advance_id", customerAdvanceIds)
-          .order("refund_date", { ascending: true });
-        filteredAdvanceRefunds = advanceRefundsData || [];
+        filteredAdvanceRefunds = await fetchAdvanceRefundsForAdvances(
+          supabase,
+          organizationId,
+          customerAdvanceIds,
+          { includeAdvanceNumber: true },
+        );
       }
 
       // Fetch credit notes for this customer
@@ -2927,23 +2929,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       const advanceNoById = new Map(
         (advances || []).map((a) => [a.id, String(a.advance_number || "—")]),
       );
-      let rq = supabase
-        .from("advance_refunds")
-        .select(
-          "id, advance_id, refund_amount, refund_date, payment_method, reason, refund_number, created_at",
-        )
-        .eq("organization_id", organizationId)
-        .in("advance_id", advanceIds)
-        .order("refund_date", { ascending: true });
-      if (startDate) rq = rq.gte("refund_date", format(startDate, "yyyy-MM-dd"));
-      if (endDate) rq = rq.lte("refund_date", format(endDate, "yyyy-MM-dd"));
-      const { data: refunds, error } = await rq;
-      if (error) throw error;
-      return (refunds || []).map((r) => ({
+      const refunds = await fetchAdvanceRefundsForAdvances(supabase, organizationId, advanceIds, {
+        startDate: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
+        endDate: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
+      });
+      return refunds.map((r) => ({
         id: String(r.id),
         refund_date: String(r.refund_date || "").slice(0, 10),
         refund_number: String(r.refund_number || "").trim() || "—",
-        advance_number: advanceNoById.get(r.advance_id) || "—",
+        advance_number: advanceNoById.get(String(r.advance_id)) || "—",
         amount: Math.round((Number(r.refund_amount) || 0) * 100) / 100,
         payment_method: String(r.payment_method || "").trim() || "—",
         reason: String(r.reason || "").trim(),
