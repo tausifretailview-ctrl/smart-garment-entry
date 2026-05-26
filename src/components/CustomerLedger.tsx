@@ -90,6 +90,10 @@ interface Transaction {
     card?: number;
     upi?: number;
     method?: string;
+    /** Cash/UPI/card actually received on a receipt voucher (excl. settlement discount). */
+    cashReceived?: number;
+    settlementDiscount?: number;
+    discountReason?: string;
   };
   appliedAmount?: number;
   status?: string;
@@ -2068,8 +2072,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           });
         } else {
           const voucher = item.data as any;
-          const discountAmount = voucher.discount_amount || 0;
-          const totalCredit = voucher.total_amount + discountAmount;
+          const cashReceived = Number(voucher.total_amount) || 0;
+          const discountAmount = Number(voucher.discount_amount) || 0;
+          const totalCredit = cashReceived + discountAmount;
           if (voucher.voucher_type === 'payment' && voucher.reference_type === 'customer') {
             runningBalance += totalCredit;
             allTransactions.push({
@@ -2093,15 +2098,18 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
           const relatedSale = !isOpeningBalancePayment ? salesData.find(s => s.id === voucher.reference_id) : null;
           const invoiceRef = relatedSale ? ` - for ${relatedSale.sale_number}` : '';
           
-          // Build description including discount if any
-          let description = isOpeningBalancePayment 
+          let description = isOpeningBalancePayment
             ? (voucher.description || 'Opening balance payment')
             : (voucher.description || 'Payment received') + invoiceRef;
-          
           if (discountAmount > 0) {
-            description += ` (incl. Discount: ₹${discountAmount.toLocaleString('en-IN')}${voucher.discount_reason ? ` - ${voucher.discount_reason}` : ''})`;
+            description += ` — Received ₹${cashReceived.toLocaleString('en-IN')}, settlement discount ₹${discountAmount.toLocaleString('en-IN')}`;
+            if (voucher.discount_reason) {
+              description += ` (${voucher.discount_reason})`;
+            }
           }
-          
+
+          const receiptMethod =
+            voucher.payment_method || voucher.metadata?.paymentMethod || undefined;
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
@@ -2112,7 +2120,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             debit: 0,
             credit: totalCredit,
             balance: runningBalance,
-            paymentBreakdown: voucher.metadata?.paymentMethod ? { method: voucher.metadata.paymentMethod } : undefined,
+            paymentBreakdown:
+              discountAmount > 0 || receiptMethod
+                ? {
+                    method: receiptMethod,
+                    cashReceived: cashReceived > 0 ? cashReceived : undefined,
+                    settlementDiscount: discountAmount > 0 ? discountAmount : undefined,
+                    discountReason: voucher.discount_reason || undefined,
+                  }
+                : undefined,
           });
         }
       });
@@ -2203,8 +2219,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       const voucherPaymentsBySaleId: Record<string, number> = {};
       vouchersData?.forEach((voucher) => {
         if (voucher.reference_id) {
-          voucherPaymentsBySaleId[voucher.reference_id] = 
-            (voucherPaymentsBySaleId[voucher.reference_id] || 0) + (voucher.total_amount || 0);
+          const settled =
+            (Number(voucher.total_amount) || 0) + (Number(voucher.discount_amount) || 0);
+          voucherPaymentsBySaleId[voucher.reference_id] =
+            (voucherPaymentsBySaleId[voucher.reference_id] || 0) + settled;
         }
       });
 
@@ -2214,14 +2232,18 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // Add payments from voucher entries (invoice payments)
       vouchersData?.forEach((voucher) => {
         const relatedSale = saleMap.get(voucher.reference_id || '');
+        const cashReceived = Number(voucher.total_amount) || 0;
+        const settlementDiscount = Number(voucher.discount_amount) || 0;
         payments.push({
           id: voucher.id,
           date: voucher.voucher_date,
           voucherNumber: voucher.voucher_number,
           invoiceNumber: relatedSale?.sale_number || 'N/A',
           invoiceAmount: relatedSale?.net_amount || 0,
-          amount: voucher.total_amount,
-          method: 'recorded',
+          amount: cashReceived,
+          settlementDiscount,
+          totalSettlement: cashReceived + settlementDiscount,
+          method: voucher.payment_method || 'recorded',
           description: voucher.description || 'Payment recorded',
           cash: 0,
           card: 0,
@@ -2232,14 +2254,18 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       // Add opening balance payments
       openingBalancePayments?.forEach((voucher) => {
+        const cashReceived = Number(voucher.total_amount) || 0;
+        const settlementDiscount = Number(voucher.discount_amount) || 0;
         payments.push({
           id: voucher.id,
           date: voucher.voucher_date,
           voucherNumber: voucher.voucher_number,
           invoiceNumber: 'Opening Balance',
           invoiceAmount: selectedCustomer.opening_balance || 0,
-          amount: voucher.total_amount,
-          method: 'recorded',
+          amount: cashReceived,
+          settlementDiscount,
+          totalSettlement: cashReceived + settlementDiscount,
+          method: voucher.payment_method || 'recorded',
           description: voucher.description || 'Opening balance payment',
           cash: 0,
           card: 0,
@@ -2297,9 +2323,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   // Calculate payment summary
   const paymentSummary = useMemo(() => {
-    if (!paymentHistory) return { total: 0, cash: 0, card: 0, upi: 0, count: 0 };
+    if (!paymentHistory) {
+      return { total: 0, cash: 0, card: 0, upi: 0, discount: 0, settlementTotal: 0, count: 0 };
+    }
+    const discount = paymentHistory.reduce((sum, p) => sum + (p.settlementDiscount || 0), 0);
+    const received = paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0);
     return {
-      total: paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0),
+      total: received,
+      settlementTotal: received + discount,
+      discount,
       cash: paymentHistory.reduce((sum, p) => sum + (p.cash || 0), 0),
       card: paymentHistory.reduce((sum, p) => sum + (p.card || 0), 0),
       upi: paymentHistory.reduce((sum, p) => sum + (p.upi || 0), 0),
@@ -2504,6 +2536,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       saleReturns: 0,
       netInvoiced: 0,
       payments: 0,
+      paymentsCash: 0,
+      paymentsDiscount: 0,
       advanceApplied: 0,
       advanceCredit: 0,
       adjustments: 0,
@@ -2516,6 +2550,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     let saleReturns = 0;
     let netInvoiced = 0;
     let payments = 0;
+    let paymentsCash = 0;
+    let paymentsDiscount = 0;
     let advanceApplied = 0;
     let advanceCredit = 0;
     let adjustments = 0;
@@ -2533,7 +2569,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       } else if (t.type === 'return') {
         saleReturns += t.credit || 0;
       } else if (t.type === 'payment') {
-        payments += t.credit || 0;
+        const discount = t.paymentBreakdown?.settlementDiscount || 0;
+        const cash =
+          t.paymentBreakdown?.cashReceived != null
+            ? t.paymentBreakdown.cashReceived
+            : Math.max(0, (t.credit || 0) - discount);
+        paymentsCash += cash;
+        paymentsDiscount += discount;
+        payments += cash + discount;
       } else if (t.type === 'advance_application') {
         advanceApplied += t.appliedAmount || 0;
       } else if (t.type === 'advance') {
@@ -2551,6 +2594,8 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       saleReturns,
       netInvoiced,
       payments,
+      paymentsCash,
+      paymentsDiscount,
       advanceApplied,
       advanceCredit,
       adjustments,
@@ -2566,7 +2611,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       ? Number(transactions![transactions!.length - 1].balance || 0)
       : null;
     return {
-      cashPaid: hasTxn && reconciliation.payments > 0 ? reconciliation.payments : null,
+      cashPaid: hasTxn && reconciliation.paymentsCash > 0 ? reconciliation.paymentsCash : null,
       closingBalance: closingFromRows,
     };
   }, [selectedCustomer, isSchool, transactions, reconciliation]);
@@ -2828,6 +2873,12 @@ Please clear your dues at the earliest. Thank you!`;
         if (t.paymentBreakdown.method) {
           row['Payment Method'] = t.paymentBreakdown.method.toUpperCase();
         }
+        if (t.paymentBreakdown.cashReceived != null && t.paymentBreakdown.cashReceived > 0) {
+          row['Cash Received'] = t.paymentBreakdown.cashReceived.toFixed(2);
+        }
+        if (t.paymentBreakdown.settlementDiscount != null && t.paymentBreakdown.settlementDiscount > 0) {
+          row['Settlement Discount'] = t.paymentBreakdown.settlementDiscount.toFixed(2);
+        }
       }
 
       row.Balance = t.balance.toFixed(2);
@@ -2994,7 +3045,10 @@ Please clear your dues at the earliest. Thank you!`;
       ["(+) Total Invoiced", reconciliation.grossInvoiced],
       ["(-) Sale Returns", -reconciliation.saleReturns],
       ["(=) Net Invoiced", reconciliation.netInvoiced],
-      ["(-) Cash / UPI / Card Payments", -reconciliation.payments],
+      ["(-) Cash / UPI / Card Received", -reconciliation.paymentsCash],
+      ...(reconciliation.paymentsDiscount > 0
+        ? [["(-) Settlement Discount", -reconciliation.paymentsDiscount] as [string, number]]
+        : []),
     ];
     if (reconciliation.advanceCredit > 0) {
       reconLines.push(["(-) Advance Received", -reconciliation.advanceCredit]);
@@ -3826,6 +3880,21 @@ Please clear your dues at the earliest. Thank you!`;
                                         UPI: ₹{transaction.paymentBreakdown.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                                       </Badge>
                                     )}
+                                    {transaction.paymentBreakdown.cashReceived != null &&
+                                      transaction.paymentBreakdown.cashReceived > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                                        Received: ₹{transaction.paymentBreakdown.cashReceived.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                      </Badge>
+                                    )}
+                                    {transaction.paymentBreakdown.settlementDiscount != null &&
+                                      transaction.paymentBreakdown.settlementDiscount > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300">
+                                        Discount: ₹{transaction.paymentBreakdown.settlementDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                        {transaction.paymentBreakdown.discountReason
+                                          ? ` (${transaction.paymentBreakdown.discountReason})`
+                                          : ""}
+                                      </Badge>
+                                    )}
                                     {transaction.paymentBreakdown.method && (
                                       <Badge variant="outline" className="text-xs">
                                         {transaction.paymentBreakdown.method.toUpperCase()}
@@ -3854,12 +3923,22 @@ Please clear your dues at the earliest. Thank you!`;
                                 const dispCredit = transaction.displayCredit ?? transaction.credit;
                                 if (!dispCredit || dispCredit <= 0) return null;
                                 return (
-                                  <span className={cn(
-                                    "text-emerald-700 dark:text-emerald-300 font-semibold",
-                                    transaction.informational && "italic font-normal"
-                                  )}>
-                                    ₹{dispCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                  </span>
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <span className={cn(
+                                      "text-emerald-700 dark:text-emerald-300 font-semibold",
+                                      transaction.informational && "italic font-normal"
+                                    )}>
+                                      ₹{dispCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                    </span>
+                                    {transaction.type === "payment" &&
+                                      (transaction.paymentBreakdown?.settlementDiscount || 0) > 0 && (
+                                      <span className="text-[10px] text-muted-foreground tabular-nums">
+                                        Rec. ₹{(transaction.paymentBreakdown?.cashReceived ?? 0).toLocaleString("en-IN")}
+                                        {" · "}
+                                        Disc. ₹{transaction.paymentBreakdown!.settlementDiscount!.toLocaleString("en-IN")}
+                                      </span>
+                                    )}
+                                  </div>
                                 );
                               })()}
                               {transaction.type === 'advance_application' && transaction.credit === 0 && (transaction.appliedAmount || 0) > 0 && (
@@ -3920,7 +3999,8 @@ Please clear your dues at the earliest. Thank you!`;
                       const pendingReturns = ledgerRows
                         .filter((t) => t.type === 'return' && t.status === 'pending')
                         .reduce((sum, t) => sum + (t.amount || t.credit || 0), 0);
-                      const cashPaid = reconciliation.payments;
+                      const cashPaid = reconciliation.paymentsCash;
+                      const settlementDiscount = reconciliation.paymentsDiscount;
                       const advanceAdjusted = reconciliation.advanceApplied;
                       const advanceRefunded = Math.max(0, ledgerRows
                         .filter((t) => t.type === 'refund')
@@ -3950,9 +4030,15 @@ Please clear your dues at the earliest. Thank you!`;
                         <span className="font-semibold">₹{Math.round(reconciliation.grossInvoiced - confirmedReturns - pendingReturns).toLocaleString("en-IN")}</span>
                       </div>
                       <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
-                        <span>(−) Cash / UPI / Card Payments</span>
+                        <span>(−) Cash / UPI / Card Received</span>
                         <span className="font-medium">₹{Math.round(cashPaid).toLocaleString("en-IN")}</span>
                       </div>
+                      {settlementDiscount > 0 && (
+                        <div className="flex justify-between text-amber-700 dark:text-amber-400">
+                          <span>(−) Settlement Discount</span>
+                          <span className="font-medium">₹{Math.round(settlementDiscount).toLocaleString("en-IN")}</span>
+                        </div>
+                      )}
                       {advanceAdjusted > 0 && (
                         <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                           <span>(−) Advance Adjusted</span>
@@ -3989,16 +4075,26 @@ Please clear your dues at the earliest. Thank you!`;
 
               <TabsContent value="payments">
                 {/* Payment Summary Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
                   <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
-                      <div className="text-xs text-muted-foreground mb-1">Total Received</div>
+                      <div className="text-xs text-muted-foreground mb-1">Cash Received</div>
                       <div className="text-lg font-bold text-green-600 dark:text-green-400">
                         ₹{paymentSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
                       <div className="text-xs text-muted-foreground">{paymentSummary.count} payments</div>
                     </CardContent>
                   </Card>
+                  {paymentSummary.discount > 0 && (
+                    <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
+                      <CardContent className="p-3">
+                        <div className="text-xs text-muted-foreground mb-1">Settlement Discount</div>
+                        <div className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                          ₹{paymentSummary.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                   <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
                     <CardContent className="p-3">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
@@ -4050,13 +4146,15 @@ Please clear your dues at the earliest. Thank you!`;
                         <TableHead className={cn(accountsHistoryThClass, "text-right")}>Cash</TableHead>
                         <TableHead className={cn(accountsHistoryThClass, "text-right")}>Card</TableHead>
                         <TableHead className={cn(accountsHistoryThClass, "text-right")}>UPI</TableHead>
-                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Total Paid</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Received</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Discount</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Settlement</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {!paymentHistory || paymentHistory.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                             No payment history found
                           </TableCell>
                         </TableRow>
@@ -4103,8 +4201,16 @@ Please clear your dues at the earliest. Thank you!`;
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-bold text-green-600 dark:text-green-400">
+                            <TableCell className="text-right text-green-700 dark:text-green-400">
                               ₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right text-amber-700 dark:text-amber-400">
+                              {(payment.settlementDiscount || 0) > 0
+                                ? `₹${payment.settlementDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`
+                                : "—"}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-green-600 dark:text-green-400">
+                              ₹{(payment.totalSettlement ?? payment.amount).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </TableCell>
                           </TableRow>
                         ))
