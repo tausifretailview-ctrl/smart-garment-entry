@@ -112,11 +112,12 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
 
   const balanceDetail = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
   const {
-    outstandingDr: financialOutstanding,
     advanceAvailable: financialAdvance,
     cnAvailableTotal: financialCn,
     isLoading: financialLoading,
   } = useCustomerFinancialSnapshot(selectedId, currentOrganization?.id ?? null);
+  /** Same basis as Customer Ledger (computeCustomerBalanceCore); matches SQL snapshot after pending-return migration. */
+  const financialOutstanding = balanceDetail.balance;
 
   const openAuditPage = () => {
     if (!selectedId) return;
@@ -205,10 +206,14 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
                     <p className="text-sm text-muted-foreground p-3">No customers match your search.</p>
                   ) : (
                     filtered.map((c) => {
-                      const bal = getCustomerBalance(toBalanceCustomer(c, orgId));
+                      const snapshotBal = getCustomerBalance(toBalanceCustomer(c, orgId));
+                      const isSel = c.id === selectedId;
+                      const bal =
+                        isSel && selectedId && !balanceDetail.isLoading
+                          ? balanceDetail.balance
+                          : snapshotBal;
                       const adv = getCustomerAdvance(c.id);
                       const creditNote = getCustomerCreditNote(c.id);
-                      const isSel = c.id === selectedId;
                       return (
                         <button
                           key={c.id}

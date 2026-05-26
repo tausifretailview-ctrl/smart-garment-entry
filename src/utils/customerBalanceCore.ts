@@ -210,17 +210,25 @@ export function computePaidAmountDrift(
 }
 
 /**
- * Standalone pending sale returns (explicit component, not folded into RPC `reconcile_customer_balance`).
- * Sum of `sale_returns` where `credit_status` is `pending` — credit not yet absorbed into invoices.
+ * Pending sale-return credit toward lifetime outstanding (matches SQL `pending_sale_returns` line).
+ * Net of `sale_return_adjust` already counted on a linked invoice — avoids double-count vs ledger.
  */
 export function computePendingStandaloneSaleReturns(
   saleReturns: CustomerBalanceCoreSaleReturn[] | undefined,
+  sales?: CustomerBalanceCoreSale[],
 ): number {
   if (!saleReturns?.length) return 0;
+  const saleReturnAdjustById = new Map<string, number>();
+  for (const s of sales || []) {
+    if (s.id) saleReturnAdjustById.set(s.id, Number(s.sale_return_adjust || 0));
+  }
   return saleReturns.reduce((sum, sr) => {
     const status = normalizeStatus(sr.credit_status);
     if (status !== "pending") return sum;
-    return sum + (Number(sr.net_amount) || 0);
+    const net = Number(sr.net_amount) || 0;
+    const linked = String(sr.linked_sale_id || "").trim();
+    const linkedAdjust = linked ? saleReturnAdjustById.get(linked) || 0 : 0;
+    return sum + Math.max(0, net - linkedAdjust);
   }, 0);
 }
 
@@ -295,7 +303,10 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     adjustmentTotal;
 
   const paidAmountDrift = computePaidAmountDrift(validSales, params.voucherEntries);
-  const pendingStandaloneSaleReturns = computePendingStandaloneSaleReturns(params.saleReturns);
+  const pendingStandaloneSaleReturns = computePendingStandaloneSaleReturns(
+    params.saleReturns,
+    validSales,
+  );
 
   const balance = Math.round(
     auditFormulaOutstanding - paidAmountDrift - pendingStandaloneSaleReturns,
