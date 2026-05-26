@@ -8,7 +8,6 @@ import {
   fetchCustomerFinancialSnapshotMap,
   type CustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
-import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
 
 interface Customer {
   id: string;
@@ -187,19 +186,14 @@ export const useCustomerBalances = () => {
 
       const rows = await fetchAllCustomers(currentOrganization.id);
       const ids = rows.map((c: { id: string }) => c.id).filter(Boolean);
-      const lifetimeMap = await fetchCustomerLifetimeBalanceMap(currentOrganization.id);
       const snapshotMap = await fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids);
       const merged: Record<string, CustomerFinancialSnapshot> = {};
       for (const id of ids) {
-        const snap = snapshotMap.get(id) ?? {
+        merged[id] = snapshotMap.get(id) ?? {
           outstandingDr: 0,
           advanceAvailable: 0,
           cnAvailableTotal: 0,
           cnPendingCount: 0,
-        };
-        merged[id] = {
-          ...snap,
-          outstandingDr: lifetimeMap.get(id) ?? snap.outstandingDr,
         };
       }
       return merged;

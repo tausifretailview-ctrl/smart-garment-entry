@@ -259,9 +259,14 @@ export function CustomerPaymentTab({
           activeCustomerIds.has(c.id) || Math.abs(Number(c.opening_balance || 0)) > 0.01,
       );
 
-      const balanceMap = await fetchCustomerLifetimeBalanceMap(organizationId);
+      const candidateIds = candidates.map((c: { id: string }) => c.id);
+      const balanceMap = await fetchCustomerLifetimeBalanceMap(
+        organizationId,
+        supabase,
+        candidateIds,
+      );
 
-      return allCustomers
+      return candidates
         .map((c: any) => ({
           ...c,
           outstandingBalance: balanceMap.get(c.id) ?? 0,

@@ -31,9 +31,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
+import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import {
   computeCustomerOutstanding,
-  fetchCustomerLifetimeBalanceMap,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
@@ -726,11 +726,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         };
       });
 
-      const lifetimeMap = await fetchCustomerLifetimeBalanceMap(organizationId);
-      return customerTotals.map((row) => ({
-        ...row,
-        balance: lifetimeMap.get(row.id) ?? row.balance,
-      }));
+      return customerTotals;
     },
     enabled: !!organizationId,
     staleTime: STALE_REFERENCE,
@@ -738,10 +734,43 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     gcTime: 10 * 60 * 1000,
   });
 
+  /** SQL snapshot balances (batch RPC) — loaded after list so search is not blocked. */
+  const businessCustomerIds = useMemo(
+    () => (isSchool ? [] : (customers || []).map((c: { id: string }) => c.id).filter(Boolean)),
+    [customers, isSchool],
+  );
+
+  const { data: snapshotBalanceById } = useQuery({
+    queryKey: ["customer-ledger-snapshot-balances", organizationId, businessCustomerIds.length],
+    queryFn: async () => {
+      const map = await fetchCustomerFinancialSnapshotMap(organizationId!, businessCustomerIds);
+      const out: Record<string, number> = {};
+      map.forEach((snap, id) => {
+        out[id] = snap.outstandingDr;
+      });
+      return out;
+    },
+    enabled: !!organizationId && !isSchool && businessCustomerIds.length > 0,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const customersWithBalances = useMemo(() => {
+    if (!customers) return undefined;
+    if (isSchool || !snapshotBalanceById) return customers;
+    return customers.map((row: { id: string; balance: number }) => ({
+      ...row,
+      balance: snapshotBalanceById[row.id] ?? row.balance,
+    }));
+  }, [customers, snapshotBalanceById, isSchool]);
+
+  const customersForList = customersWithBalances ?? customers;
+
   // Auto-select customer when preSelectedCustomerId is provided and data is loaded
   useEffect(() => {
-    if (preSelectedCustomerId && customers && customers.length > 0 && !selectedCustomer) {
-      const found = customers.find(
+    if (preSelectedCustomerId && customersForList && customersForList.length > 0 && !selectedCustomer) {
+      const found = customersForList.find(
         (c: any) =>
           c.id === preSelectedCustomerId ||
           c.customerRecordId === preSelectedCustomerId ||
@@ -751,18 +780,18 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         setSelectedCustomer(found);
       }
     }
-  }, [preSelectedCustomerId, customers, selectedCustomer, isSchool]);
+  }, [preSelectedCustomerId, customersForList, selectedCustomer, isSchool]);
 
   // Keep detail header cards in sync when academic year (or list data) changes — opening/totalPaid/balance are year-scoped.
   useEffect(() => {
-    if (!selectedCustomer?.id || !customers?.length) return;
-    const fresh = customers.find((c: any) =>
+    if (!selectedCustomer?.id || !customersForList?.length) return;
+    const fresh = customersForList.find((c: any) =>
       selectedCustomer.studentId
         ? c.studentId === selectedCustomer.studentId
         : c.id === selectedCustomer.id
     );
     if (fresh) setSelectedCustomer(fresh);
-  }, [customers, selectedCustomer?.id, selectedCustomer?.studentId]);
+  }, [customersForList, selectedCustomer?.id, selectedCustomer?.studentId]);
 
   // Fetch detailed transactions for selected customer
   const { data: transactions, isPending: transactionsPending } = useQuery({
@@ -2374,9 +2403,9 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   // Filter customers based on search, payment status, and date range
   const filteredCustomers = useMemo(() => {
-    if (!customers) return [];
+    if (!customersForList) return [];
     
-    return customers.filter((customer) => {
+    return customersForList.filter((customer) => {
       // Search filter
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = (
@@ -2397,7 +2426,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
       return matchesSearch && matchesPaymentStatus;
     });
-  }, [customers, searchQuery, paymentStatusFilter]);
+  }, [customersForList, searchQuery, paymentStatusFilter]);
 
   // Reset page when filters change
   useEffect(() => {

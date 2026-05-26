@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
+import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -512,29 +513,26 @@ export async function fetchCustomerBalanceSnapshot(
 }
 
 /**
- * Lifetime outstanding Dr per customer — identical to `useCustomerBalance` / ledger detail.
+ * Lifetime outstanding Dr per customer — uses batch SQL snapshot RPC (fast pickers / lists).
+ * Pass `customerIds` to limit RPC work (e.g. payment tab candidates only).
  */
 export async function fetchCustomerLifetimeBalanceMap(
   organizationId: string,
   client: SupabaseClient = supabase,
+  customerIds?: string[],
 ): Promise<Map<string, number>> {
   const map = new Map<string, number>();
   if (!organizationId) return map;
 
-  const customersData = await fetchAllCustomers(organizationId);
-  const CHUNK = 10;
-  for (let i = 0; i < customersData.length; i += CHUNK) {
-    const chunk = customersData.slice(i, i + CHUNK);
-    await Promise.all(
-      chunk.map(async (c: { id: string }) => {
-        try {
-          const snap = await fetchCustomerBalanceSnapshot(client, organizationId, c.id);
-          map.set(c.id, snap.balance);
-        } catch {
-          map.set(c.id, 0);
-        }
-      }),
-    );
+  const ids =
+    customerIds?.filter(Boolean) ??
+    (await fetchAllCustomers(organizationId)).map((c: { id: string }) => c.id).filter(Boolean);
+
+  if (ids.length === 0) return map;
+
+  const snapshotMap = await fetchCustomerFinancialSnapshotMap(organizationId, ids, client);
+  for (const id of ids) {
+    map.set(id, snapshotMap.get(id)?.outstandingDr ?? 0);
   }
   return map;
 }
