@@ -5541,6 +5541,7 @@ export type Database = {
           backup_email?: string | null
           backup_retention_days?: number | null
           bill_barcode_settings?: Json | null
+          books_closed_before_date?: string | null
           business_name?: string | null
           created_at?: string | null
           dashboard_settings?: Json | null
@@ -5564,6 +5565,7 @@ export type Database = {
           backup_email?: string | null
           backup_retention_days?: number | null
           bill_barcode_settings?: Json | null
+          books_closed_before_date?: string | null
           business_name?: string | null
           created_at?: string | null
           dashboard_settings?: Json | null
