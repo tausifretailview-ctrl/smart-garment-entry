@@ -224,6 +224,13 @@ export type Database = {
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
           },
+          {
+            foreignKeyName: "advance_refunds_voucher_entry_id_fkey"
+            columns: ["voucher_entry_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_entries"
+            referencedColumns: ["id"]
+          },
         ]
       }
       app_error_logs: {
@@ -7520,6 +7527,20 @@ export type Database = {
           p_net_amount: number
         }
         Returns: number
+      }
+      _is_cn_refund_payment_voucher: {
+        Args: {
+          p_description: string
+          p_payment_method: string
+          p_reference_type: string
+          p_voucher_number: string
+          p_voucher_type: string
+        }
+        Returns: boolean
+      }
+      _voucher_financial_year_label: {
+        Args: { p_date: string }
+        Returns: string
       }
       adjust_invoice_balance: {
         Args: {
