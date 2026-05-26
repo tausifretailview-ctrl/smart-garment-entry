@@ -187,10 +187,8 @@ export const useCustomerBalances = () => {
 
       const rows = await fetchAllCustomers(currentOrganization.id);
       const ids = rows.map((c: { id: string }) => c.id).filter(Boolean);
-      const [snapshotMap, lifetimeMap] = await Promise.all([
-        fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids),
-        fetchCustomerLifetimeBalanceMap(currentOrganization.id),
-      ]);
+      const lifetimeMap = await fetchCustomerLifetimeBalanceMap(currentOrganization.id);
+      const snapshotMap = await fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids);
       const merged: Record<string, CustomerFinancialSnapshot> = {};
       for (const id of ids) {
         const snap = snapshotMap.get(id) ?? {

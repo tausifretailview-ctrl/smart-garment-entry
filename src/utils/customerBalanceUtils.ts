@@ -1,12 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
-import {
-  buildOrgCustomerBalanceBatch,
-  computeCustomerBalanceCore,
-  warnCustomerBalanceMismatch,
-} from "@/utils/customerBalanceCore";
+import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -516,8 +512,7 @@ export async function fetchCustomerBalanceSnapshot(
 }
 
 /**
- * Lifetime outstanding Dr per customer — same math as Customer Ledger list / useCustomerBalance.
- * Prefer over SQL snapshot when CN is applied on invoices but SR rows stay `pending`.
+ * Lifetime outstanding Dr per customer — identical to `useCustomerBalance` / ledger detail.
  */
 export async function fetchCustomerLifetimeBalanceMap(
   organizationId: string,
@@ -526,184 +521,20 @@ export async function fetchCustomerLifetimeBalanceMap(
   const map = new Map<string, number>();
   if (!organizationId) return map;
 
-  const [customersData, salesData] = await Promise.all([
-    fetchAllCustomers(organizationId),
-    fetchAllSalesSummary(organizationId),
-  ]);
-
-  const customerIds = new Set(customersData.map((c: { id: string }) => c.id));
-
-  const { data: allVouchers } = await client
-    .from("voucher_entries")
-    .select(
-      "reference_id, reference_type, total_amount, discount_amount, voucher_type, description, payment_method",
-    )
-    .eq("organization_id", organizationId)
-    .in("voucher_type", ["receipt", "payment"])
-    .is("deleted_at", null);
-
-  const { data: allAdjustments } = await client
-    .from("customer_balance_adjustments")
-    .select("customer_id, outstanding_difference")
-    .eq("organization_id", organizationId);
-
-  const { data: allAdvances } = await client
-    .from("customer_advances")
-    .select("id, customer_id, amount, used_amount")
-    .eq("organization_id", organizationId)
-    .in("status", ["active", "partially_used"]);
-
-  const { data: allSaleReturns } = await client
-    .from("sale_returns")
-    .select("customer_id, net_amount, credit_status, linked_sale_id")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  const advanceIds = (allAdvances || []).map((a: { id: string }) => a.id);
-  const advanceRefundsByCustomer = new Map<string, number>();
-  if (advanceIds.length > 0) {
-    const { data: advRefunds } = await client
-      .from("advance_refunds")
-      .select("advance_id, refund_amount")
-      .in("advance_id", advanceIds);
-    const advToCustomer = new Map(
-      (allAdvances || []).map((a: { id: string; customer_id: string }) => [a.id, a.customer_id]),
-    );
-    (advRefunds || []).forEach((r: { advance_id: string; refund_amount: number }) => {
-      const cid = advToCustomer.get(r.advance_id);
-      if (cid) {
-        advanceRefundsByCustomer.set(
-          cid,
-          (advanceRefundsByCustomer.get(cid) || 0) + Number(r.refund_amount || 0),
-        );
-      }
-    });
-  }
-
-  const { data: refundVouchers } = await client
-    .from("voucher_entries")
-    .select("reference_id, total_amount, description, payment_method")
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "payment")
-    .eq("reference_type", "customer")
-    .is("deleted_at", null);
-
-  const refundsPaidByCustomer = new Map<string, number>();
-  (refundVouchers || []).forEach((v: {
-    reference_id: string;
-    total_amount: number;
-    description?: string;
-    payment_method?: string;
-  }) => {
-    if (!v.reference_id) return;
-    const desc = (v.description || "").toLowerCase();
-    if (
-      desc.includes("refund paid for pos exchange") ||
-      desc.includes("round off adjustment for pos exchange") ||
-      v.payment_method === "round_off"
-    ) {
-      return;
-    }
-    refundsPaidByCustomer.set(
-      v.reference_id,
-      (refundsPaidByCustomer.get(v.reference_id) || 0) + Number(v.total_amount || 0),
-    );
-  });
-
-  const saleIdToCustomer = new Map<string, string>();
-  for (const s of salesData) {
-    if (s.customer_id) saleIdToCustomer.set(s.id, s.customer_id);
-  }
-
-  const batch = buildOrgCustomerBalanceBatch({
-    sales: salesData
-      .filter((s: { customer_id?: string }) => s.customer_id && customerIds.has(s.customer_id))
-      .map((s: {
-        id: string;
-        customer_id: string;
-        net_amount: number;
-        paid_amount: number;
-        cash_amount: number;
-        card_amount: number;
-        upi_amount: number;
-        sale_return_adjust: number;
-        payment_status: string;
-      }) => ({
-        id: s.id,
-        customer_id: s.customer_id,
-        net_amount: s.net_amount,
-        paid_amount: s.paid_amount,
-        cash_amount: s.cash_amount,
-        card_amount: s.card_amount,
-        upi_amount: s.upi_amount,
-        sale_return_adjust: s.sale_return_adjust,
-        payment_status: s.payment_status,
-      })),
-    vouchers: (allVouchers || [])
-      .filter((v: { voucher_type: string }) => v.voucher_type === "receipt")
-      .map((v: {
-        reference_id: string;
-        reference_type: string;
-        total_amount: number;
-        discount_amount: number;
-        payment_method: string;
-        description: string;
-      }) => ({
-        voucher_type: "receipt",
-        reference_type: v.reference_type,
-        reference_id: v.reference_id,
-        total_amount: v.total_amount,
-        discount_amount: v.discount_amount,
-        payment_method: v.payment_method,
-        description: v.description,
-      })),
-    advances: (allAdvances || []).map((a: { customer_id: string; amount: number; used_amount: number }) => ({
-      customer_id: a.customer_id,
-      amount: a.amount,
-      used_amount: a.used_amount,
-    })),
-    refunds: [...advanceRefundsByCustomer.entries()].map(([customer_id, refund_amount]) => ({
-      customer_id,
-      refund_amount,
-    })),
-    adjustments: (allAdjustments || []).map(
-      (a: { customer_id: string; outstanding_difference: number }) => ({
-        customer_id: a.customer_id,
-        outstanding_difference: a.outstanding_difference,
+  const customersData = await fetchAllCustomers(organizationId);
+  const CHUNK = 10;
+  for (let i = 0; i < customersData.length; i += CHUNK) {
+    const chunk = customersData.slice(i, i + CHUNK);
+    await Promise.all(
+      chunk.map(async (c: { id: string }) => {
+        try {
+          const snap = await fetchCustomerBalanceSnapshot(client, organizationId, c.id);
+          map.set(c.id, snap.balance);
+        } catch {
+          map.set(c.id, 0);
+        }
       }),
-    ),
-    saleReturns: (allSaleReturns || []).map(
-      (sr: {
-        customer_id: string;
-        net_amount: number;
-        credit_status: string;
-        linked_sale_id: string | null;
-      }) => ({
-        customer_id: sr.customer_id,
-        net_amount: sr.net_amount,
-        credit_status: sr.credit_status,
-        linked_sale_id: sr.linked_sale_id,
-      }),
-    ),
-    customerIds,
-  });
-
-  for (const customer of customersData) {
-    const cid = customer.id;
-    const core = computeCustomerBalanceCore({
-      openingBalance: Number(customer.opening_balance || 0),
-      customerId: cid,
-      sales: batch.salesByCustomerId.get(cid) || [],
-      voucherEntries: batch.vouchersByCustomerId.get(cid) || [],
-      customerAdvances: batch.advancesByCustomerId.get(cid) || [],
-      advanceRefunds: batch.refundsByCustomerId.get(cid) || [],
-      adjustmentTotal: batch.adjustmentsByCustomerId.get(cid) || 0,
-      saleReturns: batch.saleReturnsByCustomerId.get(cid) || [],
-      additionalCustomerPaymentDebits: refundsPaidByCustomer.get(cid) || 0,
-      options: { ledgerAlignedApplicationReceipts: true },
-    });
-    map.set(cid, core.balance);
+    );
   }
-
   return map;
 }

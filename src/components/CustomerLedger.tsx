@@ -33,6 +33,7 @@ import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
   computeCustomerOutstanding,
+  fetchCustomerLifetimeBalanceMap,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
@@ -719,7 +720,11 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
         };
       });
 
-      return customerTotals;
+      const lifetimeMap = await fetchCustomerLifetimeBalanceMap(organizationId);
+      return customerTotals.map((row) => ({
+        ...row,
+        balance: lifetimeMap.get(row.id) ?? row.balance,
+      }));
     },
     enabled: !!organizationId,
     staleTime: STALE_REFERENCE,
@@ -3502,18 +3507,18 @@ Please clear your dues at the earliest. Thank you!`;
                 {snapshotOutstandingDr != null &&
                   !isSchool &&
                   (() => {
-                    const appBalance =
+                    const ledgerBalance =
                       ledgerDerivedStats?.closingBalance ?? authoritativeBalance;
-                    return Math.abs(appBalance - snapshotOutstandingDr) > 1;
+                    return Math.abs(ledgerBalance - snapshotOutstandingDr) > 1;
                   })() && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-2 text-left max-w-[240px] ml-auto">
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 text-left max-w-[260px] ml-auto">
                       <span className="inline-flex items-start gap-1 font-medium">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        Balance mismatch: financial snapshot ₹
+                        SQL snapshot ₹
                         {Math.abs(snapshotOutstandingDr).toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
                         })}{" "}
-                        {snapshotOutstandingDr >= 0 ? "Dr" : "Cr"} vs ledger ₹
+                        {snapshotOutstandingDr >= 0 ? "Dr" : "Cr"} — ledger uses ₹
                         {Math.abs(
                           ledgerDerivedStats?.closingBalance ?? authoritativeBalance,
                         ).toLocaleString("en-IN", {
@@ -3522,11 +3527,9 @@ Please clear your dues at the earliest. Thank you!`;
                         {(ledgerDerivedStats?.closingBalance ?? authoritativeBalance) >= 0
                           ? "Dr"
                           : "Cr"}
-                        .
-                      </span>
-                      <span className="block text-[10px] text-muted-foreground font-normal mt-1">
-                        Run balance reconciliation in Supabase after deploy if this persists; pay-at-sale
-                        Cash/UPI must match receipt totals below.
+                        . Apply migration{" "}
+                        <code className="text-[10px]">20260627120000_fix_pending_sr_sra_pool</code>{" "}
+                        if this persists.
                       </span>
                     </p>
                   )}
