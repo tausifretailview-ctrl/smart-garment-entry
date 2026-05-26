@@ -126,14 +126,14 @@ export function buildAuditRows(
     const net = Number(s.net_amount || 0);
     const sn = String(s.sale_number || "").trim() || "—";
     const sra = Number(s.sale_return_adjust || 0);
-    // Match Customer Ledger: invoice debit = post-adjust net (actual bill), not gross net+sra.
+    const receivable = Math.max(0, net - sra);
     rows.push({
       id: `sale-${s.id}`,
       at: d,
       type: "Sale",
       ref: sn,
       particulars: `Invoice ${sn}`,
-      debit: net,
+      debit: receivable,
       credit: 0,
       internal: false,
     });
@@ -177,9 +177,17 @@ export function buildAuditRows(
   for (const sr of params.saleReturns) {
     const cs = String(sr.credit_status || "").toLowerCase();
     const linked = String((sr as { linked_sale_id?: string | null }).linked_sale_id || "").trim();
-    // Absorbed into an invoice via `sales.sale_return_adjust` / POS — omit duplicate SR credit.
+    const srNet = Number(sr.net_amount || 0);
+    const linkedSale = linked
+      ? params.sales.find((s) => String((s as { id: string }).id) === linked)
+      : undefined;
+    const absorbedOnInvoice = linkedSale
+      ? Math.min(srNet, Number(linkedSale.sale_return_adjust || 0))
+      : 0;
+    // Absorbed into an invoice via `sales.sale_return_adjust` — omit duplicate SR credit.
     // `adjusted` with no `linked_sale_id`: CN generated but not tied to a sale — must still show credit.
     if (cs === "adjusted" && linked) continue;
+    if (linked && absorbedOnInvoice >= srNet - 0.005) continue;
     const d = String(sr.return_date || "").slice(0, 10);
     const rn = String(sr.return_number || "").trim() || "—";
     const baseParticulars =
