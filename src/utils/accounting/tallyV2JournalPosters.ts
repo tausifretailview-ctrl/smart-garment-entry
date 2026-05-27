@@ -282,11 +282,10 @@ export async function buildSaleReturnJournalV2(
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const returnsAccount = getAccountByCode(systemAccounts, "4050");
-  const salesRevenue = getAccountByCode(systemAccounts, "4000");
   const stock = getAccountByCode(systemAccounts, "1300");
   const cogs = getAccountByCode(systemAccounts, "5000");
-  if (!returnsAccount || !salesRevenue || !stock || !cogs) {
-    throw new Error("Missing chart accounts for sale return (4050/4000/1300/5000)");
+  if (!returnsAccount || !stock || !cogs) {
+    throw new Error("Missing chart accounts for sale return (4050/1300/5000)");
   }
 
   const party = customerParty(sr);
@@ -301,12 +300,16 @@ export async function buildSaleReturnJournalV2(
   const creditAccount = resolveReturnSettlementAccount(systemAccounts, effectivePm, "credit_customer");
 
   const lines: PostJournalLineInput[] = [];
-  const revenueReverse = round2(Math.max(0, gst.taxableAmount));
-  if (revenueReverse > 0) {
-    pushLine(lines, salesRevenue.id, revenueReverse, 0, party);
-    pushLine(lines, returnsAccount.id, 0, revenueReverse, party);
+  const taxableReverse = round2(Math.max(0, gst.taxableAmount));
+  if (taxableReverse > 0) {
+    pushLine(lines, returnsAccount.id, taxableReverse, 0, party);
   }
   appendOutputGstDebits(lines, systemAccounts, gst, party);
+  const coveredByReturnsAndGst = round2(taxableReverse + gst.totalGst);
+  const returnsRemainder = round2(Math.max(0, net - coveredByReturnsAndGst));
+  if (returnsRemainder > 0.01) {
+    pushLine(lines, returnsAccount.id, returnsRemainder, 0, party);
+  }
   pushLine(lines, creditAccount.id, 0, net, party);
 
   const cogsAmount = await fetchSaleReturnCogsAmount(saleReturnId, client);
