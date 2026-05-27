@@ -2,8 +2,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initNativeShell } from "@/hooks/useNativeApp";
+import { initForceDesktopViewPreference } from "@/lib/desktopViewPreference";
 import "./index.css";
 
+initForceDesktopViewPreference();
 void initNativeShell();
 
 // Capture PWA install prompt BEFORE React mounts (event fires once, early)

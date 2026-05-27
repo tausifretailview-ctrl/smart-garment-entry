@@ -22,6 +22,8 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
+import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 
 interface LayoutProps {
   children: ReactNode;
@@ -35,6 +37,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
   const { organizationRole } = useOrganization();
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
+  const showDesktopChrome = useShowDesktopChrome();
 
   useEffect(() => {
     initUIScale();
@@ -86,22 +89,33 @@ export const Layout = ({ children }: LayoutProps) => {
             <OfflineIndicator />
 
             <div className="flex min-h-screen w-full bg-background">
-              <div className="hidden lg:block shrink-0">
-                <AppSidebar />
-              </div>
+              {showDesktopChrome && (
+                <div className="shrink-0">
+                  <AppSidebar />
+                </div>
+              )}
               <SidebarInset className="flex flex-col flex-1 min-w-0">
                 {!isSalesInvoicePage && (
                   <>
-                    <div className="hidden lg:block">
-                      <Header />
-                      <WindowTabsBar />
-                    </div>
-                    <MobileAppHeader />
+                    {showDesktopChrome && (
+                      <>
+                        <Header />
+                        <WindowTabsBar />
+                        <div className="px-3 pt-2 lg:hidden">
+                          <DesktopViewToggle variant="banner" />
+                        </div>
+                      </>
+                    )}
+                    {!showDesktopChrome && <MobileAppHeader />}
                   </>
                 )}
                 <main
                   className={
-                    isSalesInvoicePage ? mobileFullscreenMainClass : mobileMainContentClass
+                    isSalesInvoicePage
+                      ? mobileFullscreenMainClass
+                      : showDesktopChrome
+                        ? "flex-1 overflow-auto relative z-[1] min-w-0 p-3 sm:p-4 pb-14 animate-fade-in"
+                        : mobileMainContentClass
                   }
                 >
                   {children}
@@ -109,7 +123,7 @@ export const Layout = ({ children }: LayoutProps) => {
               </SidebarInset>
             </div>
 
-            <OwnerBottomNav />
+            {!showDesktopChrome && <OwnerBottomNav />}
             <PwaInstallBanner />
 
             <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />

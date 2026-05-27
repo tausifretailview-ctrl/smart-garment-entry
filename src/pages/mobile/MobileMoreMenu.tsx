@@ -24,6 +24,7 @@ import { invalidateActiveHubQueries } from "@/lib/mobileHubRefresh";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 
 interface MenuItem {
   icon: React.ElementType;
@@ -114,6 +115,10 @@ export default function MobileMoreMenu() {
 
       {/* Menu Sections — icon grid */}
       <div className="px-4 py-4 space-y-6">
+        <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden">
+          <DesktopViewToggle variant="menu-row" />
+        </div>
+
         {menuSections.map((section) => (
           <div key={section.title}>
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 px-1">
