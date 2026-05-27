@@ -2233,7 +2233,7 @@ const POSDashboard = () => {
                 />
               </div>
               <div className="flex-1 min-w-[88px]">
-              <Select value={periodFilter} onValueChange={handlePeriodChange} className="w-full">
+              <Select value={periodFilter} onValueChange={handlePeriodChange}>
                 <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
@@ -2315,7 +2315,7 @@ const POSDashboard = () => {
                   </div>
                 ))}
               <div className="flex-1 min-w-[88px]">
-              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter} className="w-full">
+              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
                 <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Method" />
                 </SelectTrigger>
@@ -2362,7 +2362,7 @@ const POSDashboard = () => {
               </Popover>
               </div>
               <div className="flex-1 min-w-[88px]">
-              <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter} className="w-full">
+              <Select value={saleTypeFilter} onValueChange={setSaleTypeFilter}>
                 <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Bills" />
                 </SelectTrigger>
@@ -2375,7 +2375,7 @@ const POSDashboard = () => {
               </Select>
               </div>
               <div className="flex-1 min-w-[88px]">
-              <Select value={cancelFilter} onValueChange={setCancelFilter} className="w-full">
+              <Select value={cancelFilter} onValueChange={setCancelFilter}>
                 <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white" title="Cancellation status filter">
                   <SelectValue placeholder="Active" />
                 </SelectTrigger>
@@ -2387,7 +2387,7 @@ const POSDashboard = () => {
               </Select>
               </div>
               <div className="flex-1 min-w-[88px]">
-              <Select value={userFilter} onValueChange={setUserFilter} className="w-full">
+              <Select value={userFilter} onValueChange={setUserFilter}>
                 <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Users" />
                 </SelectTrigger>
