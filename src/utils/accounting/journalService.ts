@@ -380,12 +380,14 @@ export async function recordCustomerReceiptJournalEntry(
 }
 
 /**
- * Supplier payment (voucher_entries.id): DR Accounts Payable, CR Cash/Bank.
+ * Supplier payment (voucher_entries.id): DR Accounts Payable (settlement), CR Cash/Bank + CR discount received.
+ * `cashAmount` = voucher `total_amount`; `discountAmount` = settlement discount from supplier.
  */
 export async function recordSupplierPaymentJournalEntry(
   voucherEntryId: string,
   organizationId: string,
-  amount: number,
+  cashAmount: number,
+  discountAmount: number,
   paymentMethod: string,
   entryDate: string,
   description: string,
@@ -394,22 +396,30 @@ export async function recordSupplierPaymentJournalEntry(
   if (!voucherEntryId) throw new Error("voucherEntryId is required");
   if (!organizationId) throw new Error("organizationId is required");
 
-  const net = round2(amount);
-  if (net <= 0) return null;
+  const cash = round2(cashAmount);
+  const disc = round2(Math.max(0, discountAmount));
+  const settlement = round2(cash + disc);
+  if (settlement <= 0) return null;
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const apAccount = getAccountByCode(systemAccounts, "2000");
+  const discountReceived = getAccountByCode(systemAccounts, "6070");
 
-  if (!apAccount) {
-    throw new Error("Missing chart accounts for supplier payment (Accounts Payable)");
+  if (!apAccount || !discountReceived) {
+    throw new Error("Missing chart accounts for supplier payment (AP 2000 / Settlement Discounts Received 6070)");
   }
 
   const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
 
   const lines: PostJournalLineInput[] = [
-    { accountId: apAccount.id, debitAmount: net, creditAmount: 0 },
-    { accountId: paymentAccount.id, debitAmount: 0, creditAmount: net },
+    { accountId: apAccount.id, debitAmount: settlement, creditAmount: 0 },
   ];
+  if (cash > 0) {
+    lines.push({ accountId: paymentAccount.id, debitAmount: 0, creditAmount: cash });
+  }
+  if (disc > 0) {
+    lines.push({ accountId: discountReceived.id, debitAmount: 0, creditAmount: disc });
+  }
 
   const desc = description.trim() || `Supplier payment ${voucherEntryId.slice(0, 8)}`;
   const result = await postJournalEntry({
@@ -666,7 +676,7 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
   }
 
   if (vt === "payment" && rt === "supplier") {
-    await recordSupplierPaymentJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client);
+    await recordSupplierPaymentJournalEntry(voucherId, orgId, amt, disc, pm || "cash", vDate, desc, client);
     return;
   }
 

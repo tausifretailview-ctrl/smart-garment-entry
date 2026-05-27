@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Printer, Check, ChevronsUpDown, X, AlertCircle, Pencil, Trash2, ChevronLeft, ChevronRight, Link2 } from "lucide-react";
+import { CalendarIcon, Plus, Printer, Check, ChevronsUpDown, X, AlertCircle, Pencil, Trash2, ChevronLeft, ChevronRight, Link2, TrendingDown } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -37,6 +38,12 @@ import {
 } from "@/utils/supplierBillOutstanding";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import {
+  resolvePaymentBreakdown,
+  roundToRupee,
+  SETTLEMENT_TOLERANCE_RUPEE,
+  voucherSettlementCredit,
+} from "@/utils/paymentSettlementBreakdown";
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
@@ -66,6 +73,9 @@ export function SupplierPaymentTab({
   const [selectedSupplierBillIds, setSelectedSupplierBillIds] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
@@ -130,7 +140,7 @@ export function SupplierPaymentTab({
       if (billIds.length > 0) {
         const { data: paymentRows, error: paymentError } = await supabase
           .from("voucher_entries")
-          .select("reference_id, total_amount")
+          .select("reference_id, total_amount, discount_amount")
           .eq("organization_id", organizationId)
           .eq("reference_type", "supplier")
           .eq("voucher_type", "payment")
@@ -142,7 +152,7 @@ export function SupplierPaymentTab({
           if (!row.reference_id) return;
           voucherPaidByBill.set(
             row.reference_id,
-            (voucherPaidByBill.get(row.reference_id) || 0) + Number(row.total_amount || 0)
+            (voucherPaidByBill.get(row.reference_id) || 0) + voucherSettlementCredit(row)
           );
         });
       }
@@ -257,12 +267,20 @@ export function SupplierPaymentTab({
         0,
       );
 
-  // Auto-fill amount
+  // Auto-fill settlement amount when bills are selected
   useEffect(() => {
     if (selectedSupplierBillIds.length > 0 && supplierBills) {
       setAmount(getSelectedPayableTotal().toFixed(2));
     }
   }, [selectedSupplierBillIds, supplierBills, billOutstandingMap]);
+
+  useEffect(() => {
+    const pct = Number(discountPercent);
+    if (!Number.isFinite(pct) || pct <= 0 || !amount) return;
+    const settlement = roundToRupee(amount);
+    if (settlement <= 0) return;
+    setDiscountAmount(roundToRupee((settlement * Math.min(100, pct)) / 100).toFixed(2));
+  }, [amount, discountPercent]);
 
   const resetForm = () => {
     setVoucherDate(new Date());
@@ -270,6 +288,9 @@ export function SupplierPaymentTab({
     setSelectedSupplierBillIds([]);
     setDescription("");
     setAmount("");
+    setDiscountPercent("");
+    setDiscountAmount("");
+    setDiscountReason("");
     setPaymentMethod("cash");
     setChequeNumber("");
     setChequeDate(undefined);
@@ -293,7 +314,11 @@ export function SupplierPaymentTab({
       );
 
       if (!referenceId) throw new Error("Please select a supplier to record payment");
-      if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
+      const breakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
+      if (breakdown.settlement <= 0) throw new Error("Please enter a valid settlement amount");
+      if (breakdown.discount > 0 && !discountReason.trim()) {
+        throw new Error("Please enter a discount reason");
+      }
       if (
         lifetimePayable <= SUPPLIER_MIN_PENDING_RUPEE &&
         listedBillPendingTotal < SUPPLIER_MIN_PENDING_RUPEE &&
@@ -306,18 +331,42 @@ export function SupplierPaymentTab({
         if (selectedPayable <= SUPPLIER_MIN_PENDING_RUPEE) {
           throw new Error("Selected bills are fully covered by credit notes — no cash payment needed");
         }
-        if ((parseFloat(amount) || 0) > selectedPayable + 0.01) {
-          throw new Error(`Amount cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
+        if (breakdown.settlement > roundToRupee(selectedPayable) + SETTLEMENT_TOLERANCE_RUPEE) {
+          throw new Error(`Settlement cannot exceed selected pending total of ₹${selectedPayable.toFixed(2)}`);
         }
       }
-      const paymentAmount = parseFloat(amount);
-      let remainingAmount = paymentAmount;
-      const processedBills: any[] = [];
+      const paymentAmount = breakdown.cash;
+      const discountValue = breakdown.discount;
+      if (paymentAmount <= 0 && discountValue <= 0) {
+        throw new Error("Cash payment or discount must be greater than zero");
+      }
+
+      let remainingCash = paymentAmount;
+      let remainingDiscount = discountValue;
+      const takeFromPool = (target: number) => {
+        const t = roundToRupee(target);
+        if (t <= 0) return { cash: 0, discount: 0 };
+        let c = Math.min(remainingCash, t);
+        let d = roundToRupee(t - c);
+        if (d > remainingDiscount) d = remainingDiscount;
+        c = roundToRupee(t - d);
+        remainingCash = roundToRupee(remainingCash - c);
+        remainingDiscount = roundToRupee(remainingDiscount - d);
+        return { cash: c, discount: d };
+      };
+
+      const processedBills: Array<{
+        bill: any;
+        cashApplied: number;
+        discountApplied: number;
+        prevPaid: number;
+        prevStatus: string;
+      }> = [];
 
       if (selectedSupplierBillIds.length > 0) {
         for (const billId of selectedSupplierBillIds) {
-          if (remainingAmount <= 0) break;
-          const bill = supplierBills?.find(b => b.id === billId);
+          if (remainingCash + remainingDiscount <= 0) break;
+          const bill = supplierBills?.find((b) => b.id === billId);
           if (!bill) continue;
           const currentPaid = bill.paid_amount || 0;
           const prevPaid = Number(currentPaid);
@@ -325,14 +374,28 @@ export function SupplierPaymentTab({
           const netDue =
             billOutstandingMap.get(billId)?.netPayable ??
             Math.max(0, Number(bill.net_amount || 0) - Number(currentPaid));
-          const amountToApply = Math.min(remainingAmount, netDue);
-          if (amountToApply <= 0) continue;
-          const newPaidAmount = Math.min(Number(bill.net_amount || 0), currentPaid + amountToApply);
-          const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
-          const { error: updateError } = await supabase.from('purchase_bills').update({ paid_amount: newPaidAmount, payment_status: newStatus }).eq('id', billId);
+          const pool = remainingCash + remainingDiscount;
+          if (pool <= 0 || netDue <= 0) continue;
+          const amountToApply = Math.min(pool, netDue);
+          const { cash: cashApplied, discount: discountApplied } = takeFromPool(amountToApply);
+          const settledOnBill = roundToRupee(cashApplied + discountApplied);
+          if (settledOnBill <= 0) continue;
+          const newPaidAmount = Math.min(
+            Number(bill.net_amount || 0),
+            roundToRupee(Number(currentPaid) + settledOnBill),
+          );
+          const newStatus =
+            newPaidAmount >= Number(bill.net_amount || 0) - 0.01
+              ? "paid"
+              : newPaidAmount > 0
+                ? "partial"
+                : "unpaid";
+          const { error: updateError } = await supabase
+            .from("purchase_bills")
+            .update({ paid_amount: newPaidAmount, payment_status: newStatus })
+            .eq("id", billId);
           if (updateError) throw updateError;
-          processedBills.push({ bill, amountApplied: amountToApply, prevPaid, prevStatus });
-          remainingAmount -= amountToApply;
+          processedBills.push({ bill, cashApplied, discountApplied, prevPaid, prevStatus });
         }
       }
 
@@ -348,13 +411,22 @@ export function SupplierPaymentTab({
         paymentDetails = ` | Transaction ID: ${transactionId}`;
       }
 
+      const discountSuffix =
+        discountValue > 0
+          ? ` | Discount: ₹${discountValue.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+          : "";
+
       const isOpeningBalancePayment = selectedSupplierBillIds.length === 0;
       let finalDescription: string;
       if (isOpeningBalancePayment) {
-        const supplierName = suppliersWithBalance?.find(s => s.id === referenceId)?.supplier_name || 'Supplier';
-        finalDescription = description ? `${description}${paymentDetails}` : `Opening Balance Payment to ${supplierName}${paymentDetails}`;
+        const supplierName = suppliersWithBalance?.find((s) => s.id === referenceId)?.supplier_name || "Supplier";
+        finalDescription = description
+          ? `${description}${paymentDetails}`
+          : `Opening Balance Payment to ${supplierName}${paymentDetails}`;
       } else {
-        finalDescription = description ? `${description}${paymentDetails}` : `Payment for Bills: ${billNumbers}${paymentDetails}`;
+        finalDescription = description
+          ? `${description}${paymentDetails}`
+          : `Payment for Bills: ${billNumbers}${paymentDetails}`;
       }
 
       const createdSupplierVoucherIds: string[] = [];
@@ -363,9 +435,18 @@ export function SupplierPaymentTab({
         for (let i = 0; i < processedBills.length; i++) {
           const processed = processedBills[i];
           const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
-          const billRef = processed.bill.supplier_invoice_no || processed.bill.software_bill_no || processed.bill.id.slice(0, 8);
+          const billRef =
+            processed.bill.supplier_invoice_no ||
+            processed.bill.software_bill_no ||
+            processed.bill.id.slice(0, 8);
+          const billDiscountSuffix =
+            processed.discountApplied > 0
+              ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+              : "";
           const baseDescription = `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`;
-          const voucherDescription = description ? `${description} | ${baseDescription}` : baseDescription;
+          const voucherDescription = description
+            ? `${description} | ${baseDescription}${billDiscountSuffix}`
+            : `${baseDescription}${billDiscountSuffix}`;
           const { data: ins, error: voucherError } = await supabase
             .from("voucher_entries")
             .insert({
@@ -376,7 +457,9 @@ export function SupplierPaymentTab({
               reference_type: "supplier",
               reference_id: processed.bill.id,
               description: voucherDescription,
-              total_amount: processed.amountApplied,
+              total_amount: processed.cashApplied,
+              discount_amount: processed.discountApplied,
+              discount_reason: processed.discountApplied > 0 ? discountReason.trim() || null : null,
               payment_method: paymentMethod,
             })
             .select("id")
@@ -389,7 +472,8 @@ export function SupplierPaymentTab({
               await recordSupplierPaymentJournalEntry(
                 ins.id,
                 organizationId,
-                processed.amountApplied,
+                processed.cashApplied,
+                processed.discountApplied,
                 paymentMethod,
                 format(voucherDate, "yyyy-MM-dd"),
                 voucherDescription,
@@ -411,6 +495,7 @@ export function SupplierPaymentTab({
           }
         }
       } else {
+        const obDescription = finalDescription + discountSuffix;
         const { data: ins, error } = await supabase
           .from("voucher_entries")
           .insert({
@@ -420,8 +505,10 @@ export function SupplierPaymentTab({
             voucher_date: format(voucherDate, "yyyy-MM-dd"),
             reference_type: "supplier",
             reference_id: referenceId,
-            description: finalDescription,
+            description: obDescription,
             total_amount: paymentAmount,
+            discount_amount: discountValue,
+            discount_reason: discountValue > 0 ? discountReason.trim() || null : null,
             payment_method: paymentMethod,
           })
           .select("id")
@@ -433,9 +520,10 @@ export function SupplierPaymentTab({
               ins.id,
               organizationId,
               paymentAmount,
+              discountValue,
               paymentMethod,
               format(voucherDate, "yyyy-MM-dd"),
-              finalDescription,
+              obDescription,
               supabase
             );
           } catch (glErr) {
@@ -469,7 +557,7 @@ export function SupplierPaymentTab({
   // Delete supplier payment
   const deletePayment = useMutation({
     mutationFn: async (voucher: any) => {
-      const voucherAmount = Number(voucher.total_amount) || 0;
+      const voucherAmount = voucherSettlementCredit(voucher);
 
       // Reverse bill paid_amount if this voucher is linked to specific bills
       if (voucher.reference_type === "supplier" && voucher.reference_id) {
@@ -568,6 +656,18 @@ export function SupplierPaymentTab({
   const startIdx = (paymentsPage - 1) * PAYMENTS_PER_PAGE;
   const endIdx = startIdx + PAYMENTS_PER_PAGE;
   const paginatedPayments = supplierPayments.slice(startIdx, endIdx);
+
+  const supplierPaymentsGrandTotals = useMemo(() => {
+    let cash = 0;
+    let discount = 0;
+    for (const v of supplierPayments) {
+      cash += Number(v.total_amount || 0);
+      discount += Number((v as { discount_amount?: number }).discount_amount || 0);
+    }
+    return { cash, discount, count: supplierPayments.length };
+  }, [supplierPayments]);
+
+  const paymentBreakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
 
   return (
     <div className="space-y-6">
@@ -811,41 +911,148 @@ export function SupplierPaymentTab({
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                    <SelectItem value="cheque">Cheque</SelectItem>
-                    <SelectItem value="upi">UPI</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Amount {selectedSupplierBillIds.length > 0 && <span className="text-xs text-muted-foreground">(Auto-filled)</span>}</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Enter amount"
-                  value={amount}
-                  max={selectedSupplierBillIds.length > 0 ? getSelectedPayableTotal() : undefined}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "") {
-                      setAmount("");
-                      return;
-                    }
-                    const entered = Number(raw);
-                    const maxAllowed = selectedSupplierBillIds.length > 0 ? getSelectedPayableTotal() : Infinity;
-                    setAmount(Math.min(Number.isFinite(entered) ? entered : 0, maxAllowed).toFixed(2));
-                  }}
-                  required
-                />
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                      <SelectItem value="cheque">Cheque</SelectItem>
+                      <SelectItem value="upi">UPI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>
+                    {selectedSupplierBillIds.length > 0 ? "Settlement Amount" : "Amount"}
+                    {selectedSupplierBillIds.length > 0 && (
+                      <span className="text-xs text-muted-foreground"> (Auto-filled)</span>
+                    )}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="Enter amount"
+                    value={amount}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        setAmount("");
+                        return;
+                      }
+                      const entered = roundToRupee(raw);
+                      const maxAllowed =
+                        selectedSupplierBillIds.length > 0 ? roundToRupee(getSelectedPayableTotal()) : Infinity;
+                      setAmount(Math.min(entered, maxAllowed).toFixed(2));
+                    }}
+                    required
+                    className="no-uppercase"
+                  />
+                  {selectedSupplierBillIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Total against selected bill(s). Add discount % below to calculate cash paid.
+                    </p>
+                  )}
+                </div>
               </div>
 
+              <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
+                <div className="flex items-center gap-2 text-foreground">
+                  <TrendingDown className="h-4 w-4" />
+                  <span className="text-sm font-medium">Discount (optional)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Discount %</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      max={100}
+                      placeholder="e.g. 20"
+                      value={discountPercent}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          setDiscountPercent("");
+                          return;
+                        }
+                        const pct = Math.min(100, Math.max(0, Number(raw) || 0));
+                        setDiscountPercent(String(pct));
+                      }}
+                      className="no-uppercase"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Discount Amount (₹)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Auto from %"
+                      value={discountAmount}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setDiscountPercent("");
+                        if (raw === "") {
+                          setDiscountAmount("");
+                          return;
+                        }
+                        setDiscountAmount(roundToRupee(raw).toFixed(2));
+                      }}
+                      className="no-uppercase"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>
+                      Discount Reason
+                      {paymentBreakdown.discount > 0 && <span className="text-red-500"> *</span>}
+                    </Label>
+                    <Input
+                      placeholder="e.g., Early payment"
+                      value={discountReason}
+                      onChange={(e) => setDiscountReason(e.target.value)}
+                      className="no-uppercase"
+                    />
+                  </div>
+                </div>
+                {paymentBreakdown.settlement > 0 && (
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md space-y-1.5">
+                    <div className="flex justify-between items-center text-sm">
+                      <span>Settlement (bill total):</span>
+                      <span className="font-medium">
+                        ₹{paymentBreakdown.settlement.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    {paymentBreakdown.discount > 0 && (
+                      <div className="flex justify-between items-center text-sm text-muted-foreground">
+                        <span>
+                          − Discount
+                          {paymentBreakdown.discountPercent > 0
+                            ? ` (${paymentBreakdown.discountPercent}%)`
+                            : ""}
+                          :
+                        </span>
+                        <span className="font-medium text-amber-700 dark:text-amber-400">
+                          ₹{paymentBreakdown.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                    <Separator className="my-2" />
+                    <div className="flex justify-between items-center text-base font-bold text-green-700 dark:text-green-400">
+                      <span>Cash to pay:</span>
+                      <span>
+                        ₹{paymentBreakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {paymentMethod === "cheque" && (
                 <>
                   <div className="space-y-2">
@@ -898,7 +1105,7 @@ export function SupplierPaymentTab({
                 <Plus className="mr-2 h-4 w-4" />
                 {createVoucher.isPending ? "Recording..." : "Record Payment"}
               </Button>
-              {paymentMethod === "cheque" && parseFloat(amount) > 0 && referenceId && (
+              {paymentMethod === "cheque" && paymentBreakdown.cash > 0 && referenceId && (
                 <Button type="button" variant="outline" onClick={() => setShowChequePrintDialog(true)}>
                   <Printer className="mr-2 h-4 w-4" /> Print Cheque
                 </Button>
@@ -967,7 +1174,8 @@ export function SupplierPaymentTab({
                 <TableHead className={accountsHistoryThClass}>Date</TableHead>
                 <TableHead className={accountsHistoryThClass}>Entry Date &amp; Time</TableHead>
                 <TableHead className={accountsHistoryThClass}>Supplier</TableHead>
-                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Amount</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Cash Paid</TableHead>
+                <TableHead className={cn(accountsHistoryThClass, "text-right")}>Discount</TableHead>
                 <TableHead className={accountsHistoryThClass}>Method</TableHead>
                 <TableHead className={accountsHistoryThClass}>Description</TableHead>
                 {isAdmin && <TableHead className={cn(accountsHistoryThClass, "text-right")}>Actions</TableHead>}
@@ -994,7 +1202,14 @@ export function SupplierPaymentTab({
                     <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
                     <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                     <TableCell>{supplierName}</TableCell>
-                    <TableCell className="tabular-nums">₹{Number(voucher.total_amount || 0).toFixed(2)}</TableCell>
+                    <TableCell className="tabular-nums text-right">
+                      ₹{Number(voucher.total_amount || 0).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-right text-amber-700 dark:text-amber-400">
+                      {Number((voucher as { discount_amount?: number }).discount_amount || 0) > 0
+                        ? `₹${Number((voucher as { discount_amount?: number }).discount_amount).toFixed(2)}`
+                        : "—"}
+                    </TableCell>
                     <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
                     <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                     {isAdmin && (
@@ -1026,7 +1241,7 @@ export function SupplierPaymentTab({
         open={showChequePrintDialog}
         onOpenChange={setShowChequePrintDialog}
         payeeName={suppliers?.find(s => s.id === referenceId)?.supplier_name || ""}
-        amount={parseFloat(amount) || 0}
+        amount={paymentBreakdown.cash || 0}
         chequeDate={chequeDate || new Date()}
         chequeNumber={chequeNumber}
       />

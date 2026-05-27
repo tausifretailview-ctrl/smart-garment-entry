@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
 
 /**
  * Single source of truth for supplier (payables) balance used by Supplier Ledger,
@@ -36,7 +37,12 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-type VoucherPaymentRow = { reference_id: string | null; total_amount: number | null; description: string | null };
+type VoucherPaymentRow = {
+  reference_id: string | null;
+  total_amount: number | null;
+  discount_amount?: number | null;
+  description: string | null;
+};
 type CreditNoteRow = { id: string; reference_id: string | null; total_amount: number | null };
 type PurchaseReturnRow = {
   supplier_id: string;
@@ -167,7 +173,7 @@ function computeSnapshotForSupplier(
     if (v.reference_id && supplierBillIds.includes(v.reference_id)) {
       perBillVoucherMap.set(
         v.reference_id,
-        (perBillVoucherMap.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
+        (perBillVoucherMap.get(v.reference_id) || 0) + voucherSettlementCredit(v)
       );
     }
   });
@@ -194,7 +200,7 @@ function computeSnapshotForSupplier(
         const desc = (v.description || "") as string;
         return !billRefs.some((r: string) => desc.includes(r));
       })
-      .reduce((sum: number, v: VoucherPaymentRow) => sum + (Number(v.total_amount) || 0), 0)
+      .reduce((sum: number, v: VoucherPaymentRow) => sum + voucherSettlementCredit(v), 0)
   );
 
   const totalPaid = roundMoney(totalPaidFromBills + supplierLevelPayments);
@@ -235,7 +241,7 @@ export async function fetchSupplierBalanceSnapshotsForOrg(
 
   const { data: voucherPayments, error: voucherError } = await client
     .from("voucher_entries")
-    .select("reference_id, total_amount, description")
+    .select("reference_id, total_amount, discount_amount, description")
     .eq("organization_id", organizationId)
     .eq("reference_type", "supplier")
     .eq("voucher_type", "payment")
