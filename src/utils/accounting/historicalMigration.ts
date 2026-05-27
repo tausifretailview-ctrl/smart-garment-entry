@@ -190,9 +190,6 @@ export async function runHistoricalAccountingBackfill(
         await recordSaleJournalEntry(
           id,
           organizationId,
-          net,
-          Number(row.paid_amount ?? 0),
-          String(row.payment_method ?? "pay_later"),
           client,
           row.sale_date != null ? String(row.sale_date).slice(0, 10) : undefined
         );

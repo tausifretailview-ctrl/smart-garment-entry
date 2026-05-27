@@ -15,6 +15,8 @@ import { StatusBar } from "@/components/StatusBar";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
+import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -23,6 +25,7 @@ interface FullScreenLayoutProps {
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
   const isEntryFullscreenPage = /\/(sales-invoice|purchase-entry)\/?$/.test(location.pathname);
+  const showDesktopChrome = useShowDesktopChrome();
 
   return (
     <ChatProvider>
@@ -38,9 +41,11 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                   : "flex min-h-screen w-full bg-background"
               }
             >
-              <div className="hidden lg:block shrink-0">
-                <AppSidebar />
-              </div>
+              {showDesktopChrome && (
+                <div className="shrink-0">
+                  <AppSidebar />
+                </div>
+              )}
               <SidebarInset
                 className={
                   isEntryFullscreenPage
@@ -50,11 +55,16 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               >
                 {!isEntryFullscreenPage && (
                   <>
-                    <div className="hidden lg:block">
-                      <Header />
-                      <WindowTabsBar />
-                    </div>
-                    <MobileAppHeader />
+                    {showDesktopChrome && (
+                      <>
+                        <Header />
+                        <WindowTabsBar />
+                        <div className="px-3 pt-2 lg:hidden">
+                          <DesktopViewToggle variant="banner" />
+                        </div>
+                      </>
+                    )}
+                    {!showDesktopChrome && <MobileAppHeader />}
                   </>
                 )}
                 <main
@@ -69,7 +79,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               </SidebarInset>
             </div>
 
-            <OwnerBottomNav />
+            {!showDesktopChrome && <OwnerBottomNav />}
             <PwaInstallBanner />
 
             <div className="hidden lg:contents">

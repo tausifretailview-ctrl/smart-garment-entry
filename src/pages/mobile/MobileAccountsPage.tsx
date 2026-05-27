@@ -9,6 +9,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ChevronRight, ArrowDownLeft, ArrowUpRight, BookOpen, Building2, Users, Receipt, ShieldCheck, FileText } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 
 export default function MobileAccountsPage() {
   const { orgNavigate } = useOrgNavigation();
@@ -42,6 +43,10 @@ export default function MobileAccountsPage() {
       </div>
 
       <div className="px-4 py-4 space-y-5">
+        <div className="bg-white dark:bg-card rounded-2xl border border-border/40 shadow-sm overflow-hidden">
+          <DesktopViewToggle variant="menu-row" />
+        </div>
+
         {/* Summary Cards (receivables, payables, collection, net) */}
         <MobileAccountsSummary />
 

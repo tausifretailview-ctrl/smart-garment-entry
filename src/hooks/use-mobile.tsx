@@ -1,4 +1,5 @@
 import * as React from "react";
+import { isForceDesktopViewEnabled, subscribeForceDesktopView } from "@/lib/desktopViewPreference";
 
 const MOBILE_BREAKPOINT = 768;
 /** Max width for touch-tablet POS; desktop mice use full desktop POS below this. */
@@ -26,6 +27,7 @@ function isTouchTabletDevice(): boolean {
 
 function computeIsMobile(): boolean {
   if (typeof window === "undefined") return false;
+  if (isForceDesktopViewEnabled()) return false;
   return window.innerWidth < MOBILE_BREAKPOINT;
 }
 
@@ -51,14 +53,16 @@ export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(computeIsMobile);
 
   React.useEffect(() => {
+    const refresh = () => setIsMobile(computeIsMobile());
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-    const onChange = () => setIsMobile(computeIsMobile());
-    mql.addEventListener("change", onChange);
-    window.addEventListener("resize", onChange);
-    setIsMobile(computeIsMobile());
+    mql.addEventListener("change", refresh);
+    window.addEventListener("resize", refresh);
+    const unsubPreference = subscribeForceDesktopView(refresh);
+    refresh();
     return () => {
-      mql.removeEventListener("change", onChange);
-      window.removeEventListener("resize", onChange);
+      mql.removeEventListener("change", refresh);
+      window.removeEventListener("resize", refresh);
+      unsubPreference();
     };
   }, []);
 
