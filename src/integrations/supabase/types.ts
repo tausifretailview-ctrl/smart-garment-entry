@@ -812,6 +812,7 @@ export type Database = {
       chart_of_accounts: {
         Row: {
           account_code: string
+          account_group: string | null
           account_name: string
           account_type: string
           created_at: string
@@ -823,6 +824,7 @@ export type Database = {
         }
         Insert: {
           account_code: string
+          account_group?: string | null
           account_name: string
           account_type: string
           created_at?: string
@@ -834,6 +836,7 @@ export type Database = {
         }
         Update: {
           account_code?: string
+          account_group?: string | null
           account_name?: string
           account_type?: string
           created_at?: string
@@ -2782,6 +2785,9 @@ export type Database = {
           debit_amount: number
           id: string
           journal_entry_id: string
+          party_id: string | null
+          party_name_snapshot: string | null
+          party_type: string | null
         }
         Insert: {
           account_id: string
@@ -2790,6 +2796,9 @@ export type Database = {
           debit_amount?: number
           id?: string
           journal_entry_id: string
+          party_id?: string | null
+          party_name_snapshot?: string | null
+          party_type?: string | null
         }
         Update: {
           account_id?: string
@@ -2798,6 +2807,9 @@ export type Database = {
           debit_amount?: number
           id?: string
           journal_entry_id?: string
+          party_id?: string | null
+          party_name_snapshot?: string | null
+          party_type?: string | null
         }
         Relationships: [
           {
@@ -2813,6 +2825,64 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "journal_entries"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      ledger_opening_balances: {
+        Row: {
+          account_id: string
+          as_of_date: string
+          created_at: string
+          credit_amount: number
+          debit_amount: number
+          id: string
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          as_of_date: string
+          created_at?: string
+          credit_amount?: number
+          debit_amount?: number
+          id?: string
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          as_of_date?: string
+          created_at?: string
+          credit_amount?: number
+          debit_amount?: number
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_opening_balances_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_opening_balances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_opening_balances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
@@ -5518,6 +5588,7 @@ export type Database = {
           backup_email: string | null
           backup_retention_days: number | null
           bill_barcode_settings: Json | null
+          books_closed_before_date: string | null
           business_name: string | null
           created_at: string | null
           dashboard_settings: Json | null
@@ -7849,8 +7920,8 @@ export type Database = {
           p_account_id: string
           p_from_date: string
           p_org_id: string
+          p_party_id?: string
           p_to_date: string
-          p_party_id?: string | null
         }
         Returns: {
           created_at: string
@@ -7861,9 +7932,9 @@ export type Database = {
           journal_entry_id: string
           journal_line_id: string
           line_seq: number
-          party_id: string | null
-          party_name_snapshot: string | null
-          party_type: string | null
+          party_id: string
+          party_name_snapshot: string
+          party_type: string
           reference_id: string
           reference_type: string
           running_balance: number
@@ -7873,7 +7944,7 @@ export type Database = {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: {
           account_code: string
-          account_group: string | null
+          account_group: string
           account_id: string
           account_name: string
           account_type: string
