@@ -22,6 +22,7 @@ interface AccountRow {
   account_code: string;
   account_name: string;
   account_type: AccountType;
+  account_group: string | null;
   parent_account_id: string | null;
   is_system_account: boolean;
 }
@@ -45,7 +46,7 @@ export default function ChartOfAccounts() {
       await seedDefaultAccounts(currentOrganization!.id, supabase);
       const { data, error } = await (supabase as any)
         .from("chart_of_accounts")
-        .select("id, account_code, account_name, account_type, parent_account_id, is_system_account")
+        .select("id, account_code, account_name, account_type, account_group, parent_account_id, is_system_account")
         .eq("organization_id", currentOrganization!.id)
         .order("account_type", { ascending: true })
         .order("account_code", { ascending: true });
@@ -133,6 +134,7 @@ export default function ChartOfAccounts() {
                   <TableRow>
                     <TableHead className="w-[120px]">Code</TableHead>
                     <TableHead>Account Name</TableHead>
+                    <TableHead>Tally group</TableHead>
                     <TableHead>Parent</TableHead>
                     <TableHead className="text-right">Type</TableHead>
                   </TableRow>
@@ -140,11 +142,11 @@ export default function ChartOfAccounts() {
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">Loading...</TableCell>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">Loading...</TableCell>
                     </TableRow>
                   ) : (groupedAccounts.get(type)?.length || 0) === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No accounts in this group</TableCell>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No accounts in this group</TableCell>
                     </TableRow>
                   ) : (
                     groupedAccounts.get(type)!.map((acc) => (
@@ -154,6 +156,7 @@ export default function ChartOfAccounts() {
                           {acc.account_name}
                           {acc.is_system_account && <Badge className="ml-2" variant="outline">System</Badge>}
                         </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{acc.account_group || "—"}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {acc.parent_account_id ? accountById.get(acc.parent_account_id)?.account_name || "-" : "-"}
                         </TableCell>

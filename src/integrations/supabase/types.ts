@@ -7850,6 +7850,7 @@ export type Database = {
           p_from_date: string
           p_org_id: string
           p_to_date: string
+          p_party_id?: string | null
         }
         Returns: {
           created_at: string
@@ -7860,6 +7861,9 @@ export type Database = {
           journal_entry_id: string
           journal_line_id: string
           line_seq: number
+          party_id: string | null
+          party_name_snapshot: string | null
+          party_type: string | null
           reference_id: string
           reference_type: string
           running_balance: number
@@ -7869,6 +7873,7 @@ export type Database = {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: {
           account_code: string
+          account_group: string | null
           account_id: string
           account_name: string
           account_type: string

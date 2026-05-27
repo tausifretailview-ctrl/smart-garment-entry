@@ -65,6 +65,7 @@ import { VoucherEntryTab } from "@/components/accounts/VoucherEntryTab";
 import { ReconciliationTab } from "@/components/accounts/ReconciliationTab";
 import { BankReconciliationTab } from "@/components/accounts/BankReconciliationTab";
 import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashboardTab";
+import { AccountingPeriodLockCard } from "@/components/accounts/AccountingPeriodLockCard";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -904,6 +905,12 @@ export default function Accounts() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {isAdmin && currentOrganization?.id && (
+        <div className="shrink-0 mb-2">
+          <AccountingPeriodLockCard />
+        </div>
       )}
 
       <AlertDialog open={resetLedgerDialogOpen} onOpenChange={setResetLedgerDialogOpen}>

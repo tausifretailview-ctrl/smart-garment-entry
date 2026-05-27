@@ -79,6 +79,8 @@ const AuditLog = lazyWithRetry(() => import("./pages/AuditLog"));
 const Accounts = lazyWithRetry(() => import("./pages/Accounts"));
 const ChartOfAccounts = lazyWithRetry(() => import("./pages/accounts/ChartOfAccounts"));
 const JournalVouchers = lazyWithRetry(() => import("./pages/accounts/JournalVouchers"));
+const ManualJournalEntry = lazyWithRetry(() => import("./pages/accounts/ManualJournalEntry"));
+const LedgerOpeningBalances = lazyWithRetry(() => import("./pages/accounts/LedgerOpeningBalances"));
 const DeliveryDashboard = lazyWithRetry(() => import("./pages/DeliveryDashboard"));
 const PaymentsDashboard = lazyWithRetry(() => import("./pages/PaymentsDashboard"));
 const UserRights = lazyWithRetry(() => import("./pages/UserRights"));
@@ -1245,6 +1247,30 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <JournalVouchers />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="manual-journal"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <ManualJournalEntry />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="ledger-opening-balances"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <LedgerOpeningBalances />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, BookText, ChevronDown, ChevronUp, Info } from "lucide-react";
+import { CalendarIcon, BookText, ChevronDown, ChevronUp, Info, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -32,7 +34,10 @@ type RefTypeFilter =
   | "CustomerAdvanceReceipt"
   | "CustomerAdvanceRefund"
   | "SaleReturn"
-  | "PurchaseReturn";
+  | "PurchaseReturn"
+  | "ManualJournal"
+  | "Contra"
+  | "RoundOff";
 
 const REF_TYPE_VALUES: RefTypeFilter[] = [
   "all",
@@ -50,6 +55,9 @@ const REF_TYPE_VALUES: RefTypeFilter[] = [
   "CustomerAdvanceRefund",
   "SaleReturn",
   "PurchaseReturn",
+  "ManualJournal",
+  "Contra",
+  "RoundOff",
 ];
 
 function parseRefTypeParam(v: string | null): RefTypeFilter {
@@ -94,6 +102,7 @@ const toYmd = (date: Date) => format(date, "yyyy-MM-dd");
 
 export default function JournalVouchers() {
   const { currentOrganization } = useOrganization();
+  const { getOrgPath } = useOrgNavigation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFrom = searchParams.get("from");
   const initialTo = searchParams.get("to");
@@ -213,6 +222,12 @@ export default function JournalVouchers() {
             <p className="text-sm text-muted-foreground">Review auto-generated double-entry postings</p>
           </div>
         </div>
+        <Button asChild>
+          <Link to={getOrgPath("/manual-journal")}>
+            <Plus className="h-4 w-4 mr-2" />
+            New journal / contra
+          </Link>
+        </Button>
       </div>
 
       {engineExplicitlyOff && (
@@ -282,6 +297,9 @@ export default function JournalVouchers() {
                   <SelectItem value="CustomerAdvanceRefund">Customer advance refund</SelectItem>
                   <SelectItem value="SaleReturn">Sale return</SelectItem>
                   <SelectItem value="PurchaseReturn">Purchase return</SelectItem>
+                  <SelectItem value="ManualJournal">Manual journal</SelectItem>
+                  <SelectItem value="Contra">Contra</SelectItem>
+                  <SelectItem value="RoundOff">Round off</SelectItem>
                 </SelectContent>
               </Select>
             </div>
