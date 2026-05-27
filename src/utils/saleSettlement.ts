@@ -296,7 +296,7 @@ export async function getAvailableCN(
 /** Sum line gross (MRP × qty) from cart rows — used when net is ₹0 after 100% discount. */
 function sumMerchandiseGrossFromItems(items: unknown[]): number {
   if (!items?.length) return 0;
-  return items.reduce((sum, raw) => {
+  return items.reduce<number>((sum, raw) => {
     const row = raw as { quantity?: number; mrp?: number };
     const qty = Number(row.quantity) || 0;
     const mrp = Number(row.mrp) || 0;

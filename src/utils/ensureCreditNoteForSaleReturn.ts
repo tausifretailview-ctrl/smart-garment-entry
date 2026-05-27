@@ -61,6 +61,7 @@ export async function ensureCreditNoteForSaleReturn(
     return_date?: string | null;
     net_amount?: number | null;
     linked_sale_id?: string | null;
+    credit_note_id?: string | null;
     credit_available_balance?: number | null;
     credit_status?: string | null;
   };
