@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
@@ -53,6 +55,8 @@ import { AccountingReportKpiCards, type AccountingKpiItem } from "@/components/a
 import { AccountingReportTable } from "@/components/accounting/AccountingReportTable";
 import { accountsHistoryCardClass } from "@/components/accounts/accountsHistoryUi";
 import { cn } from "@/lib/utils";
+import { groupGlTrialBalance } from "@/utils/accounting/tallyAccountGroups";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -223,7 +227,9 @@ const AsOfDatePresets = ({ asOfDate, setAsOfDate }: { asOfDate: string; setAsOfD
 export default function AccountingReports() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate, getOrgPath } = useOrgNavigation();
-  const [activeTab, setActiveTab] = useState("trial-balance");
+  const [activeTab, setActiveTab] = useState("gl-trial-balance");
+  const [showLegacyReports, setShowLegacyReports] = useState(false);
+  const [glTbGrouped, setGlTbGrouped] = useState(true);
   const [loading, setLoading] = useState(false);
   const [periodType, setPeriodType] = useState<"monthly" | "quarterly" | "yearly" | "custom">("monthly");
 
@@ -242,6 +248,27 @@ export default function AccountingReports() {
   const [glLedgerAccount, setGlLedgerAccount] = useState<GlTrialBalanceEntry | null>(null);
   const [glLedgerRows, setGlLedgerRows] = useState<GlAccountLedgerRow[]>([]);
   const [glLedgerLoading, setGlLedgerLoading] = useState(false);
+  const [glLedgerPartyId, setGlLedgerPartyId] = useState<string>("all");
+
+  const { data: accountingSettings } = useQuery({
+    queryKey: ["settings-accounting-flag", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", currentOrganization!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { accounting_engine_enabled?: boolean } | null;
+    },
+  });
+
+  const engineOn = isAccountingEngineEnabled(accountingSettings);
+
+  useEffect(() => {
+    setShowLegacyReports(!engineOn);
+  }, [engineOn]);
 
   const fetchTrialBalance = async () => {
     if (!currentOrganization?.id) return;
@@ -387,7 +414,8 @@ export default function AccountingReports() {
           currentOrganization.id,
           glLedgerAccount.accountId,
           glLedgerDateRange.from,
-          glLedgerDateRange.to
+          glLedgerDateRange.to,
+          glLedgerPartyId === "all" ? null : glLedgerPartyId
         );
         if (!cancelled) setGlLedgerRows(rows);
       } catch (e) {
@@ -403,7 +431,44 @@ export default function AccountingReports() {
     return () => {
       cancelled = true;
     };
-  }, [glLedgerOpen, currentOrganization?.id, glLedgerAccount?.accountId, glLedgerDateRange?.from, glLedgerDateRange?.to]);
+  }, [
+    glLedgerOpen,
+    currentOrganization?.id,
+    glLedgerAccount?.accountId,
+    glLedgerDateRange?.from,
+    glLedgerDateRange?.to,
+    glLedgerPartyId,
+  ]);
+
+  const glLedgerSupportsParty =
+    glLedgerAccount?.accountCode === "1200" ||
+    glLedgerAccount?.accountCode === "2000" ||
+    glLedgerAccount?.accountGroup === "Sundry Debtors" ||
+    glLedgerAccount?.accountGroup === "Sundry Creditors";
+
+  const { data: glLedgerParties = [] } = useQuery({
+    queryKey: ["gl-ledger-parties", currentOrganization?.id, glLedgerAccount?.accountId],
+    enabled: Boolean(glLedgerOpen && glLedgerSupportsParty && currentOrganization?.id && glLedgerAccount?.accountId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("journal_lines")
+        .select("party_id, party_name_snapshot")
+        .eq("account_id", glLedgerAccount!.accountId)
+        .not("party_id", "is", null);
+      if (error) throw error;
+      const seen = new Map<string, string>();
+      for (const row of data ?? []) {
+        const id = row.party_id as string;
+        if (!id || seen.has(id)) continue;
+        seen.set(id, (row.party_name_snapshot as string) || id.slice(0, 8));
+      }
+      return [...seen.entries()]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
+
+  const glTrialGrouped = useMemo(() => groupGlTrialBalance(glTrialBalance), [glTrialBalance]);
 
   const handleRefresh = () => {
     if (activeTab === "trial-balance") fetchTrialBalance();
@@ -711,6 +776,31 @@ export default function AccountingReports() {
 
   const journalVouchersHref = `${getOrgPath("/journal-vouchers")}?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`;
 
+  const renderGlTrialRow = (entry: GlTrialBalanceEntry) => (
+    <TableRow key={entry.accountId}>
+      <TableCell className="font-mono text-muted-foreground">{entry.accountCode}</TableCell>
+      <TableCell className="font-medium">{entry.accountName}</TableCell>
+      <TableCell>{glTbGrouped ? entry.accountGroup || entry.accountType : entry.accountType}</TableCell>
+      <TableCell className="text-right">{entry.debit > 0 ? formatCurrency(entry.debit) : "—"}</TableCell>
+      <TableCell className="text-right">{entry.credit > 0 ? formatCurrency(entry.credit) : "—"}</TableCell>
+      <TableCell className="text-right print:hidden">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => {
+            setGlLedgerPartyId("all");
+            setGlLedgerAccount(entry);
+            setGlLedgerOpen(true);
+          }}
+        >
+          Lines
+        </Button>
+      </TableCell>
+    </TableRow>
+  );
+
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-8 print:bg-white print:p-0">
       <div className="space-y-4 print:space-y-6">
@@ -721,9 +811,8 @@ export default function AccountingReports() {
             Accounting Reports
           </h1>
           <p className="text-muted-foreground max-w-2xl">
-            P&L, balance sheet, and trial balance from your live sales, purchases, stock, and vouchers (operational
-            tabs). Chart-led views (GL tabs) use posted journals when the accounting engine is on—treat older periods as
-            needing an audit before sign-off.
+            GL tabs (trial balance, P&amp;L, balance sheet) follow posted journals and Tally account groups. Use operational
+            tabs only when you need invoice-level stock and sales views.
           </p>
         </div>
         <div className="flex gap-2">
@@ -793,6 +882,18 @@ export default function AccountingReports() {
               </Link>
             </Button>
             <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/manual-journal")} className="gap-1.5 inline-flex items-center">
+                <BookText className="h-4 w-4" />
+                Manual journal / contra
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link to={getOrgPath("/ledger-opening-balances")} className="gap-1.5 inline-flex items-center">
+                <Scale className="h-4 w-4" />
+                Opening balances
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
               <Link to={getOrgPath("/daily-tally")} className="gap-1.5 inline-flex items-center">
                 <Wallet className="h-4 w-4" />
                 Daily cash tally
@@ -854,12 +955,21 @@ export default function AccountingReports() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 flex-1 flex flex-col min-h-0">
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden print:hidden">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden print:hidden space-y-0">
+        <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/60">
+          <p className="text-xs text-muted-foreground">Posted GL reports (Tally-style)</p>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="legacy-reports-toggle" className="text-xs text-muted-foreground whitespace-nowrap">
+              Show operational tabs
+            </Label>
+            <Switch
+              id="legacy-reports-toggle"
+              checked={showLegacyReports}
+              onCheckedChange={setShowLegacyReports}
+            />
+          </div>
+        </div>
         <TabsList className="w-full h-auto p-0 bg-slate-50/80 border-b border-slate-100 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
-          <TabsTrigger value="trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none flex items-center gap-2">
-            <Scale className="h-4 w-4" />
-            Trial Balance
-          </TabsTrigger>
           <TabsTrigger value="gl-trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
             <BookText className="h-4 w-4" />
             GL Trial
@@ -872,18 +982,26 @@ export default function AccountingReports() {
             <Landmark className="h-4 w-4" />
             GL Balance
           </TabsTrigger>
-          <TabsTrigger value="profit-loss" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Profit & Loss
-          </TabsTrigger>
-          <TabsTrigger value="balance-sheet" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            Balance Sheet
-          </TabsTrigger>
-          <TabsTrigger value="net-profit" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
-            <PieChart className="h-4 w-4" />
-            Net Profit
-          </TabsTrigger>
+          {showLegacyReports && (
+            <>
+              <TabsTrigger value="trial-balance" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                Trial Balance
+              </TabsTrigger>
+              <TabsTrigger value="profit-loss" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Profit & Loss
+              </TabsTrigger>
+              <TabsTrigger value="balance-sheet" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                Balance Sheet
+              </TabsTrigger>
+              <TabsTrigger value="net-profit" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 flex items-center gap-2">
+                <PieChart className="h-4 w-4" />
+                Net Profit
+              </TabsTrigger>
+            </>
+          )}
         </TabsList>
         </div>
 
@@ -992,7 +1110,7 @@ export default function AccountingReports() {
                   </Badge>
                 </CardTitle>
               </div>
-              <div className="flex flex-wrap gap-2 print:hidden">
+              <div className="flex flex-wrap gap-2 print:hidden items-center">
                 <Button
                   type="button"
                   size="sm"
@@ -1011,6 +1129,13 @@ export default function AccountingReports() {
                 >
                   Period only
                 </Button>
+                <Separator orientation="vertical" className="h-6" />
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="gl-tb-grouped" className="text-xs text-muted-foreground">
+                    Tally groups
+                  </Label>
+                  <Switch id="gl-tb-grouped" checked={glTbGrouped} onCheckedChange={setGlTbGrouped} />
+                </div>
               </div>
               <div className="flex flex-col gap-2 print:hidden">
                 <p className="text-xs text-muted-foreground">
@@ -1130,40 +1255,28 @@ export default function AccountingReports() {
                       <TableRow>
                         <TableHead className="w-[88px]">Code</TableHead>
                         <TableHead>Account</TableHead>
-                        <TableHead>Type</TableHead>
+                        {!glTbGrouped && <TableHead>Type</TableHead>}
+                        {glTbGrouped && <TableHead>Group</TableHead>}
                         <TableHead className="text-right">Debit (₹)</TableHead>
                         <TableHead className="text-right">Credit (₹)</TableHead>
                         <TableHead className="w-[100px] text-right print:hidden">Ledger</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {glTrialBalance.map((entry) => (
-                        <TableRow key={entry.accountId}>
-                          <TableCell className="font-mono text-muted-foreground">{entry.accountCode}</TableCell>
-                          <TableCell className="font-medium">{entry.accountName}</TableCell>
-                          <TableCell>{entry.accountType}</TableCell>
-                          <TableCell className="text-right">
-                            {entry.debit > 0 ? formatCurrency(entry.debit) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {entry.credit > 0 ? formatCurrency(entry.credit) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right print:hidden">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => {
-                                setGlLedgerAccount(entry);
-                                setGlLedgerOpen(true);
-                              }}
-                            >
-                              Lines
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {glTbGrouped
+                        ? glTrialGrouped.flatMap((section) => [
+                            <TableRow key={`grp-${section.groupName}`} className="bg-slate-100/80">
+                              <TableCell colSpan={glTbGrouped ? 5 : 6} className="font-semibold text-sm py-2">
+                                {section.groupName}
+                                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                  Dr {formatCurrency(section.totalDebit)} · Cr {formatCurrency(section.totalCredit)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="print:hidden" />
+                            </TableRow>,
+                            ...section.entries.map((entry) => renderGlTrialRow(entry)),
+                          ])
+                        : glTrialBalance.map((entry) => renderGlTrialRow(entry))}
                       {glTrialBalance.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
@@ -2015,6 +2128,24 @@ export default function AccountingReports() {
             </SheetDescription>
           </SheetHeader>
           <div className="mt-4 space-y-3">
+            {glLedgerSupportsParty && (
+              <div className="space-y-1 print:hidden">
+                <Label className="text-xs">Party (debtor / creditor)</Label>
+                <Select value={glLedgerPartyId} onValueChange={setGlLedgerPartyId}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All parties</SelectItem>
+                    {glLedgerParties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {glLedgerLoading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -2044,6 +2175,9 @@ export default function AccountingReports() {
                             ? "Opening"
                             : `${row.referenceType}${row.referenceId ? ` · ${String(row.referenceId).slice(0, 8)}` : ""}`}
                         </div>
+                        {row.partyNameSnapshot && (
+                          <div className="text-xs text-primary truncate">{row.partyNameSnapshot}</div>
+                        )}
                         {row.description && row.referenceType !== "_opening" && (
                           <div className="text-xs text-muted-foreground truncate" title={row.description}>
                             {row.description}

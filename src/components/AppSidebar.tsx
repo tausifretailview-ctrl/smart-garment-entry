@@ -44,6 +44,7 @@ import {
   Banknote,
   ShieldCheck,
   LayoutList,
+  Scale,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
@@ -150,7 +151,14 @@ export function AppSidebar() {
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/purchase-orders", "/purchase-order-entry", "/product-entry", "/products", "/bulk-product-update", "/stock-settlement"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard", "/advance-booking-dashboard"];
   const reportsPaths = ["/stock-report", "/stock-analysis", "/stock-ageing", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/daily-tally", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports", "/expense-salary-report", "/customer-ledger-report", "/customer-account-statement", "/customer-account-statement-audit", "/customer-balance-activity", "/customer-audit-report", "/daily-sale-analysis", "/einvoice-report"];
-  const accountsPaths = ["/accounts", "/chart-of-accounts", "/journal-vouchers", "/payments-dashboard"];
+  const accountsPaths = [
+    "/accounts",
+    "/chart-of-accounts",
+    "/journal-vouchers",
+    "/manual-journal",
+    "/ledger-opening-balances",
+    "/payments-dashboard",
+  ];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion", "/student-ledger"];
 
@@ -1025,6 +1033,26 @@ export function AppSidebar() {
                               <NavLink to="/journal-vouchers" className="flex items-center gap-2 group">
                                 <BookOpen className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Journal Vouchers</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("accounts_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/manual-journal")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/manual-journal" className="flex items-center gap-2 group">
+                                <BookOpen className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Manual Journal</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("accounts_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/ledger-opening-balances")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                              <NavLink to="/ledger-opening-balances" className="flex items-center gap-2 group">
+                                <Scale className="h-4 w-4 sidebar-icon text-primary" />
+                                <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Opening Balances</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>

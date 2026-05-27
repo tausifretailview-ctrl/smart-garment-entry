@@ -106,6 +106,7 @@ export interface GlTrialBalanceEntry {
   accountCode: string;
   accountName: string;
   accountType: string;
+  accountGroup: string | null;
   movementDebit: number;
   movementCredit: number;
   debit: number;
@@ -126,6 +127,7 @@ function mapGlTrialRow(r: Record<string, unknown>): GlTrialBalanceEntry {
     accountCode: String(r.account_code ?? ""),
     accountName: String(r.account_name ?? ""),
     accountType: String(r.account_type ?? ""),
+    accountGroup: r.account_group != null ? String(r.account_group) : null,
     movementDebit: Number(r.movement_debit ?? 0),
     movementCredit: Number(r.movement_credit ?? 0),
     debit: Number(r.trial_debit ?? 0),
@@ -166,6 +168,9 @@ export interface GlAccountLedgerRow {
   referenceType: string;
   referenceId: string | null;
   description: string | null;
+  partyType: string | null;
+  partyId: string | null;
+  partyNameSnapshot: string | null;
   debitAmount: number;
   creditAmount: number;
   runningBalance: number;
@@ -176,13 +181,15 @@ export async function calculateGlAccountLedger(
   organizationId: string,
   accountId: string,
   fromDate: string,
-  toDate: string
+  toDate: string,
+  partyId?: string | null
 ): Promise<GlAccountLedgerRow[]> {
   const { data, error } = await supabase.rpc("get_gl_account_ledger", {
     p_org_id: organizationId,
     p_account_id: accountId,
     p_from_date: normalizeGlDate(fromDate),
     p_to_date: normalizeGlDate(toDate),
+    p_party_id: partyId ?? undefined,
   });
   if (error) throw error;
   const rows = (data ?? []) as Record<string, unknown>[];
@@ -195,6 +202,9 @@ export async function calculateGlAccountLedger(
     referenceType: String(r.reference_type ?? ""),
     referenceId: r.reference_id != null ? String(r.reference_id) : null,
     description: r.description != null ? String(r.description) : null,
+    partyType: r.party_type != null ? String(r.party_type) : null,
+    partyId: r.party_id != null ? String(r.party_id) : null,
+    partyNameSnapshot: r.party_name_snapshot != null ? String(r.party_name_snapshot) : null,
     debitAmount: Number(r.debit_amount ?? 0),
     creditAmount: Number(r.credit_amount ?? 0),
     runningBalance: Number(r.running_balance ?? 0),
