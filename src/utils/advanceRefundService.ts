@@ -325,13 +325,13 @@ export async function fetchAdvanceRefundsForAdvances(
   };
 
   const ext = await run(extended);
-  if (!ext.error) return (ext.data || []) as Record<string, unknown>[];
+  if (!ext.error) return ((ext.data || []) as unknown) as Record<string, unknown>[];
 
   if (!isRecoverableSchemaError(ext.error)) throw ext.error;
 
   const leg = await run(base);
   if (leg.error) throw leg.error;
-  return (leg.data || []) as Record<string, unknown>[];
+  return ((leg.data || []) as unknown) as Record<string, unknown>[];
 }
 
 /** Reverse mistaken advance refund (restores advance available balance). */

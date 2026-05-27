@@ -157,7 +157,7 @@ async function fetchAllSalesForSegments(organizationId: string): Promise<SaleRow
     if (error) throw error;
     if (!data?.length) break;
 
-    allRows.push(...(data as SaleRow[]));
+    allRows.push(...((data as unknown) as SaleRow[]));
     if (data.length < PAGE) break;
     offset += PAGE;
   }
@@ -228,7 +228,7 @@ export async function fetchCustomerSaleStats(
     if (error) throw error;
     if (!data?.length) break;
 
-    for (const row of data as SaleRow[]) {
+    for (const row of (data as unknown) as SaleRow[]) {
       mergeSaleIntoStats({ [customerId]: stats }, row, ids);
     }
 
