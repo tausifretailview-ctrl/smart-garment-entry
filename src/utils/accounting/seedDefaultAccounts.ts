@@ -66,6 +66,7 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "5050", account_name: "Purchase Returns", account_type: "Expense", account_group: "Direct Expenses" },
   { account_code: "6000", account_name: "General Expenses", account_type: "Expense", account_group: "Indirect Expenses" },
   { account_code: "6050", account_name: "Settlement Discounts Given", account_type: "Expense", account_group: "Indirect Expenses" },
+  { account_code: "6070", account_name: "Settlement Discounts Received", account_type: "Revenue", account_group: "Indirect Incomes" },
   { account_code: "6100", account_name: "Salaries & Wages", account_type: "Expense", account_group: "Indirect Expenses" },
   { account_code: "6900", account_name: "Round Off", account_type: "Expense", account_group: "Indirect Expenses" },
 ];

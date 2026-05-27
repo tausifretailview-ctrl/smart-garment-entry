@@ -16,6 +16,7 @@ import {
   fetchSupplierBalanceSnapshotsForOrg,
 } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -248,8 +249,8 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
       const voucherPaymentsByBillId: Record<string, number> = {};
       (vouchersData || []).forEach((voucher) => {
         if (voucher.reference_id) {
-          voucherPaymentsByBillId[voucher.reference_id] = 
-            (voucherPaymentsByBillId[voucher.reference_id] || 0) + (voucher.total_amount || 0);
+          voucherPaymentsByBillId[voucher.reference_id] =
+            (voucherPaymentsByBillId[voucher.reference_id] || 0) + voucherSettlementCredit(voucher);
         }
       });
 
@@ -331,7 +332,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           const legacyVoucherPayments = billRef
             ? (openingBalancePayments || [])
                 .filter((v: any) => (v.description || "").includes(billRef))
-                .reduce((s: number, v: any) => s + (Number(v.total_amount) || 0), 0)
+                .reduce((s: number, v: any) => s + voucherSettlementCredit(v), 0)
             : 0;
           const paidAtPurchase = Math.max(0, totalPaidOnBill - voucherPayments - legacyVoucherPayments);
           
@@ -427,21 +428,26 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           });
         } else {
           const voucher = item.data as any;
-          runningBalance -= voucher.total_amount;
-          
+          const cashPaid = Number(voucher.total_amount || 0);
+          const disc = Number(voucher.discount_amount || 0);
+          const settlement = voucherSettlementCredit(voucher);
+          runningBalance -= settlement;
+
           const isOpeningBalancePayment = !billIds.includes(voucher.reference_id);
-          const relatedBill = !isOpeningBalancePayment ? billsData?.find(b => b.id === voucher.reference_id) : null;
-          const billRef = relatedBill ? ` - for ${relatedBill.supplier_invoice_no || relatedBill.software_bill_no}` : '';
-          
+          const relatedBill = !isOpeningBalancePayment ? billsData?.find((b) => b.id === voucher.reference_id) : null;
+          const billRef = relatedBill ? ` - for ${relatedBill.supplier_invoice_no || relatedBill.software_bill_no}` : "";
+          const discNote = disc > 0 ? ` (cash ₹${cashPaid.toFixed(2)} + discount ₹${disc.toFixed(2)})` : "";
+
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
-            type: 'payment',
+            type: "payment",
             reference: voucher.voucher_number,
-            description: isOpeningBalancePayment 
-              ? (voucher.description || 'Opening balance payment')
-              : (voucher.description || 'Payment made') + billRef,
-            debit: voucher.total_amount,
+            description:
+              (isOpeningBalancePayment
+                ? voucher.description || "Opening balance payment"
+                : (voucher.description || "Payment made") + billRef) + discNote,
+            debit: settlement,
             credit: 0,
             balance: runningBalance,
           });
