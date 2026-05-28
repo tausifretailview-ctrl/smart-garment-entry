@@ -12,6 +12,7 @@ import {
   appendInputGstDebits,
   appendOutputGstCredits,
   appendOutputGstDebits,
+  appendRoundOffBalancingLine,
   balanceJournalWithRoundOff,
   pushLine,
   type PartyLineContext,
@@ -111,6 +112,19 @@ function resolveEntryDate(rowDate: string | null | undefined, entryDate?: string
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Line-level discount already embedded in line_total (do not also post full header discount_amount). */
+function sumLineDiscountFromSaleItems(
+  items: Array<{ unit_price?: number | null; quantity?: number | null; line_total?: number | null }>
+): number {
+  return round2(
+    items.reduce((sum, item) => {
+      const base = round2(Number(item.unit_price ?? 0) * Number(item.quantity ?? 0));
+      const lineTotal = round2(Number(item.line_total ?? 0));
+      return sum + round2(Math.max(0, base - lineTotal));
+    }, 0)
+  );
+}
+
 export async function buildSaleJournalV2(
   saleId: string,
   organizationId: string,
@@ -120,7 +134,7 @@ export async function buildSaleJournalV2(
   const { data: sale, error: saleErr } = await client
     .from("sales")
     .select(
-      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, round_off, customer_id, customer_name"
+      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name"
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
@@ -135,7 +149,7 @@ export async function buildSaleJournalV2(
 
   const { data: items, error: itemsErr } = await client
     .from("sale_items")
-    .select("line_total, gst_percent")
+    .select("line_total, gst_percent, unit_price, quantity")
     .eq("sale_id", saleId)
     .is("deleted_at", null);
   if (itemsErr) throw itemsErr;
@@ -166,9 +180,21 @@ export async function buildSaleJournalV2(
   if (revenueCredit > 0) pushLine(lines, salesRevenue.id, 0, revenueCredit, party);
   appendOutputGstCredits(lines, systemAccounts, gst, party);
 
+  const otherCharges = round2(Number(sale.other_charges ?? 0));
+  if (otherCharges > 0.01) {
+    pushLine(lines, salesRevenue.id, 0, otherCharges, party);
+  }
+
+  const lineDiscountInLines = sumLineDiscountFromSaleItems(items ?? []);
   const headerDiscount = round2(Number(sale.discount_amount ?? 0));
-  if (headerDiscount > 0.01 && tradeDiscount) {
-    pushLine(lines, tradeDiscount.id, headerDiscount, 0, party);
+  const orphanHeaderDiscount = round2(Math.max(0, headerDiscount - lineDiscountInLines));
+  const tradeDiscountDr = round2(
+    Number(sale.flat_discount_amount ?? 0) +
+      Number(sale.points_redeemed_amount ?? 0) +
+      orphanHeaderDiscount
+  );
+  if (tradeDiscountDr > 0.01 && tradeDiscount) {
+    pushLine(lines, tradeDiscount.id, tradeDiscountDr, 0, party);
   }
 
   const cogsAmount = await fetchSaleCogsAmount(saleId, client);
@@ -177,6 +203,10 @@ export async function buildSaleJournalV2(
     pushLine(lines, stock.id, 0, cogsAmount);
   }
 
+  const saleRoundOff = round2(Number(sale.round_off ?? 0));
+  if (Math.abs(saleRoundOff) >= 0.01) {
+    appendRoundOffBalancingLine(lines, systemAccounts, saleRoundOff);
+  }
   balanceJournalWithRoundOff(lines, systemAccounts);
 
   return {
@@ -236,6 +266,10 @@ export async function buildPurchaseJournalV2(
   if (paid > 0) pushLine(lines, paymentAccount.id, 0, paid, party);
   if (payable > 0) pushLine(lines, apAccount.id, 0, payable, party);
 
+  const billRoundOff = round2(Number(bill.round_off ?? 0));
+  if (Math.abs(billRoundOff) >= 0.01) {
+    appendRoundOffBalancingLine(lines, systemAccounts, billRoundOff);
+  }
   balanceJournalWithRoundOff(lines, systemAccounts);
 
   return {
