@@ -3,7 +3,7 @@
 After **Phase A** migration (`20260701120000_accounting_phase_a_tally_foundation.sql`) and **Phase B** app deploy, sale/purchase journals use:
 
 - **Purchase:** DR Stock-in-Hand (1300) + Input GST / CR AP + Cash-Bank  
-- **Sale:** DR Cash/AR, CR Sales (taxable) + Output GST, DR COGS / CR Stock, optional Trade Discount & Round Off  
+- **Sale:** DR Cash/AR, CR Sales (taxable) + Output GST + other charges, DR COGS / CR Stock, DR Trade Discount (flat discount, points, legacy header orphan only — not line discounts already in `line_total`), explicit Round Off (6900)  
 - **Returns:** GST and inventory/COGS reversal where applicable  
 
 Posting activates automatically when system account **1300 Stock-in-Hand** exists (seeded in Phase A).
