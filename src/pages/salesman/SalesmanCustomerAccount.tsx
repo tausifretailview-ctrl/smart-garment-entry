@@ -4,6 +4,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +65,18 @@ const SalesmanCustomerAccount = () => {
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { sendWhatsApp } = useWhatsAppSend();
-  const { balance: authoritativeBalance } = useCustomerBalance(customerId || null, currentOrganization?.id || null);
+  const {
+    outstandingDr: ledgerOutstanding,
+    isLoading: snapshotLoading,
+    refetch: refetchLedgerSnapshot,
+  } = useCustomerFinancialSnapshot(customerId || null, currentOrganization?.id || null);
+  const {
+    openingBalance: hookOpeningBalance,
+    totalSales: hookTotalSales,
+    totalPaid: hookTotalPaid,
+    isLoading: balanceHookLoading,
+    refetch: refetchCoreBalance,
+  } = useCustomerBalance(customerId || null, currentOrganization?.id || null);
 
   const [customer, setCustomer] = useState<CustomerDetails | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -330,6 +342,9 @@ const SalesmanCustomerAccount = () => {
         totalDiscount,
       });
 
+      void refetchLedgerSnapshot();
+      void refetchCoreBalance();
+
     } catch (error) {
       console.error("Error fetching customer data:", error);
     } finally {
@@ -374,7 +389,7 @@ const SalesmanCustomerAccount = () => {
       `Total Sales: ₹${summary.totalSales.toLocaleString("en-IN")}\n` +
       `Total Paid: ₹${summary.totalPaid.toLocaleString("en-IN")}\n` +
       `────────────────\n` +
-      `*Outstanding: ₹${Math.abs(authoritativeBalance).toLocaleString("en-IN")}${authoritativeBalance < 0 ? " CR" : ""}*` +
+      `*Outstanding: ₹${Math.abs(ledgerOutstanding).toLocaleString("en-IN")}${ledgerOutstanding < 0 ? " CR" : ""}*` +
       txnList +
       `\n\nPlease clear your dues at the earliest. Thank you! 🙏`;
 
@@ -406,7 +421,7 @@ const SalesmanCustomerAccount = () => {
   const sendAllOutstandingReminder = async () => {
     if (!customer?.phone || pendingInvoices.length === 0) return;
 
-    const totalOutstanding = authoritativeBalance;
+    const totalOutstanding = ledgerOutstanding;
     const openingBal = customer.opening_balance || 0;
     const billWisePending = Math.round(totalOutstanding - openingBal);
     const invoiceLines = pendingInvoices
@@ -457,14 +472,15 @@ const SalesmanCustomerAccount = () => {
     );
   }
 
-  // Use authoritative balance from useCustomerBalance hook
-  const displayBalance = authoritativeBalance;
+  // Same RPC as Customer Ledger (get_customer_financial_snapshot)
+  const displayBalance = ledgerOutstanding;
+  const metricsLoading = snapshotLoading || balanceHookLoading;
 
   const summaryCards = [
-    { label: "Opening", value: summary.openingBalance, icon: Clock, color: "text-blue-500" },
-    { label: "Total Sales", value: summary.totalSales, icon: TrendingUp, color: "text-green-500" },
+    { label: "Opening", value: hookOpeningBalance || summary.openingBalance, icon: Clock, color: "text-blue-500" },
+    { label: "Total Sales", value: hookTotalSales || summary.totalSales, icon: TrendingUp, color: "text-green-500" },
     { label: "Total Discount", value: summary.totalDiscount, icon: Percent, color: "text-orange-500" },
-    { label: "Total Paid", value: summary.totalPaid, icon: TrendingDown, color: "text-purple-500" },
+    { label: "Total Paid", value: hookTotalPaid || summary.totalPaid, icon: TrendingDown, color: "text-purple-500" },
     { label: "Outstanding", value: displayBalance, icon: IndianRupee, color: displayBalance > 0 ? "text-red-500" : "text-green-500" },
   ];
 
@@ -506,13 +522,17 @@ const SalesmanCustomerAccount = () => {
         )}>
           <CardContent className="p-4 text-center">
             <p className="text-sm text-muted-foreground mb-1">Outstanding Balance</p>
-            <p className={cn(
-              "text-3xl font-bold",
-              displayBalance > 0 ? "text-red-600" : "text-green-600"
-            )}>
-              ₹{Math.abs(displayBalance).toLocaleString("en-IN")}
-              {displayBalance < 0 && " CR"}
-            </p>
+            {metricsLoading ? (
+              <Skeleton className="h-9 w-32 mx-auto" />
+            ) : (
+              <p className={cn(
+                "text-3xl font-bold",
+                displayBalance > 0 ? "text-red-600" : "text-green-600"
+              )}>
+                ₹{Math.abs(displayBalance).toLocaleString("en-IN")}
+                {displayBalance < 0 && " CR"}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
