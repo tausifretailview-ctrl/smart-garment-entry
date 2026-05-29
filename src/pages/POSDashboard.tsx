@@ -68,6 +68,13 @@ import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
 import { localDayEndUtcIso, localDayStartUtcIso, saleRowCalendarYmd } from "@/lib/localDayBounds";
+import {
+  getEffectivePaidAmountForPosDashboard,
+  getPosSaleOutstandingBalance,
+  getPosSettlementNetAmount,
+  isHoldLikePosSale,
+  isPosSalePaidCompleted,
+} from "@/utils/posDashboardSettlement";
 
 interface SaleItem {
   id: string;
@@ -129,63 +136,10 @@ interface Sale {
   customers?: { gst_number?: string | null } | null;
 }
 
-const SETTLEMENT_EPS = 0.01;
-
-function isHoldLikeSale(sale: Sale): boolean {
-  if (sale.payment_status === "hold") return true;
-  return (
-    sale.payment_status === "pending" &&
-    typeof sale.sale_number === "string" &&
-    sale.sale_number.startsWith("Hold/") &&
-    sale.payment_method === "pay_later"
-  );
-}
-
-/** Net payable for settlement (matches Sales Records amount column logic). */
-function getSettlementNetAmount(sale: Sale): number {
-  const discountTotal =
-    (sale.discount_amount || 0) +
-    (sale.flat_discount_amount || 0) +
-    ((sale as { points_redeemed_amount?: number }).points_redeemed_amount || 0);
-  const srAdjust = Number(sale.sale_return_adjust || 0);
-  const baseBillBeforeSR =
-    Number(sale.gross_amount || 0) - discountTotal + Number(sale.round_off || 0);
-  if (srAdjust > 0 && Number(sale.net_amount || 0) === 0) {
-    return Math.round((baseBillBeforeSR - srAdjust) * 100) / 100;
-  }
-  return Math.round((Number(sale.net_amount || 0)) * 100) / 100;
-}
-
-function mixTenderTotal(sale: Sale): number {
-  return Math.round(
-    ((Number(sale.cash_amount) || 0) +
-      (Number(sale.card_amount) || 0) +
-      (Number(sale.upi_amount) || 0)) *
-      100,
-  ) / 100;
-}
-
-/**
- * `sync_sale_payment_status_from_receipts` can set paid_amount from receipt rows only; mix POS
- * bills store full tender in cash/card/uppi — reconcile so Paid/Balance match those columns.
- */
-function getEffectivePaidAmountForDashboard(sale: Sale): number {
-  const stored = Math.round((Number(sale.paid_amount) || 0) * 100) / 100;
-  if (isHoldLikeSale(sale)) return stored;
-  const method = (sale.payment_method || "").toLowerCase();
-  if (method !== "multiple") return stored;
-  const tender = mixTenderTotal(sale);
-  const cap = Math.max(0, getSettlementNetAmount(sale));
-  if (tender <= SETTLEMENT_EPS) return Math.min(cap, stored);
-  return Math.min(cap, Math.max(stored, tender));
-}
-
-function isPaidCompletedForDashboard(sale: Sale): boolean {
-  if (isHoldLikeSale(sale)) return false;
-  const net = getSettlementNetAmount(sale);
-  const paid = getEffectivePaidAmountForDashboard(sale);
-  return paid >= net - SETTLEMENT_EPS;
-}
+const isHoldLikeSale = isHoldLikePosSale;
+const getSettlementNetAmount = getPosSettlementNetAmount;
+const getEffectivePaidAmountForDashboard = getEffectivePaidAmountForPosDashboard;
+const isPaidCompletedForDashboard = isPosSalePaidCompleted;
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
 const DEFAULT_POS_COLUMNS = {
@@ -1515,14 +1469,7 @@ const POSDashboard = () => {
       pendingCount: nonHoldSales.filter((sale) => !isPaidCompletedForDashboard(sale) && !isHoldLikeSale(sale)).length,
       pendingAmount: nonHoldSales
         .filter((sale) => !isPaidCompletedForDashboard(sale))
-        .reduce(
-          (sum, sale) =>
-            sum +
-            (sale.net_amount -
-              getEffectivePaidAmountForDashboard(sale) -
-              (sale.sale_return_adjust || 0)),
-          0,
-        ),
+        .reduce((sum, sale) => sum + getPosSaleOutstandingBalance(sale), 0),
       holdCount: holdSales.length,
       holdAmount: holdSales.reduce((sum, sale) => sum + sale.net_amount, 0),
       refundCount: nonHoldSales.filter(sale => (sale.refund_amount || 0) > 0).length,
@@ -1534,11 +1481,7 @@ const POSDashboard = () => {
       totalCard: nonHoldSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
       totalUpi: nonHoldSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
       totalBalance: nonHoldSales.reduce(
-        (sum, sale) =>
-          sum +
-          (sale.net_amount -
-            getEffectivePaidAmountForDashboard(sale) -
-            (sale.sale_return_adjust || 0)),
+        (sum, sale) => sum + getPosSaleOutstandingBalance(sale),
         0,
       ),
       totalSaleReturnAdjust: nonHoldSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
