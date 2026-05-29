@@ -7,6 +7,7 @@ import {
   computeCustomerBalanceCore,
   type CustomerBalanceCoreVoucher,
 } from "@/utils/customerBalanceCore";
+import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,9 @@ const SalesmanCustomers = () => {
           payment_status: s.payment_status,
         }));
 
+      const customerIdList = (customersData || []).map((c: { id: string }) => c.id);
+      const snapMap = await fetchCustomerFinancialSnapshotMap(orgId, customerIdList);
+
       const batch = buildOrgCustomerBalanceBatch({
         sales: salesForBatch,
         vouchers: [...voucherRows, ...paymentVoucherRows],
@@ -242,12 +246,14 @@ const SalesmanCustomers = () => {
         const lastPaymentDate = resolveLastPaymentDate(c.id);
         const daysSinceLastPayment = daysSincePayment(lastPaymentDate);
 
+        const ledgerBalance = snapMap.get(c.id)?.outstandingDr ?? core.balance;
+
         return {
           ...c,
           opening_balance: openingBalance,
           totalSales: core.totalSalesNet,
           totalPaid: core.totalRealPayments,
-          balance: core.balance,
+          balance: ledgerBalance,
           lastOrderDate: lastOrderByCustomer.get(c.id) ?? null,
           lastPaymentDate,
           daysSinceLastPayment,

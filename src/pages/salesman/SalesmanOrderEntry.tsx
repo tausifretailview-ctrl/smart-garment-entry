@@ -4,6 +4,10 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchCustomerFinancialSnapshot,
+  fetchCustomerFinancialSnapshotMap,
+} from "@/utils/customerFinancialSnapshot";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -227,20 +231,13 @@ const SalesmanOrderEntry = () => {
       .eq("id", customerId)
       .single();
 
-    if (data) {
-      // Fetch balance
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("net_amount, paid_amount")
-        .eq("customer_id", customerId)
-        .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null);
-
-      const totalSales = sales?.reduce((s, sale) => s + (sale.net_amount || 0), 0) || 0;
-      const totalPaid = sales?.reduce((s, sale) => s + (sale.paid_amount || 0), 0) || 0;
-      const balance = (data.opening_balance || 0) + totalSales - totalPaid;
-
-      setSelectedCustomer({ ...data, balance });
+    if (data && currentOrganization?.id) {
+      const snap = await fetchCustomerFinancialSnapshot(
+        supabase,
+        currentOrganization.id,
+        customerId,
+      );
+      setSelectedCustomer({ ...data, balance: snap.outstandingDr });
     }
   };
 
@@ -258,28 +255,16 @@ const SalesmanOrderEntry = () => {
       .or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%`)
       .limit(20);
 
-    if (data) {
-      // Batch balance fetch — single query instead of N+1
-      const customerIds = data.map(c => c.id);
-      const { data: allSales } = await supabase
-        .from("sales")
-        .select("customer_id, net_amount, paid_amount")
-        .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null)
-        .in("customer_id", customerIds);
+    if (data && currentOrganization?.id) {
+      const customerIds = data.map((c) => c.id);
+      const snapMap = await fetchCustomerFinancialSnapshotMap(
+        currentOrganization.id,
+        customerIds,
+      );
 
-      const salesByCustomer = new Map<string, { net: number; paid: number }>();
-      (allSales || []).forEach(s => {
-        const cur = salesByCustomer.get(s.customer_id!) || { net: 0, paid: 0 };
-        cur.net += s.net_amount || 0;
-        cur.paid += s.paid_amount || 0;
-        salesByCustomer.set(s.customer_id!, cur);
-      });
-
-      const customersWithBalance = data.map(c => ({
+      const customersWithBalance = data.map((c) => ({
         ...c,
-        balance: (c.opening_balance || 0) + (salesByCustomer.get(c.id)?.net || 0)
-                - (salesByCustomer.get(c.id)?.paid || 0),
+        balance: snapMap.get(c.id)?.outstandingDr ?? 0,
       }));
       setCustomers(customersWithBalance);
     }
