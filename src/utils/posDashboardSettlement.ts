@@ -3,7 +3,9 @@
  * At-sale tender lives in cash_amount/card_amount/upi_amount; paid_amount can lag after receipt sync.
  */
 
-const SETTLEMENT_EPS = 0.01;
+/** Rounding tolerance for paid vs net (₹1). */
+export const POS_SETTLEMENT_EPS = 0.01;
+const SETTLEMENT_EPS = POS_SETTLEMENT_EPS;
 
 export type PosDashboardSaleLike = {
   payment_status?: string | null;

@@ -2628,32 +2628,13 @@ const POSDashboard = () => {
                               ₹{Math.round(getEffectivePaidAmountForDashboard(sale)).toLocaleString('en-IN')}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              {(() => {
-                                const discountTotal =
-                                  (sale.discount_amount || 0) +
-                                  (sale.flat_discount_amount || 0) +
-                                  ((sale as any).points_redeemed_amount || 0);
-                                const srAdjust = Number(sale.sale_return_adjust || 0);
-                                const baseBillBeforeSR =
-                                  Number(sale.gross_amount || 0) -
-                                  discountTotal +
-                                  Number((sale as any).round_off || 0);
-                                const effectiveNetAmount =
-                                  srAdjust > 0 && Number(sale.net_amount || 0) === 0
-                                    ? (baseBillBeforeSR - srAdjust)
-                                    : Number(sale.net_amount || 0);
-                                const ep = getEffectivePaidAmountForDashboard(sale);
-                                const esb = isHoldLikeSale(sale) ? 'hold'
-                                  : ep >= effectiveNetAmount - SETTLEMENT_EPS ? 'completed'
-                                  : ep > 0 ? 'partial' : 'pending';
-                                return esb !== 'completed' ? (
-                                  <span className="font-semibold text-orange-600">
-                                    ₹{Math.round(effectiveNetAmount - ep).toLocaleString('en-IN')}
-                                  </span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                );
-                              })()}
+                              {isPaidCompletedForDashboard(sale) ? (
+                                <span className="text-muted-foreground">-</span>
+                              ) : (
+                                <span className="font-semibold text-orange-600">
+                                  ₹{Math.round(getPosSaleOutstandingBalance(sale)).toLocaleString("en-IN")}
+                                </span>
+                              )}
                             </TableCell>
                             {columnSettings.refund && (
                               <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
