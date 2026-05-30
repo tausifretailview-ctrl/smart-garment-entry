@@ -11,6 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
+import { fetchSupplierBalanceSnapshot } from "@/utils/supplierBalanceUtils";
+import {
+  derivePurchaseBillDisplayStatus,
+  getPurchaseBillPendingAmount,
+} from "@/utils/purchaseBillSettlement";
 
 interface AdjustCreditNoteDialogProps {
   open: boolean;
@@ -43,6 +48,25 @@ export function AdjustCreditNoteDialog({
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
 
+  const canLoadBalance = open && !!supplierId && !!currentOrganization?.id;
+
+  const {
+    data: supplierBalance,
+    isLoading: balanceLoading,
+    isFetching: balanceFetching,
+    isError: balanceError,
+  } = useQuery({
+    queryKey: ["supplier-balance-snapshot", currentOrganization?.id, supplierId, open],
+    queryFn: async () => {
+      if (!supplierId || !currentOrganization?.id) return null;
+      return fetchSupplierBalanceSnapshot(supabase, currentOrganization.id, supplierId);
+    },
+    enabled: canLoadBalance,
+    staleTime: 0,
+  });
+
+  const balanceDisplayLoading = canLoadBalance && (balanceLoading || balanceFetching) && !balanceError;
+
   // Fetch unpaid/partially paid bills for this supplier
   const { data: unpaidBills = [], isLoading: billsLoading } = useQuery({
     queryKey: ["unpaid-supplier-bills", supplierId, currentOrganization?.id],
@@ -52,23 +76,42 @@ export function AdjustCreditNoteDialog({
       // Get all bills for this supplier
       const { data: billsData, error: billsError } = await supabase
         .from("purchase_bills")
-        .select("id, software_bill_no, supplier_invoice_no, bill_date, net_amount, paid_amount, payment_status")
+        .select(
+          "id, software_bill_no, supplier_invoice_no, bill_date, net_amount, paid_amount, payment_status, is_cancelled"
+        )
         .eq("supplier_id", supplierId)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .neq("payment_status", "paid")
+        .or("is_cancelled.is.null,is_cancelled.eq.false")
         .order("bill_date", { ascending: true });
 
       if (billsError) throw billsError;
 
-      // Calculate pending amount for each bill
-      return (billsData || []).map((bill: any) => ({
-        ...bill,
-        pending_amount: (bill.net_amount || 0) - (bill.paid_amount || 0),
-      })).filter((bill: any) => bill.pending_amount > 0);
+      return (billsData || [])
+        .filter((bill: any) => !bill.is_cancelled)
+        .map((bill: any) => ({
+          ...bill,
+          pending_amount: getPurchaseBillPendingAmount(bill),
+          display_status: derivePurchaseBillDisplayStatus(bill),
+        }))
+        .filter((bill: any) => bill.pending_amount > 0.01);
     },
     enabled: open && !!supplierId && !!currentOrganization?.id,
   });
+
+  const totalPendingOnBills = unpaidBills.reduce(
+    (sum: number, b: { pending_amount?: number }) => sum + (Number(b.pending_amount) || 0),
+    0
+  );
+
+  const supplierOutstanding = supplierBalance?.balance ?? 0;
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedBillId("");
+      setAdjustmentType("bill");
+    }
+  }, [open]);
 
   const handleApply = async () => {
     if (adjustmentType === "bill" && !selectedBillId) {
@@ -379,11 +422,51 @@ export function AdjustCreditNoteDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Credit Amount Display */}
-          <div className="flex items-center justify-center p-4 bg-muted rounded-lg">
-            <IndianRupee className="h-5 w-5 mr-1 text-primary" />
-            <span className="text-2xl font-bold text-primary">{creditAmount.toFixed(2)}</span>
+          {/* Credit + supplier balance summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col items-center justify-center p-4 bg-primary/5 border border-primary/20 rounded-lg">
+              <span className="text-xs text-muted-foreground mb-1">Credit note to adjust</span>
+              <div className="flex items-center">
+                <IndianRupee className="h-5 w-5 mr-0.5 text-primary" />
+                <span className="text-2xl font-bold text-primary tabular-nums">
+                  {creditAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col items-center justify-center p-4 bg-muted rounded-lg border">
+              <span className="text-xs text-muted-foreground mb-1">Supplier total balance (payable)</span>
+              {!supplierId ? (
+                <span className="text-sm text-muted-foreground text-center">Supplier not linked on this return</span>
+              ) : balanceDisplayLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : balanceError ? (
+                <span className="text-sm text-destructive text-center">Could not load balance</span>
+              ) : (
+                <div className="flex items-center">
+                  <IndianRupee className="h-5 w-5 mr-0.5 text-foreground" />
+                  <span className="text-2xl font-bold tabular-nums text-red-600 dark:text-red-400">
+                    {Math.abs(supplierOutstanding).toLocaleString("en-IN", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              )}
+              <span className="text-[11px] text-muted-foreground mt-1 text-center">
+                Same as Supplier Ledger outstanding payable
+              </span>
+            </div>
           </div>
+
+          {!billsLoading && (
+            <p className="text-sm text-center text-muted-foreground -mt-2">
+              Pending on unpaid bills:{" "}
+              <strong className="text-foreground tabular-nums">
+                ₹{totalPendingOnBills.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </strong>
+              {unpaidBills.length > 0 ? ` (${unpaidBills.length} bill${unpaidBills.length === 1 ? "" : "s"})` : ""}
+            </p>
+          )}
 
           {/* Adjustment Type */}
           <RadioGroup
@@ -395,7 +478,12 @@ export function AdjustCreditNoteDialog({
               <RadioGroupItem value="bill" id="bill" />
               <Label htmlFor="bill" className="flex-1 cursor-pointer">
                 <div className="font-medium">Adjust Against Bill</div>
-                <div className="text-sm text-muted-foreground">Reduce outstanding amount on an unpaid bill</div>
+                <div className="text-sm text-muted-foreground">
+                  Apply to a pending purchase bill
+                  {totalPendingOnBills > 0
+                    ? ` (₹${totalPendingOnBills.toLocaleString("en-IN", { maximumFractionDigits: 0 })} pending)`
+                    : ""}
+                </div>
               </Label>
             </div>
             <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -409,7 +497,9 @@ export function AdjustCreditNoteDialog({
               <RadioGroupItem value="outstanding" id="outstanding" />
               <Label htmlFor="outstanding" className="flex-1 cursor-pointer">
                 <div className="font-medium">Adjust in Outstanding Balance</div>
-                <div className="text-sm text-muted-foreground">Reduce supplier's overall balance without linking to a specific bill</div>
+                <div className="text-sm text-muted-foreground">
+                  Reduce supplier payable by ₹{creditAmount.toLocaleString("en-IN")} (not tied to one bill)
+                </div>
               </Label>
             </div>
           </RadioGroup>
@@ -449,6 +539,19 @@ export function AdjustCreditNoteDialog({
           )}
 
           {/* Refund Mode */}
+          {adjustmentType === "outstanding" && canLoadBalance && !balanceDisplayLoading && !balanceError && (
+            <div className="rounded-lg border bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800 p-3 text-sm">
+              <p className="text-violet-900 dark:text-violet-100">
+                After apply: supplier balance ≈ ₹
+                {Math.max(0, supplierOutstanding - creditAmount).toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                payable
+              </p>
+            </div>
+          )}
+
           {adjustmentType === "refund" && (
             <div className="space-y-2">
               <Label>Payment Mode</Label>
