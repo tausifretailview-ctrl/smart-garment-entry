@@ -17,6 +17,7 @@ interface CustomerBalanceResult {
   totalAdvanceApplied: number;
   totalCnApplied: number;
   isLoading: boolean;
+  refetch: () => void;
 }
 
 /**
