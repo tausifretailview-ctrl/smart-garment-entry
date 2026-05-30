@@ -17,6 +17,7 @@ interface CustomerBalanceResult {
   totalAdvanceApplied: number;
   totalCnApplied: number;
   isLoading: boolean;
+  refetch: () => void;
 }
 
 /**
@@ -28,7 +29,7 @@ interface CustomerBalanceResult {
  * - Unused advances (active/partially_used)
  */
 export function useCustomerBalance(customerId: string | null, organizationId: string | null): CustomerBalanceResult {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['customer-balance', customerId, organizationId],
     queryFn: async () => {
       if (!customerId || !organizationId) {
@@ -69,5 +70,6 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
     totalAdvanceApplied: data?.totalAdvanceApplied || 0,
     totalCnApplied: data?.totalCnApplied || 0,
     isLoading,
+    refetch,
   };
 }
