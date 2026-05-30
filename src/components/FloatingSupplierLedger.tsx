@@ -20,6 +20,11 @@ import { cn } from "@/lib/utils";
 import { useReactToPrint } from "react-to-print";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { fetchSupplierBalanceSnapshot } from "@/utils/supplierBalanceUtils";
+import {
+  supplierCreditNoteLedgerDebit,
+  supplierCreditNoteLedgerDescriptionFromCn,
+} from "@/utils/purchaseSupplierLedgerCn";
+import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
 
 interface FloatingSupplierLedgerProps {
   isOpen: boolean;
@@ -183,6 +188,13 @@ export const FloatingSupplierLedger = ({
       }
     });
 
+    const billById = new Map(
+      (bills || []).map((b: any) => [
+        b.id,
+        { software_bill_no: b.software_bill_no, supplier_invoice_no: b.supplier_invoice_no },
+      ])
+    );
+
     const billRefs = (bills || [])
       .map((b: any) => b.software_bill_no || b.supplier_invoice_no)
       .filter(Boolean);
@@ -264,22 +276,19 @@ export const FloatingSupplierLedger = ({
       } else if (item.type === "credit_note") {
         const cn = item.data as any;
         const prLinked = (purchaseReturnsData || []).filter(
-          (pr: any) =>
-            pr.credit_note_id === cn.id && pr.credit_status === "adjusted" && pr.linked_bill_id
+          (pr: any) => pr.credit_note_id === cn.id
         );
-        let cnEffect = Number(cn.total_amount) || 0;
-        if (prLinked.length > 0) {
-          if (prLinked.every((pr: any) => pr.credit_available_balance != null))
-            cnEffect = prLinked.reduce((s, pr: any) => s + (Number(pr.credit_available_balance) || 0), 0);
-          else cnEffect = 0;
-        }
+        const cnEffect = supplierCreditNoteLedgerDebit(
+          Number(cn.total_amount) || 0,
+          prLinked
+        );
         runningBalance -= cnEffect;
         allTransactions.push({
           id: cn.id,
           date: cn.voucher_date,
           type: "credit_note",
           reference: cn.voucher_number,
-          description: cn.description || "Supplier Credit Note (Purchase Return)",
+          description: supplierCreditNoteLedgerDescriptionFromCn(cn, prLinked, billById),
           debit: cnEffect,
           credit: 0,
           balance: runningBalance,

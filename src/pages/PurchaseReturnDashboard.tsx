@@ -23,6 +23,11 @@ import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCreditNoteDialog } from "@/components/AdjustCreditNoteDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import {
+  formatPurchaseReturnCreditStatusLabel,
+  formatPurchaseReturnOrigBill,
+  type LinkedBillLabel,
+} from "@/utils/purchaseReturnCnDisplay";
 
 interface PurchaseReturnItem {
   id: string;
@@ -228,6 +233,55 @@ const PurchaseReturnDashboard = () => {
     enabled: !!currentOrganization?.id,
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
+  });
+
+  const linkedBillIds = [...new Set((returnsData?.returns || []).map((r) => r.linked_bill_id).filter(Boolean))] as string[];
+
+  const { data: linkedBillById = new Map<string, LinkedBillLabel>() } = useQuery({
+    queryKey: ["purchase-return-linked-bills", currentOrganization?.id, linkedBillIds.join(",")],
+    queryFn: async () => {
+      if (linkedBillIds.length === 0) return new Map<string, LinkedBillLabel>();
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("id, software_bill_no, supplier_invoice_no")
+        .in("id", linkedBillIds);
+      if (error) throw error;
+      return new Map(
+        (data || []).map((b) => [
+          b.id,
+          { software_bill_no: b.software_bill_no, supplier_invoice_no: b.supplier_invoice_no },
+        ])
+      );
+    },
+    enabled: !!currentOrganization?.id && linkedBillIds.length > 0,
+    staleTime: STALE_LIVE,
+  });
+
+  const { data: cnAmountByReturnId = new Map<string, number>() } = useQuery({
+    queryKey: [
+      "purchase-return-cn-amounts",
+      currentOrganization?.id,
+      (returnsData?.returns || []).map((r) => r.id).join(","),
+    ],
+    queryFn: async () => {
+      const cnIds = [...new Set((returnsData?.returns || []).map((r) => r.credit_note_id).filter(Boolean))] as string[];
+      if (cnIds.length === 0) return new Map<string, number>();
+      const { data, error } = await supabase
+        .from("voucher_entries")
+        .select("id, total_amount")
+        .in("id", cnIds);
+      if (error) throw error;
+      const byCn = new Map((data || []).map((v) => [v.id, Number(v.total_amount) || 0]));
+      const map = new Map<string, number>();
+      for (const r of returnsData?.returns || []) {
+        if (r.credit_note_id && byCn.has(r.credit_note_id)) {
+          map.set(r.id, byCn.get(r.credit_note_id)!);
+        }
+      }
+      return map;
+    },
+    enabled: !!returnsData?.returns?.length,
+    staleTime: STALE_LIVE,
   });
 
   useEffect(() => {
@@ -794,8 +848,17 @@ const PurchaseReturnDashboard = () => {
                           </span>
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-sm">
-                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                            {returnRecord.original_bill_number || "N/A"}
+                          <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-[120px] truncate" title={
+                            returnRecord.credit_status === "adjusted" && returnRecord.linked_bill_id
+                              ? `Adjusted against bill ${formatPurchaseReturnOrigBill(returnRecord, linkedBillById.get(returnRecord.linked_bill_id!))}`
+                              : undefined
+                          }>
+                            {formatPurchaseReturnOrigBill(
+                              returnRecord,
+                              returnRecord.linked_bill_id
+                                ? linkedBillById.get(returnRecord.linked_bill_id)
+                                : null
+                            )}
                           </Badge>
                         </TableCell>
                         <TableCell className="px-2 py-2 text-[15px] text-right font-medium tabular-nums">
@@ -815,29 +878,34 @@ const PurchaseReturnDashboard = () => {
                           ₹{returnRecord.net_amount.toFixed(2)}
                         </TableCell>
                         <TableCell className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                          {returnRecord.credit_status === 'pending' && (
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 text-xs px-1.5 py-0">
-                              Pending
-                            </Badge>
-                          )}
-                          {returnRecord.credit_status === 'adjusted' && (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs px-1.5 py-0">
-                              Adjusted
-                            </Badge>
-                          )}
-                          {returnRecord.credit_status === 'refunded' && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-xs px-1.5 py-0">
-                              Refunded
-                            </Badge>
-                          )}
-                          {returnRecord.credit_status === 'adjusted_outstanding' && (
-                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 text-xs px-1.5 py-0">
-                              Adj. (O/S)
-                            </Badge>
-                          )}
-                          {!returnRecord.credit_status && (
-                            <span className="text-muted-foreground text-xs">-</span>
-                          )}
+                          {(() => {
+                            const st = returnRecord.credit_status;
+                            const label = formatPurchaseReturnCreditStatusLabel(
+                              returnRecord,
+                              returnRecord.linked_bill_id
+                                ? linkedBillById.get(returnRecord.linked_bill_id)
+                                : null,
+                              cnAmountByReturnId.get(returnRecord.id) ?? returnRecord.net_amount
+                            );
+                            if (!st) return <span className="text-muted-foreground text-xs">-</span>;
+                            const className =
+                              st === "pending"
+                                ? "bg-yellow-50 text-yellow-700 border-yellow-300"
+                                : st === "adjusted"
+                                  ? "bg-green-50 text-green-700 border-green-300"
+                                  : st === "refunded"
+                                    ? "bg-blue-50 text-blue-700 border-blue-300"
+                                    : "bg-purple-50 text-purple-700 border-purple-300";
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={`${className} text-xs px-1.5 py-0 max-w-[160px] truncate`}
+                                title={label}
+                              >
+                                {label}
+                              </Badge>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-0.5">
