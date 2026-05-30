@@ -2644,7 +2644,7 @@ const POSDashboard = () => {
                                     : Number(sale.net_amount || 0);
                                 const ep = getEffectivePaidAmountForDashboard(sale);
                                 const esb = isHoldLikeSale(sale) ? 'hold'
-                                  : ep >= effectiveNetAmount - SETTLEMENT_EPS ? 'completed'
+                                  : ep >= effectiveNetAmount - 0.01 ? 'completed'
                                   : ep > 0 ? 'partial' : 'pending';
                                 return esb !== 'completed' ? (
                                   <span className="font-semibold text-orange-600">
