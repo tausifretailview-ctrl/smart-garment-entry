@@ -136,6 +136,8 @@ export function balanceJournalWithRoundOff(lines: PostJournalLineInput[], accoun
   const cr = round2(lines.reduce((s, l) => s + l.creditAmount, 0));
   const diff = round2(dr - cr);
   if (Math.abs(diff) >= 0.01) {
-    appendRoundOffBalancingLine(lines, accounts, -diff);
+    // diff > 0 → DR side is heavier, need CR (positive amount → CR)
+    // diff < 0 → CR side is heavier, need DR (negative amount → DR)
+    appendRoundOffBalancingLine(lines, accounts, diff);
   }
 }
