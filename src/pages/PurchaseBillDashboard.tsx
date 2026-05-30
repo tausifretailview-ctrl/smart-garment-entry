@@ -40,6 +40,11 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
+import {
+  derivePurchaseBillDisplayStatus,
+  getEffectivePaidAmountForPurchaseBill,
+  getPurchaseBillPendingAmount,
+} from "@/utils/purchaseBillSettlement";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -216,7 +221,7 @@ const PurchaseBillDashboard = () => {
         icon: CreditCard,
         onClick: () => {
           setSelectedBillForPayment(bill);
-          const remainingAmount = bill.net_amount - (bill.paid_amount || 0);
+          const remainingAmount = getPurchaseBillPendingAmount(bill);
           setPaymentAmount(remainingAmount.toFixed(2));
           setPaymentDate(format(new Date(), "yyyy-MM-dd"));
           setPaymentMethod("cash");
@@ -865,7 +870,7 @@ const PurchaseBillDashboard = () => {
   const handleOpenPaymentDialog = (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
     setSelectedBillForPayment(bill);
-    const remainingAmount = bill.net_amount - (bill.paid_amount || 0);
+    const remainingAmount = getPurchaseBillPendingAmount(bill);
     setPaymentAmount(remainingAmount.toFixed(2));
     setPaymentDate(format(new Date(), "yyyy-MM-dd"));
     setPaymentMethod("cash");
@@ -1223,15 +1228,16 @@ const PurchaseBillDashboard = () => {
 
       const total_count = allBills.length;
       const total_amount = allBills.reduce((s, b) => s + (b.net_amount || 0), 0);
-      const paid_amount = allBills
-        .filter(b => b.payment_status === 'paid')
-        .reduce((s, b) => s + (b.net_amount || 0), 0);
-      const partial_amount = allBills
-        .filter(b => b.payment_status === 'partial')
-        .reduce((s, b) => s + (b.net_amount || 0), 0);
-      const unpaid_amount = allBills
-        .filter(b => !b.payment_status || b.payment_status === 'unpaid' || b.payment_status === 'pending')
-        .reduce((s, b) => s + (b.net_amount || 0), 0);
+      let paid_amount = 0;
+      let partial_amount = 0;
+      let unpaid_amount = 0;
+      for (const b of allBills) {
+        const net = Number(b.net_amount || 0);
+        const st = derivePurchaseBillDisplayStatus(b);
+        if (st === "paid") paid_amount += net;
+        else if (st === "partial") partial_amount += net;
+        else unpaid_amount += net;
+      }
 
       return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
     },
@@ -1284,17 +1290,35 @@ const PurchaseBillDashboard = () => {
         </Badge>
       );
     }
-    const status = bill.payment_status || 'unpaid';
-    const paidAmount = bill.paid_amount || 0;
-    const isFullyPaid = status === 'paid' || Math.abs(paidAmount - bill.net_amount) < 1;
-    
-    if (isFullyPaid) {
-      return <Badge className="min-w-[70px] justify-center bg-green-500 hover:bg-green-600 text-white">Paid</Badge>;
-    } else if (status === 'partial' || (paidAmount > 0 && paidAmount < bill.net_amount)) {
-      return <Badge className="min-w-[70px] justify-center bg-orange-400 hover:bg-orange-500 text-white">Partial</Badge>;
-    } else {
-      return <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white">Not Paid</Badge>;
+    const displayStatus = derivePurchaseBillDisplayStatus(bill);
+    const paidAmount = getEffectivePaidAmountForPurchaseBill(bill);
+    const pending = getPurchaseBillPendingAmount(bill);
+    const title =
+      displayStatus === "paid"
+        ? `Paid ₹${paidAmount.toLocaleString("en-IN")} of ₹${(bill.net_amount || 0).toLocaleString("en-IN")}`
+        : displayStatus === "partial"
+          ? `Paid ₹${paidAmount.toLocaleString("en-IN")}, pending ₹${pending.toLocaleString("en-IN")} (incl. CN on bill)`
+          : `Pending ₹${pending.toLocaleString("en-IN")}`;
+
+    if (displayStatus === "paid") {
+      return (
+        <Badge className="min-w-[70px] justify-center bg-green-500 hover:bg-green-600 text-white" title={title}>
+          Paid
+        </Badge>
+      );
     }
+    if (displayStatus === "partial") {
+      return (
+        <Badge className="min-w-[70px] justify-center bg-orange-400 hover:bg-orange-500 text-white" title={title}>
+          Partial
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white" title={title}>
+        Not Paid
+      </Badge>
+    );
   };
 
   // ERPTable column definitions
@@ -1770,9 +1794,10 @@ const PurchaseBillDashboard = () => {
               <p className="text-sm font-medium">No bills found</p>
             </div>
           ) : paginatedBills.map((bill) => {
-            const isPaid = bill.payment_status === 'paid' || (bill.paid_amount||0) >= bill.net_amount;
-            const isPartial = bill.payment_status === 'partial' || ((bill.paid_amount||0) > 0 && (bill.paid_amount||0) < bill.net_amount);
-            const pending = Math.max(0, bill.net_amount - (bill.paid_amount||0));
+            const displayStatus = derivePurchaseBillDisplayStatus(bill);
+            const isPaid = displayStatus === "paid";
+            const isPartial = displayStatus === "partial";
+            const pending = getPurchaseBillPendingAmount(bill);
             const statusCls = isPaid ? "bg-emerald-50 text-emerald-700 border-emerald-200"
               : isPartial ? "bg-amber-50 text-amber-700 border-amber-200"
               : "bg-rose-50 text-rose-700 border-rose-200";

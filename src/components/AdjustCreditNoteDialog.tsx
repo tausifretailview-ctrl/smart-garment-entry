@@ -349,6 +349,9 @@ export function AdjustCreditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ["floating-supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["unpaid-supplier-bills"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-return-linked-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
 
       onOpenChange(false);

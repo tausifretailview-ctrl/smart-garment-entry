@@ -17,6 +17,11 @@ import {
 } from "@/utils/supplierBalanceUtils";
 import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
+import {
+  supplierCreditNoteLedgerDebit,
+  supplierCreditNoteLedgerDescriptionFromCn,
+} from "@/utils/purchaseSupplierLedgerCn";
+import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
 import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -145,6 +150,12 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         .or("is_cancelled.is.null,is_cancelled.eq.false");
 
       const billIds = allBills?.map(b => b.id) || [];
+      const billById = new Map(
+        (billsData || []).map((b: any) => [
+          b.id,
+          { software_bill_no: b.software_bill_no, supplier_invoice_no: b.supplier_invoice_no },
+        ])
+      );
 
       if (billIds.length > 0) {
         vouchersQuery = vouchersQuery.in("reference_id", billIds);
@@ -353,20 +364,12 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         } else if (item.type === 'credit_note') {
           const creditNote = item.data as any;
           const prLinked = (purchaseReturnsData || []).filter(
-            (pr: any) =>
-              pr.credit_note_id === creditNote.id &&
-              pr.credit_status === 'adjusted' &&
-              pr.linked_bill_id
+            (pr: any) => pr.credit_note_id === creditNote.id
           );
-          let cnEffect = Number(creditNote.total_amount) || 0;
-          if (prLinked.length > 0) {
-            if (prLinked.every((pr: any) => pr.credit_available_balance != null))
-              cnEffect = prLinked.reduce(
-                (s, pr: any) => s + (Number(pr.credit_available_balance) || 0),
-                0
-              );
-            else cnEffect = 0;
-          }
+          const cnEffect = supplierCreditNoteLedgerDebit(
+            Number(creditNote.total_amount) || 0,
+            prLinked
+          );
           runningBalance -= cnEffect;
 
           allTransactions.push({
@@ -374,7 +377,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             date: creditNote.voucher_date,
             type: 'credit_note',
             reference: creditNote.voucher_number,
-            description: creditNote.description || 'Supplier Credit Note (Purchase Return)',
+            description: supplierCreditNoteLedgerDescriptionFromCn(
+              creditNote,
+              prLinked,
+              billById
+            ),
             debit: cnEffect,
             credit: 0,
             balance: runningBalance,
@@ -398,8 +405,12 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           runningBalance -= amount;
 
           let description = `Purchase Return - ${pr.return_number}`;
+          const linkedBill = pr.linked_bill_id ? billById.get(pr.linked_bill_id) : null;
+          const linkedLabel = linkedBillDisplayNo(linkedBill);
           if (pr.credit_status === 'adjusted_outstanding') description += ` (Adj. Outstanding)`;
-          else if (pr.credit_status === 'adjusted') description += ` (Adj. Against Bill)`;
+          else if (pr.credit_status === 'adjusted' && linkedLabel) {
+            description += ` (Adj. Against Bill ${linkedLabel})`;
+          } else if (pr.credit_status === 'adjusted') description += ` (Adj. Against Bill)`;
           else if (pr.credit_status === 'refunded') description += ` (Refunded)`;
           else description += ` (Pending)`;
 
