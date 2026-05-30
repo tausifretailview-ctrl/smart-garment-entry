@@ -134,7 +134,7 @@ export async function buildSaleJournalV2(
   const { data: sale, error: saleErr } = await client
     .from("sales")
     .select(
-      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name"
+      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied"
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
@@ -175,6 +175,21 @@ export async function buildSaleJournalV2(
 
   if (paid > 0) pushLine(lines, receiptAccount.id, paid, 0, party);
   if (receivable > 0) pushLine(lines, arAccount.id, receivable, 0, party);
+
+  // Sale-return credit-note applied to this sale: DR Sales Returns contra to
+  // offset the credit note previously issued (originally credited Sales Returns).
+  const saleReturnAdjust = round2(Number((sale as any).sale_return_adjust ?? 0));
+  if (saleReturnAdjust > 0.01) {
+    const salesReturns = getAccountByCode(systemAccounts, "4050");
+    if (salesReturns) pushLine(lines, salesReturns.id, saleReturnAdjust, 0, party);
+  }
+
+  // Customer advance applied to this sale: DR Customer Advances liability.
+  const creditApplied = round2(Number((sale as any).credit_applied ?? 0));
+  if (creditApplied > 0.01) {
+    const customerAdvances = getAccountByCode(systemAccounts, "2150");
+    if (customerAdvances) pushLine(lines, customerAdvances.id, creditApplied, 0, party);
+  }
 
   const revenueCredit = round2(Math.max(0, gst.taxableAmount));
   if (revenueCredit > 0) pushLine(lines, salesRevenue.id, 0, revenueCredit, party);
