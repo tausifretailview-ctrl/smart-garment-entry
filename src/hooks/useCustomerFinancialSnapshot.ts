@@ -26,7 +26,7 @@ export function useCustomerFinancialSnapshot(
     },
     enabled: !!customerId && !!organizationId,
     staleTime: STALE_FREQUENT,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const snap = data ?? EMPTY;

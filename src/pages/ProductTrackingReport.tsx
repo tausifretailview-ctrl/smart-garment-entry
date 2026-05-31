@@ -306,15 +306,6 @@ const ProductTrackingReport = () => {
     };
   }, []);
 
-  if (isLoading && !movements.length) {
-    return (
-      <div className="p-8 space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-[400px]" />
-      </div>
-    );
-  }
-
   const movementKpiItems = useMemo((): ReportKpiItem[] => {
     if (totalCount === 0 || movements.length === 0) return [];
     const inQty = movements
@@ -347,6 +338,15 @@ const ProductTrackingReport = () => {
       },
     ];
   }, [movements, totalCount, currentPage, totalPages]);
+
+  if (isLoading && !movements.length) {
+    return (
+      <div className="p-8 space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-[400px]" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 space-y-5">

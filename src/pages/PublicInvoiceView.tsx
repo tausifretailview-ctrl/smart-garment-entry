@@ -19,6 +19,7 @@ import { RetailTemplate } from "@/components/invoice-templates/RetailTemplate";
 import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTemplate";
 import { RetailTaxEzzyTemplate } from "@/components/invoice-templates/RetailTaxEzzyTemplate";
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
+import { A4ElectronicTemplate } from "@/components/invoice-templates/A4ElectronicTemplate";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 
@@ -301,6 +302,7 @@ export default function PublicInvoiceView() {
       case 'detailed': return <DetailedTemplate {...templateProps} />;
       case 'tax-invoice': return <TaxInvoiceTemplate {...templateProps} />;
       case 'tally-tax-invoice': return <TallyTaxInvoiceTemplate {...templateProps} />;
+      case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} />;
       case 'retail-tax-ezzy': return <RetailTaxEzzyTemplate {...templateProps} />;
