@@ -33,7 +33,7 @@ import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
@@ -139,6 +139,15 @@ function shouldUnionSaleItemsForInvoiceSearch(searchStr: string): boolean {
   if (!t) return false;
   if (/^\d+$/.test(t)) return t.length >= 8;
   return /[A-Za-z]/.test(t) && t.length >= 4;
+}
+
+/** Inclusive calendar-day bounds for sale_date (avoids UTC midnight cutting off same-day invoices). */
+function salesDashboardSaleDateFilterBounds(startYmd: string | null, endYmd: string | null) {
+  if (!startYmd && !endYmd) return { start: null as string | null, end: null as string | null };
+  return {
+    start: startYmd ? `${startYmd}T00:00:00` : null,
+    end: endYmd ? `${endYmd}T23:59:59.999` : null,
+  };
 }
 
 interface ColumnSettings {
@@ -535,6 +544,11 @@ export default function SalesInvoiceDashboard() {
     }
   }, [periodFilter, startDate, endDate]);
 
+  const saleDateFilter = useMemo(
+    () => salesDashboardSaleDateFilterBounds(queryDateRange.start, queryDateRange.end),
+    [queryDateRange.start, queryDateRange.end],
+  );
+
   // Server-side paginated query — NO sale_items, explicit columns
   const { data: invoicesResult, isLoading, refetch, error: invoicesError, dataUpdatedAt: invoicesUpdatedAt } = useQuery({
     queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, userFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
@@ -565,11 +579,11 @@ export default function SalesInvoiceDashboard() {
       if (userFilter !== 'all' && userFilter !== '__pending__') {
         query = query.eq('created_by', userFilter);
       }
-      if (queryDateRange.start) {
-        query = query.gte('sale_date', queryDateRange.start);
+      if (saleDateFilter.start) {
+        query = query.gte('sale_date', saleDateFilter.start);
       }
-      if (queryDateRange.end) {
-        query = query.lte('sale_date', queryDateRange.end);
+      if (saleDateFilter.end) {
+        query = query.lte('sale_date', saleDateFilter.end);
       }
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
@@ -732,6 +746,7 @@ export default function SalesInvoiceDashboard() {
     enabled: !!currentOrganization?.id,
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
   });
 
   const invoicesData = invoicesResult?.data || [];
@@ -739,6 +754,7 @@ export default function SalesInvoiceDashboard() {
 
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const downloadPdfId = searchParams.get('downloadPdf');
   const downloadTriggeredRef = useRef<string | null>(null);
 
@@ -817,8 +833,8 @@ export default function SalesInvoiceDashboard() {
         if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
         if (shopFilter !== 'all') query = query.eq('shop_name', shopFilter);
         if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
-        if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
-        if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
+        if (saleDateFilter.start) query = query.gte('sale_date', saleDateFilter.start);
+        if (saleDateFilter.end) query = query.lte('sale_date', saleDateFilter.end);
 
         return query;
       };
@@ -1312,8 +1328,8 @@ export default function SalesInvoiceDashboard() {
           query = applyPaymentStatusFilterToSalesQuery(query, paymentStatusFilter);
         }
         if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
-        if (queryDateRange.start) query = query.gte('sale_date', queryDateRange.start);
-        if (queryDateRange.end) query = query.lte('sale_date', queryDateRange.end);
+        if (saleDateFilter.start) query = query.gte('sale_date', saleDateFilter.start);
+        if (saleDateFilter.end) query = query.lte('sale_date', saleDateFilter.end);
         if (debouncedSearch) {
           const s = debouncedSearch.trim();
           query = query.or(`sale_number.ilike.%${s}%,customer_name.ilike.%${s}%,customer_phone.ilike.%${s}%`);
@@ -1354,7 +1370,7 @@ export default function SalesInvoiceDashboard() {
     } catch (err: any) {
       toast({ title: "Export Failed", description: err.message, variant: "destructive" });
     }
-  }, [currentOrganization?.id, deliveryFilter, paymentStatusFilter, queryDateRange, debouncedSearch, toast]);
+  }, [currentOrganization?.id, deliveryFilter, paymentStatusFilter, saleDateFilter, debouncedSearch, toast]);
 
   // Memoized event handlers
   const toggleSelectAll = useCallback(() => {
@@ -1392,6 +1408,15 @@ export default function SalesInvoiceDashboard() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, userFilter, startDate, endDate]);
+
+  useEffect(() => {
+    const st = location.state as { refreshSalesList?: boolean } | null;
+    if (!st?.refreshSalesList) return;
+    setCurrentPage(1);
+    void queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
+    window.history.replaceState({}, document.title);
+  }, [location.state, queryClient]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
