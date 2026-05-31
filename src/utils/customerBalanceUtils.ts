@@ -4,6 +4,7 @@ import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -308,8 +309,8 @@ function addRowToSplitMap(
   mergeSplits(map, one);
 }
 
-/** FY-wise bill no. e.g. INV/25-26/591 vs INV/26-27/591 — serial 591 repeats each FY. */
-const SALE_NUMBER_TOKEN = /INV\/\d{2}-\d{2}\/\d+/gi;
+/** FY-wise bill no. INV/25-26/591 or POS/25-26/42 — serial repeats each FY. */
+const SALE_NUMBER_TOKEN = /(?:INV|POS)\/[\d-]+\/[\d]+/gi;
 
 /** Invoice numbers embedded in receipt descriptions (customer-level RCP rows). */
 export function extractSaleNumbersFromReceiptDescription(description: string): string[] {
@@ -513,7 +514,8 @@ async function fetchPaginatedReceiptRows(
       .select(RECEIPT_SPLIT_SELECT)
       .eq("organization_id", organizationId)
       .ilike("voucher_type", "receipt")
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .in("reference_type", [...CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES]);
     q = apply(q);
     const { data, error } = await q
       .order("created_at", { ascending: false })
