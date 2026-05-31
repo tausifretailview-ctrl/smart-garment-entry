@@ -269,8 +269,8 @@ const CUSTOMER_RECEIPT_VOUCHER_SELECT =
   "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at";
 
 /**
- * Fetch customer payment receipts only (RCP), ordered by payment date.
- * Unlike the shared Accounts voucher list (all types, sorted by created_at), this
+ * Fetch customer payment receipts only (RCP), ordered by entry time (created_at).
+ * Unlike the shared Accounts voucher list (all types, mixed sorts), this
  * avoids older receipts being buried under high-volume expense/salary vouchers.
  */
 export async function fetchCustomerReceiptVouchers(organizationId: string) {
@@ -286,7 +286,6 @@ export async function fetchCustomerReceiptVouchers(organizationId: string) {
       .eq("organization_id", organizationId)
       .ilike("voucher_type", "receipt")
       .is("deleted_at", null)
-      .order("voucher_date", { ascending: false })
       .order("created_at", { ascending: false })
       .range(offset, offset + pageSize - 1);
 

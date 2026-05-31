@@ -163,6 +163,18 @@ export function sortVouchersNewestFirst(rows: PaymentVoucherRow[]): PaymentVouch
   });
 }
 
+/** Customer RCP history — newest entry (created_at) first; matches Entry Date & Time column. */
+export function sortCustomerReceiptVouchersByEntryNewestFirst(
+  rows: PaymentVoucherRow[],
+): PaymentVoucherRow[] {
+  return [...rows].sort((a, b) => {
+    const entryA = new Date(a.created_at || a.voucher_date || 0).getTime();
+    const entryB = new Date(b.created_at || b.voucher_date || 0).getTime();
+    if (entryB !== entryA) return entryB - entryA;
+    return String(b.voucher_number || "").localeCompare(String(a.voucher_number || ""));
+  });
+}
+
 const SALE_NUMBER_IN_DESCRIPTION = /INV\/[\d-]+\/[\d]+/i;
 
 export function resolveVoucherPartyName(
