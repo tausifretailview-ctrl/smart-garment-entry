@@ -2444,7 +2444,7 @@ Thank you for choosing us!`;
         const { error: updateError } = await supabase
           .from('sales')
           .update({
-            sale_date: invoiceDate.toISOString(),
+            sale_date: format(invoiceDate, "yyyy-MM-dd"),
             customer_id: selectedCustomerId,
             customer_name: selectedCustomer.customer_name,
             customer_phone: selectedCustomer.phone || null,
@@ -2497,6 +2497,7 @@ Thank you for choosing us!`;
 
         // Invalidate dashboard queries so list refreshes on return
         queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
         queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
@@ -2613,7 +2614,7 @@ Thank you for choosing us!`;
           .from('sales')
           .insert([{
             sale_number: saleNumber,
-            sale_date: invoiceDate.toISOString(),
+            sale_date: format(invoiceDate, "yyyy-MM-dd"),
             sale_type: 'invoice',
             customer_id: selectedCustomerId,
             customer_name: selectedCustomer.customer_name,
@@ -2802,6 +2803,7 @@ Thank you for choosing us!`;
 
         // Invalidate dashboard queries so list refreshes on return
         queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
         queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
@@ -2954,7 +2956,7 @@ Thank you for choosing us!`;
     if (editingInvoiceId) {
       setEditingInvoiceId(null);
       setOriginalItemsForEdit([]);
-      navigate('/sales-invoice-dashboard');
+      navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } });
     }
     
     setSavedInvoiceData(null);
@@ -3236,7 +3238,7 @@ Thank you for choosing us!`;
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className="h-[52px] flex items-center px-5 gap-3">
           {/* Left: Nav */}
-          <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard')}
+          <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } })}
             className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Dashboard</span>
@@ -4266,7 +4268,7 @@ Thank you for choosing us!`;
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate('/sales-invoice-dashboard')}
+              onClick={() => navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } })}
               className="h-9 px-3 text-[13px] font-bold text-red-300 hover:bg-red-900/50 hover:text-red-200 gap-1.5"
             >
               <X className="h-4 w-4" />
