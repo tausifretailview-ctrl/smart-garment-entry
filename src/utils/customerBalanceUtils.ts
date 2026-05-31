@@ -320,6 +320,56 @@ function escapeIlikePattern(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
+function invoiceAmountDue(inv: {
+  net_amount?: number | null;
+  sale_return_adjust?: number | null;
+}): number {
+  return Math.max(
+    0,
+    Math.round(Number(inv.net_amount || 0) - Number(inv.sale_return_adjust || 0)),
+  );
+}
+
+function receiptSettlementTotal(row: SaleReceiptVoucherRow): number {
+  return Number(row.total_amount || 0) + Number(row.discount_amount || 0);
+}
+
+/** When duplicate sale_number rows exist, pick the invoice whose due matches the receipt amount. */
+function disambiguateMatchesByReceiptAmount(
+  matchedIds: string[],
+  row: SaleReceiptVoucherRow,
+  invoices: Array<{
+    id: string;
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+  }>,
+): string[] {
+  if (matchedIds.length <= 1) return matchedIds;
+  const settled = Math.round(receiptSettlementTotal(row));
+  if (settled <= 0) return matchedIds;
+
+  const byAmount = matchedIds.filter((id) => {
+    const inv = invoices.find((i) => i.id === id);
+    if (!inv) return false;
+    return Math.abs(invoiceAmountDue(inv) - settled) <= 1;
+  });
+  if (byAmount.length === 1) return byAmount;
+
+  let bestId = matchedIds[0];
+  let bestDiff = Number.POSITIVE_INFINITY;
+  for (const id of matchedIds) {
+    const inv = invoices.find((i) => i.id === id);
+    if (!inv) continue;
+    const diff = Math.abs(invoiceAmountDue(inv) - settled);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestId = id;
+    }
+  }
+  if (bestDiff <= 1) return [bestId];
+  return matchedIds;
+}
+
 function matchInvoiceIdsFromCustomerReceiptRow(
   row: SaleReceiptVoucherRow,
   invoices: Array<{ id: string; sale_number?: string | null; net_amount?: number | null; sale_return_adjust?: number | null }>,
@@ -343,22 +393,15 @@ function matchInvoiceIdsFromCustomerReceiptRow(
     }
   }
   if (matched.size === 0) {
-    const settled =
-      Number(row.total_amount || 0) + Number(row.discount_amount || 0);
+    const settled = Math.round(receiptSettlementTotal(row));
     if (settled > 0) {
-      const amountHits = invoices.filter((inv) => {
-        const due = Math.max(
-          0,
-          Math.round(
-            Number(inv.net_amount || 0) - Number(inv.sale_return_adjust || 0),
-          ),
-        );
-        return Math.abs(due - Math.round(settled)) <= 1;
-      });
+      const amountHits = invoices.filter(
+        (inv) => Math.abs(invoiceAmountDue(inv) - settled) <= 1,
+      );
       if (amountHits.length === 1) matched.add(amountHits[0].id);
     }
   }
-  return [...matched];
+  return disambiguateMatchesByReceiptAmount([...matched], row, invoices);
 }
 
 /**
