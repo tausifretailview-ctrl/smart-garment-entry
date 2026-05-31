@@ -37,7 +37,7 @@ import {
   filterVouchersForPaymentTab,
   getAccountsHistoryPeriodBounds,
   resolveVoucherPartyName,
-  sortVouchersNewestFirst,
+  sortCustomerReceiptVouchersByEntryNewestFirst,
   voucherDateInPeriod,
 } from "@/utils/paymentVoucherFilters";
 import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
@@ -1248,7 +1248,7 @@ export function CustomerPaymentTab({
     () => getAccountsHistoryPeriodBounds(historyPeriodFilter),
     [historyPeriodFilter],
   );
-  const allCustomerPayments = sortVouchersNewestFirst(
+  const allCustomerPayments = sortCustomerReceiptVouchersByEntryNewestFirst(
     filterVouchersForPaymentTab("customer-payment", historyVoucherSource),
   );
   const formatEntryDateTime = (value: string | null | undefined) => {
