@@ -189,7 +189,7 @@ export default function CustomerReconciliation() {
           } else {
             invoiceCashVouchers.set(v.reference_id, (invoiceCashVouchers.get(v.reference_id) || 0) + amt);
           }
-        } else if (v.reference_type === "customer" && !isAdv && !isCn) {
+        } else if (["customer","customer_payment","customerreceipt"].includes(String(v.reference_type || "").toLowerCase()) && !isAdv && !isCn) {
           openingBalancePaymentsMap.set(
             v.reference_id,
             (openingBalancePaymentsMap.get(v.reference_id) || 0) + Number(v.total_amount || 0)
