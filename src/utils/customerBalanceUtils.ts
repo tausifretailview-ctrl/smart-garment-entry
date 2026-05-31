@@ -4,6 +4,7 @@ import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerAuditBundle, salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { computeCustomerBalanceCore, warnCustomerBalanceMismatch } from "@/utils/customerBalanceCore";
 import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
 
 /**
  * Shared customer receivable math — matches Customer Ledger / useCustomerBalance.
@@ -308,7 +309,8 @@ function addRowToSplitMap(
   mergeSplits(map, one);
 }
 
-const SALE_NUMBER_TOKEN = /INV\/[\d-]+\/[\d]+/gi;
+/** FY-wise bill no. INV/25-26/591 or POS/25-26/42 — serial repeats each FY. */
+const SALE_NUMBER_TOKEN = /(?:INV|POS)\/[\d-]+\/[\d]+/gi;
 
 /** Invoice numbers embedded in receipt descriptions (customer-level RCP rows). */
 export function extractSaleNumbersFromReceiptDescription(description: string): string[] {
@@ -316,9 +318,67 @@ export function extractSaleNumbersFromReceiptDescription(description: string): s
   return [...new Set(matches.map((m) => m.toUpperCase()))];
 }
 
+function normalizeSaleNumberToken(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function invoiceAmountDue(inv: {
+  net_amount?: number | null;
+  sale_return_adjust?: number | null;
+}): number {
+  return Math.max(
+    0,
+    Math.round(Number(inv.net_amount || 0) - Number(inv.sale_return_adjust || 0)),
+  );
+}
+
+function receiptSettlementTotal(row: SaleReceiptVoucherRow): number {
+  return Number(row.total_amount || 0) + Number(row.discount_amount || 0);
+}
+
+/** When several rows match one receipt, prefer the invoice whose due equals receipt amount. */
+function disambiguateMatchesByReceiptAmount(
+  matchedIds: string[],
+  row: SaleReceiptVoucherRow,
+  invoices: Array<{
+    id: string;
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+  }>,
+): string[] {
+  if (matchedIds.length <= 1) return matchedIds;
+  const settled = Math.round(receiptSettlementTotal(row));
+  if (settled <= 0) return matchedIds;
+
+  const byAmount = matchedIds.filter((id) => {
+    const inv = invoices.find((i) => i.id === id);
+    if (!inv) return false;
+    return Math.abs(invoiceAmountDue(inv) - settled) <= 1;
+  });
+  if (byAmount.length === 1) return byAmount;
+
+  let bestId = matchedIds[0];
+  let bestDiff = Number.POSITIVE_INFINITY;
+  for (const id of matchedIds) {
+    const inv = invoices.find((i) => i.id === id);
+    if (!inv) continue;
+    const diff = Math.abs(invoiceAmountDue(inv) - settled);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestId = id;
+    }
+  }
+  if (bestDiff <= 1) return [bestId];
+  return matchedIds;
+}
+
 function matchInvoiceIdsFromCustomerReceiptRow(
   row: SaleReceiptVoucherRow,
-  invoices: Array<{ id: string; sale_number?: string | null }>,
+  invoices: Array<{ id: string; sale_number?: string | null; net_amount?: number | null; sale_return_adjust?: number | null }>,
 ): string[] {
   const desc = String(row.description || "");
   const descLower = desc.toLowerCase();
@@ -327,25 +387,42 @@ function matchInvoiceIdsFromCustomerReceiptRow(
     .map((i) => ({ id: i.id, num: i.sale_number!.trim() }))
     .sort((a, b) => b.num.length - a.num.length);
 
+  const descTokens = extractSaleNumbersFromReceiptDescription(desc);
+  const tokenSet = new Set(descTokens);
+
   const matched = new Set<string>();
-  for (const token of extractSaleNumbersFromReceiptDescription(desc)) {
+  for (const token of descTokens) {
     for (const { id, num } of byNumber) {
-      if (num.toUpperCase() === token) matched.add(id);
+      if (normalizeSaleNumberToken(num) === token) matched.add(id);
+    }
+  }
+  if (matched.size === 0 && descLower.includes("inv/")) {
+    for (const { id, num } of byNumber) {
+      if (descLower.includes(normalizeSaleNumberToken(num).toLowerCase())) matched.add(id);
     }
   }
   if (matched.size === 0) {
-    for (const { id, num } of byNumber) {
-      if (
-        descLower.includes(num.toLowerCase()) &&
-        (descLower.includes("payment") ||
-          descLower.includes("receipt") ||
-          descLower.includes("against"))
-      ) {
-        matched.add(id);
-      }
+    const settled = Math.round(receiptSettlementTotal(row));
+    if (settled > 0) {
+      const amountHits = invoices.filter(
+        (inv) => Math.abs(invoiceAmountDue(inv) - settled) <= 1,
+      );
+      if (amountHits.length === 1) matched.add(amountHits[0].id);
     }
   }
-  return [...matched];
+
+  if (tokenSet.size > 0 && matched.size > 1) {
+    const fyScoped = [...matched].filter((id) => {
+      const inv = invoices.find((i) => i.id === id);
+      const num = inv?.sale_number?.trim();
+      return num ? tokenSet.has(normalizeSaleNumberToken(num)) : false;
+    });
+    if (fyScoped.length >= 1) {
+      return disambiguateMatchesByReceiptAmount(fyScoped, row, invoices);
+    }
+  }
+
+  return disambiguateMatchesByReceiptAmount([...matched], row, invoices);
 }
 
 /**
@@ -356,7 +433,12 @@ function matchInvoiceIdsFromCustomerReceiptRow(
 export function augmentSaleReceiptSplitFromCustomerVouchers(
   splitBySale: Map<string, SaleReceiptVoucherSplit>,
   voucherRows: SaleReceiptVoucherRow[],
-  invoices: Array<{ id: string; sale_number?: string | null }>,
+  invoices: Array<{
+    id: string;
+    sale_number?: string | null;
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+  }>,
 ): Map<string, SaleReceiptVoucherSplit> {
   const result = new Map(splitBySale);
   const saleIdSet = new Set(invoices.map((i) => i.id));
@@ -365,7 +447,7 @@ export function augmentSaleReceiptSplitFromCustomerVouchers(
     if (!row.reference_id) continue;
     if (saleIdSet.has(row.reference_id)) continue;
     const refType = String(row.reference_type || "").toLowerCase();
-    if (refType !== "customer" && refType !== "customer_payment") continue;
+    if (refType === "supplier" || refType === "employee" || refType === "expense") continue;
 
     const matchedIds = matchInvoiceIdsFromCustomerReceiptRow(row, invoices);
     if (matchedIds.length === 0) continue;
@@ -432,7 +514,8 @@ async function fetchPaginatedReceiptRows(
       .select(RECEIPT_SPLIT_SELECT)
       .eq("organization_id", organizationId)
       .ilike("voucher_type", "receipt")
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .in("reference_type", [...CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES]);
     q = apply(q);
     const { data, error } = await q
       .order("created_at", { ascending: false })
@@ -464,15 +547,36 @@ export async function fetchSaleReceiptSplitsForInvoices(
   for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
     const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+ cursor/fix-dashboard-paid-after-customer-payment-e7cf
+      q.in("reference_id", chunk),
       q.in("reference_type", ["sale", "customer", "SALE", "customer_payment", "CustomerReceipt"]).in("reference_id", chunk),
+ main
     );
     merged.push(...rows);
   }
 
   for (const customerId of customerIds) {
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+ cursor/fix-dashboard-paid-after-customer-payment-e7cf
+      q.eq("reference_id", customerId),
       q.in("reference_type", ["customer", "customer_payment", "CustomerReceipt"]).eq("reference_id", customerId),
+main
     );
+    merged.push(...rows);
+  }
+
+  const saleNumbers = [
+    ...new Set(
+      invoices.map((i) => i.sale_number?.trim()).filter((n): n is string => Boolean(n)),
+    ),
+  ];
+  const DESC_OR_CHUNK = 12;
+  for (let i = 0; i < saleNumbers.length; i += DESC_OR_CHUNK) {
+    const batch = saleNumbers.slice(i, i + DESC_OR_CHUNK);
+    const orFilter = batch
+      .map((num) => `description.ilike.%${escapeIlikePattern(num)}%`)
+      .join(",");
+    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) => q.or(orFilter));
     merged.push(...rows);
   }
 

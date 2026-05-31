@@ -94,11 +94,18 @@ export type PaymentVoucherRow = {
   receipt_number?: string | null;
 };
 
-const CUSTOMER_RECEIPT_REFERENCE_TYPES = new Set([
+/** Canonical voucher_entries.reference_type values for customer receipts (SQL .in). */
+export const CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES = [
+  "sale",
+  "SALE",
   "customer",
   "customer_payment",
-  "sale",
-]);
+  "CustomerReceipt",
+] as const;
+
+const CUSTOMER_RECEIPT_REFERENCE_TYPES = new Set(
+  CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES.map((v) => v.toLowerCase()),
+);
 
 /** True for customer RCP rows; excludes supplier/employee/expense receipts. */
 export function isCustomerReceiptVoucher(v: PaymentVoucherRow): boolean {
