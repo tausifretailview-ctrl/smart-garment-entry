@@ -49,7 +49,9 @@ import {
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import {
+  fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceDisplay,
+  reconcileSaleInvoiceWithSplit,
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
@@ -104,49 +106,33 @@ async function syncSalePaymentFromVouchers(
 ) {
   const { data: freshSale, error: saleErr } = await client
     .from("sales")
-    .select("net_amount, paid_amount, sale_return_adjust")
+    .select("net_amount, paid_amount, sale_return_adjust, customer_id, sale_number")
     .eq("id", invoiceId)
     .eq("organization_id", organizationId)
     .single();
   if (saleErr) throw saleErr;
 
-  const { data: receiptRows, error: vchErr } = await client
-    .from("voucher_entries")
-    .select("reference_id, total_amount, payment_method, description, discount_amount")
-    .eq("organization_id", organizationId)
-    .eq("reference_id", invoiceId)
-    .in("reference_type", ["sale", "customer"])
-    .eq("voucher_type", "receipt")
-    .is("deleted_at", null);
-  if (vchErr) throw vchErr;
-
-  const splitMap = splitSaleLinkedReceiptRows(receiptRows || []);
+  const splitMap = await fetchSaleReceiptSplitsForInvoices(client, organizationId, [
+    {
+      id: invoiceId,
+      sale_number: freshSale.sale_number,
+      customer_id: freshSale.customer_id,
+    },
+  ]);
   const split = splitMap.get(invoiceId) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-  const { paidAmount, paymentStatus } = derivePaidAndStatus({
-    netAmount: Number(freshSale.net_amount || 0),
-    saleReturnAdjust: Number(freshSale.sale_return_adjust || 0),
-    cashReceived: split.cash,
-    advanceApplied: split.adv,
-    cnApplied: split.cn,
-    discountGiven: split.discount,
-  });
+  const rec = reconcileSaleInvoiceWithSplit(freshSale, split);
 
   const { error: updErr } = await client
     .from("sales")
     .update({
-      paid_amount: paidAmount,
-      payment_status: paymentStatus,
+      paid_amount: rec.paid_amount,
+      payment_status: rec.payment_status,
       payment_date: voucherDateYmd,
     })
     .eq("id", invoiceId)
     .eq("organization_id", organizationId);
   if (updErr) throw updErr;
-  return reconcileSaleInvoiceDisplay({
-    net_amount: Number(freshSale.net_amount || 0),
-    sale_return_adjust: Number(freshSale.sale_return_adjust || 0),
-    paid_amount: paidAmount,
-    split,
-  });
+  return rec;
 }
 
 async function rollbackCustomerReceiptVouchers(
@@ -295,38 +281,28 @@ export function CustomerPaymentTab({
       const saleIds = salesRows.map((s: any) => s.id).filter(Boolean);
       if (saleIds.length === 0) return salesRows;
 
-      const { data: voucherRows, error: vouchersError } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, total_amount, discount_amount, payment_method, description")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        // Phase 1.2: include mis-tagged customer rows for this customer's sale ids.
-        .in("reference_type", ["sale", "customer"])
-        .is("deleted_at", null)
-        .in("reference_id", saleIds);
-      if (vouchersError) throw vouchersError;
-
-      const splitBySale = splitSaleLinkedReceiptRows(voucherRows || []);
+      const splitBySale = await fetchSaleReceiptSplitsForInvoices(
+        supabase,
+        organizationId,
+        salesRows.map((sale: any) => ({
+          id: sale.id,
+          sale_number: sale.sale_number,
+          customer_id: sale.customer_id,
+        })),
+      );
 
       // Sync paid_amount / payment_status from receipt vouchers (ledger-consistent).
       const updates = salesRows
         .map((sale: any) => {
           const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-          const voucherBucketSum = split.cash + split.adv + split.cn;
-          const paidForReconcile = Math.max(0, Number(sale.paid_amount || 0) - voucherBucketSum);
-          const rec = reconcileSaleInvoiceDisplay({
-            net_amount: Number(sale.net_amount || 0),
-            sale_return_adjust: Number(sale.sale_return_adjust || 0),
-            paid_amount: paidForReconcile,
-            split,
-          });
+          const rec = reconcileSaleInvoiceWithSplit(sale, split);
           const { paymentStatus: effectiveStatus } = derivePaidAndStatus({
             netAmount: Number(sale.net_amount || 0),
             saleReturnAdjust: Number(sale.sale_return_adjust || 0),
             cashReceived: split.cash,
             advanceApplied: split.adv,
             cnApplied: split.cn,
-            discountGiven: 0,
+            discountGiven: split.discount,
             paymentMethod: sale.payment_method,
           });
           warnSettlementPathMismatch(
@@ -364,19 +340,17 @@ export function CustomerPaymentTab({
   const { data: customerInvoiceVoucherSplits = new Map<string, SaleReceiptVoucherSplit>() } = useQuery({
     queryKey: ["customer-invoice-voucher-splits", organizationId, referenceId, customerInvoices?.length || 0],
     queryFn: async () => {
-      const saleIds = (customerInvoices || []).map((s: any) => s.id).filter(Boolean);
-      if (!organizationId || saleIds.length === 0) return new Map<string, SaleReceiptVoucherSplit>();
-      const { data, error } = await supabase
-        .from("voucher_entries")
-        .select("reference_id, total_amount, discount_amount, payment_method, description")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        // Phase 1.2: include mis-tagged customer rows for this customer's sale ids.
-        .in("reference_type", ["sale", "customer"])
-        .is("deleted_at", null)
-        .in("reference_id", saleIds);
-      if (error) throw error;
-      return splitSaleLinkedReceiptRows(data || []);
+      const rows = customerInvoices || [];
+      if (!organizationId || rows.length === 0) return new Map<string, SaleReceiptVoucherSplit>();
+      return fetchSaleReceiptSplitsForInvoices(
+        supabase,
+        organizationId,
+        rows.map((s: any) => ({
+          id: s.id,
+          sale_number: s.sale_number,
+          customer_id: s.customer_id,
+        })),
+      );
     },
     enabled: !!organizationId && !!referenceId && !!customerInvoices && customerInvoices.length > 0,
   });
@@ -617,6 +591,8 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-reconciled-stats"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
@@ -1019,6 +995,8 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-reconciled-stats"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
@@ -1174,6 +1152,8 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-reconciled-stats"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });

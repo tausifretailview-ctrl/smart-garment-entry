@@ -88,7 +88,8 @@ import {
 import {
   fetchCustomerBalanceSnapshot,
   reconcileSaleInvoiceDisplay,
-  splitSaleLinkedReceiptRows,
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
@@ -645,17 +646,15 @@ export default function SalesInvoiceDashboard() {
         return { data: invoices, count: count || 0 };
       }
 
-      const { data: receiptRows, error: receiptErr } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, total_amount, discount_amount, payment_method, description, voucher_date, voucher_type')
-        .eq('organization_id', currentOrganization.id)
-        .eq('voucher_type', 'receipt')
-        // Phase 1.2: also catch legacy mis-tagged rows (reference_type='customer'
-        // pointing at a sale id). saleIds filter keeps true customer rows out.
-        .in('reference_type', ['sale', 'customer'])
-        .is('deleted_at', null)
-        .in('reference_id', saleIds);
-      if (receiptErr) throw receiptErr;
+      const splitBySale = await fetchSaleReceiptSplitsForInvoices(
+        supabase,
+        currentOrganization.id,
+        invoices.map((inv: any) => ({
+          id: inv.id,
+          sale_number: inv.sale_number,
+          customer_id: inv.customer_id,
+        })),
+      );
 
       const { data: linkedReturns } = await supabase
         .from("sale_returns")
@@ -664,19 +663,12 @@ export default function SalesInvoiceDashboard() {
         .in("linked_sale_id", saleIds)
         .is("deleted_at", null);
 
-      const splitBySale = splitSaleLinkedReceiptRows(receiptRows || []);
-
       // If paid_amount / payment_status is stale vs vouchers + S/R, sync sales row (ledger-consistent cash vs CN).
       const staleUpdates = invoices
         .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
         .map((inv: any) => {
           const split = splitBySale.get(inv.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-          const rec = reconcileSaleInvoiceDisplay({
-            net_amount: inv.net_amount,
-            sale_return_adjust: inv.sale_return_adjust,
-            paid_amount: inv.paid_amount,
-            split,
-          });
+          const rec = reconcileSaleInvoiceWithSplit(inv, split);
           const { paymentStatus: derivedStatus } = derivePaidAndStatus({
             netAmount: Number(inv.net_amount || 0),
             saleReturnAdjust: Number(inv.sale_return_adjust || 0),
@@ -718,15 +710,10 @@ export default function SalesInvoiceDashboard() {
         if (inv.payment_status === "hold") {
           return { ...inv };
         }
-        const rec = reconcileSaleInvoiceDisplay({
-          net_amount: inv.net_amount,
-          sale_return_adjust: inv.sale_return_adjust,
-          paid_amount: inv.paid_amount,
-          split: splitBySale.get(inv.id) ?? null,
-        });
+        const rec = reconcileSaleInvoiceWithSplit(inv, splitBySale.get(inv.id) ?? null);
         const cnAdjustYmd =
           Number(inv.sale_return_adjust || 0) > 0.005
-            ? resolveCnAdjustDateForSale(inv.id, receiptRows || [], linkedReturns || [])
+            ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])
             : null;
         return {
           ...inv,
@@ -824,7 +811,7 @@ export default function SalesInvoiceDashboard() {
       const buildFilteredQuery = () => {
         let query = supabase
           .from('sales')
-          .select('id, sale_number, customer_name, customer_phone, sale_date, salesman, net_amount, paid_amount, discount_amount, flat_discount_amount, total_qty, payment_status, sale_return_adjust, delivery_status, is_cancelled, shop_name')
+          .select('id, sale_number, customer_id, customer_name, customer_phone, sale_date, salesman, net_amount, paid_amount, discount_amount, flat_discount_amount, total_qty, payment_status, sale_return_adjust, delivery_status, is_cancelled, shop_name')
           .eq('organization_id', currentOrganization.id)
           .eq('sale_type', 'invoice')
           .is('deleted_at', null)
@@ -890,21 +877,18 @@ export default function SalesInvoiceDashboard() {
         offset += PAGE_SIZE;
       }
 
-      const saleIds = allInvoices.map((s: any) => s.id).filter(Boolean);
       const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
-      for (let i = 0; i < saleIds.length; i += 400) {
-        const batch = saleIds.slice(i, i + 400);
-        const { data: receiptRows, error: receiptErr } = await supabase
-          .from('voucher_entries')
-          .select('reference_id, total_amount, payment_method, description')
-          .eq('organization_id', currentOrganization.id)
-          .eq('voucher_type', 'receipt')
-          // Phase 1.2: include mis-tagged customer rows that point at sale ids.
-          .in('reference_type', ['sale', 'customer'])
-          .is('deleted_at', null)
-          .in('reference_id', batch);
-        if (receiptErr) throw receiptErr;
-        const batchSplit = splitSaleLinkedReceiptRows(receiptRows || []);
+      for (let i = 0; i < allInvoices.length; i += 200) {
+        const batch = allInvoices.slice(i, i + 200);
+        const batchSplit = await fetchSaleReceiptSplitsForInvoices(
+          supabase,
+          currentOrganization.id,
+          batch.map((inv: any) => ({
+            id: inv.id,
+            sale_number: inv.sale_number,
+            customer_id: inv.customer_id,
+          })),
+        );
         batchSplit.forEach((v, k) => splitBySale.set(k, v));
       }
 
@@ -921,12 +905,7 @@ export default function SalesInvoiceDashboard() {
             outstanding: Math.max(0, net - sr - paid),
           };
         }
-        const rec = reconcileSaleInvoiceDisplay({
-          net_amount: inv.net_amount,
-          sale_return_adjust: inv.sale_return_adjust,
-          paid_amount: inv.paid_amount,
-          split: splitBySale.get(inv.id) ?? null,
-        });
+        const rec = reconcileSaleInvoiceWithSplit(inv, splitBySale.get(inv.id) ?? null);
         return {
           ...inv,
           paid_amount: rec.paid_amount,

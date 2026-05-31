@@ -273,6 +273,160 @@ export type SaleReceiptVoucherSplit = {
  * Bucket sale-linked receipt voucher rows by payment method / description
  * (same rules as {@link computeCustomerOutstanding}).
  */
+export type SaleReceiptVoucherRow = {
+  reference_id: string | null;
+  reference_type?: string | null;
+  total_amount?: number | null;
+  discount_amount?: number | null;
+  payment_method?: string | null;
+  description?: string | null;
+};
+
+const emptySplit = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0, discount: 0 });
+
+function mergeSplits(
+  target: Map<string, SaleReceiptVoucherSplit>,
+  add: Map<string, SaleReceiptVoucherSplit>,
+): void {
+  add.forEach((split, saleId) => {
+    const cur = target.get(saleId) || emptySplit();
+    target.set(saleId, {
+      cash: cur.cash + split.cash,
+      cn: cur.cn + split.cn,
+      adv: cur.adv + split.adv,
+      discount: cur.discount + split.discount,
+    });
+  });
+}
+
+function addRowToSplitMap(
+  map: Map<string, SaleReceiptVoucherSplit>,
+  saleId: string,
+  row: SaleReceiptVoucherRow,
+): void {
+  const one = splitSaleLinkedReceiptRows([{ ...row, reference_id: saleId }]);
+  mergeSplits(map, one);
+}
+
+/**
+ * Customer Payment often stores receipts as reference_type=customer (customer uuid).
+ * Dashboard queries used reference_id IN (sale ids) only, so those payments were invisible
+ * and invoices stayed "Not Paid" while the ledger showed ₹0 due.
+ */
+export function augmentSaleReceiptSplitFromCustomerVouchers(
+  splitBySale: Map<string, SaleReceiptVoucherSplit>,
+  voucherRows: SaleReceiptVoucherRow[],
+  invoices: Array<{ id: string; sale_number?: string | null }>,
+): Map<string, SaleReceiptVoucherSplit> {
+  const result = new Map(splitBySale);
+  const saleIdSet = new Set(invoices.map((i) => i.id));
+  const byNumber = invoices
+    .filter((i) => i.sale_number?.trim())
+    .map((i) => ({ id: i.id, num: i.sale_number!.trim() }))
+    .sort((a, b) => b.num.length - a.num.length);
+
+  for (const row of voucherRows) {
+    if (!row.reference_id) continue;
+    if (saleIdSet.has(row.reference_id)) continue;
+    const refType = String(row.reference_type || "").toLowerCase();
+    if (refType !== "customer" && refType !== "customer_payment") continue;
+
+    const desc = String(row.description || "").toLowerCase();
+    if (!desc.includes("payment for")) continue;
+
+    const matchedIds: string[] = [];
+    for (const { id, num } of byNumber) {
+      if (desc.includes(num.toLowerCase())) matchedIds.push(id);
+    }
+    if (matchedIds.length === 0) continue;
+
+    if (matchedIds.length === 1) {
+      addRowToSplitMap(result, matchedIds[0], row);
+      continue;
+    }
+
+    const share = 1 / matchedIds.length;
+    const scaled: SaleReceiptVoucherRow = {
+      ...row,
+      total_amount: Number(row.total_amount || 0) * share,
+      discount_amount: Number(row.discount_amount || 0) * share,
+    };
+    for (const saleId of matchedIds) {
+      addRowToSplitMap(result, saleId, scaled);
+    }
+  }
+
+  return result;
+}
+
+/** Sale-linked + customer-linked receipts → per-invoice settlement split. */
+export function buildSaleReceiptSplitMap(
+  invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
+  voucherRows: SaleReceiptVoucherRow[],
+): Map<string, SaleReceiptVoucherSplit> {
+  const saleIds = new Set(invoices.map((i) => i.id));
+  const directRows = voucherRows.filter((r) => r.reference_id && saleIds.has(r.reference_id));
+  const base = splitSaleLinkedReceiptRows(directRows);
+  return augmentSaleReceiptSplitFromCustomerVouchers(base, voucherRows, invoices);
+}
+
+const RECEIPT_SPLIT_SELECT =
+  "reference_id, reference_type, total_amount, discount_amount, payment_method, description";
+
+/** Fetch receipt vouchers for a page of invoices (sale id + customer id paths). */
+export async function fetchSaleReceiptSplitsForInvoices(
+  client: SupabaseClient,
+  organizationId: string,
+  invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
+): Promise<Map<string, SaleReceiptVoucherSplit>> {
+  const saleIds = invoices.map((i) => i.id).filter(Boolean);
+  if (saleIds.length === 0) return new Map();
+
+  const customerIds = [
+    ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
+  ] as string[];
+
+  const saleLinkedQuery = client
+    .from("voucher_entries")
+    .select(RECEIPT_SPLIT_SELECT)
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "receipt")
+    .in("reference_type", ["sale", "customer"])
+    .is("deleted_at", null)
+    .in("reference_id", saleIds);
+
+  const customerLinkedQuery =
+    customerIds.length > 0
+      ? client
+          .from("voucher_entries")
+          .select(RECEIPT_SPLIT_SELECT)
+          .eq("organization_id", organizationId)
+          .eq("voucher_type", "receipt")
+          .eq("reference_type", "customer")
+          .is("deleted_at", null)
+          .in("reference_id", customerIds)
+      : null;
+
+  const [saleRes, custRes] = await Promise.all([
+    saleLinkedQuery,
+    customerLinkedQuery ?? Promise.resolve({ data: [] as SaleReceiptVoucherRow[], error: null }),
+  ]);
+
+  if (saleRes.error) throw saleRes.error;
+  if (custRes.error) throw custRes.error;
+
+  const seen = new Set<string>();
+  const merged: SaleReceiptVoucherRow[] = [];
+  for (const row of [...(saleRes.data || []), ...(custRes.data || [])] as SaleReceiptVoucherRow[]) {
+    const key = `${row.reference_type}|${row.reference_id}|${row.description}|${row.total_amount}|${row.discount_amount}|${row.payment_method}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+  }
+
+  return buildSaleReceiptSplitMap(invoices, merged);
+}
+
 export function splitSaleLinkedReceiptRows(
   rows: Array<{
     reference_id: string | null;
@@ -283,7 +437,6 @@ export function splitSaleLinkedReceiptRows(
   }>
 ): Map<string, SaleReceiptVoucherSplit> {
   const map = new Map<string, SaleReceiptVoucherSplit>();
-  const empty = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0, discount: 0 });
 
   for (const r of rows) {
     if (!r.reference_id) continue;
@@ -296,7 +449,7 @@ export function splitSaleLinkedReceiptRows(
     };
     const cashAmt = Number(r.total_amount || 0);
     const discAmt = Number(r.discount_amount || 0);
-    const cur = map.get(r.reference_id) || empty();
+    const cur = map.get(r.reference_id) || emptySplit();
     if (isAdvVoucher(v)) cur.adv += cashAmt;
     else if (isCnVoucher(v)) cur.cn += cashAmt;
     else {
@@ -370,6 +523,26 @@ export function reconcileSaleInvoiceDisplay(params: {
     payment_status,
     outstanding,
   };
+}
+
+/** Same paid_amount input as Customer Payment / invoice due (strip voucher buckets already in split). */
+export function reconcileSaleInvoiceWithSplit(
+  sale: {
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+    paid_amount?: number | null;
+  },
+  split: SaleReceiptVoucherSplit | null | undefined,
+) {
+  const s = split ?? emptySplit();
+  const voucherBucketSum = s.cash + s.adv + s.cn;
+  const paidForReconcile = Math.max(0, Number(sale.paid_amount || 0) - voucherBucketSum);
+  return reconcileSaleInvoiceDisplay({
+    net_amount: Number(sale.net_amount || 0),
+    sale_return_adjust: Number(sale.sale_return_adjust || 0),
+    paid_amount: paidForReconcile,
+    split: s,
+  });
 }
 
 /**
