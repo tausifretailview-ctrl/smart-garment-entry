@@ -6,7 +6,7 @@ export const accountsHistoryTitleBarClass =
   "flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-slate-50/50";
 
 export const accountsHistoryToolbarClass =
-  "flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white";
+  "flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white";
 
 export const accountsHistorySearchInputClass =
   "pl-10 h-9 w-full text-sm border-slate-200 bg-slate-50 focus:bg-white normal-case placeholder:normal-case";

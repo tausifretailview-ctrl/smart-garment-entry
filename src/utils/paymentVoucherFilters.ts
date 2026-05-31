@@ -1,4 +1,80 @@
+import {
+  endOfMonth,
+  endOfQuarter,
+  format,
+  startOfMonth,
+  startOfQuarter,
+} from "date-fns";
 import type { AccountsPaymentTabId } from "@/hooks/useAccountsVoucherData";
+
+/** Preset periods for Accounts payment history panels. */
+export type AccountsHistoryPeriod = "daily" | "monthly" | "quarterly" | "yearly" | "all";
+
+export const ACCOUNTS_HISTORY_PERIOD_OPTIONS: Array<{
+  value: AccountsHistoryPeriod;
+  label: string;
+}> = [
+  { value: "daily", label: "Today" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+  { value: "all", label: "All Time" },
+];
+
+/** Indian financial year (Apr–Mar) containing anchorDate. */
+export function getIndianFinancialYearBounds(anchorDate: Date = new Date()): {
+  start: string;
+  end: string;
+} {
+  const month = anchorDate.getMonth();
+  const year = anchorDate.getFullYear();
+  const fyStartYear = month >= 3 ? year : year - 1;
+  return {
+    start: format(new Date(fyStartYear, 3, 1), "yyyy-MM-dd"),
+    end: format(new Date(fyStartYear + 1, 2, 31), "yyyy-MM-dd"),
+  };
+}
+
+export function getAccountsHistoryPeriodBounds(
+  period: AccountsHistoryPeriod,
+  anchorDate: Date = new Date(),
+): { start: string | null; end: string | null } {
+  switch (period) {
+    case "daily":
+      return {
+        start: format(anchorDate, "yyyy-MM-dd"),
+        end: format(anchorDate, "yyyy-MM-dd"),
+      };
+    case "monthly":
+      return {
+        start: format(startOfMonth(anchorDate), "yyyy-MM-dd"),
+        end: format(endOfMonth(anchorDate), "yyyy-MM-dd"),
+      };
+    case "quarterly":
+      return {
+        start: format(startOfQuarter(anchorDate), "yyyy-MM-dd"),
+        end: format(endOfQuarter(anchorDate), "yyyy-MM-dd"),
+      };
+    case "yearly":
+      return getIndianFinancialYearBounds(anchorDate);
+    case "all":
+    default:
+      return { start: null, end: null };
+  }
+}
+
+/** Compare voucher_date (DATE or ISO string) to inclusive yyyy-MM-dd bounds. */
+export function voucherDateInPeriod(
+  voucherDate: string | null | undefined,
+  bounds: { start: string | null; end: string | null },
+): boolean {
+  if (!bounds.start && !bounds.end) return true;
+  if (!voucherDate) return false;
+  const day = voucherDate.slice(0, 10);
+  if (bounds.start && day < bounds.start) return false;
+  if (bounds.end && day > bounds.end) return false;
+  return true;
+}
 
 export type PaymentVoucherRow = {
   id: string;
@@ -31,7 +107,14 @@ export function isCustomerReceiptVoucher(v: PaymentVoucherRow): boolean {
   if (refType === "supplier" || refType === "employee" || refType === "expense") {
     return false;
   }
-  return CUSTOMER_RECEIPT_REFERENCE_TYPES.has(refType);
+  if (CUSTOMER_RECEIPT_REFERENCE_TYPES.has(refType)) return true;
+  // Legacy rows: missing/other reference_type but RCP series or payment wording
+  const desc = (v.description || "").toLowerCase();
+  const vno = (v.voucher_number || "").toUpperCase();
+  if (vno.startsWith("RCP/") || desc.includes("payment for") || desc.includes("opening balance")) {
+    return true;
+  }
+  return !refType;
 }
 
 export function filterVouchersForPaymentTab(

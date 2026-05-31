@@ -284,7 +284,7 @@ export async function fetchCustomerReceiptVouchers(organizationId: string) {
       .from("voucher_entries")
       .select(CUSTOMER_RECEIPT_VOUCHER_SELECT)
       .eq("organization_id", organizationId)
-      .in("voucher_type", ["receipt", "RECEIPT"])
+      .ilike("voucher_type", "receipt")
       .is("deleted_at", null)
       .order("voucher_date", { ascending: false })
       .order("created_at", { ascending: false })
