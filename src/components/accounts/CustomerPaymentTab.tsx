@@ -32,9 +32,13 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { fetchAllCustomers, fetchAllSalesSummary, fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
 import {
+  ACCOUNTS_HISTORY_PERIOD_OPTIONS,
+  type AccountsHistoryPeriod,
   filterVouchersForPaymentTab,
+  getAccountsHistoryPeriodBounds,
   resolveVoucherPartyName,
   sortVouchersNewestFirst,
+  voucherDateInPeriod,
 } from "@/utils/paymentVoucherFilters";
 import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -206,9 +210,14 @@ export function CustomerPaymentTab({
   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string[]>([]);
+  const [historyPeriodFilter, setHistoryPeriodFilter] = useState<AccountsHistoryPeriod>("all");
   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
 
-  const { data: customerReceiptHistory } = useQuery({
+  const {
+    data: customerReceiptHistory,
+    isLoading: customerReceiptHistoryLoading,
+    isError: customerReceiptHistoryError,
+  } = useQuery({
     queryKey: ["customer-receipt-vouchers", organizationId],
     queryFn: () => fetchCustomerReceiptVouchers(organizationId),
     enabled: !!organizationId && !embedded,
@@ -1227,7 +1236,13 @@ export function CustomerPaymentTab({
     createVoucher.mutate();
   };
 
-  const historyVoucherSource = customerReceiptHistory ?? vouchers;
+  const historyVoucherSource = embedded
+    ? vouchers
+    : customerReceiptHistory ?? [];
+  const historyPeriodBounds = useMemo(
+    () => getAccountsHistoryPeriodBounds(historyPeriodFilter),
+    [historyPeriodFilter],
+  );
   const allCustomerPayments = sortVouchersNewestFirst(
     filterVouchersForPaymentTab("customer-payment", historyVoucherSource),
   );
@@ -1240,6 +1255,7 @@ export function CustomerPaymentTab({
   const partyNameCtx = { tab: "customer-payment" as const, sales, customers };
 
   const customerPayments = allCustomerPayments.filter((v) => {
+    if (!voucherDateInPeriod(v.voucher_date, historyPeriodBounds)) return false;
     if (paymentMethodFilter.length > 0) {
       const method = (v.payment_method || "").toLowerCase().replace(/-/g, "_");
       const filters = paymentMethodFilter.map((m) => m.toLowerCase().replace(/-/g, "_"));
@@ -1753,11 +1769,36 @@ export function CustomerPaymentTab({
         searchValue={paymentSearchTerm}
         onSearchChange={(v) => { setPaymentSearchTerm(v); setCustomerPaymentsPage(1); }}
         disableTableScroll={isMobile}
+        filters={
+          <Select
+            value={historyPeriodFilter}
+            onValueChange={(v) => {
+              setHistoryPeriodFilter(v as AccountsHistoryPeriod);
+              setCustomerPaymentsPage(1);
+            }}
+          >
+            <SelectTrigger className="h-9 w-full min-w-[132px] sm:w-[148px] text-sm border-slate-200 bg-slate-50 shrink-0">
+              <SelectValue placeholder="Period" />
+            </SelectTrigger>
+            <SelectContent>
+              {ACCOUNTS_HISTORY_PERIOD_OPTIONS.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
         toolbar={
           <>
+            <Badge variant="secondary" className="h-9 px-2.5 text-xs font-normal tabular-nums shrink-0">
+              {customerReceiptHistoryLoading
+                ? "Loading…"
+                : `${customerPayments.length} receipt${customerPayments.length === 1 ? "" : "s"}`}
+            </Badge>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
+                <Button variant="outline" size="sm" className="h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white shrink-0">
                   <Filter className="mr-2 h-4 w-4" />
                   Payment Mode{paymentMethodFilter.length > 0 ? ` (${paymentMethodFilter.length})` : ""}
                 </Button>
@@ -1819,26 +1860,42 @@ export function CustomerPaymentTab({
           </>
         }
         footer={
-          totalPages > 1 ? (
+          customerPayments.length > 0 || customerReceiptHistoryLoading ? (
             <>
-              <p className="text-muted-foreground">Showing {startIndex + 1}-{Math.min(endIndex, customerPayments.length)} of {customerPayments.length} receipts</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.max(1, p - 1))} disabled={customerPaymentsPage === 1}>
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
-                </Button>
-                <span className="font-medium px-2">Page {customerPaymentsPage} of {totalPages}</span>
-                <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.min(totalPages, p + 1))} disabled={customerPaymentsPage === totalPages}>
-                  Next <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
+              <p className="text-muted-foreground">
+                {customerReceiptHistoryLoading
+                  ? "Loading payment history…"
+                  : customerReceiptHistoryError
+                    ? "Could not load full history. Pull to refresh or reload the page."
+                    : `Showing ${startIndex + 1}–${Math.min(endIndex, customerPayments.length)} of ${customerPayments.length} receipts`}
+              </p>
+              {totalPages > 1 ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.max(1, p - 1))} disabled={customerPaymentsPage === 1}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                  </Button>
+                  <span className="font-medium px-2">Page {customerPaymentsPage} of {totalPages}</span>
+                  <Button variant="outline" size="sm" onClick={() => setCustomerPaymentsPage(p => Math.min(totalPages, p + 1))} disabled={customerPaymentsPage === totalPages}>
+                    Next <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              ) : null}
             </>
           ) : undefined
         }
       >
           {isMobile ? (
             <div className="space-y-2.5">
-              {paginatedPayments.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-sm">No receipts found</div>
+              {customerReceiptHistoryLoading ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">Loading receipts…</div>
+              ) : paginatedPayments.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  {customerReceiptHistoryError
+                    ? "Failed to load receipts"
+                    : historyPeriodFilter === "all"
+                      ? "No receipts found"
+                      : "No receipts in this period. Try All Time."}
+                </div>
               ) : (
                 paginatedPayments.map((voucher) => {
                   const invoice = sales?.find((s) => s.id === voucher.reference_id);
@@ -1986,7 +2043,24 @@ export function CustomerPaymentTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {              paginatedPayments.map((voucher) => {
+              {customerReceiptHistoryLoading ? (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 11 : 10} className="text-center py-10 text-muted-foreground">
+                    Loading receipts…
+                  </TableCell>
+                </TableRow>
+              ) : paginatedPayments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 11 : 10} className="text-center py-10 text-muted-foreground">
+                    {customerReceiptHistoryError
+                      ? "Failed to load receipts"
+                      : historyPeriodFilter === "all"
+                        ? "No receipts found"
+                        : "No receipts in this period. Try All Time."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+              paginatedPayments.map((voucher) => {
                 const invoice = sales?.find((s) => s.id === voucher.reference_id);
                 const customerName = resolveVoucherPartyName(voucher, partyNameCtx);
                 const isSelected = selectedPaymentIds.includes(voucher.id);
@@ -2065,7 +2139,8 @@ export function CustomerPaymentTab({
                     )}
                   </TableRow>
                 );
-              })}
+              })
+              )}
             </TableBody>
             {customerPaymentsGrandTotals.count > 0 ? (
               <TableFooter>
