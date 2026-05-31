@@ -24,7 +24,7 @@ export function useOrganizationCustomerAccountTotals(organizationId: string | nu
     queryFn: () => fetchOrganizationCustomerAccountTotals(organizationId!),
     enabled: !!organizationId,
     staleTime: STALE_FREQUENT,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   return {

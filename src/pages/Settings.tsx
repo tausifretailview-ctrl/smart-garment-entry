@@ -137,7 +137,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -2908,7 +2908,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5',
                           },
                         })
                       }
@@ -2971,6 +2971,7 @@ export default function Settings() {
                             Tally Tax Invoice — Mobile/Electronics Shop
                           </span>
                         </SelectItem>
+                        <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
                         <SelectItem value="retail">
                           <span className="flex items-center gap-2">
                             <span className="text-pink-600 font-bold text-xs w-5">RET</span>
