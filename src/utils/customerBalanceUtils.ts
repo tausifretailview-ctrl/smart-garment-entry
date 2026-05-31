@@ -308,12 +308,17 @@ function addRowToSplitMap(
   mergeSplits(map, one);
 }
 
-const SALE_NUMBER_TOKEN = /INV\/[\d-]+\/[\d]+/gi;
+/** FY-wise bill no. e.g. INV/25-26/591 vs INV/26-27/591 — serial 591 repeats each FY. */
+const SALE_NUMBER_TOKEN = /INV\/\d{2}-\d{2}\/\d+/gi;
 
 /** Invoice numbers embedded in receipt descriptions (customer-level RCP rows). */
 export function extractSaleNumbersFromReceiptDescription(description: string): string[] {
   const matches = description.match(SALE_NUMBER_TOKEN) || [];
   return [...new Set(matches.map((m) => m.toUpperCase()))];
+}
+
+function normalizeSaleNumberToken(value: string): string {
+  return value.trim().toUpperCase();
 }
 
 function escapeIlikePattern(value: string): string {
@@ -334,7 +339,7 @@ function receiptSettlementTotal(row: SaleReceiptVoucherRow): number {
   return Number(row.total_amount || 0) + Number(row.discount_amount || 0);
 }
 
-/** When duplicate sale_number rows exist, pick the invoice whose due matches the receipt amount. */
+/** When several rows match one receipt, prefer the invoice whose due equals receipt amount. */
 function disambiguateMatchesByReceiptAmount(
   matchedIds: string[],
   row: SaleReceiptVoucherRow,
@@ -381,15 +386,18 @@ function matchInvoiceIdsFromCustomerReceiptRow(
     .map((i) => ({ id: i.id, num: i.sale_number!.trim() }))
     .sort((a, b) => b.num.length - a.num.length);
 
+  const descTokens = extractSaleNumbersFromReceiptDescription(desc);
+  const tokenSet = new Set(descTokens);
+
   const matched = new Set<string>();
-  for (const token of extractSaleNumbersFromReceiptDescription(desc)) {
+  for (const token of descTokens) {
     for (const { id, num } of byNumber) {
-      if (num.toUpperCase() === token) matched.add(id);
+      if (normalizeSaleNumberToken(num) === token) matched.add(id);
     }
   }
-  if (matched.size === 0) {
+  if (matched.size === 0 && descLower.includes("inv/")) {
     for (const { id, num } of byNumber) {
-      if (descLower.includes(num.toLowerCase())) matched.add(id);
+      if (descLower.includes(normalizeSaleNumberToken(num).toLowerCase())) matched.add(id);
     }
   }
   if (matched.size === 0) {
@@ -401,6 +409,18 @@ function matchInvoiceIdsFromCustomerReceiptRow(
       if (amountHits.length === 1) matched.add(amountHits[0].id);
     }
   }
+
+  if (tokenSet.size > 0 && matched.size > 1) {
+    const fyScoped = [...matched].filter((id) => {
+      const inv = invoices.find((i) => i.id === id);
+      const num = inv?.sale_number?.trim();
+      return num ? tokenSet.has(normalizeSaleNumberToken(num)) : false;
+    });
+    if (fyScoped.length >= 1) {
+      return disambiguateMatchesByReceiptAmount(fyScoped, row, invoices);
+    }
+  }
+
   return disambiguateMatchesByReceiptAmount([...matched], row, invoices);
 }
 
