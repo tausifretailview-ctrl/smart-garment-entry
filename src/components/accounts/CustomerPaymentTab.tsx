@@ -30,7 +30,12 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import { fetchAllCustomers, fetchAllSalesSummary, fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
+import {
+  filterVouchersForPaymentTab,
+  resolveVoucherPartyName,
+  sortVouchersNewestFirst,
+} from "@/utils/paymentVoucherFilters";
 import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -202,6 +207,15 @@ export function CustomerPaymentTab({
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string[]>([]);
   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
+
+  const { data: customerReceiptHistory } = useQuery({
+    queryKey: ["customer-receipt-vouchers", organizationId],
+    queryFn: () => fetchCustomerReceiptVouchers(organizationId),
+    enabled: !!organizationId && !embedded,
+    staleTime: 60 * 1000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  });
 
   // Reassign dialog state
   const [reassignPayment, setReassignPayment] = useState<any>(null);
@@ -586,6 +600,7 @@ export function CustomerPaymentTab({
     onSuccess: (data) => {
       toast.success(`₹${Math.round(data.applied).toLocaleString('en-IN')} advance applied to selected invoice(s)`);
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
@@ -991,6 +1006,7 @@ export function CustomerPaymentTab({
     onSuccess: (data) => {
       toast.success("Payment recorded successfully");
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
@@ -1150,6 +1166,7 @@ export function CustomerPaymentTab({
         deleteLedgerEntries({ organizationId, voucherNo: data.voucherNumber, voucherTypes: ['RECEIPT'] });
       }
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -1210,32 +1227,34 @@ export function CustomerPaymentTab({
     createVoucher.mutate();
   };
 
-  const allCustomerPayments = vouchers
-    ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "sale" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
-    .sort((a, b) => new Date(b.voucher_date).getTime() - new Date(a.voucher_date).getTime()) || [];
+  const historyVoucherSource = customerReceiptHistory ?? vouchers;
+  const allCustomerPayments = sortVouchersNewestFirst(
+    filterVouchersForPaymentTab("customer-payment", historyVoucherSource),
+  );
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
   };
-  
+
+  const partyNameCtx = { tab: "customer-payment" as const, sales, customers };
+
   const customerPayments = allCustomerPayments.filter((v) => {
-    // Payment method filter
     if (paymentMethodFilter.length > 0) {
-      const method = (v.payment_method || "").toLowerCase();
-      if (!paymentMethodFilter.includes(method)) return false;
+      const method = (v.payment_method || "").toLowerCase().replace(/-/g, "_");
+      const filters = paymentMethodFilter.map((m) => m.toLowerCase().replace(/-/g, "_"));
+      if (!filters.includes(method)) return false;
     }
-    // Search filter
     if (paymentSearchTerm) {
-      const invoice = sales?.find((s) => s.id === v.reference_id);
-      let custName = "";
-      if (invoice?.customer_name) custName = invoice.customer_name;
-      else if (v.reference_type === 'customer') custName = customers?.find((c) => c.id === v.reference_id)?.customer_name || "";
-      else if (invoice?.customer_id) custName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "";
       const q = paymentSearchTerm.toLowerCase();
-      if (!(custName.toLowerCase().includes(q) ||
-        (v.voucher_number || "").toLowerCase().includes(q) ||
-        (v.description || "").toLowerCase().includes(q))) return false;
+      const party = resolveVoucherPartyName(v, partyNameCtx).toLowerCase();
+      if (
+        !party.includes(q) &&
+        !(v.voucher_number || "").toLowerCase().includes(q) &&
+        !(v.description || "").toLowerCase().includes(q)
+      ) {
+        return false;
+      }
     }
     return true;
   });
@@ -1823,14 +1842,7 @@ export function CustomerPaymentTab({
               ) : (
                 paginatedPayments.map((voucher) => {
                   const invoice = sales?.find((s) => s.id === voucher.reference_id);
-                  let customerName = "-";
-                  if (invoice?.customer_name) {
-                    customerName = invoice.customer_name;
-                  } else if (voucher.reference_type === "customer") {
-                    customerName = customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "-";
-                  } else if (invoice?.customer_id) {
-                    customerName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "-";
-                  }
+                  const customerName = resolveVoucherPartyName(voucher, partyNameCtx);
                   const desc = voucher.description || "";
                   const dateMatch = desc.match(/(?:UPI Date|Date):\s*(\d{2}\/\d{2}\/\d{4})/);
                   const extractedDate = dateMatch ? dateMatch[1] : null;
@@ -1974,16 +1986,9 @@ export function CustomerPaymentTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedPayments.map((voucher) => {
+              {              paginatedPayments.map((voucher) => {
                 const invoice = sales?.find((s) => s.id === voucher.reference_id);
-                let customerName = "-";
-                if (invoice?.customer_name) {
-                  customerName = invoice.customer_name;
-                } else if (voucher.reference_type === 'customer') {
-                  customerName = customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "-";
-                } else if (invoice?.customer_id) {
-                  customerName = customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "-";
-                }
+                const customerName = resolveVoucherPartyName(voucher, partyNameCtx);
                 const isSelected = selectedPaymentIds.includes(voucher.id);
                 // Extract cheque/UPI date from description (format: ", Date: dd/MM/yyyy" or ", UPI Date: dd/MM/yyyy")
                 const desc = voucher.description || "";
