@@ -1,4 +1,71 @@
+import {
+  endOfMonth,
+  endOfQuarter,
+  endOfYear,
+  format,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+} from "date-fns";
 import type { AccountsPaymentTabId } from "@/hooks/useAccountsVoucherData";
+
+/** Preset periods for Accounts payment history panels. */
+export type AccountsHistoryPeriod = "daily" | "monthly" | "quarterly" | "yearly" | "all";
+
+export const ACCOUNTS_HISTORY_PERIOD_OPTIONS: Array<{
+  value: AccountsHistoryPeriod;
+  label: string;
+}> = [
+  { value: "daily", label: "Today" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+  { value: "all", label: "All Time" },
+];
+
+export function getAccountsHistoryPeriodBounds(
+  period: AccountsHistoryPeriod,
+  anchorDate: Date = new Date(),
+): { start: string | null; end: string | null } {
+  switch (period) {
+    case "daily":
+      return {
+        start: format(anchorDate, "yyyy-MM-dd"),
+        end: format(anchorDate, "yyyy-MM-dd"),
+      };
+    case "monthly":
+      return {
+        start: format(startOfMonth(anchorDate), "yyyy-MM-dd"),
+        end: format(endOfMonth(anchorDate), "yyyy-MM-dd"),
+      };
+    case "quarterly":
+      return {
+        start: format(startOfQuarter(anchorDate), "yyyy-MM-dd"),
+        end: format(endOfQuarter(anchorDate), "yyyy-MM-dd"),
+      };
+    case "yearly":
+      return {
+        start: format(startOfYear(anchorDate), "yyyy-MM-dd"),
+        end: format(endOfYear(anchorDate), "yyyy-MM-dd"),
+      };
+    case "all":
+    default:
+      return { start: null, end: null };
+  }
+}
+
+/** Compare voucher_date (DATE or ISO string) to inclusive yyyy-MM-dd bounds. */
+export function voucherDateInPeriod(
+  voucherDate: string | null | undefined,
+  bounds: { start: string | null; end: string | null },
+): boolean {
+  if (!bounds.start && !bounds.end) return true;
+  if (!voucherDate) return false;
+  const day = voucherDate.slice(0, 10);
+  if (bounds.start && day < bounds.start) return false;
+  if (bounds.end && day > bounds.end) return false;
+  return true;
+}
 
 export type PaymentVoucherRow = {
   id: string;

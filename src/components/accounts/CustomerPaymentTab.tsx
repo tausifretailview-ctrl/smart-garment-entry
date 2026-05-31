@@ -32,10 +32,15 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
 import { fetchAllCustomers, fetchAllSalesSummary, fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
 import {
+  ACCOUNTS_HISTORY_PERIOD_OPTIONS,
+  type AccountsHistoryPeriod,
   filterVouchersForPaymentTab,
+  getAccountsHistoryPeriodBounds,
   resolveVoucherPartyName,
   sortVouchersNewestFirst,
+  voucherDateInPeriod,
 } from "@/utils/paymentVoucherFilters";
+import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -206,6 +211,7 @@ export function CustomerPaymentTab({
   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string[]>([]);
+  const [historyPeriodFilter, setHistoryPeriodFilter] = useState<AccountsHistoryPeriod>("all");
   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
 
   const { data: customerReceiptHistory } = useQuery({
@@ -1239,7 +1245,13 @@ export function CustomerPaymentTab({
 
   const partyNameCtx = { tab: "customer-payment" as const, sales, customers };
 
+  const historyPeriodBounds = useMemo(
+    () => getAccountsHistoryPeriodBounds(historyPeriodFilter),
+    [historyPeriodFilter],
+  );
+
   const customerPayments = allCustomerPayments.filter((v) => {
+    if (!voucherDateInPeriod(v.voucher_date, historyPeriodBounds)) return false;
     if (paymentMethodFilter.length > 0) {
       const method = (v.payment_method || "").toLowerCase().replace(/-/g, "_");
       const filters = paymentMethodFilter.map((m) => m.toLowerCase().replace(/-/g, "_"));
@@ -1753,6 +1765,43 @@ export function CustomerPaymentTab({
         searchValue={paymentSearchTerm}
         onSearchChange={(v) => { setPaymentSearchTerm(v); setCustomerPaymentsPage(1); }}
         disableTableScroll={isMobile}
+        filters={
+          isMobile ? (
+            <MobilePeriodChips
+              value={historyPeriodFilter}
+              onChange={(v) => {
+                setHistoryPeriodFilter(v as AccountsHistoryPeriod);
+                setCustomerPaymentsPage(1);
+              }}
+              periods={[
+                { value: "daily", label: "Today" },
+                { value: "monthly", label: "Month" },
+                { value: "quarterly", label: "Quarter" },
+                { value: "yearly", label: "Year" },
+                { value: "all", label: "All" },
+              ]}
+            />
+          ) : (
+            <Select
+              value={historyPeriodFilter}
+              onValueChange={(v) => {
+                setHistoryPeriodFilter(v as AccountsHistoryPeriod);
+                setCustomerPaymentsPage(1);
+              }}
+            >
+              <SelectTrigger className="h-9 w-[140px] text-sm border-slate-200 bg-slate-50">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                {ACCOUNTS_HISTORY_PERIOD_OPTIONS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )
+        }
         toolbar={
           <>
             <DropdownMenu>
