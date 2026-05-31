@@ -73,7 +73,7 @@ export default function CustomerReconciliation() {
     },
     enabled: !!currentOrganization?.id,
     staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   // Source 2: Ledger-style balance for each customer (mirrors useCustomerBalance logic)
@@ -247,7 +247,7 @@ export default function CustomerReconciliation() {
     },
     enabled: !!currentOrganization?.id,
     staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const isLoading = rawLoading || ledgerLoading;

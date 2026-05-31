@@ -139,6 +139,27 @@ export default function CustomerBalanceActivityPage() {
     return sliceActivityByDateRange(activityData.allRows, fromYmd, toYmd, ob);
   }, [activityData, fromYmd, toYmd]);
 
+  const snap = activityData?.snap;
+  const mismatch = activityData?.snapshotCheck.mismatch ?? false;
+  const delta = activityData?.snapshotCheck.delta ?? 0;
+
+  const {
+    outstandingDr: rpcOutstanding,
+    advanceAvailable: rpcAdvance,
+    cnAvailableTotal: rpcCn,
+    isLoading: rpcLoading,
+  } = useCustomerFinancialSnapshot(customerId, currentOrganization?.id ?? null);
+
+  const rpcVsLegacy = useMemo(() => {
+    if (!snap || rpcLoading) return null;
+    return {
+      outstandingDelta: Math.abs((rpcOutstanding ?? 0) - snap.balance),
+      advanceDelta: Math.abs((rpcAdvance ?? 0) - snap.unusedAdvanceTotal),
+      outstandingOk: Math.abs((rpcOutstanding ?? 0) - snap.balance) <= 1,
+      advanceOk: Math.abs((rpcAdvance ?? 0) - snap.unusedAdvanceTotal) <= 1,
+    };
+  }, [snap, rpcOutstanding, rpcAdvance, rpcLoading]);
+
   const customerQuery = customerId ? `?customer=${encodeURIComponent(customerId)}` : "";
 
   const exportExcel = () => {
@@ -199,27 +220,6 @@ export default function CustomerBalanceActivityPage() {
       </div>
     );
   }
-
-  const snap = activityData?.snap;
-  const mismatch = activityData?.snapshotCheck.mismatch ?? false;
-  const delta = activityData?.snapshotCheck.delta ?? 0;
-
-  const {
-    outstandingDr: rpcOutstanding,
-    advanceAvailable: rpcAdvance,
-    cnAvailableTotal: rpcCn,
-    isLoading: rpcLoading,
-  } = useCustomerFinancialSnapshot(customerId, currentOrganization?.id ?? null);
-
-  const rpcVsLegacy = useMemo(() => {
-    if (!snap || rpcLoading) return null;
-    return {
-      outstandingDelta: Math.abs((rpcOutstanding ?? 0) - snap.balance),
-      advanceDelta: Math.abs((rpcAdvance ?? 0) - snap.unusedAdvanceTotal),
-      outstandingOk: Math.abs((rpcOutstanding ?? 0) - snap.balance) <= 1,
-      advanceOk: Math.abs((rpcAdvance ?? 0) - snap.unusedAdvanceTotal) <= 1,
-    };
-  }, [snap, rpcOutstanding, rpcAdvance, rpcLoading]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">

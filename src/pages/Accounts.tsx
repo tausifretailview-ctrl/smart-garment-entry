@@ -129,7 +129,7 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id && (isAdmin || isPlatformAdmin),
     queryFn: () => fetchPendingGlBackfillCounts(currentOrganization!.id, supabase),
     staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const { data: failedJournalCount = 0 } = useQuery({
@@ -158,7 +158,7 @@ export default function Accounts() {
       return Number(failedSales || 0) + Number(failedPurchases || 0);
     },
     staleTime: 60 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const { data: failedJournalRows = [], isLoading: failedRowsLoading } = useQuery({
