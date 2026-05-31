@@ -18,6 +18,22 @@ export type PaymentVoucherRow = {
   receipt_number?: string | null;
 };
 
+const CUSTOMER_RECEIPT_REFERENCE_TYPES = new Set([
+  "customer",
+  "customer_payment",
+  "sale",
+]);
+
+/** True for customer RCP rows; excludes supplier/employee/expense receipts. */
+export function isCustomerReceiptVoucher(v: PaymentVoucherRow): boolean {
+  if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
+  const refType = String(v.reference_type || "").toLowerCase();
+  if (refType === "supplier" || refType === "employee" || refType === "expense") {
+    return false;
+  }
+  return CUSTOMER_RECEIPT_REFERENCE_TYPES.has(refType);
+}
+
 export function filterVouchersForPaymentTab(
   tab: AccountsPaymentTabId,
   vouchers: PaymentVoucherRow[] | undefined
@@ -26,14 +42,7 @@ export function filterVouchersForPaymentTab(
   const list = [...vouchers];
   switch (tab) {
     case "customer-payment":
-      return list.filter(
-        (v) =>
-          (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT") &&
-          (v.reference_type === "customer" ||
-            v.reference_type === "customer_payment" ||
-            v.reference_type === "sale" ||
-            v.reference_type === "SALE")
-      );
+      return list.filter(isCustomerReceiptVoucher);
     case "supplier-payment":
       return list.filter(
         (v) =>
@@ -54,12 +63,17 @@ export function filterVouchersForPaymentTab(
 }
 
 export function sortVouchersNewestFirst(rows: PaymentVoucherRow[]): PaymentVoucherRow[] {
-  return [...rows].sort(
-    (a, b) =>
-      new Date(b.created_at || b.voucher_date || 0).getTime() -
-      new Date(a.created_at || a.voucher_date || 0).getTime()
-  );
+  return [...rows].sort((a, b) => {
+    const dateA = new Date(a.voucher_date || a.created_at || 0).getTime();
+    const dateB = new Date(b.voucher_date || b.created_at || 0).getTime();
+    if (dateB !== dateA) return dateB - dateA;
+    return (
+      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+    );
+  });
 }
+
+const SALE_NUMBER_IN_DESCRIPTION = /INV\/[\d-]+\/[\d]+/i;
 
 export function resolveVoucherPartyName(
   voucher: PaymentVoucherRow,
@@ -75,11 +89,26 @@ export function resolveVoucherPartyName(
   if (tab === "customer-payment") {
     const invoice = sales?.find((s) => s.id === voucher.reference_id);
     if (invoice?.customer_name) return invoice.customer_name;
-    if (voucher.reference_type === "customer") {
-      return customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "—";
-    }
     if (invoice?.customer_id) {
-      return customers?.find((c) => c.id === invoice.customer_id)?.customer_name || "—";
+      const fromSale = customers?.find((c) => c.id === invoice.customer_id)?.customer_name;
+      if (fromSale) return fromSale;
+    }
+    const refType = String(voucher.reference_type || "").toLowerCase();
+    if (refType === "customer" || refType === "customer_payment") {
+      const fromCustomer = customers?.find((c) => c.id === voucher.reference_id)?.customer_name;
+      if (fromCustomer) return fromCustomer;
+    }
+    const desc = voucher.description || "";
+    const invMatch = desc.match(SALE_NUMBER_IN_DESCRIPTION);
+    if (invMatch && sales?.length) {
+      const saleByNumber = sales.find(
+        (s) => String(s.sale_number || "").toUpperCase() === invMatch[0].toUpperCase(),
+      );
+      if (saleByNumber?.customer_name) return saleByNumber.customer_name;
+      if (saleByNumber?.customer_id) {
+        const name = customers?.find((c) => c.id === saleByNumber.customer_id)?.customer_name;
+        if (name) return name;
+      }
     }
     return "—";
   }

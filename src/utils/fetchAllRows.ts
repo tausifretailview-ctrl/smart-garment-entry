@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
 
 /**
  * Fetch all customers for an organization using range pagination.
@@ -256,6 +257,48 @@ export async function fetchAllVouchers(organizationId: string) {
       if (data.length < pageSize) {
         hasMore = false;
       }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
+const CUSTOMER_RECEIPT_VOUCHER_SELECT =
+  "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at";
+
+/**
+ * Fetch customer payment receipts only (RCP), ordered by payment date.
+ * Unlike the shared Accounts voucher list (all types, sorted by created_at), this
+ * avoids older receipts being buried under high-volume expense/salary vouchers.
+ */
+export async function fetchCustomerReceiptVouchers(organizationId: string) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from("voucher_entries")
+      .select(CUSTOMER_RECEIPT_VOUCHER_SELECT)
+      .eq("organization_id", organizationId)
+      .in("voucher_type", ["receipt", "RECEIPT"])
+      .is("deleted_at", null)
+      .order("voucher_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching customer receipt vouchers:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data.filter(isCustomerReceiptVoucher));
+      offset += pageSize;
+      hasMore = data.length === pageSize;
     } else {
       hasMore = false;
     }
