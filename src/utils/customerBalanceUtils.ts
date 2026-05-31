@@ -547,20 +547,14 @@ export async function fetchSaleReceiptSplitsForInvoices(
   for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
     const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
- cursor/fix-dashboard-paid-after-customer-payment-e7cf
       q.in("reference_id", chunk),
-      q.in("reference_type", ["sale", "customer", "SALE", "customer_payment", "CustomerReceipt"]).in("reference_id", chunk),
- main
     );
     merged.push(...rows);
   }
 
   for (const customerId of customerIds) {
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
- cursor/fix-dashboard-paid-after-customer-payment-e7cf
       q.eq("reference_id", customerId),
-      q.in("reference_type", ["customer", "customer_payment", "CustomerReceipt"]).eq("reference_id", customerId),
-main
     );
     merged.push(...rows);
   }
