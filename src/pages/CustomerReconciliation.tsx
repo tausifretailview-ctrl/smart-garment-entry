@@ -14,6 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CheckCircle2, XCircle, Download, Search, Wrench, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import {
+  computeCustomerOutstanding,
+  type SaleReturnLedgerRow,
+  type VoucherLedgerRow,
+} from "@/utils/customerBalanceUtils";
 
 interface RawBalance {
   customer_id: string;
@@ -95,18 +100,20 @@ export default function CustomerReconciliation() {
       // Fetch all sales
       const { data: sales } = await supabase
         .from("sales")
-        .select("id, customer_id, net_amount, paid_amount, sale_return_adjust, payment_status")
+        .select(
+          "id, customer_id, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status",
+        )
         .eq("organization_id", orgId)
         .is("deleted_at", null)
         .neq("payment_status", "cancelled")
         .neq("payment_status", "hold");
 
-      const saleIds = sales?.map((s) => s.id) || [];
-
       // Fetch vouchers
       const { data: allVouchers } = await supabase
         .from("voucher_entries")
-        .select("reference_id, reference_type, total_amount, voucher_type, payment_method, description")
+        .select(
+          "reference_id, reference_type, total_amount, discount_amount, voucher_type, payment_method, description",
+        )
         .eq("organization_id", orgId)
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
@@ -134,7 +141,7 @@ export default function CustomerReconciliation() {
       // Fetch sale returns
       const { data: saleReturns } = await supabase
         .from("sale_returns")
-        .select("customer_id, net_amount")
+        .select("customer_id, net_amount, credit_status, linked_sale_id")
         .eq("organization_id", orgId)
         .is("deleted_at", null);
 
@@ -153,94 +160,88 @@ export default function CustomerReconciliation() {
         .select("customer_id, outstanding_difference")
         .eq("organization_id", orgId);
 
-      // Build per-customer ledger balance
-      const saleIdSet = new Set(saleIds);
       const result = new Map<string, LedgerBalance>();
 
-      // Map sale_id -> customer_id for fast lookup
       const saleToCustomerMap = new Map<string, string>();
       sales?.forEach((s) => {
         if (s.customer_id) saleToCustomerMap.set(s.id, s.customer_id);
       });
 
-      // Classify all voucher receipts ONCE into cash/adv/CN buckets per invoice
-      const invoiceCashVouchers = new Map<string, number>();
-      const invoiceAdvPortions = new Map<string, number>();
-      const invoiceCnPortions = new Map<string, number>();
-      const openingBalancePaymentsMap = new Map<string, number>();
+      const vouchersByCustomer = new Map<string, VoucherLedgerRow[]>();
+      customers.forEach((c) => vouchersByCustomer.set(c.id, []));
 
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
-        const desc = (v.description || "").toLowerCase();
-        const isAdv =
-          v.payment_method === "advance_adjustment" ||
-          desc.includes("adjusted from advance balance") ||
-          desc.includes("advance adjusted");
-        const isCn =
-          v.payment_method === "credit_note_adjustment" ||
-          desc.includes("credit note adjusted") ||
-          desc.includes("cn adjusted");
-        if (saleToCustomerMap.has(v.reference_id)) {
-          const amt = Number(v.total_amount || 0);
-          if (isAdv) {
-            invoiceAdvPortions.set(v.reference_id, (invoiceAdvPortions.get(v.reference_id) || 0) + amt);
-          } else if (isCn) {
-            invoiceCnPortions.set(v.reference_id, (invoiceCnPortions.get(v.reference_id) || 0) + amt);
-          } else {
-            invoiceCashVouchers.set(v.reference_id, (invoiceCashVouchers.get(v.reference_id) || 0) + amt);
-          }
-        } else if (["customer","customer_payment","customerreceipt"].includes(String(v.reference_type || "").toLowerCase()) && !isAdv && !isCn) {
-          openingBalancePaymentsMap.set(
-            v.reference_id,
-            (openingBalancePaymentsMap.get(v.reference_id) || 0) + Number(v.total_amount || 0)
-          );
+        const row: VoucherLedgerRow = {
+          reference_id: v.reference_id,
+          reference_type: v.reference_type,
+          total_amount: v.total_amount,
+          discount_amount: v.discount_amount,
+          payment_method: v.payment_method,
+          description: v.description,
+        };
+        const saleCustId = saleToCustomerMap.get(v.reference_id);
+        if (saleCustId) {
+          vouchersByCustomer.get(saleCustId)?.push(row);
+        } else if (vouchersByCustomer.has(v.reference_id)) {
+          vouchersByCustomer.get(v.reference_id)!.push(row);
         }
+      });
+
+      const saleReturnsByCustomer = new Map<string, SaleReturnLedgerRow[]>();
+      saleReturns?.forEach((sr: any) => {
+        if (!sr.customer_id) return;
+        const row: SaleReturnLedgerRow = {
+          net_amount: sr.net_amount,
+          credit_status: sr.credit_status,
+          linked_sale_id: sr.linked_sale_id,
+        };
+        const list = saleReturnsByCustomer.get(sr.customer_id) || [];
+        list.push(row);
+        saleReturnsByCustomer.set(sr.customer_id, list);
       });
 
       customers.forEach((cust) => {
         const custId = cust.id;
         const openingBalance = cust.opening_balance || 0;
-
-        // Sales for this customer
         const custSales = sales?.filter((s) => s.customer_id === custId) || [];
-        const totalSales = custSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
-
-        // Per-customer totalPaid using cash/adv/CN split (mirrors CustomerLedger)
-        let totalPaidOnSales = 0;
-        let totalAdvApplied = 0;
-        let totalCnApplied = 0;
-        custSales.forEach((sale: any) => {
-          const salePaid = sale.paid_amount || 0;
-          const cashVoucher = invoiceCashVouchers.get(sale.id) || 0;
-          const advVoucher = invoiceAdvPortions.get(sale.id) || 0;
-          const cnVoucher = invoiceCnPortions.get(sale.id) || 0;
-          totalPaidOnSales += Math.max(salePaid - advVoucher - cnVoucher, cashVoucher);
-          totalAdvApplied += advVoucher;
-          totalCnApplied += cnVoucher;
-        });
-        const totalPaid =
-          totalPaidOnSales +
-          totalAdvApplied +
-          totalCnApplied +
-          (openingBalancePaymentsMap.get(custId) || 0);
-
-        const adjustmentTotal = adjustments?.filter((a) => a.customer_id === custId).reduce((s, a) => s + (a.outstanding_difference || 0), 0) || 0;
-
+        const adjustmentTotal =
+          adjustments?.filter((a) => a.customer_id === custId).reduce((s, a) => s + (a.outstanding_difference || 0), 0) ||
+          0;
         const custAdvances = advances?.filter((a) => a.customer_id === custId) || [];
-        const unusedAdvanceTotal = custAdvances.reduce((s, a) => {
-          const refunded = advRefundMap.get(a.id) || 0;
-          return s + Math.max(0, (a.amount || 0) - (a.used_amount || 0));
-        }, 0);
         const advanceRefundTotal = custAdvances.reduce((s, a) => s + (advRefundMap.get(a.id) || 0), 0);
-        const effectiveUnused = Math.max(0, unusedAdvanceTotal - advanceRefundTotal);
+        const refundsPaidTotal =
+          refundVouchers?.filter((v) => v.reference_id === custId).reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
 
-        const saleReturnTotal = saleReturns?.filter((sr) => sr.customer_id === custId).reduce((s, sr) => s + (sr.net_amount || 0), 0) || 0;
+        const outstanding = computeCustomerOutstanding({
+          openingBalance,
+          customerId: custId,
+          sales: custSales.map((s: any) => ({
+            id: s.id,
+            net_amount: s.net_amount,
+            paid_amount: s.paid_amount,
+            cash_amount: s.cash_amount,
+            card_amount: s.card_amount,
+            upi_amount: s.upi_amount,
+            sale_return_adjust: s.sale_return_adjust,
+          })),
+          vouchers: vouchersByCustomer.get(custId) || [],
+          adjustmentTotal,
+          advances: custAdvances.map((a) => ({
+            id: a.id,
+            amount: a.amount,
+            used_amount: a.used_amount,
+          })),
+          advanceRefundTotal,
+          saleReturns: saleReturnsByCustomer.get(custId) || [],
+          refundsPaidTotal,
+        });
 
-        const refundsPaid = refundVouchers?.filter((v) => v.reference_id === custId).reduce((s, v) => s + (v.total_amount || 0), 0) || 0;
-
-        const balance = Math.round(openingBalance + totalSales - totalPaid + adjustmentTotal - effectiveUnused - saleReturnTotal + refundsPaid);
-
-        result.set(custId, { customerId: custId, balance, unusedAdvanceTotal: Math.round(effectiveUnused) });
+        result.set(custId, {
+          customerId: custId,
+          balance: outstanding.balance,
+          unusedAdvanceTotal: outstanding.unusedAdvanceTotal,
+        });
       });
 
       return result;
