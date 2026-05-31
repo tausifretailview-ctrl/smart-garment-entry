@@ -464,14 +464,14 @@ export async function fetchSaleReceiptSplitsForInvoices(
   for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
     const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      q.in("reference_type", ["sale", "customer", "SALE", "customer_payment"]).in("reference_id", chunk),
+      q.in("reference_type", ["sale", "customer", "SALE", "customer_payment", "CustomerReceipt"]).in("reference_id", chunk),
     );
     merged.push(...rows);
   }
 
   for (const customerId of customerIds) {
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      q.in("reference_type", ["customer", "customer_payment"]).eq("reference_id", customerId),
+      q.in("reference_type", ["customer", "customer_payment", "CustomerReceipt"]).eq("reference_id", customerId),
     );
     merged.push(...rows);
   }
