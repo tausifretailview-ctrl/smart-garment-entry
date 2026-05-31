@@ -316,9 +316,13 @@ export function extractSaleNumbersFromReceiptDescription(description: string): s
   return [...new Set(matches.map((m) => m.toUpperCase()))];
 }
 
+function escapeIlikePattern(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 function matchInvoiceIdsFromCustomerReceiptRow(
   row: SaleReceiptVoucherRow,
-  invoices: Array<{ id: string; sale_number?: string | null }>,
+  invoices: Array<{ id: string; sale_number?: string | null; net_amount?: number | null; sale_return_adjust?: number | null }>,
 ): string[] {
   const desc = String(row.description || "");
   const descLower = desc.toLowerCase();
@@ -335,14 +339,23 @@ function matchInvoiceIdsFromCustomerReceiptRow(
   }
   if (matched.size === 0) {
     for (const { id, num } of byNumber) {
-      if (
-        descLower.includes(num.toLowerCase()) &&
-        (descLower.includes("payment") ||
-          descLower.includes("receipt") ||
-          descLower.includes("against"))
-      ) {
-        matched.add(id);
-      }
+      if (descLower.includes(num.toLowerCase())) matched.add(id);
+    }
+  }
+  if (matched.size === 0) {
+    const settled =
+      Number(row.total_amount || 0) + Number(row.discount_amount || 0);
+    if (settled > 0) {
+      const amountHits = invoices.filter((inv) => {
+        const due = Math.max(
+          0,
+          Math.round(
+            Number(inv.net_amount || 0) - Number(inv.sale_return_adjust || 0),
+          ),
+        );
+        return Math.abs(due - Math.round(settled)) <= 1;
+      });
+      if (amountHits.length === 1) matched.add(amountHits[0].id);
     }
   }
   return [...matched];
@@ -356,7 +369,12 @@ function matchInvoiceIdsFromCustomerReceiptRow(
 export function augmentSaleReceiptSplitFromCustomerVouchers(
   splitBySale: Map<string, SaleReceiptVoucherSplit>,
   voucherRows: SaleReceiptVoucherRow[],
-  invoices: Array<{ id: string; sale_number?: string | null }>,
+  invoices: Array<{
+    id: string;
+    sale_number?: string | null;
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+  }>,
 ): Map<string, SaleReceiptVoucherSplit> {
   const result = new Map(splitBySale);
   const saleIdSet = new Set(invoices.map((i) => i.id));
@@ -365,7 +383,7 @@ export function augmentSaleReceiptSplitFromCustomerVouchers(
     if (!row.reference_id) continue;
     if (saleIdSet.has(row.reference_id)) continue;
     const refType = String(row.reference_type || "").toLowerCase();
-    if (refType !== "customer" && refType !== "customer_payment") continue;
+    if (refType === "supplier" || refType === "employee" || refType === "expense") continue;
 
     const matchedIds = matchInvoiceIdsFromCustomerReceiptRow(row, invoices);
     if (matchedIds.length === 0) continue;
@@ -464,15 +482,30 @@ export async function fetchSaleReceiptSplitsForInvoices(
   for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
     const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      q.in("reference_type", ["sale", "customer", "SALE", "customer_payment"]).in("reference_id", chunk),
+      q.in("reference_id", chunk),
     );
     merged.push(...rows);
   }
 
   for (const customerId of customerIds) {
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      q.in("reference_type", ["customer", "customer_payment"]).eq("reference_id", customerId),
+      q.eq("reference_id", customerId),
     );
+    merged.push(...rows);
+  }
+
+  const saleNumbers = [
+    ...new Set(
+      invoices.map((i) => i.sale_number?.trim()).filter((n): n is string => Boolean(n)),
+    ),
+  ];
+  const DESC_OR_CHUNK = 12;
+  for (let i = 0; i < saleNumbers.length; i += DESC_OR_CHUNK) {
+    const batch = saleNumbers.slice(i, i + DESC_OR_CHUNK);
+    const orFilter = batch
+      .map((num) => `description.ilike.%${escapeIlikePattern(num)}%`)
+      .join(",");
+    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) => q.or(orFilter));
     merged.push(...rows);
   }
 

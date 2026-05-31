@@ -350,11 +350,16 @@ export function CustomerPaymentTab({
               .eq("organization_id", organizationId)
           )
         );
+        for (const { sale, normalizedPaid, normalizedStatus } of updates) {
+          sale.paid_amount = normalizedPaid;
+          sale.payment_status = normalizedStatus;
+        }
       }
 
       return salesRows.filter((sale: any) => {
-        const outstanding = getInvoiceOutstanding(sale, splitBySale.get(sale.id));
-        return outstanding >= MIN_PENDING_RUPEE;
+        const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+        const rec = reconcileSaleInvoiceWithSplit(sale, split);
+        return rec.outstanding >= MIN_PENDING_RUPEE;
       });
     },
     enabled: !!referenceId,
