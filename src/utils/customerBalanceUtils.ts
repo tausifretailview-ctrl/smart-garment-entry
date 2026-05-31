@@ -308,6 +308,46 @@ function addRowToSplitMap(
   mergeSplits(map, one);
 }
 
+const SALE_NUMBER_TOKEN = /INV\/[\d-]+\/[\d]+/gi;
+
+/** Invoice numbers embedded in receipt descriptions (customer-level RCP rows). */
+export function extractSaleNumbersFromReceiptDescription(description: string): string[] {
+  const matches = description.match(SALE_NUMBER_TOKEN) || [];
+  return [...new Set(matches.map((m) => m.toUpperCase()))];
+}
+
+function matchInvoiceIdsFromCustomerReceiptRow(
+  row: SaleReceiptVoucherRow,
+  invoices: Array<{ id: string; sale_number?: string | null }>,
+): string[] {
+  const desc = String(row.description || "");
+  const descLower = desc.toLowerCase();
+  const byNumber = invoices
+    .filter((i) => i.sale_number?.trim())
+    .map((i) => ({ id: i.id, num: i.sale_number!.trim() }))
+    .sort((a, b) => b.num.length - a.num.length);
+
+  const matched = new Set<string>();
+  for (const token of extractSaleNumbersFromReceiptDescription(desc)) {
+    for (const { id, num } of byNumber) {
+      if (num.toUpperCase() === token) matched.add(id);
+    }
+  }
+  if (matched.size === 0) {
+    for (const { id, num } of byNumber) {
+      if (
+        descLower.includes(num.toLowerCase()) &&
+        (descLower.includes("payment") ||
+          descLower.includes("receipt") ||
+          descLower.includes("against"))
+      ) {
+        matched.add(id);
+      }
+    }
+  }
+  return [...matched];
+}
+
 /**
  * Customer Payment often stores receipts as reference_type=customer (customer uuid).
  * Dashboard queries used reference_id IN (sale ids) only, so those payments were invisible
@@ -320,10 +360,6 @@ export function augmentSaleReceiptSplitFromCustomerVouchers(
 ): Map<string, SaleReceiptVoucherSplit> {
   const result = new Map(splitBySale);
   const saleIdSet = new Set(invoices.map((i) => i.id));
-  const byNumber = invoices
-    .filter((i) => i.sale_number?.trim())
-    .map((i) => ({ id: i.id, num: i.sale_number!.trim() }))
-    .sort((a, b) => b.num.length - a.num.length);
 
   for (const row of voucherRows) {
     if (!row.reference_id) continue;
@@ -331,13 +367,7 @@ export function augmentSaleReceiptSplitFromCustomerVouchers(
     const refType = String(row.reference_type || "").toLowerCase();
     if (refType !== "customer" && refType !== "customer_payment") continue;
 
-    const desc = String(row.description || "").toLowerCase();
-    if (!desc.includes("payment for")) continue;
-
-    const matchedIds: string[] = [];
-    for (const { id, num } of byNumber) {
-      if (desc.includes(num.toLowerCase())) matchedIds.push(id);
-    }
+    const matchedIds = matchInvoiceIdsFromCustomerReceiptRow(row, invoices);
     if (matchedIds.length === 0) continue;
 
     if (matchedIds.length === 1) {
@@ -373,6 +403,49 @@ export function buildSaleReceiptSplitMap(
 const RECEIPT_SPLIT_SELECT =
   "reference_id, reference_type, total_amount, discount_amount, payment_method, description";
 
+const RECEIPT_VOUCHER_PAGE = 1000;
+const SALE_ID_IN_CHUNK = 80;
+
+function dedupeReceiptRows(rows: SaleReceiptVoucherRow[]): SaleReceiptVoucherRow[] {
+  const seen = new Set<string>();
+  const merged: SaleReceiptVoucherRow[] = [];
+  for (const row of rows) {
+    const key = `${row.reference_type}|${row.reference_id}|${row.description}|${row.total_amount}|${row.discount_amount}|${row.payment_method}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(row);
+  }
+  return merged;
+}
+
+/** Paginate receipt rows — avoids Supabase 1000-row cap hiding older customer payments. */
+async function fetchPaginatedReceiptRows(
+  client: SupabaseClient,
+  organizationId: string,
+  apply: (q: any) => any,
+): Promise<SaleReceiptVoucherRow[]> {
+  const all: SaleReceiptVoucherRow[] = [];
+  let offset = 0;
+  while (true) {
+    let q: any = client
+      .from("voucher_entries")
+      .select(RECEIPT_SPLIT_SELECT)
+      .eq("organization_id", organizationId)
+      .ilike("voucher_type", "receipt")
+      .is("deleted_at", null);
+    q = apply(q);
+    const { data, error } = await q
+      .order("created_at", { ascending: false })
+      .range(offset, offset + RECEIPT_VOUCHER_PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    all.push(...(data as SaleReceiptVoucherRow[]));
+    if (data.length < RECEIPT_VOUCHER_PAGE) break;
+    offset += RECEIPT_VOUCHER_PAGE;
+  }
+  return all;
+}
+
 /** Fetch receipt vouchers for a page of invoices (sale id + customer id paths). */
 export async function fetchSaleReceiptSplitsForInvoices(
   client: SupabaseClient,
@@ -386,45 +459,24 @@ export async function fetchSaleReceiptSplitsForInvoices(
     ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
   ] as string[];
 
-  const saleLinkedQuery = client
-    .from("voucher_entries")
-    .select(RECEIPT_SPLIT_SELECT)
-    .eq("organization_id", organizationId)
-    .eq("voucher_type", "receipt")
-    .in("reference_type", ["sale", "customer"])
-    .is("deleted_at", null)
-    .in("reference_id", saleIds);
-
-  const customerLinkedQuery =
-    customerIds.length > 0
-      ? client
-          .from("voucher_entries")
-          .select(RECEIPT_SPLIT_SELECT)
-          .eq("organization_id", organizationId)
-          .eq("voucher_type", "receipt")
-          .eq("reference_type", "customer")
-          .is("deleted_at", null)
-          .in("reference_id", customerIds)
-      : null;
-
-  const [saleRes, custRes] = await Promise.all([
-    saleLinkedQuery,
-    customerLinkedQuery ?? Promise.resolve({ data: [] as SaleReceiptVoucherRow[], error: null }),
-  ]);
-
-  if (saleRes.error) throw saleRes.error;
-  if (custRes.error) throw custRes.error;
-
-  const seen = new Set<string>();
   const merged: SaleReceiptVoucherRow[] = [];
-  for (const row of [...(saleRes.data || []), ...(custRes.data || [])] as SaleReceiptVoucherRow[]) {
-    const key = `${row.reference_type}|${row.reference_id}|${row.description}|${row.total_amount}|${row.discount_amount}|${row.payment_method}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(row);
+
+  for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
+    const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
+    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+      q.in("reference_type", ["sale", "customer", "SALE", "customer_payment"]).in("reference_id", chunk),
+    );
+    merged.push(...rows);
   }
 
-  return buildSaleReceiptSplitMap(invoices, merged);
+  for (const customerId of customerIds) {
+    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+      q.in("reference_type", ["customer", "customer_payment"]).eq("reference_id", customerId),
+    );
+    merged.push(...rows);
+  }
+
+  return buildSaleReceiptSplitMap(invoices, dedupeReceiptRows(merged));
 }
 
 export function splitSaleLinkedReceiptRows(
