@@ -6,6 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import {
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
+} from "@/utils/customerBalanceUtils";
 
 export function useAccountsPaymentDialogs(settings: any) {
   const { currentOrganization } = useOrganization();
@@ -88,24 +92,30 @@ export function useAccountsPaymentDialogs(settings: any) {
         .eq("id", editingPayment.id)
         .eq("organization_id", currentOrganization.id);
       if (voucherError) throw voucherError;
+      // Re-derive the linked invoice's paid_amount/status from receipt vouchers (cash +
+      // settlement discount), not naive `paid_amount + amountDiff`. The old math ignored
+      // discount_amount and sale_return_adjust, so editing a payment that carried a
+      // settlement discount desynced the invoice (wrong "paid"/"settled").
       if (editingPayment.reference_id && amountDiff !== 0) {
         const { data: invoice } = await supabase
           .from("sales")
-          .select("paid_amount, net_amount")
+          .select("id, net_amount, paid_amount, sale_return_adjust, customer_id, sale_number")
           .eq("id", editingPayment.reference_id)
+          .eq("organization_id", currentOrganization.id)
           .maybeSingle();
         if (invoice) {
-          const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) + amountDiff);
-          const newStatus =
-            newPaidAmount >= invoice.net_amount
-              ? "completed"
-              : newPaidAmount > 0
-                ? "partial"
-                : "pending";
+          const splitMap = await fetchSaleReceiptSplitsForInvoices(
+            supabase,
+            currentOrganization.id,
+            [{ id: invoice.id, sale_number: invoice.sale_number, customer_id: invoice.customer_id }],
+          );
+          const split = splitMap.get(invoice.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+          const rec = reconcileSaleInvoiceWithSplit(invoice, split);
           await supabase
             .from("sales")
-            .update({ paid_amount: newPaidAmount, payment_status: newStatus })
-            .eq("id", editingPayment.reference_id);
+            .update({ paid_amount: rec.paid_amount, payment_status: rec.payment_status })
+            .eq("id", editingPayment.reference_id)
+            .eq("organization_id", currentOrganization.id);
         }
       }
       return { oldAmount, newAmount };
