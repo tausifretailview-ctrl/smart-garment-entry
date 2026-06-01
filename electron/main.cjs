@@ -59,7 +59,17 @@ function createWindow() {
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
-    // Professional appearance — native OS frame (min/max/close), no browser chrome
+    // Single-header look: hide the native title bar and the menu bar so the app's
+    // own navy header is the top of the window. Keep the Windows min/max/close
+    // buttons as an overlay tinted to match the header (#1e40af).
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#1e40af',
+      symbolColor: '#ffffff',
+      height: 36,
+    },
+    autoHideMenuBar: true, // hide menu bar (accelerators still work; Alt reveals)
+
     backgroundColor: '#f8fafc',
     show: false, // Show after ready-to-show (no white flash)
 
@@ -67,6 +77,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
+      zoomFactor: 0.8, // medium zoom — content was too large at 100%
     },
   });
 
@@ -76,6 +87,30 @@ function createWindow() {
   } else {
     mainWindow.loadURL(PROD_URL);
   }
+
+  // Make the app's navy header act as the title bar (draggable) and keep its
+  // right-side icons clear of the window control buttons. Injected only inside
+  // the desktop app, so the deployed website is unaffected. Re-applied on every
+  // full load; persists across in-app (SPA) navigation.
+  const HEADER_CSS = `
+    [class~="bg-[#1e40af]"] {
+      -webkit-app-region: drag;
+      padding-right: 150px !important;
+    }
+    [class~="bg-[#1e40af]"] button,
+    [class~="bg-[#1e40af]"] a,
+    [class~="bg-[#1e40af]"] input,
+    [class~="bg-[#1e40af]"] select,
+    [class~="bg-[#1e40af]"] [role="button"],
+    [class~="bg-[#1e40af]"] [contenteditable] {
+      -webkit-app-region: no-drag;
+    }
+  `;
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
+    mainWindow.webContents.setZoomFactor(0.8);
+  });
 
   // Show window smoothly after content loads
   mainWindow.once('ready-to-show', () => {
