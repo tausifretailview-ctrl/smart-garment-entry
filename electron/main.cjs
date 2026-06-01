@@ -7,7 +7,7 @@ const { autoUpdater } = require('electron-updater');
 // Using app.isPackaged avoids an extra runtime dependency.
 const isDev = !app.isPackaged;
 
-const PROD_URL = 'https://inventoryshop.in';
+const PROD_URL = 'https://app.inventoryshop.in';
 const DEV_URL = 'http://localhost:8080';
 
 let mainWindow;
