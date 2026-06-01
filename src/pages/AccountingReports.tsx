@@ -527,6 +527,7 @@ export default function AccountingReports() {
         { Particulars: "", Amount: "" },
         { Particulars: "LIABILITIES", Amount: "" },
         { Particulars: "Accounts Payable", Amount: balanceSheet.liabilities.accountsPayable },
+        ...(balanceSheet.liabilities.customerCredits > 0 ? [{ Particulars: "Customer Advances / Credits", Amount: balanceSheet.liabilities.customerCredits }] : []),
         ...(balanceSheet.liabilities.gstPayable > 0 ? [{ Particulars: "GST Payable", Amount: balanceSheet.liabilities.gstPayable }] : []),
         { Particulars: "Total Liabilities", Amount: balanceSheet.liabilities.totalLiabilities },
         { Particulars: "", Amount: "" },
@@ -736,7 +737,7 @@ export default function AccountingReports() {
       {
         label: "Receivables",
         value: formatCurrency(balanceSheet.assets.accountsReceivable),
-        sub: "Customer ledger snapshot",
+        sub: "Customers owing (Master Reconciliation)",
         gradient: "bg-gradient-to-br from-indigo-600 to-indigo-800",
         icon: Users,
       },
@@ -1844,6 +1845,12 @@ export default function AccountingReports() {
                           <span>Accounts Payable</span>
                           <span className="font-mono">{formatCurrency(balanceSheet.liabilities.accountsPayable)}</span>
                         </div>
+                        {balanceSheet.liabilities.customerCredits > 0 && (
+                          <div className="flex justify-between pl-4">
+                            <span>Customer Advances / Credits</span>
+                            <span className="font-mono">{formatCurrency(balanceSheet.liabilities.customerCredits)}</span>
+                          </div>
+                        )}
                         {balanceSheet.liabilities.gstPayable > 0 && (
                           <div className="flex justify-between pl-4">
                             <span>GST Payable</span>

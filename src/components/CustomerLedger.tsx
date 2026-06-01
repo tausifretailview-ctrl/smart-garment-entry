@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2 } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2, Scale } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +30,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
-import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import {
+  fetchOrganizationReceivableRows,
+  receivableRowsToBalanceMap,
+} from "@/utils/organizationReceivables";
 import {
   computeCustomerOutstanding,
   reconcileSaleInvoiceDisplay,
@@ -756,14 +759,13 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   );
 
   const { data: snapshotBalanceById } = useQuery({
-    queryKey: ["customer-ledger-snapshot-balances", organizationId, businessCustomerIds.length],
+    // Single source of truth: Master Reconciliation RPC (signed per-customer
+    // balance), one call for the whole org. Replaces the get_customer_financial_snapshot
+    // path which over-credited advances (drove Balance Sheet AR to ₹0).
+    queryKey: ["customer-ledger-reconcile-balances", organizationId, businessCustomerIds.length],
     queryFn: async () => {
-      const map = await fetchCustomerFinancialSnapshotMap(organizationId!, businessCustomerIds);
-      const out: Record<string, number> = {};
-      map.forEach((snap, id) => {
-        out[id] = snap.outstandingDr;
-      });
-      return out;
+      const rows = await fetchOrganizationReceivableRows(organizationId!);
+      return receivableRowsToBalanceMap(rows);
     },
     enabled: !!organizationId && !isSchool && businessCustomerIds.length > 0,
     staleTime: STALE_REFERENCE,
@@ -2484,12 +2486,26 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   // Calculate summary statistics
   const summary = useMemo(() => {
-    if (!filteredCustomers) return { totalCustomers: 0, totalOutstanding: 0, totalReceivable: 0 };
-    
+    if (!filteredCustomers)
+      return {
+        totalCustomers: 0,
+        totalOutstanding: 0,
+        totalReceivable: 0,
+        customerCreditPool: 0,
+        netReceivable: 0,
+      };
+
+    // balance is the signed Master Reconciliation value: > 0 owes us (Dr),
+    // < 0 in credit (advance / overpayment). Surface the credit pool and the
+    // true net instead of silently clamping negatives to zero.
+    const grossOutstanding = filteredCustomers.reduce((sum, c) => sum + Math.max(0, c.balance), 0);
+    const customerCreditPool = filteredCustomers.reduce((sum, c) => sum + Math.max(0, -c.balance), 0);
     return {
       totalCustomers: filteredCustomers.length,
-      totalOutstanding: filteredCustomers.reduce((sum, c) => sum + Math.max(0, c.balance), 0),
+      totalOutstanding: grossOutstanding,
       totalReceivable: filteredCustomers.reduce((sum, c) => sum + c.totalSales, 0),
+      customerCreditPool,
+      netReceivable: grossOutstanding - customerCreditPool,
     };
   }, [filteredCustomers]);
 
@@ -5089,7 +5105,7 @@ Please clear your dues at the earliest. Thank you!`;
     <>
     <div className="space-y-3">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className={`grid grid-cols-1 sm:grid-cols-3 ${isSchool ? "" : "lg:grid-cols-5"} gap-2`}>
         <Card
           className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-blue-500 to-blue-600"
           onClick={() => setPaymentStatusFilter("all")}
@@ -5161,6 +5177,50 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardContent>
         </Card>
+
+        {!isSchool && (
+          <>
+            <Card
+              className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-violet-500 to-violet-600"
+              onClick={() => setPaymentStatusFilter("all")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white/80">Net AR</p>
+                    <div className="text-2xl font-black text-white tabular-nums mt-0.5">
+                      ₹{summary.netReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − credit pool</p>
+                  </div>
+                  <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                    <Scale className="h-4 w-4 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-amber-500 to-amber-600"
+              onClick={() => setPaymentStatusFilter("advance")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white/80">Customer Credit Pool</p>
+                    <div className="text-2xl font-black text-white tabular-nums mt-0.5">
+                      ₹{summary.customerCreditPool.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-white/65 mt-0.5 truncate">Advances / overpayments held</p>
+                  </div>
+                  <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
+                    <Wallet className="h-4 w-4 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Customer List */}

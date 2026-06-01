@@ -42,6 +42,7 @@ import {
   recordSaleJournalEntry,
 } from "@/utils/accounting/journalService";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { AllOrgBackfillStatus } from "@/components/accounts/AllOrgBackfillStatus";
 import { PendingGlBackfillStatus } from "@/components/accounts/PendingGlBackfillStatus";
 import {
@@ -70,6 +71,7 @@ import { AccountingPeriodLockCard } from "@/components/accounts/AccountingPeriod
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { summary: receivablesSummary } = useOrganizationReceivablesSummary(currentOrganization?.id);
   const queryClient = useQueryClient();
   const { isAdmin, isPlatformAdmin } = useUserRoles();
   const [searchParams] = useSearchParams();
@@ -642,11 +644,17 @@ export default function Accounts() {
   });
 
   const dashboardMetrics = useMemo(() => ({
-    totalReceivables: reconciledInvoiceStats?.totalReceivables ?? dashboardStats?.totalReceivables ?? 0,
+    // Receivables tile = true net customer AR (Master Reconciliation), shared with
+    // the Customer Ledger card / Balance Sheet. Fall back to the invoice rollup
+    // only if the reconcile RPC returned nothing.
+    totalReceivables:
+      receivablesSummary.customerCount > 0
+        ? receivablesSummary.netReceivable
+        : (reconciledInvoiceStats?.totalReceivables ?? dashboardStats?.totalReceivables ?? 0),
     totalPayables: dashboardStats?.totalPayables || 0,
     monthlyExpenses,
     currentMonthPL: monthlySales - monthlyPurchases - monthlyExpenses,
-  }), [reconciledInvoiceStats, dashboardStats, monthlyExpenses, monthlySales, monthlyPurchases]);
+  }), [receivablesSummary, reconciledInvoiceStats, dashboardStats, monthlyExpenses, monthlySales, monthlyPurchases]);
 
   const paymentStats = useMemo(() => ({
     totalInvoices: reconciledInvoiceStats?.totalInvoices ?? (invoiceStats.total || 0),

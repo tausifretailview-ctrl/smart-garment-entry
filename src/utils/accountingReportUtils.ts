@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchOrganizationCustomerAccountTotals } from "@/utils/customerFinancialSnapshot";
+import { fetchOrganizationReceivablesSummary } from "@/utils/organizationReceivables";
 import { fetchAllSaleItems, fetchVariantsByIds } from "@/utils/fetchAllRows";
 import { format, parseISO, subDays } from "date-fns";
 
@@ -61,6 +61,8 @@ export interface BalanceSheetData {
   liabilities: {
     accountsPayable: number;
     gstPayable: number;
+    /** Unused customer advances / overpayments held (Cr balances owed back). */
+    customerCredits: number;
     totalLiabilities: number;
   };
   equity: {
@@ -796,7 +798,7 @@ export async function calculateTrialBalance(
 
   const [
     { data: agg, error },
-    customerTotals,
+    receivables,
     totalExpensesPaid,
     totalSalariesPaid,
     { data: stockValue, error: stockError },
@@ -805,7 +807,7 @@ export async function calculateTrialBalance(
       p_org_id: organizationId,
       p_as_of_date: asOfDate,
     }),
-    fetchOrganizationCustomerAccountTotals(organizationId),
+    fetchOrganizationReceivablesSummary(organizationId),
     fetchVoucherExpenseTotal(organizationId, { asOfDate }),
     fetchEmployeeSalaryTotal(organizationId, { asOfDate }),
     supabase.rpc("get_stock_value", { p_org_id: organizationId }),
@@ -826,7 +828,8 @@ export async function calculateTrialBalance(
   const totalSalesRevenue = aggData?.total_sales || 0;
   const totalSaleReturns = aggData?.total_sale_returns || 0;
   const totalPurchaseReturns = aggData?.total_purchase_returns || 0;
-  const totalDebtors = customerTotals.totalOutstandingDr;
+  const totalDebtors = receivables.grossReceivableDr;
+  const customerCredits = receivables.customerCreditPoolCr;
 
   const cashBalance = roundMoney(
     Number(aggData?.cash_balance || 0) - totalExpensesPaid,
@@ -845,6 +848,14 @@ export async function calculateTrialBalance(
     });
   }
   pushSignedTrialEntry(entries, "Accounts Payable (Creditors)", "Liability", -totalCreditors);
+  if (customerCredits > 0) {
+    pushSignedTrialEntry(
+      entries,
+      "Customer Advances / Credits",
+      "Liability",
+      -customerCredits,
+    );
+  }
 
   if (totalSalesRevenue > 0) {
     entries.push({
@@ -1110,12 +1121,12 @@ export async function calculateBalanceSheet(
   organizationId: string,
   asOfDate: string
 ): Promise<BalanceSheetData> {
-  const [{ data: agg, error }, customerTotals, cashBank, inventory] = await Promise.all([
+  const [{ data: agg, error }, receivables, cashBank, inventory] = await Promise.all([
     supabase.rpc("get_trial_balance_aggregates", {
       p_org_id: organizationId,
       p_as_of_date: asOfDate,
     }),
-    fetchOrganizationCustomerAccountTotals(organizationId),
+    fetchOrganizationReceivablesSummary(organizationId),
     fetchOperationalCashBalance(organizationId, asOfDate),
     calculateStockValue(organizationId),
   ]);
@@ -1125,11 +1136,15 @@ export async function calculateBalanceSheet(
     0,
     Number((agg as { accounts_payable?: number })?.accounts_payable || 0),
   );
-  const accountsReceivable = Math.max(0, customerTotals.totalOutstandingDr);
+  // AR asset = customers who owe (gross Dr). The credit pool (advances /
+  // overpayments) is a liability, not a negative receivable — netting them was
+  // what drove this tile to ₹0 (Σ signed balance ≈ 0 for credit-heavy orgs).
+  const accountsReceivable = receivables.grossReceivableDr;
+  const customerCredits = receivables.customerCreditPoolCr;
   const cash = Math.max(0, cashBank);
 
   const totalAssets = cash + accountsReceivable + inventory;
-  const totalLiabilities = accountsPayable;
+  const totalLiabilities = accountsPayable + customerCredits;
   const closingCapital = roundMoney(totalAssets - totalLiabilities);
 
   return {
@@ -1142,6 +1157,7 @@ export async function calculateBalanceSheet(
     liabilities: {
       accountsPayable,
       gstPayable: 0,
+      customerCredits,
       totalLiabilities,
     },
     equity: {

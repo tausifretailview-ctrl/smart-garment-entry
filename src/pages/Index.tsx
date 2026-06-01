@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
@@ -343,6 +344,12 @@ const DesktopDashboard = () => {
     refetchOnWindowFocus: false,
   });
 
+  // Receivables = true net customer AR (Master Reconciliation), shared with the
+  // Customer Ledger card / Balance Sheet, instead of the invoice-only net−paid view.
+  const { summary: receivablesSummary } = useOrganizationReceivablesSummary(
+    hasLoaded ? currentOrganization?.id : null,
+  );
+
   const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: ["customer-segment-counts", currentOrganization?.id],
     enabled: !!currentOrganization?.id && hasLoaded,
@@ -415,7 +422,7 @@ const DesktopDashboard = () => {
   const stockValue = dashStats?.total_stock_value || 0;
   const profitData = dashStats?.gross_profit || 0;
   const cashCollection = dashStats?.cash_collection || 0;
-  const receivablesData = { total: dashStats?.total_receivables || 0, count: dashStats?.pending_count || 0 };
+  const receivablesData = { total: receivablesSummary.netReceivable || 0, count: dashStats?.pending_count || 0 };
   const saleReturnData = { total: dashStats?.sale_return_total || 0, count: dashStats?.sale_return_count || 0, returnQty: dashStats?.sale_return_qty || 0 };
   const purchaseReturnData = { total: dashStats?.purchase_return_total || 0, count: dashStats?.purchase_return_count || 0, returnQty: dashStats?.purchase_return_qty || 0 };
 
@@ -984,7 +991,7 @@ const DesktopDashboard = () => {
               icon={AlertCircle}
               accentColor="bg-red-500"
               onClick={() => navigate("/payments-dashboard")}
-              tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
+              tooltip={`Net customer receivable (after advances/credits). ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
