@@ -10,6 +10,10 @@ import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 
 type Platform = "android" | "ios" | "desktop" | "other";
 
+// Windows desktop installers served from the site's public/ folder.
+const WINDOWS_SETUP_URL = "/downloads/EzzyERP-Setup-1.0.0.exe";
+const WINDOWS_PORTABLE_URL = "/downloads/EzzyERP-Portable-1.0.0.exe";
+
 function detectPlatform(): Platform {
   const ua = navigator.userAgent;
   const isIPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && "ontouchend" in document);
@@ -247,13 +251,33 @@ export default function InstallApp() {
             </div>
           </Card>
         ) : (
-          <Card className="p-6 space-y-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Open this link on your phone to install the app.
-            </p>
-            <Button asChild className="w-full" size="lg">
-              <a href={appStartUrl}>Open Web App</a>
+          <Card className="p-6 space-y-4">
+            <div className="text-center space-y-1">
+              <h2 className="font-semibold text-lg">Download for Windows</h2>
+              <p className="text-sm text-muted-foreground">
+                Desktop app — opens like Tally/Vyapar, no browser needed.
+              </p>
+            </div>
+            <Button asChild className="w-full h-14 text-base" size="lg">
+              <a href={WINDOWS_SETUP_URL} download>
+                <Download className="mr-2 h-5 w-5" />
+                Download EzzyERP for Windows
+              </a>
             </Button>
+            <Button asChild variant="outline" className="w-full" size="sm">
+              <a href={WINDOWS_PORTABLE_URL} download>
+                Portable version (no install needed)
+              </a>
+            </Button>
+            <p className="text-xs text-center text-muted-foreground">
+              Windows 10/11 (64-bit). If Windows shows &quot;Unknown publisher&quot;, click{" "}
+              <strong>More info → Run anyway</strong>.
+            </p>
+            <div className="pt-2 border-t">
+              <Button asChild variant="ghost" className="w-full" size="lg">
+                <a href={appStartUrl}>Open Web App instead</a>
+              </Button>
+            </div>
           </Card>
         )}
 
