@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
 
 // Dev = running from source (electron .), Prod = packaged .exe.
 // Using app.isPackaged avoids an extra runtime dependency.
@@ -29,7 +30,86 @@ if (!gotTheLock) {
     createWindow();
     createTray();
     createMenu();
+    initAutoUpdater();
   });
+}
+
+// ═══ AUTO-UPDATE ═══
+// Checks GitHub Releases on launch (only in the installed/packaged app),
+// downloads in the background, and installs on restart.
+
+let updaterWired = false;
+
+function initAutoUpdater() {
+  // Updates only work in the packaged, installed app (needs app-update.yml).
+  // Skipped in dev and harmless for the portable build (errors are swallowed).
+  if (!app.isPackaged) return;
+
+  if (!updaterWired) {
+    updaterWired = true;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-downloaded', (info) => {
+      const choice = dialog.showMessageBoxSync(mainWindow, {
+        type: 'info',
+        buttons: ['Restart now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Update ready',
+        message: `EzzyERP ${info && info.version ? info.version : ''} has been downloaded.`,
+        detail: 'Restart the app to apply the update.',
+      });
+      if (choice === 0) {
+        app.isQuitting = true;
+        autoUpdater.quitAndInstall();
+      }
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.error('[auto-updater]', err == null ? 'unknown error' : err);
+    });
+  }
+
+  autoUpdater.checkForUpdates().catch((err) => {
+    console.error('[auto-updater] check failed', err);
+  });
+}
+
+// Manual "Check for Updates" trigger (used by the Help menu).
+function checkForUpdatesManually() {
+  if (!app.isPackaged) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Check for Updates',
+      message: 'Updates are only available in the installed desktop app.',
+      buttons: ['OK'],
+    });
+    return;
+  }
+  initAutoUpdater();
+  autoUpdater
+    .checkForUpdates()
+    .then((result) => {
+      const latest = result && result.updateInfo ? result.updateInfo.version : null;
+      if (latest && latest === app.getVersion()) {
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: 'Check for Updates',
+          message: `You're on the latest version (${app.getVersion()}).`,
+          buttons: ['OK'],
+        });
+      }
+    })
+    .catch((err) => {
+      dialog.showMessageBox(mainWindow, {
+        type: 'error',
+        title: 'Update check failed',
+        message: 'Could not check for updates.',
+        detail: String(err && err.message ? err.message : err),
+        buttons: ['OK'],
+      });
+    });
 }
 
 function resolveIcon() {
@@ -228,6 +308,11 @@ function createMenu() {
     {
       label: 'Help',
       submenu: [
+        {
+          label: 'Check for Updates…',
+          click: () => checkForUpdatesManually(),
+        },
+        { type: 'separator' },
         {
           label: 'About EzzyERP',
           click: () => {
