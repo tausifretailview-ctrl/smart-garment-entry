@@ -61,6 +61,7 @@ import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceDisplay,
   reconcileSaleInvoiceWithSplit,
+  resolveReceiptReprintBalances,
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
@@ -1976,14 +1977,24 @@ export function CustomerPaymentTab({
                           )}
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               const customer = voucher.reference_type === "customer"
                                 ? customers?.find((c) => c.id === voucher.reference_id)
                                 : (invoice?.customer_id ? customers?.find((c) => c.id === invoice.customer_id) : null);
                               const paid = Number(voucher.total_amount) || 0;
                               const discAmt = Number((voucher as any).discount_amount) || 0;
                               const discReason = String((voucher as any).discount_reason || "");
-                              const invNet = invoice?.net_amount != null ? Number(invoice.net_amount) : paid + discAmt;
+                              const reprint = await resolveReceiptReprintBalances(
+                                supabase,
+                                organizationId,
+                                voucher,
+                                sales,
+                              ).catch(() => null);
+                              const resolvedInvoice = reprint?.invoice ?? invoice;
+                              const invNet =
+                                resolvedInvoice?.net_amount != null
+                                  ? Number(resolvedInvoice.net_amount)
+                                  : paid + discAmt;
                               onShowReceipt({
                                 voucherNumber: voucher.voucher_number,
                                 voucherDate: voucher.voucher_date,
@@ -1999,8 +2010,8 @@ export function CustomerPaymentTab({
                                 discountAmount: discAmt,
                                 discountReason: discReason,
                                 paymentMethod: voucher.payment_method || "cash",
-                                previousBalance: 0,
-                                currentBalance: 0,
+                                previousBalance: reprint?.previousBalance ?? 0,
+                                currentBalance: reprint?.currentBalance ?? 0,
                               });
                             }}
                             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground active:bg-muted/50 touch-manipulation"
