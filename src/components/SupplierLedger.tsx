@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle, Undo2, Clock, Scale, BookOpen } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface SupplierLedgerProps {
   organizationId: string;
@@ -45,6 +46,8 @@ interface Supplier {
   balance: number;
 }
 
+type LedgerTab = 'all' | 'payments' | 'cn-adjusted' | 'cn-pending';
+
 interface Transaction {
   id: string;
   date: string;
@@ -54,6 +57,8 @@ interface Transaction {
   debit: number;
   credit: number;
   balance: number;
+  /** Which detail tab this row belongs to (besides "all"). */
+  category?: Exclude<LedgerTab, 'all'>;
 }
 
 export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
@@ -62,6 +67,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<LedgerTab>("all");
 
   // Suppliers list + balances: keep list loading even if balance aggregation fails (RLS / schema).
   const { data: ledgerData, isLoading } = useQuery({
@@ -214,16 +220,33 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (creditNotesError) throw creditNotesError;
 
-      // Fetch purchase returns (direct, as fallback/supplement to credit_note vouchers)
-      const { data: purchaseReturnsData } = await supabase
-        .from("purchase_returns" as any)
-        .select(
-          "id, return_number, return_date, net_amount, credit_status, credit_note_id, linked_bill_id, credit_available_balance, created_at"
-        )
-        .eq("supplier_id", selectedSupplier.id)
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .order("return_date", { ascending: true });
+      // Fetch purchase returns (direct, as fallback/supplement to credit_note vouchers).
+      // Tiered SELECT: older org schemas may lack credit_available_balance/created_at.
+      // A single hard select used to error silently here -> purchaseReturnsData = null ->
+      // CN/return rows vanished from the ledger while the account balance (snapshot, which
+      // has its own fallback) stayed correct. Hence "outstanding OK, but CN not showing".
+      const prSelectTiers = [
+        "id, return_number, return_date, net_amount, credit_status, credit_note_id, linked_bill_id, credit_available_balance, created_at",
+        "id, return_number, return_date, net_amount, credit_status, credit_note_id, linked_bill_id, credit_available_balance",
+        "id, return_number, return_date, net_amount, credit_status, credit_note_id, linked_bill_id",
+        "id, return_number, return_date, net_amount, credit_status, credit_note_id",
+      ];
+      let purchaseReturnsData: any[] | null = null;
+      for (const sel of prSelectTiers) {
+        const res = await supabase
+          .from("purchase_returns" as any)
+          .select(sel)
+          .eq("supplier_id", selectedSupplier.id)
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .order("return_date", { ascending: true });
+        if (!res.error) {
+          purchaseReturnsData = (res.data as any[]) || [];
+          break;
+        }
+        console.warn("Supplier ledger: purchase_returns select failed, retrying simpler", res.error?.message);
+      }
+      purchaseReturnsData = purchaseReturnsData || [];
 
       // Only include purchase returns that have NO linked credit_note voucher
       const creditNoteVoucherIds = new Set((creditNotesData || []).map((cn: any) => cn.id));
@@ -359,6 +382,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
               debit: paidAtPurchase,
               credit: 0,
               balance: runningBalance,
+              category: 'payments',
             });
           }
         } else if (item.type === 'credit_note') {
@@ -385,6 +409,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             debit: cnEffect,
             credit: 0,
             balance: runningBalance,
+            category: 'cn-adjusted',
           });
         } else if (item.type === 'refund_received') {
           const r = item.data as any;
@@ -398,6 +423,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             debit: r.total_amount,
             credit: 0,
             balance: runningBalance,
+            category: 'payments',
           });
         } else if (item.type === 'purchase_return') {
           const pr = item.data as any;
@@ -423,6 +449,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             debit: amount,
             credit: 0,
             balance: runningBalance,
+            category: 'cn-adjusted',
           });
         } else if (item.type === 'purchase_return_pending') {
           // Display-only row for pending purchase returns — does NOT mutate balance
@@ -436,6 +463,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             debit: 0,
             credit: 0,
             balance: runningBalance,
+            category: 'cn-pending',
           });
         } else {
           const voucher = item.data as any;
@@ -461,6 +489,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             debit: settlement,
             credit: 0,
             balance: runningBalance,
+            category: 'payments',
           });
         }
       });
@@ -474,6 +503,27 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     if (!transactions?.length) return null;
     return transactions[transactions.length - 1]?.balance ?? 0;
   }, [transactions]);
+
+  const tabCounts = useMemo(() => {
+    const t = transactions || [];
+    return {
+      all: t.length,
+      payments: t.filter((x) => x.category === 'payments').length,
+      'cn-adjusted': t.filter((x) => x.category === 'cn-adjusted').length,
+      'cn-pending': t.filter((x) => x.category === 'cn-pending').length,
+    };
+  }, [transactions]);
+
+  const visibleTransactions = useMemo(() => {
+    const t = transactions || [];
+    if (activeTab === 'all') return t;
+    return t.filter((x) => x.category === activeTab);
+  }, [transactions, activeTab]);
+
+  // Reset to the full view whenever a different supplier is opened.
+  useEffect(() => {
+    setActiveTab('all');
+  }, [selectedSupplier?.id]);
 
   // Filter suppliers based on search and payment status
   const filteredSuppliers = useMemo(() => {
@@ -772,6 +822,31 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
             <Separator className="my-6" />
 
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LedgerTab)} className="w-full">
+              <TabsList className="flex w-full max-w-full flex-nowrap overflow-x-auto gap-1 mb-4 min-h-10 bg-muted/60 rounded-xl p-1">
+                <TabsTrigger value="all" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                  <BookOpen className="h-4 w-4" />
+                  Transactions
+                  <Badge variant="secondary" className="ml-1">{tabCounts.all}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="payments" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                  <IndianRupee className="h-4 w-4" />
+                  Payment History
+                  <Badge variant="secondary" className="ml-1">{tabCounts.payments}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="cn-adjusted" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                  <FileText className="h-4 w-4" />
+                  CN Adjusted
+                  <Badge variant="secondary" className="ml-1">{tabCounts['cn-adjusted']}</Badge>
+                </TabsTrigger>
+                <TabsTrigger value="cn-pending" className="flex shrink-0 items-center gap-2 rounded-lg text-sm font-medium px-3">
+                  <Clock className="h-4 w-4" />
+                  CN Pending
+                  <Badge variant="secondary" className="ml-1">{tabCounts['cn-pending']}</Badge>
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
             <div className={accountsHistoryTableWrapClass}>
               <Table className={accountsHistoryTableClass}>
                 <TableHeader className="!static">
@@ -786,14 +861,20 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.length === 0 ? (
+                  {visibleTransactions.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        No transactions found
+                        {activeTab === 'all'
+                          ? 'No transactions found'
+                          : activeTab === 'payments'
+                            ? 'No payments / refunds recorded'
+                            : activeTab === 'cn-adjusted'
+                              ? 'No adjusted credit notes / purchase returns'
+                              : 'No pending purchase return credit notes'}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    transactions.map((transaction) => (
+                    visibleTransactions.map((transaction) => (
                       <TableRow key={transaction.id} className={transaction.id === 'opening-balance' ? 'bg-muted/50' : ''}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -851,11 +932,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                     ))
                   )}
                   {/* Grand Total Row */}
-                  {transactions.length > 0 && (() => {
-                    const totalDebit = transactions.reduce((sum, t) => sum + t.debit, 0);
-                    const totalCredit = transactions.reduce((sum, t) => sum + t.credit, 0);
-                    const totalCreditNoteAdjust = transactions.filter(t => t.type === 'credit_note').reduce((sum, t) => sum + t.debit, 0);
-                    const finalBalance = transactions[transactions.length - 1]?.balance || 0;
+                  {visibleTransactions.length > 0 && (() => {
+                    const totalDebit = visibleTransactions.reduce((sum, t) => sum + t.debit, 0);
+                    const totalCredit = visibleTransactions.reduce((sum, t) => sum + t.credit, 0);
+                    const totalCreditNoteAdjust = visibleTransactions.filter(t => t.type === 'credit_note').reduce((sum, t) => sum + t.debit, 0);
+                    const finalBalance = visibleTransactions[visibleTransactions.length - 1]?.balance || 0;
                     return (
                       <TableRow className="bg-muted/70 border-t-2 border-primary/20 font-bold">
                         <TableCell colSpan={4} className="text-right text-base font-bold">
@@ -890,6 +971,81 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Balance Reconciliation — uses the authoritative supplier snapshot so it always
+                ties out to the headline "Outstanding Payable", even when individual CN/return
+                rows are hidden by a tab filter or a partial schema. */}
+            {selectedSupplierSnapshot && (() => {
+              const snap = selectedSupplierSnapshot;
+              const netPurchases =
+                snap.openingBalance + snap.totalPurchases - snap.totalCreditNotesNet - snap.unreflectedReturns;
+              const out = snap.balance;
+              return (
+                <div className="mt-4 rounded-md border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">
+                    <Scale className="h-3.5 w-3.5" />
+                    Balance Reconciliation
+                  </div>
+                  <div className="space-y-1.5 text-sm tabular-nums max-w-md">
+                    <div className="flex justify-between">
+                      <span>Opening Balance</span>
+                      <span className="font-medium">₹{Math.round(snap.openingBalance).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>(+) Total Purchases</span>
+                      <span className="font-medium">₹{Math.round(snap.totalPurchases).toLocaleString("en-IN")}</span>
+                    </div>
+                    {snap.totalCreditNotesNet > 0 && (
+                      <div className="flex justify-between text-purple-700 dark:text-purple-400">
+                        <span>(−) Credit Notes Adjusted (net)</span>
+                        <span className="font-medium">₹{Math.round(snap.totalCreditNotesNet).toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+                    {snap.unreflectedReturns > 0 && (
+                      <div className="flex justify-between text-purple-700 dark:text-purple-400">
+                        <span>(−) Purchase Returns Adjusted</span>
+                        <span className="font-medium">₹{Math.round(snap.unreflectedReturns).toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t pt-1.5">
+                      <span className="font-semibold">(=) Net Purchases</span>
+                      <span className="font-semibold">₹{Math.round(netPurchases).toLocaleString("en-IN")}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                      <span>(−) Paid (Cash / Bank)</span>
+                      <span className="font-medium">₹{Math.round(snap.totalPaid).toLocaleString("en-IN")}</span>
+                    </div>
+                    {snap.refundsReceived > 0 && (
+                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                        <span>(−) Refunds Received from Supplier</span>
+                        <span className="font-medium">₹{Math.round(snap.refundsReceived).toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+                    <div className={cn(
+                      "flex justify-between border-t-2 pt-2 mt-2 text-base font-bold",
+                      out > 0 ? "text-red-600 dark:text-red-400" :
+                      out < 0 ? "text-emerald-700 dark:text-emerald-300" :
+                      "text-foreground"
+                    )}>
+                      <span>Outstanding ({out > 0 ? 'Payable / Cr' : out < 0 ? 'Supplier Credit / Dr' : 'Settled'})</span>
+                      <span>₹{Math.abs(Math.round(out)).toLocaleString("en-IN")}</span>
+                    </div>
+                    {snap.unappliedCreditNotes > 0 && (
+                      <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
+                        <span>Unapplied CN credit available</span>
+                        <span>₹{Math.round(snap.unappliedCreditNotes).toLocaleString("en-IN")}</span>
+                      </div>
+                    )}
+                    {tabCounts['cn-pending'] > 0 && (
+                      <div className="text-[11px] text-orange-500 pt-0.5">
+                        {tabCounts['cn-pending']} pending purchase-return CN(s) — listed in the “CN Pending” tab, not yet
+                        deducted from this balance.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
