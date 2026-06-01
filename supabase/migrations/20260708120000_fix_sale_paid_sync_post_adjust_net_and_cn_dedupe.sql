@@ -182,16 +182,29 @@ FOR EACH ROW EXECUTE FUNCTION public.sync_sale_payment_status_from_receipts();
 -- One-time idempotent backfill: align existing stale paid_amount / payment_status with
 -- the corrected model. Only rows whose value actually changes are touched.
 -- Scoped to the target organization; remove the organization_id filter to backfill all orgs.
+-- Postgres does not allow referencing the UPDATE target table inside a FROM-clause
+-- function (LATERAL on the target). Compute via a CTE, then update by id.
+WITH recomputed AS (
+  SELECT
+    s.id,
+    s.paid_amount AS old_paid,
+    s.payment_status AS old_status,
+    c.new_paid,
+    c.new_status
+  FROM public.sales s
+  CROSS JOIN LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
+  WHERE s.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
+    AND c.new_paid IS NOT NULL
+)
 UPDATE public.sales s
-SET paid_amount = c.new_paid,
-    payment_status = c.new_status
-FROM LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
-WHERE s.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
-  AND s.deleted_at IS NULL
-  AND COALESCE(s.is_cancelled, false) = false
-  AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
-  AND c.new_paid IS NOT NULL
+SET paid_amount = r.new_paid,
+    payment_status = r.new_status
+FROM recomputed r
+WHERE r.id = s.id
   AND (
-    ABS(COALESCE(s.paid_amount, 0) - c.new_paid) > 0.009
-    OR COALESCE(s.payment_status, '') <> c.new_status
+    ABS(COALESCE(r.old_paid, 0) - r.new_paid) > 0.009
+    OR COALESCE(r.old_status, '') <> r.new_status
   );

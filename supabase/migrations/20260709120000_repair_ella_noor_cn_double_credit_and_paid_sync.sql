@@ -103,18 +103,31 @@ WHERE cn.id = sr.credit_note_id
 --    compute_sale_settlement cannot see) is never flipped to a lower state or stripped of a
 --    recorded paid_amount. (a) never downgrade 'completed'; (b) never reduce paid_amount
 --    unless the row ends fully settled.
+-- Postgres does not allow referencing the UPDATE target table inside a FROM-clause
+-- function (LATERAL on the target). Compute via a CTE, then update by id.
+WITH recomputed AS (
+  SELECT
+    s.id,
+    s.paid_amount AS old_paid,
+    s.payment_status AS old_status,
+    c.new_paid,
+    c.new_status
+  FROM public.sales s
+  CROSS JOIN LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
+  WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
+    AND c.new_paid IS NOT NULL
+)
 UPDATE public.sales s
-SET paid_amount = c.new_paid,
-    payment_status = c.new_status
-FROM LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
-WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-  AND s.deleted_at IS NULL
-  AND COALESCE(s.is_cancelled, false) = false
-  AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
-  AND c.new_paid IS NOT NULL
+SET paid_amount = r.new_paid,
+    payment_status = r.new_status
+FROM recomputed r
+WHERE r.id = s.id
   AND (
-    ABS(COALESCE(s.paid_amount, 0) - c.new_paid) > 0.009
-    OR COALESCE(s.payment_status, '') <> c.new_status
+    ABS(COALESCE(r.old_paid, 0) - r.new_paid) > 0.009
+    OR COALESCE(r.old_status, '') <> r.new_status
   )
-  AND NOT (COALESCE(s.payment_status, '') = 'completed' AND c.new_status <> 'completed')
-  AND NOT (c.new_paid < COALESCE(s.paid_amount, 0) - 0.009 AND c.new_status <> 'completed');
+  AND NOT (COALESCE(r.old_status, '') = 'completed' AND r.new_status <> 'completed')
+  AND NOT (r.new_paid < COALESCE(r.old_paid, 0) - 0.009 AND r.new_status <> 'completed');
