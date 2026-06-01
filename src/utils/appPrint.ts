@@ -1,0 +1,106 @@
+// Universal print helper. Uses Electron silent printing when running inside the
+// desktop app, and falls back to the normal browser print flow on the web.
+// This is additive: existing web printing keeps working unchanged.
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const electronAPI = (window as any).electronAPI;
+
+export type AppPrintType = "invoice" | "receipt" | "barcode" | "report";
+
+// localStorage keys for the desktop printer preferences (set in Settings).
+export const PRINT_PREF_KEYS = {
+  invoicePrinter: "ezzy_invoice_printer",
+  thermalPrinter: "ezzy_thermal_printer",
+  barcodePrinter: "ezzy_barcode_printer",
+  autoPrint: "ezzy_auto_print",
+  copies: "ezzy_print_copies",
+} as const;
+
+export interface AppPrintOptions {
+  type: AppPrintType;
+  /** HTML content to print. If omitted, the current page is printed. */
+  html?: string;
+  copies?: number;
+  /** Called instead of window.print() in web mode (e.g. open a preview window). */
+  onFallback?: () => void;
+}
+
+export interface AppPrintResult {
+  success: boolean;
+  method: "electron" | "browser";
+  error?: string | null;
+}
+
+export function isElectron(): boolean {
+  return !!electronAPI?.isElectron;
+}
+
+function printerForType(type: AppPrintType): string {
+  const key = {
+    invoice: PRINT_PREF_KEYS.invoicePrinter,
+    receipt: PRINT_PREF_KEYS.thermalPrinter,
+    barcode: PRINT_PREF_KEYS.barcodePrinter,
+    report: PRINT_PREF_KEYS.invoicePrinter,
+  }[type];
+  return localStorage.getItem(key) || "";
+}
+
+function pageSizeForType(type: AppPrintType): string | { width: number; height: number } {
+  // Electron page sizes are in microns for custom sizes.
+  return {
+    invoice: "A4",
+    receipt: { width: 80000, height: 297000 }, // 80mm thermal roll
+    barcode: { width: 50000, height: 25000 }, // 50x25mm label
+    report: "A4",
+  }[type];
+}
+
+function marginsForType(type: AppPrintType) {
+  return {
+    invoice: { marginType: "default" as const },
+    receipt: { marginType: "none" as const },
+    barcode: { marginType: "none" as const },
+    report: { marginType: "default" as const },
+  }[type];
+}
+
+/**
+ * Print using Electron silent print when available, otherwise the browser.
+ */
+export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult> {
+  if (!isElectron()) {
+    if (options.onFallback) {
+      options.onFallback();
+    } else if (options.html) {
+      const win = window.open("", "_blank");
+      if (win) {
+        win.document.write(options.html);
+        win.document.close();
+        win.focus();
+        win.print();
+      }
+    } else {
+      window.print();
+    }
+    return { success: true, method: "browser" };
+  }
+
+  const printerName = printerForType(options.type);
+  const pageSize = pageSizeForType(options.type);
+  const margins = marginsForType(options.type);
+  const copies = options.copies || Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
+
+  try {
+    const result = options.html
+      ? await electronAPI.printHtml({ html: options.html, printerName, pageSize, copies, margins })
+      : await electronAPI.silentPrint({ printerName, pageSize, copies, margins });
+    return { success: !!result?.success, method: "electron", error: result?.error ?? null };
+  } catch (err) {
+    return { success: false, method: "electron", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Whether auto-print after save is enabled (desktop only). */
+export function isAutoPrintEnabled(): boolean {
+  return isElectron() && localStorage.getItem(PRINT_PREF_KEYS.autoPrint) === "true";
+}

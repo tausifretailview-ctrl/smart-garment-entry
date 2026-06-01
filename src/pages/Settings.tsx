@@ -29,6 +29,7 @@ import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { LabelCalibrationUI, CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import BackupSettings from "@/components/BackupSettings";
+import { DesktopPrintSettings } from "@/components/DesktopPrintSettings";
 import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
 import { ChequeFormatManagement } from "@/components/ChequeFormatManagement";
 import { PaymentGatewaySettings } from "@/components/PaymentGatewaySettings";
@@ -4269,6 +4270,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="bill">
+            <DesktopPrintSettings />
             <Card>
               <CardHeader>
                 <CardTitle>Bill & Barcode Settings</CardTitle>

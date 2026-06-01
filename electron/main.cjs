@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -215,6 +215,140 @@ function createMenu() {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
+
+// ═══ PRINTER IPC ═══
+// Silent/direct printing so the desktop app prints like Tally/Vyapar (no dialog).
+// All handlers degrade gracefully and never throw across the IPC boundary.
+
+function targetWindow() {
+  return BrowserWindow.getFocusedWindow() || mainWindow || BrowserWindow.getAllWindows()[0] || null;
+}
+
+// List connected printers
+ipcMain.handle('get-printers', async () => {
+  const win = targetWindow();
+  if (!win) return [];
+  try {
+    const printers =
+      typeof win.webContents.getPrintersAsync === 'function'
+        ? await win.webContents.getPrintersAsync()
+        : win.webContents.getPrinters();
+    return (printers || []).map((p) => ({
+      name: p.name,
+      displayName: p.displayName || p.name,
+      description: p.description || '',
+      status: p.status,
+      isDefault: !!p.isDefault,
+    }));
+  } catch (err) {
+    return [];
+  }
+});
+
+// Silent print the current page — no dialog
+ipcMain.handle('silent-print', async (_event, options = {}) => {
+  const win = targetWindow();
+  if (!win) return { success: false, error: 'No window' };
+
+  return new Promise((resolve) => {
+    try {
+      win.webContents.print(
+        {
+          silent: true,
+          deviceName: options.printerName || '',
+          pageSize: options.pageSize || 'A4',
+          copies: options.copies || 1,
+          landscape: options.landscape || false,
+          margins: options.margins || { marginType: 'default' },
+          scaleFactor: options.scaleFactor || 100,
+          printBackground: true,
+          color: options.color !== false,
+        },
+        (success, failureReason) => resolve({ success, error: failureReason || null }),
+      );
+    } catch (err) {
+      resolve({ success: false, error: String(err && err.message ? err.message : err) });
+    }
+  });
+});
+
+// Render a PDF buffer of the current page (for preview/save)
+ipcMain.handle('print-to-pdf', async (_event, options = {}) => {
+  const win = targetWindow();
+  if (!win) return null;
+  try {
+    const pdfData = await win.webContents.printToPDF({
+      pageSize: options.pageSize || 'A4',
+      landscape: options.landscape || false,
+      margins: options.margins || { top: 0.4, bottom: 0.4, left: 0.4, right: 0.4 },
+      printBackground: true,
+    });
+    return pdfData;
+  } catch (err) {
+    return null;
+  }
+});
+
+// Print an arbitrary HTML string via an offscreen window (receipts/invoices/labels)
+ipcMain.handle('print-html', async (_event, payload = {}) => {
+  const { html, printerName, pageSize, copies, margins, landscape } = payload;
+  if (!html) return { success: false, error: 'No HTML provided' };
+
+  return new Promise((resolve) => {
+    let printWin = new BrowserWindow({
+      show: false,
+      width: 800,
+      height: 600,
+      webPreferences: { nodeIntegration: false, contextIsolation: true },
+    });
+
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      try {
+        if (printWin && !printWin.isDestroyed()) printWin.close();
+      } catch {}
+      printWin = null;
+      resolve(result);
+    };
+
+    // Safety timeout so a stuck render never hangs the renderer's await
+    const timeout = setTimeout(() => finish({ success: false, error: 'Print timed out' }), 15000);
+
+    printWin.webContents.once('did-finish-load', () => {
+      setTimeout(() => {
+        try {
+          printWin.webContents.print(
+            {
+              silent: true,
+              deviceName: printerName || '',
+              pageSize: pageSize || 'A4',
+              copies: copies || 1,
+              landscape: landscape || false,
+              margins: margins || { marginType: 'default' },
+              printBackground: true,
+            },
+            (success, failureReason) => {
+              clearTimeout(timeout);
+              finish({ success, error: failureReason || null });
+            },
+          );
+        } catch (err) {
+          clearTimeout(timeout);
+          finish({ success: false, error: String(err && err.message ? err.message : err) });
+        }
+      }, 300);
+    });
+
+    printWin
+      .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+      .catch((err) => {
+        clearTimeout(timeout);
+        finish({ success: false, error: String(err && err.message ? err.message : err) });
+      });
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
