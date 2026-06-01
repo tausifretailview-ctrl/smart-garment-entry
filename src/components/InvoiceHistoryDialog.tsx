@@ -768,7 +768,7 @@ export function InvoiceHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg w-[95vw] max-h-[88vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className="max-w-lg w-[95vw] h-[92vh] max-h-[92vh] overflow-hidden flex flex-col p-0">
         <div className="h-1 w-full bg-gradient-to-r from-primary via-blue-500 to-accent rounded-t-lg flex-shrink-0" />
         <div className="p-4 pb-0 flex-shrink-0">
           <DialogHeader>
@@ -785,7 +785,7 @@ export function InvoiceHistoryDialog({
             </DialogTitle>
           </DialogHeader>
         </div>
-        <ScrollArea className="flex-1 px-4 pb-4">
+        <ScrollArea className="flex-1 min-h-0 px-4 pb-4">
           <div className="pr-3">{renderBody()}</div>
         </ScrollArea>
       </DialogContent>
