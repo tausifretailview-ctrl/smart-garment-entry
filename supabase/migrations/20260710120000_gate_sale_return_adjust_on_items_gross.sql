@@ -275,6 +275,17 @@ $$;
 
 -- 3) One-time idempotent backfill of paid_amount / payment_status for the affected org.
 --    Scoped to ELLA NOOR; remove the organization_id filter to backfill all orgs.
+--
+--    STRONG COVER FOR PAID INVOICES — a bulk resync must NEVER touch a genuinely settled
+--    invoice. compute_sale_settlement only sees sale-referenced receipts + the sale's own
+--    tender columns; when a payment was recorded as a customer-keyed receipt with no tender
+--    on the sale row it would compute paid = 0 and wrongly flip a "completed" invoice to
+--    "pending". The two guards below make the backfill strictly NON-REGRESSIVE:
+--      (a) never move a 'completed' invoice to a less-settled status;
+--      (b) never reduce a recorded paid_amount unless the row ends fully settled
+--          (e.g. settled by an applied return — the ELLA NOOR fix, which raises settlement).
+--    The live trigger (compute_sale_settlement) is intentionally left pure so receipt
+--    deletions still reduce paid_amount correctly on real events.
 UPDATE public.sales s
 SET paid_amount = c.new_paid,
     payment_status = c.new_status
@@ -287,4 +298,6 @@ WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
   AND (
     ABS(COALESCE(s.paid_amount, 0) - c.new_paid) > 0.009
     OR COALESCE(s.payment_status, '') <> c.new_status
-  );
+  )
+  AND NOT (COALESCE(s.payment_status, '') = 'completed' AND c.new_status <> 'completed')
+  AND NOT (c.new_paid < COALESCE(s.paid_amount, 0) - 0.009 AND c.new_status <> 'completed');

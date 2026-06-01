@@ -97,6 +97,12 @@ WHERE cn.id = sr.credit_note_id
 --    corrected settlement model (post-adjust net + CN dedupe). Runs AFTER the phantom
 --    receipts above are removed, so it also clears the historical paid_amount drift the
 --    audit found (Section 3) and re-settles the repaired invoices in one pass.
+--
+--    STRONG COVER FOR PAID INVOICES: the two guards keep this bulk resync NON-REGRESSIVE so
+--    a genuinely settled invoice (whose payment may be a customer-keyed receipt that
+--    compute_sale_settlement cannot see) is never flipped to a lower state or stripped of a
+--    recorded paid_amount. (a) never downgrade 'completed'; (b) never reduce paid_amount
+--    unless the row ends fully settled.
 UPDATE public.sales s
 SET paid_amount = c.new_paid,
     payment_status = c.new_status
@@ -109,4 +115,6 @@ WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
   AND (
     ABS(COALESCE(s.paid_amount, 0) - c.new_paid) > 0.009
     OR COALESCE(s.payment_status, '') <> c.new_status
-  );
+  )
+  AND NOT (COALESCE(s.payment_status, '') = 'completed' AND c.new_status <> 'completed')
+  AND NOT (c.new_paid < COALESCE(s.paid_amount, 0) - 0.009 AND c.new_status <> 'completed');
