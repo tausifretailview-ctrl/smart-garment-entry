@@ -45,6 +45,7 @@ WHERE cle.organization_id = ve.organization_id
   AND LOWER(sr.credit_status) = 'adjusted'
   AND sr.linked_sale_id IS NOT NULL
   AND sr.credit_note_id IS NOT NULL
+  AND c.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
   AND UPPER(TRIM(c.customer_name)) = 'SHAHIN PATEL';
 
 -- 2. Soft-delete the phantom credit_note_adjustment receipts (RCP/.../25, RCP/.../26).
@@ -62,6 +63,7 @@ WHERE ve.organization_id = sr.organization_id
   AND LOWER(sr.credit_status) = 'adjusted'
   AND sr.linked_sale_id IS NOT NULL
   AND sr.credit_note_id IS NOT NULL
+  AND c.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
   AND UPPER(TRIM(c.customer_name)) = 'SHAHIN PATEL';
 
 -- 3. Void the now-redundant credit notes (CN/.../4, CN/.../5). The sale returns stay
@@ -79,6 +81,7 @@ WHERE cn.id = sr.credit_note_id
   AND LOWER(sr.credit_status) = 'adjusted'
   AND sr.linked_sale_id IS NOT NULL
   AND sr.credit_note_id IS NOT NULL
+  AND c.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
   AND UPPER(TRIM(c.customer_name)) = 'SHAHIN PATEL';
 
 -- 4. Resync paid_amount / payment_status for SHAHIN PATEL's invoices with the corrected model.
@@ -95,4 +98,5 @@ WHERE s.customer_id = c.id
   AND COALESCE(s.is_cancelled, false) = false
   AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
   AND calc.new_paid IS NOT NULL
+  AND c.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
   AND UPPER(TRIM(c.customer_name)) = 'SHAHIN PATEL';

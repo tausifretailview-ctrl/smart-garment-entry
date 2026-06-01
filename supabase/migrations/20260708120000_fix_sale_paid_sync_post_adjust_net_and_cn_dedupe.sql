@@ -181,11 +181,13 @@ FOR EACH ROW EXECUTE FUNCTION public.sync_sale_payment_status_from_receipts();
 
 -- One-time idempotent backfill: align existing stale paid_amount / payment_status with
 -- the corrected model. Only rows whose value actually changes are touched.
+-- Scoped to the target organization; remove the organization_id filter to backfill all orgs.
 UPDATE public.sales s
 SET paid_amount = c.new_paid,
     payment_status = c.new_status
 FROM LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
-WHERE s.deleted_at IS NULL
+WHERE s.organization_id = '5e769632-a203-4a47-9d52-8c2bbdd1b23b'
+  AND s.deleted_at IS NULL
   AND COALESCE(s.is_cancelled, false) = false
   AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
   AND c.new_paid IS NOT NULL
