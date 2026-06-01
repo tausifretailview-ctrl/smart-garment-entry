@@ -663,12 +663,33 @@ export default function SalesInvoiceDashboard() {
         .in("linked_sale_id", saleIds)
         .is("deleted_at", null);
 
+      // Merchandise gross per sale (Σ mrp × qty). Enables the pre-return S/R subtraction
+      // guard in reconcileSaleInvoiceDisplay: when net_amount is the full bill and a return
+      // was applied on top (net + sr > items_gross, e.g. ELLA NOOR / post-hoc CN adjust),
+      // the applied return is credited; for post-return/exchange rows the guard is a no-op.
+      const itemsGrossBySale = new Map<string, number>();
+      {
+        const { data: itemRows } = await supabase
+          .from("sale_items")
+          .select("sale_id, quantity, mrp")
+          .in("sale_id", saleIds)
+          .is("deleted_at", null);
+        (itemRows || []).forEach((it: any) => {
+          if (!it.sale_id) return;
+          const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
+          itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
+        });
+      }
+
       // If paid_amount / payment_status is stale vs vouchers + S/R, sync sales row (ledger-consistent cash vs CN).
       const staleUpdates = invoices
         .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
         .map((inv: any) => {
           const split = splitBySale.get(inv.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-          const rec = reconcileSaleInvoiceWithSplit(inv, split);
+          const rec = reconcileSaleInvoiceWithSplit(
+            { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
+            split,
+          );
           const { paymentStatus: derivedStatus } = derivePaidAndStatus({
             netAmount: Number(inv.net_amount || 0),
             saleReturnAdjust: Number(inv.sale_return_adjust || 0),
@@ -710,7 +731,10 @@ export default function SalesInvoiceDashboard() {
         if (inv.payment_status === "hold") {
           return { ...inv };
         }
-        const rec = reconcileSaleInvoiceWithSplit(inv, splitBySale.get(inv.id) ?? null);
+        const rec = reconcileSaleInvoiceWithSplit(
+          { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
+          splitBySale.get(inv.id) ?? null,
+        );
         const cnAdjustYmd =
           Number(inv.sale_return_adjust || 0) > 0.005
             ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])

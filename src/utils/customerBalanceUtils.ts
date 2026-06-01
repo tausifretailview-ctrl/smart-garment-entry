@@ -620,6 +620,18 @@ export function reconcileSaleInvoiceDisplay(params: {
   sale_return_adjust: number;
   paid_amount: number;
   split?: SaleReceiptVoucherSplit | null;
+  /**
+   * Merchandise gross (Σ mrp × qty from sale_items). Optional.
+   * When provided, distinguishes the two `net_amount` conventions:
+   *   - post-return (POS exchange / billing return baked in): net + sr ≈ items_gross
+   *     → `sr` is already inside `net`, do NOT subtract it again (legacy behavior).
+   *   - pre-return (CN/return adjusted onto a full-bill invoice, e.g. ELLA NOOR): net is
+   *     the full bill and `sr` is a credit applied on top → subtract `sr` from payable.
+   * The guard `net + sr > items_gross` is false for post-return rows, so passing
+   * items_gross is a NO-OP for the exchange / SHAHIN-PATEL cases (no regression) and only
+   * credits the applied return for genuine pre-return invoices.
+   */
+  items_gross?: number | null;
 }): {
   paid_amount: number;
   payment_status: "pending" | "partial" | "completed";
@@ -627,6 +639,15 @@ export function reconcileSaleInvoiceDisplay(params: {
 } {
   const net = Number(params.net_amount || 0);
   const sr = Number(params.sale_return_adjust || 0);
+  const itemsGross = params.items_gross != null ? Number(params.items_gross) : null;
+  // Pre-return invoice: the full bill is still in `net` and the return was applied as a
+  // credit on top (no reduction of net). Subtract it once. Guard is conservative — it can
+  // never fire for a post-return row (where net + sr ≤ items_gross), the dangerous direction.
+  const srAppliedOnTop =
+    itemsGross != null &&
+    itemsGross > INVOICE_RECON_TOL &&
+    sr > INVOICE_RECON_TOL &&
+    net + sr > itemsGross + DUPLICATE_CN_PAID_MATCH_TOL;
   const salePaid = Number(params.paid_amount || 0);
   const { cash = 0, cn = 0, adv = 0, discount = 0 } = params.split || {
     cash: 0,
@@ -649,7 +670,7 @@ export function reconcileSaleInvoiceDisplay(params: {
   // instead of ₹1,000). `sr` is used ONLY to dedupe a CN application that merely
   // duplicates the billing return (legacy FloatingSaleReturn POS-redeem rows that
   // write both sale_return_adjust and a credit_note_adjustment voucher).
-  const payable = net;
+  const payable = srAppliedOnTop ? Math.max(0, net - sr) : net;
   const exposureAfterCashLike = Math.max(0, payable - effectiveCash);
   // Avoid double-counting CN: when sale_return_adjust already encodes the CN
   // application (Sales Dashboard CN-adjust flow writes both sr and a
@@ -749,6 +770,8 @@ export function reconcileSaleInvoiceWithSplit(
     net_amount?: number | null;
     sale_return_adjust?: number | null;
     paid_amount?: number | null;
+    /** Optional Σ(mrp × qty); enables the pre-return S/R subtraction guard. */
+    items_gross?: number | null;
   },
   split: SaleReceiptVoucherSplit | null | undefined,
 ) {
@@ -760,6 +783,7 @@ export function reconcileSaleInvoiceWithSplit(
     sale_return_adjust: Number(sale.sale_return_adjust || 0),
     paid_amount: paidForReconcile,
     split: s,
+    items_gross: sale.items_gross != null ? Number(sale.items_gross) : null,
   });
 }
 
