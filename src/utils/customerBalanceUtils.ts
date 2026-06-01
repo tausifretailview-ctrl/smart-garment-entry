@@ -675,6 +675,67 @@ export function reconcileSaleInvoiceDisplay(params: {
   };
 }
 
+export type ReceiptReprintVoucher = {
+  reference_id?: string | null;
+  reference_type?: string | null;
+  total_amount?: number | null;
+  discount_amount?: number | null;
+  description?: string | null;
+};
+
+export type ReceiptReprintSale = {
+  id: string;
+  sale_number?: string | null;
+  customer_id?: string | null;
+  net_amount?: number | null;
+  sale_return_adjust?: number | null;
+  paid_amount?: number | null;
+};
+
+/**
+ * Point-in-time balances for a PAYMENT RECEIPT reprint.
+ *
+ * Receipts historically printed previousBalance/currentBalance = 0 because they were not
+ * recomputed for old vouchers. This resolves the invoice the receipt settled (by
+ * reference_id or by the invoice number in the description) and reconciles it with live
+ * receipt splits so the receipt shows the real invoice balance:
+ *   currentBalance  = invoice outstanding now (after this + any other receipts)
+ *   previousBalance = currentBalance + this voucher's settlement (cash + discount)
+ *
+ * Returns null when the receipt can't be tied to a single invoice (e.g. opening-balance or
+ * multi-invoice receipts) so callers can keep their existing fallback.
+ */
+export async function resolveReceiptReprintBalances(
+  client: SupabaseClient,
+  organizationId: string,
+  voucher: ReceiptReprintVoucher,
+  sales: ReceiptReprintSale[] | undefined,
+): Promise<{ invoice: ReceiptReprintSale; previousBalance: number; currentBalance: number } | null> {
+  const settled =
+    Math.max(0, Number(voucher.total_amount || 0)) + Math.max(0, Number(voucher.discount_amount || 0));
+
+  let sale = sales?.find((s) => s.id === voucher.reference_id) || null;
+  if (!sale && voucher.description) {
+    const nums = extractSaleNumbersFromReceiptDescription(voucher.description);
+    if (nums.length === 1) {
+      sale =
+        sales?.find(
+          (s) => normalizeSaleNumberToken(String(s.sale_number || "")) === nums[0],
+        ) || null;
+    }
+  }
+  if (!sale) return null;
+
+  const splitMap = await fetchSaleReceiptSplitsForInvoices(client, organizationId, [
+    { id: sale.id, sale_number: sale.sale_number, customer_id: sale.customer_id },
+  ]);
+  const split = splitMap.get(sale.id) ?? emptySplit();
+  const rec = reconcileSaleInvoiceWithSplit(sale, split);
+  const currentBalance = Math.max(0, Math.round(rec.outstanding));
+  const previousBalance = Math.max(0, Math.round(currentBalance + settled));
+  return { invoice: sale, previousBalance, currentBalance };
+}
+
 /** Same paid_amount input as Customer Payment / invoice due (strip voucher buckets already in split). */
 export function reconcileSaleInvoiceWithSplit(
   sale: {

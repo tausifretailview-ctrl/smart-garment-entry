@@ -220,7 +220,11 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath, openWindow]);
+    // openWindow/closeWindow are intentionally omitted: they are declared
+    // after this effect and are recreated whenever openWindows changes (which
+    // is already a dependency), so the handler always sees a fresh closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath]);
 
   const openWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
