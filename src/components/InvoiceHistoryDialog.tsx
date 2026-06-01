@@ -131,7 +131,7 @@ export function InvoiceHistoryDialog({
         supabase
           .from("sale_items")
           .select(
-            "id, product_name, size, barcode, quantity, unit_price, discount_share, line_total, item_notes"
+            "id, product_name, size, barcode, quantity, mrp, unit_price, discount_share, line_total, item_notes"
           )
           .eq("sale_id", saleId!)
           .is("deleted_at", null)
@@ -322,11 +322,19 @@ export function InvoiceHistoryDialog({
     if (!data?.sale) return null;
     const sale = data.sale;
     const split = data.split ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+    // Merchandise gross (Σ mrp × qty) enables the pre-return S/R subtraction guard so a
+    // full-bill invoice settled by an applied return reads Balance Due ₹0 (matches the
+    // Sales Dashboard / Customer Ledger). No-op for post-return / exchange invoices.
+    const itemsGross = (data.saleItems || []).reduce(
+      (sum: number, it: any) => sum + (Number(it.quantity) || 0) * (Number(it.mrp) || 0),
+      0,
+    );
     const rec = reconcileSaleInvoiceWithSplit(
       {
         net_amount: Number(sale.net_amount || 0),
         sale_return_adjust: Number(sale.sale_return_adjust || 0),
         paid_amount: Number(sale.paid_amount || 0),
+        items_gross: itemsGross,
       },
       split,
     );

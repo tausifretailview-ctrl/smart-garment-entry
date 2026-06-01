@@ -78,6 +78,8 @@ export type CustomerBalanceCoreSale = {
   id?: string;
   net_amount?: number | null;
   sale_return_adjust?: number | null;
+  /** Merchandise gross Σ(mrp × qty). Discriminates pre-return (full bill) from post-return net. */
+  items_gross?: number | null;
   paid_amount?: number | null;
   cash_amount?: number | null;
   card_amount?: number | null;
@@ -257,10 +259,19 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     (sum, s) => sum + Number(s.sale_return_adjust || 0),
     0,
   );
-  const totalInvoicedGross = validSales.reduce(
-    (sum, s) => sum + Number(s.net_amount || 0) + Number(s.sale_return_adjust || 0),
-    0,
-  );
+  // `gross` (always net + sra below) recovers the full bill for POST-return invoices, where sra was
+  // genuinely removed from net. For PRE-return invoices (net is already the full bill, return applied
+  // on top: net + sra > items_gross) adding sra over-states the bill — and since the formula always
+  // subtracts `totalSaleReturnAdjustOnInvoices`, the return credit would silently cancel out, leaving
+  // the customer owing the full bill (ASHIFA HUSSAIN: Rs.6,500 instead of Rs.0). Gate the add-back on
+  // items_gross so the return reduces the receivable exactly once. No-op when items_gross is unknown.
+  const totalInvoicedGross = validSales.reduce((sum, s) => {
+    const net = Number(s.net_amount || 0);
+    const sra = Number(s.sale_return_adjust || 0);
+    const itemsGross = Number(s.items_gross || 0);
+    const preReturn = itemsGross > 0 && sra > 0 && net + sra > itemsGross + 1;
+    return sum + net + (preReturn ? 0 : sra);
+  }, 0);
 
   const realReceipts = params.voucherEntries.filter((v) => {
     if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;

@@ -396,6 +396,28 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     .is("deleted_at", null);
   if (srErr) throw srErr;
 
+  // Merchandise gross (Σ mrp × qty) per sale — discriminates the two net_amount conventions
+  // (pre-return full-bill vs post-return) so an applied sale return credits the customer once.
+  const itemsGrossBySale = new Map<string, number>();
+  if (saleIds.length > 0) {
+    const { data: saleItemsRows, error: siErr } = await client
+      .from("sale_items")
+      .select("sale_id, quantity, mrp")
+      .in("sale_id", saleIds)
+      .is("deleted_at", null);
+    if (siErr) throw siErr;
+    for (const it of saleItemsRows || []) {
+      const sid = String((it as { sale_id?: string }).sale_id || "");
+      if (!sid) continue;
+      itemsGrossBySale.set(
+        sid,
+        (itemsGrossBySale.get(sid) || 0) +
+          (Number((it as { quantity?: number }).quantity) || 0) *
+            (Number((it as { mrp?: number }).mrp) || 0),
+      );
+    }
+  }
+
   const { data: vouchersCustomer, error: veCustErr } = await client
     .from("voucher_entries")
     .select(
@@ -507,7 +529,10 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
 
   return {
     customer: customerRow,
-    allSales: allSales || [],
+    allSales: (allSales || []).map((s: { id: string }) => ({
+      ...s,
+      items_gross: itemsGrossBySale.get(String(s.id)) ?? 0,
+    })),
     vouchersMerged,
     saleReturns: saleReturns || [],
     advances: advances || [],
