@@ -185,6 +185,32 @@ function createWindow() {
     [class~="bg-[#1e40af]"] [contenteditable] {
       -webkit-app-region: no-drag;
     }
+
+    /* ── Desktop fit fixes ──────────────────────────────────────────────
+       The POS / Sales Invoice screens use fixed-height "shells" that were
+       tuned for the base font size. On wide screens the app applies a
+       readability boost (larger fonts), which makes the top fields row and
+       the bottom totals/footer bar taller than those shells — so they were
+       getting clipped inside the desktop window. These rules give the shells
+       room and let tall pages scroll, so nothing is hidden. Desktop-only
+       (injected by the Electron shell); the website is unaffected. */
+
+    /* POS Sales: enlarge the top field toolbar so the field labels above the
+       inputs are no longer clipped. The variable drives both the toolbar
+       height and the items-body offset, so they stay in sync. */
+    .pos-sales-main {
+      --pos-toolbar-h: 136px !important;
+    }
+
+    /* Sales Invoice (and other full-height entry forms): if the content is
+       taller than the window, allow the page to scroll instead of hard-
+       clipping the bottom totals bar / top fields. */
+    [data-entry-form] {
+      height: auto !important;
+      min-height: 100vh;
+      overflow-y: auto !important;
+      padding-bottom: 0 !important;
+    }
   `;
 
   mainWindow.webContents.on('did-finish-load', () => {
