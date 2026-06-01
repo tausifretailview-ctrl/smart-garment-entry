@@ -17,8 +17,9 @@ import { Loader2, ArrowLeft, History, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
-  reconcileSaleInvoiceDisplay,
-  splitSaleLinkedReceiptRows,
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
+  type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 
 interface InvoiceHistoryDialogProps {
@@ -98,7 +99,7 @@ export function InvoiceHistoryDialog({
         supabase
           .from("sales")
           .select(
-            "id, sale_number, sale_date, customer_name, net_amount, paid_amount, sale_return_adjust, payment_status, payment_method, delivery_status, shipping_address, created_at, updated_at, shop_name, irn, ack_no, einvoice_status, is_cancelled, cancelled_at, cancelled_reason"
+            "id, sale_number, sale_date, customer_id, customer_name, net_amount, paid_amount, sale_return_adjust, payment_status, payment_method, delivery_status, shipping_address, created_at, updated_at, shop_name, irn, ack_no, einvoice_status, is_cancelled, cancelled_at, cancelled_reason"
           )
           .eq("id", saleId!)
           .eq("organization_id", organizationId!)
@@ -143,9 +144,52 @@ export function InvoiceHistoryDialog({
       if (deliveryRes.error) throw deliveryRes.error;
       if (saleItemsRes.error) throw saleItemsRes.error;
 
+      const sale = saleRes.data;
+      const directVouchers = vouchersRes.data || [];
+
+      // Customer Payment usually stores receipts at customer level
+      // (reference_type=customer, reference_id=customer uuid) with the invoice number in
+      // the description — NOT reference_id=saleId. The narrow query above misses them, so
+      // the timeline showed no payment and the balance summary wrongly read "Settled".
+      // Pull customer-level receipts that name this invoice so they appear in the timeline.
+      let customerVouchers: typeof directVouchers = [];
+      const saleNumber = (sale?.sale_number || "").trim();
+      if (sale?.customer_id && saleNumber) {
+        const { data: custV, error: custErr } = await supabase
+          .from("voucher_entries")
+          .select(
+            "id, voucher_number, voucher_date, total_amount, discount_amount, payment_method, description, created_at, reference_id, reference_type"
+          )
+          .eq("organization_id", organizationId!)
+          .eq("reference_id", sale.customer_id)
+          .eq("voucher_type", "receipt")
+          .is("deleted_at", null)
+          .ilike("description", `%${saleNumber}%`)
+          .order("created_at", { ascending: true });
+        if (custErr) throw custErr;
+        customerVouchers = custV || [];
+      }
+
+      const seen = new Set(directVouchers.map((v) => v.id));
+      const vouchers = [
+        ...directVouchers,
+        ...customerVouchers.filter((v) => !seen.has(v.id)),
+      ];
+
+      // Authoritative per-invoice settlement split — matches Sales Invoice Dashboard and
+      // Customer Ledger (handles sale-linked + customer-level receipts, cash vs CN/advance).
+      let split: SaleReceiptVoucherSplit = { cash: 0, cn: 0, adv: 0, discount: 0 };
+      if (sale) {
+        const splitMap = await fetchSaleReceiptSplitsForInvoices(supabase, organizationId!, [
+          { id: sale.id, sale_number: sale.sale_number, customer_id: sale.customer_id },
+        ]);
+        split = splitMap.get(sale.id) ?? split;
+      }
+
       return {
-        sale: saleRes.data,
-        vouchers: vouchersRes.data || [],
+        sale,
+        vouchers,
+        split,
         saleReturns: returnsRes.data || [],
         deliveryHistory: deliveryRes.data || [],
         saleItems: saleItemsRes.data || [],
@@ -277,17 +321,14 @@ export function InvoiceHistoryDialog({
   const reconciled = useMemo(() => {
     if (!data?.sale) return null;
     const sale = data.sale;
-    const splitMap = splitSaleLinkedReceiptRows(data.vouchers || []);
-    const split = splitMap.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-    const rec = reconcileSaleInvoiceDisplay({
-      net_amount: Number(sale.net_amount || 0),
-      sale_return_adjust: Number(sale.sale_return_adjust || 0),
-      paid_amount: Number(sale.paid_amount || 0),
+    const split = data.split ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+    const rec = reconcileSaleInvoiceWithSplit(
+      {
+        net_amount: Number(sale.net_amount || 0),
+        sale_return_adjust: Number(sale.sale_return_adjust || 0),
+        paid_amount: Number(sale.paid_amount || 0),
+      },
       split,
-    });
-    const discount = (data.vouchers || []).reduce(
-      (s, v) => s + (v.discount_amount || 0),
-      0
     );
     return {
       invoiceAmount: Number(sale.net_amount || 0),
@@ -295,7 +336,7 @@ export function InvoiceHistoryDialog({
       cashPaid: split.cash,
       advancePaid: split.adv,
       cnPaid: split.cn,
-      discount,
+      discount: split.discount,
       balanceDue: rec.outstanding,
       displayPaid: rec.paid_amount,
       paymentStatus: rec.payment_status,

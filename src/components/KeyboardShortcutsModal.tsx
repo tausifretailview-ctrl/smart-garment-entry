@@ -25,9 +25,15 @@ interface KeyboardShortcutsModalProps {
 
 const generalShortcuts: ShortcutGroup[] = [
   {
-    title: "Navigation",
+    title: "Global",
     shortcuts: [
       { keys: ["Esc"], description: "Go back (Tally-style) / Close dialog" },
+      { keys: ["?"], description: "Show this shortcuts help" },
+    ],
+  },
+  {
+    title: "Quick Keys (POS & entry screens)",
+    shortcuts: [
       { keys: ["Ctrl", "G"], description: "Open Size-wise Stock Report" },
       { keys: ["Ctrl", "P"], description: "Print current document" },
       { keys: ["Alt", "N"], description: "New Sale Invoice" },

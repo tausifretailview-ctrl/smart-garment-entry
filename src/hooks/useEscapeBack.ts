@@ -47,12 +47,20 @@ const BACK_MAP: Record<string, string> = {
   "purchase-report":          "/",
   "sales-report":             "/",
   "salesman-commission":      "/",
+  "expense-salary-report":    "/",
+  "customer-account-statement":       "/",
+  "customer-account-statement-audit": "/",
+  "customer-balance-activity":        "/",
+  "customer-audit-report":            "/",
   // Masters
   "customers":                "/",
   "suppliers":                "/",
   "employees":                "/",
   // Settings / Tools → Dashboard
   "settings":                 "/",
+  "profile":                  "/",
+  "organization-management":  "/",
+  "health":                   "/",
   "barcode-printing":         "/",
   "user-rights":              "/",
   "audit-log":                "/",
@@ -75,6 +83,8 @@ const BACK_MAP: Record<string, string> = {
   "sale-return-dashboard":    "/",
   "purchase-return-dashboard": "/",
   "purchase-orders":          "/",
+  "purchase-returns":         "/",
+  "advance-booking-dashboard": "/",
   "delivery-challan-dashboard": "/",
   // School
   "fee-collection":           "/",
@@ -88,6 +98,20 @@ const BACK_MAP: Record<string, string> = {
   "classes":                  "/",
   "academic-years":           "/",
   "teachers":                 "/",
+  // Accounting sub-pages → Accounts
+  "chart-of-accounts":        "accounts",
+  "journal-vouchers":         "accounts",
+  "manual-journal":           "accounts",
+  "ledger-opening-balances":  "accounts",
+  // Mobile / Owner screens → Home
+  "mobile-dashboard":         "/",
+  "mobile-sales":             "/",
+  "mobile-accounts":          "/",
+  "mobile-more":              "/",
+  "owner-sales":              "/",
+  "owner-purchases":          "/",
+  "owner-stock":              "/",
+  "owner-reports":            "/",
 };
 
 export const useEscapeBack = () => {
