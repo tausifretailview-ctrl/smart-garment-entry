@@ -55,16 +55,25 @@ const fmtAmtBalance = (n: number) =>
  * ADVANCE_APPLIED / CN_APPLIED are memo-only: they allocate existing advance/CN to an
  * invoice — not new billing or new money. Dr and Cr must stay 0 so totals and running
  * balance match real economics (invoices vs advances and cash receipts).
+ *
+ * SALE_RETURN_ADJUST is ALSO memo-only: the return was adjusted at billing and is
+ * already baked into the invoice's net_amount (invoices are posted at net, not gross).
+ * Crediting it again double-counted the return (e.g. SHAHIN PATEL SR/18+SR/19 = ₹1,750
+ * deducted both in the reduced invoice net AND as a separate SALE_RETURN_ADJUST credit).
  */
+const MEMO_ONLY_LEDGER_TYPES = new Set(["ADVANCE_APPLIED", "CN_APPLIED", "SALE_RETURN_ADJUST"]);
+
 function normalizeApplicationLedgerRow(row: LedgerRow): LedgerRow {
   const vt = (row.voucher_type || "").toUpperCase();
-  if (vt !== "ADVANCE_APPLIED" && vt !== "CN_APPLIED") return row;
+  if (!MEMO_ONLY_LEDGER_TYPES.has(vt)) return row;
   const cr = Number(row.credit || 0);
   const dr = Number(row.debit || 0);
   const amt = Math.max(cr, dr);
   const memo =
     amt > 0.005
-      ? ` [Applied ₹${inr.format(amt)} — memo only, excluded from Dr/Cr totals]`
+      ? vt === "SALE_RETURN_ADJUST"
+        ? ` [Return ₹${inr.format(amt)} already netted in invoice — memo only, excluded from Dr/Cr totals]`
+        : ` [Applied ₹${inr.format(amt)} — memo only, excluded from Dr/Cr totals]`
       : "";
   const base = (row.particulars || "").trim();
   const particulars = `${base}${memo}`.trim();

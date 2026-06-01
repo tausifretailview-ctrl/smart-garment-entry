@@ -897,12 +897,13 @@ export default function SalesInvoiceDashboard() {
           return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
         }
         if (inv?.payment_status === "hold") {
+          // net_amount is already post-adjust (payable after sale_return_adjust);
+          // do not subtract sr again.
           const net = Number(inv.net_amount || 0);
-          const sr = Number(inv.sale_return_adjust || 0);
           const paid = Number(inv.paid_amount || 0);
           return {
             ...inv,
-            outstanding: Math.max(0, net - sr - paid),
+            outstanding: Math.max(0, net - paid),
           };
         }
         const rec = reconcileSaleInvoiceWithSplit(inv, splitBySale.get(inv.id) ?? null);

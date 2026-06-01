@@ -361,14 +361,30 @@ export function AdjustCustomerCreditNoteDialog({
 
     const { data: currentReturn, error: currentReturnError } = await supabase
       .from("sale_returns")
-      .select("credit_status")
+      .select("credit_status, linked_sale_id")
       .eq("id", saleReturnId)
       .single();
 
     if (currentReturnError) throw currentReturnError;
 
     const status = String((currentReturn as any)?.credit_status || "");
+    const linkedSaleId = String((currentReturn as any)?.linked_sale_id || "").trim();
     const hasNoCreditLeft = liveCn <= 0.01;
+    // Root-cause guard for the CN double-credit: a return that is `adjusted` AND
+    // linked to a sale was already consumed at billing via sales.sale_return_adjust
+    // (the credit is baked into that invoice's net). Applying / refunding its CN
+    // again would hand the customer the same credit twice. Block it regardless of
+    // the (possibly un-neutralised) CN header balance.
+    const consumedAtBilling = status === "adjusted" && !!linkedSaleId;
+    if (consumedAtBilling) {
+      toast({
+        title: "Already adjusted at billing",
+        description:
+          "This return was already adjusted against an invoice when it was billed — its credit is included in that invoice's balance and cannot be applied again.",
+        variant: "destructive",
+      });
+      return;
+    }
     // Only block truly terminal cases. A partially adjusted return can still be refunded/allocated.
     if (status === "refunded" || (["adjusted", "adjusted_outstanding"].includes(status) && hasNoCreditLeft)) {
       toast({

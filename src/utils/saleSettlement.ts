@@ -29,7 +29,6 @@ export function derivePaidAndStatus(params: {
 }): { paidAmount: number; paymentStatus: SalePaymentStatus } {
   const {
     netAmount,
-    saleReturnAdjust,
     cashReceived,
     advanceApplied,
     cnApplied,
@@ -37,8 +36,13 @@ export function derivePaidAndStatus(params: {
     paymentMethod,
   } = params;
 
-  const totalSettled =
-    cashReceived + advanceApplied + cnApplied + discountGiven + saleReturnAdjust;
+  // `netAmount` is the payable AFTER sale_return_adjust (see preSaveInvariants:
+  // "net_amount is payable after S/R adjust"). The billing return is therefore
+  // already baked into `netAmount`; it must NOT be added to `totalSettled` again,
+  // otherwise an adjusted-but-unpaid invoice (e.g. net 1,000 with sr 1,000 and
+  // ₹0 cash) is wrongly marked "completed". `saleReturnAdjust` is accepted for
+  // signature compatibility but intentionally excluded from settlement.
+  const totalSettled = cashReceived + advanceApplied + cnApplied + discountGiven;
 
   const paidAmount = Math.round((cashReceived + advanceApplied + cnApplied + discountGiven) * 100) / 100;
 

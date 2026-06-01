@@ -641,30 +641,37 @@ export function reconcileSaleInvoiceDisplay(params: {
     effectiveCash = Math.max(0, cash);
   }
 
-  // After stripping advance/CN from paid_amount into `effectiveCash`, settlement
-  // toward the bill still includes the advance/CN voucher buckets (same as
-  // computeCustomerOutstanding). Without this, advance-only payments left
-  // outstanding = net − sr while effectiveCash was 0.
-  const exposureAfterCashLike = Math.max(0, net - sr - effectiveCash);
+  // `net_amount` is stored POST-adjust (already net of any sale_return_adjust
+  // applied at billing — see customerAuditMath / reconcile_customer_balances).
+  // The billing return must therefore NOT be subtracted again here. Doing so
+  // double-credited the return, making adjusted-but-unpaid invoices read as
+  // fully settled (e.g. net 1,000 with sr 1,000 + ₹0 cash showed ₹0 due
+  // instead of ₹1,000). `sr` is used ONLY to dedupe a CN application that merely
+  // duplicates the billing return (legacy FloatingSaleReturn POS-redeem rows that
+  // write both sale_return_adjust and a credit_note_adjustment voucher).
+  const payable = net;
+  const exposureAfterCashLike = Math.max(0, payable - effectiveCash);
   // Avoid double-counting CN: when sale_return_adjust already encodes the CN
   // application (Sales Dashboard CN-adjust flow writes both sr and a
   // credit_note_adjustment voucher for the same amount), subtract the portion
   // already represented in sr from the cn bucket.
   const cnNotInSr = Math.max(0, cn - Math.max(0, sr));
   const cappedNonCash = Math.min(exposureAfterCashLike, adv + cnNotInSr + discount);
-  const outstanding = Math.max(0, Math.round(net - sr - effectiveCash - cappedNonCash));
+  const outstanding = Math.max(0, Math.round(payable - effectiveCash - cappedNonCash));
   const settledDisplay = Math.max(
     0,
-    Math.round(Math.min(net - sr, effectiveCash + cappedNonCash))
+    Math.round(Math.min(payable, effectiveCash + cappedNonCash))
   );
 
+  // Only genuine settlements signal "partial". `sr` is now fully baked into
+  // `net`, and a CN that merely duplicates the billing return (cn ≤ sr) is not a
+  // real payment, so use `cnNotInSr` rather than the raw CN bucket.
   const payment_status: "pending" | "partial" | "completed" =
     outstanding <= INVOICE_RECON_TOL
       ? "completed"
       : effectiveCash > INVOICE_RECON_TOL ||
-          sr > INVOICE_RECON_TOL ||
           adv > INVOICE_RECON_TOL ||
-          cn > INVOICE_RECON_TOL
+          cnNotInSr > INVOICE_RECON_TOL
         ? "partial"
         : "pending";
 
