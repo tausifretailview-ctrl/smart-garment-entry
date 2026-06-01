@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Electron build output
+release/
+# Generated desktop icon (provide build/icon.png; .ico is derived)
+build/icon.ico
+
 # Android (Capacitor) — keep project, ignore local/build artifacts
 android/.gradle/
 android/app/build/
