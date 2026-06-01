@@ -30,7 +30,7 @@
 -- SECTION 1 — Per-customer detail (export this as CSV)
 -- -----------------------------------------------------------------------------
 WITH org AS (
-  SELECT id FROM public.organizations WHERE name ILIKE '%ELLA NOOR%' ORDER BY created_at LIMIT 1
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
 ),
 cust AS (
   SELECT c.id, c.customer_name, COALESCE(c.opening_balance, 0) AS opening
@@ -112,7 +112,7 @@ cust_refunds AS (
   FROM public.voucher_entries ve, org
   WHERE ve.organization_id = org.id
     AND ve.voucher_type = 'payment'
-    AND ve.reference_type = 'customer'
+    AND ve.reference_type IN ('customer','CustomerReceipt')
     AND ve.deleted_at IS NULL
     AND ve.reference_id IN (SELECT id FROM cust)
   GROUP BY ve.reference_id
@@ -213,7 +213,7 @@ ORDER BY balance_master_recon DESC;
 -- SECTION 2 — Org-level totals (sanity vs each screen). Run separately.
 -- -----------------------------------------------------------------------------
 WITH org AS (
-  SELECT id FROM public.organizations WHERE name ILIKE '%ELLA NOOR%' ORDER BY created_at LIMIT 1
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
 )
 SELECT
   (SELECT COALESCE(SUM(opening_balance),0) FROM public.customers c, org WHERE c.organization_id = org.id AND c.deleted_at IS NULL) AS opening_total,
@@ -222,7 +222,7 @@ SELECT
   (SELECT COALESCE(SUM(paid_amount),0) FROM public.sales s, org WHERE s.organization_id = org.id AND s.deleted_at IS NULL AND COALESCE(s.is_cancelled,false)=false AND COALESCE(s.payment_status,'') NOT IN ('cancelled','hold')) AS sales_paid_total,
   (SELECT COALESCE(SUM(COALESCE(total_amount,0)+COALESCE(discount_amount,0)),0) FROM public.voucher_entries ve, org WHERE ve.organization_id = org.id AND ve.voucher_type='receipt' AND ve.deleted_at IS NULL) AS receipts_all_total,
   (SELECT COALESCE(SUM(COALESCE(total_amount,0)+COALESCE(discount_amount,0)),0) FROM public.voucher_entries ve, org WHERE ve.organization_id = org.id AND ve.voucher_type='receipt' AND ve.deleted_at IS NULL AND LOWER(COALESCE(payment_method,'')) NOT IN ('advance_adjustment','credit_note_adjustment')) AS receipts_cash_total,
-  (SELECT COALESCE(SUM(total_amount),0) FROM public.voucher_entries ve, org WHERE ve.organization_id = org.id AND ve.voucher_type='payment' AND ve.reference_type='customer' AND ve.deleted_at IS NULL) AS refunds_paid_total,
+  (SELECT COALESCE(SUM(total_amount),0) FROM public.voucher_entries ve, org WHERE ve.organization_id = org.id AND ve.voucher_type='payment' AND ve.reference_type IN ('customer','CustomerReceipt') AND ve.deleted_at IS NULL) AS refunds_paid_total,
   (SELECT COALESCE(SUM(net_amount),0) FROM public.sale_returns sr, org WHERE sr.organization_id = org.id AND sr.deleted_at IS NULL) AS sale_returns_total,
   (SELECT COALESCE(SUM(GREATEST(0, amount - used_amount)),0) FROM public.customer_advances ca, org WHERE ca.organization_id = org.id) AS unused_advance_total,
   (SELECT COALESCE(SUM(GREATEST(0, credit_amount - used_amount)),0) FROM public.credit_notes cn, org WHERE cn.organization_id = org.id AND cn.deleted_at IS NULL AND LOWER(COALESCE(status,'')) NOT IN ('void','cancelled')) AS unused_cn_total;
@@ -233,7 +233,7 @@ SELECT
 -- (These are the rows whose paid_amount sync needs repair.)
 -- -----------------------------------------------------------------------------
 WITH org AS (
-  SELECT id FROM public.organizations WHERE name ILIKE '%ELLA NOOR%' ORDER BY created_at LIMIT 1
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
 ),
 sv AS (
   SELECT ve.reference_id AS sale_id,
@@ -247,7 +247,8 @@ SELECT s.sale_number, s.customer_name, s.payment_status,
        s.net_amount, s.sale_return_adjust, s.paid_amount,
        COALESCE(sv.v_all,0) AS voucher_receipts_on_sale,
        ROUND(s.paid_amount - COALESCE(sv.v_all,0), 2) AS drift
-FROM public.sales s, org
+FROM public.sales s
+CROSS JOIN org
 LEFT JOIN sv ON sv.sale_id = s.id
 WHERE s.organization_id = org.id
   AND s.deleted_at IS NULL
@@ -263,7 +264,7 @@ ORDER BY drift DESC;
 -- whose CN was applied to the same invoice.
 -- -----------------------------------------------------------------------------
 WITH org AS (
-  SELECT id FROM public.organizations WHERE name ILIKE '%ELLA NOOR%' ORDER BY created_at LIMIT 1
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
 )
 SELECT sr.return_number, sr.customer_name, sr.net_amount, sr.credit_status,
        sr.linked_sale_id, sr.credit_note_id,
@@ -275,7 +276,8 @@ SELECT sr.return_number, sr.customer_name, sr.net_amount, sr.credit_status,
             AND LOWER(COALESCE(ve.payment_method,''))='credit_note_adjustment'
             AND ve.reference_id = sr.linked_sale_id
             AND ve.deleted_at IS NULL) AS cn_receipts_on_invoice
-FROM public.sale_returns sr, org
+FROM public.sale_returns sr
+CROSS JOIN org
 JOIN public.sales s ON s.id = sr.linked_sale_id
 LEFT JOIN public.credit_notes cn ON cn.id = sr.credit_note_id
 WHERE sr.organization_id = org.id
@@ -291,5 +293,40 @@ ORDER BY sr.net_amount DESC;
 -- SECTION 5 — Customers carrying a CREDIT balance (master recon < −100).
 -- These are clamped to 0 by the Customer Ledger card; surface them as a pool.
 -- -----------------------------------------------------------------------------
--- Re-run SECTION 1 and filter: WHERE balance_master_recon < -100
+-- Re-run SECTION 1 and filter: WHERE balance_master_recon_corrected < -100
 -- (kept here as a reminder; the SECTION 1 query already produces this column).
+
+
+-- -----------------------------------------------------------------------------
+-- SECTION 6 — Diagnostics for the two plan-vs-DB mismatches.
+-- 6a) Advance breakdown by status (does 'unused' depend on status / refunds?).
+-- 6b) Which reference_type do refund (payment) vouchers actually carry?
+-- -----------------------------------------------------------------------------
+WITH org AS (
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
+)
+SELECT '6a advance by status' AS section,
+       COALESCE(ca.status,'(null)') AS status,
+       COUNT(*) AS n,
+       ROUND(SUM(COALESCE(ca.amount,0)),2)              AS amount,
+       ROUND(SUM(COALESCE(ca.used_amount,0)),2)         AS used,
+       ROUND(SUM(GREATEST(0, ca.amount - ca.used_amount)),2) AS unused_clamped,
+       ROUND(SUM(ca.amount - ca.used_amount),2)         AS unused_raw
+FROM public.customer_advances ca, org
+WHERE ca.organization_id = org.id
+GROUP BY ROLLUP (ca.status)
+ORDER BY status;
+
+WITH org AS (
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS id
+)
+SELECT '6b payment vouchers by reference_type' AS section,
+       ve.reference_type,
+       COUNT(*) AS n,
+       ROUND(SUM(COALESCE(ve.total_amount,0)),2) AS total
+FROM public.voucher_entries ve, org
+WHERE ve.organization_id = org.id
+  AND ve.voucher_type = 'payment'
+  AND ve.deleted_at IS NULL
+GROUP BY ROLLUP (ve.reference_type)
+ORDER BY total DESC;
