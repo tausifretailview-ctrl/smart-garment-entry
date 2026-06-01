@@ -172,7 +172,7 @@ export function WindowTabsBar() {
 
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">
-            {openWindows.map((window) => {
+            {openWindows.map((window, index) => {
               const IconComponent = getTabIcon(window.icon);
               const isActive = window.path === activeWindow;
               
@@ -188,6 +188,11 @@ export function WindowTabsBar() {
                   )}
                   onClick={() => switchWindow(window.path)}
                 >
+                  {index < 9 && (
+                    <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] leading-none shrink-0 hidden md:inline">
+                      {index + 1}
+                    </kbd>
+                  )}
                   <IconComponent className="h-3 w-3 shrink-0" />
                   <span className="truncate max-w-[100px]">{window.label}</span>
                   {openWindows.length > 1 && (

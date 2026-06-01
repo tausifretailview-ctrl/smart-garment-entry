@@ -199,11 +199,28 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
         e.preventDefault();
         closeWindow(activeWindow);
       }
+
+      // Ctrl+1..9 to jump directly to the Nth open tab.
+      // Requires Ctrl so it never collides with bare-number keys on other
+      // screens (e.g. Purchase Entry's bare "1").
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && /^[1-9]$/.test(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < allowedWindows.length) {
+          e.preventDefault();
+          navigate(getOrgPath(`/${allowedWindows[idx].path}`));
+        }
+      }
+
+      // Alt+P to open a new Purchase Entry from anywhere
+      if (e.altKey && (e.key === "p" || e.key === "P")) {
+        e.preventDefault();
+        openWindow("purchase-entry");
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath]);
+  }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath, openWindow]);
 
   const openWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
