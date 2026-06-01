@@ -273,8 +273,8 @@ RETURNS TABLE(
   ORDER BY c.customer_name;
 $$;
 
--- 3) One-time idempotent backfill of paid_amount / payment_status for the affected org.
---    Scoped to ELLA NOOR; remove the organization_id filter to backfill all orgs.
+-- 3) One-time idempotent backfill of paid_amount / payment_status across ALL organizations.
+--    Safe to run org-wide because the guards below make it strictly non-regressive.
 --
 --    STRONG COVER FOR PAID INVOICES — a bulk resync must NEVER touch a genuinely settled
 --    invoice. compute_sale_settlement only sees sale-referenced receipts + the sale's own
@@ -290,8 +290,7 @@ UPDATE public.sales s
 SET paid_amount = c.new_paid,
     payment_status = c.new_status
 FROM LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
-WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-  AND s.deleted_at IS NULL
+WHERE s.deleted_at IS NULL
   AND COALESCE(s.is_cancelled, false) = false
   AND COALESCE(s.payment_status, '') NOT IN ('cancelled', 'hold')
   AND c.new_paid IS NOT NULL
