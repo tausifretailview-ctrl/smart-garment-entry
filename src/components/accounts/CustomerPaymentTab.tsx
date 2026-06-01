@@ -2129,14 +2129,21 @@ export function CustomerPaymentTab({
                           <Button variant="ghost" size="icon" title="Edit Payment" onClick={() => onEditPayment(voucher)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Print Receipt" onClick={() => {
+                          <Button variant="ghost" size="icon" title="Print Receipt" onClick={async () => {
                             const customer = voucher.reference_type === 'customer'
                               ? customers?.find((c) => c.id === voucher.reference_id)
                               : (invoice?.customer_id ? customers?.find((c) => c.id === invoice.customer_id) : null);
                             const paid = Number(voucher.total_amount) || 0;
                             const discAmt = Number((voucher as any).discount_amount) || 0;
                             const discReason = String((voucher as any).discount_reason || "");
-                            const invNet = invoice?.net_amount != null ? Number(invoice.net_amount) : paid + discAmt;
+                            const reprint = await resolveReceiptReprintBalances(
+                              supabase,
+                              organizationId,
+                              voucher,
+                              sales,
+                            ).catch(() => null);
+                            const resolvedInvoice = reprint?.invoice ?? invoice;
+                            const invNet = resolvedInvoice?.net_amount != null ? Number(resolvedInvoice.net_amount) : paid + discAmt;
                             onShowReceipt({
                               voucherNumber: voucher.voucher_number, voucherDate: voucher.voucher_date,
                               customerName, customerPhone: customer?.phone || "", customerAddress: customer?.address || "",
@@ -2145,7 +2152,7 @@ export function CustomerPaymentTab({
                               invoiceAmount: invNet,
                               paidAmount: paid, discountAmount: discAmt, discountReason: discReason,
                               paymentMethod: voucher.payment_method || "cash",
-                              previousBalance: 0, currentBalance: 0
+                              previousBalance: reprint?.previousBalance ?? 0, currentBalance: reprint?.currentBalance ?? 0
                             });
                           }}>
                             <Printer className="h-4 w-4" />

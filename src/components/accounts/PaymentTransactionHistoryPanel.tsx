@@ -29,6 +29,8 @@ import {
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { supabase } from "@/integrations/supabase/client";
+import { resolveReceiptReprintBalances } from "@/utils/customerBalanceUtils";
 
 const TAB_LABELS: Record<AccountsPaymentTabId, string> = {
   "customer-payment": "Customer receipts",
@@ -44,6 +46,7 @@ interface PaymentTransactionHistoryPanelProps {
   customers?: any[];
   suppliers?: any[];
   employees?: any[];
+  organizationId?: string;
   navIndex: number | null;
   onNavIndexChange: (index: number | null) => void;
   onShowReceipt?: (data: any) => void;
@@ -57,6 +60,7 @@ export function PaymentTransactionHistoryPanel({
   customers,
   suppliers,
   employees,
+  organizationId,
   navIndex,
   onNavIndexChange,
   onShowReceipt,
@@ -105,7 +109,7 @@ export function PaymentTransactionHistoryPanel({
     goToIndex(Math.max(0, navIndex - 1));
   };
 
-  const buildCustomerReceipt = (voucher: PaymentVoucherRow) => {
+  const buildCustomerReceipt = async (voucher: PaymentVoucherRow) => {
     if (!onShowReceipt || tab !== "customer-payment") return;
     const invoice = sales?.find((s) => s.id === voucher.reference_id);
     const customer =
@@ -124,7 +128,14 @@ export function PaymentTransactionHistoryPanel({
     const paid = Number(voucher.total_amount) || 0;
     const discAmt = Number(voucher.discount_amount) || 0;
     const discReason = String(voucher.discount_reason || "");
-    const invNet = invoice?.net_amount != null ? Number(invoice.net_amount) : paid + discAmt;
+    const reprint = organizationId
+      ? await resolveReceiptReprintBalances(supabase, organizationId, voucher, sales).catch(
+          () => null,
+        )
+      : null;
+    const resolvedInvoice = reprint?.invoice ?? invoice;
+    const invNet =
+      resolvedInvoice?.net_amount != null ? Number(resolvedInvoice.net_amount) : paid + discAmt;
     onShowReceipt({
       voucherNumber: voucher.voucher_number,
       voucherDate: voucher.voucher_date,
@@ -140,8 +151,8 @@ export function PaymentTransactionHistoryPanel({
       discountAmount: discAmt,
       discountReason: discReason,
       paymentMethod: voucher.payment_method || "cash",
-      previousBalance: 0,
-      currentBalance: 0,
+      previousBalance: reprint?.previousBalance ?? 0,
+      currentBalance: reprint?.currentBalance ?? 0,
     });
   };
 
