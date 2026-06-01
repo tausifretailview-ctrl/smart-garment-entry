@@ -211,12 +211,16 @@ export function SupplierPaymentTab({
     enabled: !!organizationId && !!referenceId,
   });
 
+  // Credit available to FIFO-allocate against bills = genuinely unapplied CN vouchers
+  // PLUS returns adjusted to outstanding. We use `unappliedCreditNotes` (which excludes
+  // CN vouchers already adjusted to outstanding) so a voucher-backed adjusted-outstanding
+  // return is counted ONCE via `adjustedOutstandingCreditTotal`, not double-counted.
   const cnCreditPool = useMemo(
     () =>
       roundMoney(
-        (supplierSnapshot?.totalCreditNotesNet ?? 0) + Number(adjustedOutstandingCreditTotal || 0),
+        (supplierSnapshot?.unappliedCreditNotes ?? 0) + Number(adjustedOutstandingCreditTotal || 0),
       ),
-    [supplierSnapshot?.totalCreditNotesNet, adjustedOutstandingCreditTotal],
+    [supplierSnapshot?.unappliedCreditNotes, adjustedOutstandingCreditTotal],
   );
 
   const billOutstandingMap = useMemo(

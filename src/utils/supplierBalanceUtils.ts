@@ -26,7 +26,17 @@ export type SupplierBalanceSnapshot = {
   totalCreditNotesGross: number;
   /** CN voucher amounts already netted into bill paid via Adjust CN → bill. */
   creditNotesAppliedToBills: number;
+  /** CN voucher amounts whose return was adjusted to the supplier outstanding balance. */
+  creditNotesAppliedToOutstanding: number;
+  /** CN voucher amounts whose return was settled by a cash/bank refund. */
+  creditNotesRefunded: number;
   totalCreditNotesNet: number;
+  /**
+   * CN credit still genuinely available (not applied to a bill, not adjusted to
+   * outstanding, not refunded). Use this for "unapplied" displays and credit pools;
+   * `totalCreditNotesNet` is kept only for the balance formula.
+   */
+  unappliedCreditNotes: number;
   unreflectedReturns: number;
   refundsReceived: number;
   /** Positive = amount owed to supplier (payable). */
@@ -155,6 +165,26 @@ function computeSnapshotForSupplier(
   creditNotesAppliedToBills = roundMoney(creditNotesAppliedToBills);
   const totalCreditNotesNet = roundMoney(Math.max(0, supplierCreditNotesGross - creditNotesAppliedToBills));
 
+  // CN vouchers whose return has already been consumed (adjusted to outstanding or
+  // refunded). These remain in `totalCreditNotesNet` (so the balance still reflects the
+  // reduction) but must NOT be re-counted as available "unapplied" credit — otherwise the
+  // payment screen credit pool and the ledger "Unapplied CN / Returns" card double-count it.
+  let creditNotesAppliedToOutstanding = 0;
+  let creditNotesRefunded = 0;
+  for (const pr of allPurchaseReturns || []) {
+    if (pr.supplier_id !== supplierId || !pr.credit_note_id) continue;
+    const v = cnById.get(pr.credit_note_id);
+    if (!v) continue;
+    const vn = Number(v.total_amount || 0);
+    if (pr.credit_status === "adjusted_outstanding") creditNotesAppliedToOutstanding += vn;
+    else if (pr.credit_status === "refunded") creditNotesRefunded += vn;
+  }
+  creditNotesAppliedToOutstanding = roundMoney(creditNotesAppliedToOutstanding);
+  creditNotesRefunded = roundMoney(creditNotesRefunded);
+  const unappliedCreditNotes = roundMoney(
+    Math.max(0, totalCreditNotesNet - creditNotesAppliedToOutstanding - creditNotesRefunded)
+  );
+
   const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn) => cn.id));
   let unreflectedReturns = 0;
   for (const pr of allPurchaseReturns || []) {
@@ -217,7 +247,10 @@ function computeSnapshotForSupplier(
     totalPaid,
     totalCreditNotesGross: roundMoney(supplierCreditNotesGross),
     creditNotesAppliedToBills,
+    creditNotesAppliedToOutstanding,
+    creditNotesRefunded,
     totalCreditNotesNet,
+    unappliedCreditNotes,
     unreflectedReturns,
     refundsReceived,
     balance,
@@ -319,7 +352,10 @@ export async function fetchSupplierBalanceSnapshot(
     totalPaid: 0,
     totalCreditNotesGross: 0,
     creditNotesAppliedToBills: 0,
+    creditNotesAppliedToOutstanding: 0,
+    creditNotesRefunded: 0,
     totalCreditNotesNet: 0,
+    unappliedCreditNotes: 0,
     unreflectedReturns: 0,
     refundsReceived: 0,
     balance: 0,

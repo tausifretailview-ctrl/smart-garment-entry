@@ -746,12 +746,12 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                   </div>
                 </CardContent>
               </Card>
-              {(selectedSupplierSnapshot?.totalCreditNotesNet ?? 0) > 0 && (
+              {(selectedSupplierSnapshot?.unappliedCreditNotes ?? 0) > 0 && (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-sm text-muted-foreground mb-1">Unapplied CN / Returns</div>
                     <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                      ₹{(selectedSupplierSnapshot?.totalCreditNotesNet ?? 0).toLocaleString("en-IN", {
+                      ₹{(selectedSupplierSnapshot?.unappliedCreditNotes ?? 0).toLocaleString("en-IN", {
                         minimumFractionDigits: 2,
                       })}
                     </div>
