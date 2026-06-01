@@ -184,6 +184,7 @@ export function FloatingAccountsPaymentsDialog({
                       customers={customers}
                       suppliers={suppliers}
                       employees={employees}
+                      organizationId={orgId}
                       navIndex={navIndex}
                       onNavIndexChange={setNavIndex}
                       onShowReceipt={paymentDialogs.handleShowReceipt}
