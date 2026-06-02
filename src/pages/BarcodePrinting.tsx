@@ -22,6 +22,11 @@ import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchase
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import { computeA4SheetMargins } from '@/utils/a4SheetLayout';
 import {
+  buildPrecisionLabelDocument,
+  buildStandardLabelDocument,
+  printBarcodeViaDesktop,
+} from '@/utils/barcodeDesktopPrint';
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -3568,68 +3573,93 @@ export default function BarcodePrinting() {
         });
       }
 
-      // Precision Pro mode: open a clean window with only label HTML
+      await new Promise<void>((resolve) => setTimeout(resolve, 300));
+
+      const printArea = precisionPrintRef.current;
+      if (!printArea) return;
+
+      const labelHTML = printArea.innerHTML;
+      const cols =
+        precisionSettings.printMode === "thermal2up"
+          ? Math.max(2, precisionSettings.thermalCols || 2)
+          : precisionSettings.thermalCols || 1;
+      const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
+      const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
+      const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
+      const isA4 = precisionSettings.printMode === "a4";
+
+      const htmlDoc = buildPrecisionLabelDocument(labelHTML, {
+        contentWidthMm: w,
+        pageHeightMm: h,
+        isA4,
+      });
+      const electronPageSize = isA4
+        ? "A4"
+        : { width: Math.round(w * 1000), height: Math.round(h * 1000) };
+
+      if (await printBarcodeViaDesktop(htmlDoc, electronPageSize)) {
+        return;
+      }
+
+      const pageSize = isA4 ? "210mm 297mm" : `${w}mm ${h}mm`;
+      const pageWidth = isA4 ? "210mm" : `${w}mm`;
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        toast.error("Popup blocked — please allow popups for this site.");
+        return;
+      }
+
+      printWindow.document.write(htmlDoc);
+      printWindow.document.close();
+      printWindow.focus();
       setTimeout(() => {
-        const printArea = precisionPrintRef.current;
-        if (!printArea) return;
-
-        const labelHTML = printArea.innerHTML;
-        const cols = precisionSettings.printMode === 'thermal2up' ? Math.max(2, precisionSettings.thermalCols || 2) : (precisionSettings.thermalCols || 1);
-        const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
-        const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
-        const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
-        const isA4 = precisionSettings.printMode === 'a4';
-        const is2Up = precisionSettings.printMode === 'thermal2up';
-        const pageSize = isA4 ? '210mm 297mm' : `${w}mm ${h}mm`;
-        const pageWidth = isA4 ? '210mm' : `${w}mm`;
-
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-          toast.error("Popup blocked — please allow popups for this site.");
-          return;
-        }
-
-        printWindow.document.write(`<!DOCTYPE html><html><head><style>
-          @page { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          html, body { margin: 0; padding: 0; width: ${pageWidth}; height: auto;
-            -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .precision-print-area { margin: 0; padding: 0; width: ${pageWidth}; }
-          .precision-print-area > div {
-            margin: 0 !important; padding: 0 !important;
-            width: ${pageWidth} !important;
-            height: ${isA4 ? '297mm' : `${h}mm`} !important;
-            min-height: ${isA4 ? '297mm' : `${h}mm`} !important;
-            max-height: ${isA4 ? '297mm' : `${h}mm`} !important;
-            overflow: hidden !important; box-sizing: border-box !important;
-            position: relative !important; display: flex !important; flex-wrap: nowrap !important;
-            page-break-after: always !important; page-break-inside: avoid !important;
-            break-after: page !important; break-inside: avoid !important;
-          }
-          .precision-print-area > div:last-child {
-            page-break-after: auto !important; break-after: auto !important;
-          }
-          .precision-label-container { position: relative !important; }
-          .precision-barcode-svg { image-rendering: pixelated; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        </style></head><body><div class="precision-print-area">${labelHTML}</div></body></html>`);
-
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-          printWindow.print();
-          printWindow.close();
-        }, 400);
-      }, 300);
+        printWindow.print();
+        printWindow.close();
+      }, 400);
       return;
     }
 
     // Classic mode: Generate labels in the print area (for on-screen preview)
     generatePreview("printArea");
 
-    // For thermal sheets: keep existing window.print() approach
     if (isThermal1Up() || isThermal2Up()) {
+      const labelW =
+        sheetType === "custom"
+          ? customWidth
+          : parseFloat(sheetPresets[sheetType].width);
+      const labelH =
+        sheetType === "custom"
+          ? customHeight
+          : parseFloat(sheetPresets[sheetType].height);
+      const printEl = document.getElementById("printArea");
+      if (printEl?.innerHTML.trim()) {
+        const standardCss = `
+          .label-grid { display: block; page-break-after: always; break-after: page; }
+          .label-grid:last-child { page-break-after: auto; break-after: auto; }
+          .label-cell {
+            width: ${labelW}mm; height: ${labelH}mm; overflow: hidden;
+            page-break-inside: avoid; break-inside: avoid-page;
+          }
+          .label-row { display: flex; flex-wrap: nowrap; }
+          svg.barcode { max-width: 100%; height: auto; }
+        `;
+        const htmlDoc = buildStandardLabelDocument(printEl.innerHTML, {
+          pageWidthMm: labelW,
+          pageHeightMm: labelH,
+          extraHeadStyles: standardCss,
+        });
+        if (
+          await printBarcodeViaDesktop(htmlDoc, {
+            width: Math.round(labelW * 1000),
+            height: Math.round(labelH * 1000),
+          })
+        ) {
+          return;
+        }
+      }
+
       const originalTitle = document.title;
-      document.title = ' ';
+      document.title = " ";
       setTimeout(() => {
         window.print();
         document.title = originalTitle;

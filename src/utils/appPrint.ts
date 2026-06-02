@@ -21,6 +21,10 @@ export interface AppPrintOptions {
   /** HTML content to print. If omitted, the current page is printed. */
   html?: string;
   copies?: number;
+  /** Override default page size for this print type (Electron). */
+  pageSize?: string | { width: number; height: number };
+  /** Electron only: true = silent to chosen printer; false = system dialog with preview. Default true. */
+  silent?: boolean;
   /** Called instead of window.print() in web mode (e.g. open a preview window). */
   onFallback?: () => void;
 }
@@ -86,13 +90,21 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
   }
 
   const printerName = printerForType(options.type);
-  const pageSize = pageSizeForType(options.type);
+  const pageSize = options.pageSize ?? pageSizeForType(options.type);
   const margins = marginsForType(options.type);
   const copies = options.copies || Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
+  const silent = options.silent !== false;
 
   try {
     const result = options.html
-      ? await electronAPI.printHtml({ html: options.html, printerName, pageSize, copies, margins })
+      ? await electronAPI.printHtml({
+          html: options.html,
+          printerName,
+          pageSize,
+          copies,
+          margins,
+          silent,
+        })
       : await electronAPI.silentPrint({ printerName, pageSize, copies, margins });
     return { success: !!result?.success, method: "electron", error: result?.error ?? null };
   } catch (err) {
@@ -112,4 +124,9 @@ export function isDesktopSilentPrintConfigured(): boolean {
     localStorage.getItem(PRINT_PREF_KEYS.thermalPrinter) ||
     localStorage.getItem(PRINT_PREF_KEYS.invoicePrinter)
   );
+}
+
+/** Barcode / label printer selected in Desktop Print Settings. */
+export function isDesktopBarcodePrintConfigured(): boolean {
+  return isElectron() && !!localStorage.getItem(PRINT_PREF_KEYS.barcodePrinter);
 }
