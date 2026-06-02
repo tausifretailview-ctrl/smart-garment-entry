@@ -911,6 +911,19 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Storage RLS for the company-logos bucket requires the object to live under a folder
+    // named after the organization id (foldername(name)[1] = org id). Uploading to a flat
+    // filename fails the WITH CHECK and surfaces as "Failed to upload logo".
+    const orgId = currentOrganization?.id;
+    if (!orgId) {
+      toast({
+        title: "Error",
+        description: "Select an organization before uploading a logo",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate file type
     if (!file.type.startsWith("image/")) {
       toast({
@@ -933,27 +946,32 @@ export default function Settings() {
 
     setUploadingLogo(true);
     try {
-      // Delete old logo if exists
+      // Delete old logo if exists. Derive the stored object path (org-folder + filename)
+      // from the public URL so it matches what RLS expects for DELETE.
       if (settings.bill_barcode_settings?.logo_url) {
-        const oldPath = settings.bill_barcode_settings.logo_url.split("/").pop();
+        const oldUrl = settings.bill_barcode_settings.logo_url;
+        const marker = "/company-logos/";
+        const idx = oldUrl.indexOf(marker);
+        const oldPath =
+          idx >= 0 ? oldUrl.slice(idx + marker.length) : oldUrl.split("/").pop();
         if (oldPath) {
           await supabase.storage.from("company-logos").remove([oldPath]);
         }
       }
 
-      // Upload new logo
+      // Upload new logo under the org-id folder required by the bucket RLS policy.
       const fileExt = file.name.split(".").pop();
-      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const filePath = `${orgId}/logo-${Date.now()}.${fileExt}`;
       const { error: uploadError, data } = await supabase.storage
         .from("company-logos")
-        .upload(fileName, file);
+        .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       // Get public URL
       const { data: urlData } = supabase.storage
         .from("company-logos")
-        .getPublicUrl(fileName);
+        .getPublicUrl(filePath);
 
       setSettings({
         ...settings,
@@ -969,9 +987,10 @@ export default function Settings() {
       });
     } catch (error) {
       console.error("Error uploading logo:", error);
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: "Error",
-        description: "Failed to upload logo",
+        description: message ? `Failed to upload logo: ${message}` : "Failed to upload logo",
         variant: "destructive",
       });
     } finally {
