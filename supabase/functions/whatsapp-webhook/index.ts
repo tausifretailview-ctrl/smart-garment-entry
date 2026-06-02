@@ -803,6 +803,63 @@ Deno.serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
 
+      // ─── Provider STATUS-ONLY callback (wappconnect / third-party BSP) ─────
+      // Format: { messaging_channel: "whatsapp", message: { queue_id, message_status: "delivered" | "read" | "failed" } }
+      // with NO `response.messages` (that only appears on the initial send ack). These delivery/read
+      // receipts are keyed by the queue_id we stored as `wamid` on send. Without this branch they match
+      // neither the ack handler nor the Meta `statuses` handler, so the row stays stuck at "sent".
+      const bspStatusOnly = String(body.message?.message_status || body.status || '').toLowerCase();
+      if (
+        body.messaging_channel === 'whatsapp' &&
+        body.message?.queue_id &&
+        bspStatusOnly &&
+        !body.response?.messages?.[0]?.id
+      ) {
+        const queueId = body.message.queue_id;
+        const rank: Record<string, number> = { failed: -1, queued: 0, sent: 1, delivered: 2, read: 3 };
+        const normStatus = bspStatusOnly === 'queued' ? 'sent' : bspStatusOnly;
+        const nowIso = new Date().toISOString();
+
+        try {
+          // Match by the stored queue_id (wamid) or, if an earlier ack already upgraded the row to
+          // the real Meta wamid, by that id too.
+          const realWamid = body.response?.messages?.[0]?.id || body.message?.id || null;
+          const { data: existing } = await supabase
+            .from('whatsapp_logs')
+            .select('id, status')
+            .or(`wamid.eq.${queueId}${realWamid ? `,wamid.eq.${realWamid}` : ''}`)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (existing) {
+            const currentRank = rank[existing.status] ?? 0;
+            const incomingRank = rank[normStatus] ?? 1;
+            if (incomingRank > currentRank || normStatus === 'failed') {
+              const updatePayload: Record<string, any> = { status: normStatus };
+              if (normStatus === 'delivered') updatePayload.delivered_at = nowIso;
+              if (normStatus === 'read') { updatePayload.read_at = nowIso; updatePayload.delivered_at = nowIso; }
+              if (normStatus === 'failed') {
+                updatePayload.error_message =
+                  body.message?.error || body.message?.error_message || body.error || 'Delivery failed';
+              }
+              await supabase.from('whatsapp_logs').update(updatePayload).eq('id', existing.id);
+              await supabase.from('whatsapp_messages').update(updatePayload).eq('wamid', queueId);
+              console.log(`BSP status-only: ${queueId} -> ${normStatus}`);
+            }
+          } else {
+            console.log(`BSP status-only: no log found for queue_id ${queueId}`);
+          }
+        } catch (e) {
+          console.error('BSP status-only handling error:', e);
+        }
+
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       // ─── Provider acknowledgment payload (wappconnect / third-party) ──────
       // Format: { messaging_channel: "whatsapp", message: { queue_id, message_status }, response: { messages: [{ id: "wamid.HBgM..." }] } }
       // We stored queue_id as the initial `wamid`. When the provider returns the real Meta wamid,
