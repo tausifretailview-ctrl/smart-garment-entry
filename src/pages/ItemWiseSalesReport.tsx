@@ -107,7 +107,7 @@ export default function ItemWiseSalesReport() {
       const [{ data: products }, { data: sales }, { data: variants }] = await Promise.all([
         supabase.from("products").select("brand, category, style").eq("organization_id", currentOrganization.id).is("deleted_at", null),
         supabase.from("sales").select("customer_name, salesman").eq("organization_id", currentOrganization.id).is("deleted_at", null),
-        supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
+        supabase.from("product_variants").select("color, product_id, products!inner(organization_id)").eq("organization_id", currentOrganization.id).eq("products.organization_id", currentOrganization.id).is("deleted_at", null),
       ]);
 
       return {

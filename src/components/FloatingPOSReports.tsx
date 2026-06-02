@@ -550,6 +550,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
             deleted_at
           )
         `)
+        .eq("organization_id", currentOrganization.id)
         .eq("products.organization_id", currentOrganization.id)
         .is("products.deleted_at", null)
         .is("deleted_at", null)
@@ -596,6 +597,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       const exact = await supabase
         .from("product_variants")
         .select(select)
+        .eq("organization_id", orgId)
         .eq("products.organization_id", orgId)
         .is("products.deleted_at", null)
         .is("deleted_at", null)
@@ -608,6 +610,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       const variantQ = await supabase
         .from("product_variants")
         .select(select)
+        .eq("organization_id", orgId)
         .eq("products.organization_id", orgId)
         .is("products.deleted_at", null)
         .is("deleted_at", null)
@@ -629,6 +632,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
       const { data: vData } = await supabase
         .from("product_variants")
         .select(select)
+        .eq("organization_id", orgId)
         .eq("products.organization_id", orgId)
         .is("products.deleted_at", null)
         .is("deleted_at", null)

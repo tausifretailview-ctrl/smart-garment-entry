@@ -229,6 +229,7 @@ export const OwnerDashboard = () => {
       const { data } = await supabase
         .from("product_variants")
         .select("id, size, color, stock_qty, barcode, products!inner(product_name, brand, organization_id)")
+        .eq("organization_id", currentOrganization.id)
         .eq("products.organization_id", currentOrganization.id)
         .lt("stock_qty", 5)
         .gte("stock_qty", 0)

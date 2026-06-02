@@ -107,6 +107,7 @@ export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps
       const { data, error } = await supabase
         .from("product_variants")
         .select("stock_qty, sale_price, products!inner(product_name, organization_id, product_type)")
+        .eq("organization_id", currentOrganization.id)
         .eq("products.organization_id", currentOrganization.id)
         .eq("active", true)
         .neq("products.product_type", "service")

@@ -456,6 +456,7 @@ export const FloatingSaleReturn = ({
         const { data: dbVariant } = await supabase
           .from("product_variants")
           .select("id, product_id, size, sale_price, barcode, products(id, product_name, brand, hsn_code, gst_per, status, deleted_at)")
+          .eq("organization_id", organizationId)
           .eq("barcode", query)
           .eq("active", true)
           .is("deleted_at", null)

@@ -1623,6 +1623,7 @@ export default function POSSales() {
 
       const baseFilters = (q: any) => {
         q = q
+          .eq('organization_id', currentOrganization.id)
           .eq('products.organization_id', currentOrganization.id)
           .eq('products.status', 'active')
           .eq('active', true)
@@ -1700,6 +1701,7 @@ export default function POSSales() {
               const { data: pVariants } = await supabase
                 .from('product_variants')
                 .select('id')
+                .eq('organization_id', currentOrganization.id)
                 .in('product_id', prodIds)
                 .eq('active', true)
                 .is('deleted_at', null)
@@ -1864,6 +1866,7 @@ export default function POSSales() {
         const { data: dbVariant } = await supabase
           .from('product_variants')
           .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+          .eq('organization_id', currentOrganization.id)
           .eq('products.organization_id', currentOrganization.id)
           .eq('barcode', searchTerm)
           .is('deleted_at', null)
@@ -1897,6 +1900,7 @@ export default function POSSales() {
           const { data: nameResults } = await supabase
             .from('product_variants')
             .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+            .eq('organization_id', currentOrganization.id)
             .eq('products.organization_id', currentOrganization.id)
             .ilike('products.product_name', `%${searchTerm}%`)
             .is('deleted_at', null)

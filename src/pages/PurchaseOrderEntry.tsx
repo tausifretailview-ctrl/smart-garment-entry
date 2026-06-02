@@ -396,6 +396,7 @@ export default function PurchaseOrderEntry() {
           id, size, pur_price, sale_price, mrp, barcode, active, color, product_id,
           products (id, product_name, brand, category, style, color, hsn_code, gst_per, default_pur_price)
         `)
+        .eq("organization_id", currentOrganization?.id)
         .eq("active", true)
         .is("deleted_at", null);
 

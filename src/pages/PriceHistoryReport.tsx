@@ -321,6 +321,7 @@ const PriceHistoryReport = () => {
         const { data: currentPrices } = await supabase
           .from("product_variants")
           .select("barcode, sale_price, pur_price")
+          .eq("organization_id", currentOrganization.id)
           .in("barcode", barcodes);
         
         currentPrices?.forEach(p => {

@@ -394,6 +394,7 @@ const ProductDashboard = () => {
     const { data, error } = await supabase
       .from("product_variants")
       .select("id, size, color, barcode, pur_price, sale_price, mrp, stock_qty")
+      .eq("organization_id", currentOrganization.id)
       .eq("product_id", productId)
       .is("deleted_at", null)
       .order("size");

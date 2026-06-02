@@ -134,6 +134,7 @@ export default function ItemWiseStockReport() {
               deleted_at
             )
           `)
+          .eq("organization_id", currentOrganization.id)
           .eq("products.organization_id", currentOrganization.id)
           .eq("active", true)
           .is("deleted_at", null)

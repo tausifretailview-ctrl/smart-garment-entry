@@ -478,6 +478,7 @@ export default function SaleReturnEntry() {
         const { data: dbVariant } = await supabase
           .from("product_variants")
           .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
+          .eq("organization_id", currentOrganization.id)
           .eq("barcode", query)
           .eq("active", true)
           .is("deleted_at", null)
