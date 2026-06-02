@@ -30,7 +30,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
-import { fetchAllCustomers, fetchAllSalesSummary, fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
+import { fetchAllCustomers, fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
 import {
   ACCOUNTS_HISTORY_PERIOD_OPTIONS,
   type AccountsHistoryPeriod,
@@ -40,7 +40,7 @@ import {
   sortCustomerReceiptVouchersByEntryNewestFirst,
   voucherDateInPeriod,
 } from "@/utils/paymentVoucherFilters";
-import { fetchCustomerLifetimeBalanceMap } from "@/utils/customerBalanceUtils";
+import { fetchOrganizationReceivableRows } from "@/utils/organizationReceivables";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
@@ -247,41 +247,35 @@ export function CustomerPaymentTab({
     staleTime: 5000,
   });
 
-  // Fetch customers with balance (same RPC as Customer Ledger / audit)
+  // Customers with an outstanding balance for the receipt picker.
+  // Uses the master reconciler (reconcile_customer_balances) which computes EVERY customer
+  // in a single set-based query — far faster than the per-customer snapshot loop that took
+  // minutes to populate this list — and stays consistent with Customer Ledger / Reconciliation.
   const { data: customersWithBalance } = useQuery({
-    queryKey: ["customers-with-balance", organizationId, "true-outstanding-rpc"],
+    queryKey: ["customers-with-balance", organizationId, "master-reconcile-rpc"],
     queryFn: async () => {
-      const [allCustomers, allSales, { data: advances, error: advancesError }] = await Promise.all([
+      const [allCustomers, rows] = await Promise.all([
         fetchAllCustomers(organizationId),
-        fetchAllSalesSummary(organizationId),
-        supabase.from("customer_advances").select("customer_id").eq("organization_id", organizationId),
+        fetchOrganizationReceivableRows(organizationId, supabase),
       ]);
-      if (advancesError) throw advancesError;
 
-      const activeCustomerIds = new Set<string>();
-      allSales.forEach((s: { customer_id?: string | null }) => {
-        if (s.customer_id) activeCustomerIds.add(s.customer_id);
-      });
-      (advances || []).forEach((a: { customer_id: string }) => activeCustomerIds.add(a.customer_id));
-
-      const candidates = allCustomers.filter(
-        (c: { id: string; opening_balance?: number | null }) =>
-          activeCustomerIds.has(c.id) || Math.abs(Number(c.opening_balance || 0)) > 0.01,
+      const customerById = new Map<string, any>(
+        allCustomers.map((c: { id: string }) => [c.id, c]),
       );
 
-      const candidateIds = candidates.map((c: { id: string }) => c.id);
-      const balanceMap = await fetchCustomerLifetimeBalanceMap(
-        organizationId,
-        supabase,
-        candidateIds,
-      );
-
-      return candidates
-        .map((c: any) => ({
-          ...c,
-          outstandingBalance: balanceMap.get(c.id) ?? 0,
-        }))
-        .filter((c: { outstandingBalance: number }) => c.outstandingBalance > 0);
+      return rows
+        .filter((r) => r.balance > 0)
+        .map((r) => {
+          const c = customerById.get(r.customerId);
+          return {
+            ...(c || {}),
+            id: r.customerId,
+            customer_name: c?.customer_name ?? "",
+            phone: c?.phone ?? "",
+            outstandingBalance: r.balance,
+          };
+        })
+        .filter((c) => !!c.customer_name);
     },
     enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
