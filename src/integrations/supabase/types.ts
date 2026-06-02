@@ -7697,6 +7697,13 @@ export type Database = {
         }[]
       }
       cleanup_old_login_attempts: { Args: never; Returns: undefined }
+      compute_sale_settlement: {
+        Args: { p_org_id: string; p_sale_id: string }
+        Returns: {
+          new_paid: number
+          new_status: string
+        }[]
+      }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
