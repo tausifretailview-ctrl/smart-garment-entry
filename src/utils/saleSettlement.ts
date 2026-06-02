@@ -342,22 +342,27 @@ export function preSaveInvariants(params: {
     throw new Error("Net amount must be greater than zero.");
   }
 
-  if (srAdjust > billAmount + SETTLEMENT_TOLERANCE) {
+  // POS exchange: S/R credit can exceed merchandise; negative net is cash/UPI refund due (Mix Payment).
+  const refundDue = netAmount < -SETTLEMENT_TOLERANCE;
+
+  if (!refundDue && srAdjust > billAmount + SETTLEMENT_TOLERANCE) {
     throw new Error(
       `Sale return adjustment (₹${srAdjust}) cannot exceed invoice amount (₹${billAmount}).`,
     );
   }
 
   const maxPayable = netAmount;
-  if ((paidAmount || 0) > maxPayable + SETTLEMENT_TOLERANCE) {
+  if (maxPayable >= 0 && (paidAmount || 0) > maxPayable + SETTLEMENT_TOLERANCE) {
     throw new Error(`Paid amount (₹${paidAmount}) exceeds payable amount (₹${maxPayable}).`);
   }
 
-  const totalCredits = (paidAmount || 0) + srAdjust;
-  if (totalCredits > billAmount + SETTLEMENT_TOLERANCE) {
-    throw new Error(
-      `Total credits (₹${totalCredits}) exceed invoice amount (₹${billAmount}). This would over-credit the customer.`,
-    );
+  if (!refundDue) {
+    const totalCredits = (paidAmount || 0) + srAdjust;
+    if (totalCredits > billAmount + SETTLEMENT_TOLERANCE) {
+      throw new Error(
+        `Total credits (₹${totalCredits}) exceed invoice amount (₹${billAmount}). This would over-credit the customer.`,
+      );
+    }
   }
 }
 
