@@ -437,12 +437,14 @@ ipcMain.handle('print-to-pdf', async (_event, options = {}) => {
 
 // Print an arbitrary HTML string via an offscreen window (receipts/invoices/labels)
 ipcMain.handle('print-html', async (_event, payload = {}) => {
-  const { html, printerName, pageSize, copies, margins, landscape } = payload;
+  const { html, printerName, pageSize, copies, margins, landscape, silent } = payload;
   if (!html) return { success: false, error: 'No HTML provided' };
+
+  const printSilent = silent !== false;
 
   return new Promise((resolve) => {
     let printWin = new BrowserWindow({
-      show: false,
+      show: !printSilent,
       width: 800,
       height: 600,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
@@ -467,7 +469,7 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
         try {
           printWin.webContents.print(
             {
-              silent: true,
+              silent: printSilent,
               deviceName: printerName || '',
               pageSize: pageSize || 'A4',
               copies: copies || 1,

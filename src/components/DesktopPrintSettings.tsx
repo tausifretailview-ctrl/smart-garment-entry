@@ -132,6 +132,8 @@ export function DesktopPrintSettings() {
             <Label>Auto-print after save</Label>
             <p className="text-xs text-muted-foreground">
               Print the invoice/receipt automatically when a sale is saved (skip the Print button).
+              Barcode Printing uses the barcode printer above for direct labels (no dialog); without it,
+              Print opens the system dialog with preview.
             </p>
           </div>
           <Switch
