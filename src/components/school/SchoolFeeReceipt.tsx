@@ -235,24 +235,30 @@ export const SchoolFeeReceipt = forwardRef<HTMLDivElement, SchoolFeeReceiptProps
             </div>
             {yearWiseBalances && yearWiseBalances.length > 0 && (
               <div style={{ marginTop: "3mm", padding: "3mm", border: "1px solid #ccc", borderRadius: "2mm", background: "#fafafa" }}>
-                <p style={{ margin: "0 0 2mm", fontWeight: 700 }}>Pending by academic session</p>
-                {yearWiseBalances.map((row, idx) => (
-                  <p key={idx} style={{ margin: "2px 0", display: "flex", justifyContent: "space-between", gap: "8mm" }}>
-                    <span>{row.year_name} fees balance</span>
-                    <span style={{ fontWeight: 600 }}>
-                      ₹{row.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                <p style={{ margin: 0, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "2mm 6mm" }}>
+                  <strong>Pending by academic session:</strong>
+                  {yearWiseBalances.map((row, idx) => (
+                    <span key={idx}>
+                      {row.year_name}:{" "}
+                      <span style={{ fontWeight: 600 }}>
+                        ₹{row.balance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </span>
                     </span>
-                  </p>
-                ))}
+                  ))}
+                </p>
               </div>
             )}
           </div>
 
-          {/* Signature */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12mm", fontSize: "10pt", position: "relative", zIndex: 1 }}>
+          {/* Signatures */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "12mm", fontSize: "10pt", position: "relative", zIndex: 1 }}>
             <div style={{ textAlign: "center" }}>
               <div style={{ borderTop: "1px solid #333", width: "50mm", marginBottom: "2mm" }} />
-              <span>Authorized Signatory</span>
+              <span>Received By</span>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ borderTop: "1px solid #333", width: "50mm", marginBottom: "2mm" }} />
+              <span>Authorised Signatory</span>
             </div>
           </div>
         </div>
