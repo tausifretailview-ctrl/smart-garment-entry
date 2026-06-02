@@ -778,6 +778,39 @@ export default function POSSales() {
     (settingsData as any)?.bill_barcode_settings
   );
 
+  const triggerPosAutoPrintIfEnabled = useCallback(
+    (onFallback: () => void) => {
+      if (!isDirectPrintEnabled || !isAutoPrintEnabled) {
+        onFallback();
+        return;
+      }
+      waitForPrintReady(invoicePrintRef, async () => {
+        const paperSize =
+          posBillFormat === 'thermal'
+            ? '80mm'
+            : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal'
+              ? 'A5'
+              : 'A4';
+        await directPrint(invoicePrintRef.current, {
+          context: 'pos',
+          paperSize,
+          onFallback,
+          onSuccess: async () => {
+            setSavedInvoiceData(null);
+            setSelectedSalesman("");
+            const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
+            if (billBarcodeSettings?.enable_cash_drawer) {
+              const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
+              await openCashDrawer(undefined, { pin: drawerPin, showToast: false });
+            }
+            setTimeout(() => barcodeInputRef.current?.focus(), 100);
+          },
+        });
+      });
+    },
+    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData],
+  );
+
   // Keyboard shortcuts for POS actions
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -2876,31 +2909,7 @@ export default function POSSales() {
       setIsHeldSale(false);
       setPointsToRedeem(0);
       
-      // If auto-print via QZ Tray is enabled, skip dialog and print directly
-      if (willAutoPrint) {
-        waitForPrintReady(invoicePrintRef, async () => {
-          const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
-          await directPrint(invoicePrintRef.current, {
-            context: 'pos',
-            paperSize,
-            onFallback: () => {
-              setShowPrintConfirmDialog(true);
-            },
-            onSuccess: async () => {
-              setSavedInvoiceData(null);
-              setSelectedSalesman("");
-              const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
-              if (billBarcodeSettings?.enable_cash_drawer) {
-                const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
-                await openCashDrawer(undefined, { pin: drawerPin, showToast: false });
-              }
-              setTimeout(() => barcodeInputRef.current?.focus(), 100);
-            },
-          });
-        });
-      } else {
-        setShowPrintConfirmDialog(true);
-      }
+      triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
       
       // Focus on barcode input for next sale
       setTimeout(() => {
@@ -3166,10 +3175,9 @@ export default function POSSales() {
       setIsHeldSale(false);
       setPointsToRedeem(0);
       
-      // Show print dialog with saved data (only for non-credit note cases)
       if (invoiceDataForPrint) {
         setSavedInvoiceData(invoiceDataForPrint);
-        setShowPrintConfirmDialog(true);
+        triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
       }
       
       // Focus on barcode input for next sale

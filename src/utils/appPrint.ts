@@ -101,6 +101,15 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
 }
 
 /** Whether auto-print after save is enabled (desktop only). */
-export function isAutoPrintEnabled(): boolean {
+export function isDesktopAutoPrintEnabled(): boolean {
   return isElectron() && localStorage.getItem(PRINT_PREF_KEYS.autoPrint) === "true";
+}
+
+/** Desktop app has a receipt or invoice printer chosen in Settings. */
+export function isDesktopSilentPrintConfigured(): boolean {
+  if (!isElectron()) return false;
+  return !!(
+    localStorage.getItem(PRINT_PREF_KEYS.thermalPrinter) ||
+    localStorage.getItem(PRINT_PREF_KEYS.invoicePrinter)
+  );
 }

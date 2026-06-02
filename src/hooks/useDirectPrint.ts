@@ -1,11 +1,17 @@
 import { useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { 
-  isQZReady, 
-  ensureQZConnection, 
-  printViaQZTray, 
-  extractInvoiceHTML 
+import {
+  isQZReady,
+  ensureQZConnection,
+  printViaQZTray,
+  extractInvoiceHTML,
 } from '@/utils/directInvoicePrint';
+import {
+  appPrint,
+  isDesktopAutoPrintEnabled,
+  isDesktopSilentPrintConfigured,
+  isElectron,
+} from '@/utils/appPrint';
 
 interface DirectPrintSettings {
   enable_direct_print?: boolean;
@@ -20,110 +26,133 @@ interface DirectPrintSettings {
 interface DirectPrintOptions {
   context: 'pos' | 'sale';
   paperSize?: '58mm' | '80mm' | 'A4' | 'A5';
-  onFallback?: () => void; // Called when falling back to browser print
+  /** Called when falling back to browser print */
+  onFallback?: () => void;
   onSuccess?: () => void;
 }
 
 export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null) => {
   const isPrintingRef = useRef(false);
 
-  const isDirectPrintEnabled = billBarcodeSettings?.enable_direct_print === true;
-  const isAutoPrintEnabled = billBarcodeSettings?.direct_print_auto_print === true;
+  const isQzDirectPrintEnabled = billBarcodeSettings?.enable_direct_print === true;
+  const isDirectPrintEnabled =
+    isQzDirectPrintEnabled || isDesktopSilentPrintConfigured();
+  const isAutoPrintEnabled =
+    billBarcodeSettings?.direct_print_auto_print === true || isDesktopAutoPrintEnabled();
 
-  const getPrinterForContext = useCallback((context: 'pos' | 'sale'): string | null => {
-    if (!billBarcodeSettings) return null;
-    return context === 'pos' 
-      ? billBarcodeSettings.direct_print_pos_printer || null
-      : billBarcodeSettings.direct_print_sale_printer || null;
-  }, [billBarcodeSettings]);
+  const getPrinterForContext = useCallback(
+    (context: 'pos' | 'sale'): string | null => {
+      if (!billBarcodeSettings) return null;
+      return context === 'pos'
+        ? billBarcodeSettings.direct_print_pos_printer || null
+        : billBarcodeSettings.direct_print_sale_printer || null;
+    },
+    [billBarcodeSettings],
+  );
 
-  /**
-   * Attempt direct print via QZ Tray. Falls back to browser print if QZ unavailable.
-   * @param invoiceRef - ref to the rendered invoice DOM element
-   * @param options - context, paper size, callbacks
-   * @returns true if direct print succeeded, false if fallback was triggered
-   */
-  const directPrint = useCallback(async (
-    invoiceRef: HTMLDivElement | null,
-    options: DirectPrintOptions
-  ): Promise<boolean> => {
-    // Prevent double printing
-    if (isPrintingRef.current) return false;
-    isPrintingRef.current = true;
+  const directPrint = useCallback(
+    async (
+      invoiceRef: HTMLDivElement | null,
+      options: DirectPrintOptions,
+    ): Promise<boolean> => {
+      if (isPrintingRef.current) return false;
+      isPrintingRef.current = true;
 
-    try {
-      // Check if direct printing is enabled
-      if (!isDirectPrintEnabled) {
-        options.onFallback?.();
-        return false;
-      }
-
-      // Get printer name for context
-      const printerName = getPrinterForContext(options.context);
-      if (!printerName) {
-        toast.warning('No printer configured for direct printing. Using browser print.');
-        options.onFallback?.();
-        return false;
-      }
-
-      // Resolve paper size: caller override > saved setting > default
-      const savedPaperSize = options.context === 'pos'
-        ? billBarcodeSettings?.direct_print_pos_paper
-        : billBarcodeSettings?.direct_print_sale_paper;
-      const resolvedPaperSize = (options.paperSize || savedPaperSize || 'A4') as '58mm' | '80mm' | 'A4' | 'A5';
-
-      // Check QZ Tray availability
-      if (!isQZReady()) {
-        const connected = await ensureQZConnection();
-        if (!connected) {
-          toast.warning('QZ Tray not available. Using browser print.');
+      try {
+        if (!isDirectPrintEnabled) {
           options.onFallback?.();
           return false;
         }
-      }
 
-      // Extract HTML from invoice ref
-      if (!invoiceRef) {
-        console.error('Direct print: invoiceRef is null - invoice not rendered yet');
-        toast.error('Invoice not rendered yet. Please try again.');
+        const savedPaperSize =
+          options.context === 'pos'
+            ? billBarcodeSettings?.direct_print_pos_paper
+            : billBarcodeSettings?.direct_print_sale_paper;
+        const resolvedPaperSize = (options.paperSize || savedPaperSize || 'A4') as
+          | '58mm'
+          | '80mm'
+          | 'A4'
+          | 'A5';
+
+        if (!invoiceRef) {
+          console.error('Direct print: invoiceRef is null - invoice not rendered yet');
+          toast.error('Invoice not rendered yet. Please try again.');
+          options.onFallback?.();
+          return false;
+        }
+
+        if (invoiceRef.innerHTML.length < 50) {
+          console.error('Direct print: invoice content appears empty');
+          toast.error('Invoice content not ready. Please try again.');
+          options.onFallback?.();
+          return false;
+        }
+
+        const html = extractInvoiceHTML(invoiceRef);
+
+        // Windows desktop app — silent print via Electron (Settings → Desktop Print)
+        if (isElectron() && isDesktopSilentPrintConfigured()) {
+          const printType =
+            resolvedPaperSize === '80mm' || resolvedPaperSize === '58mm'
+              ? 'receipt'
+              : 'invoice';
+          const result = await appPrint({ type: printType, html });
+          if (result.success) {
+            toast.success('Invoice sent to printer');
+            options.onSuccess?.();
+            return true;
+          }
+          if (result.error) {
+            console.warn('Electron silent print failed:', result.error);
+          }
+        }
+
+        // QZ Tray (Bill & Barcode direct print settings)
+        if (!isQzDirectPrintEnabled) {
+          options.onFallback?.();
+          return false;
+        }
+
+        const printerName = getPrinterForContext(options.context);
+        if (!printerName) {
+          toast.warning('No printer configured for direct printing. Using browser print.');
+          options.onFallback?.();
+          return false;
+        }
+
+        if (!isQZReady()) {
+          const connected = await ensureQZConnection();
+          if (!connected) {
+            toast.warning('QZ Tray not available. Using browser print.');
+            options.onFallback?.();
+            return false;
+          }
+        }
+
+        const success = await printViaQZTray(html, {
+          printerName,
+          paperSize: resolvedPaperSize,
+          copies: billBarcodeSettings?.direct_print_copies || 1,
+        });
+
+        if (success) {
+          toast.success('Invoice sent to printer');
+          options.onSuccess?.();
+          return true;
+        }
+
         options.onFallback?.();
         return false;
-      }
-
-      console.log('Direct print: extracting HTML from invoice ref, children:', invoiceRef.childNodes.length, 'innerHTML length:', invoiceRef.innerHTML.length);
-      
-      if (invoiceRef.innerHTML.length < 50) {
-        console.error('Direct print: invoice content appears empty');
-        toast.error('Invoice content not ready. Please try again.');
+      } catch (err) {
+        console.error('Direct print error:', err);
         options.onFallback?.();
         return false;
+      } finally {
+        isPrintingRef.current = false;
       }
-
-      const html = extractInvoiceHTML(invoiceRef);
-
-      // Send to QZ Tray
-      const success = await printViaQZTray(html, {
-        printerName,
-        paperSize: resolvedPaperSize,
-        copies: billBarcodeSettings?.direct_print_copies || 1,
-      });
-
-      if (success) {
-        toast.success('Invoice sent to printer');
-        options.onSuccess?.();
-        return true;
-      } else {
-        options.onFallback?.();
-        return false;
-      }
-    } catch (err) {
-      console.error('Direct print error:', err);
-      options.onFallback?.();
-      return false;
-    } finally {
-      isPrintingRef.current = false;
-    }
-  }, [isDirectPrintEnabled, getPrinterForContext, billBarcodeSettings]);
+    },
+    [isDirectPrintEnabled, isQzDirectPrintEnabled, getPrinterForContext, billBarcodeSettings],
+  );
 
   return {
     isDirectPrintEnabled,
