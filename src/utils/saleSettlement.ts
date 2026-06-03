@@ -4,8 +4,11 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import {
   creditNoteLiveRemaining,
+  ensureCreditNoteHeadroom,
+  formatCnApplyError,
   resolveCnAvailableFromRows,
   type CreditNoteLiveRow,
 } from "@/utils/saleReturnCnBalance";
@@ -295,6 +298,150 @@ export async function getAvailableCN(
     total: returns.reduce((sum, r) => sum + r.available, 0),
     returns,
   };
+}
+
+function voucherMetaFromAdjustInvoiceRpc(rpcData: unknown): {
+  voucherEntryId: string;
+  voucherNumber: string;
+} {
+  if (rpcData == null) return { voucherEntryId: "", voucherNumber: "" };
+  const row =
+    Array.isArray(rpcData) && rpcData.length > 0 && typeof rpcData[0] === "object" && rpcData[0] !== null
+      ? (rpcData[0] as Record<string, unknown>)
+      : typeof rpcData === "object"
+        ? (rpcData as Record<string, unknown>)
+        : null;
+  if (!row) return { voucherEntryId: "", voucherNumber: "" };
+  return {
+    voucherEntryId: String(row.voucher_entry_id ?? row.voucher_id ?? row.id ?? ""),
+    voucherNumber: String(row.voucher_number ?? ""),
+  };
+}
+
+export type CnFifoVoucherChunk = {
+  voucherEntryId: string;
+  voucherNumber: string;
+  amount: number;
+};
+
+export type ApplyCreditNoteFifoResult = {
+  applied: number;
+  chunks: CnFifoVoucherChunk[];
+};
+
+/**
+ * Apply customer CN pool to one invoice via adjust_invoice_balance (FIFO by return_date).
+ * Updates sale_returns CAB/status and credit_notes.used_amount after each RPC chunk.
+ */
+export async function applyCreditNoteFifoToSale(
+  supabase: SupabaseClient,
+  params: {
+    organizationId: string;
+    saleId: string;
+    amount: number;
+    cnPool: AvailableCNReturn[];
+    customerNameFallback?: string;
+    adjustedBy?: string | null;
+    notes?: string | null;
+  },
+): Promise<ApplyCreditNoteFifoResult> {
+  const requested = Math.max(0, Math.round(Number(params.amount) * 100) / 100);
+  if (requested <= 0.01) {
+    return { applied: 0, chunks: [] };
+  }
+
+  const pool = [...params.cnPool].sort((a, b) => {
+    const da = a.return_date ? new Date(a.return_date).getTime() : 0;
+    const db = b.return_date ? new Date(b.return_date).getTime() : 0;
+    return da - db;
+  });
+
+  let remaining = requested;
+  let applied = 0;
+  const chunks: CnFifoVoucherChunk[] = [];
+  const sb = supabase as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }> };
+
+  for (const sr of pool) {
+    if (remaining <= 0.01) break;
+    const avail = sr.available;
+    if (avail <= 0.01) continue;
+
+    const useFromSR = Math.min(avail, remaining);
+    const creditNoteId = await ensureCreditNoteForSaleReturn(supabase, {
+      organizationId: params.organizationId,
+      saleReturnId: sr.id,
+      creditNoteIdHint: null,
+      customerNameFallback: params.customerNameFallback,
+      returnNumberFallback: sr.return_number || undefined,
+      creditAmountFallback: sr.net_amount,
+    });
+    if (!creditNoteId) continue;
+
+    await ensureCreditNoteHeadroom(supabase, {
+      organizationId: params.organizationId,
+      creditNoteId,
+      amountNeeded: useFromSR,
+      maxPoolFromReturn: avail,
+      saleReturnId: sr.id,
+    });
+
+    const { data: rpcData, error: rpcErr } = await sb.rpc("adjust_invoice_balance", {
+      p_organization_id: params.organizationId,
+      p_invoice_id: params.saleId,
+      p_adjustment_type: "CREDIT_NOTE",
+      p_source_document_id: creditNoteId,
+      p_amount_applied: useFromSR,
+      p_adjusted_by: params.adjustedBy ?? null,
+      p_notes: params.notes ?? null,
+    });
+    if (rpcErr) throw rpcErr;
+
+    const { voucherEntryId, voucherNumber } = voucherMetaFromAdjustInvoiceRpc(rpcData);
+    if (!voucherEntryId) {
+      throw new Error("Receipt voucher missing after credit-note adjustment.");
+    }
+    chunks.push({
+      voucherEntryId,
+      voucherNumber,
+      amount: useFromSR,
+    });
+
+    const { data: cnRow } = await supabase
+      .from("credit_notes")
+      .select("credit_amount, used_amount")
+      .eq("id", creditNoteId)
+      .maybeSingle();
+    const cnRemaining = Math.max(
+      0,
+      Number(cnRow?.credit_amount || 0) - Number(cnRow?.used_amount || 0),
+    );
+    await supabase
+      .from("sale_returns")
+      .update({
+        credit_available_balance: cnRemaining,
+        credit_status: cnRemaining <= 0.01 ? "adjusted" : "partially_adjusted",
+        linked_sale_id: params.saleId,
+      })
+      .eq("id", sr.id)
+      .eq("organization_id", params.organizationId);
+
+    sr.available = cnRemaining;
+    remaining -= useFromSR;
+    applied += useFromSR;
+  }
+
+  applied = Math.round(applied * 100) / 100;
+  if (applied < requested - 0.01) {
+    throw new Error(
+      formatCnApplyError(
+        new Error(
+          `Insufficient credit note balance. Applied ₹${applied.toLocaleString("en-IN")}, requested ₹${requested.toLocaleString("en-IN")}.`,
+        ),
+      ),
+    );
+  }
+
+  return { applied, chunks };
 }
 
 /** Sum line gross (MRP × qty) from cart rows — used when net is ₹0 after 100% discount. */

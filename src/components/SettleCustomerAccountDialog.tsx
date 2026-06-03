@@ -28,6 +28,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, CheckCircle2, IndianRupee, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
+  applyCreditNoteFifoToSale,
   consumeAdvanceFIFO,
   createReceiptVoucher,
   getAvailableCN,
@@ -37,8 +38,7 @@ import {
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
 } from "@/utils/customerBalanceUtils";
-import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
-import { ensureCreditNoteHeadroom, formatCnApplyError } from "@/utils/saleReturnCnBalance";
+import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
@@ -228,78 +228,6 @@ export function SettleCustomerAccountDialog({
     return rows;
   }, [cnData?.returns]);
 
-  const applyCnFifo = async (
-    inv: PendingInvoice,
-    amount: number,
-    cnPool: AvailableCNReturn[],
-    voucherDate: string,
-    userId: string | undefined
-  ): Promise<number> => {
-    let remaining = amount;
-    let applied = 0;
-    const sb = supabase as any;
-
-    for (const sr of cnPool) {
-      if (remaining <= 0.01) break;
-      const avail = sr.available;
-      if (avail <= 0.01) continue;
-
-      const useFromSR = Math.min(avail, remaining);
-      const creditNoteId = await ensureCreditNoteForSaleReturn(supabase, {
-        organizationId,
-        saleReturnId: sr.id,
-        creditNoteIdHint: null,
-        customerNameFallback: customerName,
-        returnNumberFallback: sr.return_number || undefined,
-        creditAmountFallback: sr.net_amount,
-      });
-      if (!creditNoteId) continue;
-
-      await ensureCreditNoteHeadroom(supabase, {
-        organizationId,
-        creditNoteId,
-        amountNeeded: useFromSR,
-        maxPoolFromReturn: avail,
-        saleReturnId: sr.id,
-      });
-
-      const { error: rpcErr } = await sb.rpc("adjust_invoice_balance", {
-        p_organization_id: organizationId,
-        p_invoice_id: inv.id,
-        p_adjustment_type: "CREDIT_NOTE",
-        p_source_document_id: creditNoteId,
-        p_amount_applied: useFromSR,
-      });
-      if (rpcErr) throw rpcErr;
-
-      // adjust_invoice_balance now writes the credit_note_adjustment voucher inline.
-
-      const { data: cnRow } = await supabase
-        .from("credit_notes")
-        .select("credit_amount, used_amount")
-        .eq("id", creditNoteId)
-        .maybeSingle();
-      const cnRemaining = Math.max(
-        0,
-        Number(cnRow?.credit_amount || 0) - Number(cnRow?.used_amount || 0)
-      );
-      await supabase
-        .from("sale_returns")
-        .update({
-          credit_available_balance: cnRemaining,
-          credit_status: cnRemaining <= 0.01 ? "adjusted" : "partially_adjusted",
-          linked_sale_id: inv.id,
-        })
-        .eq("id", sr.id);
-
-      sr.available = cnRemaining;
-      remaining -= useFromSR;
-      applied += useFromSR;
-    }
-
-    return applied;
-  };
-
   const syncSaleFromVouchers = async (invoiceId: string, voucherDate: string) => {
     const { data: freshSale, error: saleErr } = await supabase
       .from("sales")
@@ -405,7 +333,14 @@ export function SettleCustomerAccountDialog({
           );
           const cnForThis = Math.min(cnRemaining, stillDue);
           if (cnForThis > 0.01) {
-            const consumed = await applyCnFifo(inv, cnForThis, cnPool, voucherDate, user?.id);
+            const { applied: consumed } = await applyCreditNoteFifoToSale(supabase, {
+              organizationId,
+              saleId: inv.id,
+              amount: cnForThis,
+              cnPool,
+              customerNameFallback: customerName,
+              adjustedBy: user?.id ?? null,
+            });
             cnRemaining -= consumed;
             const { data: fresh } = await supabase
               .from("sales")
