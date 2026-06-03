@@ -1629,16 +1629,32 @@ const PurchaseBillDashboard = () => {
         </div>
         <div className="border rounded-lg overflow-hidden">
           <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50 dark:bg-slate-900/50">
-                <TableHead>Product</TableHead>
-                <TableHead>SKU / Barcode</TableHead>
-                <TableHead>Size / Color</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Rate</TableHead>
-                <TableHead className="text-right">GST %</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Status</TableHead>
+            <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-0">
+              <TableRow className="bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-50 border-muted">
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Product
+                </TableHead>
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  SKU / Barcode
+                </TableHead>
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Size / Color
+                </TableHead>
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Qty
+                </TableHead>
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Rate
+                </TableHead>
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  GST %
+                </TableHead>
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Amount
+                </TableHead>
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                  Status
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
