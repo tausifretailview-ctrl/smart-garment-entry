@@ -1047,8 +1047,7 @@ export default function SalesInvoiceDashboard() {
     options: { staleTime: 2 * 60 * 1000 },
   });
 
-  // Get item display settings from settings
-  const saleSettings = settings?.sale_settings as any;
+  // Get item display settings from settings (saleSettings declared above with bill-format helpers)
   const showItemBrand = saleSettings?.show_item_brand ?? false;
   const showItemColor = saleSettings?.show_item_color ?? false;
   const showItemStyle = saleSettings?.show_item_style ?? false;
