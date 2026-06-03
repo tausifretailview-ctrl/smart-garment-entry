@@ -592,6 +592,19 @@ All colors MUST be HSL.
    Professional GST-Compliant Print Output
    ============================================ */
 
+/* Hidden on screen; react-to-print / browser print use this container */
+.invoice-print-source-screen {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: -1;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 /* Utility class to hide elements during printing */
 .no-print {
   @media print {
@@ -613,6 +626,8 @@ All colors MUST be HSL.
   /* Hide all UI elements during printing */
   [data-radix-dialog-overlay],
   [role="dialog"]:not(.print-dialog),
+  .print-dialog > button,
+  .print-dialog .no-print,
   header:not(.invoice-header),
   nav,
   aside,
@@ -643,10 +658,59 @@ All colors MUST be HSL.
     print-color-adjust: exact !important;
   }
 
+  /* Off-screen POS print source — visible only when printing */
+  .invoice-print-source {
+    opacity: 1 !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    z-index: auto !important;
+    pointer-events: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+  }
+
+  .invoice-print-source .invoice-print-root,
+  .invoice-print-source .retail-tax-ezzy-print-root,
+  .invoice-print-source .retail-tax-ezzy-print-root * {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Print preview dialog content */
+  .print-dialog {
+    display: block !important;
+    visibility: visible !important;
+    position: static !important;
+    transform: none !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  .print-dialog .print-invoice-container,
+  .print-dialog .invoice-print-root,
+  .print-dialog .retail-tax-ezzy-print-root {
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
   /* Invoice container takes full paper width */
   .invoice-print,
   .print-invoice-container,
   .professional-invoice-template,
+  .retail-tax-ezzy-print-root,
   .credit-note-print,
   .debit-note-print,
   .quotation-print,

@@ -194,6 +194,15 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           overflow: visible !important;
         }
 
+        .print-dialog,
+        .print-dialog .print-invoice-container,
+        .print-dialog .invoice-print-root,
+        .print-dialog .retail-tax-ezzy-print-root {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+        }
+
         .professional-invoice-template {
           max-height: none !important;
           overflow: visible !important;
@@ -255,7 +264,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent className="print-dialog max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Print Preview</DialogTitle>
         </DialogHeader>

@@ -206,7 +206,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         if (sbf === 'a5-horizontal') return 'a5-horizontal';
         return undefined;
       })() || 'a4';
-    const format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
+    const templateForFormat = props.template || settings?.sale_settings?.invoice_template || 'professional';
+    let format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
+    // A5-only templates must not be routed through the thermal receipt path.
+    if (templateForFormat === 'retail-tax-ezzy' || templateForFormat === 'wholesale-a5') {
+      format = 'a5-vertical';
+    }
     
     // Get display settings - use prop overrides if provided for live preview
     const showHSN = props.showHSN ?? settings?.sale_settings?.show_hsn_code ?? true;

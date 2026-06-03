@@ -41,6 +41,11 @@ import { useBeepSound } from "@/hooks/useBeepSound";
 import { useCashDrawer } from "@/hooks/useCashDrawer";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
+import {
+  resolvePosBillFormat,
+  toInvoiceWrapperFormat,
+  type PosBillFormat,
+} from "@/utils/invoicePrintFormat";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -778,10 +783,39 @@ export default function POSSales() {
 
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
-  const posBillFormat: 'a4' | 'a5' | 'a5-horizontal' | 'thermal' =
-    (_posSaleSettings.pos_bill_format as 'a4' | 'a5' | 'a5-horizontal' | 'thermal') || 'thermal';
-  const posInvoiceTemplate: 'professional' | 'modern' | 'classic' | 'compact' =
-    (_posSaleSettings.invoice_template as 'professional' | 'modern' | 'classic' | 'compact') || 'professional';
+  const posBillFormatSetting: PosBillFormat =
+    (_posSaleSettings.pos_bill_format as PosBillFormat) || 'thermal';
+  const posInvoiceTemplate: string =
+    (_posSaleSettings.invoice_template as string) || 'professional';
+  const posBillFormat = resolvePosBillFormat(posInvoiceTemplate, posBillFormatSetting);
+  const posInvoiceWrapperFormat = toInvoiceWrapperFormat(posBillFormat);
+  const posPrintSourceStyle = useMemo(() => {
+    const width =
+      posBillFormat === 'a4'
+        ? '210mm'
+        : posBillFormat === 'a5-horizontal'
+          ? '210mm'
+          : posBillFormat === 'thermal'
+            ? '80mm'
+            : '148mm';
+    const minHeight =
+      posBillFormat === 'a4'
+        ? '297mm'
+        : posBillFormat === 'a5-horizontal'
+          ? '148mm'
+          : posBillFormat === 'thermal'
+            ? 'auto'
+            : '210mm';
+    const maxHeight =
+      posBillFormat === 'thermal'
+        ? 'none'
+        : posBillFormat === 'a4'
+          ? '297mm'
+          : posBillFormat === 'a5-horizontal'
+            ? '148mm'
+            : '210mm';
+    return { width, minHeight, maxHeight, overflow: 'visible' as const };
+  }, [posBillFormat]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType =
     (_posSaleSettings.default_tax_type === 'exclusive' ? 'exclusive' : 'inclusive') as 'inclusive' | 'exclusive';
@@ -3246,6 +3280,27 @@ export default function POSSales() {
     const format = posBillFormat;
     let size = 'A5 portrait';
     let margin = '5mm';
+
+    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5') {
+      return `
+      @page {
+        size: A5 portrait;
+        margin: 4mm;
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .retail-tax-ezzy-page {
+          width: 100% !important;
+          max-width: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+    }
     
     switch (format) {
       case 'a5-horizontal':
@@ -4162,11 +4217,11 @@ export default function POSSales() {
         </Dialog>
 
         {/* Hidden Invoice for Printing (tablet) */}
-        <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+        <div className="invoice-print-source-screen invoice-print-source" style={posPrintSourceStyle}>
           <InvoiceWrapper
             ref={invoicePrintRef}
             template={posInvoiceTemplate}
-            format={posBillFormat || 'thermal'}
+            format={posInvoiceWrapperFormat}
             billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber}
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
@@ -4407,11 +4462,11 @@ export default function POSSales() {
         </AlertDialog>
 
         {/* Hidden Invoice for Printing */}
-        <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+        <div className="invoice-print-source-screen invoice-print-source" style={posPrintSourceStyle}>
           <InvoiceWrapper
             ref={invoicePrintRef}
             template={posInvoiceTemplate}
-            format={posBillFormat || 'thermal'}
+            format={posInvoiceWrapperFormat}
             billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber}
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
@@ -6086,24 +6141,7 @@ export default function POSSales() {
         )}
 
         {/* Hidden Invoice for Printing */}
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0,
-          width: posBillFormat === 'a4' ? '210mm' : 
-                 posBillFormat === 'a5-horizontal' ? '210mm' : 
-                 posBillFormat === 'thermal' ? '80mm' : '148mm',
-          minHeight: posBillFormat === 'a4' ? '297mm' : 
-                     posBillFormat === 'a5-horizontal' ? '148mm' : 
-                     posBillFormat === 'thermal' ? 'auto' : '210mm',
-          maxHeight: posBillFormat === 'thermal' ? 'none' : 
-                     posBillFormat === 'a4' ? '297mm' : 
-                     posBillFormat === 'a5-horizontal' ? '148mm' : '210mm',
-          opacity: 0, 
-          pointerEvents: 'none',
-          zIndex: -9999,
-          overflow: 'hidden'
-        }}>
+        <div className="invoice-print-source-screen invoice-print-source" style={posPrintSourceStyle}>
           {(items.length > 0 || savedInvoiceData) && (
             <div ref={invoicePrintRef} style={{ position: 'relative' }}>
               {savedInvoiceData?.isEstimate && (
@@ -6124,7 +6162,7 @@ export default function POSSales() {
                 </div>
               )}
               <InvoiceWrapper
-                format={posBillFormat}
+                format={posInvoiceWrapperFormat}
                 billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
                 date={new Date()}
                 customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
