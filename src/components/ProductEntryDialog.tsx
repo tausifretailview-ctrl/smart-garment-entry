@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateProduct } from "@/lib/validations";
-import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
+import { UOM_OPTIONS, DEFAULT_UOM, isDecimalUOM } from "@/constants/uom";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 type ProductType = 'goods' | 'service' | 'combo';
@@ -2069,10 +2069,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                                   <Input
                                                     type="number"
                                                     min="0"
+                                                    step={isDecimalUOM(formData.uom) ? "0.001" : "1"}
                                                     value={qty === 0 ? '' : qty}
                                                     placeholder="0"
                                                     onChange={(e) => {
-                                                      const val = parseInt(e.target.value) || 0;
+                                                      const val = isDecimalUOM(formData.uom)
+                                                        ? (parseFloat(e.target.value) || 0)
+                                                        : (parseInt(e.target.value) || 0);
                                                       setVariants(prev => {
                                                         const exists = prev.some(v => v.size === size && v.color === color);
                                                         if (exists) {
@@ -2260,10 +2263,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                                       <Input
                                         type="number"
                                         min="0"
+                                        step={isDecimalUOM(formData.uom) ? "0.001" : "1"}
                                         value={qty === 0 ? '' : qty}
                                         placeholder="0"
                                         onChange={(e) => {
-                                          const val = parseInt(e.target.value) || 0;
+                                          const val = isDecimalUOM(formData.uom)
+                                            ? (parseFloat(e.target.value) || 0)
+                                            : (parseInt(e.target.value) || 0);
                                           setVariants(prev => {
                                             const exists = prev.some(v => v.size === size && v.color === (formData.colors[0] || ""));
                                             if (exists) {
