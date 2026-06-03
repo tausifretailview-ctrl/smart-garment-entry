@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -68,6 +69,7 @@ import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
 import { localDayEndUtcIso, localDayStartUtcIso, saleRowCalendarYmd } from "@/lib/localDayBounds";
+import { POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
@@ -158,8 +160,17 @@ const DEFAULT_POS_COLUMNS = {
 const POSDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { orgNavigate: navigate } = useOrgNavigation();
+  const location = useLocation();
+  const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
+
+  const routePathSegment = useMemo(() => {
+    const fullPath = location.pathname;
+    if (orgSlug && fullPath.startsWith(`/${orgSlug}`)) {
+      return fullPath.slice(orgSlug.length + 2).split("/")[0] || "";
+    }
+    return fullPath.replace(/^\//, "").split("/")[0] || "";
+  }, [location.pathname, orgSlug]);
   const { user, session } = useAuth();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
@@ -330,13 +341,6 @@ const POSDashboard = () => {
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
   const isEInvoiceEnabled = saleSettings?.einvoice_settings?.enabled ?? false;
 
-  useEffect(() => {
-    const loadData = async () => {
-      await fetchSales();
-    };
-    loadData();
-  }, [currentOrganization, startDate, endDate]);
-
   // Sync POS bill format / invoice template from cached settings
   useEffect(() => {
     const sale = (settings as any)?.sale_settings;
@@ -362,9 +366,9 @@ const POSDashboard = () => {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [expandedSale, sales]);
 
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     if (!currentOrganization?.id) return;
-    
+
     setLoading(true);
     try {
       // Use range-based pagination to bypass 1000-row limit
@@ -535,7 +539,23 @@ const POSDashboard = () => {
       });
       setLoading(false);
     }
-  };
+  }, [currentOrganization?.id, startDate, endDate, toast]);
+
+  useEffect(() => {
+    if (routePathSegment !== "pos-dashboard") return;
+    void fetchSales();
+  }, [routePathSegment, fetchSales]);
+
+  useEffect(() => {
+    const onPosSalesChanged = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ organizationId?: string }>).detail;
+      if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
+      // Refetch even when this pane is hidden (tab cache) so switching to dashboard is instant.
+      void fetchSales();
+    };
+    window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
+    return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
+  }, [currentOrganization?.id, fetchSales]);
 
   const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
     if (saleItems[saleId]) return saleItems[saleId];

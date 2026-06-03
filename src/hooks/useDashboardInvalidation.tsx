@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 
 /**
  * Hook to invalidate dashboard queries after mutations
@@ -29,14 +30,18 @@ export const useDashboardInvalidation = () => {
   /**
    * Invalidate only sales-related queries
    */
-  const invalidateSales = () => {
+  const invalidateSales = (organizationId?: string) => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
     queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
+    queryClient.invalidateQueries({ queryKey: ["pos-dashboard-sales"] });
+    queryClient.invalidateQueries({ queryKey: ["today-sales"] });
     invalidateCustomerFinancialSnapshot(queryClient);
+    notifyPosSalesChanged({ organizationId });
   };
 
   /**

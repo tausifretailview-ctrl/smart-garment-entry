@@ -46,6 +46,8 @@ import {
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
+import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -1096,7 +1098,8 @@ export default function POSSales() {
 
       toast.success("Changes Saved", { description: "Customer, salesman & notes updated successfully." });
 
-      queryClient.invalidateQueries({ queryKey: ['todaysSales'] });
+      queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
     } catch (error: any) {
       logError(
         {
@@ -1208,9 +1211,9 @@ export default function POSSales() {
     queryKey: ['todays-sales', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
+      const todayYmd = todayLocalYmd();
+      const { startIso, endIso } = localDayBounds(todayYmd, todayYmd);
+
       const { data, error } = await (supabase as any)
         .from('sales')
         .select('id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, payment_method, created_at, sale_type, customer_id, round_off, flat_discount_percent, flat_discount_amount, sale_return_adjust, salesman, notes')
@@ -1218,16 +1221,17 @@ export default function POSSales() {
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
         .neq('payment_status', 'hold')
-        .gte('sale_date', today.toISOString())
+        .gte('sale_date', startIso)
+        .lte('sale_date', endIso)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 120000, // Cache for 2 minutes
+    staleTime: 30_000,
     refetchInterval: posRefetchInterval,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   });
 
   const isHoldLikeBill = (sale: any) => {
@@ -2669,7 +2673,8 @@ export default function POSSales() {
       setCurrentInvoiceNumber(result.sale_number);
       
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      
+      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
+
       // Reset to show the newly saved invoice (index 0, as sales are sorted by created_at desc)
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(result.id);
@@ -3260,9 +3265,9 @@ export default function POSSales() {
         barcodeInputRef.current?.focus();
       }, 100);
       
-      // Non-blocking background operations
+      // Refresh POS dashboard + today's bill list (tab cache keeps dashboard mounted)
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
+      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
       
       if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
         applyCredit(customerId, result.id, creditApplied);
@@ -3872,7 +3877,7 @@ export default function POSSales() {
       
       // Refetch today's sales, dashboard data, and held bills
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
+      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
       await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       await refetchHeldBills();
     }

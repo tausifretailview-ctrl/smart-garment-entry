@@ -629,11 +629,14 @@ export const useSaveSale = () => {
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
       // Insert sale record
+      const saleDateIso = new Date().toISOString();
+
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .insert({
           sale_number: saleNumber,
           sale_type: saleType,
+          sale_date: saleDateIso,
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,
@@ -961,7 +964,7 @@ export const useSaveSale = () => {
       }
 
       // Invalidate dashboard queries for immediate UI refresh
-      invalidateSales();
+      invalidateSales(currentOrganization.id);
 
       // Auto-generate E-Invoice for B2B sales (fire and forget)
       if (currentOrganization?.id && saleData.customerId) {
@@ -1380,7 +1383,7 @@ export const useSaveSale = () => {
       });
 
       // Invalidate dashboard queries for immediate UI refresh
-      invalidateSales();
+      invalidateSales(currentOrganization.id);
 
       return sale;
     } catch (error: any) {
@@ -1771,7 +1774,7 @@ export const useSaveSale = () => {
       });
 
       // Invalidate dashboard queries for immediate UI refresh
-      invalidateSales();
+      invalidateSales(currentOrganization.id);
 
       return sale;
     } catch (error: any) {
