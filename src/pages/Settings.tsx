@@ -80,6 +80,9 @@ interface ProductSettings {
   sku_format?: string;
   default_size_group?: string;
   mobile_erp?: MobileERPConfig;
+  /** When false, the POS skips the qty/price dialog for service products and
+   * uses the price already defined at product entry. Default (undefined) = enabled. */
+  service_quick_entry_dialog?: boolean;
   fields?: {
     category?: FieldConfig;
     brand?: FieldConfig;
@@ -1349,6 +1352,30 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     Default size group for new products
                   </p>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="service_quick_entry_dialog" className="text-sm font-medium">
+                      Ask Qty &amp; Price for Service Products
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      When ON, billing a service product opens a dialog to enter quantity &amp; price. Turn OFF to add service items instantly using the price defined at product entry.
+                    </p>
+                  </div>
+                  <Switch
+                    id="service_quick_entry_dialog"
+                    checked={settings.product_settings?.service_quick_entry_dialog !== false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        product_settings: {
+                          ...settings.product_settings,
+                          service_quick_entry_dialog: checked,
+                        },
+                      })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-4 mt-6 pt-6 border-t">

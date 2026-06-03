@@ -2057,12 +2057,34 @@ export default function POSSales() {
     // This is essential for saree shops where each piece has different MRP
     const isServiceProduct = product.product_type === 'service';
 
-    // Service products: always ask for actual price before adding
+    // Service products: ask for actual price before adding — unless the org turned
+    // the quick-entry dialog OFF (Settings → Product), in which case we add the item
+    // straight to the cart using the price already defined at product entry.
     if (isServiceProduct && !overridePrice) {
-      setQuickServiceCode(variant.barcode || product.product_name);
-      setQuickServiceProductForAdd({ product, variant });
-      setShowQuickServiceDialog(true);
+      const serviceQuickEntryEnabled =
+        (settingsData as any)?.product_settings?.service_quick_entry_dialog !== false;
+      const svcSalePrice = parseFloat(variant.sale_price || 0) || 0;
+      const svcRawMrp = variant.mrp ? parseFloat(variant.mrp) : 0;
+      const svcMrp = svcRawMrp > 0 ? svcRawMrp : svcSalePrice;
+      const hasPredefinedPrice = svcMrp > 0 || svcSalePrice > 0;
+
+      // Default behaviour, or fall back to the dialog when no price was defined.
+      if (serviceQuickEntryEnabled || !hasPredefinedPrice) {
+        setQuickServiceCode(variant.barcode || product.product_name);
+        setQuickServiceProductForAdd({ product, variant });
+        setShowQuickServiceDialog(true);
+        setSearchInput("");
+        return;
+      }
+
+      // Dialog disabled + price predefined → add directly using the master price.
       setSearchInput("");
+      await addItemToCart(
+        product,
+        variant,
+        { sale_price: svcSalePrice || svcMrp, mrp: svcMrp || svcSalePrice },
+        addSource,
+      );
       return;
     }
     
