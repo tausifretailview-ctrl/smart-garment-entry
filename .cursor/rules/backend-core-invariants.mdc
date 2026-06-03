@@ -1,0 +1,46 @@
+---
+description: Core backend invariants (multi-tenancy, money/balances, inventory, identity, lifecycle) that must always hold. Verified against the codebase by Lovable.
+alwaysApply: true
+---
+
+# Core Invariants
+
+Rules that must ALWAYS hold. If a change would violate one, it's wrong - stop.
+
+## Multi-tenancy
+- Every read/write on a tenant table is scoped by `organization_id`. No exceptions.
+- A user sees only data for organizations they belong to (RLS via `has_role` / `has_org_role`).
+- No tenant table is readable by the anon/public role. External access goes through a token-scoped Edge Function returning only whitelisted fields.
+
+## Money & balances
+- Canonical customer-balance calc: `computeCustomerOutstanding` in `src/utils/customerBalanceUtils.ts`. A second copy exists in `src/utils/customerAuditMath.ts` (used by audit/reconciliation screens) - these are a known drift risk; `customerBalanceUtils` is canonical and the audit variant should converge on it, not diverge.
+- `outstanding = net_amount - paid_amount - sale_return_adjust`. Settled tolerance = `SETTLEMENT_TOLERANCE` (0.5) in `saleSettlement.ts`. (A separate `SETTLEMENT_TOLERANCE_RUPEE = 0.99` exists in `paymentSettlementBreakdown.ts` - do not confuse them.)
+- Status rule: `outstanding <= 0.5 -> completed`; `paid_amount + sale_return_adjust > 0 -> partial`; else `pending`.
+- paid_amount / payment_status - single source of truth (TARGET, not yet built): the goal is that ONLY `recomputeSalePaymentState` (`src/utils/recomputeSalePaymentState.ts`) writes these. STATUS: that helper does NOT exist yet. Current canonical logic is `derivePaidAndStatus` in `saleSettlement.ts`; `warnSettlementPathMismatch` flags unmigrated inline callers. Until the helper is built and write paths migrated, `paid_amount` is NOT centrally derived - multiple paths still write it inline. Do not import `recomputeSalePaymentState` as if it exists.
+- `paid_amount` = settled = cash + settlement discount (`total_amount + discount_amount` on receipts). It excludes advance/CN application.
+- Receipt `reference_type` is matched against `CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES` (`paymentVoucherFilters.ts`, currently `["sale","SALE","customer","customer_payment","CustomerReceipt"]`) - never a hardcoded subset.
+- A `pay_later` sale with no qualifying receipt and no SRA stays `pending` (`enforce_pay_later_zero_paid` trigger). WARNING: that trigger currently checks only `('sale','SALE','CustomerReceipt')` - it is MISSING `'customer'` / `'customer_payment'` from the canonical list (known latent bug; widen before relying on it).
+
+## Inventory
+- Authoritative on-hand quantity: `product_variants.stock_qty` (integer, NOT NULL, default 0). `current_stock` is legacy/derived. Repair RPC: `reconcile_variant_stock_qty`.
+- `stock_qty` is maintained by DB triggers on stock-movement tables (purchase +, sale -, plus reversal/adjustment). A single physical event produces exactly one net stock effect - never double-count via soft-delete/reinsert.
+
+## Identity / numbering
+- Barcode uniqueness is enforced by a COMPOSITE unique index `(product_id, color, size, barcode) WHERE deleted_at IS NULL` - it is NOT barcode-alone and does NOT include `organization_id`. Practical org-level uniqueness is enforced in APP CODE (`barcodeValidation.ts` `checkBarcodeExists` + `generate_next_barcode`), not the DB.
+- No dedicated IMEI column/table: IMEI is stored as the `barcode` on a per-piece variant (Unit-as-Variant), so it inherits the composite index above.
+- Sale numbers: unique on `(organization_id, sale_number) WHERE deleted_at IS NULL`. POS and Sale SHARE `sales.sale_number`. FY (Apr-Mar IST) is encoded in the prefix, not a separate column. Series: Sale = `INV/YY-YY/N`, POS = `POS/YY-YY/N`, allocated atomically via `generate_sale_number_atomic` / `bill_number_sequences`.
+- Receipt->invoice matching uses the FULL prefixed number or `reference_id`, never a bare numeric substring (prevents INV vs POS cross-series mis-match).
+
+## Data lifecycle
+- Deletes are SOFT (`deleted_at`), recoverable via Recycle Bin. Queries on soft-deletable tables filter `deleted_at IS NULL`.
+- Mutations are scoped - never update/delete without `organization_id` (and usually an id) constraint.
+- Schema changes are new timestamped migrations only; GRANTs follow every CREATE TABLE. Lovable owns `supabase/migrations/*`.
+
+## Recompute, don't trust cached flags
+- Status/balance fields are projections of underlying transactions; when in doubt recompute from source (receipts, returns, sales).
+- Reconciliation tools are drift ALARMS that reuse the canonical calc - never a second independent formula.
+
+## UI / conventions
+- Customer names are UPPERCASED in APP CODE only (`customerUtils.ts`) - no DB trigger enforces it; a direct DB write/migration can bypass it.
+- Colors via HSL semantic tokens only (no raw hex); numeric columns use tabular-nums font-mono.
+- POS screen owns its F1-F11 + Esc keyset (under POSLayout); global shortcuts must not collide. Esc=back is global via `useEscapeBack` (Layout only).

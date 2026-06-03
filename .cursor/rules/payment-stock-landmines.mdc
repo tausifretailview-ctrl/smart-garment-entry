@@ -1,0 +1,33 @@
+---
+description: Known landmines / "do not touch" for payment, balance, stock, identity, and RLS logic. Breaking these has caused real production bugs.
+alwaysApply: true
+---
+
+# Known Landmines / "Do Not Touch"
+
+Breaking these has caused real production bugs. Read before changing payment, balance, stock, or RLS logic.
+
+## Ownership
+- Lovable owns the cloud backend. Never hand-edit `src/integrations/supabase/client.ts`, `types.ts`, `.env`, or `supabase/migrations/*`. New schema = a NEW timestamped migration; GRANTs after CREATE TABLE.
+- Merge conflicts: remove ALL marker remnants - `<<<<<<<`, `=======`, `>>>>>>>` AND the branch-name text on those lines. A past merge left `cursor/...`/`main` text + both code lines in `customerBalanceUtils.ts` and broke the build.
+
+## Payment status / balance
+- Do NOT invent a new balance formula. At one point FIVE divergent ones existed and drifted. Canonical: `computeCustomerOutstanding` (`customerBalanceUtils.ts`). Note the duplicate in `customerAuditMath.ts` - collapse toward the canonical one, don't add a third.
+- Do NOT reference `recomputeSalePaymentState` as if it exists - it does NOT yet. Current canonical writer logic is `derivePaidAndStatus` (`saleSettlement.ts`). The single-source-of-truth helper is planned, not built. (KNOWN-LATENT ITEM, note only - not an action item here.)
+- Receipt `reference_type` lives under MULTIPLE values - always use `CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES`, never a hand-written subset. Hardcoding a subset is what left invoices stuck "Not Paid" while the ledger was correct.
+- `CustomerReceipt` is also a `journal_entries.reference_type` - two different tables, same string. Don't conflate.
+- `enforce_pay_later_zero_paid` trigger force-zeros pay_later sales with no qualifying receipt. It currently omits `'customer'`/`'customer_payment'` from its reference_type check - a latent repeat of the stuck-invoice bug. Widen it before trusting it; respect it in any recompute. (KNOWN-LATENT ITEM, note only - not an action item here.)
+
+## Stock
+- `product_variants.stock_qty` is authoritative. Sale-return EDIT flow has historically double-credited stock via soft-delete/reinsert - be careful editing return flows. Stock effects key off line-item tables, not headers.
+
+## Multi-tenancy / RLS
+- Every tenant-table query MUST filter `organization_id`. Missing this caused ~1 trillion rows-read seq scans on `product_variants`.
+- `has_role`/`has_org_role` must stay `SECURITY DEFINER STABLE` with `SET search_path`. Changing RLS is SECURITY-CRITICAL - test isolation across two orgs before/after; a wrong rewrite can leak one org's data to another. Never grant anon/public read on a tenant table.
+
+## Identity
+- Barcode/IMEI uniqueness is app-enforced, NOT a DB org constraint (composite index is `(product_id,color,size,barcode)`, no organization_id). Don't assume the DB guarantees per-org uniqueness.
+- Customer-name uppercase is app-layer only - direct DB writes bypass it.
+
+## Keyboard / desktop
+- POS (`POSSales.tsx`) owns F1-F11 + Esc under POSLayout. Global shortcuts must respect `defaultPrevented` and not collide.
