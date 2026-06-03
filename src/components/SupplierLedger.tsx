@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle, Undo2, Clock, Scale, BookOpen } from "lucide-react";
+import { Search, ArrowLeft, Download, FileDown, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle, Clock, Scale, BookOpen } from "lucide-react";
+import jsPDF from "jspdf";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -575,12 +577,35 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     enabled: !!organizationId,
   });
 
+  const transactionTotals = useMemo(() => {
+    const rows = transactions || [];
+    return {
+      totalDebit: rows.reduce((sum, t) => sum + t.debit, 0),
+      totalCredit: rows.reduce((sum, t) => sum + t.credit, 0),
+      closingBalance: rows.length > 0 ? rows[rows.length - 1].balance : 0,
+    };
+  }, [transactions]);
+
+  const formatSupplierBalancePdf = (balance: number) => {
+    const n = Math.abs(Math.round(balance));
+    if (balance === 0) return "Rs. 0";
+    return `Rs. ${n.toLocaleString("en-IN")} ${balance > 0 ? "Cr" : "Dr"}`;
+  };
+
+  const formatTransactionTypePdf = (t: Transaction) => {
+    if (t.id === "opening-balance") return "B/F";
+    if (t.type === "bill") return "Bill";
+    if (t.type === "credit_note") return "Credit Note";
+    if (t.type === "purchase_return") return "PR Pending";
+    return "Payment";
+  };
+
   const handleExportToExcel = () => {
     if (!selectedSupplier || !transactions) return;
 
     const exportData = transactions.map((t) => ({
       Date: t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yyyy"),
-      Type: t.type === 'bill' ? 'Bill' : 'Payment',
+      Type: formatTransactionTypePdf(t),
       Reference: t.reference,
       Description: t.description,
       Debit: t.debit > 0 ? t.debit.toFixed(2) : '',
@@ -592,6 +617,197 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Supplier Ledger");
     XLSX.writeFile(wb, `${selectedSupplier.supplier_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
+    toast.success("Supplier ledger exported to Excel");
+  };
+
+  const handleExportToPDF = () => {
+    if (!selectedSupplier || !transactions) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    let yPos = 20;
+
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Supplier Ledger", pageWidth / 2, yPos, { align: "center" });
+    yPos += 10;
+
+    doc.setFontSize(12);
+    doc.text(selectedSupplier.supplier_name, margin, yPos);
+    yPos += 6;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    if (selectedSupplier.phone) {
+      doc.text(`Phone: ${selectedSupplier.phone}`, margin, yPos);
+      yPos += 5;
+    }
+    if (selectedSupplier.email) {
+      doc.text(`Email: ${selectedSupplier.email}`, margin, yPos);
+      yPos += 5;
+    }
+    if (selectedSupplier.address) {
+      const addr =
+        selectedSupplier.address.length > 70
+          ? `${selectedSupplier.address.substring(0, 70)}...`
+          : selectedSupplier.address;
+      doc.text(`Address: ${addr}`, margin, yPos);
+      yPos += 5;
+    }
+
+    if (startDate || endDate) {
+      doc.text(
+        `Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} to ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`,
+        margin,
+        yPos,
+      );
+      yPos += 5;
+    }
+
+    doc.setFont("helvetica", "bold");
+    const hdrBalance =
+      selectedSupplier.balance > 0
+        ? `Outstanding Payable: ${formatSupplierBalancePdf(selectedSupplier.balance)}`
+        : selectedSupplier.balance < 0
+          ? `Supplier Credit: ${formatSupplierBalancePdf(selectedSupplier.balance)}`
+          : "Balance: Settled";
+    doc.text(hdrBalance, pageWidth - margin, yPos, { align: "right" });
+    yPos += 8;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(
+      `Purchases: Rs. ${Math.round(selectedSupplier.totalPurchases).toLocaleString("en-IN")}  |  Paid: Rs. ${Math.round(selectedSupplier.totalPaid).toLocaleString("en-IN")}`,
+      margin,
+      yPos,
+    );
+    yPos += 8;
+
+    const headers = ["Date", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
+    const colWidths = [22, 20, 24, 46, 22, 22, 24];
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    let xPos = margin;
+    headers.forEach((header, i) => {
+      doc.text(header, xPos + 1, yPos + 5);
+      xPos += colWidths[i];
+    });
+    yPos += 10;
+
+    doc.setFont("helvetica", "normal");
+    transactions.forEach((t) => {
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      const isPendingOnly = t.type === "purchase_return" && t.debit === 0 && t.credit === 0;
+      const desc = t.description.length > 30 ? `${t.description.substring(0, 30)}...` : t.description;
+      const rowData = [
+        t.id === "opening-balance" ? "Opening" : format(new Date(t.date), "dd/MM/yy"),
+        formatTransactionTypePdf(t),
+        t.reference.length > 14 ? `${t.reference.substring(0, 14)}...` : t.reference,
+        desc,
+        t.debit > 0 ? `Rs. ${Math.round(t.debit).toLocaleString("en-IN")}` : "",
+        t.credit > 0 ? `Rs. ${Math.round(t.credit).toLocaleString("en-IN")}` : "",
+        isPendingOnly ? "(unchanged)" : formatSupplierBalancePdf(t.balance),
+      ];
+
+      if (isPendingOnly) {
+        doc.setFont("helvetica", "italic");
+      }
+      xPos = margin;
+      rowData.forEach((cell, i) => {
+        doc.text(cell, xPos + 1, yPos);
+        xPos += colWidths[i];
+      });
+      if (isPendingOnly) {
+        doc.setFont("helvetica", "normal");
+      }
+      yPos += 6;
+    });
+
+    yPos += 2;
+    doc.setFillColor(230, 230, 230);
+    doc.rect(margin, yPos - 4, pageWidth - margin * 2, 8, "F");
+    doc.setFont("helvetica", "bold");
+    xPos = margin;
+    const totalsData = [
+      "",
+      "",
+      "",
+      "TOTAL",
+      `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`,
+      `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`,
+      formatSupplierBalancePdf(transactionTotals.closingBalance),
+    ];
+    totalsData.forEach((cell, i) => {
+      doc.text(cell, xPos + 1, yPos);
+      xPos += colWidths[i];
+    });
+    yPos += 12;
+
+    if (selectedSupplierSnapshot) {
+      if (yPos > 240) {
+        doc.addPage();
+        yPos = 20;
+      }
+      const snap = selectedSupplierSnapshot;
+      const netPurchases =
+        snap.openingBalance + snap.totalPurchases - snap.totalCreditNotesNet - snap.unreflectedReturns;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("Balance Reconciliation", margin, yPos);
+      yPos += 6;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      const reconLines: Array<[string, number]> = [
+        ["Opening Balance", snap.openingBalance],
+        ["(+) Total Purchases", snap.totalPurchases],
+        ...(snap.totalCreditNotesNet > 0
+          ? [["(-) Credit Notes Adjusted (net)", -snap.totalCreditNotesNet] as [string, number]]
+          : []),
+        ...(snap.unreflectedReturns > 0
+          ? [["(-) Purchase Returns Adjusted", -snap.unreflectedReturns] as [string, number]]
+          : []),
+        ["(=) Net Purchases", netPurchases],
+        ["(-) Paid (Cash / Bank)", -snap.totalPaid],
+        ...(snap.refundsReceived > 0
+          ? [["(-) Refunds Received", -snap.refundsReceived] as [string, number]]
+          : []),
+      ];
+      const labelX = margin + 4;
+      const valueX = margin + 95;
+      reconLines.forEach(([label, val]) => {
+        doc.text(label, labelX, yPos);
+        const sign = val < 0 ? "-" : "";
+        doc.text(
+          `${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`,
+          valueX,
+          yPos,
+        );
+        yPos += 5;
+      });
+      doc.setFont("helvetica", "bold");
+      const out = snap.balance;
+      const finalLabel =
+        out > 0 ? "Outstanding (Payable / Cr)" : out < 0 ? "Supplier Credit (Dr)" : "Settled";
+      doc.text(finalLabel, labelX, yPos + 1);
+      doc.text(`Rs. ${Math.abs(Math.round(out)).toLocaleString("en-IN")}`, valueX, yPos + 1);
+      yPos += 8;
+    }
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
+
+    const safeName = selectedSupplier.supplier_name.replace(/[^\w\s-]/g, "").trim().slice(0, 40);
+    doc.save(`${safeName || "Supplier"}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    toast.success("Supplier ledger exported to PDF");
   };
 
   if (selectedSupplier && transactions) {
@@ -689,6 +905,10 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             >
               <Download className="mr-2 h-4 w-4" />
               Export to Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportToPDF}>
+              <FileDown className="mr-2 h-4 w-4" />
+              Export to PDF
             </Button>
           </div>
         </div>
