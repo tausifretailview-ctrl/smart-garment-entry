@@ -1,12 +1,17 @@
 -- READ-ONLY: org-wide credit-note double-apply / one-sided CN audit.
 -- Run ONE block at a time in Supabase SQL editor.
--- Optional org filter: replace :org_id or uncomment the organization_id lines.
+-- Optional org filter: uncomment organization_id lines on each block.
+--
+-- reference_type: include 'CustomerReceipt' when reference_id = sales.id (legacy Sales Invoice
+-- CN path wrote payment_method = credit_note_adjustment but reference_type = CustomerReceipt).
+-- Reconcile RPCs often count both; older A1/A2 only matched reference_type = 'sale' and missed those rows.
 
 -- Block A1: Sales Invoice Dashboard-style CN vouchers (legacy description fingerprint)
 SELECT ve.organization_id,
        c.customer_name,
        ve.voucher_number,
        ve.voucher_date,
+       ve.reference_type,
        ve.total_amount,
        ve.description,
        s.sale_number,
@@ -19,7 +24,7 @@ JOIN customers c ON c.id = s.customer_id AND c.organization_id = s.organization_
 WHERE ve.deleted_at IS NULL
   AND ve.voucher_type = 'receipt'
   AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
-  AND ve.reference_type = 'sale'
+  AND ve.reference_type IN ('sale', 'SALE', 'CustomerReceipt')
   AND ve.description ILIKE 'Credit note adjusted against invoice %'
   -- AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
 ORDER BY ve.voucher_date DESC, ve.voucher_number;
@@ -34,7 +39,7 @@ WITH cn_on_sales AS (
   WHERE ve.deleted_at IS NULL
     AND ve.voucher_type = 'receipt'
     AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
-    AND ve.reference_type = 'sale'
+    AND ve.reference_type IN ('sale', 'SALE', 'CustomerReceipt')
     AND s.deleted_at IS NULL
   GROUP BY 1, 2
 ),
@@ -83,3 +88,27 @@ WHERE s.deleted_at IS NULL
   )
   -- AND s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
 ORDER BY c.customer_name, s.sale_number, sr.return_number;
+
+-- Block A4: Mis-tagged invoice CN (CustomerReceipt + reference_id = sale.id + dashboard description)
+SELECT ve.organization_id,
+       c.customer_name,
+       ve.voucher_number,
+       ve.voucher_date,
+       ve.reference_type,
+       ve.total_amount,
+       ve.description,
+       s.id AS sale_id,
+       s.sale_number,
+       s.sale_return_adjust
+FROM voucher_entries ve
+JOIN sales s
+  ON s.id = ve.reference_id AND s.organization_id = ve.organization_id
+JOIN customers c ON c.id = s.customer_id AND c.organization_id = s.organization_id
+WHERE ve.deleted_at IS NULL
+  AND s.deleted_at IS NULL
+  AND ve.voucher_type = 'receipt'
+  AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+  AND ve.reference_type = 'CustomerReceipt'
+  AND ve.description ILIKE 'Credit note adjusted against invoice %'
+  -- AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+ORDER BY ve.voucher_date DESC, ve.voucher_number;
