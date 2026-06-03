@@ -2,6 +2,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
+  isTabCachePath,
   prefetchTabPagesIdle,
   type TabPageLayout,
   type TabPageRole,
@@ -91,18 +92,18 @@ type TabCachedPagesProps = {
  */
 export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
   const uniquePaths = useMemo(
-    () => [...new Set(paths.filter((p) => getLazyTabPage(p)))],
+    () => [...new Set(paths.filter((p) => isTabCachePath(p)))],
     [paths],
   );
 
   const [mountedPaths, setMountedPaths] = useState<Set<string>>(() => {
     const initial = new Set<string>();
-    if (activePath && getLazyTabPage(activePath)) initial.add(activePath);
+    if (isTabCachePath(activePath)) initial.add(activePath);
     return initial;
   });
 
   useEffect(() => {
-    if (!activePath || !getLazyTabPage(activePath)) return;
+    if (!isTabCachePath(activePath)) return;
     setMountedPaths((prev) => {
       if (prev.has(activePath)) return prev;
       const next = new Set(prev);
@@ -125,7 +126,7 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
         if (!meta || !getLazyTabPage(path)) return null;
         return (
           <CachedTabPane
-            key={path}
+            key={path === "" ? "__dashboard__" : path}
             path={path}
             active={path === activePath}
             layout={meta.layout}

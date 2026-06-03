@@ -126,8 +126,8 @@ export function prefetchTabPages(paths: string[]): void {
 
 /** Prefetch the active tab immediately; load other open tabs when the browser is idle. */
 export function prefetchTabPagesIdle(paths: string[], activePath: string): () => void {
-  if (activePath) prefetchTabPage(activePath);
-  const rest = paths.filter((p) => p && p !== activePath);
+  if (isTabCachePath(activePath)) prefetchTabPage(activePath);
+  const rest = paths.filter((p) => isTabCachePath(p) && p !== activePath);
   if (rest.length === 0) return () => {};
 
   const run = () => rest.forEach(prefetchTabPage);
