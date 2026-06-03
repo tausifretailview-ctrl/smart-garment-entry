@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
 import { Label } from "@/components/ui/label";
-import { applyGarmentGstRule, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
+import { resolveGarmentGstForLine, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -565,7 +565,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
         hsn_code: product.hsn_code || "",
         gst_per: product.gst_per ?? 18,
         purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
-        sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
+        sale_gst_percent: resolveGarmentGstForLine(
+          product.default_sale_price ?? 0,
+          product.purchase_gst_percent ?? product.gst_per ?? 18,
+          product.sale_gst_percent ?? product.gst_per ?? 18,
+          garmentGstSettings,
+        ),
         size_group_id: product.size_group_id || "",
         uom: product.uom || DEFAULT_UOM,
         default_pur_price: product.default_pur_price ?? undefined,
@@ -1562,6 +1567,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         ...prev,
                         purchase_gst_percent: val,
                         gst_per: val,
+                        sale_gst_percent: resolveGarmentGstForLine(
+                          prev.default_sale_price ?? 0,
+                          val,
+                          prev.sale_gst_percent,
+                          garmentGstSettings,
+                        ),
                       }));
                     }}
                   >
@@ -1598,9 +1609,18 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   )}
                   <Select
                     value={formData.sale_gst_percent.toString()}
-                    onValueChange={(value) =>
-                      setFormData(prev => ({ ...prev, sale_gst_percent: parseInt(value) }))
-                    }
+                    onValueChange={(value) => {
+                      const picked = parseInt(value);
+                      setFormData(prev => ({
+                        ...prev,
+                        sale_gst_percent: resolveGarmentGstForLine(
+                          prev.default_sale_price ?? 0,
+                          prev.purchase_gst_percent,
+                          picked,
+                          garmentGstSettings,
+                        ),
+                      }));
+                    }}
                   >
                     <SelectTrigger id="sale_gst_percent" ref={saleGstRef} className="border-green-200 dark:border-green-800"
                       onKeyDown={(e) => {
@@ -1654,7 +1674,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         const mk = parseFloat(markupPercent);
                         if (!isNaN(mk)) {
                           updates.default_sale_price = Math.round(purPrice * (1 + mk / 100));
-                          updates.sale_gst_percent = applyGarmentGstRule(updates.default_sale_price, formData.sale_gst_percent, garmentGstSettings);
+                          updates.sale_gst_percent = resolveGarmentGstForLine(
+                            updates.default_sale_price ?? 0,
+                            formData.purchase_gst_percent,
+                            formData.sale_gst_percent,
+                            garmentGstSettings,
+                          );
                         }
                       }
                       setFormData({ ...formData, ...updates });
@@ -1684,7 +1709,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         setFormData({
                           ...formData,
                           default_sale_price: newSalePrice,
-                          sale_gst_percent: applyGarmentGstRule(newSalePrice, formData.sale_gst_percent, garmentGstSettings),
+                          sale_gst_percent: resolveGarmentGstForLine(
+                            newSalePrice,
+                            formData.purchase_gst_percent,
+                            formData.sale_gst_percent,
+                            garmentGstSettings,
+                          ),
                         });
                       }
                     }}
@@ -1705,7 +1735,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     value={formData.default_sale_price ?? ""}
                     onChange={(val) => {
                       const salePrice = val || undefined;
-                      const newGst = applyGarmentGstRule(salePrice, formData.sale_gst_percent, garmentGstSettings);
+                      const newGst = resolveGarmentGstForLine(
+                        salePrice ?? 0,
+                        formData.purchase_gst_percent,
+                        formData.sale_gst_percent,
+                        garmentGstSettings,
+                      );
                       setFormData({ ...formData, default_sale_price: salePrice, sale_gst_percent: newGst });
                       const purPrice = formData.default_pur_price;
                       if (salePrice && salePrice > 0 && purPrice && purPrice > 0) {

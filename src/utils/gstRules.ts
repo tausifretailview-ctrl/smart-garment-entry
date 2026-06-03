@@ -72,3 +72,35 @@ export function isGarmentGstAutoBumped(
   const threshold = getGarmentGstThreshold(settings);
   return (Number(salePrice) || 0) > threshold;
 }
+
+/** Per-unit net selling price after line-level discounts (used for threshold checks). */
+export function getEffectiveUnitSalePrice(params: {
+  unitPrice: number;
+  quantity?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  /** POS: per-unit gap when billing rate is below line MRP. */
+  implicitUnitDiscount?: number;
+}): number {
+  const qty = Math.max(Number(params.quantity) || 0, 1);
+  const unit = Math.max(Number(params.unitPrice) || 0, 0);
+  const base = unit * qty;
+  const pctDisc = (base * (Number(params.discountPercent) || 0)) / 100;
+  const implicit = (Number(params.implicitUnitDiscount) || 0) * qty;
+  const net = base - pctDisc - (Number(params.discountAmount) || 0) - implicit;
+  return Math.max(0, net / qty);
+}
+
+/**
+ * Resolve Sale GST % for a line using purchase GST as the sub-threshold base.
+ */
+export function resolveGarmentGstForLine(
+  effectiveUnitPrice: number,
+  purchaseGst: number,
+  saleGst: number,
+  settings?: GarmentGstRuleSettings | null
+): number {
+  const base = Number(purchaseGst) || 0;
+  const sale = Number(saleGst) || base;
+  return applyGarmentGstRule(effectiveUnitPrice, sale, settings, base);
+}

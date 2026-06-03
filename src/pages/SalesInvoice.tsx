@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
-import { applyGarmentGstRule } from "@/utils/gstRules";
+import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
@@ -106,6 +106,8 @@ interface LineItem {
   discountPercent: number;
   discountAmount: number;
   gstPercent: number;
+  /** Purchase GST % — base rate when effective sale price is at/below threshold. */
+  purchaseGstPercent?: number;
   lineTotal: number;
   hsnCode: string;
   uom?: string;
@@ -1410,7 +1412,8 @@ export default function SalesInvoice() {
           salePrice: variant.sale_price || 0,
           discountPercent,
           discountAmount: 0,
-          gstPercent: applyGarmentGstRule(variant.sale_price || 0, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
+          purchaseGstPercent: product.purchase_gst_percent ?? product.gst_per ?? 0,
+          gstPercent: product.sale_gst_percent || product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
@@ -1679,7 +1682,8 @@ export default function SalesInvoice() {
         salePrice: salePrice,
         discountPercent,
         discountAmount: 0,
-        gstPercent: applyGarmentGstRule(salePrice, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
+        purchaseGstPercent: product.purchase_gst_percent ?? product.gst_per ?? 0,
+        gstPercent: product.sale_gst_percent || product.gst_per || 0,
         lineTotal: 0,
         hsnCode: product.hsn_code || '',
         uom: product.uom || 'NOS',
@@ -1960,26 +1964,33 @@ export default function SalesInvoice() {
   };
 
   const calculateLineTotal = (item: LineItem): LineItem => {
-    const baseAmount = item.salePrice * getMtrMultiplier(item);
-    // Round discount to 2dp to prevent float drift
+    const mult = getMtrMultiplier(item);
+    const baseAmount = item.salePrice * mult;
     const discountAmount = item.discountPercent > 0
       ? Math.round((baseAmount * item.discountPercent) / 100 * 100) / 100
       : Math.round(item.discountAmount * 100) / 100;
     const amountAfterDiscount = Math.round((baseAmount - discountAmount) * 100) / 100;
-    
+    const effectiveUnitPrice = mult > 0 ? amountAfterDiscount / mult : amountAfterDiscount;
+    const purchaseGst = item.purchaseGstPercent ?? item.gstPercent;
+    const gstPercent = resolveGarmentGstForLine(
+      effectiveUnitPrice,
+      purchaseGst,
+      item.gstPercent,
+      garmentGstSettings,
+    );
+
     let lineTotal: number;
     if (taxType === "inclusive") {
-      // For inclusive GST, the price already includes tax
       lineTotal = amountAfterDiscount;
     } else {
-      // Round GST to 2dp per line item — prevents accumulated float error
-      const gstAmount = Math.round((amountAfterDiscount * item.gstPercent) / 100 * 100) / 100;
+      const gstAmount = Math.round((amountAfterDiscount * gstPercent) / 100 * 100) / 100;
       lineTotal = Math.round((amountAfterDiscount + gstAmount) * 100) / 100;
     }
-    
+
     return {
       ...item,
       discountAmount,
+      gstPercent,
       lineTotal,
     };
   };
@@ -2041,7 +2052,7 @@ export default function SalesInvoice() {
 
   const updateGSTPercent = (id: string, gstPercent: number) => {
     const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, gstPercent: applyGarmentGstRule(item.salePrice, gstPercent, garmentGstSettings) }) : item
+      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
     );
     setLineItems(updatedItems);
   };
@@ -2055,7 +2066,7 @@ export default function SalesInvoice() {
 
   const updateSalePrice = (id: string, salePrice: number) => {
     const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, salePrice, gstPercent: applyGarmentGstRule(salePrice, item.gstPercent, garmentGstSettings) }) : item
+      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
     );
     setLineItems(updatedItems);
   };

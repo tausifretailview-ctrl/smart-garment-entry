@@ -5,7 +5,7 @@ import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
-import { applyGarmentGstRule } from "@/utils/gstRules";
+import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,6 +116,8 @@ interface CartItem {
   mrp: number;
   originalMrp: number | null; // MRP from product_variants for savings calculation
   gstPer: number;
+  /** Purchase GST % — sub-threshold base for garment/footwear auto rule. */
+  purchaseGstPer?: number;
   discountPercent: number;
   discountAmount: number;
   unitCost: number;
@@ -209,6 +211,24 @@ function resolveBillFlatForPosEdit(
 /** Net amount per unit after line-level discounts (for display / receipt rate). */
 function posLineNetUnitPrice(item: CartItem): number {
   return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
+}
+
+/** Recompute line net, then Sale GST % from post-discount unit price vs threshold. */
+function applyPosGarmentGstToItem(
+  item: CartItem,
+  garmentGstSettings: { garment_gst_rule_enabled?: boolean; garment_gst_threshold?: number },
+): CartItem {
+  const netAmount = calculatePosCartLineNet(item);
+  const withNet = { ...item, netAmount };
+  const effectiveUnit = posLineNetUnitPrice(withNet);
+  const purchaseGst = item.purchaseGstPer ?? item.gstPer;
+  const gstPer = resolveGarmentGstForLine(
+    effectiveUnit,
+    purchaseGst,
+    item.gstPer,
+    garmentGstSettings,
+  );
+  return { ...withNet, gstPer };
 }
 
 function mapPosPrintItem(item: any, index: number) {
@@ -1970,7 +1990,8 @@ export default function POSSales() {
         quantity,
         mrp,
         originalMrp: null,
-        gstPer: applyGarmentGstRule(mrp, baseServiceGst, garmentGstSettings),
+        purchaseGstPer: product.purchase_gst_percent ?? product.gst_per ?? baseServiceGst,
+        gstPer: baseServiceGst,
         discountPercent: 0,
         discountAmount: 0,
         unitCost: mrp,
@@ -1981,7 +2002,7 @@ export default function POSSales() {
         productType: 'service',
         itemNotes: description || null,
       };
-      setItems(prev => [...prev, newItem]);
+      setItems(prev => [...prev, applyPosGarmentGstToItem(newItem, garmentGstSettings)]);
       bumpCartHighlight(newItem.id);
       playSuccessBeep();
       setShowQuickServiceDialog(false);
@@ -2028,7 +2049,8 @@ export default function POSSales() {
       quantity,
       mrp,
       originalMrp: null,
-      gstPer: applyGarmentGstRule(mrp, matchedServiceGst, garmentGstSettings),
+      purchaseGstPer: matchedServiceGst,
+      gstPer: matchedServiceGst,
       discountPercent: 0,
       discountAmount: 0,
       unitCost: mrp,
@@ -2039,7 +2061,7 @@ export default function POSSales() {
       productType: 'service',
       itemNotes: description || null,
     };
-    setItems(prev => [...prev, newItem]);
+    setItems(prev => [...prev, applyPosGarmentGstToItem(newItem, garmentGstSettings)]);
     bumpCartHighlight(newItem.id);
     playSuccessBeep();
     setShowQuickServiceDialog(false);
@@ -2222,7 +2244,8 @@ export default function POSSales() {
         quantity: 1,
         mrp: displayMrp,
         originalMrp: mrpToUse,
-        gstPer: applyGarmentGstRule(displayMrp, product.sale_gst_percent || product.gst_per || 0, garmentGstSettings),
+        purchaseGstPer: product.purchase_gst_percent ?? product.gst_per ?? 0,
+        gstPer: product.sale_gst_percent || product.gst_per || 0,
         discountPercent: useMrpAsPrice ? 0 : discountPercent,
         discountAmount,
         unitCost: useMrpAsPrice ? displayMrp : salePrice,
@@ -2235,9 +2258,9 @@ export default function POSSales() {
         uom: product.uom || 'NOS',
         showDiscount: !useMrpAsPrice && displayMrp > salePrice,
       };
-      newItem.netAmount = calculatePosCartLineNet(newItem);
+      const pricedItem = applyPosGarmentGstToItem(newItem, garmentGstSettings);
       hasManuallyAddedNewItemRef.current = true;
-      setItems(prev => [...prev, newItem]);
+      setItems(prev => [...prev, pricedItem]);
       bumpCartHighlight(newItem.id);
       
       // Play success beep for new item added
@@ -2301,9 +2324,8 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].discountPercent = discountPercent;
-      // Keep Disc% and Disc Rs synchronized as one discount mode (no double subtraction).
       updatedItems[index].discountAmount = 0;
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
       return updatedItems;
     });
   };
@@ -2316,9 +2338,8 @@ export default function POSSales() {
       const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
       const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
       updatedItems[index].discountPercent = Number(mappedPercent.toFixed(4));
-      // Store discount through percent mapping to avoid adding both percent + amount.
       updatedItems[index].discountAmount = 0;
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
       return updatedItems;
     });
   };
@@ -2328,11 +2349,8 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].mrp = newMrp;
-      // CRITICAL: Sync unitCost with MRP to ensure correct unit_price is saved to database
       updatedItems[index].unitCost = newMrp;
-      // Garment / Footwear GST auto-bump rule on price change
-      updatedItems[index].gstPer = applyGarmentGstRule(newMrp, updatedItems[index].gstPer, garmentGstSettings);
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
       return updatedItems;
     });
   };
@@ -2340,9 +2358,8 @@ export default function POSSales() {
   const updateGstPer = (index: number, newGstPer: number) => {
     setItems(prev => {
       const updatedItems = [...prev];
-      // Re-apply auto-bump: if user picks <18% but price > threshold, bump back to 18
-      updatedItems[index].gstPer = applyGarmentGstRule(updatedItems[index].mrp, newGstPer, garmentGstSettings);
-      updatedItems[index].netAmount = calculatePosCartLineNet(updatedItems[index]);
+      updatedItems[index].gstPer = newGstPer;
+      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
       return updatedItems;
     });
   };

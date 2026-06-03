@@ -20,7 +20,7 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
-import { applyGarmentGstRule, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
+import { resolveGarmentGstForLine, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   Dialog,
   DialogContent,
@@ -278,7 +278,12 @@ const ProductEntry = () => {
         hsn_code: product.hsn_code || "",
         gst_per: product.gst_per ?? 18,
         purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
-        sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
+        sale_gst_percent: resolveGarmentGstForLine(
+          product.default_sale_price ?? 0,
+          product.purchase_gst_percent ?? product.gst_per ?? 18,
+          product.sale_gst_percent ?? product.gst_per ?? 18,
+          garmentGstSettings,
+        ),
         uom: product.uom || "NOS",
         default_pur_price: product.default_pur_price || 0,
         default_sale_price: product.default_sale_price || 0,
@@ -692,7 +697,12 @@ const ProductEntry = () => {
           hsn_code: product.hsn_code || "",
           gst_per: product.gst_per ?? 18,
           purchase_gst_percent: product.purchase_gst_percent ?? product.gst_per ?? 18,
-          sale_gst_percent: product.sale_gst_percent ?? product.gst_per ?? 18,
+          sale_gst_percent: resolveGarmentGstForLine(
+            product.default_sale_price ?? 0,
+            product.purchase_gst_percent ?? product.gst_per ?? 18,
+            product.sale_gst_percent ?? product.gst_per ?? 18,
+            garmentGstSettings,
+          ),
           uom: product.uom || DEFAULT_UOM,
           default_pur_price: product.default_pur_price || 0,
           default_sale_price: product.default_sale_price || 0,
@@ -2214,6 +2224,12 @@ const ProductEntry = () => {
                       ...prev,
                       purchase_gst_percent: val,
                       gst_per: val, // keep gst_per in sync with purchase
+                      sale_gst_percent: resolveGarmentGstForLine(
+                        prev.default_sale_price ?? 0,
+                        val,
+                        prev.sale_gst_percent,
+                        garmentGstSettings,
+                      ),
                     }));
                   }}
                 >
@@ -2244,9 +2260,18 @@ const ProductEntry = () => {
                 )}
                 <Select
                   value={formData.sale_gst_percent.toString()}
-                  onValueChange={(value) =>
-                    setFormData(prev => ({ ...prev, sale_gst_percent: parseInt(value) }))
-                  }
+                  onValueChange={(value) => {
+                    const picked = parseInt(value);
+                    setFormData(prev => ({
+                      ...prev,
+                      sale_gst_percent: resolveGarmentGstForLine(
+                        prev.default_sale_price ?? 0,
+                        prev.purchase_gst_percent,
+                        picked,
+                        garmentGstSettings,
+                      ),
+                    }));
+                  }}
                 >
                   <SelectTrigger className="border-green-200 dark:border-green-800">
                     <SelectValue />
@@ -2303,7 +2328,12 @@ const ProductEntry = () => {
                     const updates: any = { default_pur_price: purPrice };
                     if (!isNaN(markup) && purPrice > 0) {
                       updates.default_sale_price = newSalePrice;
-                      updates.sale_gst_percent = applyGarmentGstRule(newSalePrice, formData.sale_gst_percent, garmentGstSettings);
+                      updates.sale_gst_percent = resolveGarmentGstForLine(
+                        newSalePrice,
+                        formData.purchase_gst_percent,
+                        formData.sale_gst_percent,
+                        garmentGstSettings,
+                      );
                     }
                     setFormData({ ...formData, ...updates });
                   }}
@@ -2332,7 +2362,12 @@ const ProductEntry = () => {
                       setFormData(prev => ({
                         ...prev,
                         default_sale_price: newSalePrice,
-                        sale_gst_percent: applyGarmentGstRule(newSalePrice, prev.sale_gst_percent, garmentGstSettings),
+                        sale_gst_percent: resolveGarmentGstForLine(
+                          newSalePrice,
+                          prev.purchase_gst_percent,
+                          prev.sale_gst_percent,
+                          garmentGstSettings,
+                        ),
                       }));
                     }
                   }}
@@ -2347,7 +2382,12 @@ const ProductEntry = () => {
                   value={formData.default_sale_price ?? ""}
                   onChange={(val) => {
                     const salePrice = val || 0;
-                    const newGst = applyGarmentGstRule(salePrice, formData.sale_gst_percent, garmentGstSettings);
+                    const newGst = resolveGarmentGstForLine(
+                      salePrice ?? 0,
+                      formData.purchase_gst_percent,
+                      formData.sale_gst_percent,
+                      garmentGstSettings,
+                    );
                     setFormData({
                       ...formData,
                       default_sale_price: salePrice,
