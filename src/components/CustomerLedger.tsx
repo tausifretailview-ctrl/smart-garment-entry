@@ -2493,23 +2493,26 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     return authoritativeBalance;
   }, [selectedCustomer, isSchool, transactions, authoritativeBalance, ledgerAuditClosingBalance]);
 
-  /** Refund banner / overpayment dialog — net refund owed (unused advance + CN − outstanding Dr). */
+  /** Refund banner / overpayment dialog — net economic refund (not gross advance + CN pool). */
   const refundableCreditBalance = useMemo(() => {
     if (!selectedCustomer || isSchool) return 0;
+    const snap = snapshotOutstandingDr;
+    if (snap != null && !Number.isNaN(Number(snap)) && Number(snap) < -0.5) {
+      return Math.round(Math.abs(Number(snap)));
+    }
+    if (authoritativeBalance < -0.5) {
+      return Math.round(Math.abs(authoritativeBalance));
+    }
     const unused =
       snapshotAdvanceAvailable > 0
         ? snapshotAdvanceAvailable
         : selectedCustomer.unusedAdvanceTotal || 0;
     const cn = snapshotCnAvailable || 0;
     const outstandingDr =
-      snapshotOutstandingDr != null && !Number.isNaN(Number(snapshotOutstandingDr))
-        ? Math.max(0, Number(snapshotOutstandingDr))
+      snap != null && !Number.isNaN(Number(snap))
+        ? Math.max(0, Number(snap))
         : Math.max(0, authoritativeBalance);
-    const fromSnapshot = Math.round(Math.max(0, unused + cn - outstandingDr));
-    if (fromSnapshot > 0.01) return fromSnapshot;
-    if (authoritativeBalance < 0) return Math.abs(authoritativeBalance);
-    if (effectiveBalance < 0) return Math.abs(effectiveBalance);
-    return 0;
+    return Math.round(Math.max(0, unused + cn - outstandingDr));
   }, [
     selectedCustomer,
     isSchool,
@@ -3225,9 +3228,16 @@ Please clear your dues at the earliest. Thank you!`;
 
     // Outstanding Balance with Dr/Cr
     doc.setFont("helvetica", "bold");
-    const hdrBalance = effectiveBalance < 0
-      ? `Advance Balance: Rs. ${Math.abs(effectiveBalance).toLocaleString("en-IN")} Cr`
-      : `Outstanding Balance: Rs. ${effectiveBalance.toLocaleString("en-IN")} Dr`;
+    const pdfCredit =
+      refundableCreditBalance > 0
+        ? refundableCreditBalance
+        : effectiveBalance < 0
+          ? Math.abs(effectiveBalance)
+          : 0;
+    const hdrBalance =
+      pdfCredit > 0
+        ? `Credit balance: Rs. ${pdfCredit.toLocaleString("en-IN")} Cr`
+        : `Outstanding Balance: Rs. ${effectiveBalance.toLocaleString("en-IN")} Dr`;
     doc.text(hdrBalance, pageWidth - margin, yPos, { align: "right" });
     yPos += 10;
 
