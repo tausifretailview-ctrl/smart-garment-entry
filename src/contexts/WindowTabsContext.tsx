@@ -4,6 +4,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPermissions";
+import { prefetchTabPage, prefetchTabPages } from "@/lib/tabPageRegistry";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -121,7 +122,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const [activeWindow, setActiveWindow] = useState(getCurrentPath());
 
   const canAccessPath = useCallback((path: string) => {
-    if (permissionsLoading) return false;
+    if (permissionsLoading && permissions === null) return false;
     const permission = getMenuPermissionForPath(path);
     return !permission || permissions === null || hasMenuAccess(permission);
   }, [hasMenuAccess, permissions, permissionsLoading]);
@@ -177,6 +178,10 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     }
   }, [location.pathname, getCurrentPath, canAccessPath]);
 
+  useEffect(() => {
+    prefetchTabPages(openWindows.map((w) => w.path));
+  }, [openWindows]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -211,11 +216,6 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
         }
       }
 
-      // Alt+P to open a new Purchase Entry from anywhere
-      if (e.altKey && (e.key === "p" || e.key === "P")) {
-        e.preventDefault();
-        openWindow("purchase-entry");
-      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -231,6 +231,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     const config = PAGE_CONFIG[cleanPath];
     if (!config || !canAccessPath(cleanPath)) return;
 
+    prefetchTabPage(cleanPath);
     const exists = openWindows.some(w => w.path === cleanPath);
     if (!exists && openWindows.length < MAX_WINDOWS) {
       setOpenWindows(prev => [...prev, { path: cleanPath, label: config.label, icon: config.icon }]);
@@ -253,6 +254,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
   const switchWindow = useCallback((path: string) => {
     if (!canAccessPath(path)) return;
+    prefetchTabPage(path);
     navigate(getOrgPath(`/${path}`));
   }, [navigate, getOrgPath, canAccessPath]);
 

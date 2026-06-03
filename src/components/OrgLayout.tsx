@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,16 @@ import { storeOrgSlug } from "@/lib/orgSlug";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
+import { useWindowTabs } from "@/contexts/WindowTabsContext";
+import { TabCachedPages } from "@/components/TabCachedPages";
+import { isTabCachePath, prefetchTabPages } from "@/lib/tabPageRegistry";
+
+function getOrgPathSegment(pathname: string, orgSlug?: string): string {
+  if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
+    return pathname.slice(orgSlug.length + 2) || "";
+  }
+  return pathname.replace(/^\//, "");
+}
 
 export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -17,6 +27,27 @@ export const OrgLayout = () => {
   const [syncTimeout, setSyncTimeout] = useState(false);
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
   const location = useLocation();
+  const { openWindows } = useWindowTabs();
+
+  const currentPath = useMemo(
+    () => getOrgPathSegment(location.pathname, orgSlug),
+    [location.pathname, orgSlug],
+  );
+
+  const tabPaths = useMemo(() => {
+    const set = new Set<string>();
+    openWindows.forEach((w) => {
+      if (isTabCachePath(w.path)) set.add(w.path);
+    });
+    if (isTabCachePath(currentPath)) set.add(currentPath);
+    return [...set];
+  }, [openWindows, currentPath]);
+
+  useEffect(() => {
+    prefetchTabPages(tabPaths);
+  }, [tabPaths]);
+
+  const renderViaTabCache = isTabCachePath(currentPath) && tabPaths.length > 0;
 
   // Safety timeout: if org sync takes too long (8s), force render to prevent infinite spinner
   useEffect(() => {
@@ -133,11 +164,16 @@ export const OrgLayout = () => {
     );
   }
 
-  // Render child routes
   return (
     <>
       <GlobalShortcuts />
-      <Outlet />
+      {tabPaths.length > 0 && (
+        <TabCachedPages
+          paths={tabPaths}
+          activePath={renderViaTabCache ? currentPath : ""}
+        />
+      )}
+      {!renderViaTabCache && <Outlet />}
     </>
   );
 };
