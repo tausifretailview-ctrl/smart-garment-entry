@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard, RotateCcw } from "lucide-react";
+import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard, RotateCcw, UserPlus } from "lucide-react";
+import { QuickAddCustomerDialog } from "@/components/mobile/QuickAddCustomerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -187,6 +188,7 @@ export const FloatingSaleReturn = ({
   const [customerOptions, setCustomerOptions] = useState<Array<{ id: string; customer_name: string; phone: string | null }>>([]);
   const [pickedCustomerId, setPickedCustomerId] = useState<string | null>(null);
   const [pickedCustomerName, setPickedCustomerName] = useState<string | null>(null);
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
 
   // Effective customer (prop wins, otherwise inline-picked)
   const effectiveCustomerId = customerId || pickedCustomerId || undefined;
@@ -241,6 +243,30 @@ export const FloatingSaleReturn = ({
     return () => clearTimeout(handle);
   }, [open, organizationId, customerId, customerSearchTerm]);
 
+  const openQuickAddCustomer = useCallback(() => {
+    setCustomerSearchOpen(false);
+    setShowQuickAddCustomer(true);
+  }, []);
+
+  const handleQuickAddCustomerSuccess = useCallback(async (newCustomerId: string) => {
+    const { data } = await supabase
+      .from("customers")
+      .select("id, customer_name, phone")
+      .eq("id", newCustomerId)
+      .maybeSingle();
+    if (data) {
+      setPickedCustomerId(data.id);
+      setPickedCustomerName(data.customer_name);
+      setCustomerOptions((prev) =>
+        prev.some((c) => c.id === data.id) ? prev : [data, ...prev],
+      );
+    } else {
+      setPickedCustomerId(newCustomerId);
+    }
+    setCustomerSearchTerm("");
+    setCustomerSearchOpen(false);
+  }, []);
+
   // Load sold products when dialog opens
   useEffect(() => {
     if (open && organizationId) {
@@ -264,6 +290,7 @@ export const FloatingSaleReturn = ({
       setPickedCustomerName(null);
       setCustomerSearchTerm("");
       setCustomerSearchOpen(false);
+      setShowQuickAddCustomer(false);
     }
   }, [open, organizationId, customerId]);
 
@@ -1102,13 +1129,25 @@ export const FloatingSaleReturn = ({
         {/* Inline Customer Picker — only when no customer was passed from POS */}
         {!customerId && (
           <div className="rounded-md border bg-muted/30 p-2">
-            <Label className="text-xs mb-1 flex items-center gap-1">
-              Customer
-              <span className="text-destructive">*</span>
-              <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                (required for Credit Note)
-              </span>
-            </Label>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <Label className="text-xs flex items-center gap-1">
+                Customer
+                <span className="text-destructive">*</span>
+                <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                  (required for Credit Note)
+                </span>
+              </Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-primary shrink-0"
+                onClick={openQuickAddCustomer}
+              >
+                <UserPlus className="h-3.5 w-3.5 mr-1" />
+                New customer
+              </Button>
+            </div>
             <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -1133,6 +1172,13 @@ export const FloatingSaleReturn = ({
                   <CommandList>
                     <CommandEmpty>No customers found</CommandEmpty>
                     <CommandGroup>
+                      <CommandItem
+                        onSelect={openQuickAddCustomer}
+                        className="text-primary font-medium"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2 shrink-0" />
+                        Add new customer...
+                      </CommandItem>
                       {pickedCustomerId && (
                         <CommandItem
                           onSelect={() => {
@@ -1584,6 +1630,14 @@ export const FloatingSaleReturn = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {!customerId && (
+      <QuickAddCustomerDialog
+        open={showQuickAddCustomer}
+        onOpenChange={setShowQuickAddCustomer}
+        onSuccess={handleQuickAddCustomerSuccess}
+      />
+    )}
 
     <div style={{ display: "none" }} aria-hidden>
       {returnToPrint && (
