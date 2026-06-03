@@ -22,6 +22,9 @@ interface SaleReturn {
   net_amount: number;
   notes: string | null;
   items?: SaleReturnItem[];
+  /** cash_refund shows refund voucher title; credit_note / default shows credit note. */
+  refund_type?: string | null;
+  payment_method?: string | null;
 }
 
 interface BusinessDetails {
@@ -156,7 +159,9 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
             fontWeight: 'bold',
             letterSpacing: '2px'
           }}>
-            CREDIT NOTE (SALE RETURN)
+            {saleReturn.refund_type === 'cash_refund'
+              ? 'REFUND VOUCHER (SALE RETURN)'
+              : 'CREDIT NOTE (SALE RETURN)'}
           </div>
 
           {/* Customer & Return Details */}

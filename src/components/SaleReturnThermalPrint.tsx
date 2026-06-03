@@ -22,6 +22,8 @@ interface SaleReturn {
   net_amount: number;
   notes: string | null;
   items?: SaleReturnItem[];
+  refund_type?: string | null;
+  payment_method?: string | null;
 }
 
 interface BusinessDetails {
@@ -100,7 +102,7 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
 
         {/* Title */}
         <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0' }}>
-          CREDIT NOTE
+          {saleReturn.refund_type === 'cash_refund' ? 'REFUND' : 'CREDIT NOTE'}
         </div>
         <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>
           (Sale Return)

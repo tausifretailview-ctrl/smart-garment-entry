@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,6 +21,12 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
+import { useSettings } from "@/hooks/useSettings";
+import { useReactToPrint } from "react-to-print";
+import { useDirectPrint } from "@/hooks/useDirectPrint";
+import { waitForPrintReady } from "@/utils/printReady";
+import { SaleReturnPrint } from "@/components/SaleReturnPrint";
+import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -87,6 +93,73 @@ export const FloatingSaleReturn = ({
 }: FloatingSaleReturnProps) => {
   const { toast } = useToast();
   const { getOrgPath } = useOrgNavigation();
+  const { data: settingsData } = useSettings();
+  const printRef = useRef<HTMLDivElement>(null);
+  const [returnToPrint, setReturnToPrint] = useState<Record<string, unknown> | null>(null);
+
+  const posBillFormat = useMemo((): "a4" | "a5" | "a5-horizontal" | "thermal" => {
+    const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings;
+    const fmt = (saleSettings?.pos_bill_format || saleSettings?.sales_bill_format) as string | undefined;
+    if (fmt === "a4" || fmt === "a5" || fmt === "a5-horizontal" || fmt === "thermal") return fmt;
+    return "thermal";
+  }, [settingsData]);
+
+  const isThermalPrint = posBillFormat === "thermal";
+
+  const businessDetails = useMemo(
+    () => ({
+      business_name: (settingsData as { business_name?: string } | null)?.business_name ?? null,
+      address: (settingsData as { address?: string } | null)?.address ?? null,
+      mobile_number: (settingsData as { mobile_number?: string } | null)?.mobile_number ?? null,
+      gst_number: (settingsData as { gst_number?: string } | null)?.gst_number ?? null,
+    }),
+    [settingsData],
+  );
+
+  const { isDirectPrintEnabled, isAutoPrintEnabled, directPrint } = useDirectPrint(
+    (settingsData as { bill_barcode_settings?: Parameters<typeof useDirectPrint>[0] } | null)?.bill_barcode_settings,
+  );
+
+  const handleBrowserPrint = useReactToPrint({
+    contentRef: printRef,
+    pageStyle: isThermalPrint
+      ? "@page { size: 80mm auto; margin: 2mm; }"
+      : "@page { size: A4 portrait; margin: 5mm; }",
+  });
+
+  const triggerReturnPrint = useCallback(
+    (printPayload: Record<string, unknown>) => {
+      setReturnToPrint(printPayload);
+      const paperSize =
+        posBillFormat === "thermal"
+          ? "80mm"
+          : posBillFormat === "a5" || posBillFormat === "a5-horizontal"
+            ? "A5"
+            : "A4";
+
+      setTimeout(() => {
+        waitForPrintReady(printRef, () => {
+          const runBrowserPrint = () => handleBrowserPrint();
+          if (isDirectPrintEnabled && isAutoPrintEnabled) {
+            void directPrint(printRef.current, {
+              context: "pos",
+              paperSize,
+              onFallback: runBrowserPrint,
+            });
+          } else {
+            runBrowserPrint();
+          }
+        });
+      }, 120);
+    },
+    [
+      posBillFormat,
+      isDirectPrintEnabled,
+      isAutoPrintEnabled,
+      directPrint,
+      handleBrowserPrint,
+    ],
+  );
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -653,6 +726,7 @@ export const FloatingSaleReturn = ({
 
     setSaving(true);
     let createdReturnId: string | null = null;
+    let savedCreditNoteNumber: string | null = null;
     try {
       const { data: returnNumber, error: rnError } = await supabase
         .rpc('generate_sale_return_number', { p_organization_id: organizationId });
@@ -800,6 +874,7 @@ export const FloatingSaleReturn = ({
         try {
           const { data: cnNumber } = await supabase
             .rpc('generate_credit_note_number', { p_organization_id: organizationId });
+          savedCreditNoteNumber = cnNumber ? String(cnNumber) : null;
 
           const { data: creditNote } = await supabase
             .from('credit_notes')
@@ -933,6 +1008,40 @@ export const FloatingSaleReturn = ({
       toast({ title: "Return Saved", description: `Return ${returnNumber} — ₹${Math.round(grossAmount)} (${refundLabel})` });
       const effectiveReturnAmount = returnItems.length === 0 ? appliedCreditAmount : grossAmount;
       const effectiveRefundType: RefundType = returnItems.length === 0 ? "credit_note" : refundType;
+
+      if (
+        returnItems.length > 0 &&
+        (effectiveRefundType === "credit_note" || effectiveRefundType === "cash_refund")
+      ) {
+        triggerReturnPrint({
+          return_number: returnNumber,
+          credit_note_number: savedCreditNoteNumber,
+          customer_name: effectiveCustomerName || "Walk-in Customer",
+          original_sale_number: billSaleId ? billNumber.trim() : null,
+          return_date: returnDateYmd,
+          gross_amount: grossAmount,
+          gst_amount: gstAmount,
+          net_amount: grossAmount,
+          notes: null,
+          refund_type: effectiveRefundType,
+          payment_method:
+            effectiveRefundType === "cash_refund" ? directRefundPaymentMethod : null,
+          items: returnItems.map((item) => {
+            const v = variants.find((vv) => vv.id === item.variantId);
+            return {
+              product_name: item.productName,
+              size: item.size,
+              color: null,
+              barcode: item.barcode,
+              quantity: item.quantity,
+              unit_price: item.unitPrice,
+              gst_percent: v?.gst_per || 0,
+              line_total: item.lineTotal,
+            };
+          }),
+        });
+      }
+
       onReturnSaved(effectiveReturnAmount, returnNumber, effectiveRefundType);
       onOpenChange(false);
     } catch (error: any) {
@@ -968,6 +1077,7 @@ export const FloatingSaleReturn = ({
   });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
@@ -1474,6 +1584,25 @@ export const FloatingSaleReturn = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    <div style={{ display: "none" }} aria-hidden>
+      {returnToPrint && (
+        isThermalPrint ? (
+          <SaleReturnThermalPrint
+            ref={printRef}
+            saleReturn={returnToPrint as React.ComponentProps<typeof SaleReturnThermalPrint>["saleReturn"]}
+            businessDetails={businessDetails}
+          />
+        ) : (
+          <SaleReturnPrint
+            ref={printRef}
+            saleReturn={returnToPrint as React.ComponentProps<typeof SaleReturnPrint>["saleReturn"]}
+            businessDetails={businessDetails}
+          />
+        )
+      )}
+    </div>
+    </>
   );
 };
 
