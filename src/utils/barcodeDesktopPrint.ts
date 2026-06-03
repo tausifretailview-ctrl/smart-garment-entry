@@ -16,6 +16,9 @@ export function buildPrecisionLabelDocument(
   const pageWidth = opts.isA4 ? "210mm" : `${opts.contentWidthMm}mm`;
   const pageSize = opts.isA4 ? "210mm 297mm" : `${opts.contentWidthMm}mm ${opts.pageHeightMm}mm`;
   const areaHeight = opts.isA4 ? "297mm" : `${opts.pageHeightMm}mm`;
+  const pageSelector = opts.isA4
+    ? ".precision-print-area > div"
+    : ".precision-print-area > .precision-thermal-page, .precision-print-area > div";
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     @page { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
@@ -23,17 +26,20 @@ export function buildPrecisionLabelDocument(
     html, body { margin: 0; padding: 0; width: ${pageWidth}; height: auto;
       -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .precision-print-area { margin: 0; padding: 0; width: ${pageWidth}; }
-    .precision-print-area > div {
-      margin: 0 !important; padding: 0 !important;
+    ${pageSelector} {
+      margin: 0 !important;
       width: ${pageWidth} !important;
       height: ${areaHeight} !important;
       min-height: ${areaHeight} !important;
       max-height: ${areaHeight} !important;
       overflow: hidden !important; box-sizing: border-box !important;
-      position: relative !important; display: flex !important; flex-wrap: nowrap !important;
+      position: relative !important;
+      display: ${opts.isA4 ? "block" : "block"} !important;
+      align-content: start !important;
       page-break-after: always !important; page-break-inside: avoid !important;
       break-after: page !important; break-inside: avoid !important;
     }
+    .precision-print-area > .precision-thermal-page:last-child,
     .precision-print-area > div:last-child {
       page-break-after: auto !important; break-after: auto !important;
     }

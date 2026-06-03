@@ -87,8 +87,8 @@ export function PrecisionLabelPreview({
           width: u(width),
           height: u(height),
           position: "relative",
-        overflow: scaleFactor ? "hidden" : "visible",
-        transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
+        overflow: "hidden",
+        transform: xOffset || yOffset ? `translate(${u(xOffset)}, ${u(yOffset)})` : undefined,
         border: showBorder ? "0.5px dashed #ccc" : "none",
           boxSizing: "border-box",
           fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -130,8 +130,8 @@ export function PrecisionLabelPreview({
         width: u(width),
         height: u(height),
         position: "relative",
-        overflow: scaleFactor ? "hidden" : "visible",
-        transform: `translate(${u(xOffset)}, ${u(yOffset)})`,
+        overflow: "hidden",
+        transform: xOffset || yOffset ? `translate(${u(xOffset)}, ${u(yOffset)})` : undefined,
         border: showBorder ? "0.5px dashed #ccc" : "none",
         boxSizing: "border-box",
         fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
@@ -148,6 +148,9 @@ export function PrecisionLabelPreview({
 
         // Use field-level fontFamily if set, else default
         const fieldFont = field.fontFamily || '"Helvetica Neue", Helvetica, Arial, sans-serif';
+        const fieldX = field.x ?? 0;
+        const maxFieldW = Math.max(0.5, width - fieldX);
+        const fieldW = field.width ? Math.min(field.width, maxFieldW) : maxFieldW;
 
         return (
           <div
@@ -156,7 +159,7 @@ export function PrecisionLabelPreview({
               position: "absolute",
               top: u(field.y ?? 0),
               left: u(field.x ?? 0),
-              width: field.width ? u(field.width) : "auto",
+              width: u(fieldW),
               fontSize: fs(field.fontSize),
               fontWeight: field.bold ? 900 : 600,
               fontFamily: fieldFont,

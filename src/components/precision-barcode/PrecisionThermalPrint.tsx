@@ -37,14 +37,15 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
 
       return (
         <>
-          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight + vGap} mode="thermal" />
+          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight} mode="thermal" />
           <div ref={ref} className="precision-print-area">
             {rows.map((row, rowIdx) => (
               <div
                 key={rowIdx}
+                className="precision-thermal-page"
                 style={{
                   width: `${pageWidth}mm`,
-                  height: `${labelHeight + vGap}mm`,
+                  height: `${labelHeight}mm`,
                   padding: 0,
                   margin: 0,
                   boxSizing: "border-box",
@@ -59,13 +60,25 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 }}
               >
                 {row.map((item, colIdx) => (
-                  <div key={colIdx} style={{ width: `${labelWidth}mm`, height: `${labelHeight}mm`, flexShrink: 0, overflow: 'clip', position: 'relative', padding: 0, margin: 0, boxSizing: 'border-box' }}>
+                  <div
+                    key={colIdx}
+                    style={{
+                      width: `${labelWidth}mm`,
+                      height: `${labelHeight}mm`,
+                      flexShrink: 0,
+                      overflow: "hidden",
+                      position: "relative",
+                      padding: `${yOffset}mm 0 0 ${xOffset}mm`,
+                      margin: 0,
+                      boxSizing: "border-box",
+                    }}
+                  >
                     <PrecisionLabelPreview
                       item={item}
                       width={labelWidth}
                       height={labelHeight}
-                      xOffset={xOffset}
-                      yOffset={yOffset}
+                      xOffset={0}
+                      yOffset={0}
                       config={config}
                     />
                   </div>
@@ -77,18 +90,20 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
       );
     }
 
-    // Single column (original behavior)
+    // Single column: each @page is exactly labelWidth × labelHeight (physical sticker size).
+    // vGap is roll spacing only — do not inflate page height (causes first-label drift vs driver).
     return (
       <>
-        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight + vGap} mode="thermal" />
+        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="thermal" />
         <div ref={ref} className="precision-print-area">
           {expandedItems.map((item, idx) => (
             <div
               key={idx}
+              className="precision-thermal-page"
               style={{
                 width: `${labelWidth}mm`,
-                height: `${labelHeight + vGap}mm`,
-                padding: 0,
+                height: `${labelHeight}mm`,
+                padding: `${yOffset}mm 0 0 ${xOffset}mm`,
                 margin: 0,
                 boxSizing: "border-box",
                 overflow: "hidden",
@@ -104,8 +119,8 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
                 item={item}
                 width={labelWidth}
                 height={labelHeight}
-                xOffset={xOffset}
-                yOffset={yOffset}
+                xOffset={0}
+                yOffset={0}
                 config={config}
               />
             </div>

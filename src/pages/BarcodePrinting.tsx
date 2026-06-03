@@ -21,6 +21,7 @@ import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import { computeA4SheetMargins } from '@/utils/a4SheetLayout';
+import { resolveTemplateLabelDimensions } from "@/utils/labelTemplateDimensions";
 import {
   buildPrecisionLabelDocument,
   buildStandardLabelDocument,
@@ -221,7 +222,7 @@ type SheetType =
   "novajet48" | "novajet40" | "a4_40sheet" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
   "a4_24sheet" | "a4_20sheet" | "a4_35square" | "a4_21sheet" | "a4_80sheet" | "a4_36sheet" |
   // Thermal 1UP Types
-  "thermal_50x30_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" | 
+  "thermal_50x30_1up" | "thermal_50x38_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" | 
   "thermal_40x20_1up" | "thermal_40x30_1up" | "thermal_50x40_1up" |
   "thermal_60x30_1up" | "thermal_60x40_1up" | "thermal_100x50_1up" | 
   "thermal_75x50_1up" | "thermal_100x100_1up" | "thermal_80x40_1up" |
@@ -277,6 +278,7 @@ const sheetPresets = {
   // Small
   thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
   thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_50x38_1up: { cols: 1, width: "50mm", height: "38mm", gap: "0mm", category: "thermal", thermal: true },
   thermal_50x40_1up: { cols: 1, width: "50mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
   
   // Medium
@@ -332,6 +334,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   thermal_40x30_1up: { label: "40×30mm (1UP)", description: "Small retail", group: "Thermal 1UP - Small" },
   thermal_50x25_1up: { label: "50×25mm (1UP)", description: "Standard small", group: "Thermal 1UP - Small" },
   thermal_50x30_1up: { label: "50×30mm (1UP)", description: "Standard retail", group: "Thermal 1UP - Small" },
+  thermal_50x38_1up: { label: "50×38mm (1UP)", description: "Ella Noor / garment", group: "Thermal 1UP - Small" },
   
   // Thermal 1UP - Medium
   thermal_50x40_1up: { label: "50×40mm (1UP)", description: "Detailed info", group: "Thermal 1UP - Medium" },
@@ -1419,11 +1422,11 @@ export default function BarcodePrinting() {
       if (freshTemplate?.config) {
         hasLoadedPrecisionConfigRef.current = true;
         const migratedConfig = ensureCompleteFieldOrder(freshTemplate.config);
+        const templateDims = resolveTemplateLabelDimensions(freshTemplate);
         setPrecisionSettings(prev => ({
           ...prev,
           labelConfig: migratedConfig,
-          ...(freshTemplate.labelWidth ? { labelWidth: freshTemplate.labelWidth } : {}),
-          ...(freshTemplate.labelHeight ? { labelHeight: freshTemplate.labelHeight } : {}),
+          ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
         }));
       }
     }
@@ -3585,8 +3588,11 @@ export default function BarcodePrinting() {
           : precisionSettings.thermalCols || 1;
       const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
       const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
-      const h = precisionSettings.labelHeight + (precisionSettings.vGap || 0);
       const isA4 = precisionSettings.printMode === "a4";
+      // Thermal: page size must match physical sticker (50×38 etc.). vGap is A4 row gap only.
+      const h = isA4
+        ? 297
+        : precisionSettings.labelHeight;
 
       const htmlDoc = buildPrecisionLabelDocument(labelHTML, {
         contentWidthMm: w,
@@ -4504,11 +4510,11 @@ export default function BarcodePrinting() {
             const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
             if (template && !precisionSettings.labelConfig) {
               const migratedConfig = ensureCompleteFieldOrder(template.config);
+              const templateDims = resolveTemplateLabelDimensions(template);
               setPrecisionSettings(prev => ({
                 ...prev,
                 labelConfig: migratedConfig,
-                ...(template.labelWidth ? { labelWidth: template.labelWidth } : {}),
-                ...(template.labelHeight ? { labelHeight: template.labelHeight } : {}),
+                ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
               }));
               setActivePrecisionTemplateName(template.name);
               toast.info(`Loaded template "${template.name}" into Precision Pro`);
@@ -5695,11 +5701,11 @@ export default function BarcodePrinting() {
                     const template = savedLabelTemplates.find(t => t.name === name);
                     if (template) {
                       const migratedConfig = ensureCompleteFieldOrder(template.config);
+                      const templateDims = resolveTemplateLabelDimensions(template);
                       setPrecisionSettings((prev) => ({ 
                         ...prev, 
                         labelConfig: migratedConfig,
-                        ...(template.labelWidth ? { labelWidth: template.labelWidth } : {}),
-                        ...(template.labelHeight ? { labelHeight: template.labelHeight } : {}),
+                        ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
                       }));
                       setActivePrecisionTemplateName(name);
                       toast.success(`Template "${name}" loaded`);

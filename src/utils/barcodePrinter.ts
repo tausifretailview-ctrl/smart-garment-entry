@@ -101,6 +101,7 @@ const sheetPresets: Record<string, { cols: number; rows?: number; width: string;
   a4_12x4: { cols: 4, rows: 12, width: "48mm", height: "24mm", gap: "0mm" },
   // Thermal Roll Presets (1UP)
   thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", thermal: true },
+  thermal_50x38_1up: { cols: 1, width: "50mm", height: "38mm", gap: "0mm", thermal: true },
   thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", thermal: true },
   thermal_38x25_1up: { cols: 1, width: "38mm", height: "25mm", gap: "0mm", thermal: true },
   // Thermal Roll Presets (2UP)

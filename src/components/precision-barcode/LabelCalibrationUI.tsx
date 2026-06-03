@@ -37,6 +37,7 @@ export interface CalibrationPreset {
 }
 
 const BUILT_IN_PRESETS: CalibrationPreset[] = [
+  { name: "50×38mm Thermal", xOffset: 0, yOffset: 1, vGap: 0, width: 50, height: 38 },
   { name: "50×25mm Thermal", xOffset: 0, yOffset: 0, vGap: 2, width: 50, height: 25 },
   { name: "38×25mm Jewellery", xOffset: 1, yOffset: 0.5, vGap: 1, width: 38, height: 25 },
   { name: "38×25mm 2-Up", xOffset: 0, yOffset: 0, vGap: 2, width: 38, height: 25, thermalCols: 2 },
