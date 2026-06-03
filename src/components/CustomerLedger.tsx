@@ -2493,26 +2493,25 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
     return authoritativeBalance;
   }, [selectedCustomer, isSchool, transactions, authoritativeBalance, ledgerAuditClosingBalance]);
 
-  /** Refund banner / overpayment dialog — net economic refund (not gross advance + CN pool). */
+  /** Refund banner — net economic refund: min(lifetime Cr, unused advance + CN pool). */
   const refundableCreditBalance = useMemo(() => {
     if (!selectedCustomer || isSchool) return 0;
-    const snap = snapshotOutstandingDr;
-    if (snap != null && !Number.isNaN(Number(snap)) && Number(snap) < -0.5) {
-      return Math.round(Math.abs(Number(snap)));
-    }
-    if (authoritativeBalance < -0.5) {
-      return Math.round(Math.abs(authoritativeBalance));
-    }
     const unused =
       snapshotAdvanceAvailable > 0
         ? snapshotAdvanceAvailable
         : selectedCustomer.unusedAdvanceTotal || 0;
     const cn = snapshotCnAvailable || 0;
-    const outstandingDr =
-      snap != null && !Number.isNaN(Number(snap))
-        ? Math.max(0, Number(snap))
-        : Math.max(0, authoritativeBalance);
-    return Math.round(Math.max(0, unused + cn - outstandingDr));
+    const pool = unused + cn;
+    const snap =
+      snapshotOutstandingDr != null && !Number.isNaN(Number(snapshotOutstandingDr))
+        ? Number(snapshotOutstandingDr)
+        : null;
+    const lifetimeSigned = snap ?? authoritativeBalance;
+    if (lifetimeSigned < -0.5) {
+      return Math.round(Math.min(pool, Math.abs(lifetimeSigned)));
+    }
+    const outstandingDr = Math.max(0, lifetimeSigned);
+    return Math.round(Math.max(0, pool - outstandingDr));
   }, [
     selectedCustomer,
     isSchool,

@@ -30,6 +30,34 @@ describe("computePendingStandaloneSaleReturns", () => {
 });
 
 describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
+  it("does not double-count advance in paid_amount as POS drift", () => {
+    const result = computeCustomerBalanceCore({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "adv-sale",
+          net_amount: 510750,
+          sale_return_adjust: 40150,
+          paid_amount: 400000,
+          cash_amount: 0,
+          card_amount: 0,
+          upi_amount: 0,
+          items_gross: 510750,
+        },
+      ],
+      voucherEntries: [],
+      customerAdvances: [{ amount: 450000, used_amount: 400000 }],
+      advanceRefunds: [],
+      saleReturns: [
+        { net_amount: 11100, credit_status: "pending", linked_sale_id: null },
+        { net_amount: 11400, credit_status: "pending", linked_sale_id: null },
+        { net_amount: 10950, credit_status: "pending", linked_sale_id: null },
+      ],
+    });
+    assert.equal(result.paidAmountDrift, 0);
+    assert.ok(result.balance > -20000 && result.balance < -10000);
+  });
+
   it("credits full pending SR (fixes global sraPool under-credit)", () => {
     const result = computeCustomerBalanceCore({
       openingBalance: 0,

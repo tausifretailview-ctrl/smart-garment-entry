@@ -202,8 +202,13 @@ export function computePaidAmountDrift(
 
   let drift = 0;
   for (const s of validSales) {
-    const paid = Math.max(Number(s.paid_amount || 0), salePaidAtSaleTender(s));
-    if (paid <= 0 || !s.id) continue;
+    if (!s.id) continue;
+    const tender = salePaidAtSaleTender(s);
+    // Advance-only invoices store settlement in paid_amount but not in cash/card/upi.
+    // Memos are excluded from voucherTotals — do not treat advance paid_amount as drift.
+    if (tender <= 0.005) continue;
+    const paid = Math.max(Number(s.paid_amount || 0), tender);
+    if (paid <= 0) continue;
     const voucherSum = voucherTotalsBySale.get(s.id) || 0;
     const gap = paid - voucherSum;
     if (gap > 0) drift += gap;
