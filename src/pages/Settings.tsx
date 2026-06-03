@@ -1332,7 +1332,10 @@ export default function Settings() {
                         ...settings,
                         product_settings: {
                           ...settings.product_settings,
-                          default_size_group: value === "none" ? undefined : value,
+                          // Persist "none" explicitly so product entry defaults to
+                          // no-size (single "None" variant) instead of inheriting
+                          // the last product's size group.
+                          default_size_group: value,
                         },
                       })
                     }

@@ -59,6 +59,9 @@ interface ProductVariant {
   purchase_qty?: number;
 }
 
+/** Sentinel size_group_id for "no sizes" products (single "None" variant). */
+const NO_SIZE_GROUP = "none";
+
 interface ProductForm {
   product_type: ProductType;
   product_name: string;
@@ -213,6 +216,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState("");
 
+  // Resolve a size group by id. The "none" sentinel represents a product with no
+  // sizes (sweet shops, supermarkets, etc.) — stored as a single "None" variant.
+  const resolveSizeGroup = (id: string): SizeGroup | undefined =>
+    id === NO_SIZE_GROUP
+      ? { id: NO_SIZE_GROUP, group_name: "None", sizes: ["None"] }
+      : sizeGroups.find((g) => g.id === id);
+
   // Reset form when dialog opens - pre-fill from last saved product
   useEffect(() => {
     if (open) {
@@ -254,8 +264,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
   useEffect(() => {
     // Skip auto-generation for roll-wise MTR mode — variants are created via Generate button
     if (rollWiseMtrEnabled && formData.uom === 'MTR') return;
-    if (formData.size_group_id && sizeGroups.length > 0) {
-      const group = sizeGroups.find(g => g.id === formData.size_group_id);
+    if (formData.size_group_id && (formData.size_group_id === NO_SIZE_GROUP || sizeGroups.length > 0)) {
+      const group = resolveSizeGroup(formData.size_group_id);
       if (group) {
         if (selectedSizes.length === 0) {
           setSelectedSizes([...group.sizes]);
@@ -824,7 +834,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       return;
     }
 
-    const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
+    const selectedGroup = resolveSizeGroup(formData.size_group_id);
     if (!selectedGroup && !mobileERPMode?.locked_size_qty) {
       toast({
         title: "Error",
@@ -1918,7 +1928,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                       value={formData.size_group_id}
                       onValueChange={(value) => {
                         setFormData({ ...formData, size_group_id: value });
-                        const group = sizeGroups.find(g => g.id === value);
+                        const group = resolveSizeGroup(value);
                         setSelectedSizes(group ? [...group.sizes] : []);
                         // Clear variants so useEffect regenerates them for new group
                         if (hideOpeningQty) {
@@ -1931,6 +1941,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                         <SelectValue placeholder="Select size group" />
                       </SelectTrigger>
                       <SelectContent className={purchaseTypography.selectContent}>
+                        <SelectItem value={NO_SIZE_GROUP}>None (no sizes)</SelectItem>
                         {sizeGroups.map((group) => (
                           <SelectItem key={group.id} value={group.id}>
                             {group.group_name} ({group.sizes.join(", ")})
@@ -1950,7 +1961,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
                   {/* Size Selection Checkboxes / Qty Grid */}
                   {formData.size_group_id && (() => {
-                    const group = sizeGroups.find(g => g.id === formData.size_group_id);
+                    const group = resolveSizeGroup(formData.size_group_id);
                     if (!group || group.sizes.length === 0) return null;
                     const allSelected = selectedSizes.length === group.sizes.length;
 
