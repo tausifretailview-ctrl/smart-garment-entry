@@ -10,7 +10,7 @@ export const waitForPrintReady = (
   onReady: () => void,
   options?: { maxWait?: number }
 ): void => {
-  const MAX_WAIT = options?.maxWait ?? 8000;
+  const MAX_WAIT = options?.maxWait ?? 5000;
   const startedAt = Date.now();
 
   const poll = () => {

@@ -48,7 +48,8 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
-import { recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
+import { generateOrgSaleNumber } from "@/utils/saleNumber";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
   Command,
@@ -2521,7 +2522,7 @@ Thank you for choosing us!`;
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
-        await deleteDraft();
+        void deleteDraft();
         stopAutoSave();
         updateCurrentData(null);
 
@@ -2549,83 +2550,11 @@ Thank you for choosing us!`;
         });
         setShowPrintDialog(true);
       } else {
-        // Create new invoice — respect invoice_series_start from settings
-        let saleNumber: string;
-        const saleSettings = settingsData?.sale_settings as any;
-        
-        if (saleSettings?.invoice_numbering_format || saleSettings?.invoice_series_start) {
-          const rawFormat = saleSettings.invoice_numbering_format || saleSettings.invoice_series_start;
-          const rawSeriesStart = saleSettings.invoice_series_start;
-          const format = autoCorrectFY(rawFormat);
-          const seriesStart = rawSeriesStart ? autoCorrectFY(rawSeriesStart) : rawSeriesStart;
-          const hasPlaceholders = format.includes('{');
-          
-          let minSequence = 1;
-          let basePattern = format.replace(/\d+$/, '');
-          
-          if (seriesStart && seriesStart.trim()) {
-            const startMatches = seriesStart.match(/^(.*?)(\d+)$/);
-            if (startMatches) {
-              basePattern = startMatches[1];
-              minSequence = parseInt(startMatches[2]);
-            }
-          }
-          
-          if (hasPlaceholders) {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            
-            const { data: lastSale } = await supabase
-              .from('sales')
-              .select('sale_number')
-              .eq('organization_id', currentOrganization!.id)
-              .is('deleted_at', null)
-              .like('sale_number', `%${year}%`)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            
-            let sequence = minSequence;
-            if (lastSale?.sale_number) {
-              const matches = lastSale.sale_number.match(/(\d+)$/);
-              if (matches) sequence = Math.max(parseInt(matches[1]) + 1, minSequence);
-            }
-            
-            saleNumber = format
-              .replace('{YYYY}', String(year))
-              .replace('{YY}', String(year).slice(-2))
-              .replace('{MM}', month)
-              .replace('{####}', String(sequence).padStart(4, '0'))
-              .replace('{###}', String(sequence).padStart(3, '0'))
-              .replace('{#####}', String(sequence).padStart(5, '0'));
-          } else {
-            const { data: lastSales } = await supabase
-              .from('sales')
-              .select('sale_number')
-              .eq('organization_id', currentOrganization!.id)
-              .is('deleted_at', null)
-              .like('sale_number', `${basePattern}%`)
-              .order('created_at', { ascending: false })
-              .limit(50);
-            
-            let sequence = minSequence;
-            if (lastSales && lastSales.length > 0) {
-              let maxSeq = 0;
-              for (const s of lastSales) {
-                const matches = s.sale_number.match(/(\d+)$/);
-                if (matches) maxSeq = Math.max(maxSeq, parseInt(matches[1]));
-              }
-              sequence = Math.max(maxSeq + 1, minSequence);
-            }
-            saleNumber = `${basePattern}${sequence}`;
-          }
-        } else {
-          const { data: defaultNumber, error: saleNumError } = await supabase
-            .rpc('generate_sale_number_atomic', { p_organization_id: currentOrganization?.id });
-          if (saleNumError) throw saleNumError;
-          saleNumber = defaultNumber;
-        }
+        const saleNumber = await generateOrgSaleNumber(
+          currentOrganization!.id,
+          settingsData?.sale_settings as Record<string, unknown> | undefined,
+          "sale",
+        );
 
         const { data: saleData, error: saleError } = await supabase
           .from('sales')
@@ -2670,32 +2599,16 @@ Thank you for choosing us!`;
         if (saleError) throw saleError;
         newSaleIdForRollback = saleData.id;
 
-        // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
         if (accountingEngineOn) {
-          try {
-            await recordSaleJournalEntry(
-              saleData.id,
-              currentOrganization!.id,
-              Number(netAmount || 0),
-              Number(paymentOverride?.totalPaid || 0),
-              String(paymentOverride?.method || "pay_later"),
-              supabase,
-              format(invoiceDate, "yyyy-MM-dd")
-            );
-            await (supabase as any)
-              .from("sales")
-              .update({ journal_status: "posted", journal_error: null })
-              .eq("id", saleData.id);
-          } catch (journalErr) {
-            console.error("Auto-journal (sales invoice) failed:", journalErr);
-            await (supabase as any)
-              .from("sales")
-              .update({
-                journal_status: "failed",
-                journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-              })
-              .eq("id", saleData.id);
-          }
+          postSaleJournalInBackground(
+            saleData.id,
+            currentOrganization!.id,
+            Number(netAmount || 0),
+            Number(paymentOverride?.totalPaid || 0),
+            String(paymentOverride?.method || "pay_later"),
+            format(invoiceDate, "yyyy-MM-dd"),
+            supabase,
+          );
         }
 
         const saleItems = filledItems.map(item => ({
@@ -2827,7 +2740,7 @@ Thank you for choosing us!`;
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
-        await deleteDraft();
+        void deleteDraft();
         stopAutoSave();
         updateCurrentData(null);
 

@@ -9,7 +9,7 @@ import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
-import { deleteJournalEntryByReference, recordSaleJournalEntry } from "@/utils/accounting/journalService";
+import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
   derivePaidAndStatus,
@@ -664,36 +664,16 @@ export const useSaveSale = () => {
       if (saleError) throw saleError;
       insertedSaleIdForRollback = sale.id;
 
-      // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
       if (accountingEngineOn) {
-        try {
-          const saleJournalDate =
-            sale.sale_date != null
-              ? String(sale.sale_date).slice(0, 10)
-              : new Date().toISOString().slice(0, 10);
-          await recordSaleJournalEntry(
-            sale.id,
-            currentOrganization.id,
-            Number(saleData.netAmount || 0),
-            Number(paidAmt || 0),
-            String(finalPaymentMethod || ""),
-            supabase,
-            saleJournalDate
-          );
-          await (supabase as any)
-            .from("sales")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", sale.id);
-        } catch (journalErr) {
-          console.error("Auto-journal (sale) failed:", journalErr);
-          await (supabase as any)
-            .from("sales")
-            .update({
-              journal_status: "failed",
-              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-            })
-            .eq("id", sale.id);
-        }
+        postSaleJournalInBackground(
+          sale.id,
+          currentOrganization.id,
+          Number(saleData.netAmount || 0),
+          Number(paidAmt || 0),
+          String(finalPaymentMethod || ""),
+          sale.sale_date,
+          supabase,
+        );
       }
 
       // Insert sale items with proportional bill discount + round-off distribution
@@ -800,16 +780,12 @@ export const useSaveSale = () => {
         }
       }
 
-      // Award loyalty points if enabled and customer exists
       let pointsAwarded = 0;
-      if (isPointsEnabled && saleData.customerId && paymentMethod !== 'pay_later') {
-        const result = await awardPoints(
-          saleData.customerId,
-          sale.id,
-          saleData.netAmount,
-          saleNumber
+      if (isPointsEnabled && saleData.customerId && paymentMethod !== "pay_later") {
+        pointsAwarded = calculatePoints(saleData.netAmount);
+        void awardPoints(saleData.customerId, sale.id, saleData.netAmount, saleNumber).catch((err) =>
+          console.error("Award points failed (non-blocking):", err),
         );
-        pointsAwarded = result.pointsAwarded;
       }
 
       // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
@@ -1304,37 +1280,23 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
-      // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
       if (accountingEngineOn) {
-        try {
-          await deleteJournalEntryByReference(currentOrganization.id, "Sale", saleId, supabase);
-          const saleJournalDate =
-            sale.sale_date != null
-              ? String(sale.sale_date).slice(0, 10)
-              : new Date().toISOString().slice(0, 10);
-          await recordSaleJournalEntry(
-            sale.id,
-            currentOrganization.id,
-            Number(saleData.netAmount || 0),
-            Number(paidAmt || 0),
-            String(finalPaymentMethod || ""),
-            supabase,
-            saleJournalDate
-          );
-          await (supabase as any)
-            .from("sales")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", sale.id);
-        } catch (journalErr) {
-          console.error("Auto-journal (sale update) failed:", journalErr);
-          await (supabase as any)
-            .from("sales")
-            .update({
-              journal_status: "failed",
-              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-            })
-            .eq("id", sale.id);
-        }
+        void (async () => {
+          try {
+            await deleteJournalEntryByReference(currentOrganization.id, "Sale", saleId, supabase);
+            postSaleJournalInBackground(
+              sale.id,
+              currentOrganization.id,
+              Number(saleData.netAmount || 0),
+              Number(paidAmt || 0),
+              String(finalPaymentMethod || ""),
+              sale.sale_date,
+              supabase,
+            );
+          } catch (journalErr) {
+            console.error("Auto-journal (sale update) failed:", journalErr);
+          }
+        })();
       }
 
       // Customer Account Statement — refresh ledger entries (delete + re-insert)
@@ -1776,35 +1738,18 @@ export const useSaveSale = () => {
       if (saleError) throw saleError;
 
       if (accountingEngineOn) {
-        try {
-          await deleteJournalEntryByReference(currentOrganization.id, "Sale", sale.id, supabase);
-          const saleJournalDate =
-            sale.sale_date != null
-              ? String(sale.sale_date).slice(0, 10)
-              : new Date().toISOString().slice(0, 10);
-          await recordSaleJournalEntry(
-            sale.id,
-            currentOrganization.id,
-            Number(saleData.netAmount || 0),
-            Number(paidAmt || 0),
-            String(finalPaymentMethod || ""),
-            supabase,
-            saleJournalDate
-          );
-          await (supabase as any)
-            .from("sales")
-            .update({ journal_status: "posted", journal_error: null })
-            .eq("id", sale.id);
-        } catch (journalErr) {
-          console.error("Auto-journal (resume held sale) failed:", journalErr);
-          await (supabase as any)
-            .from("sales")
-            .update({
-              journal_status: "failed",
-              journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
-            })
-            .eq("id", sale.id);
-        }
+        void deleteJournalEntryByReference(currentOrganization.id, "Sale", sale.id, supabase).catch(
+          (err) => console.error("Delete journal before resume failed:", err),
+        );
+        postSaleJournalInBackground(
+          sale.id,
+          currentOrganization.id,
+          Number(saleData.netAmount || 0),
+          Number(paidAmt || 0),
+          String(finalPaymentMethod || ""),
+          sale.sale_date,
+          supabase,
+        );
       }
 
       // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)

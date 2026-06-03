@@ -71,6 +71,15 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "6900", account_name: "Round Off", account_type: "Expense", account_group: "Indirect Expenses" },
 ];
 
+const SEED_CACHE_MS = 5 * 60 * 1000;
+const seedCache = new Map<string, { accounts: SeededAccount[]; expiresAt: number }>();
+
+/** Clear after chart mutations (tests / admin tooling). */
+export function clearSeedDefaultAccountsCache(organizationId?: string) {
+  if (organizationId) seedCache.delete(organizationId);
+  else seedCache.clear();
+}
+
 /**
  * Ensure required system accounts exist for an organization.
  * Returns full system-account set after insertion of missing accounts.
@@ -80,6 +89,11 @@ export async function seedDefaultAccounts(
   client: any = supabase
 ): Promise<SeededAccount[]> {
   if (!organizationId) throw new Error("organizationId is required for seeding accounts");
+
+  const cached = seedCache.get(organizationId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.accounts;
+  }
 
   const { data: existingRows, error: existingErr } = await (client as any)
     .from("chart_of_accounts")
@@ -131,5 +145,7 @@ export async function seedDefaultAccounts(
     .eq("is_system_account", true);
 
   if (finalErr) throw finalErr;
-  return (finalRows || []) as SeededAccount[];
+  const accounts = (finalRows || []) as SeededAccount[];
+  seedCache.set(organizationId, { accounts, expiresAt: Date.now() + SEED_CACHE_MS });
+  return accounts;
 }

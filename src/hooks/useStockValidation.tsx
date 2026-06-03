@@ -144,30 +144,60 @@ export const useStockValidation = () => {
     }
 
     try {
-      // STEP 3: Validate each aggregated variant - only check ADDITIONAL stock needed
+      const variantIds = [...aggregatedNewItems.keys()];
+      if (variantIds.length === 0) return insufficientItems;
+
+      // Single round-trip for all variants (was N sequential queries — major save delay on large carts)
+      const { data: variants, error } = await supabase
+        .from("product_variants")
+        .select(`
+          id,
+          stock_qty,
+          size,
+          products (
+            product_name,
+            product_type
+          )
+        `)
+        .in("id", variantIds);
+
+      if (error) throw error;
+
+      const variantById = new Map((variants || []).map((v) => [v.id, v]));
+
       for (const [variantId, item] of aggregatedNewItems) {
         const freedQty = freedQtyMap.get(variantId) || 0;
-        
-        // Calculate net additional quantity needed beyond what was already reserved
         const additionalQtyNeeded = item.quantity - freedQty;
-        
-        // If no additional stock needed (same qty or reduced), skip validation
-        if (additionalQtyNeeded <= 0) {
-          continue;
-        }
-        
-        // Only check stock for the ADDITIONAL quantity needed
-        const result = await checkStock(variantId, additionalQtyNeeded, 0);
-        
-        if (!result.isAvailable) {
+        if (additionalQtyNeeded <= 0) continue;
+
+        const variant = variantById.get(variantId);
+        const productName =
+          (variant?.products as { product_name?: string } | null)?.product_name ||
+          item.productName ||
+          "Product";
+        const productType =
+          (variant?.products as { product_type?: string } | null)?.product_type || "goods";
+        const size = variant?.size || item.size || "";
+
+        if (productType === "service" || productType === "combo") continue;
+
+        const availableStock = (variant?.stock_qty || 0) + freedQty;
+        if (availableStock < additionalQtyNeeded) {
           insufficientItems.push({
-            productName: item.productName || result.productName,
-            size: item.size || result.size,
+            productName,
+            size,
             requested: item.quantity,
-            available: result.availableStock + freedQty, // Show total available including freed
+            available: availableStock,
           });
         }
       }
+    } catch (error) {
+      console.error("Stock validation error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to check stock availability",
+        variant: "destructive",
+      });
     } finally {
       setChecking(false);
     }

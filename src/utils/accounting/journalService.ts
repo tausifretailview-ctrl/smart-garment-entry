@@ -798,6 +798,46 @@ export async function recordSaleJournalEntry(
   return result.journalEntryId;
 }
 
+/** Post sale GL off the critical save/print path; updates sales.journal_status when done. */
+export function postSaleJournalInBackground(
+  saleId: string,
+  organizationId: string,
+  netAmount: number,
+  paidAmt: number,
+  paymentMethod: string,
+  saleDate: string | null | undefined,
+  client: any = supabase,
+): void {
+  void (async () => {
+    try {
+      const saleJournalDate =
+        saleDate != null ? String(saleDate).slice(0, 10) : new Date().toISOString().slice(0, 10);
+      await recordSaleJournalEntry(
+        saleId,
+        organizationId,
+        netAmount,
+        paidAmt,
+        paymentMethod,
+        client,
+        saleJournalDate,
+      );
+      await client
+        .from("sales")
+        .update({ journal_status: "posted", journal_error: null })
+        .eq("id", saleId);
+    } catch (journalErr) {
+      console.error("Auto-journal (sale) failed:", journalErr);
+      await client
+        .from("sales")
+        .update({
+          journal_status: "failed",
+          journal_error: journalErr instanceof Error ? journalErr.message : "Failed to post journal",
+        })
+        .eq("id", saleId);
+    }
+  })();
+}
+
 /**
  * Records double-entry for a purchase bill (Tally v2: Stock-in-Hand + Input GST when 1300 exists).
  */

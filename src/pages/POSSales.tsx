@@ -2628,8 +2628,7 @@ export default function POSSales() {
       // Store invoice number for printing
       setCurrentInvoiceNumber(result.sale_number);
       
-      // Refetch today's sales to include the new/updated invoice
-      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
       // Reset to show the newly saved invoice (index 0, as sales are sorted by created_at desc)
       setCurrentInvoiceIndex(0);
@@ -2637,9 +2636,8 @@ export default function POSSales() {
       
       // Silent operation - no toast for POS save
       
-      // Apply credit if any (atomic via RPC; requires saleId)
       if (creditApplied > 0 && customerId && result?.id) {
-        await applyCredit(customerId, result.id, creditApplied);
+        void applyCredit(customerId, result.id, creditApplied);
       }
       
       // Check for DC items — offer transfer to delivery challan for cash sales
@@ -3108,46 +3106,40 @@ export default function POSSales() {
         }
       }
 
-      // Auto-issue credit note when bill ends up with negative net_amount
-      // (excess S/R Adj on cart, no Mix Pay → Issue C/Note used).
-      // Only for identified customers, only if no CN already linked, only on new sale.
-      // IMPORTANT: skip when a real refund (cash/upi/bank) was already processed —
-      // otherwise we double-count the refund (customer gets cash AND a credit note).
-      try {
-        const billNet = Number((result as any).net_amount ?? 0);
-        const alreadyLinkedCn = (result as any).credit_note_id;
-        const srAdjOnBill = Number(saleData.saleReturnAdjust ?? 0);
-        // When S/R adjust absorbed part of a return-linked CN, consumeSaleReturnAdjustments
-        // already shrinks that CN — do not mint a second CN on the sale for the same remainder.
-        const skipAutoCnBecauseSrAdjust =
-          srAdjOnBill > 0.01 && billNet < 0 && customerId && !alreadyLinkedCn;
-        if (
-          !isCreditNote &&
-          !isRefund &&
-          !wasEditing &&
-          billNet < 0 &&
-          customerId &&
-          !alreadyLinkedCn &&
-          currentOrganization?.id &&
-          !skipAutoCnBecauseSrAdjust
-        ) {
-          const autoCnAmount = Math.abs(billNet);
-          const autoCn = await createCreditNote({
-            saleId: result.id,
-            customerId: customerId,
-            customerName: customerName || 'Walk in Customer',
-            customerPhone: customerPhone || null,
-            creditAmount: autoCnAmount,
-            notes: `Auto-issued from S/R adjustment on invoice ${result.sale_number}`,
-          });
-          if (autoCn) {
-            // Refresh local available credit so UI updates if same customer stays selected
-            setAvailableCreditBalance((prev) => prev + autoCnAmount);
+      void (async () => {
+        try {
+          const billNet = Number((result as any).net_amount ?? 0);
+          const alreadyLinkedCn = (result as any).credit_note_id;
+          const srAdjOnBill = Number(saleData.saleReturnAdjust ?? 0);
+          const skipAutoCnBecauseSrAdjust =
+            srAdjOnBill > 0.01 && billNet < 0 && customerId && !alreadyLinkedCn;
+          if (
+            !isCreditNote &&
+            !isRefund &&
+            !wasEditing &&
+            billNet < 0 &&
+            customerId &&
+            !alreadyLinkedCn &&
+            currentOrganization?.id &&
+            !skipAutoCnBecauseSrAdjust
+          ) {
+            const autoCnAmount = Math.abs(billNet);
+            const autoCn = await createCreditNote({
+              saleId: result.id,
+              customerId: customerId,
+              customerName: customerName || "Walk in Customer",
+              customerPhone: customerPhone || null,
+              creditAmount: autoCnAmount,
+              notes: `Auto-issued from S/R adjustment on invoice ${result.sale_number}`,
+            });
+            if (autoCn) {
+              setAvailableCreditBalance((prev) => prev + autoCnAmount);
+            }
           }
+        } catch (autoCnErr) {
+          console.error("Auto credit note creation failed:", autoCnErr);
         }
-      } catch (autoCnErr) {
-        console.error('Auto credit note creation failed:', autoCnErr);
-      }
+      })();
       
       // Silent operation - no toast for POS save
       
