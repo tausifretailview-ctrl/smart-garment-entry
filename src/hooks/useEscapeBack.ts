@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { isGlobalShortcutBlocked, isPosSalesRoute } from "@/lib/keyboardShortcuts";
 
 // Maps each page path → where Esc should go
 // Tally-style: entry pages go to their dashboard, dashboards go to home
@@ -143,28 +144,41 @@ export const useEscapeBack = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // POS screen owns Esc (clear cart / POS dashboard) — see POSSales.tsx
+      if (isPosSalesRoute(location.pathname)) return;
+      if (isGlobalShortcutBlocked()) return;
 
-      // Don't fire when focus is inside a text input
-      const tag = (document.activeElement?.tagName || "").toUpperCase();
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+      const active = document.activeElement as HTMLElement | null;
+      const tag = (active?.tagName || "").toUpperCase();
+      const isTextField =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        active?.isContentEditable;
 
-      // Don't fire when a dialog, popover, or dropdown is open
-      if (
-        document.querySelector(
-          '[role="dialog"], [role="alertdialog"], ' +
-          '[data-radix-popper-content-wrapper], ' +
-          '[data-state="open"][role="menu"], ' +
-          '[data-state="open"][role="listbox"]'
-        )
-      ) return;
+      if (isTextField && active) {
+        const input = active as HTMLInputElement | HTMLTextAreaElement;
+        const hasValue =
+          "value" in input && String((input as HTMLInputElement).value || "").length > 0;
+        if (hasValue && tag !== "SELECT") {
+          e.preventDefault();
+          if ("value" in input) {
+            (input as HTMLInputElement).value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          return;
+        }
+        active.blur();
+      }
 
       e.preventDefault();
       handleEscape();
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleEscape]);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [handleEscape, location.pathname]);
 
   return { handleEscape };
 };

@@ -7,6 +7,8 @@ import OrgAuth from "@/pages/OrgAuth";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { GlobalShortcuts } from "@/components/GlobalShortcuts";
+
 export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -132,5 +134,10 @@ export const OrgLayout = () => {
   }
 
   // Render child routes
-  return <Outlet />;
+  return (
+    <>
+      <GlobalShortcuts />
+      <Outlet />
+    </>
+  );
 };

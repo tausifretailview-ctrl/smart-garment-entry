@@ -13,14 +13,9 @@ import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
-import { useEscapeBack } from "@/hooks/useEscapeBack";
-import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
-import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
-import { useOrganization } from "@/contexts/OrganizationContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
@@ -31,55 +26,13 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
-  useEscapeBack();
-  const { orgNavigate } = useOrgNavigation();
   const location = useLocation();
-  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
-  const { organizationRole } = useOrganization();
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
 
   useEffect(() => {
     initUIScale();
   }, []);
-
-  useEffect(() => {
-    const handleGlobalKeys = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName || "").toUpperCase();
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
-      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
-
-      if (e.altKey) {
-        switch (e.key.toLowerCase()) {
-          case "n":
-            e.preventDefault();
-            orgNavigate("/sales-invoice");
-            break;
-          case "p":
-            e.preventDefault();
-            orgNavigate("/pos-sales");
-            break;
-          case "b":
-            e.preventDefault();
-            orgNavigate("/purchase-entry");
-            break;
-          case "d": {
-            e.preventDefault();
-            if (permissionsLoading) break;
-            const fallback = resolveFirstAllowedPath(hasMenuAccess, permissions, organizationRole);
-            orgNavigate(fallback ? `/${fallback}` : "/");
-            break;
-          }
-          case "s":
-            e.preventDefault();
-            orgNavigate("/stock-report");
-            break;
-        }
-      }
-    };
-    window.addEventListener("keydown", handleGlobalKeys);
-    return () => window.removeEventListener("keydown", handleGlobalKeys);
-  }, [orgNavigate, permissionsLoading, hasMenuAccess, permissions, organizationRole]);
 
   return (
     <ChatProvider>

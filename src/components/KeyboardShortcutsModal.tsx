@@ -32,15 +32,23 @@ const generalShortcuts: ShortcutGroup[] = [
     ],
   },
   {
-    title: "Quick Keys (POS & entry screens)",
+    title: "Open modules (Tally-style — works in Windows app & browser)",
+    shortcuts: [
+      { keys: ["Alt", "P"], description: "POS Sale" },
+      { keys: ["Alt", "N"], description: "Sale Invoice" },
+      { keys: ["Alt", "B"], description: "Purchase Bill" },
+      { keys: ["Alt", "D"], description: "Dashboard" },
+      { keys: ["Alt", "S"], description: "Stock Report" },
+      { keys: ["Ctrl", "Shift", "P"], description: "POS Sale (from any field)" },
+      { keys: ["Ctrl", "Shift", "S"], description: "Sale Invoice (from any field)" },
+      { keys: ["Ctrl", "Shift", "B"], description: "Purchase Bill (from any field)" },
+    ],
+  },
+  {
+    title: "Other",
     shortcuts: [
       { keys: ["Ctrl", "G"], description: "Open Size-wise Stock Report" },
       { keys: ["Ctrl", "P"], description: "Print current document" },
-      { keys: ["Alt", "N"], description: "New Sale Invoice" },
-      { keys: ["Alt", "P"], description: "New POS Sale" },
-      { keys: ["Alt", "B"], description: "New Purchase Bill" },
-      { keys: ["Alt", "D"], description: "Go to Dashboard" },
-      { keys: ["Alt", "S"], description: "Stock Report" },
     ],
   },
 ];

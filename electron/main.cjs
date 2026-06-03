@@ -283,7 +283,14 @@ function createTray() {
   });
 }
 
-// Application menu — only items that work without modifying the web app
+function sendNavigateShortcut(path) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.webContents.send('erp-navigate', path);
+}
+
+// Application menu — accelerators must not steal POS F1–F10 (only F11 was conflicting; use F12 for fullscreen).
 function createMenu() {
   const template = [
     {
@@ -300,13 +307,24 @@ function createMenu() {
       ],
     },
     {
+      label: 'Go',
+      submenu: [
+        { label: 'Dashboard', accelerator: 'Alt+D', click: () => sendNavigateShortcut('dashboard') },
+        { type: 'separator' },
+        { label: 'POS Sale', accelerator: 'Alt+P', click: () => sendNavigateShortcut('pos-sales') },
+        { label: 'Sale Invoice', accelerator: 'Alt+N', click: () => sendNavigateShortcut('sales-invoice') },
+        { label: 'Purchase Bill', accelerator: 'Alt+B', click: () => sendNavigateShortcut('purchase-entry') },
+        { label: 'Stock Report', accelerator: 'Alt+S', click: () => sendNavigateShortcut('stock-report') },
+      ],
+    },
+    {
       label: 'View',
       submenu: [
         { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
         { type: 'separator' },
         {
           label: 'Full Screen',
-          accelerator: 'F11',
+          accelerator: 'F12',
           click: () => mainWindow && mainWindow.setFullScreen(!mainWindow.isFullScreen()),
         },
         { type: 'separator' },

@@ -834,8 +834,14 @@ export default function POSSales() {
   // Keyboard shortcuts for POS actions
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Ignore shortcuts if already saving to prevent duplicate saves
       if (isSaving) return;
+      if (
+        document.querySelector(
+          '[role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper]',
+        )
+      ) {
+        return;
+      }
 
       // F1 - Cash Payment (Save & Print)
       if (e.key === 'F1') {
