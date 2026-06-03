@@ -39,6 +39,11 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
 import { useReactToPrint } from "react-to-print";
+import {
+  resolveSaleBillFormat,
+  toInvoiceWrapperFormat,
+  type PosBillFormat,
+} from "@/utils/invoicePrintFormat";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -260,7 +265,7 @@ export default function SalesInvoiceDashboard() {
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
-  const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
+  const [invoiceTemplate, setInvoiceTemplate] = useState<string>('professional');
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
   
@@ -516,6 +521,44 @@ export default function SalesInvoiceDashboard() {
     setInvoiceTemplate(sale.invoice_template || 'professional');
     setShowInvoicePreviewSetting(sale.show_invoice_preview ?? true);
   }, [settings]);
+
+  const saleSettings = (settings as any)?.sale_settings;
+
+  const effectiveSaleBillFormat = useMemo((): PosBillFormat => {
+    const raw = (billFormat || saleSettings?.sales_bill_format || "a4") as PosBillFormat;
+    return resolveSaleBillFormat(
+      invoiceTemplate,
+      raw,
+      saleSettings?.invoice_paper_format,
+    );
+  }, [billFormat, invoiceTemplate, saleSettings?.sales_bill_format, saleSettings?.invoice_paper_format]);
+
+  const saleInvoiceWrapperFormat = useMemo(
+    () => toInvoiceWrapperFormat(effectiveSaleBillFormat),
+    [effectiveSaleBillFormat],
+  );
+
+  const salePrintSourceStyle = useMemo(
+    (): React.CSSProperties => ({
+      width:
+        effectiveSaleBillFormat === "a4"
+          ? "210mm"
+          : effectiveSaleBillFormat === "thermal"
+            ? "80mm"
+            : effectiveSaleBillFormat === "a5-horizontal"
+              ? "210mm"
+              : "148mm",
+      minHeight:
+        effectiveSaleBillFormat === "a4"
+          ? "297mm"
+          : effectiveSaleBillFormat === "thermal"
+            ? "auto"
+            : effectiveSaleBillFormat === "a5-horizontal"
+              ? "148mm"
+              : "210mm",
+    }),
+    [effectiveSaleBillFormat],
+  );
 
   // Debounce search input
   useEffect(() => {
@@ -1428,7 +1471,28 @@ export default function SalesInvoiceDashboard() {
   };
 
   const getPageStyle = () => {
-    const format = billFormat;
+    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5') {
+      return `
+      @page {
+        size: A5 portrait;
+        margin: 4mm;
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .retail-tax-ezzy-page {
+          width: 100% !important;
+          max-width: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+    }
+
+    const format = effectiveSaleBillFormat;
     let size = 'A4 portrait';
     let margin = '5mm';
     
@@ -1609,7 +1673,7 @@ export default function SalesInvoiceDashboard() {
       });
 
       const imgData = canvas.toDataURL(isMobile ? 'image/jpeg' : 'image/png', 0.92);
-      const pageFormat = billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4';
+      const pageFormat = effectiveSaleBillFormat === 'a5' || effectiveSaleBillFormat === 'a5-horizontal' ? 'a5' : 'a4';
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -3011,28 +3075,15 @@ export default function SalesInvoiceDashboard() {
           organizationId={currentOrganization?.id}
         />
 
-        {/* Hidden Invoice Wrapper for PDF generation on mobile */}
+        {/* Hidden invoice for mobile PDF / direct print */}
         {invoiceToPrint && (
-          <div style={{
-            position: 'fixed',
-            left: '-9999px',
-            top: 0,
-            width: billFormat === 'a4' ? '210mm' : 
-                   billFormat === 'thermal' ? '80mm' : 
-                   billFormat === 'a5-horizontal' ? '210mm' : '148mm',
-            minHeight: billFormat === 'a4' ? '297mm' : 
-                       billFormat === 'thermal' ? 'auto' : 
-                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
-            maxHeight: billFormat === 'thermal' ? 'none' : 
-                       billFormat === 'a4' ? '297mm' : 
-                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
-            pointerEvents: 'none',
-            zIndex: -9999,
-            overflow: 'visible'
-          }}>
+          <div
+            className="invoice-print-source-screen invoice-print-source"
+            style={salePrintSourceStyle}
+          >
             <InvoiceWrapper
               ref={printRef}
-              format={billFormat === 'a5' ? 'a5-vertical' : billFormat}
+              format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
               date={new Date(invoiceToPrint.sale_date)}
               customerName={invoiceToPrint.customer_name}
@@ -4429,7 +4480,7 @@ export default function SalesInvoiceDashboard() {
           <PrintPreviewDialog
             open={showPrintPreview}
             onOpenChange={setShowPrintPreview}
-            defaultFormat={billFormat || 'a4'}
+            defaultFormat={effectiveSaleBillFormat || 'a4'}
             renderInvoice={(format) => 
               invoiceToPrint ? (
               <InvoiceWrapper
@@ -4483,28 +4534,15 @@ export default function SalesInvoiceDashboard() {
           />
         )}
 
-        {/* Hidden Invoice for Printing */}
+        {/* Hidden invoice for direct print — must not use no-print or opacity:0 */}
         {invoiceToPrint && (
-          <div className="no-print" style={{
-            position: 'fixed',
-            top: 0,
-            left: '-9999px',
-            width: billFormat === 'a4' ? '210mm' : 
-                   billFormat === 'thermal' ? '80mm' : 
-                   billFormat === 'a5-horizontal' ? '210mm' : '148mm',
-            minHeight: billFormat === 'a4' ? '297mm' : 
-                       billFormat === 'thermal' ? 'auto' : 
-                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
-            maxHeight: billFormat === 'thermal' ? 'none' : 
-                       billFormat === 'a4' ? '297mm' : 
-                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
-            pointerEvents: 'none',
-            zIndex: -9999,
-            overflow: 'visible'
-          }}>
+          <div
+            className="invoice-print-source-screen invoice-print-source"
+            style={salePrintSourceStyle}
+          >
             <InvoiceWrapper
               ref={printRef}
-              format={billFormat === 'a5' ? 'a5-vertical' : billFormat}
+              format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
               date={new Date(invoiceToPrint.sale_date)}
               customerName={invoiceToPrint.customer_name}

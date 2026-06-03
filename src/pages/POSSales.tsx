@@ -789,7 +789,11 @@ export default function POSSales() {
     (_posSaleSettings.pos_bill_format as PosBillFormat) || 'thermal';
   const posInvoiceTemplate: string =
     (_posSaleSettings.invoice_template as string) || 'professional';
-  const posBillFormat = resolvePosBillFormat(posInvoiceTemplate, posBillFormatSetting);
+  const posBillFormat = resolvePosBillFormat(
+    posInvoiceTemplate,
+    posBillFormatSetting,
+    (settingsData as any)?.sale_settings?.invoice_paper_format,
+  );
   const posInvoiceWrapperFormat = toInvoiceWrapperFormat(posBillFormat);
   const posPrintSourceStyle = useMemo(() => {
     const width =

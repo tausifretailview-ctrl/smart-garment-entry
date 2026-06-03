@@ -4,7 +4,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPermissions";
-import { prefetchTabPage, prefetchTabPages } from "@/lib/tabPageRegistry";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -177,10 +177,6 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       }
     }
   }, [location.pathname, getCurrentPath, canAccessPath]);
-
-  useEffect(() => {
-    prefetchTabPages(openWindows.map((w) => w.path));
-  }, [openWindows]);
 
   // Keyboard shortcuts
   useEffect(() => {

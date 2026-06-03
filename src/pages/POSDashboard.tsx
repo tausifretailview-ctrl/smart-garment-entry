@@ -77,6 +77,11 @@ import {
   isHoldLikePosSale,
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
+import {
+  resolvePosBillFormat,
+  toInvoiceWrapperFormat,
+  type PosBillFormat,
+} from "@/utils/invoicePrintFormat";
 
 interface SaleItem {
   id: string;
@@ -348,6 +353,42 @@ const POSDashboard = () => {
     if (sale.pos_bill_format) setPosBillFormat(sale.pos_bill_format);
     if (sale.invoice_template) setPosInvoiceTemplate(sale.invoice_template);
   }, [settings]);
+
+  const effectivePosBillFormat = useMemo((): PosBillFormat => {
+    const raw = (posBillFormat || saleSettings?.pos_bill_format || "a5") as PosBillFormat;
+    return resolvePosBillFormat(
+      posInvoiceTemplate,
+      raw,
+      saleSettings?.invoice_paper_format,
+    );
+  }, [posBillFormat, posInvoiceTemplate, saleSettings?.pos_bill_format, saleSettings?.invoice_paper_format]);
+
+  const posInvoiceWrapperFormat = useMemo(
+    () => toInvoiceWrapperFormat(effectivePosBillFormat),
+    [effectivePosBillFormat],
+  );
+
+  const posPrintSourceStyle = useMemo(
+    (): React.CSSProperties => ({
+      width:
+        effectivePosBillFormat === "a4"
+          ? "210mm"
+          : effectivePosBillFormat === "a5-horizontal"
+            ? "210mm"
+            : effectivePosBillFormat === "thermal"
+              ? "80mm"
+              : "148mm",
+      minHeight:
+        effectivePosBillFormat === "a4"
+          ? "297mm"
+          : effectivePosBillFormat === "thermal"
+            ? "auto"
+            : effectivePosBillFormat === "a5-horizontal"
+              ? "148mm"
+              : "210mm",
+    }),
+    [effectivePosBillFormat],
+  );
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -807,7 +848,28 @@ const POSDashboard = () => {
   // Note: toggleSelectAll moved after filteredSales is defined
 
   const getPageStyle = () => {
-    const format = posBillFormat;
+    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5') {
+      return `
+      @page {
+        size: A5 portrait;
+        margin: 4mm;
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .retail-tax-ezzy-page {
+          width: 100% !important;
+          max-width: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+    }
+
+    const format = effectivePosBillFormat;
     let size = 'A5 portrait';
     let margin = '5mm';
 
@@ -3222,7 +3284,7 @@ const POSDashboard = () => {
         <PrintPreviewDialog
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
-          defaultFormat={posBillFormat || 'a5'}
+          defaultFormat={effectivePosBillFormat || 'a5'}
           renderInvoice={(format) => (
             <InvoiceWrapper
               format={format}
@@ -3370,19 +3432,11 @@ const POSDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Hidden invoice for printing */}
-      <div style={{ 
-        position: 'fixed', 
-        top: 0, 
-        left: 0,
-        width: posBillFormat === 'a4' ? '210mm' : 
-               posBillFormat === 'a5-horizontal' ? '210mm' : 
-               posBillFormat === 'thermal' ? '80mm' : '148mm',
-        opacity: 0, 
-        pointerEvents: 'none',
-        zIndex: -1,
-        overflow: 'visible'
-      }}>
+      {/* Hidden invoice for direct print — visible only in @media print (not opacity:0) */}
+      <div
+        className="invoice-print-source-screen invoice-print-source"
+        style={posPrintSourceStyle}
+      >
         {printData && (
           <InvoiceWrapper
             ref={invoicePrintRef}
@@ -3412,7 +3466,7 @@ const POSDashboard = () => {
             notes={printData.notes || ''}
             taxType={saleSettings?.default_tax_type || 'inclusive'}
             financerDetails={printData.financerDetails || null}
-            format={posBillFormat}
+            format={posInvoiceWrapperFormat}
             template={posInvoiceTemplate}
           />
         )}

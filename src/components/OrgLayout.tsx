@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isTabCachePath, prefetchTabPages } from "@/lib/tabPageRegistry";
+import { isTabCachePath, prefetchTabPagesIdle } from "@/lib/tabPageRegistry";
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -44,8 +44,8 @@ export const OrgLayout = () => {
   }, [openWindows, currentPath]);
 
   useEffect(() => {
-    prefetchTabPages(tabPaths);
-  }, [tabPaths]);
+    return prefetchTabPagesIdle(tabPaths, currentPath);
+  }, [tabPaths, currentPath]);
 
   const renderViaTabCache = isTabCachePath(currentPath) && tabPaths.length > 0;
 
@@ -73,17 +73,12 @@ export const OrgLayout = () => {
       const targetOrg = organizations.find(org => org.slug === orgSlug);
       
       if (targetOrg) {
-        // Always switch if URL org doesn't match current org - force sync
         if (currentOrganization?.id !== targetOrg.id) {
+          setIsOrgSynced(false);
           switchOrganization(targetOrg.id);
-          // Mark synced after a short delay to allow state to update
-          setTimeout(() => setIsOrgSynced(true), 500);
         } else {
-          // Already synced
           setIsOrgSynced(true);
         }
-        
-        // Store the slug in both localStorage and sessionStorage for PWA resilience
         storeOrgSlug(orgSlug);
       }
     }

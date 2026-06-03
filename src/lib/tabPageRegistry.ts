@@ -124,6 +124,21 @@ export function prefetchTabPages(paths: string[]): void {
   paths.forEach(prefetchTabPage);
 }
 
+/** Prefetch the active tab immediately; load other open tabs when the browser is idle. */
+export function prefetchTabPagesIdle(paths: string[], activePath: string): () => void {
+  if (activePath) prefetchTabPage(activePath);
+  const rest = paths.filter((p) => p && p !== activePath);
+  if (rest.length === 0) return () => {};
+
+  const run = () => rest.forEach(prefetchTabPage);
+  if (typeof requestIdleCallback !== "undefined") {
+    const id = requestIdleCallback(run, { timeout: 5000 });
+    return () => cancelIdleCallback(id);
+  }
+  const t = window.setTimeout(run, 2500);
+  return () => window.clearTimeout(t);
+}
+
 const lazyCache = new Map<string, LazyExoticComponent<ComponentType<unknown>>>();
 
 export function getLazyTabPage(path: string): LazyExoticComponent<ComponentType<unknown>> | null {
