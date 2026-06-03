@@ -215,7 +215,15 @@ export function resolveVoucherPartyName(
     return "—";
   }
   if (tab === "supplier-payment") {
-    return suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name || "—";
+    // For opening-balance payments reference_id is the supplier id, but for
+    // bill-based payments it is the PURCHASE BILL id — so a direct supplier
+    // lookup misses and the party shows "—". Fall back to the supplier name
+    // embedded in the description ("… | Supplier: NAME | …").
+    const direct = suppliers?.find((s) => s.id === voucher.reference_id)?.supplier_name;
+    if (direct) return direct;
+    const supplierMatch = (voucher.description || "").match(/Supplier:\s*([^|]+?)\s*(?:\||$)/i);
+    if (supplierMatch && supplierMatch[1].trim()) return supplierMatch[1].trim();
+    return "—";
   }
   if (tab === "employee-salary") {
     return employees?.find((e) => e.id === voucher.reference_id)?.employee_name || "—";

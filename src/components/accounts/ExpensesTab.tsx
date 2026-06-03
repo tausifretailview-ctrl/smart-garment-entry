@@ -134,6 +134,27 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
     onError: (e: any) => toast.error(e?.message || "Could not save mapping"),
   });
 
+  // Add a new expense category on its own (without having to record an expense).
+  const addCategory = useMutation({
+    mutationFn: async (rawName: string) => {
+      const name = rawName.trim();
+      if (!name) throw new Error("Enter a category name");
+      const { error } = await supabase.from("expense_categories").upsert(
+        { organization_id: organizationId, name, is_active: true },
+        { onConflict: "organization_id,name" }
+      );
+      if (error) throw error;
+      return name;
+    },
+    onSuccess: (name) => {
+      toast.success(`Category "${name}" added`);
+      queryClient.invalidateQueries({ queryKey: ["expense-categories", organizationId] });
+      setCategory(name);
+      setCustomCategory("");
+    },
+    onError: (e: any) => toast.error(e?.message || "Could not add category"),
+  });
+
   // Fetch all expense vouchers
   const { data: expenseVouchers, isLoading } = useQuery({
     queryKey: ["expense-vouchers", organizationId],
@@ -156,7 +177,7 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
   // Create expense
   const createExpense = useMutation({
     mutationFn: async () => {
-      const selectedCategory = category === "__custom__" ? customCategory : category;
+      const selectedCategory = category === "__custom__" ? customCategory.trim() : category;
       if (!selectedCategory) throw new Error("Please select an expense category");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Please enter a valid amount");
 
@@ -218,12 +239,17 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
         }
       }
 
-      // If custom category, add to expense_categories
-      if (category === "__custom__" && customCategory) {
-        await supabase.from("expense_categories").upsert(
-          { organization_id: organizationId, name: customCategory, is_active: true },
+      // If custom category, add to expense_categories. Surface any failure so a
+      // silently-rejected upsert no longer leaves the category missing.
+      if (category === "__custom__" && customCategory.trim()) {
+        const { error: catErr } = await supabase.from("expense_categories").upsert(
+          { organization_id: organizationId, name: customCategory.trim(), is_active: true },
           { onConflict: "organization_id,name" }
         );
+        if (catErr) {
+          console.error("Failed to persist custom expense category", catErr);
+          toast.error(`Expense saved, but category could not be added: ${catErr.message}`);
+        }
       }
     },
     onSuccess: () => {
@@ -514,7 +540,30 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
                   </SelectContent>
                 </Select>
                 {category === "__custom__" && (
-                  <Input placeholder="Enter new category name" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="h-8 text-xs mt-1" />
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      placeholder="Enter new category name"
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addCategory.mutate(customCategory);
+                        }
+                      }}
+                      className="h-8 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-8 text-xs shrink-0"
+                      disabled={addCategory.isPending || !customCategory.trim()}
+                      onClick={() => addCategory.mutate(customCategory)}
+                    >
+                      {addCategory.isPending ? "Adding…" : "Add"}
+                    </Button>
+                  </div>
                 )}
               </div>
 
