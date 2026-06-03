@@ -56,7 +56,7 @@ export const OrgLayout = () => {
         console.warn("OrgLayout: Sync timeout reached, forcing render");
         setSyncTimeout(true);
       }
-    }, 8000);
+    }, 4000);
     return () => clearTimeout(timer);
   }, [isOrgSynced]);
 

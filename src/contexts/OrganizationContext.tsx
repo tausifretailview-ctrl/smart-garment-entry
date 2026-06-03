@@ -26,7 +26,8 @@ interface OrganizationContextType {
   canAccessFeature: (featureName: string, requiredTier?: string) => boolean;
 }
 
-const ORG_FETCH_TIMEOUT = 10000;
+const ORG_FETCH_TIMEOUT = 6000;
+const SESSION_REFRESH_IF_EXPIRES_WITHIN_SEC = 300;
 const ORG_CACHE_KEY_PREFIX = "cachedOrgs_";
 
 const OrganizationContext = createContext<OrganizationContextType>({
@@ -99,7 +100,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       if (!session) return false;
       const expiresAt = session.expires_at ?? 0;
       const nowSec = Math.floor(Date.now() / 1000);
-      if (expiresAt - nowSec < 60) {
+      if (expiresAt - nowSec < SESSION_REFRESH_IF_EXPIRES_WITHIN_SEC) {
         console.log("Session token near-expiry, refreshing…");
         const { error } = await supabase.auth.refreshSession();
         if (error) {

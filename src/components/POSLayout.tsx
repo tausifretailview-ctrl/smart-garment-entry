@@ -32,6 +32,7 @@ import { FloatingPayments } from "@/components/FloatingPayments";
 import { DeliveryChallanPOSDialog } from "@/components/DeliveryChallanPOSDialog";
 import { Truck } from "lucide-react";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
+import { IdleMount } from "@/components/IdleMount";
 import { mobileMainPaddingClass } from "@/lib/mobileShell";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
@@ -354,7 +355,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
       <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
-      <PwaInstallBanner />
+      <IdleMount>
+        <PwaInstallBanner />
+      </IdleMount>
     </div>
   );
 };

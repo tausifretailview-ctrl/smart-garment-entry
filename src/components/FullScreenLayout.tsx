@@ -17,6 +17,7 @@ import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
+import { IdleMount } from "@/components/IdleMount";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -80,12 +81,16 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             </div>
 
             {!showDesktopChrome && <OwnerBottomNav />}
-            <PwaInstallBanner />
+            <IdleMount>
+              <PwaInstallBanner />
+            </IdleMount>
 
-            <div className="hidden lg:contents">
-              <FloatingWhatsAppInbox />
-              <FloatingChatButton />
-            </div>
+            <IdleMount>
+              <div className="hidden lg:contents">
+                <FloatingWhatsAppInbox />
+                <FloatingChatButton />
+              </div>
+            </IdleMount>
             <StatusBar />
           </SidebarProvider>
         </MobileScanProvider>

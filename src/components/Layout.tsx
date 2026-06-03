@@ -13,6 +13,7 @@ import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
+import { IdleMount } from "@/components/IdleMount";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
@@ -77,13 +78,17 @@ export const Layout = ({ children }: LayoutProps) => {
             </div>
 
             {!showDesktopChrome && <OwnerBottomNav />}
-            <PwaInstallBanner />
+            <IdleMount>
+              <PwaInstallBanner />
+            </IdleMount>
 
             <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
-            <div className="hidden lg:contents">
-              <FloatingWhatsAppInbox />
-              <FloatingChatButton />
-            </div>
+            <IdleMount>
+              <div className="hidden lg:contents">
+                <FloatingWhatsAppInbox />
+                <FloatingChatButton />
+              </div>
+            </IdleMount>
             <StatusBar />
           </SidebarProvider>
         </MobileScanProvider>

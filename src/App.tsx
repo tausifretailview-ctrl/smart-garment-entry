@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
@@ -162,19 +163,11 @@ const PortalAccount = lazyWithRetry(() => import("./pages/portal/PortalAccount")
 const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommission"));
 const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
-const LazyFallback = () => {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    const t = window.setTimeout(() => setShow(true), 250);
-    return () => window.clearTimeout(t);
-  }, []);
-  if (!show) return null;
-  return (
-    <div className="min-h-[40vh] flex items-center justify-center">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-    </div>
-  );
-};
+const LazyFallback = () => (
+  <div className="min-h-[40vh] w-full">
+    <DashboardSkeleton />
+  </div>
+);
 
 // Check if this is a Field Sales PWA launch (check URL param or sessionStorage)
 function isFieldSalesPWA(): boolean {

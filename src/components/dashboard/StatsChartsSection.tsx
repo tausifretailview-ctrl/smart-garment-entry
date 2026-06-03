@@ -2,16 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3 } from "lucide-react";
 import { format, subDays, startOfDay } from "date-fns";
-import { cn } from "@/lib/utils";
-
-interface StatsChartsSectionProps {
-  hasLoaded?: boolean;
-}
-
-export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps) => {
+export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
 
   // Fetch last 7 days sales data
@@ -51,7 +43,7 @@ export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps
 
       return salesByDay;
     },
-    enabled: !!currentOrganization && hasLoaded,
+    enabled: !!currentOrganization?.id,
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -92,7 +84,7 @@ export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps
 
       return purchaseByDay;
     },
-    enabled: !!currentOrganization && hasLoaded,
+    enabled: !!currentOrganization?.id,
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -124,7 +116,7 @@ export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps
         value: (item.stock_qty || 0) * (Number(item.sale_price) || 0),
       })) || [];
     },
-    enabled: !!currentOrganization && hasLoaded,
+    enabled: !!currentOrganization?.id,
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -141,58 +133,6 @@ export const StatsChartsSection = ({ hasLoaded = true }: StatsChartsSectionProps
   const primaryColor = "hsl(var(--primary))";
   const successColor = "hsl(var(--success))";
   const accentColor = "hsl(var(--accent))";
-
-  const chartShellTitles = [
-    "Sales vs Purchases (Last 7 Days)",
-    "Sales Trend (Last 7 Days)",
-    "Top 5 Products by Stock Quantity",
-    "Top 5 Products by Stock Value",
-  ] as const;
-
-  if (!hasLoaded) {
-    return (
-      <div className="dashboard-charts-panel space-y-3 shrink-0">
-        <div className="grid gap-3 lg:grid-cols-2">
-          {chartShellTitles.map((title) => (
-            <Card
-              key={title}
-              className="border border-border bg-card shadow-elevated overflow-hidden dashboard-chart-shell"
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-card-foreground">
-                  <div className="p-1.5 rounded-md bg-primary/10">
-                    <BarChart3 className="h-4 w-4 text-primary" />
-                  </div>
-                  {title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div
-                  className={cn(
-                    "dashboard-chart-placeholder relative rounded-md border border-dashed border-border/80",
-                    "bg-muted/15 flex items-center justify-center"
-                  )}
-                  style={{ height: 260 }}
-                >
-                  <div
-                    className="absolute inset-0 opacity-40 pointer-events-none"
-                    style={{
-                      backgroundImage:
-                        "linear-gradient(hsl(var(--border)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border)) 1px, transparent 1px)",
-                      backgroundSize: "24px 24px",
-                    }}
-                  />
-                  <p className="relative z-[1] text-[11px] font-medium text-muted-foreground px-3 text-center">
-                    Load data to view chart
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="dashboard-charts-panel space-y-3 shrink-0">

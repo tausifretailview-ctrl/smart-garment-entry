@@ -2,6 +2,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
+import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 
 const getCurrentPageName = (path: string): string => {
   const PAGE_NAMES: Record<string, string> = {
@@ -38,50 +39,38 @@ export const StatusBar = () => {
   const { currentOrganization } = useOrganization();
   const location = useLocation();
 
-  // Current financial year (Indian FY: Apr-Mar)
   const now = new Date();
   const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
   const fy = `FY ${fyStart}-${(fyStart + 1).toString().slice(-2)}`;
 
-  const { data: stockData } = useQuery({
-    queryKey: ["statusbar-stock", currentOrganization?.id],
+  const { data: summary } = useQuery({
+    queryKey: ["statusbar-summary", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const { data } = await supabase
-        .from("v_dashboard_stock_summary")
-        .select("total_stock_qty")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
-      return data;
+      const [stockRes, recvRes] = await Promise.all([
+        supabase
+          .from("v_dashboard_stock_summary")
+          .select("total_stock_qty")
+          .eq("organization_id", currentOrganization.id)
+          .maybeSingle(),
+        supabase
+          .from("v_dashboard_receivables")
+          .select("total_receivables")
+          .eq("organization_id", currentOrganization.id)
+          .maybeSingle(),
+      ]);
+      return {
+        stockQty: stockRes.data?.total_stock_qty ?? 0,
+        dueAmount: recvRes.data?.total_receivables ?? 0,
+      };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 15 * 60 * 1000,
+    staleTime: STALE_FREQUENT,
     refetchOnWindowFocus: false,
   });
 
-  const { data: dueData } = useQuery({
-    queryKey: ["statusbar-due", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-      const { data } = await supabase
-        .from("sales")
-        .select("net_amount, paid_amount")
-        .eq("organization_id", currentOrganization.id)
-        .eq("payment_status", "due")
-        .is("deleted_at", null);
-      const total = (data || []).reduce(
-        (s: number, r: any) => s + Math.max(0, (Number(r.net_amount) || 0) - (Number(r.paid_amount) || 0)),
-        0,
-      );
-      return { total };
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 15 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  const stockQty = stockData?.total_stock_qty ?? 0;
-  const dueAmount = dueData?.total ?? 0;
+  const stockQty = summary?.stockQty ?? 0;
+  const dueAmount = summary?.dueAmount ?? 0;
   const pageName = getCurrentPageName(location.pathname);
 
   return (

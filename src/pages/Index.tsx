@@ -220,7 +220,6 @@ const DesktopDashboard = () => {
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [hasLoaded, setHasLoaded] = useState(false);
   const queryClient = useQueryClient();
   const [showSizeStock, setShowSizeStock] = useState(false);
   
@@ -286,18 +285,13 @@ const DesktopDashboard = () => {
   // Manual refresh all - single RPC query key
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
-    if (!hasLoaded) {
-      setHasLoaded(true);
-      setTimeout(() => setIsRefreshing(false), 1000);
-    } else {
-      await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      await queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
-      await queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
-      await queryClient.invalidateQueries({ queryKey: ["top-products"] });
-      setTimeout(() => setIsRefreshing(false), 500);
-    }
+    await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    await queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
+    await queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
+    await queryClient.invalidateQueries({ queryKey: ["top-products"] });
     await queryClient.invalidateQueries({ queryKey: ["customer-segment-counts", currentOrganization?.id] });
     setLastUpdated(new Date());
+    setTimeout(() => setIsRefreshing(false), 500);
   };
 
   // Single RPC call replaces 8-10 separate queries
@@ -313,7 +307,6 @@ const DesktopDashboard = () => {
       });
       if (error) throw error;
       setLastUpdated(new Date());
-      setHasLoaded(true);
       return data as {
         total_sales: number;
         invoice_count: number;
@@ -338,7 +331,7 @@ const DesktopDashboard = () => {
         purchase_return_qty: number;
       };
     },
-    enabled: !!currentOrganization && hasLoaded,
+    enabled: !!currentOrganization?.id,
     staleTime: 10 * 60 * 1000,
     refetchInterval: false,
     refetchOnWindowFocus: false,
@@ -347,12 +340,12 @@ const DesktopDashboard = () => {
   // Receivables = true net customer AR (Master Reconciliation), shared with the
   // Customer Ledger card / Balance Sheet, instead of the invoice-only net−paid view.
   const { summary: receivablesSummary } = useOrganizationReceivablesSummary(
-    hasLoaded ? currentOrganization?.id : null,
+    currentOrganization?.id,
   );
 
   const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: ["customer-segment-counts", currentOrganization?.id],
-    enabled: !!currentOrganization?.id && hasLoaded,
+    enabled: !!currentOrganization?.id,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
@@ -693,8 +686,8 @@ const DesktopDashboard = () => {
     );
   };
 
-  const showPlaceholders = !hasLoaded;
-  const metricsLoading = hasLoaded && isLoading;
+  const showPlaceholders = isLoading && !dashStats;
+  const metricsLoading = isLoading && !!dashStats;
 
   return (
     <>
@@ -717,19 +710,14 @@ const DesktopDashboard = () => {
         <div className="dashboard-toolbar flex flex-wrap items-center justify-end gap-2 pb-2 border-b border-border shrink-0">
           <ThemeToggle />
           <Button
-            variant={hasLoaded ? "outline" : "default"}
+            variant="outline"
             size="sm"
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoading}
-            className={cn(
-              "h-8 text-xs",
-              hasLoaded
-                ? "border-border bg-card hover:bg-muted"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
+            className="h-8 text-xs border-border bg-card hover:bg-muted"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
-            {hasLoaded ? "Refresh" : "Load Data"}
+            Refresh
           </Button>
           <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-0.5 shadow-sm h-8">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
@@ -765,41 +753,27 @@ const DesktopDashboard = () => {
       ) : (
         <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">
           <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
-            {hasLoaded ? (
-              <>
-                <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
-                <span className="truncate">
-                  {isLoading ? "Loading..." : `Last updated: ${format(lastUpdated, "HH:mm:ss")}`}
-                </span>
-              </>
-            ) : (
-              <>
-                <div className="h-2 w-2 rounded-full bg-muted-foreground shrink-0" />
-                <span className="truncate">
-                  Click <strong>Load Data</strong> to view dashboard
-                </span>
-              </>
-            )}
+            <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
+            <span className="truncate">
+              {isLoading && !dashStats
+                ? "Loading..."
+                : `Last updated: ${format(lastUpdated, "HH:mm:ss")}`}
+            </span>
           </div>
           <Button
-            variant={hasLoaded ? "outline" : "default"}
+            variant="outline"
             size="sm"
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoading}
-            className={cn(
-              "h-7 text-xs shrink-0",
-              hasLoaded
-                ? "border-border bg-card hover:bg-muted"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
-            )}
+            className="h-7 text-xs shrink-0 border-border bg-card hover:bg-muted"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />
-            {hasLoaded ? "Refresh" : "Load Data"}
+            Refresh
           </Button>
         </div>
       )}
 
-      {/* Main Content — fixed shell; placeholders until Load Data */}
+      {/* Main Content — fixed shell; skeletons while first RPC loads */}
       <div className="dashboard-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-3 pr-0.5">
         <div className="space-y-3 dashboard-metrics-panel">
           {/* Row 1 - Sales Metrics */}
@@ -1011,7 +985,7 @@ const DesktopDashboard = () => {
           </div>
 
           {/* Field Sales App Section - Only visible for users with field sales access */}
-          {hasLoaded && hasFieldSalesAccess && (
+          {hasFieldSalesAccess && (
             <div>
               <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
                 <div className="h-1 w-8 bg-primary rounded-full" />
@@ -1075,7 +1049,7 @@ const DesktopDashboard = () => {
           )}
 
           {/* Charts Section */}
-          <StatsChartsSection hasLoaded={hasLoaded} />
+          <StatsChartsSection />
         </div>
 
         {/* Customer Category Cards */}
