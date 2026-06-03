@@ -4,7 +4,7 @@ import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import { fetchAllCustomers, fetchAllSalesSummary, fetchItemsGrossBySaleId } from "@/utils/fetchAllRows";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -535,6 +535,10 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       // --- Business org logic ---
       // Fetch ALL sales using range pagination (bypasses 1000-row limit)
       const salesData = await fetchAllSalesSummary(organizationId);
+      const itemsGrossBySale = await fetchItemsGrossBySaleId(
+        organizationId,
+        salesData.map((s: { id: string }) => s.id),
+      );
 
       // Fetch ALL voucher payments (both opening balance and invoice payments)
       const { data: allVouchers, error: voucherError } = await supabase
@@ -720,6 +724,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
             card_amount: s.card_amount,
             upi_amount: s.upi_amount,
             sale_return_adjust: s.sale_return_adjust,
+            items_gross: itemsGrossBySale.get(s.id) ?? 0,
           })),
           vouchers: vouchersByCustomer.get(customer.id) || [],
           adjustmentTotal,
@@ -2466,17 +2471,54 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   const effectiveBalance = useMemo(() => {
     if (!selectedCustomer) return 0;
-    if (transactions && transactions.length > 0) {
-      return Number(transactions[transactions.length - 1].balance || 0);
-    }
     if (isSchool) {
+      if (transactions && transactions.length > 0) {
+        return Number(transactions[transactions.length - 1].balance || 0);
+      }
       return authoritativeBalance;
     }
-    if (ledgerAuditClosingBalance != null && !Number.isNaN(Number(ledgerAuditClosingBalance))) {
-      return Number(ledgerAuditClosingBalance);
+    const ledgerClosing =
+      transactions && transactions.length > 0
+        ? Number(transactions[transactions.length - 1].balance || 0)
+        : ledgerAuditClosingBalance != null && !Number.isNaN(Number(ledgerAuditClosingBalance))
+          ? Number(ledgerAuditClosingBalance)
+          : null;
+    if (authoritativeBalance < 0) {
+      if (ledgerClosing != null && Math.abs(ledgerClosing - authoritativeBalance) <= 1) {
+        return ledgerClosing;
+      }
+      return authoritativeBalance;
     }
+    if (ledgerClosing != null) return ledgerClosing;
     return authoritativeBalance;
   }, [selectedCustomer, isSchool, transactions, authoritativeBalance, ledgerAuditClosingBalance]);
+
+  /** Refund banner / overpayment dialog — net refund owed (unused advance + CN − outstanding Dr). */
+  const refundableCreditBalance = useMemo(() => {
+    if (!selectedCustomer || isSchool) return 0;
+    const unused =
+      snapshotAdvanceAvailable > 0
+        ? snapshotAdvanceAvailable
+        : selectedCustomer.unusedAdvanceTotal || 0;
+    const cn = snapshotCnAvailable || 0;
+    const outstandingDr =
+      snapshotOutstandingDr != null && !Number.isNaN(Number(snapshotOutstandingDr))
+        ? Math.max(0, Number(snapshotOutstandingDr))
+        : Math.max(0, authoritativeBalance);
+    const fromSnapshot = Math.round(Math.max(0, unused + cn - outstandingDr));
+    if (fromSnapshot > 0.01) return fromSnapshot;
+    if (authoritativeBalance < 0) return Math.abs(authoritativeBalance);
+    if (effectiveBalance < 0) return Math.abs(effectiveBalance);
+    return 0;
+  }, [
+    selectedCustomer,
+    isSchool,
+    snapshotAdvanceAvailable,
+    snapshotCnAvailable,
+    snapshotOutstandingDr,
+    authoritativeBalance,
+    effectiveBalance,
+  ]);
 
   useEffect(() => {
     if (!selectedCustomer && showOverpaymentRefundDialog) {
@@ -3413,7 +3455,7 @@ Please clear your dues at the earliest. Thank you!`;
           <DialogTitle>Refund Overpayment</DialogTitle>
           <DialogDescription>
             Record a cash/UPI refund to {selectedCustomer?.customer_name ?? "customer"} for{' '}
-            ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')} credit balance.
+            ₹{refundableCreditBalance.toLocaleString('en-IN')} credit balance.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -3423,11 +3465,11 @@ Please clear your dues at the earliest. Thank you!`;
               type="number"
               value={overpaymentRefundAmount}
               onChange={(e) => setOverpaymentRefundAmount(e.target.value)}
-              placeholder={Math.abs(effectiveBalance).toFixed(2)}
+              placeholder={refundableCreditBalance.toFixed(2)}
               className="no-uppercase"
             />
             <p className="text-xs text-muted-foreground">
-              Max refundable: ₹{Math.abs(effectiveBalance).toLocaleString('en-IN')}
+              Max refundable: ₹{refundableCreditBalance.toLocaleString('en-IN')}
             </p>
           </div>
           <div className="space-y-2">
@@ -3474,7 +3516,7 @@ Please clear your dues at the earliest. Thank you!`;
                 toast.error("Please enter a valid refund amount");
                 return;
               }
-              const maxRefundable = Math.abs(effectiveBalance);
+              const maxRefundable = refundableCreditBalance;
               if (amount > maxRefundable + 0.01) {
                 toast.error(`Cannot refund more than ₹${maxRefundable.toLocaleString('en-IN')}`);
                 return;
@@ -3696,7 +3738,19 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </div>
               </div>
-              {effectiveBalance < 0 ? null : (
+              {refundableCreditBalance > 0 ? (
+              <div className="text-right px-5 py-4 rounded-xl min-w-[160px] bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
+                <div className="text-sm text-muted-foreground mb-1">Credit balance (Cr)</div>
+                <div className="text-3xl font-bold tabular-nums text-teal-700 dark:text-teal-300">
+                  ₹{refundableCreditBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
+                <div className="mt-2">
+                  <Badge variant="outline" className="border-teal-400 text-teal-800 dark:text-teal-200">
+                    Refund owed
+                  </Badge>
+                </div>
+              </div>
+              ) : (
               <div className={cn(
                 "text-right px-5 py-4 rounded-xl min-w-[160px]",
                 effectiveBalance > 0
@@ -3868,16 +3922,24 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
 
             {/* Refund shortcut - shows when customer has credit balance */}
-            {effectiveBalance < 0 && (
+            {refundableCreditBalance > 0 && (
               <div className="mt-3 mb-1 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-                    ₹{Math.abs(effectiveBalance).toLocaleString("en-IN")} credit balance — refund to customer
+                    ₹{refundableCreditBalance.toLocaleString("en-IN")} credit balance — refund to customer
                   </p>
+                  {Math.abs(authoritativeBalance - effectiveBalance) > 1 &&
+                    authoritativeBalance < 0 &&
+                    effectiveBalance < 0 && (
+                      <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-1">
+                        Ledger running total ₹{Math.abs(effectiveBalance).toLocaleString("en-IN")} — refund
+                        uses canonical balance ₹{refundableCreditBalance.toLocaleString("en-IN")}.
+                      </p>
+                    )}
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
                     {(() => {
                       const unused = selectedCustomer.unusedAdvanceTotal || 0;
-                      const overpay = Math.max(0, Math.abs(effectiveBalance) - unused);
+                      const overpay = Math.max(0, refundableCreditBalance - unused);
                       const parts: string[] = [];
                       if (unused > 0) parts.push(`₹${unused.toLocaleString("en-IN")} unused advance`);
                       if (overpay > 0) parts.push(`₹${overpay.toLocaleString("en-IN")} overpayment / pending CN`);
@@ -3912,7 +3974,8 @@ Please clear your dues at the earliest. Thank you!`;
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      const creditAmt = effectiveBalance < 0 ? Math.abs(effectiveBalance).toFixed(2) : '';
+                      const creditAmt =
+                        refundableCreditBalance > 0 ? refundableCreditBalance.toFixed(2) : '';
                       setOverpaymentRefundAmount(creditAmt);
                       setOverpaymentRefundNote('');
                       setOverpaymentRefundMode('cash');

@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Single source of truth for ORG-LEVEL customer receivables.
  *
- * Wraps the `reconcile_customer_balances` RPC (the Master Reconciliation formula:
- * opening + Σ(net + sale_return_adjust) − cash receipts − Σ advances − Σ sale_returns
- * + refunds + balance adjustments). That signed per-customer `calculated_balance`
+ * Wraps the `reconcile_customer_balances` RPC. Per-customer `calculated_balance` is
+ * aligned with `get_customer_true_outstanding` (same components as Customer Ledger /
+ * `computeCustomerBalanceCore`: gated gross invoicing, advance used, pending returns, unused advance).
  * is the authoritative figure used by the Customer Reconciliation page; this util
  * lets every receivables surface (Customer Ledger card, Accounts Mgmt, Main
  * Dashboard, Balance Sheet) read the same numbers instead of four divergent ones.

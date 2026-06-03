@@ -222,25 +222,21 @@ export function computePendingStandaloneSaleReturns(
   if (!saleReturns?.length) return 0;
   const salesList = sales || [];
   const saleReturnAdjustById = new Map<string, number>();
-  let totalSraOnInvoices = 0;
   for (const s of salesList) {
     if (s.id) saleReturnAdjustById.set(s.id, Number(s.sale_return_adjust || 0));
-    totalSraOnInvoices += Number(s.sale_return_adjust || 0);
   }
 
   const pendingRows = saleReturns.filter(
     (sr) => normalizeStatus(sr.credit_status) === "pending",
   );
   let sum = 0;
-  let sraPool = totalSraOnInvoices;
 
   for (const sr of pendingRows) {
     const net = Number(sr.net_amount) || 0;
     const linked = String(sr.linked_sale_id || "").trim();
-    const absorb = linked
-      ? Math.min(net, saleReturnAdjustById.get(linked) || 0)
-      : Math.min(net, sraPool);
-    sraPool = Math.max(0, sraPool - absorb);
+    // Match SQL pending_sale_returns: only offset by SRA on the *linked* invoice.
+    // Do not consume a global SRA pool — that SRA is already subtracted in auditFormulaOutstanding.
+    const absorb = linked ? Math.min(net, saleReturnAdjustById.get(linked) || 0) : 0;
     sum += Math.max(0, net - absorb);
   }
 

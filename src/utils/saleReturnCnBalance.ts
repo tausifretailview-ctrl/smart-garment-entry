@@ -176,6 +176,35 @@ export async function ensureCreditNoteHeadroom(
       .eq("organization_id", params.organizationId);
   }
 
+  // Heal-up: pending returns without a CN header may have NULL CAB — set to net_amount
+  // (never above live CN remaining when a credit_notes row exists).
+  if (params.saleReturnId && need > 0.01) {
+    const { data: srRow } = await client
+      .from("sale_returns")
+      .select("net_amount, credit_available_balance, credit_status, credit_note_id")
+      .eq("id", params.saleReturnId)
+      .eq("organization_id", params.organizationId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (srRow) {
+      const cabRaw = srRow.credit_available_balance;
+      const cabMissing =
+        cabRaw == null || (typeof cabRaw === "number" && Number.isNaN(cabRaw));
+      const isPending =
+        String(srRow.credit_status || "").toLowerCase() === "pending";
+      const noCn = !String(srRow.credit_note_id || "").trim();
+      const netN = Math.max(0, Number(srRow.net_amount || 0));
+      if (cabMissing && isPending && noCn && netN > 0.01) {
+        const healed = Math.round(Math.min(netN, remaining > 0.01 ? remaining : netN) * 100) / 100;
+        await client
+          .from("sale_returns")
+          .update({ credit_available_balance: healed })
+          .eq("id", params.saleReturnId)
+          .eq("organization_id", params.organizationId);
+      }
+    }
+  }
+
   if (need > remaining + 0.01) {
     throw new Error("exceeds available credit note balance");
   }
