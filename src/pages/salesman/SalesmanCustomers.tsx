@@ -38,6 +38,7 @@ const SalesmanCustomers = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -63,6 +64,7 @@ const SalesmanCustomers = () => {
 
   const fetchCustomersWithBalance = async () => {
     try {
+      setErrorMsg(null);
       const orgId = currentOrganization!.id;
 
       // Fetch customers
@@ -173,7 +175,16 @@ const SalesmanCustomers = () => {
         }));
 
       const customerIdList = (customersData || []).map((c: { id: string }) => c.id);
-      const snapMap = await fetchCustomerFinancialSnapshotMap(orgId, customerIdList);
+      // Balance enrichment must never blank the list: if the snapshot RPC fails,
+      // fall back to the client-computed core.balance below (snapMap stays empty).
+      let snapMap = new Map<string, { outstandingDr: number }>() as Awaited<
+        ReturnType<typeof fetchCustomerFinancialSnapshotMap>
+      >;
+      try {
+        snapMap = await fetchCustomerFinancialSnapshotMap(orgId, customerIdList);
+      } catch (snapErr) {
+        console.warn("Customer financial snapshot failed; using client-computed balances", snapErr);
+      }
 
       const batch = buildOrgCustomerBalanceBatch({
         sales: salesForBatch,
@@ -269,8 +280,9 @@ const SalesmanCustomers = () => {
       });
       setCustomers(customersWithBalance);
       setFilteredCustomers(customersWithBalance);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching customers:", error);
+      setErrorMsg(error?.message || "Could not load customers. Pull to refresh or try again.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -421,7 +433,18 @@ const SalesmanCustomers = () => {
         {filteredCustomers.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No customers found</p>
+            {errorMsg ? (
+              <>
+                <p className="text-destructive font-medium">Couldn't load customers</p>
+                <p className="text-xs mt-1 px-6 break-words">{errorMsg}</p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={handleRefresh}>
+                  <RefreshCw className={cn("h-4 w-4 mr-1", refreshing && "animate-spin")} />
+                  Retry
+                </Button>
+              </>
+            ) : (
+              <p>No customers found</p>
+            )}
           </div>
         )}
       </div>
