@@ -28,11 +28,19 @@ export function useCustomerBrandDiscounts(customerId: string | null) {
     staleTime: 30000, // Cache for 30 seconds
   });
 
+  // Normalize brand strings before comparing: trim, collapse internal whitespace,
+  // and lowercase. Without this, a stored brand like "A WALK " (trailing space) or
+  // "A  WALK" silently fails to match the product's "A WALK", so the discount is
+  // intermittently "not calculated" depending on how the brand was typed.
+  const normalizeBrand = (s: string | null | undefined): string =>
+    (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+
   // Get discount for a specific brand
   const getBrandDiscount = (brand: string | null | undefined): number => {
-    if (!brand) return 0;
+    const target = normalizeBrand(brand);
+    if (!target) return 0;
     const discount = brandDiscounts.find(
-      (bd) => bd.brand.toLowerCase() === brand.toLowerCase()
+      (bd) => normalizeBrand(bd.brand) === target
     );
     return discount?.discount_percent || 0;
   };

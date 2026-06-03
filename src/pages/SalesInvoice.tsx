@@ -109,6 +109,9 @@ interface LineItem {
   lineTotal: number;
   hsnCode: string;
   uom?: string;
+  /** Product brand captured at add time so brand-wise customer discounts can be
+   * reconciled without re-looking it up from productsData (which can miss). */
+  brand?: string;
 }
 
 const customerSchema = z.object({
@@ -1036,12 +1039,13 @@ export default function SalesInvoice() {
     const updatedItems = lineItems.map(item => {
       if (!item.productId) return item;
       
-      // Find the product to get its brand
-      const product = productsData.find((p: any) => p.id === item.productId);
-      if (!product?.brand) return item;
+      // Prefer the brand captured on the line at add time; fall back to a
+      // productsData lookup (which can miss for inactive/unloaded products).
+      const brand = item.brand || productsData.find((p: any) => p.id === item.productId)?.brand;
+      if (!brand) return item;
       
       // Get the brand discount
-      const brandDiscount = getBrandDiscount(product.brand);
+      const brandDiscount = getBrandDiscount(brand);
       
       // Only update if current discount is 0 and brand discount exists
       if (item.discountPercent === 0 && brandDiscount > 0) {
@@ -1410,6 +1414,7 @@ export default function SalesInvoice() {
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
+          brand: product.brand || '',
         });
         
         if (emptyRowIndex >= 0) {
@@ -1678,6 +1683,7 @@ export default function SalesInvoice() {
         lineTotal: 0,
         hsnCode: product.hsn_code || '',
         uom: product.uom || 'NOS',
+        brand: product.brand || '',
       };
       
       const emptyRowIndex = prev.findIndex(item => item.productId === '');
