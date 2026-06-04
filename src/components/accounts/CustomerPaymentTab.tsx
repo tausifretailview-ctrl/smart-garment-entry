@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet } from "lucide-react";
+import { CalendarIcon, Plus, TrendingDown, Printer, Check, ChevronsUpDown, Pencil, Trash2, ChevronLeft, ChevronRight, Coins, Send, Link2, Zap, Wallet, RefreshCw } from "lucide-react";
 import { Filter } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { reverseCustomerAdvanceFifo } from "@/utils/reverseCustomerAdvanceFifo";
-import { fetchAllCustomers, fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
+import { fetchCustomerReceiptVouchers } from "@/utils/fetchAllRows";
 import {
   ACCOUNTS_HISTORY_PERIOD_OPTIONS,
   type AccountsHistoryPeriod,
@@ -40,7 +40,7 @@ import {
   sortCustomerReceiptVouchersByEntryNewestFirst,
   voucherDateInPeriod,
 } from "@/utils/paymentVoucherFilters";
-import { fetchOrganizationReceivableRows } from "@/utils/organizationReceivables";
+import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
@@ -251,36 +251,19 @@ export function CustomerPaymentTab({
   // Uses the master reconciler (reconcile_customer_balances) which computes EVERY customer
   // in a single set-based query — far faster than the per-customer snapshot loop that took
   // minutes to populate this list — and stays consistent with Customer Ledger / Reconciliation.
-  const { data: customersWithBalance } = useQuery({
-    queryKey: ["customers-with-balance", organizationId, "master-reconcile-rpc"],
-    queryFn: async () => {
-      const [allCustomers, rows] = await Promise.all([
-        fetchAllCustomers(organizationId),
-        fetchOrganizationReceivableRows(organizationId, supabase),
-      ]);
-
-      const customerById = new Map<string, any>(
-        allCustomers.map((c: { id: string }) => [c.id, c]),
-      );
-
-      return rows
-        .filter((r) => r.balance > 0)
-        .map((r) => {
-          const c = customerById.get(r.customerId);
-          return {
-            ...(c || {}),
-            id: r.customerId,
-            customer_name: c?.customer_name ?? "",
-            phone: c?.phone ?? "",
-            outstandingBalance: r.balance,
-          };
-        })
-        .filter((c) => !!c.customer_name);
-    },
+  const {
+    data: customersWithBalance,
+    isLoading: customersWithBalanceLoading,
+    isError: customersWithBalanceError,
+    refetch: refetchCustomersWithBalance,
+  } = useQuery({
+    queryKey: ["customers-with-balance", organizationId, "payment-picker-v2"],
+    queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId),
     enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
+    retry: 2,
   });
 
   // Customer invoices
@@ -1330,7 +1313,9 @@ export function CustomerPaymentTab({
                 onOpenChange={setCustomerSearchOpen}
                 selectedId={referenceId || null}
                 selectedLabel={
-                  customersWithBalance?.find((c) => c.id === referenceId)?.customer_name || ""
+                  customersWithBalance?.find((c) => c.id === referenceId)?.customer_name ||
+                  customers?.find((c) => c.id === referenceId)?.customer_name ||
+                  ""
                 }
                 searchTerm={customerSearchTerm}
                 onSearchTermChange={setCustomerSearchTerm}
@@ -1345,13 +1330,29 @@ export function CustomerPaymentTab({
                   setSelectedInvoiceIds([]);
                   setAllocatedAmounts({});
                 }}
+                isLoading={customersWithBalanceLoading}
+                loadingMessage="Loading customers with balance..."
                 emptyMessage={
-                  customersWithBalance?.length === 0
-                    ? "No customers with outstanding balance"
-                    : "No customer found"
+                  customersWithBalanceError
+                    ? "Could not load customers — close and reopen, or retry"
+                    : customersWithBalance?.length === 0
+                      ? "No customers with outstanding balance"
+                      : "No customer found"
                 }
                 showOutstanding
               />
+              {customersWithBalanceError && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 mt-1"
+                  onClick={() => refetchCustomersWithBalance()}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  Retry loading customers
+                </Button>
+              )}
                 {referenceId && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && (() => {
                   const lifetimeDr = lifetimeOutstanding ?? 0;
                   const showAsNoOutstanding =
