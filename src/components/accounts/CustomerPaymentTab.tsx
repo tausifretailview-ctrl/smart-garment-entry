@@ -391,22 +391,36 @@ export function CustomerPaymentTab({
     enabled: !!referenceId && !!organizationId,
   });
 
-  const { balance: customerBalance } = useCustomerBalance(
-    referenceId || null,
-    organizationId
-  );
+  const {
+    balance: customerBalance,
+    isLoading: customerBalanceLoading,
+  } = useCustomerBalance(referenceId || null, organizationId);
 
   const {
     outstandingDr: snapshotOutstandingDr,
     advanceAvailable: snapshotAdvanceAvailable,
     cnAvailableTotal: snapshotCnAvailable,
+    isLoading: snapshotLoading,
+    isFetching: snapshotFetching,
   } = useCustomerFinancialSnapshot(referenceId || null, organizationId);
 
-  /** Same lifetime Dr as Customer Ledger detail (useCustomerBalance); snapshot is fallback only. */
-  const lifetimeOutstanding =
-    customerBalance ??
-    snapshotOutstandingDr ??
-    customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
+  /**
+   * Lifetime Dr — same sources as Customer Ledger (SQL snapshot + ledger-aligned balance core).
+   * Prefer snapshot RPC first; useCustomerBalance uses the same ledger-aligned formula after fix.
+   */
+  const lifetimeOutstanding = useMemo(() => {
+    if (!referenceId) return undefined;
+    if (snapshotOutstandingDr != null && !Number.isNaN(Number(snapshotOutstandingDr))) {
+      return Number(snapshotOutstandingDr);
+    }
+    if (customerBalance != null && !Number.isNaN(Number(customerBalance))) {
+      return Number(customerBalance);
+    }
+    return customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance;
+  }, [referenceId, snapshotOutstandingDr, customerBalance, customersWithBalance]);
+
+  const balanceBannerLoading =
+    !!referenceId && (customerBalanceLoading || snapshotLoading || snapshotFetching);
 
   /** Sum of opening + per-invoice pending (matches Select Invoices list; includes sale_return_adjust). */
   const listedInvoicePendingTotal = useMemo(() => {
@@ -1353,8 +1367,16 @@ export function CustomerPaymentTab({
                   Retry loading customers
                 </Button>
               )}
-                {referenceId && (lifetimeOutstanding !== undefined || customerBalance !== undefined) && (() => {
-                  const lifetimeDr = lifetimeOutstanding ?? 0;
+                {referenceId && (() => {
+                  if (balanceBannerLoading) {
+                    return (
+                      <div className="mt-2 p-3 border rounded-md bg-muted/40 text-sm text-muted-foreground">
+                        Loading outstanding balance…
+                      </div>
+                    );
+                  }
+                  if (lifetimeOutstanding === undefined) return null;
+                  const lifetimeDr = lifetimeOutstanding;
                   const showAsNoOutstanding =
                     lifetimeDr <= 0 && listedInvoicePendingTotal < MIN_PENDING_RUPEE;
                   const displayBalance = Math.round(

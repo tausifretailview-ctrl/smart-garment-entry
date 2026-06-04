@@ -889,6 +889,7 @@ export async function fetchCustomerBalanceSnapshot(
     advanceRefunds: bundle.refunds,
     adjustmentTotal,
     saleReturns: bundle.saleReturns,
+    options: { ledgerAlignedApplicationReceipts: true },
   });
 
   // Pre-fix bug: adjustment was in auditFormulaOutstanding and added again; drift subtracted twice.
