@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Shield } from "lucide-react";
 import { validateAuth } from "@/lib/validations";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
+import { hideAppBootSplash } from "@/lib/appBootSplash";
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 60000; // 1 minute
@@ -21,6 +22,10 @@ const Auth = () => {
   const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    hideAppBootSplash();
+  }, []);
 
   // Check and clear lockout on mount
   useEffect(() => {

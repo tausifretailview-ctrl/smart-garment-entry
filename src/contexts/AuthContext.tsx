@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { storeOrgSlug } from "@/lib/orgSlug";
+import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { toast } from "sonner";
 
 // Global constants for cross-tab refresh coordination
@@ -421,6 +422,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
   }, []);
+
+  // Logged-in bootstrap: hide HTML splash once session is resolved
+  useEffect(() => {
+    if (!loading && user) {
+      requestAnimationFrame(() => hideAppBootSplash());
+    }
+  }, [loading, user]);
 
   const signOut = async () => {
     // Store org slug before signing out for PWA recovery

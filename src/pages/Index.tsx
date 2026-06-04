@@ -7,7 +7,10 @@ import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
-import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
+import {
+  DASHBOARD_MANUAL_REFRESH_OPTIONS,
+  DASHBOARD_REFRESH_QUERY_KEYS,
+} from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts } from "@/utils/customerSegments";
 import { useIsLgUp } from "@/hooks/use-mobile";
 import { useDashboardToolbar } from "@/contexts/DashboardToolbarContext";
@@ -207,9 +210,6 @@ const getDateRange = (type: DateRangeType) => {
   }
 };
 
-// Note: Refresh intervals are now tier-based via useTierBasedRefresh hook
-// Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
-
 const DesktopDashboard = () => {
   const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -223,10 +223,6 @@ const DesktopDashboard = () => {
   const queryClient = useQueryClient();
   const [showSizeStock, setShowSizeStock] = useState(false);
   
-  // Tier-based polling - reduces cloud usage based on subscription tier
-  // Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
-  const { getRefreshInterval, isManualRefreshOnly } = useTierBasedRefresh();
-
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const pageContextMenu = useContextMenu<void>();
@@ -285,11 +281,11 @@ const DesktopDashboard = () => {
   // Manual refresh all - single RPC query key
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    await queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
-    await queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
-    await queryClient.invalidateQueries({ queryKey: ["top-products"] });
-    await queryClient.invalidateQueries({ queryKey: ["customer-segment-counts", currentOrganization?.id] });
+    await Promise.all(
+      DASHBOARD_REFRESH_QUERY_KEYS.map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] }),
+      ),
+    );
     setLastUpdated(new Date());
     setTimeout(() => setIsRefreshing(false), 500);
   };
@@ -332,22 +328,20 @@ const DesktopDashboard = () => {
       };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 10 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
   // Receivables = true net customer AR (Master Reconciliation), shared with the
   // Customer Ledger card / Balance Sheet, instead of the invoice-only net−paid view.
   const { summary: receivablesSummary } = useOrganizationReceivablesSummary(
     currentOrganization?.id,
+    { manualRefreshOnly: true },
   );
 
   const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: ["customer-segment-counts", currentOrganization?.id],
     enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
   });
 
@@ -756,8 +750,8 @@ const DesktopDashboard = () => {
             <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
             <span className="truncate">
               {isLoading && !dashStats
-                ? "Loading..."
-                : `Last updated: ${format(lastUpdated, "HH:mm:ss")}`}
+                ? "Loading…"
+                : `Updated ${format(lastUpdated, "HH:mm:ss")} · refresh for latest`}
             </span>
           </div>
           <Button
@@ -765,6 +759,7 @@ const DesktopDashboard = () => {
             size="sm"
             onClick={handleRefreshAll}
             disabled={isRefreshing || isLoading}
+            title="Load latest sales, stock, and charts from the server (F5)"
             className="h-7 text-xs shrink-0 border-border bg-card hover:bg-muted"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", (isRefreshing || isLoading) && "animate-spin")} />

@@ -23,6 +23,8 @@ import { getStoredOrgSlug } from "@/lib/orgSlug";
 import InstallApp from "./pages/InstallApp";
 import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
 import { NativeAppBridge } from "@/components/NativeAppBridge";
+import { AppBootSplash } from "@/components/AppBootSplash";
+import { isAppBootRoute } from "@/lib/appBootSplash";
 
 // Auto-retry lazy imports to handle chunk failures after deployments
 function lazyWithRetry(importFn: () => Promise<any>) {
@@ -163,11 +165,16 @@ const PortalAccount = lazyWithRetry(() => import("./pages/portal/PortalAccount")
 const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommission"));
 const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
-const LazyFallback = () => (
-  <div className="min-h-[40vh] w-full">
-    <DashboardSkeleton />
-  </div>
-);
+const LazyFallback = () => {
+  if (isAppBootRoute(window.location.pathname)) {
+    return <AppBootSplash message="Loading…" />;
+  }
+  return (
+    <div className="min-h-[40vh] w-full">
+      <DashboardSkeleton />
+    </div>
+  );
+};
 
 // Check if this is a Field Sales PWA launch (check URL param or sessionStorage)
 function isFieldSalesPWA(): boolean {

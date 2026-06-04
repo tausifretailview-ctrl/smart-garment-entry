@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
+import { DASHBOARD_MANUAL_REFRESH_OPTIONS } from "@/lib/dashboardQueryOptions";
 export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
 
@@ -44,9 +45,7 @@ export const StatsChartsSection = () => {
       return salesByDay;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 10 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
   // Fetch last 7 days purchase data - using aggregation view
@@ -85,9 +84,7 @@ export const StatsChartsSection = () => {
       return purchaseByDay;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 10 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
   // Fetch top 5 products by stock value
@@ -117,9 +114,7 @@ export const StatsChartsSection = () => {
       })) || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 10 * 60 * 1000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
   // Combine sales and purchases for comparison

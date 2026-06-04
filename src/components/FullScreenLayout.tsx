@@ -18,6 +18,7 @@ import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileS
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
+import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -25,8 +26,8 @@ interface FullScreenLayoutProps {
 
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
-  const isEntryFullscreenPage = /\/(sales-invoice|purchase-entry)\/?$/.test(location.pathname);
-  const showDesktopChrome = useShowDesktopChrome();
+  const isEntryFullscreenPage = isEntryFullscreenPath(location.pathname);
+  const showDesktopChrome = useShowDesktopChrome() && !isEntryFullscreenPage;
 
   return (
     <ChatProvider>

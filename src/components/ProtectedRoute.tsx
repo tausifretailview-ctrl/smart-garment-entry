@@ -1,6 +1,8 @@
 import { Navigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2, WifiOff, RefreshCw } from "lucide-react";
+import { WifiOff, RefreshCw } from "lucide-react";
+import { AppBootSplash } from "@/components/AppBootSplash";
+import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug, getOrgSlugFromUrl, storeOrgSlug } from "@/lib/orgSlug";
 
 // Check if this is a Field Sales PWA context
@@ -25,6 +27,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   // Connection timeout - show retry screen
   if (connectionTimedOut) {
+    hideAppBootSplash();
     return (
       <div className="min-h-screen flex items-center justify-content-center bg-background">
         <div className="text-center p-6 max-w-sm mx-auto">
@@ -46,13 +49,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (loading) {
-    // Show orange spinner for Field Sales PWA
-    const isFieldSales = isFieldSalesPWA();
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className={`h-8 w-8 animate-spin ${isFieldSales ? 'text-orange-500' : 'text-primary'}`} />
-      </div>
-    );
+    // Branded splash (HTML + React) — avoids white screen + tiny spinner on Windows app cold start
+    return <AppBootSplash message={isFieldSalesPWA() ? "Starting Field Sales…" : "Starting Ezzy ERP…"} />;
   }
 
   if (!user) {

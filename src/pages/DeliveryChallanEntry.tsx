@@ -714,8 +714,8 @@ export default function DeliveryChallanEntry() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-[1600px] mx-auto">
+    <div className="min-h-screen w-full max-w-none bg-background p-2 sm:p-3 lg:p-4">
+      <div className="w-full max-w-none mx-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
