@@ -202,14 +202,18 @@ function createWindow() {
       --pos-toolbar-h: 136px !important;
     }
 
-    /* Sales Invoice (and other full-height entry forms): if the content is
-       taller than the window, allow the page to scroll instead of hard-
-       clipping the bottom totals bar / top fields. */
+    /* Bill entry: fit between window top and fixed status bar — keep Save
+       Invoice / footer visible (do not use 100vh + padding-bottom: 0). */
+    :root {
+      --erp-status-bar-height: 1.5rem;
+    }
     [data-entry-form] {
-      height: auto !important;
-      min-height: 100vh;
-      overflow-y: auto !important;
+      height: calc(100dvh - var(--erp-status-bar-height, 1.5rem)) !important;
+      max-height: calc(100dvh - var(--erp-status-bar-height, 1.5rem)) !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
       padding-bottom: 0 !important;
+      box-sizing: border-box !important;
     }
   `;
 

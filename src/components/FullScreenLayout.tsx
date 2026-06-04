@@ -39,7 +39,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             <div
               className={
                 isEntryFullscreenPage
-                  ? "flex h-screen w-full overflow-hidden bg-background"
+                  ? "flex h-[calc(100dvh-var(--erp-status-bar-height,1.5rem))] max-lg:h-dvh w-full overflow-hidden bg-background"
                   : "flex min-h-screen w-full bg-background"
               }
             >

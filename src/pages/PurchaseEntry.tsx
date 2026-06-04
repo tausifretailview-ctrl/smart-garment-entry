@@ -4029,7 +4029,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className={cn(entryPageShellClass, "bg-slate-50 pb-6")} data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50")} data-entry-form>
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">

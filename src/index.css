@@ -553,6 +553,10 @@ All colors MUST be HSL.
   }
 
   /* ERP Status Bar — Tally/SAP style bottom bar */
+  :root {
+    --erp-status-bar-height: 1.5rem; /* matches .erp-status-bar h-6 */
+  }
+
   .erp-status-bar {
     @apply fixed bottom-0 left-0 right-0 h-6 flex items-center px-4 gap-4 text-[11px] z-50;
     background: hsl(var(--primary));
@@ -1568,6 +1572,17 @@ input.no-uppercase {
 /* Bill entry — use full content width; product column absorbs extra space */
 [data-entry-form] {
   max-width: none;
+  /* Keep footer (Save Invoice) above the fixed status bar on desktop */
+  height: calc(100dvh - var(--erp-status-bar-height, 1.5rem));
+  max-height: calc(100dvh - var(--erp-status-bar-height, 1.5rem));
+  box-sizing: border-box;
+}
+
+@media (max-width: 1023px) {
+  [data-entry-form] {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
 }
 
 .erp-entry-lines-table {
