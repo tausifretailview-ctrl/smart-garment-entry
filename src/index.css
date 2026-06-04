@@ -797,8 +797,8 @@ All colors MUST be HSL.
 .thermal-print-80mm,
 .thermal-receipt-container,
 .invoice-format-thermal-receipt {
-  width: 70mm !important;
-  max-width: 70mm !important;
+  width: 72mm !important;
+  max-width: 72mm !important;
   font-family: 'Courier New', Courier, monospace !important;
   font-size: 11px !important;
   line-height: 1.4 !important;
@@ -817,8 +817,8 @@ All colors MUST be HSL.
   .thermal-print-80mm,
   .thermal-receipt-container,
   .invoice-format-thermal-receipt {
-    width: 70mm !important;
-    max-width: 70mm !important;
+    width: 72mm !important;
+    max-width: 72mm !important;
     font-size: 11px !important;
     padding: 2mm !important;
     margin: 0 !important;
@@ -853,7 +853,7 @@ All colors MUST be HSL.
 
 @page thermal {
   size: 80mm auto;
-  margin: 2mm 4mm;
+  margin: 0;
 }
 
 /* ============================================

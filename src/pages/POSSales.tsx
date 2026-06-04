@@ -3344,7 +3344,7 @@ export default function POSSales() {
       case 'thermal': {
         const thermalPage = posThermalPageCss(posThermalPaper);
         size = thermalPage.pageSize;
-        margin = '3mm';
+        margin = '0';
         break;
       }
       default: // a5-vertical
