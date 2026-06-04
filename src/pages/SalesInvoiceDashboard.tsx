@@ -31,7 +31,7 @@ import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -180,7 +180,7 @@ export default function SalesInvoiceDashboard() {
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
   const loadedItemsRef = useRef<Record<string, any[]>>({});
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
-  const [periodFilter, setPeriodFilter] = useState<string>("monthly");
+  const [periodFilter, setPeriodFilter] = useState<string>("weekly");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string[]>([]);
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
@@ -556,6 +556,11 @@ export default function SalesInvoiceDashboard() {
     switch (periodFilter) {
       case 'daily':
         return { start: format(today, 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') };
+      case 'weekly':
+        return {
+          start: format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          end: format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+        };
       case 'monthly':
         return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd') };
       case 'yearly':
@@ -2511,7 +2516,17 @@ export default function SalesInvoiceDashboard() {
           </div>
         </div>
 
-        <MobilePeriodChips value={periodFilter} onChange={(v) => { setPeriodFilter(v); setCurrentPage(1); }} />
+        <MobilePeriodChips
+          value={periodFilter}
+          onChange={(v) => { setPeriodFilter(v); setCurrentPage(1); }}
+          periods={[
+            { value: "daily", label: "Today" },
+            { value: "weekly", label: "Week" },
+            { value: "monthly", label: "Month" },
+            { value: "yearly", label: "Year" },
+            { value: "all", label: "All" },
+          ]}
+        />
 
         <MobileStatStrip stats={[
           { label: "Total", value: fmt(effectiveStats.totalAmount), color: "text-blue-600", bg: "bg-blue-50" },
@@ -3020,9 +3035,10 @@ export default function SalesInvoiceDashboard() {
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="weekly">This Week</SelectItem>
                   <SelectItem value="daily">Today</SelectItem>
                   <SelectItem value="monthly">This Month</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
                   <SelectItem value="yearly">This Year</SelectItem>
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
