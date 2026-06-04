@@ -257,6 +257,9 @@ const POSDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+  const lastFetchAtRef = useRef(0);
+  const lastFetchKeyRef = useRef("");
+  const POS_DASHBOARD_FETCH_TTL_MS = 30_000;
 
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
@@ -420,8 +423,18 @@ const POSDashboard = () => {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [expandedSale, sales]);
 
-  const fetchSales = useCallback(async () => {
+  const fetchSales = useCallback(async (options?: { force?: boolean }) => {
     if (!currentOrganization?.id) return;
+    const force = options?.force === true;
+    const fetchKey = `${currentOrganization.id}|${startDate}|${endDate}`;
+    if (
+      !force &&
+      lastFetchKeyRef.current === fetchKey &&
+      sales.length > 0 &&
+      Date.now() - lastFetchAtRef.current < POS_DASHBOARD_FETCH_TTL_MS
+    ) {
+      return;
+    }
 
     setLoading(true);
     try {
@@ -514,77 +527,10 @@ const POSDashboard = () => {
       }
 
       setSales([...allSales]);
-      // Phase 1 complete - show table immediately
+      lastFetchKeyRef.current = fetchKey;
+      lastFetchAtRef.current = Date.now();
+      // Line items load on row expand only (fetchSaleItems) — avoids bulk sale_items reads on dashboard open.
       setLoading(false);
-      
-      // Phase 2: Fetch sale items in background (non-blocking, deferred to idle time)
-      if (allSales.length > 0) {
-        const runPhase2 = async () => {
-          const saleIds = allSales.map(sale => sale.id);
-          const batchSize = 500;
-          const allItems: any[] = [];
-
-          for (let i = 0; i < saleIds.length; i += batchSize) {
-            const batchIds = saleIds.slice(i, i + batchSize);
-            if (batchIds.length === 0) continue;
-            const { data: itemsData, error: itemsError } = await supabase
-              .from("sale_items")
-              .select("*")
-              .in("sale_id", batchIds);
-            
-            if (!itemsError && itemsData) {
-              allItems.push(...itemsData);
-            }
-          }
-
-        const itemsBySale: Record<string, SaleItem[]> = {};
-        allItems.forEach((item: any) => {
-          if (!itemsBySale[item.sale_id]) {
-            itemsBySale[item.sale_id] = [];
-          }
-          itemsBySale[item.sale_id].push(item);
-        });
-
-        // Parse hold bill items from held_cart_data/notes fallback (hold bills have no sale_items rows)
-        allSales.forEach((sale: any) => {
-          if (isHoldLikeSale(sale) && !itemsBySale[sale.id]) {
-            try {
-              const holdData = sale.held_cart_data || JSON.parse(sale.notes || '{}');
-              if (holdData.items && Array.isArray(holdData.items)) {
-                itemsBySale[sale.id] = holdData.items.map((item: any, idx: number) => ({
-                  id: `hold-${sale.id}-${idx}`,
-                  sale_id: sale.id,
-                  product_id: item.productId || item.product_id || '',
-                  product_name: item.productName || item.product_name || '',
-                  size: item.size || '',
-                  barcode: item.barcode || '',
-                  quantity: item.quantity || item.qty || 0,
-                  unit_price: item.salePrice || item.unit_price || item.rate || 0,
-                  mrp: item.mrp || 0,
-                  line_total: item.lineTotal || item.line_total || item.total || 0,
-                  discount_percent: item.discountPercent || item.discount_percent || 0,
-                  gst_percent: item.gstPercent || item.gst_percent || 0,
-                  hsn_code: item.hsnCode || item.hsn_code || '',
-                  brand: item.brand || '',
-                  color: item.color || '',
-                  style: item.style || '',
-                }));
-              }
-            } catch (e) { /* ignore parse errors */ }
-          }
-        });
-
-          setSaleItems(itemsBySale);
-        };
-
-        // Defer to idle time so the table renders first
-        const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
-        if (typeof ric === 'function') {
-          ric(() => { runPhase2(); }, { timeout: 1500 });
-        } else {
-          setTimeout(() => { runPhase2(); }, 0);
-        }
-      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -593,7 +539,7 @@ const POSDashboard = () => {
       });
       setLoading(false);
     }
-  }, [currentOrganization?.id, startDate, endDate, toast]);
+  }, [currentOrganization?.id, startDate, endDate, toast, sales.length]);
 
   useEffect(() => {
     if (routePathSegment !== "pos-dashboard") return;
@@ -605,7 +551,7 @@ const POSDashboard = () => {
       const detail = (ev as CustomEvent<{ organizationId?: string }>).detail;
       if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
       // Refetch even when this pane is hidden (tab cache) so switching to dashboard is instant.
-      void fetchSales();
+      void fetchSales({ force: true });
     };
     window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
     return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
@@ -1564,8 +1510,11 @@ const POSDashboard = () => {
     return {
       totalBills: filteredSales.length,
       totalQty: nonHoldSales.reduce((sum, sale) => {
-        const items = saleItems[sale.id] || [];
-        return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+        const items = saleItems[sale.id];
+        if (items?.length) {
+          return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+        }
+        return sum + Number((sale as { total_qty?: number }).total_qty || 0);
       }, 0),
       totalAmount: nonHoldSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
       totalDiscount: nonHoldSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),

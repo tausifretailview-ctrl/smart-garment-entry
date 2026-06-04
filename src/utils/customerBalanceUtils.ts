@@ -529,11 +529,18 @@ async function fetchPaginatedReceiptRows(
   return all;
 }
 
+export type FetchSaleReceiptSplitsOptions = {
+  /** YYYY-MM-DD — limits customer-level receipt rows (reduces cloud reads on dashboards). */
+  voucherDateFrom?: string | null;
+  voucherDateTo?: string | null;
+};
+
 /** Fetch receipt vouchers for a page of invoices (sale id + customer id paths). */
 export async function fetchSaleReceiptSplitsForInvoices(
   client: SupabaseClient,
   organizationId: string,
   invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
+  options?: FetchSaleReceiptSplitsOptions,
 ): Promise<Map<string, SaleReceiptVoucherSplit>> {
   const saleIds = invoices.map((i) => i.id).filter(Boolean);
   if (saleIds.length === 0) return new Map();
@@ -552,9 +559,20 @@ export async function fetchSaleReceiptSplitsForInvoices(
     merged.push(...rows);
   }
 
+  const applyVoucherDateBounds = (q: any) => {
+    let bounded = q;
+    if (options?.voucherDateFrom) {
+      bounded = bounded.gte("voucher_date", options.voucherDateFrom);
+    }
+    if (options?.voucherDateTo) {
+      bounded = bounded.lte("voucher_date", options.voucherDateTo);
+    }
+    return bounded;
+  };
+
   for (const customerId of customerIds) {
     const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      q.eq("reference_id", customerId),
+      applyVoucherDateBounds(q.eq("reference_id", customerId)),
     );
     merged.push(...rows);
   }
@@ -570,7 +588,9 @@ export async function fetchSaleReceiptSplitsForInvoices(
     const orFilter = batch
       .map((num) => `description.ilike.%${escapeIlikePattern(num)}%`)
       .join(",");
-    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) => q.or(orFilter));
+    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+      applyVoucherDateBounds(q.or(orFilter)),
+    );
     merged.push(...rows);
   }
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
-import { STALE_LIVE, STALE_SETTINGS } from "@/lib/queryStaleTimes";
+import { STALE_PAGINATED, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -92,15 +92,9 @@ import {
   warnSettlementPathMismatch,
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
-import {
-  fetchCustomerBalanceSnapshot,
-  reconcileSaleInvoiceDisplay,
-  fetchSaleReceiptSplitsForInvoices,
-  reconcileSaleInvoiceWithSplit,
-  type SaleReceiptVoucherSplit,
-} from "@/utils/customerBalanceUtils";
+import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
+import { fetchInvoiceDashboardUnified } from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
-import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -134,18 +128,6 @@ function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: s
     );
   }
   return query.in("payment_status", rest).eq("is_cancelled", false);
-}
-
-/**
- * When invoice search unions `sale_items` (product/barcode/size/color), very short letter
- * queries (e.g. "SHE") match accidental substrings in product text and show unrelated invoices.
- * Use line-item union only for longer text or long numeric strings (barcode-style).
- */
-function shouldUnionSaleItemsForInvoiceSearch(searchStr: string): boolean {
-  const t = searchStr.trim();
-  if (!t) return false;
-  if (/^\d+$/.test(t)) return t.length >= 8;
-  return /[A-Za-z]/.test(t) && t.length >= 4;
 }
 
 /** Inclusive calendar-day bounds for sale_date (avoids UTC midnight cutting off same-day invoices). */
@@ -593,218 +575,67 @@ export default function SalesInvoiceDashboard() {
     [queryDateRange.start, queryDateRange.end],
   );
 
-  // Server-side paginated query — NO sale_items, explicit columns
-  const { data: invoicesResult, isLoading, refetch, error: invoicesError, dataUpdatedAt: invoicesUpdatedAt } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, debouncedSearch, deliveryFilter, paymentStatusFilter, shopFilter, userFilter, queryDateRange.start, queryDateRange.end, currentPage, itemsPerPage],
+  // Single filtered fetch for table + summary tiles (avoids duplicate full-month sales scans).
+  const {
+    data: dashboardUnified,
+    isLoading,
+    refetch,
+    error: invoicesError,
+    dataUpdatedAt: invoicesUpdatedAt,
+  } = useQuery({
+    queryKey: [
+      "invoice-dashboard-unified",
+      currentOrganization?.id,
+      debouncedSearch,
+      deliveryFilter,
+      paymentStatusFilter,
+      shopFilter,
+      userFilter,
+      queryDateRange.start,
+      queryDateRange.end,
+    ],
     queryFn: async () => {
-      if (!currentOrganization?.id) return { data: [], count: 0 };
-      
-      const from = (currentPage - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
-
-      let query = supabase
-        .from('sales')
-        .select('id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)', { count: 'exact' })
-        .eq('organization_id', currentOrganization.id)
-        .eq('sale_type', 'invoice')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (deliveryFilter !== 'all') {
-        query = query.eq('delivery_status', deliveryFilter);
-      }
-      if (paymentStatusFilter.length > 0) {
-        query = applyPaymentStatusFilterToSalesQuery(query, paymentStatusFilter);
-      }
-      if (shopFilter !== 'all') {
-        query = query.eq('shop_name', shopFilter);
-      }
-      if (userFilter !== 'all' && userFilter !== '__pending__') {
-        query = query.eq('created_by', userFilter);
-      }
-      if (saleDateFilter.start) {
-        query = query.gte('sale_date', saleDateFilter.start);
-      }
-      if (saleDateFilter.end) {
-        query = query.lte('sale_date', saleDateFilter.end);
-      }
-      if (debouncedSearch) {
-        const searchStr = debouncedSearch.trim();
-
-        const saleTextFilter =
-          `sale_number.ilike.%${searchStr}%,` +
-          `customer_name.ilike.%${searchStr}%,` +
-          `customer_phone.ilike.%${searchStr}%,` +
-          `salesman.ilike.%${searchStr}%`;
-
-        let matchingSaleIds: string[] = [];
-        if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
-          const { data: matchingItems } = await (supabase as any)
-            .from('sale_items')
-            .select('sale_id')
-            .is('deleted_at', null)
-            .or(
-              `barcode.ilike.%${searchStr}%,` +
-              `product_name.ilike.%${searchStr}%,` +
-              `size.ilike.%${searchStr}%,` +
-              `color.ilike.%${searchStr}%`
-            )
-            .limit(300);
-
-          matchingSaleIds = [
-            ...new Set(
-              (matchingItems || [])
-                .map((i: any) => i.sale_id)
-                .filter(Boolean)
-            ),
-          ] as string[];
-        }
-
-        if (matchingSaleIds.length > 0) {
-          const { data: textMatches } = await supabase
-            .from('sales')
-            .select('id')
-            .eq('organization_id', currentOrganization.id)
-            .is('deleted_at', null)
-            .or(saleTextFilter);
-
-          const textMatchIds = (textMatches || []).map((s: any) => s.id);
-          const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
-          query = query.in('id', allMatchIds);
-        } else {
-          query = query.or(saleTextFilter);
-        }
-      }
-
-      const { data, error, count } = await query;
-      if (error) {
-        console.error('Error fetching invoices:', error);
-        throw error;
-      }
-
-      const invoices = data || [];
-      const saleIds = invoices.map((s: any) => s.id).filter(Boolean);
-      if (saleIds.length === 0) {
-        return { data: invoices, count: count || 0 };
-      }
-
-      const splitBySale = await fetchSaleReceiptSplitsForInvoices(
-        supabase,
-        currentOrganization.id,
-        invoices.map((inv: any) => ({
-          id: inv.id,
-          sale_number: inv.sale_number,
-          customer_id: inv.customer_id,
-        })),
-      );
-
-      const { data: linkedReturns } = await supabase
-        .from("sale_returns")
-        .select("linked_sale_id, return_date, return_number")
-        .eq("organization_id", currentOrganization.id)
-        .in("linked_sale_id", saleIds)
-        .is("deleted_at", null);
-
-      // Merchandise gross per sale (Σ mrp × qty). Enables the pre-return S/R subtraction
-      // guard in reconcileSaleInvoiceDisplay: when net_amount is the full bill and a return
-      // was applied on top (net + sr > items_gross, e.g. ELLA NOOR / post-hoc CN adjust),
-      // the applied return is credited; for post-return/exchange rows the guard is a no-op.
-      const itemsGrossBySale = new Map<string, number>();
-      {
-        const { data: itemRows } = await supabase
-          .from("sale_items")
-          .select("sale_id, quantity, mrp")
-          .in("sale_id", saleIds)
-          .is("deleted_at", null);
-        (itemRows || []).forEach((it: any) => {
-          if (!it.sale_id) return;
-          const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
-          itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
-        });
-      }
-
-      // If paid_amount / payment_status is stale vs vouchers + S/R, sync sales row (ledger-consistent cash vs CN).
-      const staleUpdates = invoices
-        .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== 'hold')
-        .map((inv: any) => {
-          const split = splitBySale.get(inv.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-          const rec = reconcileSaleInvoiceWithSplit(
-            { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
-            split,
-          );
-          const { paymentStatus: derivedStatus } = derivePaidAndStatus({
-            netAmount: Number(inv.net_amount || 0),
-            saleReturnAdjust: Number(inv.sale_return_adjust || 0),
-            cashReceived: split.cash,
-            advanceApplied: split.adv,
-            cnApplied: split.cn,
-            discountGiven: split.discount,
-            paymentMethod: inv.payment_method,
-          });
-          warnSettlementPathMismatch(
-            "SalesInvoiceDashboard.staleNormalize",
-            rec.payment_status,
-            derivedStatus,
-          );
-          return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
-        })
-        .filter(({ inv, normalizedPaid, normalizedStatus }) =>
-          Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
-          (inv.payment_status || 'pending') !== normalizedStatus
-        );
-
-      if (staleUpdates.length > 0) {
-        await Promise.all(
-          staleUpdates.map(({ inv, normalizedPaid, normalizedStatus }) =>
-            supabase
-              .from('sales')
-              .update({ paid_amount: normalizedPaid, payment_status: normalizedStatus })
-              .eq('id', inv.id)
-              .eq('organization_id', currentOrganization.id)
-          )
-        );
-      }
-
-      const normalizedInvoices = invoices.map((inv: any) => {
-        const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
-        if (isInvCancelled) {
-          return { ...inv, payment_status: "cancelled" as const };
-        }
-        if (inv.payment_status === "hold") {
-          return { ...inv };
-        }
-        const rec = reconcileSaleInvoiceWithSplit(
-          { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
-          splitBySale.get(inv.id) ?? null,
-        );
-        const cnAdjustYmd =
-          Number(inv.sale_return_adjust || 0) > 0.005
-            ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])
-            : null;
+      if (!currentOrganization?.id) {
         return {
-          ...inv,
-          paid_amount: rec.paid_amount,
-          payment_status: rec.payment_status,
-          outstanding: rec.outstanding,
-          cn_adjust_date: cnAdjustYmd,
+          invoices: [] as any[],
+          stats: {
+            totalInvoices: 0,
+            totalAmount: 0,
+            totalDiscount: 0,
+            totalQty: 0,
+            pendingAmount: 0,
+            deliveredCount: 0,
+            deliveredAmount: 0,
+            undeliveredCount: 0,
+            undeliveredAmount: 0,
+          },
         };
+      }
+      return fetchInvoiceDashboardUnified(supabase, {
+        organizationId: currentOrganization.id,
+        debouncedSearch,
+        deliveryFilter,
+        paymentStatusFilter,
+        shopFilter,
+        userFilter,
+        saleDateFilter,
+        voucherDateFrom: queryDateRange.start,
+        voucherDateTo: queryDateRange.end,
       });
-
-      const filteredNormalized = paymentStatusFilter.length > 0
-        ? normalizedInvoices.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
-        : normalizedInvoices;
-
-      return { data: filteredNormalized, count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_LIVE,
+    staleTime: STALE_PAGINATED,
     refetchOnWindowFocus: false,
-    refetchOnMount: 'always',
+    refetchOnMount: "always",
   });
 
-  const invoicesData = invoicesResult?.data || [];
-  const totalCount = invoicesResult?.count || 0;
+  const allInvoicesData = dashboardUnified?.invoices || [];
+  const reconciledStats = dashboardUnified?.stats;
+  const totalCount = allInvoicesData.length;
+  const invoicesData = useMemo(() => {
+    const from = (currentPage - 1) * itemsPerPage;
+    return allInvoicesData.slice(from, from + itemsPerPage);
+  }, [allInvoicesData, currentPage, itemsPerPage]);
 
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
@@ -850,207 +681,6 @@ export default function SalesInvoiceDashboard() {
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_SETTINGS,
-    refetchOnWindowFocus: false,
-  });
-
-  // Sales dashboard card stats derived from the same filtered invoice universe as table.
-  const { data: reconciledStats } = useQuery({
-    queryKey: [
-      'invoice-dashboard-reconciled-stats',
-      currentOrganization?.id,
-      debouncedSearch,
-      deliveryFilter,
-      paymentStatusFilter,
-      shopFilter,
-      userFilter,
-      queryDateRange.start,
-      queryDateRange.end,
-    ],
-    queryFn: async () => {
-      if (!currentOrganization?.id) {
-        return { totalInvoices: 0, totalAmount: 0, totalDiscount: 0, totalQty: 0, pendingAmount: 0, deliveredCount: 0, deliveredAmount: 0, undeliveredCount: 0, undeliveredAmount: 0 };
-      }
-
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      const allInvoices: any[] = [];
-
-      const buildFilteredQuery = () => {
-        let query = supabase
-          .from('sales')
-          .select('id, sale_number, customer_id, customer_name, customer_phone, sale_date, salesman, net_amount, paid_amount, discount_amount, flat_discount_amount, total_qty, payment_status, sale_return_adjust, delivery_status, is_cancelled, shop_name')
-          .eq('organization_id', currentOrganization.id)
-          .eq('sale_type', 'invoice')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false });
-
-        if (deliveryFilter !== 'all') query = query.eq('delivery_status', deliveryFilter);
-        if (shopFilter !== 'all') query = query.eq('shop_name', shopFilter);
-        if (userFilter !== 'all' && userFilter !== '__pending__') query = query.eq('created_by', userFilter);
-        if (saleDateFilter.start) query = query.gte('sale_date', saleDateFilter.start);
-        if (saleDateFilter.end) query = query.lte('sale_date', saleDateFilter.end);
-
-        return query;
-      };
-
-      while (true) {
-        let query: any = buildFilteredQuery().range(offset, offset + PAGE_SIZE - 1);
-
-        if (debouncedSearch) {
-          const searchStr = debouncedSearch.trim();
-          const saleTextFilter =
-            `sale_number.ilike.%${searchStr}%,` +
-            `customer_name.ilike.%${searchStr}%,` +
-            `customer_phone.ilike.%${searchStr}%,` +
-            `salesman.ilike.%${searchStr}%`;
-
-          let matchingSaleIds: string[] = [];
-          if (shouldUnionSaleItemsForInvoiceSearch(searchStr)) {
-            const { data: matchingItems } = await (supabase as any)
-              .from('sale_items')
-              .select('sale_id')
-              .is('deleted_at', null)
-              .or(
-                `barcode.ilike.%${searchStr}%,` +
-                `product_name.ilike.%${searchStr}%,` +
-                `size.ilike.%${searchStr}%,` +
-                `color.ilike.%${searchStr}%`
-              )
-              .limit(1000);
-
-            matchingSaleIds = [...new Set((matchingItems || []).map((i: any) => i.sale_id).filter(Boolean))] as string[];
-          }
-
-          if (matchingSaleIds.length > 0) {
-            const { data: textMatches } = await supabase
-              .from('sales')
-              .select('id')
-              .eq('organization_id', currentOrganization.id)
-              .is('deleted_at', null)
-              .or(saleTextFilter);
-            const textMatchIds = (textMatches || []).map((s: any) => s.id);
-            const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
-            query = query.in('id', allMatchIds);
-          } else {
-            query = query.or(saleTextFilter);
-          }
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allInvoices.push(...data);
-        if (data.length < PAGE_SIZE) break;
-        offset += PAGE_SIZE;
-      }
-
-      const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
-      for (let i = 0; i < allInvoices.length; i += 200) {
-        const batch = allInvoices.slice(i, i + 200);
-        const batchSplit = await fetchSaleReceiptSplitsForInvoices(
-          supabase,
-          currentOrganization.id,
-          batch.map((inv: any) => ({
-            id: inv.id,
-            sale_number: inv.sale_number,
-            customer_id: inv.customer_id,
-          })),
-        );
-        batchSplit.forEach((v, k) => splitBySale.set(k, v));
-      }
-
-      const itemsGrossBySale = new Map<string, number>();
-      const allSaleIds = allInvoices.map((inv: any) => inv.id).filter(Boolean);
-      for (let i = 0; i < allSaleIds.length; i += 200) {
-        const idBatch = allSaleIds.slice(i, i + 200);
-        const { data: itemRows } = await supabase
-          .from("sale_items")
-          .select("sale_id, quantity, mrp")
-          .in("sale_id", idBatch)
-          .is("deleted_at", null);
-        (itemRows || []).forEach((it: any) => {
-          if (!it.sale_id) return;
-          const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
-          itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
-        });
-      }
-
-      const normalized = allInvoices.map((inv: any) => {
-        if (inv?.is_cancelled || inv?.payment_status === "cancelled") {
-          return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
-        }
-        if (inv?.payment_status === "hold") {
-          // net_amount is already post-adjust (payable after sale_return_adjust);
-          // do not subtract sr again.
-          const net = Number(inv.net_amount || 0);
-          const paid = Number(inv.paid_amount || 0);
-          return {
-            ...inv,
-            outstanding: Math.max(0, net - paid),
-          };
-        }
-        const rec = reconcileSaleInvoiceWithSplit(
-          { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
-          splitBySale.get(inv.id) ?? null,
-        );
-        return {
-          ...inv,
-          paid_amount: rec.paid_amount,
-          outstanding: rec.outstanding,
-          payment_status: rec.payment_status,
-        };
-      });
-
-      const filteredByStatus =
-        paymentStatusFilter.length > 0
-          ? normalized.filter((inv: any) => paymentStatusFilter.includes(inv.payment_status))
-          : normalized.filter(
-              (inv: any) =>
-                !inv?.is_cancelled &&
-                inv?.payment_status !== "cancelled" &&
-                inv?.payment_status !== "hold",
-            );
-
-      // Sum `net_amount` only — matches each row's "Amount" column. `sale_return_adjust`
-      // is CN/S-R settlement shown under Disc (+S/R); it must not reduce revenue again
-      // when `net_amount` is already the billed invoice total (e.g. CN-adjusted sales).
-      const invoiceFaceNet = (inv: any) => Math.max(0, Number(inv.net_amount || 0));
-
-      return {
-        totalInvoices: filteredByStatus.length,
-        totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
-        totalDiscount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0), 0),
-        totalQty: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.total_qty || 0), 0),
-        pendingAmount: filteredByStatus.reduce(
-          (s: number, inv: any) =>
-            s +
-            (inv.is_cancelled
-              ? 0
-              : Math.round(
-                  Number(
-                    inv.outstanding ??
-                      Math.max(
-                        0,
-                        (inv.net_amount || 0) -
-                          (inv.paid_amount || 0) -
-                          (inv.sale_return_adjust || 0),
-                      ),
-                  ),
-                )),
-          0,
-        ),
-        deliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'delivered').length,
-        deliveredAmount: filteredByStatus
-          .filter((inv: any) => inv.delivery_status === 'delivered')
-          .reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
-        undeliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'undelivered').length,
-        undeliveredAmount: filteredByStatus
-          .filter((inv: any) => inv.delivery_status === 'undelivered')
-          .reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
-      };
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 
@@ -1238,6 +868,7 @@ export default function SalesInvoiceDashboard() {
       setSelectedInvoices(new Set());
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
@@ -1267,6 +898,7 @@ export default function SalesInvoiceDashboard() {
       }
       setInvoiceToCancel(null);
       setCancelReason('');
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
@@ -1292,6 +924,7 @@ export default function SalesInvoiceDashboard() {
         await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: invoiceToHardDelete.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
       }
       setInvoiceToHardDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
@@ -1510,6 +1143,7 @@ export default function SalesInvoiceDashboard() {
     const st = location.state as { refreshSalesList?: boolean } | null;
     if (!st?.refreshSalesList) return;
     setCurrentPage(1);
+    void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
     void queryClient.invalidateQueries({ queryKey: ['invoices'] });
     void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
     window.history.replaceState({}, document.title);

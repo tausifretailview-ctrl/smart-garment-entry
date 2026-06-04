@@ -2514,6 +2514,7 @@ Thank you for choosing us!`;
         });
 
         // Invalidate dashboard queries so list refreshes on return
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
         queryClient.invalidateQueries({ queryKey: ['invoices'] });
         queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
         queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
@@ -2732,6 +2733,7 @@ Thank you for choosing us!`;
         // Silent operation - no toast for invoice save
 
         // Invalidate dashboard queries so list refreshes on return
+        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
         queryClient.invalidateQueries({ queryKey: ['invoices'] });
         queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
         queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });

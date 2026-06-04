@@ -35,7 +35,9 @@ export const useDashboardInvalidation = () => {
     queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
     queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
+    queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-reconciled-stats"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
     queryClient.invalidateQueries({ queryKey: ["pos-dashboard-sales"] });
