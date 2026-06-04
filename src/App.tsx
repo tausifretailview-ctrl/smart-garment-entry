@@ -1,4 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { isChunkLoadError, lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { ThemeProvider } from "next-themes";
@@ -25,25 +26,6 @@ import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedire
 import { NativeAppBridge } from "@/components/NativeAppBridge";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { isAppBootRoute } from "@/lib/appBootSplash";
-
-// Auto-retry lazy imports to handle chunk failures after deployments
-function lazyWithRetry(importFn: () => Promise<any>) {
-  return lazy(() =>
-    importFn().catch((error) => {
-      const reloadCount = parseInt(
-        sessionStorage.getItem("chunk_reload_count") || "0"
-      );
-      if (reloadCount < 1) {
-        // First failure — try one reload
-        sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
-        window.location.reload();
-        return new Promise(() => {}); // suspend while reload happens
-      }
-      // Already reloaded once — don't loop, let error boundary catch it
-      throw error;
-    })
-  );
-}
 
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazyWithRetry(() => import("./pages/OrganizationManagement"));
@@ -280,13 +262,26 @@ const App = () => {
     return () => clearTimeout(clearTimer);
   }, []);
 
-  // Global unhandled rejection handler
+  // Recover from transient chunk load failures (common on first navigation after login in desktop WebView).
   useEffect(() => {
     const handleRejection = (event: PromiseRejectionEvent) => {
-      console.error("Unhandled promise rejection:", event.reason);
-      // Don't prevent default - let error boundaries handle if possible
+      if (!isChunkLoadError(event.reason)) {
+        console.error("Unhandled promise rejection:", event.reason);
+        return;
+      }
+      const reloadCount = parseInt(
+        sessionStorage.getItem("chunk_reload_count") || "0",
+        10,
+      );
+      if (reloadCount < 1) {
+        event.preventDefault();
+        sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
+        window.location.reload();
+        return;
+      }
+      console.error("Chunk load failed after reload:", event.reason);
     };
-    
+
     window.addEventListener("unhandledrejection", handleRejection);
     return () => window.removeEventListener("unhandledrejection", handleRejection);
   }, []);

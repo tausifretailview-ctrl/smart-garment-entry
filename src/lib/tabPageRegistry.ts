@@ -1,5 +1,11 @@
 import type { ComponentType, LazyExoticComponent } from "react";
-import { lazy } from "react";
+import {
+  importWithRetry,
+  lazyWithRetry,
+  POST_LOGIN_PREFETCH_TAB_PATHS,
+} from "@/lib/chunkLoadRetry";
+
+export { POST_LOGIN_PREFETCH_TAB_PATHS };
 
 export type TabPageLayout = "layout" | "fullscreen" | "pos";
 export type TabPageRole = "admin" | "manager" | "user" | "platform_admin";
@@ -117,7 +123,16 @@ export function isTabCachePath(path: string): boolean {
 export function prefetchTabPage(path: string): void {
   const def = TAB_PAGE_REGISTRY[path];
   if (!def || prefetchCache.has(path)) return;
-  prefetchCache.set(path, def.loader());
+  const promise = importWithRetry(def.loader).catch((err) => {
+    prefetchCache.delete(path);
+    console.warn(`[prefetch] Failed to load tab chunk: ${path}`, err);
+  });
+  prefetchCache.set(path, promise);
+}
+
+/** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */
+export function prefetchPostLoginCriticalPages(): void {
+  POST_LOGIN_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
 }
 
 export function prefetchTabPages(paths: string[]): void {
@@ -146,7 +161,7 @@ export function getLazyTabPage(path: string): LazyExoticComponent<ComponentType<
   if (!def) return null;
   let cached = lazyCache.get(path);
   if (!cached) {
-    cached = lazy(def.loader);
+    cached = lazyWithRetry(def.loader);
     lazyCache.set(path, cached);
   }
   return cached;

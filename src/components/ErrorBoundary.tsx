@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { isChunkLoadError } from '@/lib/chunkLoadRetry';
 
 interface Props {
   children: ReactNode;
@@ -44,6 +45,10 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   private handleRetry = () => {
+    if (this.state.error && isChunkLoadError(this.state.error)) {
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: undefined });
   };
 

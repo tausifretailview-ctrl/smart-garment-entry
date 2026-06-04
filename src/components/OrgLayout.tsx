@@ -10,7 +10,11 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isTabCachePath, prefetchTabPagesIdle } from "@/lib/tabPageRegistry";
+import {
+  isTabCachePath,
+  prefetchPostLoginCriticalPages,
+  prefetchTabPagesIdle,
+} from "@/lib/tabPageRegistry";
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -46,6 +50,12 @@ export const OrgLayout = () => {
   useEffect(() => {
     return prefetchTabPagesIdle(tabPaths, currentPath);
   }, [tabPaths, currentPath]);
+
+  // Warm large bill-entry chunks once org is ready (first open after login on Windows WebView).
+  useEffect(() => {
+    if (!isOrgSynced || !user) return;
+    prefetchPostLoginCriticalPages();
+  }, [isOrgSynced, user]);
 
   const renderViaTabCache = isTabCachePath(currentPath) && tabPaths.length > 0;
 

@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo } from 'react';
 import { Button } from '@/components/ui/button';
+import { isChunkLoadError } from '@/lib/chunkLoadRetry';
 
 interface Props { children: React.ReactNode; }
 interface State { hasError: boolean; error?: Error; }
@@ -13,6 +14,16 @@ export class RootErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('EzzyERP crashed:', error, info.componentStack);
+    if (isChunkLoadError(error)) {
+      const reloadCount = parseInt(
+        sessionStorage.getItem('chunk_reload_count') || '0',
+        10,
+      );
+      if (reloadCount < 1) {
+        sessionStorage.setItem('chunk_reload_count', String(reloadCount + 1));
+        window.location.reload();
+      }
+    }
   }
 
   render() {
@@ -30,7 +41,16 @@ export class RootErrorBoundary extends Component<Props, State> {
               <Button onClick={() => window.location.reload()}>
                 Refresh Page
               </Button>
-              <Button variant="outline" onClick={() => this.setState({ hasError: false })}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (this.state.error && isChunkLoadError(this.state.error)) {
+                    window.location.reload();
+                    return;
+                  }
+                  this.setState({ hasError: false, error: undefined });
+                }}
+              >
                 Try Again
               </Button>
               <Button variant="link" onClick={() => {
