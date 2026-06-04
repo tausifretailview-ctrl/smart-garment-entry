@@ -39,6 +39,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
+import { entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
@@ -4028,7 +4029,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 pb-6" data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50 pb-6")} data-entry-form>
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -4053,7 +4054,7 @@ const PurchaseEntry = () => {
         </div>
       )}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/50">
-        <div className="h-[52px] flex items-center px-5 gap-3">
+        <div className={cn("h-[52px] flex items-center gap-3", entryPageSectionX)}>
         <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
           className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
           <ChevronLeft className="h-4 w-4" />
@@ -4136,7 +4137,7 @@ const PurchaseEntry = () => {
         </div>
 
         {!isEditMode && lastPurchaseBill && (
-          <div className="h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center gap-2 text-[12px] px-5 overflow-x-auto">
+          <div className={cn("h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center gap-2 text-[12px] overflow-x-auto", entryPageSectionX)}>
             <span className="text-white/50 shrink-0">Last:</span>
             <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.software_bill_no}</span>
             {lastPurchaseBill.supplier_invoice_no && (
@@ -4152,7 +4153,7 @@ const PurchaseEntry = () => {
 
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
-        <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0 shadow-sm">
+        <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
             <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
               <div className="space-y-2 flex-1 min-w-[140px]">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
@@ -4316,7 +4317,7 @@ const PurchaseEntry = () => {
           </div>
         )}
 
-        <section className="bg-slate-50 border-b border-slate-200 px-5 py-3 shrink-0">
+        <section className={cn("bg-slate-50 border-b border-slate-200 py-3 shrink-0", entryPageSectionX)}>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 shrink-0">
               <span className={cn("text-sm", entryMode === "grid" ? "font-semibold text-foreground" : "text-muted-foreground")}>
@@ -4457,7 +4458,7 @@ const PurchaseEntry = () => {
           </div>
         </section>
 
-        <section className="flex-1 min-h-0 px-6 pb-2 overflow-hidden bg-slate-100 relative">
+        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
           <div className="h-full flex flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm bg-white">
             {lineItems.length > 100 && (
               <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b text-xs text-muted-foreground shrink-0">
@@ -4483,7 +4484,7 @@ const PurchaseEntry = () => {
                   </div>
                 </div>
               )}
-              <Table className="table-fixed min-w-[1460px] border-separate border-spacing-0 erp-desktop-table">
+              <Table className="table-fixed w-full min-w-0 border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
                 <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -4495,7 +4496,7 @@ const PurchaseEntry = () => {
                       />
                     </TableHead>
                     <TableHead className="w-[60px]">SR.NO</TableHead>
-                    <TableHead className="w-[260px]">ITEM NAME</TableHead>
+                    <TableHead className="col-product min-w-[200px]">ITEM NAME</TableHead>
                     {showPurCol.size && <TableHead className="w-[50px]">SIZE</TableHead>}
                     <TableHead className="w-[120px]">{isMobileERPMode ? "IMEI NUMBER" : "BARCODE"}</TableHead>
                     <TableHead className="w-[110px] text-right">QTY</TableHead>
@@ -4526,7 +4527,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="w-[60px] text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="w-[260px] max-w-[260px] font-medium cursor-pointer" title={formatProductDescription(item)}
+                        <TableCell className="col-product font-medium cursor-pointer" title={formatProductDescription(item)}
                           onDoubleClick={() => openEditPanel(index, "product_name")}>
                           <div className="text-sm leading-snug break-words">{formatProductDescription(item)}</div>
                         </TableCell>

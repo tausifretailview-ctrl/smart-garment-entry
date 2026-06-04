@@ -296,7 +296,7 @@ export default function CustomerAccountStatementAuditPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
-      <div className="max-w-[1600px] mx-auto space-y-4">
+      <div className="w-full max-w-none mx-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-start gap-3">
             <div className="rounded-lg bg-primary/10 p-2 text-primary">

@@ -1056,14 +1056,14 @@ export default function SaleReturnEntry() {
 
   if (editLoading) {
     return (
-      <div className="w-full px-6 py-6 flex items-center justify-center min-h-[400px]">
+      <div className="w-full max-w-none px-2 sm:px-3 lg:px-4 py-4 sm:py-6 flex items-center justify-center min-h-[400px]">
         <p className="text-muted-foreground">Loading sale return...</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full px-6 py-5 space-y-5">
+    <div className="w-full max-w-none px-2 sm:px-3 lg:px-4 py-4 sm:py-5 space-y-4 sm:space-y-5">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

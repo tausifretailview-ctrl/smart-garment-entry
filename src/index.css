@@ -1565,6 +1565,21 @@ input.no-uppercase {
   padding-right: 12px;
 }
 
+/* Bill entry — use full content width; product column absorbs extra space */
+[data-entry-form] {
+  max-width: none;
+}
+
+.erp-entry-lines-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.erp-entry-lines-table .col-product {
+  width: 30%;
+  min-width: 12rem;
+}
+
 /* ─── ERP Form Compact — Tally-style entry fields ─── */
 .erp-form-compact .erp-field {
   display: flex;
