@@ -52,6 +52,8 @@ import {
 import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
 import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
+import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
+import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -271,6 +273,7 @@ export default function POSSales() {
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
+  const { flushScheduledSalesInvalidation } = useDashboardInvalidation();
   // Ref-based lock to prevent duplicate saves from rapid keyboard + click combos
   const paymentLockRef = useRef(false);
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
@@ -287,6 +290,14 @@ export default function POSSales() {
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
+
+  const refreshPosAfterBillPrint = useCallback(() => {
+    flushScheduledSalesInvalidation(currentOrganization?.id);
+    if (currentOrganization?.id) {
+      queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization.id] });
+    }
+  }, [currentOrganization?.id, flushScheduledSalesInvalidation, queryClient]);
+
   const [searchParams] = useSearchParams();
   const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = (() => {
@@ -863,6 +874,7 @@ export default function POSSales() {
           paperSize,
           onFallback,
           onSuccess: async () => {
+            refreshPosAfterBillPrint();
             setSavedInvoiceData(null);
             setSelectedSalesman("");
             const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
@@ -875,7 +887,7 @@ export default function POSSales() {
         });
       });
     },
-    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData],
+    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData, refreshPosAfterBillPrint],
   );
 
   // Keyboard shortcuts for POS actions
@@ -2902,11 +2914,11 @@ export default function POSSales() {
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     let result;
     if (isHeldSale && currentSaleId) {
-      result = await resumeHeldSale(currentSaleId, saleData, method);
+      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, POS_DEFERRED_INVALIDATION_OPTS);
     } else if (currentSaleId) {
-      result = await updateSale(currentSaleId, saleData, method);
+      result = await updateSale(currentSaleId, saleData, method, undefined, POS_DEFERRED_INVALIDATION_OPTS);
     } else {
-      result = await saveSale(saleData, method);
+      result = await saveSale(saleData, method, undefined, 'pos', POS_DEFERRED_INVALIDATION_OPTS);
     }
     
     // Release lock after save attempt completes
@@ -3115,8 +3127,8 @@ export default function POSSales() {
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave)
-      : await saveSale(saleData, paymentMethodType as any, breakdownForSave);
+      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, POS_DEFERRED_INVALIDATION_OPTS)
+      : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', POS_DEFERRED_INVALIDATION_OPTS);
     
     if (result) {
       // Save financer details if provided
@@ -3279,10 +3291,6 @@ export default function POSSales() {
         barcodeInputRef.current?.focus();
       }, 100);
       
-      // Refresh POS dashboard + today's bill list (tab cache keeps dashboard mounted)
-      queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
-      
       if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
         applyCredit(customerId, result.id, creditApplied);
       }
@@ -3412,6 +3420,7 @@ export default function POSSales() {
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
     pageStyle: getPageStyle(),
     onAfterPrint: async () => {
+      refreshPosAfterBillPrint();
       toast.success("Success", { description: "Invoice printed successfully" });
 
       // Clear saved invoice data so screen is ready for new invoice
@@ -3459,6 +3468,7 @@ export default function POSSales() {
             }
           },
           onSuccess: async () => {
+            refreshPosAfterBillPrint();
             setSavedInvoiceData(null);
             setShowPrintPreview(false);
             // Open cash drawer if enabled
@@ -3486,6 +3496,7 @@ export default function POSSales() {
   };
 
   const handleClosePrintConfirmDialog = () => {
+    refreshPosAfterBillPrint();
     setShowPrintConfirmDialog(false);
     setSavedInvoiceData(null);
     
@@ -4514,6 +4525,7 @@ export default function POSSales() {
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-row gap-2">
               <AlertDialogCancel onClick={() => {
+                refreshPosAfterBillPrint();
                 setShowPrintConfirmDialog(false);
                 setSavedInvoiceData(null);
                 barcodeInputRef.current?.focus();
@@ -4525,6 +4537,7 @@ export default function POSSales() {
                 className="flex items-center gap-2"
                 onClick={() => {
                   handleWhatsAppShare();
+                  refreshPosAfterBillPrint();
                   setShowPrintConfirmDialog(false);
                   setSavedInvoiceData(null);
                 }}

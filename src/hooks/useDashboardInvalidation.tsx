@@ -1,6 +1,11 @@
+import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
-import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
+import {
+  flushDeferredSalesInvalidation,
+  invalidateSalesQueriesNow,
+  scheduleDeferredSalesInvalidation,
+} from "@/utils/deferredSalesInvalidation";
 
 /**
  * Hook to invalidate dashboard queries after mutations
@@ -9,70 +14,57 @@ import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 export const useDashboardInvalidation = () => {
   const queryClient = useQueryClient();
 
-  /**
-   * Invalidate all dashboard-related queries for immediate UI refresh
-   */
-  const invalidateDashboard = () => {
-    // Single consolidated RPC query (desktop)
+  const invalidateDashboard = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    
-    // Mobile dashboard RPC queries
     queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-customers-served"] });
-    
-    // Chart data (still separate queries)
     queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
     queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
     queryClient.invalidateQueries({ queryKey: ["top-products"] });
-  };
+  }, [queryClient]);
 
-  /**
-   * Invalidate only sales-related queries
-   */
-  const invalidateSales = (organizationId?: string) => {
-    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
-    queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-reconciled-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
-    queryClient.invalidateQueries({ queryKey: ["pos-dashboard-sales"] });
-    queryClient.invalidateQueries({ queryKey: ["today-sales"] });
-    invalidateCustomerFinancialSnapshot(queryClient);
-    notifyPosSalesChanged({ organizationId });
-  };
+  const invalidateSales = useCallback(
+    (organizationId?: string) => {
+      invalidateSalesQueriesNow(queryClient, organizationId);
+    },
+    [queryClient],
+  );
 
-  /**
-   * Invalidate only purchase-related queries
-   */
-  const invalidatePurchases = () => {
+  const scheduleInvalidateSales = useCallback(
+    (organizationId?: string, options?: { skipPosNotify?: boolean }) => {
+      scheduleDeferredSalesInvalidation(queryClient, organizationId, options);
+    },
+    [queryClient],
+  );
+
+  const flushScheduledSalesInvalidation = useCallback(
+    (organizationId?: string, options?: { notifyPos?: boolean }) => {
+      flushDeferredSalesInvalidation(queryClient, organizationId, options);
+    },
+    [queryClient],
+  );
+
+  const invalidatePurchases = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
-  };
+  }, [queryClient]);
 
-  /**
-   * Invalidate customer-related queries
-   */
-  const invalidateCustomers = () => {
+  const invalidateCustomers = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
     invalidateCustomerFinancialSnapshot(queryClient);
-  };
+  }, [queryClient]);
 
-  /**
-   * Invalidate supplier-related queries
-   */
-  const invalidateSuppliers = () => {
+  const invalidateSuppliers = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-  };
+  }, [queryClient]);
 
   return {
     invalidateDashboard,
     invalidateSales,
+    scheduleInvalidateSales,
+    flushScheduledSalesInvalidation,
     invalidatePurchases,
     invalidateCustomers,
     invalidateSuppliers,

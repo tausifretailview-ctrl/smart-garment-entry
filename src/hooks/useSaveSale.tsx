@@ -5,6 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
+import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
@@ -63,7 +64,18 @@ export const useSaveSale = () => {
   const [isSaving, setIsSaving] = useState(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
-  const { invalidateSales } = useDashboardInvalidation();
+  const { invalidateSales, scheduleInvalidateSales } = useDashboardInvalidation();
+
+  const applyPostSaleInvalidation = (
+    organizationId: string | undefined,
+    runtimeOptions?: SaveSaleRuntimeOptions,
+  ) => {
+    if (runtimeOptions?.deferDashboardInvalidation) {
+      scheduleInvalidateSales(organizationId, { skipPosNotify: true });
+    } else {
+      invalidateSales(organizationId);
+    }
+  };
   const shopName = useShopName();
   // Centralized cached org settings (5 min) — used by save handlers below
   const { data: orgSettings } = useSettings();
@@ -489,7 +501,8 @@ export const useSaveSale = () => {
       totalPaid: number;
       refundAmount: number;
     },
-    saleType: 'pos' | 'sale_invoice' = 'pos'
+    saleType: 'pos' | 'sale_invoice' = 'pos',
+    runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
@@ -772,14 +785,20 @@ export const useSaveSale = () => {
       // so the customer balance formula recognizes them as already absorbed
       // into this sale's net_amount (prevents double-counting credit).
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
-        try {
-          await consumeSaleReturnAdjustments({
-            customerId: saleData.customerId,
+        const runSrConsume = () =>
+          consumeSaleReturnAdjustments({
+            customerId: saleData.customerId!,
             saleId: sale.id,
             adjustmentAmount: saleData.saleReturnAdjust,
-          });
-        } catch (srErr) {
-          console.error('Failed to mark SR as adjusted:', srErr);
+          }).catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
+        if (runtimeOptions?.nonBlockingSaleReturnConsume) {
+          void runSrConsume();
+        } else {
+          try {
+            await runSrConsume();
+          } catch (srErr) {
+            console.error('Failed to mark SR as adjusted:', srErr);
+          }
         }
       }
 
@@ -963,8 +982,7 @@ export const useSaveSale = () => {
         // Fire and forget - don't await
       }
 
-      // Invalidate dashboard queries for immediate UI refresh
-      invalidateSales(currentOrganization.id);
+      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions);
 
       // Auto-generate E-Invoice for B2B sales (fire and forget)
       if (currentOrganization?.id && saleData.customerId) {
@@ -1031,7 +1049,8 @@ export const useSaveSale = () => {
       upiAmount: number;
       totalPaid: number;
       refundAmount: number;
-    }
+    },
+    runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
@@ -1366,14 +1385,20 @@ export const useSaveSale = () => {
       }
 
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
-        try {
-          await consumeSaleReturnAdjustments({
-            customerId: saleData.customerId,
+        const runSrConsume = () =>
+          consumeSaleReturnAdjustments({
+            customerId: saleData.customerId!,
             saleId: sale.id,
             adjustmentAmount: saleData.saleReturnAdjust,
-          });
-        } catch (srErr) {
-          console.error('Failed to mark SR as adjusted:', srErr);
+          }).catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
+        if (runtimeOptions?.nonBlockingSaleReturnConsume) {
+          void runSrConsume();
+        } else {
+          try {
+            await runSrConsume();
+          } catch (srErr) {
+            console.error('Failed to mark SR as adjusted:', srErr);
+          }
         }
       }
 
@@ -1382,8 +1407,7 @@ export const useSaveSale = () => {
         description: `Sale ${sale.sale_number} has been updated`,
       });
 
-      // Invalidate dashboard queries for immediate UI refresh
-      invalidateSales(currentOrganization.id);
+      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions);
 
       return sale;
     } catch (error: any) {
@@ -1600,7 +1624,8 @@ export const useSaveSale = () => {
       upiAmount: number;
       totalPaid: number;
       refundAmount: number;
-    }
+    },
+    runtimeOptions?: SaveSaleRuntimeOptions,
   ) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
@@ -1757,14 +1782,20 @@ export const useSaveSale = () => {
 
       // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)
       if (saleData.saleReturnAdjust > 0 && saleData.customerId) {
-        try {
-          await consumeSaleReturnAdjustments({
-            customerId: saleData.customerId,
+        const runSrConsume = () =>
+          consumeSaleReturnAdjustments({
+            customerId: saleData.customerId!,
             saleId: sale.id,
             adjustmentAmount: saleData.saleReturnAdjust,
-          });
-        } catch (srErr) {
-          console.error('Failed to mark SR as adjusted:', srErr);
+          }).catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
+        if (runtimeOptions?.nonBlockingSaleReturnConsume) {
+          void runSrConsume();
+        } else {
+          try {
+            await runSrConsume();
+          } catch (srErr) {
+            console.error('Failed to mark SR as adjusted:', srErr);
+          }
         }
       }
 
@@ -1773,8 +1804,7 @@ export const useSaveSale = () => {
         description: `Sale ${sale.sale_number} has been completed`,
       });
 
-      // Invalidate dashboard queries for immediate UI refresh
-      invalidateSales(currentOrganization.id);
+      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions);
 
       return sale;
     } catch (error: any) {

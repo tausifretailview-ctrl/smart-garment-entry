@@ -626,7 +626,7 @@ export default function SalesInvoiceDashboard() {
     enabled: !!currentOrganization?.id,
     staleTime: STALE_PAGINATED,
     refetchOnWindowFocus: false,
-    refetchOnMount: "always",
+    refetchOnMount: true,
   });
 
   const allInvoicesData = dashboardUnified?.invoices || [];
@@ -869,9 +869,6 @@ export default function SalesInvoiceDashboard() {
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -899,9 +896,6 @@ export default function SalesInvoiceDashboard() {
       setInvoiceToCancel(null);
       setCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
@@ -925,9 +919,6 @@ export default function SalesInvoiceDashboard() {
       }
       setInvoiceToHardDelete(null);
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
@@ -1144,8 +1135,6 @@ export default function SalesInvoiceDashboard() {
     if (!st?.refreshSalesList) return;
     setCurrentPage(1);
     void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
-    void queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
     window.history.replaceState({}, document.title);
   }, [location.state, queryClient]);
 

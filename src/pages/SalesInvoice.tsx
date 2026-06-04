@@ -47,6 +47,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
 import { useReactToPrint } from "react-to-print";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
+import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";
 import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { generateOrgSaleNumber } from "@/utils/saleNumber";
@@ -189,7 +190,16 @@ function applyFlatDiscountFromInvoice(
 export default function SalesInvoice() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { scheduleInvalidateSales, flushScheduledSalesInvalidation } = useDashboardInvalidation();
   const { currentOrganization } = useOrganization();
+
+  const scheduleInvoiceDashboardRefresh = useCallback(() => {
+    scheduleInvalidateSales(currentOrganization?.id, { skipPosNotify: true });
+  }, [currentOrganization?.id, scheduleInvalidateSales]);
+
+  const refreshInvoiceDashboardAfterPrint = useCallback(() => {
+    flushScheduledSalesInvalidation(currentOrganization?.id, { notifyPos: false });
+  }, [currentOrganization?.id, flushScheduledSalesInvalidation]);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const shopName = useShopName();
   const { isColumnVisible } = useUserPermissions();
@@ -2513,12 +2523,7 @@ Thank you for choosing us!`;
           description: "Invoice has been updated successfully",
         });
 
-        // Invalidate dashboard queries so list refreshes on return
-        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
-        queryClient.invalidateQueries({ queryKey: ['invoices'] });
-        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        scheduleInvoiceDashboardRefresh();
 
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
@@ -2732,12 +2737,7 @@ Thank you for choosing us!`;
 
         // Silent operation - no toast for invoice save
 
-        // Invalidate dashboard queries so list refreshes on return
-        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
-        queryClient.invalidateQueries({ queryKey: ['invoices'] });
-        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        scheduleInvoiceDashboardRefresh();
 
         // Mark invoice as saved to prevent draft re-save on unmount
         invoiceSavedRef.current = true;
@@ -2836,6 +2836,7 @@ Thank you for choosing us!`;
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     onAfterPrint: () => {
+      refreshInvoiceDashboardAfterPrint();
       toast({
         title: "Success",
         description: "Invoice printed successfully",
@@ -2865,6 +2866,7 @@ Thank you for choosing us!`;
             handlePrint();
           },
           onSuccess: () => {
+            refreshInvoiceDashboardAfterPrint();
             if (!editingInvoiceId) {
               setSavedInvoiceData(null);
             }
@@ -2882,6 +2884,7 @@ Thank you for choosing us!`;
   };
 
   const handleClosePrintDialog = () => {
+    refreshInvoiceDashboardAfterPrint();
     setShowPrintDialog(false);
     
     // If editing, navigate back to dashboard
