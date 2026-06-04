@@ -6,9 +6,12 @@ export function isEntryFullscreenPath(pathname: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(pathname);
 }
 
-/** Outer shell for desktop bill entry screens */
+/** Height reserved for the fixed desktop status bar (see .erp-status-bar in index.css). */
+export const ERP_STATUS_BAR_HEIGHT_CLASS = "lg:pb-[var(--erp-status-bar-height,1.75rem)]";
+
+/** Outer shell for desktop bill entry screens — h-full fits the layout flex slot (not 100vh, which clips the footer on Windows). */
 export const entryPageShellClass =
-  "h-screen w-full max-w-none flex flex-col overflow-hidden";
+  `h-full min-h-0 w-full max-w-none flex flex-col overflow-hidden ${ERP_STATUS_BAR_HEIGHT_CLASS}`;
 
 /** Horizontal padding for entry sections — tighter than px-6 to use screen width */
 export const entryPageSectionX = "px-2 sm:px-3 lg:px-4";

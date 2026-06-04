@@ -3169,7 +3169,7 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className={cn(entryPageShellClass, "bg-slate-50 dark:bg-background pb-6 pos-desktop-readable")} data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50 dark:bg-background pos-desktop-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
         <div className={cn("h-[52px] flex items-center gap-3", entryPageSectionX)}>
@@ -4017,7 +4017,7 @@ Thank you for choosing us!`;
       </main>
 
       {/* Footer — sibling of <main>, locked above the global StatusBar */}
-      <footer className="shrink-0 relative z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
+      <footer className="entry-page-footer shrink-0 relative z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
           <div className="flex items-center px-4 py-3 gap-0 min-w-max">

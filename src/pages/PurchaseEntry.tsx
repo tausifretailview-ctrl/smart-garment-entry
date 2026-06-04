@@ -4029,7 +4029,7 @@ const PurchaseEntry = () => {
   }
 
   return (
-    <div className={cn(entryPageShellClass, "bg-slate-50 pb-6")} data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50")} data-entry-form>
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -4862,7 +4862,7 @@ const PurchaseEntry = () => {
 
       </main>
 
-      <footer className="shrink-0 relative z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
+      <footer className="entry-page-footer shrink-0 relative z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-green-600">
           <div className="flex items-center px-4 py-3 gap-0 min-w-max">
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Gross Amt</span>
