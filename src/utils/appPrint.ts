@@ -2,6 +2,8 @@
 // desktop app, and falls back to the normal browser print flow on the web.
 // This is additive: existing web printing keeps working unchanged.
 
+import { wrapReceiptHtmlForElectron } from "@/utils/thermalReceiptPrintDocument";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const electronAPI = (window as any).electronAPI;
 
@@ -95,15 +97,23 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
   const copies = options.copies || Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
   const silent = options.silent !== false;
 
+  const isReceipt = options.type === "receipt";
+  const printHtml =
+    options.html && isReceipt
+      ? wrapReceiptHtmlForElectron(options.html)
+      : options.html;
+
   try {
-    const result = options.html
+    const result = printHtml
       ? await electronAPI.printHtml({
-          html: options.html,
+          html: printHtml,
           printerName,
           pageSize,
           copies,
           margins,
           silent,
+          printKind: isReceipt ? "receipt" : options.type,
+          preferCSSPageSize: isReceipt,
         })
       : await electronAPI.silentPrint({ printerName, pageSize, copies, margins });
     return { success: !!result?.success, method: "electron", error: result?.error ?? null };

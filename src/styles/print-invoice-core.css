@@ -557,10 +557,10 @@
 
 .thermal-print-80mm,
 .thermal-receipt-container {
-  width: 70mm !important;
-  max-width: 70mm !important;
-  padding: 2mm !important;
-  margin: 0 !important;
+  width: 72mm !important;
+  max-width: 72mm !important;
+  padding: 1.5mm 2mm !important;
+  margin: 0 auto !important;
   font-family: 'Courier New', Courier, monospace !important;
   font-size: 11px !important;
   line-height: 1.4 !important;
@@ -569,7 +569,8 @@
   -webkit-font-smoothing: none !important;
   font-weight: 700 !important;
   letter-spacing: 0.1px !important;
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
   box-sizing: border-box !important;
 }
 
@@ -585,10 +586,10 @@
 @media print {
   .thermal-print-80mm,
   .thermal-receipt-container {
-    width: 70mm !important;
-    max-width: 70mm !important;
-    padding: 2mm !important;
-    margin: 0 !important;
+    width: 72mm !important;
+    max-width: 72mm !important;
+    padding: 1.5mm 2mm !important;
+    margin: 0 auto !important;
     background: white !important;
     color: black !important;
     page-break-inside: avoid !important;
@@ -598,7 +599,7 @@
   /* Thermal-specific page setup */
   @page {
     size: 80mm auto;
-    margin: 2mm 4mm;
+    margin: 0;
   }
 
   .invoice-print-source.thermal-paper-58 .thermal-print-80mm,

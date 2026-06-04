@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { THERMAL_RECEIPT_PRINT_CSS } from '@/utils/thermalReceiptPrintDocument';
 
 declare global {
   interface Window {
@@ -219,16 +220,21 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
 
   const outerHTML = ref.outerHTML;
   const allStyles = getPageStylesheets();
+  const isThermal =
+    ref.classList.contains('thermal-print-80mm') ||
+    ref.classList.contains('thermal-receipt-container') ||
+    !!ref.querySelector('.thermal-print-80mm, .thermal-receipt-container');
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=80mm, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { margin: 0; }
+    ${isThermal ? THERMAL_RECEIPT_PRINT_CSS : ''}
     ${allStyles}
   </style>
 </head>

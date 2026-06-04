@@ -455,16 +455,32 @@ ipcMain.handle('print-to-pdf', async (_event, options = {}) => {
 
 // Print an arbitrary HTML string via an offscreen window (receipts/invoices/labels)
 ipcMain.handle('print-html', async (_event, payload = {}) => {
-  const { html, printerName, pageSize, copies, margins, landscape, silent } = payload;
+  const {
+    html,
+    printerName,
+    pageSize,
+    copies,
+    margins,
+    landscape,
+    silent,
+    printKind,
+    preferCSSPageSize,
+  } = payload;
   if (!html) return { success: false, error: 'No HTML provided' };
 
   const printSilent = silent !== false;
+  const isReceipt =
+    printKind === 'receipt' ||
+    (typeof pageSize === 'object' &&
+      pageSize &&
+      Number(pageSize.width) >= 58000 &&
+      Number(pageSize.width) <= 82000);
 
   return new Promise((resolve) => {
     let printWin = new BrowserWindow({
       show: !printSilent,
-      width: 800,
-      height: 600,
+      width: isReceipt ? 340 : 800,
+      height: isReceipt ? 900 : 600,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
 
@@ -492,8 +508,11 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
               pageSize: pageSize || 'A4',
               copies: copies || 1,
               landscape: landscape || false,
-              margins: margins || { marginType: 'default' },
+              margins: isReceipt
+                ? { marginType: 'none' }
+                : margins || { marginType: 'default' },
               printBackground: true,
+              preferCSSPageSize: !!preferCSSPageSize || isReceipt,
             },
             (success, failureReason) => {
               clearTimeout(timeout);

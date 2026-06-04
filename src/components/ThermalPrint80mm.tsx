@@ -122,15 +122,41 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
     // ─── Styles ────────────────────────────────────
     const base: React.CSSProperties = {
-      width: '72mm', maxWidth: '72mm', padding: '2mm 2mm 2mm 4mm',
-      backgroundColor: 'white', fontFamily: "'Courier New', Courier, monospace",
-      fontSize: '14px', lineHeight: '1.5', color: '#000',
-      fontWeight: 700, boxSizing: 'border-box',
-      WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
-      overflow: 'hidden',
+      width: '72mm',
+      maxWidth: '72mm',
+      padding: '1.5mm 2mm',
+      backgroundColor: 'white',
+      fontFamily: "'Courier New', Courier, monospace",
+      fontSize: '13px',
+      lineHeight: '1.45',
+      color: '#000',
+      fontWeight: 700,
+      boxSizing: 'border-box',
+      WebkitPrintColorAdjust: 'exact',
+      printColorAdjust: 'exact',
+      overflowX: 'hidden',
+      overflowY: 'visible',
     };
     const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
-    const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', width: '100%' };
+    const row: React.CSSProperties = {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: '2mm',
+      width: '100%',
+      maxWidth: '100%',
+    };
+    const amountCols: React.CSSProperties = {
+      display: 'flex',
+      justifyContent: 'flex-end',
+      width: '100%',
+      maxWidth: '100%',
+      gap: '1mm',
+      flexWrap: 'nowrap',
+    };
+    const qtyCol: React.CSSProperties = { flex: '0 0 11mm', textAlign: 'right', fontWeight: 900 };
+    const rateCol: React.CSSProperties = { flex: '0 0 15mm', textAlign: 'right', fontWeight: 900 };
+    const amtCol: React.CSSProperties = { flex: '0 0 17mm', textAlign: 'right', fontWeight: 900 };
     const dblLine: React.CSSProperties = { borderTop: '2px solid #000', margin: '3px 0' };
     const singleLine: React.CSSProperties = { borderTop: '1px dashed #000', margin: '3px 0' };
 
@@ -197,14 +223,24 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         {/* ═══ BILL INFO — same line ═══ */}
         <div style={{ fontSize: '13px', marginBottom: '3px' }}>
-          <div style={row}>
-            <span>{docLabel}: <b>{billNo}</b></span>
-            <span>Date: {format(date, 'dd/MM/yy')}</span>
+          <div className="thermal-row" style={row}>
+            <span style={{ flex: '1 1 auto', minWidth: 0, wordBreak: 'break-word' }}>
+              {docLabel}: <b>{billNo}</b>
+            </span>
+            <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+              Date: {format(date, 'dd/MM/yy')}
+            </span>
           </div>
-          <div style={row}>
-            <span>Time: {format(date, 'hh:mm a')}</span>
-            {salesPerson && <span>By: {salesPerson.substring(0, 12)}</span>}
-            {!salesPerson && counter && <span>C: {counter}</span>}
+          <div className="thermal-row" style={row}>
+            <span style={{ flex: '1 1 auto', minWidth: 0 }}>Time: {format(date, 'hh:mm a')}</span>
+            {salesPerson && (
+              <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+                By: {salesPerson.substring(0, 12)}
+              </span>
+            )}
+            {!salesPerson && counter && (
+              <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>C: {counter}</span>
+            )}
           </div>
         </div>
 
@@ -227,10 +263,10 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
             </tr>
             <tr style={{ borderBottom: '2px solid #000' }}>
               <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px' }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0' }}>
-                  <span style={{ width: '50px', textAlign: 'right' }}>QTY</span>
-                  <span style={{ width: '70px', textAlign: 'right' }}>RATE</span>
-                  <span style={{ width: '80px', textAlign: 'right' }}>AMT</span>
+                <div style={amountCols}>
+                  <span style={qtyCol}>QTY</span>
+                  <span style={rateCol}>RATE</span>
+                  <span style={amtCol}>AMT</span>
                 </div>
               </th>
             </tr>
@@ -254,10 +290,10 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 <div style={{ fontSize: '14px', fontWeight: 900 }}>BC: {item.barcode}</div>
               )}
               {/* Qty, Rate, Amount — right aligned */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '14px' }}>
-                <span style={{ width: '50px', textAlign: 'right', fontWeight: 900 }}>{item.qty}</span>
-                <span style={{ width: '70px', textAlign: 'right', fontWeight: 900 }}>₹{fmtAmt(item.rate)}</span>
-                <span style={{ width: '80px', textAlign: 'right', fontWeight: 900 }}>₹{fmtAmt(item.total)}</span>
+              <div style={{ ...amountCols, fontSize: '13px' }}>
+                <span style={qtyCol}>{item.qty}</span>
+                <span style={rateCol}>₹{fmtAmt(item.rate)}</span>
+                <span style={amtCol}>₹{fmtAmt(item.total)}</span>
               </div>
             </div>
           </React.Fragment>
@@ -314,9 +350,22 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         {/* ═══ GRAND TOTAL ═══ */}
         <div style={dblLine} />
-        <div style={{ ...row, fontSize: '18px', fontWeight: 900, margin: '4px 0' }}>
-          <span>{grandTotal < 0 ? 'CREDIT DUE TO CUSTOMER' : 'TOTAL'}</span>
-          <span>{grandTotal < 0 ? '-₹' : '₹'}{fmtAmt(Math.abs(grandTotal))}</span>
+        <div
+          className="thermal-keep"
+          style={{
+            ...row,
+            fontSize: '16px',
+            fontWeight: 900,
+            margin: '4px 0',
+          }}
+        >
+          <span style={{ flex: '1 1 auto', minWidth: 0 }}>
+            {grandTotal < 0 ? 'CREDIT DUE TO CUSTOMER' : 'TOTAL'}
+          </span>
+          <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>
+            {grandTotal < 0 ? '-₹' : '₹'}
+            {fmtAmt(Math.abs(grandTotal))}
+          </span>
         </div>
         <div style={dblLine} />
 
@@ -332,13 +381,13 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <>
             <div style={singleLine} />
             <div style={{ fontSize: '12px', fontWeight: 900, textAlign: 'center', marginBottom: '2px' }}>GST DETAILS</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', tableLayout: 'fixed' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #000' }}>
-                  <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900, width: '15%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>GST%</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '30%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>Taxable</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '27%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>CGST</th>
-                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '28%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>SGST</th>
+                  <th style={{ textAlign: 'left', padding: '1px 0', fontWeight: 900, width: '14%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>GST%</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '28%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>Taxable</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '29%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>CGST</th>
+                  <th style={{ textAlign: 'right', padding: '1px 0', fontWeight: 900, width: '29%', color: '#000', WebkitPrintColorAdjust: 'exact' as any }}>SGST</th>
                 </tr>
               </thead>
               <tbody>
