@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
+import { isEntryTabPath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
@@ -38,18 +39,20 @@ export const OrgLayout = () => {
     [location.pathname, orgSlug],
   );
 
+  const isEntryPage = isEntryTabPath(currentPath);
+
   const tabPaths = useMemo(() => {
     const set = new Set<string>();
     openWindows.forEach((w) => {
-      if (isTabCachePath(w.path)) set.add(w.path);
+      if (isTabCachePath(w.path) && !isEntryTabPath(w.path)) set.add(w.path);
     });
-    if (isTabCachePath(currentPath)) set.add(currentPath);
+    if (isTabCachePath(currentPath) && !isEntryPage) set.add(currentPath);
     return [...set];
-  }, [openWindows, currentPath]);
+  }, [openWindows, currentPath, isEntryPage]);
 
   useEffect(() => {
-    return prefetchTabPagesIdle(tabPaths, currentPath);
-  }, [tabPaths, currentPath]);
+    return prefetchTabPagesIdle(tabPaths, isEntryPage ? "" : currentPath);
+  }, [tabPaths, currentPath, isEntryPage]);
 
   // Warm large bill-entry chunks once org is ready (first open after login on Windows WebView).
   useEffect(() => {
@@ -57,7 +60,9 @@ export const OrgLayout = () => {
     prefetchPostLoginCriticalPages();
   }, [isOrgSynced, user]);
 
-  const renderViaTabCache = isTabCachePath(currentPath) && tabPaths.length > 0;
+  // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.
+  const renderViaTabCache =
+    !isEntryPage && isTabCachePath(currentPath) && tabPaths.length > 0;
 
   // Safety timeout: if org sync takes too long (8s), force render to prevent infinite spinner
   useEffect(() => {
@@ -170,7 +175,7 @@ export const OrgLayout = () => {
   }
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 w-full h-full min-h-[100dvh] lg:min-h-0 lg:h-[100dvh]">
       <GlobalShortcuts />
       {tabPaths.length > 0 && (
         <TabCachedPages
@@ -178,7 +183,11 @@ export const OrgLayout = () => {
           activePath={renderViaTabCache ? currentPath : ""}
         />
       )}
-      {!renderViaTabCache && <Outlet />}
-    </>
+      {!renderViaTabCache && (
+        <div className={isEntryPage ? "flex flex-1 flex-col min-h-0 min-w-0 h-full w-full" : "contents"}>
+          <Outlet />
+        </div>
+      )}
+    </div>
   );
 };

@@ -26,6 +26,8 @@ import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedire
 import { NativeAppBridge } from "@/components/NativeAppBridge";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { isAppBootRoute } from "@/lib/appBootSplash";
+import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
+import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback";
 
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazyWithRetry(() => import("./pages/OrganizationManagement"));
@@ -148,8 +150,12 @@ const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommissio
 const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
 const LazyFallback = () => {
-  if (isAppBootRoute(window.location.pathname)) {
+  const path = window.location.pathname;
+  if (isAppBootRoute(path)) {
     return <AppBootSplash message="Loading…" />;
+  }
+  if (isEntryFullscreenPath(path)) {
+    return <EntryBillLoadingFallback />;
   }
   return (
     <div className="min-h-[40vh] w-full">

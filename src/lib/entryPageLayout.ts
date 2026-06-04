@@ -6,6 +6,13 @@ export function isEntryFullscreenPath(pathname: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(pathname);
 }
 
+/** Org path segment for bill/POS entry — excluded from tab cache (needs FullScreenLayout + h-dvh). */
+export function isEntryTabPath(pathSegment: string): boolean {
+  const segment = pathSegment.replace(/^\/+|\/+$/g, "");
+  if (!segment) return false;
+  return ENTRY_FULLSCREEN_PATH.test(`/${segment}/`);
+}
+
 /** Height reserved for the fixed desktop status bar (see .erp-status-bar in index.css). */
 export const ERP_STATUS_BAR_HEIGHT_CLASS = "lg:pb-[var(--erp-status-bar-height,1.75rem)]";
 

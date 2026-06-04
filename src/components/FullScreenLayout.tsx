@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
@@ -19,6 +19,7 @@ import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
+import { initUIScale } from "@/components/UIScaleSelector";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -28,6 +29,10 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
   const isEntryFullscreenPage = isEntryFullscreenPath(location.pathname);
   const showDesktopChrome = useShowDesktopChrome() && !isEntryFullscreenPage;
+
+  useEffect(() => {
+    if (isEntryFullscreenPage) initUIScale();
+  }, [isEntryFullscreenPage]);
 
   return (
     <ChatProvider>
@@ -39,7 +44,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             <div
               className={
                 isEntryFullscreenPage
-                  ? "flex h-screen w-full overflow-hidden bg-background"
+                  ? "flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-background"
                   : "flex min-h-screen w-full bg-background"
               }
             >

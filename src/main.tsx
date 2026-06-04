@@ -3,9 +3,11 @@ import App from "./App.tsx";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { initNativeShell } from "@/hooks/useNativeApp";
 import { initForceDesktopViewPreference } from "@/lib/desktopViewPreference";
+import { initUIScale } from "@/components/UIScaleSelector";
 import "./index.css";
 
 initForceDesktopViewPreference();
+initUIScale();
 void initNativeShell();
 
 // Capture PWA install prompt BEFORE React mounts (event fires once, early)

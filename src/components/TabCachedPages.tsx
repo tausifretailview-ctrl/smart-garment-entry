@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 function TabPageFallback({ active }: { active: boolean }) {
   if (!active) return null;
   return (
-    <div className="flex flex-1 items-center justify-center min-h-[200px]">
+    <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center">
       <div className="h-7 w-7 animate-spin rounded-full border-4 border-primary border-t-transparent" />
     </div>
   );
