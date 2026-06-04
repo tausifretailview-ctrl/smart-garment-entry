@@ -824,9 +824,10 @@ All colors MUST be HSL.
     margin: 0 !important;
     background: white !important;
     color: black !important;
-    page-break-inside: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
-  
+
   /* Remove all decorations for thermal */
   .thermal-print-80mm,
   .thermal-print-80mm * {

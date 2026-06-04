@@ -171,30 +171,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={base}>
 
-        {/* ═══ PRINT CSS — force single continuous 80mm page ═══ */}
-        <style>{`
-          @media print {
-            @page { size: 80mm auto; margin: 0; }
-            html, body { margin: 0 !important; padding: 0 !important; }
-            /* Allow the receipt to flow continuously on an auto-height
-               80mm page. Only protect small atomic blocks (rows / totals /
-               terms) from being split mid-line. Applying break-inside:avoid
-               to the root container previously caused long receipts
-               (>10 items) to be clipped by the driver before terms. */
-            .thermal-print-80mm {
-              page-break-inside: auto !important;
-              break-inside: auto !important;
-              overflow: visible !important;
-              visibility: visible !important;
-              display: block !important;
-            }
-            .thermal-print-80mm .thermal-row,
-            .thermal-print-80mm .thermal-keep {
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
-            }
-          }
-        `}</style>
+        {/* Print CSS is centralized in thermalReceiptPrintDocument + index.css overrides */}
 
         {/* ═══ HEADER ═══ */}
         <div style={dblLine} />
@@ -351,7 +328,6 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* ═══ GRAND TOTAL ═══ */}
         <div style={dblLine} />
         <div
-          className="thermal-keep"
           style={{
             ...row,
             fontSize: '16px',

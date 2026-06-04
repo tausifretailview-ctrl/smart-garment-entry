@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Printer, X } from 'lucide-react';
+import { getThermalReceiptPageStyleFragment } from '@/utils/thermalReceiptPrintDocument';
 
 interface PrintPreviewDialogProps {
   open: boolean;
@@ -154,7 +155,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     pageStyle: `
       @page {
         size: ${getPageSize()};
-        margin: ${selectedFormat === 'thermal' ? '2mm 4mm' : selectedFormat === 'a4' ? '10mm' : '4mm'};
+        margin: ${selectedFormat === 'thermal' ? '0' : selectedFormat === 'a4' ? '10mm' : '4mm'};
       }
       @media print {
         /* Hide all non-print elements */
@@ -219,6 +220,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           overflow: visible !important;
         }
       }
+      ${selectedFormat === 'thermal' ? getThermalReceiptPageStyleFragment(thermalPaper) : ''}
     `,
     onAfterPrint: () => {
       onOpenChange(false);

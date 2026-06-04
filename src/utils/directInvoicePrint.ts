@@ -1,5 +1,8 @@
 import { toast } from 'sonner';
-import { THERMAL_RECEIPT_PRINT_CSS } from '@/utils/thermalReceiptPrintDocument';
+import {
+  buildThermalReceiptPrintCss,
+  detectThermalPaperFromHtml,
+} from '@/utils/thermalReceiptPrintDocument';
 
 declare global {
   interface Window {
@@ -223,7 +226,14 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
   const isThermal =
     ref.classList.contains('thermal-print-80mm') ||
     ref.classList.contains('thermal-receipt-container') ||
-    !!ref.querySelector('.thermal-print-80mm, .thermal-receipt-container');
+    ref.classList.contains('modern-thermal-receipt') ||
+    !!ref.querySelector('.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt');
+  const thermalPaper = isThermal
+    ? detectThermalPaperFromHtml(
+        `${ref.className} ${ref.closest('.thermal-paper-58') ? 'thermal-paper-58' : ''}`,
+      )
+    : '80mm';
+  const thermalPrintCss = isThermal ? buildThermalReceiptPrintCss(thermalPaper) : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -234,8 +244,8 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { margin: 0; }
-    ${isThermal ? THERMAL_RECEIPT_PRINT_CSS : ''}
     ${allStyles}
+    ${thermalPrintCss}
   </style>
 </head>
 <body>

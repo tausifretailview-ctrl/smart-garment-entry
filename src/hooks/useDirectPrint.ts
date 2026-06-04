@@ -96,7 +96,14 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
             resolvedPaperSize === '80mm' || resolvedPaperSize === '58mm'
               ? 'receipt'
               : 'invoice';
-          const result = await appPrint({ type: printType, html });
+          const result = await appPrint({
+            type: printType,
+            html,
+            thermalPaper:
+              resolvedPaperSize === '58mm' || resolvedPaperSize === '80mm'
+                ? resolvedPaperSize
+                : '80mm',
+          });
           if (result.success) {
             toast.success('Invoice sent to printer');
             options.onSuccess?.();

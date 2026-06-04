@@ -2,7 +2,11 @@
 // desktop app, and falls back to the normal browser print flow on the web.
 // This is additive: existing web printing keeps working unchanged.
 
-import { wrapReceiptHtmlForElectron } from "@/utils/thermalReceiptPrintDocument";
+import {
+  receiptElectronPageSizeMicrons,
+  wrapReceiptHtmlForElectron,
+} from "@/utils/thermalReceiptPrintDocument";
+import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const electronAPI = (window as any).electronAPI;
@@ -23,6 +27,8 @@ export interface AppPrintOptions {
   /** HTML content to print. If omitted, the current page is printed. */
   html?: string;
   copies?: number;
+  /** 58mm vs 80mm when type is receipt (Electron). */
+  thermalPaper?: PosThermalPaper;
   /** Override default page size for this print type (Electron). */
   pageSize?: string | { width: number; height: number };
   /** Electron only: true = silent to chosen printer; false = system dialog with preview. Default true. */
@@ -51,11 +57,16 @@ function printerForType(type: AppPrintType): string {
   return localStorage.getItem(key) || "";
 }
 
-function pageSizeForType(type: AppPrintType): string | { width: number; height: number } {
+function pageSizeForType(
+  type: AppPrintType,
+  thermalPaper: PosThermalPaper = "80mm",
+): string | { width: number; height: number } {
   // Electron page sizes are in microns for custom sizes.
+  if (type === "receipt") {
+    return receiptElectronPageSizeMicrons(thermalPaper);
+  }
   return {
     invoice: "A4",
-    receipt: { width: 80000, height: 297000 }, // 80mm thermal roll
     barcode: { width: 50000, height: 25000 }, // 50x25mm label
     report: "A4",
   }[type];
@@ -92,7 +103,10 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
   }
 
   const printerName = printerForType(options.type);
-  const pageSize = options.pageSize ?? pageSizeForType(options.type);
+  const thermalPaper = options.thermalPaper ?? "80mm";
+  const pageSize =
+    options.pageSize ??
+    pageSizeForType(options.type, options.type === "receipt" ? thermalPaper : undefined);
   const margins = marginsForType(options.type);
   const copies = options.copies || Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
   const silent = options.silent !== false;

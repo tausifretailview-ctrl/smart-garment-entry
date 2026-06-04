@@ -49,6 +49,7 @@ import {
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
 import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
@@ -3343,9 +3344,34 @@ export default function POSSales() {
         break;
       case 'thermal': {
         const thermalPage = posThermalPageCss(posThermalPaper);
-        size = thermalPage.pageSize;
-        margin = '0';
-        break;
+        return `
+      @page {
+        size: ${thermalPage.pageSize};
+        margin: 0;
+      }
+      ${getThermalReceiptPageStyleFragment(posThermalPaper)}
+      @media print {
+        html, body {
+          width: 100%;
+          margin: 0;
+          padding: 0;
+        }
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .invoice-print-root,
+        .thermal-print-80mm,
+        .thermal-receipt-container,
+        .modern-thermal-receipt {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
       }
       default: // a5-vertical
         size = 'A5 portrait';
