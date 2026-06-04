@@ -38,6 +38,8 @@ interface AdaptiveCustomerPickerProps {
   onWalkIn?: () => void;
   /** Desktop popover width */
   popoverWidth?: string;
+  isLoading?: boolean;
+  loadingMessage?: string;
 }
 
 export function AdaptiveCustomerPicker({
@@ -58,6 +60,8 @@ export function AdaptiveCustomerPicker({
   walkInLabel,
   onWalkIn,
   popoverWidth = "w-[400px]",
+  isLoading = false,
+  loadingMessage = "Loading customers...",
 }: AdaptiveCustomerPickerProps) {
   const isMobile = useIsMobile();
 
@@ -83,9 +87,17 @@ export function AdaptiveCustomerPicker({
         onValueChange={onSearchTermChange}
       />
       <CommandList>
-        <CommandEmpty>{emptyMessage ?? "No customer found"}</CommandEmpty>
+        {!isLoading && (
+          <CommandEmpty>{emptyMessage ?? "No customer found"}</CommandEmpty>
+        )}
         <CommandGroup>
-          {options
+          {isLoading ? (
+            <CommandItem disabled className="text-muted-foreground">
+              {loadingMessage}
+            </CommandItem>
+          ) : null}
+          {!isLoading &&
+            options
             .filter((c) => {
               if (!searchTerm.trim()) return true;
               const t = searchTerm.toLowerCase();
@@ -144,7 +156,7 @@ export function AdaptiveCustomerPicker({
             options={options}
             selectedId={selectedId}
             onSelect={onSelect}
-            emptyMessage={emptyMessage}
+            emptyMessage={isLoading ? loadingMessage : emptyMessage}
             showOutstanding={showOutstanding}
             walkInLabel={walkInLabel}
             onWalkIn={onWalkIn}
