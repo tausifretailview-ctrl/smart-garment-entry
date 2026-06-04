@@ -112,3 +112,37 @@ WHERE ve.deleted_at IS NULL
   AND ve.description ILIKE 'Credit note adjusted against invoice %'
   -- AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
 ORDER BY ve.voucher_date DESC, ve.voucher_number;
+
+-- Block A3b: A3 skew — A2 repair queue only (ELLA NOOR, 8 customers from widened A2)
+SELECT c.customer_name,
+       s.sale_number,
+       s.sale_return_adjust,
+       sr.return_number,
+       sr.credit_status,
+       sr.linked_sale_id,
+       sr.net_amount AS sr_net,
+       COALESCE(sr.credit_available_balance, sr.net_amount) AS sr_cab
+FROM sales s
+JOIN customers c ON c.id = s.customer_id AND c.organization_id = s.organization_id
+JOIN sale_returns sr
+  ON sr.customer_id = s.customer_id
+ AND sr.organization_id = s.organization_id
+ AND sr.deleted_at IS NULL
+WHERE s.deleted_at IS NULL
+  AND s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+  AND COALESCE(s.sale_return_adjust, 0) > 0.01
+  AND (
+    sr.linked_sale_id IS DISTINCT FROM s.id
+    OR LOWER(TRIM(COALESCE(sr.credit_status, ''))) IN ('pending', 'partially_adjusted')
+  )
+  AND UPPER(TRIM(c.customer_name)) IN (
+    'SHUMAMA BAIRELI',
+    'PARINA BHUJWALA',
+    'FAIZA SHEIKH',
+    'FAIZA SALMAN MERCHANT',
+    'ATIYA MERCHANT',
+    'MONIKA VERMA',
+    'AAISHA',
+    'SHAREEN NATALIA'
+  )
+ORDER BY c.customer_name, s.sale_number, sr.return_number;

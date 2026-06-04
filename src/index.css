@@ -592,17 +592,15 @@ All colors MUST be HSL.
    Professional GST-Compliant Print Output
    ============================================ */
 
-/* Hidden on screen; react-to-print / browser print use this container */
+/* Hidden on screen; react-to-print clones children for print (do not use clip — blanks thermal) */
 .invoice-print-source-screen {
   position: fixed;
-  left: 0;
+  left: -10000px;
   top: 0;
   pointer-events: none;
   z-index: -1;
-  clip: rect(0, 0, 0, 0);
-  clip-path: inset(50%);
-  overflow: hidden;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
 }
 
 /* Utility class to hide elements during printing */
@@ -658,8 +656,11 @@ All colors MUST be HSL.
     print-color-adjust: exact !important;
   }
 
-  /* Off-screen POS print source — visible only when printing */
+  /* POS / dashboard direct print source — un-hide for print */
+  .invoice-print-source-screen,
   .invoice-print-source {
+    clip: auto !important;
+    clip-path: none !important;
     opacity: 1 !important;
     visibility: visible !important;
     position: absolute !important;
@@ -671,15 +672,20 @@ All colors MUST be HSL.
     width: 100% !important;
     max-width: none !important;
     max-height: none !important;
+    white-space: normal !important;
   }
 
   .invoice-print-source .invoice-print-root,
   .invoice-print-source .retail-tax-ezzy-print-root,
   .invoice-print-source .retail-tax-ezzy-print-root *,
   .invoice-print-source .wholesale-a5-invoice,
-  .invoice-print-source .invoice-page {
+  .invoice-print-source .invoice-page,
+  .invoice-print-source .thermal-print-80mm,
+  .invoice-print-source .thermal-receipt-container,
+  .invoice-print-source .modern-thermal-receipt {
     visibility: visible !important;
     opacity: 1 !important;
+    display: block !important;
   }
 
   /* Print preview dialog content */
@@ -702,9 +708,13 @@ All colors MUST be HSL.
   .print-dialog .invoice-print-root,
   .print-dialog .retail-tax-ezzy-print-root,
   .print-dialog .wholesale-a5-invoice,
-  .print-dialog .invoice-page {
+  .print-dialog .invoice-page,
+  .print-dialog .thermal-print-80mm,
+  .print-dialog .thermal-receipt-container,
+  .print-dialog .modern-thermal-receipt {
     visibility: visible !important;
     opacity: 1 !important;
+    display: block !important;
     transform: none !important;
     overflow: visible !important;
     max-height: none !important;

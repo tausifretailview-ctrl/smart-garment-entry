@@ -158,6 +158,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
             .thermal-print-80mm {
               page-break-inside: auto !important;
               break-inside: auto !important;
+              overflow: visible !important;
+              visibility: visible !important;
+              display: block !important;
             }
             .thermal-print-80mm .thermal-row,
             .thermal-print-80mm .thermal-keep {

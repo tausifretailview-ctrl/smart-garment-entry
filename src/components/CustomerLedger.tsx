@@ -185,6 +185,39 @@ const getBadgeStyle = (type: string, status?: string) => {
   }
 };
 
+const ledgerTableTotalsRowClass =
+  "bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-600";
+
+/** Footer row: label spans left columns, amount in next column, optional trailing empty cols. */
+function LedgerTableTotalsFooter({
+  labelColSpan,
+  label = "Total",
+  amount,
+  amountClassName = "text-foreground",
+  trailingColSpan = 0,
+}: {
+  labelColSpan: number;
+  label?: string;
+  amount: number;
+  amountClassName?: string;
+  trailingColSpan?: number;
+}) {
+  return (
+    <TableRow className={ledgerTableTotalsRowClass}>
+      <TableCell
+        colSpan={labelColSpan}
+        className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+      >
+        {label}
+      </TableCell>
+      <TableCell className={cn("text-right tabular-nums font-bold", amountClassName)}>
+        ₹{amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+      </TableCell>
+      {trailingColSpan > 0 ? <TableCell colSpan={trailingColSpan} /> : null}
+    </TableRow>
+  );
+}
+
 export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -2414,7 +2447,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   // Calculate payment summary
   const paymentSummary = useMemo(() => {
     if (!paymentHistory) {
-      return { total: 0, cash: 0, card: 0, upi: 0, discount: 0, settlementTotal: 0, count: 0 };
+      return { total: 0, cash: 0, card: 0, upi: 0, discount: 0, settlementTotal: 0, invoiceAmount: 0, count: 0 };
     }
     const discount = paymentHistory.reduce((sum, p) => sum + (p.settlementDiscount || 0), 0);
     const received = paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -2422,6 +2455,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       total: received,
       settlementTotal: received + discount,
       discount,
+      invoiceAmount: paymentHistory.reduce((sum, p) => sum + (p.invoiceAmount || 0), 0),
       cash: paymentHistory.reduce((sum, p) => sum + (p.cash || 0), 0),
       card: paymentHistory.reduce((sum, p) => sum + (p.card || 0), 0),
       upi: paymentHistory.reduce((sum, p) => sum + (p.upi || 0), 0),
@@ -4581,6 +4615,37 @@ Please clear your dues at the earliest. Thank you!`;
                           </TableRow>
                         ))
                       )}
+                      {paymentHistory && paymentHistory.length > 0 && (
+                        <TableRow className={ledgerTableTotalsRowClass}>
+                          <TableCell
+                            colSpan={3}
+                            className="text-right text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+                          >
+                            Total
+                          </TableCell>
+                          <TableCell className="font-bold tabular-nums">
+                            ₹{paymentSummary.invoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-green-700 dark:text-green-400 tabular-nums">
+                            ₹{paymentSummary.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-blue-700 dark:text-blue-400 tabular-nums">
+                            ₹{paymentSummary.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-purple-700 dark:text-purple-400 tabular-nums">
+                            ₹{paymentSummary.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-green-700 dark:text-green-400 tabular-nums">
+                            ₹{paymentSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-amber-700 dark:text-amber-400 tabular-nums">
+                            ₹{paymentSummary.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-green-600 dark:text-green-400 tabular-nums">
+                            ₹{paymentSummary.settlementTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </div>
@@ -4636,6 +4701,14 @@ Please clear your dues at the earliest. Thank you!`;
                         {pendingSaleReturns.length === 0 && (
                           <p className="text-sm text-gray-400">No pending credit notes</p>
                         )}
+                        {pendingSaleReturns.length > 0 && (
+                          <p className="text-sm font-bold text-orange-700 dark:text-orange-400 text-right mt-2 pt-2 border-t border-orange-200">
+                            Total pending CN: ₹
+                            {pendingSaleReturns
+                              .reduce((s, sr) => s + (sr.amount || 0), 0)
+                              .toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </p>
+                        )}
                       </div>
 
                       {/* Advance balance warning */}
@@ -4686,6 +4759,12 @@ Please clear your dues at the earliest. Thank you!`;
                                   </TableCell>
                                 </TableRow>
                               ))}
+                              <LedgerTableTotalsFooter
+                                labelColSpan={3}
+                                amount={unappliedPayments.reduce((s, p) => s + (p.amount || 0), 0)}
+                                amountClassName="text-emerald-600 dark:text-emerald-400"
+                                trailingColSpan={1}
+                              />
                             </TableBody>
                           </Table>
                         </div>
@@ -4738,6 +4817,12 @@ Please clear your dues at the earliest. Thank you!`;
                                     </TableCell>
                                   </TableRow>
                                 ))}
+                                <LedgerTableTotalsFooter
+                                  labelColSpan={2}
+                                  amount={pendingInvoicesWithAdvance.reduce((s, inv) => s + Math.round(inv.debit || 0), 0)}
+                                  amountClassName="text-red-600 dark:text-red-400"
+                                  trailingColSpan={1}
+                                />
                               </TableBody>
                             </Table>
                           </div>
@@ -4833,6 +4918,14 @@ Please clear your dues at the earliest. Thank you!`;
                               </TableRow>
                             ))
                           )}
+                          {advanceAllocRows.length > 0 && (
+                            <LedgerTableTotalsFooter
+                              labelColSpan={3}
+                              amount={advanceAllocSummary.total}
+                              amountClassName="text-teal-700 dark:text-teal-400"
+                              trailingColSpan={1}
+                            />
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -4926,6 +5019,14 @@ Please clear your dues at the earliest. Thank you!`;
                                 </TableCell>
                               </TableRow>
                             ))
+                          )}
+                          {cnAllocRows.length > 0 && (
+                            <LedgerTableTotalsFooter
+                              labelColSpan={3}
+                              amount={cnAllocSummary.total}
+                              amountClassName="text-purple-700 dark:text-purple-400"
+                              trailingColSpan={1}
+                            />
                           )}
                         </TableBody>
                       </Table>
@@ -5024,6 +5125,14 @@ Please clear your dues at the earliest. Thank you!`;
                                 </TableCell>
                               </TableRow>
                             ))
+                          )}
+                          {cnRefundRows.length > 0 && (
+                            <LedgerTableTotalsFooter
+                              labelColSpan={3}
+                              amount={cnRefundSummary.total}
+                              amountClassName="text-rose-700 dark:text-rose-400"
+                              trailingColSpan={2}
+                            />
                           )}
                         </TableBody>
                       </Table>
@@ -5142,6 +5251,14 @@ Please clear your dues at the earliest. Thank you!`;
                                 </TableCell>
                               </TableRow>
                             ))
+                          )}
+                          {advRefundRows.length > 0 && (
+                            <LedgerTableTotalsFooter
+                              labelColSpan={3}
+                              amount={advRefundSummary.total}
+                              amountClassName="text-red-700 dark:text-red-400"
+                              trailingColSpan={3}
+                            />
                           )}
                         </TableBody>
                       </Table>

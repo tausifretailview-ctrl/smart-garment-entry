@@ -197,10 +197,16 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         .print-dialog,
         .print-dialog .print-invoice-container,
         .print-dialog .invoice-print-root,
-        .print-dialog .retail-tax-ezzy-print-root {
+        .print-dialog .retail-tax-ezzy-print-root,
+        .print-dialog .thermal-print-80mm,
+        .print-dialog .thermal-receipt-container,
+        .print-dialog .modern-thermal-receipt {
           visibility: visible !important;
           opacity: 1 !important;
           display: block !important;
+          transform: none !important;
+          max-height: none !important;
+          overflow: visible !important;
         }
 
         .professional-invoice-template {

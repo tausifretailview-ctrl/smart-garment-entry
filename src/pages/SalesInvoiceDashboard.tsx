@@ -959,6 +959,22 @@ export default function SalesInvoiceDashboard() {
         batchSplit.forEach((v, k) => splitBySale.set(k, v));
       }
 
+      const itemsGrossBySale = new Map<string, number>();
+      const allSaleIds = allInvoices.map((inv: any) => inv.id).filter(Boolean);
+      for (let i = 0; i < allSaleIds.length; i += 200) {
+        const idBatch = allSaleIds.slice(i, i + 200);
+        const { data: itemRows } = await supabase
+          .from("sale_items")
+          .select("sale_id, quantity, mrp")
+          .in("sale_id", idBatch)
+          .is("deleted_at", null);
+        (itemRows || []).forEach((it: any) => {
+          if (!it.sale_id) return;
+          const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
+          itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
+        });
+      }
+
       const normalized = allInvoices.map((inv: any) => {
         if (inv?.is_cancelled || inv?.payment_status === "cancelled") {
           return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
@@ -973,7 +989,10 @@ export default function SalesInvoiceDashboard() {
             outstanding: Math.max(0, net - paid),
           };
         }
-        const rec = reconcileSaleInvoiceWithSplit(inv, splitBySale.get(inv.id) ?? null);
+        const rec = reconcileSaleInvoiceWithSplit(
+          { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
+          splitBySale.get(inv.id) ?? null,
+        );
         return {
           ...inv,
           paid_amount: rec.paid_amount,
@@ -1002,7 +1021,24 @@ export default function SalesInvoiceDashboard() {
         totalAmount: filteredByStatus.reduce((s: number, inv: any) => s + invoiceFaceNet(inv), 0),
         totalDiscount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0), 0),
         totalQty: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.total_qty || 0), 0),
-        pendingAmount: filteredByStatus.reduce((s: number, inv: any) => s + Number(inv.outstanding || 0), 0),
+        pendingAmount: filteredByStatus.reduce(
+          (s: number, inv: any) =>
+            s +
+            (inv.is_cancelled
+              ? 0
+              : Math.round(
+                  Number(
+                    inv.outstanding ??
+                      Math.max(
+                        0,
+                        (inv.net_amount || 0) -
+                          (inv.paid_amount || 0) -
+                          (inv.sale_return_adjust || 0),
+                      ),
+                  ),
+                )),
+          0,
+        ),
         deliveredCount: filteredByStatus.filter((inv: any) => inv.delivery_status === 'delivered').length,
         deliveredAmount: filteredByStatus
           .filter((inv: any) => inv.delivery_status === 'delivered')
@@ -1203,6 +1239,7 @@ export default function SalesInvoiceDashboard() {
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -1231,6 +1268,7 @@ export default function SalesInvoiceDashboard() {
       setInvoiceToCancel(null);
       setCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -1255,6 +1293,7 @@ export default function SalesInvoiceDashboard() {
       }
       setInvoiceToHardDelete(null);
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-stats'] });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -1322,14 +1361,26 @@ export default function SalesInvoiceDashboard() {
   const paginatedInvoices = invoicesData;
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  // Page totals computed from current page data (no sale_items, use total_qty)
+  // Page totals — balance column matches reconciled `outstanding` per row
   const pageTotals = useMemo(() => {
     const activeInvoices = paginatedInvoices.filter((inv: any) => !inv.is_cancelled);
+    const balanceDue = (inv: any) =>
+      inv.is_cancelled
+        ? 0
+        : Math.round(
+            Number(
+              inv.outstanding ??
+                Math.max(
+                  0,
+                  (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0),
+                ),
+            ),
+          );
     return {
       qty: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
       discount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
       amount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
-      balance: activeInvoices.reduce((sum: number, inv: any) => sum + Math.max(0, (inv.net_amount || 0) - (inv.paid_amount || 0) - (inv.sale_return_adjust || 0)), 0),
+      balance: activeInvoices.reduce((sum: number, inv: any) => sum + balanceDue(inv), 0),
     };
   }, [paginatedInvoices]);
 
@@ -3287,10 +3338,10 @@ export default function SalesInvoiceDashboard() {
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-0">
               <div className="text-2xl font-black text-white tabular-nums leading-tight truncate">₹{effectiveStats.pendingAmount.toFixed(0)}</div>
-              <p className="text-sm text-white/65 mt-0.5">Outstanding</p>
+              <p className="text-sm text-white/65 mt-0.5">Sum of Balance column</p>
               {filteredCustomer && (
                 <p className="text-[10px] text-white/55 leading-snug mt-1.5 border-t border-white/15 pt-1.5">
-                  Sum of invoice balances due. Unused advance (Adjust Advance) is not included until you apply it per invoice via Record Payment → From Advance or Accounts → Customer Payment.
+                  Matches invoice Balance after CN &amp; advance. Unused advance (Adjust Advance) is not included until applied per invoice.
                 </p>
               )}
             </CardContent>

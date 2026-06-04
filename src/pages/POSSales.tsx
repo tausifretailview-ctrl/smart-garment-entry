@@ -3307,6 +3307,19 @@ export default function POSSales() {
           max-width: none !important;
           overflow: visible !important;
         }
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .invoice-print-root,
+        .thermal-print-80mm,
+        .thermal-receipt-container {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
       }
     `;
     }
@@ -3338,6 +3351,20 @@ export default function POSSales() {
           width: 100%;
           margin: 0;
           padding: 0;
+        }
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .invoice-print-root,
+        .thermal-print-80mm,
+        .thermal-receipt-container,
+        .modern-thermal-receipt {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
         }
       }
     `;

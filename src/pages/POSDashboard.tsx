@@ -910,15 +910,26 @@ const POSDashboard = () => {
           height: auto !important;
           overflow: visible !important;
         }
+        .invoice-print-root,
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .thermal-print-80mm,
+        .thermal-receipt-container,
+        .modern-thermal-receipt {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
         .invoice-print-root {
           margin: 0 !important;
           padding: 0 !important;
           page-break-before: avoid !important;
           break-before: avoid !important;
           width: auto !important;
-        }
-        div:empty {
-          display: none !important;
         }
         table {
           width: 100%;
