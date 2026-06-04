@@ -697,12 +697,9 @@ export const Header = () => {
         </span>
         <div className="w-px h-4 bg-sidebar-border mx-1" />
 
-        {/* Live indicator */}
-        <div className="flex items-center gap-1.5 text-sidebar-foreground/60">
-          <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-          <span className="text-xs font-medium text-success">Live</span>
-          <span className="text-xs text-sidebar-foreground/40">· {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}</span>
-        </div>
+        <span className="text-xs text-sidebar-foreground/50 tabular-nums">
+          {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })}
+        </span>
       </div>
 
       {/* Dialogs */}
