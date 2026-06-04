@@ -17,7 +17,8 @@ import { Loader2, ArrowLeft, History, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import {
-  fetchSaleReceiptSplitsForInvoices,
+  buildSaleReceiptSplitMap,
+  extractSaleNumbersFromReceiptDescription,
   reconcileSaleInvoiceWithSplit,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
@@ -147,11 +148,9 @@ export function InvoiceHistoryDialog({
       const sale = saleRes.data;
       const directVouchers = vouchersRes.data || [];
 
-      // Customer Payment usually stores receipts at customer level
-      // (reference_type=customer, reference_id=customer uuid) with the invoice number in
-      // the description — NOT reference_id=saleId. The narrow query above misses them, so
-      // the timeline showed no payment and the balance summary wrongly read "Settled".
-      // Pull customer-level receipts that name this invoice so they appear in the timeline.
+      // Customer Payment stores receipts at customer level (reference_id=customer uuid) with
+      // invoice numbers in the description. ILIKE prefilter is cheap; strict token match
+      // avoids INV/26-27/40 absorbing payments for INV/26-27/400…409 (substring leak).
       let customerVouchers: typeof directVouchers = [];
       const saleNumber = (sale?.sale_number || "").trim();
       if (sale?.customer_id && saleNumber) {
@@ -167,7 +166,10 @@ export function InvoiceHistoryDialog({
           .ilike("description", `%${saleNumber}%`)
           .order("created_at", { ascending: true });
         if (custErr) throw custErr;
-        customerVouchers = custV || [];
+        const saleNumKey = saleNumber.trim().toUpperCase();
+        customerVouchers = (custV || []).filter((v) =>
+          extractSaleNumbersFromReceiptDescription(v.description || "").includes(saleNumKey),
+        );
       }
 
       const seen = new Set(directVouchers.map((v) => v.id));
@@ -176,13 +178,22 @@ export function InvoiceHistoryDialog({
         ...customerVouchers.filter((v) => !seen.has(v.id)),
       ];
 
-      // Authoritative per-invoice settlement split — matches Sales Invoice Dashboard and
-      // Customer Ledger (handles sale-linked + customer-level receipts, cash vs CN/advance).
+      // Per-invoice split from sale-linked + description-scoped customer receipts only.
+      // fetchSaleReceiptSplitsForInvoices also ILIKE-fetches customer rows and can attribute
+      // INV/26-27/408's payment to INV/26-27/40 via substring includes in description match.
       let split: SaleReceiptVoucherSplit = { cash: 0, cn: 0, adv: 0, discount: 0 };
       if (sale) {
-        const splitMap = await fetchSaleReceiptSplitsForInvoices(supabase, organizationId!, [
-          { id: sale.id, sale_number: sale.sale_number, customer_id: sale.customer_id },
-        ]);
+        const splitMap = buildSaleReceiptSplitMap(
+          [
+            {
+              id: sale.id,
+              sale_number: sale.sale_number,
+              net_amount: sale.net_amount,
+              sale_return_adjust: sale.sale_return_adjust,
+            },
+          ],
+          vouchers,
+        );
         split = splitMap.get(sale.id) ?? split;
       }
 
