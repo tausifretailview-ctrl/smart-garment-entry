@@ -59,9 +59,8 @@
   </head>
 
   <body>
-    <div id="root">
-      <!-- Professional Windows ERP Splash Screen -->
-      <div id="splash-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#F5F7FA;">
+    <!-- Outside #root so React mount does not remove splash before login is ready -->
+    <div id="splash-screen" style="position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#F5F7FA;">
         <!-- Logo Container -->
         <div style="display:flex;flex-direction:column;align-items:center;gap:24px;">
           <!-- Icon -->
@@ -112,6 +111,7 @@
         }, 10000);
       </script>
     </div>
+    <div id="root"></div>
     <noscript>
       <div style="padding:40px;text-align:center;font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;">
         <div>

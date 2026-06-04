@@ -16,6 +16,7 @@ import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import ezzyerpLogoFull from "@/assets/ezzyerp-logo-full.png";
 import posIllustration from "@/assets/pos-illustration.png";
 import isoCertifiedLogo from "@/assets/iso-certified-logo.png";
+import { hideAppBootSplash } from "@/lib/appBootSplash";
 
 const BRAND_COLOR = "#6C5CE7";
 
@@ -63,6 +64,10 @@ export default function OrgAuth() {
   const fetchTokenRef = useRef(0);
   // Guard: prevent checkUserMembership from running while handleSignIn is active
   const isSigningInRef = useRef(false);
+
+  useEffect(() => {
+    hideAppBootSplash();
+  }, []);
 
   // Check and clear lockout on mount
   useEffect(() => {
