@@ -571,6 +571,24 @@ All colors MUST be HSL.
     }
   }
 
+  /* Bill entry — header toolbar scrolls instead of clipping New/Save on narrow WebView width */
+  [data-entry-form] .entry-page-header-row {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  [data-entry-form] .entry-page-header-actions {
+    flex-shrink: 0;
+  }
+
+  html.entry-viewport-synced [data-entry-form] {
+    width: 100%;
+    max-width: 100%;
+  }
+
   .erp-status-bar .status-item {
     @apply flex items-center gap-1 opacity-90;
   }

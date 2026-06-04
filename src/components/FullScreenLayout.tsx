@@ -72,7 +72,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                 <main
                   className={
                     isEntryFullscreenPage
-                      ? `${mobileFullscreenMainClass} animate-fade-in`
+                      ? `${mobileFullscreenMainClass} w-full min-w-0 animate-fade-in`
                       : `${mobileMainContentClass} animate-fade-in`
                   }
                 >

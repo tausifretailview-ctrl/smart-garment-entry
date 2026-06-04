@@ -42,7 +42,8 @@ import { FinancerDetailsForm, FinancerDetails } from "@/components/FinancerDetai
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
-import { entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
@@ -389,6 +390,8 @@ export default function SalesInvoice() {
       document.body.classList.remove("pos-large-ui");
     };
   }, []);
+
+  useEntryViewportSync();
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -3172,7 +3175,7 @@ Thank you for choosing us!`;
     <div className={cn(entryPageShellClass, "bg-slate-50 dark:bg-background pos-desktop-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
-        <div className={cn("h-[52px] flex items-center gap-3", entryPageSectionX)}>
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-3", entryPageSectionX)}>
           {/* Left: Nav */}
           <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } })}
             className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
@@ -3195,10 +3198,10 @@ Thank you for choosing us!`;
           )}
           {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-white/60" />}
 
-          <div className="flex-1" />
+          <div className="flex-1 min-w-[8px]" />
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-1">
+          <div className="entry-page-header-actions flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={handleLastInvoice}
               disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
               className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
@@ -3318,7 +3321,7 @@ Thank you for choosing us!`;
       </header>
 
       {/* Main content area */}
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <main className={entryPageMainClass}>
 
       {/* Invoice & Customer Details Section */}
       <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>

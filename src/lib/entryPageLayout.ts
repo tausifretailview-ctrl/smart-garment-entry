@@ -11,7 +11,10 @@ export const ERP_STATUS_BAR_HEIGHT_CLASS = "lg:pb-[var(--erp-status-bar-height,1
 
 /** Outer shell for desktop bill entry screens — h-full fits the layout flex slot (not 100vh, which clips the footer on Windows). */
 export const entryPageShellClass =
-  `h-full min-h-0 w-full max-w-none flex flex-col overflow-hidden ${ERP_STATUS_BAR_HEIGHT_CLASS}`;
+  `h-full min-h-0 w-full max-w-none flex flex-col min-w-0 ${ERP_STATUS_BAR_HEIGHT_CLASS}`;
+
+/** Scrollable bill lines live in <main>; shell must not clip the header toolbar (New / Save). */
+export const entryPageMainClass = "flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden";
 
 /** Horizontal padding for entry sections — tighter than px-6 to use screen width */
 export const entryPageSectionX = "px-2 sm:px-3 lg:px-4";

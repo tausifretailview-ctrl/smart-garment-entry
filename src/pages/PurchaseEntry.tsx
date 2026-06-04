@@ -39,7 +39,8 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
-import { entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
@@ -446,6 +447,8 @@ const PurchaseEntry = () => {
       deleteDraft(); // Clear the draft from database after loading
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
+
+  useEntryViewportSync();
 
   // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4054,7 +4057,7 @@ const PurchaseEntry = () => {
         </div>
       )}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,.35)] relative z-50 border-b-2 border-green-500/50">
-        <div className={cn("h-[52px] flex items-center gap-3", entryPageSectionX)}>
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-3", entryPageSectionX)}>
         <Button variant="ghost" size="sm" onClick={() => navigate('/purchase-bills')}
           className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
           <ChevronLeft className="h-4 w-4" />
@@ -4078,9 +4081,9 @@ const PurchaseEntry = () => {
         )}
         {isLoadingNavBill && <Loader2 className="h-4 w-4 animate-spin text-white/60" />}
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-[8px]" />
 
-        <div className="flex items-center gap-1">
+        <div className="entry-page-header-actions flex items-center gap-1">
           {/* Navigation buttons */}
           <Button variant="ghost" size="sm" onClick={handleLastBill}
             disabled={isLoadingNavBill || !allBillIds?.length}
@@ -4151,7 +4154,7 @@ const PurchaseEntry = () => {
         )}
       </header>
 
-      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <main className={entryPageMainClass}>
 
         <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
             <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
