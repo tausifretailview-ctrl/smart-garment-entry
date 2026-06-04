@@ -48,6 +48,11 @@ import {
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+
+/** Supplier invoice image column — hidden by default; enable via Columns menu. */
+const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
+  bill_image: false,
+};
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -2196,6 +2201,7 @@ const PurchaseBillDashboard = () => {
                 tableId="purchase_bills"
                 columns={columns}
                 data={paginatedBills}
+                defaultColumnVisibility={PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY}
                 stickyFirstColumn={false}
                 isLoading={loading}
                 emptyMessage="No purchase bills found"

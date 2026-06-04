@@ -41,7 +41,10 @@ export function useERPTablePersistence(
     const saved = loadSettings(tableId);
     return {
       columnOrder: saved.columnOrder?.length ? saved.columnOrder : defaults.columnOrder,
-      columnVisibility: saved.columnVisibility ?? defaults.columnVisibility,
+      columnVisibility: {
+        ...defaults.columnVisibility,
+        ...(saved.columnVisibility ?? {}),
+      },
       columnSizing: saved.columnSizing ?? {},
       density: saved.density ?? defaults.density ?? "comfortable",
     };
