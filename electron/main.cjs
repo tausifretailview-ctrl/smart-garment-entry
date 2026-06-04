@@ -150,8 +150,8 @@ function createWindow() {
     },
     autoHideMenuBar: true, // hide menu bar (accelerators still work; Alt reveals)
 
-    backgroundColor: '#f8fafc',
-    show: false, // Show after ready-to-show (no white flash)
+    backgroundColor: '#F5F7FA', // match index.html splash — no white flash on Windows cold start
+    show: false, // Show after ready-to-show (branded splash in page)
 
     webPreferences: {
       nodeIntegration: false,

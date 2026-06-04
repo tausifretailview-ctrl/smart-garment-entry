@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Building2, Loader2, LogIn, Shield, WifiOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { hideAppBootSplash } from "@/lib/appBootSplash";
 
 const getCachedOrgSlugs = (userId: string): { id: string; slug: string; name: string }[] | null => {
   try {
@@ -40,6 +41,10 @@ export const OrganizationSetup = () => {
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    hideAppBootSplash();
+  }, []);
 
   // Compute redirect slug (must be before any early returns for hooks rules)
   const storedSlug = getStoredOrgSlug();
