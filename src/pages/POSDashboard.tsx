@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -357,7 +358,7 @@ const POSDashboard = () => {
   }, [settings]);
 
   const effectivePosBillFormat = useMemo((): PosBillFormat => {
-    const raw = (posBillFormat || saleSettings?.pos_bill_format || "a5") as PosBillFormat;
+    const raw = (posBillFormat || saleSettings?.pos_bill_format || "thermal") as PosBillFormat;
     return resolvePosBillFormat(
       posInvoiceTemplate,
       raw,
@@ -972,7 +973,12 @@ const POSDashboard = () => {
     contentRef: invoicePrintRef,
     documentTitle: printData?.billNo || "Invoice",
     pageStyle: getPageStyle(),
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(invoicePrintRef, resolve, { maxWait: 8000 });
+      }),
     onAfterPrint: () => {
+      setPrintData(null);
       toast({
         title: "Success",
         description: "Invoice printed successfully",
@@ -1058,14 +1064,9 @@ const POSDashboard = () => {
         financerDetails,
       };
 
-      // Set print data first
-      setPrintData(invoiceData);
-      
-      // Wait for InvoiceWrapper to fully render (data + DOM + images) before printing
-      waitForPrintReady(invoicePrintRef, () => {
-        handlePrint();
-      });
-      
+      flushSync(() => setPrintData(invoiceData));
+      handlePrint();
+
       toast({
         title: "Printing Invoice",
         description: `Invoice ${sale.sale_number} sent to printer`,
@@ -3458,15 +3459,20 @@ const POSDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Hidden invoice for direct print — visible only in @media print (not opacity:0) */}
-      <div
-        className={`invoice-print-source-screen invoice-print-source${effectivePosBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
-        style={posPrintSourceStyle}
-      >
-        {printData && (
-          <InvoiceWrapper
-            ref={invoicePrintRef}
-            billNo={printData.billNo}
+      {/* Hidden invoice for direct print — portaled to body so react-to-print iframe gets full content */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className={`invoice-print-source-screen${effectivePosBillFormat === "thermal" && posThermalPaper === "58mm" ? " thermal-paper-58" : ""}`}
+            style={posPrintSourceStyle}
+          >
+            <div
+              ref={invoicePrintRef}
+              className="invoice-print-source"
+            >
+              {printData && (
+                <InvoiceWrapper
+                  billNo={printData.billNo}
             date={printData.date}
             customerName={printData.customerName}
             customerAddress={printData.customerAddress}
@@ -3492,11 +3498,14 @@ const POSDashboard = () => {
             notes={printData.notes || ''}
             taxType={saleSettings?.default_tax_type || 'inclusive'}
             financerDetails={printData.financerDetails || null}
-            format={posInvoiceWrapperFormat}
-            template={posInvoiceTemplate}
-          />
+                  format={posInvoiceWrapperFormat}
+                  template={posInvoiceTemplate}
+                />
+              )}
+            </div>
+          </div>,
+          document.body,
         )}
-      </div>
 
       {/* Payment Recording Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
