@@ -1,6 +1,6 @@
 /**
- * Main dashboard metrics/charts — manual refresh only to reduce Supabase reads.
- * First visit still loads once (empty cache). Use invalidateQueries on Refresh.
+ * Main desktop dashboard metrics/charts — no automatic Supabase reads.
+ * Queries stay disabled until the user clicks Refresh (see Index.tsx).
  */
 export const DASHBOARD_MANUAL_REFRESH_OPTIONS = {
   staleTime: Number.POSITIVE_INFINITY,
@@ -10,6 +10,14 @@ export const DASHBOARD_MANUAL_REFRESH_OPTIONS = {
   refetchOnMount: false,
   refetchOnReconnect: false,
 } as const;
+
+/** Gate dashboard RPC/chart queries — false until user clicks Refresh. */
+export function isDashboardMetricsQueryEnabled(
+  organizationId: string | undefined,
+  loadRequested: boolean,
+): boolean {
+  return Boolean(organizationId) && loadRequested;
+}
 
 /** Query key prefixes cleared by the desktop dashboard Refresh button */
 export const DASHBOARD_REFRESH_QUERY_KEYS = [

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -10,6 +11,7 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import {
   DASHBOARD_MANUAL_REFRESH_OPTIONS,
   DASHBOARD_REFRESH_QUERY_KEYS,
+  isDashboardMetricsQueryEnabled,
 } from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts } from "@/utils/customerSegments";
 import { useIsLgUp } from "@/hooks/use-mobile";
@@ -219,7 +221,8 @@ const DesktopDashboard = () => {
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [metricsLoadRequested, setMetricsLoadRequested] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const queryClient = useQueryClient();
   const [showSizeStock, setShowSizeStock] = useState(false);
   
@@ -278,16 +281,34 @@ const DesktopDashboard = () => {
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
-  // Manual refresh all - single RPC query key
+  const metricsQueryEnabled = isDashboardMetricsQueryEnabled(
+    currentOrganization?.id,
+    metricsLoadRequested,
+  );
+
+  useEffect(() => {
+    setMetricsLoadRequested(false);
+    setLastUpdated(null);
+  }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    setMetricsLoadRequested(false);
+  }, [dateRange]);
+
+  // Manual refresh — only time dashboard cards/charts hit Supabase
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
-    await Promise.all(
-      DASHBOARD_REFRESH_QUERY_KEYS.map((key) =>
-        queryClient.invalidateQueries({ queryKey: [key] }),
-      ),
-    );
-    setLastUpdated(new Date());
-    setTimeout(() => setIsRefreshing(false), 500);
+    try {
+      flushSync(() => setMetricsLoadRequested(true));
+      await Promise.all(
+        DASHBOARD_REFRESH_QUERY_KEYS.map((key) =>
+          queryClient.refetchQueries({ queryKey: [key] }),
+        ),
+      );
+      setLastUpdated(new Date());
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Single RPC call replaces 8-10 separate queries
@@ -327,7 +348,7 @@ const DesktopDashboard = () => {
         purchase_return_qty: number;
       };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: metricsQueryEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
@@ -335,12 +356,12 @@ const DesktopDashboard = () => {
   // Customer Ledger card / Balance Sheet, instead of the invoice-only net−paid view.
   const { summary: receivablesSummary } = useOrganizationReceivablesSummary(
     currentOrganization?.id,
-    { manualRefreshOnly: true },
+    { manualRefreshOnly: true, enabled: metricsQueryEnabled },
   );
 
   const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
     queryKey: ["customer-segment-counts", currentOrganization?.id],
-    enabled: !!currentOrganization?.id,
+    enabled: metricsQueryEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
   });
@@ -680,8 +701,16 @@ const DesktopDashboard = () => {
     );
   };
 
-  const showPlaceholders = isLoading && !dashStats;
-  const metricsLoading = isLoading && !!dashStats;
+  const hasMetrics = Boolean(dashStats);
+  const showPlaceholders = !hasMetrics && (!metricsLoadRequested || isLoading);
+  const metricsLoading = metricsLoadRequested && isLoading && hasMetrics;
+  const statusLabel = isLoading && metricsLoadRequested && !hasMetrics
+    ? "Loading…"
+    : lastUpdated
+      ? `Updated ${format(lastUpdated, "HH:mm:ss")} · refresh for latest`
+      : hasMetrics
+        ? "Showing last loaded figures · click Refresh for latest"
+        : "Click Refresh to load dashboard data";
 
   return (
     <>
@@ -748,11 +777,7 @@ const DesktopDashboard = () => {
         <div className="dashboard-toolbar flex flex-wrap items-center justify-between gap-2 py-1 border-b border-border/70 shrink-0">
           <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground min-w-0">
             <div className={cn("h-2 w-2 rounded-full shrink-0", isLoading ? "bg-amber-400 animate-pulse" : "bg-success")} />
-            <span className="truncate">
-              {isLoading && !dashStats
-                ? "Loading…"
-                : `Updated ${format(lastUpdated, "HH:mm:ss")} · refresh for latest`}
-            </span>
+            <span className="truncate">{statusLabel}</span>
           </div>
           <Button
             variant="outline"
@@ -1044,7 +1069,7 @@ const DesktopDashboard = () => {
           )}
 
           {/* Charts Section */}
-          <StatsChartsSection />
+          <StatsChartsSection loadEnabled={metricsLoadRequested} />
         </div>
 
         {/* Customer Category Cards */}

@@ -4,8 +4,15 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
 import { DASHBOARD_MANUAL_REFRESH_OPTIONS } from "@/lib/dashboardQueryOptions";
-export const StatsChartsSection = () => {
+
+type StatsChartsSectionProps = {
+  /** When false, chart queries do not hit Supabase until the user clicks Refresh. */
+  loadEnabled?: boolean;
+};
+
+export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionProps) => {
   const { currentOrganization } = useOrganization();
+  const chartsEnabled = loadEnabled && !!currentOrganization?.id;
 
   // Fetch last 7 days sales data
   const { data: salesData } = useQuery({
@@ -44,7 +51,7 @@ export const StatsChartsSection = () => {
 
       return salesByDay;
     },
-    enabled: !!currentOrganization?.id,
+    enabled: chartsEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
@@ -83,7 +90,7 @@ export const StatsChartsSection = () => {
 
       return purchaseByDay;
     },
-    enabled: !!currentOrganization?.id,
+    enabled: chartsEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
@@ -113,7 +120,7 @@ export const StatsChartsSection = () => {
         value: (item.stock_qty || 0) * (Number(item.sale_price) || 0),
       })) || [];
     },
-    enabled: !!currentOrganization?.id,
+    enabled: chartsEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
