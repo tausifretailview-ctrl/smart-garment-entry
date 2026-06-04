@@ -522,7 +522,7 @@ export default function CustomerAuditReport() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
-      <div className="max-w-[1600px] mx-auto space-y-4">
+      <div className="w-full max-w-none mx-0 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div>
             <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight">Customer Audit Report</h1>

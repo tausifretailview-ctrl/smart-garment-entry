@@ -1146,7 +1146,7 @@ export default function SaleOrderEntry() {
   }, [searchInput]);
 
   return (
-    <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
+    <div className="w-full max-w-none mx-0 px-2 sm:px-3 lg:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
       <BackToDashboard />
       
       {/* Section A: Sticky Header */}

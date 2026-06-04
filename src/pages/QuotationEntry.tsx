@@ -995,7 +995,7 @@ export default function QuotationEntry() {
   }, [searchInput]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="w-full max-w-none p-2 sm:p-3 lg:p-4 space-y-4 sm:space-y-6">
       <BackToDashboard />
       
       <Card className="p-6">

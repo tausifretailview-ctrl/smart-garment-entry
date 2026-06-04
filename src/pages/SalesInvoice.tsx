@@ -42,6 +42,7 @@ import { FinancerDetailsForm, FinancerDetails } from "@/components/FinancerDetai
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
+import { entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
@@ -3168,10 +3169,10 @@ Thank you for choosing us!`;
   }
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-slate-50 dark:bg-background pb-6 pos-desktop-readable" data-entry-form>
+    <div className={cn(entryPageShellClass, "bg-slate-50 dark:bg-background pb-6 pos-desktop-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
-        <div className="h-[52px] flex items-center px-5 gap-3">
+        <div className={cn("h-[52px] flex items-center gap-3", entryPageSectionX)}>
           {/* Left: Nav */}
           <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } })}
             className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
@@ -3269,7 +3270,7 @@ Thank you for choosing us!`;
 
         {/* Last invoice info row + Search Invoice */}
         {!editingInvoiceId && (
-          <div className="h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center justify-between gap-2 text-[12px] px-5">
+          <div className={cn("h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center justify-between gap-2 text-[12px]", entryPageSectionX)}>
             <div className="flex items-center gap-2">
               {lastInvoice ? (
                 <>
@@ -3320,7 +3321,7 @@ Thank you for choosing us!`;
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
       {/* Invoice & Customer Details Section */}
-      <section className="bg-white border-b border-slate-100 px-5 py-2 shrink-0 shadow-sm">
+      <section className={cn("bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
           {/* Customer Selection */}
@@ -3623,7 +3624,7 @@ Thank you for choosing us!`;
       </section>
 
       {/* Product Entry Bar */}
-      <section className="bg-slate-50 border-b border-slate-200 px-5 py-3 shrink-0">
+      <section className={cn("bg-slate-50 border-b border-slate-200 py-3 shrink-0", entryPageSectionX)}>
           <div className="flex items-center gap-3 flex-wrap">
             {/* Entry Mode Toggle */}
             {sizeGridEnabled && (
@@ -3778,17 +3779,17 @@ Thank you for choosing us!`;
       </section>
 
       {/* Line Items Table — fills remaining space; only this area scrolls */}
-      <section className="flex-1 min-h-0 px-6 pb-2 overflow-hidden bg-slate-100 relative">
+      <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
         <div
           ref={tableContainerRef}
           className="h-full overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
          <div className="bg-white min-h-full pb-4">
-          <table className="w-full border-separate border-spacing-0 erp-desktop-table">
+          <table className="w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[200px]">PRODUCT</th>
+                <th className="col-product text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[200px]">PRODUCT</th>
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
                 {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
@@ -3840,7 +3841,7 @@ Thank you for choosing us!`;
                       className={`group border-b border-border/40 transition-colors ${displayIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'} hover:bg-blue-50/50`}
                     >
                       <td className="text-center text-[15px] text-muted-foreground px-3 py-2.5">{srNo}</td>
-                      <td className="px-3 py-2">
+                      <td className="col-product px-3 py-2">
                         <button
                           type="button"
                           onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
@@ -3992,7 +3993,7 @@ Thank you for choosing us!`;
 
         {/* Collapsible Notes Section — sibling of table so it never pushes the footer */}
         {showNotesSection && (
-          <div className="shrink-0 px-6 py-3 bg-slate-50 border-t border-slate-200 max-h-[30vh] overflow-y-auto">
+          <div className={cn("shrink-0 py-3 bg-slate-50 border-t border-slate-200 max-h-[30vh] overflow-y-auto", entryPageSectionX)}>
             <div className="flex items-center gap-2 mb-2">
               <Label className="text-[12px] font-semibold text-slate-600">Notes / Remarks</Label>
               <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto" onClick={() => setShowNotesSection(false)}>
@@ -4005,7 +4006,7 @@ Thank you for choosing us!`;
 
         {/* Financer Details (Mobile ERP) */}
         {mobileERP.enabled && mobileERP.financer_billing && (
-          <div className="shrink-0 px-6 py-3 border-t border-slate-200 max-h-[30vh] overflow-y-auto bg-white">
+          <div className={cn("shrink-0 py-3 border-t border-slate-200 max-h-[30vh] overflow-y-auto bg-white", entryPageSectionX)}>
             <FinancerDetailsForm
               value={financerDetails}
               onChange={(details) => setFinancerDetails(details)}
