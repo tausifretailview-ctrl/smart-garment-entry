@@ -79,6 +79,8 @@ import {
 } from "@/utils/posDashboardSettlement";
 import {
   resolvePosBillFormat,
+  resolvePosThermalPaper,
+  posThermalPageCss,
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
@@ -368,15 +370,24 @@ const POSDashboard = () => {
     [effectivePosBillFormat],
   );
 
+  const posThermalPaper = resolvePosThermalPaper(
+    (settings as any)?.bill_barcode_settings?.direct_print_pos_paper,
+  );
+
   const posPrintSourceStyle = useMemo(
-    (): React.CSSProperties => ({
+    (): React.CSSProperties => {
+      const thermalCss =
+        effectivePosBillFormat === "thermal"
+          ? posThermalPageCss(posThermalPaper)
+          : null;
+      return {
       width:
         effectivePosBillFormat === "a4"
           ? "210mm"
           : effectivePosBillFormat === "a5-horizontal"
             ? "210mm"
-            : effectivePosBillFormat === "thermal"
-              ? "80mm"
+            : thermalCss
+              ? thermalCss.sourceWidth
               : "148mm",
       minHeight:
         effectivePosBillFormat === "a4"
@@ -386,8 +397,9 @@ const POSDashboard = () => {
             : effectivePosBillFormat === "a5-horizontal"
               ? "148mm"
               : "210mm",
-    }),
-    [effectivePosBillFormat],
+    };
+    },
+    [effectivePosBillFormat, posThermalPaper],
   );
 
   useEffect(() => {
@@ -882,10 +894,12 @@ const POSDashboard = () => {
         size = 'A4 portrait';
         margin = '10mm';
         break;
-      case 'thermal':
-        size = '80mm auto';
+      case 'thermal': {
+        const thermalPage = posThermalPageCss(posThermalPaper);
+        size = thermalPage.pageSize;
         margin = '3mm';
         break;
+      }
       default:
         size = 'A5 portrait';
         margin = '10mm';
@@ -3295,7 +3309,8 @@ const POSDashboard = () => {
         <PrintPreviewDialog
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
-          defaultFormat={effectivePosBillFormat || 'a5'}
+          defaultFormat={posInvoiceWrapperFormat}
+          thermalPaper={posThermalPaper}
           renderInvoice={(format) => (
             <InvoiceWrapper
               format={format}
@@ -3445,7 +3460,7 @@ const POSDashboard = () => {
 
       {/* Hidden invoice for direct print — visible only in @media print (not opacity:0) */}
       <div
-        className="invoice-print-source-screen invoice-print-source"
+        className={`invoice-print-source-screen invoice-print-source${effectivePosBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
         style={posPrintSourceStyle}
       >
         {printData && (

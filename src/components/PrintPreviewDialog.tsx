@@ -17,6 +17,8 @@ interface PrintPreviewDialogProps {
   onOpenChange: (open: boolean) => void;
   renderInvoice: (format: string) => React.ReactNode;
   defaultFormat?: string;
+  /** 58mm vs 80mm when format is thermal (POS-58 vs standard roll). */
+  thermalPaper?: '58mm' | '80mm';
   onPrint?: () => void;
 }
 
@@ -25,6 +27,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   onOpenChange,
   renderInvoice,
   defaultFormat = 'a4',
+  thermalPaper = '80mm',
   onPrint,
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<string>(defaultFormat);
@@ -98,7 +101,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       case 'a5-horizontal':
         return 'A5 landscape';
       case 'thermal':
-        return '80mm auto';
+        return thermalPaper === '58mm' ? '58mm auto' : '80mm auto';
       default:
         return 'A4 portrait';
     }
@@ -111,7 +114,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       case 'a5-horizontal':
         return 'width: 210mm !important; height: 148mm !important;';
       case 'thermal':
-        return 'width: 80mm !important; height: auto !important;';
+        return thermalPaper === '58mm'
+          ? 'width: 58mm !important; height: auto !important;'
+          : 'width: 80mm !important; height: auto !important;';
       default:
         return 'width: 210mm !important; height: 297mm !important;';
     }
@@ -120,7 +125,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   const getContainerWidth = () => {
     switch (selectedFormat) {
       case 'thermal':
-        return '72mm';
+        return thermalPaper === '58mm' ? '48mm' : '72mm';
       case 'a5':
         return '148mm'; // Full A5 width
       case 'a5-horizontal':
@@ -239,7 +244,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         };
       case 'thermal':
         return {
-          width: '72mm',
+          width: thermalPaper === '58mm' ? '48mm' : '72mm',
           minHeight: 'auto',
           maxHeight: 'none',
         };
@@ -270,7 +275,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="print-dialog max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
+      <DialogContent
+        className={`print-dialog max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col${selectedFormat === 'thermal' && thermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+      >
         <DialogHeader>
           <DialogTitle>Print Preview</DialogTitle>
         </DialogHeader>

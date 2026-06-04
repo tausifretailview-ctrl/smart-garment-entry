@@ -43,6 +43,9 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import {
   resolvePosBillFormat,
+  resolvePosDirectPrintPaper,
+  resolvePosThermalPaper,
+  posThermalPageCss,
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
@@ -795,14 +798,19 @@ export default function POSSales() {
     (settingsData as any)?.sale_settings?.invoice_paper_format,
   );
   const posInvoiceWrapperFormat = toInvoiceWrapperFormat(posBillFormat);
+  const posThermalPaper = resolvePosThermalPaper(
+    (settingsData as any)?.bill_barcode_settings?.direct_print_pos_paper,
+  );
   const posPrintSourceStyle = useMemo(() => {
+    const thermalCss =
+      posBillFormat === 'thermal' ? posThermalPageCss(posThermalPaper) : null;
     const width =
       posBillFormat === 'a4'
         ? '210mm'
         : posBillFormat === 'a5-horizontal'
           ? '210mm'
-          : posBillFormat === 'thermal'
-            ? '80mm'
+          : thermalCss
+            ? thermalCss.sourceWidth
             : '148mm';
     const minHeight =
       posBillFormat === 'a4'
@@ -821,7 +829,7 @@ export default function POSSales() {
             ? '148mm'
             : '210mm';
     return { width, minHeight, maxHeight, overflow: 'visible' as const };
-  }, [posBillFormat]);
+  }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType =
     (_posSaleSettings.default_tax_type === 'exclusive' ? 'exclusive' : 'inclusive') as 'inclusive' | 'exclusive';
@@ -845,12 +853,10 @@ export default function POSSales() {
         return;
       }
       waitForPrintReady(invoicePrintRef, async () => {
-        const paperSize =
-          posBillFormat === 'thermal'
-            ? '80mm'
-            : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal'
-              ? 'A5'
-              : 'A4';
+        const paperSize = resolvePosDirectPrintPaper(
+          posBillFormat,
+          (settingsData as any)?.bill_barcode_settings?.direct_print_pos_paper,
+        );
         await directPrint(invoicePrintRef.current, {
           context: 'pos',
           paperSize,
@@ -2538,7 +2544,10 @@ export default function POSSales() {
       if (waitForContent() || Date.now() - startedAt > 5000) {
         clearInterval(pollInterval);
         if (isDirectPrintEnabled) {
-          const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
+          const paperSize = resolvePosDirectPrintPaper(
+            posBillFormat,
+            (settingsData as any)?.bill_barcode_settings?.direct_print_pos_paper,
+          );
           await directPrint(invoicePrintRef.current, {
             context: 'pos',
             paperSize,
@@ -3332,10 +3341,12 @@ export default function POSSales() {
         size = 'A4 portrait';
         margin = '10mm';
         break;
-      case 'thermal':
-        size = '80mm auto';
+      case 'thermal': {
+        const thermalPage = posThermalPageCss(posThermalPaper);
+        size = thermalPage.pageSize;
         margin = '3mm';
         break;
+      }
       default: // a5-vertical
         size = 'A5 portrait';
         break;
@@ -3406,7 +3417,10 @@ export default function POSSales() {
     if (isDirectPrintEnabled) {
       // Wait for invoice to fully render before direct printing
       waitForPrintReady(invoicePrintRef, async () => {
-        const paperSize = posBillFormat === 'thermal' ? '80mm' : posBillFormat === 'a5' || posBillFormat === 'a5-horizontal' ? 'A5' : 'A4';
+        const paperSize = resolvePosDirectPrintPaper(
+          posBillFormat,
+          (settingsData as any)?.bill_barcode_settings?.direct_print_pos_paper,
+        );
         const success = await directPrint(invoicePrintRef.current, {
           context: 'pos',
           paperSize,
@@ -4253,7 +4267,10 @@ export default function POSSales() {
         </Dialog>
 
         {/* Hidden Invoice for Printing (tablet) */}
-        <div className="invoice-print-source-screen invoice-print-source" style={posPrintSourceStyle}>
+        <div
+          className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+          style={posPrintSourceStyle}
+        >
           <InvoiceWrapper
             ref={invoicePrintRef}
             template={posInvoiceTemplate}
@@ -4498,7 +4515,10 @@ export default function POSSales() {
         </AlertDialog>
 
         {/* Hidden Invoice for Printing */}
-        <div className="invoice-print-source-screen invoice-print-source" style={posPrintSourceStyle}>
+        <div
+          className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+          style={posPrintSourceStyle}
+        >
           <InvoiceWrapper
             ref={invoicePrintRef}
             template={posInvoiceTemplate}
@@ -5949,6 +5969,8 @@ export default function POSSales() {
             <div className="space-y-4">
               <InvoiceWrapper
                 ref={printRef}
+                format={posInvoiceWrapperFormat}
+                template={posInvoiceTemplate}
                 billNo={currentInvoiceNumber || "DRAFT"}
                 date={new Date()}
                 customerName={customerName}
@@ -6138,7 +6160,8 @@ export default function POSSales() {
                 handleClosePrintConfirmDialog();
               }
             }}
-            defaultFormat={posBillFormat || 'thermal'}
+            defaultFormat={posInvoiceWrapperFormat}
+            thermalPaper={posThermalPaper}
             renderInvoice={(format) => (
               <InvoiceWrapper
                 format={format}
@@ -6177,7 +6200,10 @@ export default function POSSales() {
         )}
 
         {/* Hidden Invoice for Printing */}
-        <div className="invoice-print-source-screen invoice-print-source" style={posPrintSourceStyle}>
+        <div
+          className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+          style={posPrintSourceStyle}
+        >
           {(items.length > 0 || savedInvoiceData) && (
             <div ref={invoicePrintRef} style={{ position: 'relative' }}>
               {savedInvoiceData?.isEstimate && (

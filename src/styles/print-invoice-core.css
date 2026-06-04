@@ -601,6 +601,15 @@
     margin: 2mm 4mm;
   }
 
+  .invoice-print-source.thermal-paper-58 .thermal-print-80mm,
+  .invoice-print-source.thermal-paper-58 .thermal-receipt-container,
+  .print-dialog.thermal-paper-58 .thermal-print-80mm,
+  .print-dialog.thermal-paper-58 .thermal-receipt-container {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    font-size: 10px !important;
+  }
+
   /* Force all thermal content to be visible */
   .thermal-print-80mm * {
     visibility: visible !important;

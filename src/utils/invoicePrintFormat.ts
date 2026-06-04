@@ -29,10 +29,25 @@ function fallbackFormatForFullPageTemplate(
   return 'a4';
 }
 
-/** POS paper size from settings, adjusted when the invoice template requires A5 or full page. */
+/** POS paper size — honor thermal receipt setting (template name does not force A4 on POS). */
 export function resolvePosBillFormat(
   invoiceTemplate: string | undefined,
   posBillFormat: PosBillFormat,
+  _invoicePaperFormat?: string,
+): PosBillFormat {
+  if (posBillFormat === 'thermal') {
+    return 'thermal';
+  }
+  if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
+    return 'a5';
+  }
+  return posBillFormat;
+}
+
+/** Sales invoice dashboard paper size — full-page templates cannot use 80mm thermal. */
+export function resolveSaleBillFormat(
+  invoiceTemplate: string | undefined,
+  salesBillFormat: PosBillFormat,
   invoicePaperFormat?: string,
 ): PosBillFormat {
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
@@ -41,20 +56,39 @@ export function resolvePosBillFormat(
   if (
     invoiceTemplate &&
     FULL_PAGE_INVOICE_TEMPLATES.has(invoiceTemplate) &&
-    posBillFormat === 'thermal'
+    salesBillFormat === 'thermal'
   ) {
     return fallbackFormatForFullPageTemplate(invoicePaperFormat);
   }
-  return posBillFormat;
+  return salesBillFormat;
 }
 
-/** Sales invoice dashboard paper size (same rules as POS). */
-export function resolveSaleBillFormat(
-  invoiceTemplate: string | undefined,
-  salesBillFormat: PosBillFormat,
-  invoicePaperFormat?: string,
-): PosBillFormat {
-  return resolvePosBillFormat(invoiceTemplate, salesBillFormat, invoicePaperFormat);
+export type PosThermalPaper = '58mm' | '80mm';
+
+/** Thermal roll width for POS (Settings → Direct print POS paper, default 80mm). */
+export function resolvePosThermalPaper(directPrintPosPaper?: string | null): PosThermalPaper {
+  return directPrintPosPaper === '58mm' ? '58mm' : '80mm';
+}
+
+export function posThermalPageCss(paper: PosThermalPaper): { pageSize: string; sourceWidth: string } {
+  if (paper === '58mm') {
+    return { pageSize: '58mm auto', sourceWidth: '58mm' };
+  }
+  return { pageSize: '80mm auto', sourceWidth: '80mm' };
+}
+
+/** Paper size passed to direct print / QZ for a POS bill. */
+export function resolvePosDirectPrintPaper(
+  posBillFormat: PosBillFormat,
+  directPrintPosPaper?: string | null,
+): PosThermalPaper | 'A4' | 'A5' {
+  if (posBillFormat === 'thermal') {
+    return resolvePosThermalPaper(directPrintPosPaper);
+  }
+  if (posBillFormat === 'a5' || posBillFormat === 'a5-horizontal') {
+    return 'A5';
+  }
+  return 'A4';
 }
 
 /** Map POS bill format to InvoiceWrapper `format` prop. */
