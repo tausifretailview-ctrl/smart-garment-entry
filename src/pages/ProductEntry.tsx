@@ -397,10 +397,35 @@ const ProductEntry = () => {
       // Apply default GST tax rate and show_mrp setting
       if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
         const purchaseSettings = data.purchase_settings as any;
-        if (purchaseSettings.default_tax_rate !== undefined && !editingProductId) {
-          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate, purchase_gst_percent: purchaseSettings.default_tax_rate, sale_gst_percent: purchaseSettings.default_tax_rate }));
-        }
-        if (purchaseSettings.default_uom && !editingProductId) {
+        const loadedGarmentGstSettings: GarmentGstRuleSettings = {
+          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+        };
+        setGarmentGstSettings(loadedGarmentGstSettings);
+        if (!editingProductId) {
+          setFormData(prev => {
+            const purchaseGst =
+              purchaseSettings.default_tax_rate !== undefined
+                ? purchaseSettings.default_tax_rate
+                : prev.purchase_gst_percent;
+            const saleGst = resolveGarmentGstForLine(
+              prev.default_sale_price ?? 0,
+              purchaseGst,
+              purchaseSettings.default_tax_rate !== undefined
+                ? purchaseSettings.default_tax_rate
+                : prev.sale_gst_percent,
+              loadedGarmentGstSettings,
+            );
+            return {
+              ...prev,
+              ...(purchaseSettings.default_tax_rate !== undefined
+                ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
+                : {}),
+              sale_gst_percent: saleGst,
+              ...(purchaseSettings.default_uom ? { uom: purchaseSettings.default_uom } : {}),
+            };
+          });
+        } else if (purchaseSettings.default_uom) {
           setFormData(prev => ({ ...prev, uom: purchaseSettings.default_uom }));
         }
         // Default markup % — wired to existing markupPercent input, which auto-computes
@@ -423,11 +448,6 @@ const ProductEntry = () => {
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         // Set roll-wise MTR entry
         setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
-        // Garment GST auto-bump rule
-        setGarmentGstSettings({
-          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
-          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
-        });
       }
     }
   };
@@ -2261,15 +2281,9 @@ const ProductEntry = () => {
                 <Select
                   value={formData.sale_gst_percent.toString()}
                   onValueChange={(value) => {
-                    const picked = parseInt(value);
                     setFormData(prev => ({
                       ...prev,
-                      sale_gst_percent: resolveGarmentGstForLine(
-                        prev.default_sale_price ?? 0,
-                        prev.purchase_gst_percent,
-                        picked,
-                        garmentGstSettings,
-                      ),
+                      sale_gst_percent: parseInt(value),
                     }));
                   }}
                 >

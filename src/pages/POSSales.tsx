@@ -2455,8 +2455,7 @@ export default function POSSales() {
   const updateGstPer = (index: number, newGstPer: number) => {
     setItems(prev => {
       const updatedItems = [...prev];
-      updatedItems[index].gstPer = newGstPer;
-      updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
+      updatedItems[index] = { ...updatedItems[index], gstPer: newGstPer };
       return updatedItems;
     });
   };
@@ -5495,8 +5494,8 @@ export default function POSSales() {
                           </div>
                           <div>
                             <select
-                              value={item.gstPer}
-                              onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
+                              value={String(item.gstPer ?? 0)}
+                              onChange={(e) => updateGstPer(index, parseInt(e.target.value, 10))}
                               className="h-7 w-full rounded-md text-xs border border-border/60 bg-muted/30 px-1.5 text-center focus:outline-none focus:ring-2 focus:ring-ring"
                             >
                               <option value="0">0%</option>

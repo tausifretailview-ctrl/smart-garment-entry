@@ -49,11 +49,11 @@ export function applyGarmentGstRule(
   if (price > threshold && currentGst < GARMENT_BUMPED_GST) {
     return GARMENT_BUMPED_GST;
   }
-  // Below / equal to threshold: restore to baseGst (purchase GST) when the
-  // current GST was previously auto-bumped. Preserve manual overrides > 18%.
+  // Below / equal to threshold: restore only when GST was auto-bumped to 18%.
+  // Manual picks (including 18% below threshold) are left unchanged.
   if (price > 0 && price <= threshold && baseGst != null) {
     const base = Number(baseGst) || 0;
-    if (currentGst <= GARMENT_BUMPED_GST && currentGst !== base) {
+    if (currentGst === GARMENT_BUMPED_GST && base < GARMENT_BUMPED_GST) {
       return base;
     }
   }

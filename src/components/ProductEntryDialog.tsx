@@ -239,6 +239,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     }
   }, [open]);
 
+  // Re-apply garment GST rule when settings load or sale price changes
+  useEffect(() => {
+    if (!open || !garmentGstSettings.garment_gst_rule_enabled) return;
+    setFormData((prev) => {
+      if (!prev.default_sale_price) return prev;
+      const saleGst = resolveGarmentGstForLine(
+        prev.default_sale_price,
+        prev.purchase_gst_percent,
+        prev.sale_gst_percent,
+        garmentGstSettings,
+      );
+      if (saleGst === prev.sale_gst_percent) return prev;
+      return { ...prev, sale_gst_percent: saleGst };
+    });
+  }, [open, garmentGstSettings, formData.default_sale_price, formData.purchase_gst_percent]);
+
   // Mobile ERP mode: auto-generate variants without needing a size group
   useEffect(() => {
     if (mobileERPMode?.locked_size_qty && hideOpeningQty && !formData.size_group_id) {
@@ -655,20 +671,37 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       
       if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
         const purchaseSettings = data.purchase_settings as any;
-        if (purchaseSettings.default_tax_rate !== undefined) {
-          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate, purchase_gst_percent: purchaseSettings.default_tax_rate, sale_gst_percent: purchaseSettings.default_tax_rate }));
-        }
-        if (purchaseSettings.default_uom) {
-          setFormData(prev => ({ ...prev, uom: purchaseSettings.default_uom }));
-        }
+        const loadedGarmentGstSettings: GarmentGstRuleSettings = {
+          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
+          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
+        };
+        setGarmentGstSettings(loadedGarmentGstSettings);
+        setFormData(prev => {
+          const purchaseGst =
+            purchaseSettings.default_tax_rate !== undefined
+              ? purchaseSettings.default_tax_rate
+              : prev.purchase_gst_percent;
+          const saleGst = resolveGarmentGstForLine(
+            prev.default_sale_price ?? 0,
+            purchaseGst,
+            purchaseSettings.default_tax_rate !== undefined
+              ? purchaseSettings.default_tax_rate
+              : prev.sale_gst_percent,
+            loadedGarmentGstSettings,
+          );
+          return {
+            ...prev,
+            ...(purchaseSettings.default_tax_rate !== undefined
+              ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
+              : {}),
+            sale_gst_percent: saleGst,
+            ...(purchaseSettings.default_uom ? { uom: purchaseSettings.default_uom } : {}),
+          };
+        });
         setShowMrp(purchaseSettings.show_mrp || false);
         setShowDiscountFields(purchaseSettings.product_entry_discount_enabled || false);
         setCursorAfterStyle(purchaseSettings.cursor_after_style || 'pur_price');
         setRollWiseMtrEnabled(purchaseSettings.roll_wise_mtr_entry || false);
-        setGarmentGstSettings({
-          garment_gst_rule_enabled: purchaseSettings.garment_gst_rule_enabled === true,
-          garment_gst_threshold: purchaseSettings.garment_gst_threshold,
-        });
       }
     }
   };
@@ -1610,15 +1643,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                   <Select
                     value={formData.sale_gst_percent.toString()}
                     onValueChange={(value) => {
-                      const picked = parseInt(value);
                       setFormData(prev => ({
                         ...prev,
-                        sale_gst_percent: resolveGarmentGstForLine(
-                          prev.default_sale_price ?? 0,
-                          prev.purchase_gst_percent,
-                          picked,
-                          garmentGstSettings,
-                        ),
+                        sale_gst_percent: parseInt(value),
                       }));
                     }}
                   >
