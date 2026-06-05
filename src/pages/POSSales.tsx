@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
 import { cn, displayBarcode } from "@/lib/utils";
 import { isDecimalUOM } from "@/constants/uom";
@@ -98,6 +99,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { PosHiddenInvoicePrint } from "@/components/PosHiddenInvoicePrint";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
@@ -716,6 +718,37 @@ export default function POSSales() {
 
         setItems(cartItems);
 
+        const effectiveFlatForSnapshot =
+          flatRes.percentLooksClean ? Number(sale.flat_discount_amount) || 0 : flatRes.value;
+
+        setSavedInvoiceData({
+          invoiceNumber: sale.sale_number,
+          saleId: sale.id,
+          items: cartItems,
+          totals: {
+            quantity: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+            mrp: Number(sale.gross_amount),
+            discount: Number(sale.discount_amount),
+            subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
+          },
+          flatDiscountAmount: effectiveFlatForSnapshot,
+          saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
+          finalAmount: Number(sale.net_amount),
+          method: sale.payment_method,
+          customerName: sale.customer_name,
+          customerPhone: sale.customer_phone,
+          paidAmount: Number(sale.paid_amount) || 0,
+          previousBalance: 0,
+          cashAmount: Number(sale.cash_amount) || 0,
+          upiAmount: Number(sale.upi_amount) || 0,
+          cardAmount: Number(sale.card_amount) || 0,
+          creditAmount: Number((sale as any).credit_amount) || 0,
+          salesman: sale.salesman || null,
+          roundOff: Number(sale.round_off) || 0,
+          notes: sale.notes || "",
+          taxType: sale.tax_type || "inclusive",
+        });
+
         // Load sale notes for regular sales
         setSaleNotes(sale.notes || "");
 
@@ -832,15 +865,7 @@ export default function POSSales() {
           : posBillFormat === 'thermal'
             ? 'auto'
             : '210mm';
-    const maxHeight =
-      posBillFormat === 'thermal'
-        ? 'none'
-        : posBillFormat === 'a4'
-          ? '297mm'
-          : posBillFormat === 'a5-horizontal'
-            ? '148mm'
-            : '210mm';
-    return { width, minHeight, maxHeight, overflow: 'visible' as const };
+    return { width, minHeight, overflow: 'visible' as const };
   }, [posBillFormat, posThermalPaper]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType =
@@ -2540,8 +2565,8 @@ export default function POSSales() {
       taxType,
     };
     
-    setSavedInvoiceData(estimateData);
-    
+    flushSync(() => setSavedInvoiceData(estimateData));
+
     // Wait for invoice to render, then directly open print dialog (no preview)
     const waitForContent = () => {
       const el = invoicePrintRef.current;
@@ -2996,7 +3021,7 @@ export default function POSSales() {
       // WhatsApp invoice auto-send is handled by useSaveSale hook — do NOT send here to avoid duplicates
       const willAutoPrint = isDirectPrintEnabled && isAutoPrintEnabled;
       // Set print snapshot first so hidden invoice re-renders with salesman before cart clears
-      setSavedInvoiceData(invoiceDataForPrint);
+      flushSync(() => setSavedInvoiceData(invoiceDataForPrint));
 
       // Clear the form immediately after successful save (reset to new blank invoice)
       setItems([]);
@@ -3282,7 +3307,7 @@ export default function POSSales() {
       setPointsToRedeem(0);
       
       if (invoiceDataForPrint) {
-        setSavedInvoiceData(invoiceDataForPrint);
+        flushSync(() => setSavedInvoiceData(invoiceDataForPrint));
         triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
       }
       
@@ -3392,14 +3417,21 @@ export default function POSSales() {
         margin: ${margin};
       }
       @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
         html, body {
-          width: 100%;
-          margin: 0;
-          padding: 0;
+          width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+          overflow: visible !important;
         }
         .invoice-print-source,
         .invoice-print-source-screen,
         .invoice-print-root,
+        .professional-invoice-template,
         .thermal-print-80mm,
         .thermal-receipt-container,
         .modern-thermal-receipt {
@@ -3410,6 +3442,29 @@ export default function POSSales() {
           clip-path: none !important;
           transform: none !important;
           overflow: visible !important;
+          max-height: none !important;
+        }
+        .invoice-print-root {
+          margin: 0 !important;
+          padding: 0 !important;
+          page-break-before: avoid !important;
+          break-before: avoid !important;
+          width: auto !important;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          page-break-inside: auto;
+        }
+        thead {
+          display: table-header-group;
+        }
+        tfoot {
+          display: table-footer-group;
+        }
+        tr {
+          page-break-inside: avoid;
+          page-break-after: auto;
         }
       }
     `;
@@ -3419,6 +3474,10 @@ export default function POSSales() {
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
     pageStyle: getPageStyle(),
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(invoicePrintRef, resolve, { maxWait: 8000 });
+      }),
     onAfterPrint: async () => {
       refreshPosAfterBillPrint();
       toast.success("Success", { description: "Invoice printed successfully" });
@@ -3443,6 +3502,108 @@ export default function POSSales() {
 
   // Keep ref in sync for estimate print (handlePrint defined after estimate handler)
   handlePrintRef.current = handlePrint;
+
+  const triggerBrowserPrint = useCallback(() => {
+    waitForPrintReady(invoicePrintRef, () => handlePrint(), { maxWait: 8000 });
+  }, [handlePrint]);
+
+  const renderPosHiddenInvoice = () => {
+    if (!(items.length > 0 || savedInvoiceData)) return null;
+
+    return (
+      <PosHiddenInvoicePrint
+        printRef={invoicePrintRef}
+        isThermal={posBillFormat === "thermal"}
+        thermalPaper={posThermalPaper}
+        sourceStyle={posPrintSourceStyle}
+      >
+        <div style={{ position: "relative" }}>
+          {savedInvoiceData?.isEstimate && (
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%) rotate(-30deg)",
+                fontSize: posBillFormat === "thermal" ? "28px" : "60px",
+                fontWeight: "bold",
+                color: "rgba(0, 0, 0, 0.08)",
+                letterSpacing: "8px",
+                pointerEvents: "none",
+                zIndex: 10,
+                whiteSpace: "nowrap",
+              }}
+            >
+              ESTIMATE
+            </div>
+          )}
+          <InvoiceWrapper
+            template={posInvoiceTemplate}
+            format={posInvoiceWrapperFormat}
+            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
+            date={currentDateTime}
+            customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
+            customerAddress={
+              savedInvoiceData?.customerAddress || customers.find((c) => c.id === customerId)?.address || ""
+            }
+            customerMobile={savedInvoiceData?.customerPhone || customerPhone || ""}
+            customerGSTIN={
+              savedInvoiceData?.customerGstNumber || customers.find((c) => c.id === customerId)?.gst_number || ""
+            }
+            customerTransportDetails={
+              savedInvoiceData?.customerTransportDetails ||
+              (customers.find((c) => c.id === customerId) as any)?.transport_details ||
+              ""
+            }
+            items={
+              savedInvoiceData
+                ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index))
+                : items.map((item, index) => mapPosPrintItem(item, index))
+            }
+            subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
+            discount={
+              savedInvoiceData
+                ? savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount
+                : totals.discount + flatDiscountAmount
+            }
+            saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
+            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+            cashPaid={
+              savedInvoiceData?.method === "cash"
+                ? savedInvoiceData.finalAmount
+                : paymentMethod === "cash"
+                  ? finalAmount
+                  : 0
+            }
+            upiPaid={
+              savedInvoiceData?.method === "upi"
+                ? savedInvoiceData.finalAmount
+                : paymentMethod === "upi"
+                  ? finalAmount
+                  : 0
+            }
+            paymentMethod={savedInvoiceData?.method || paymentMethod}
+            cashAmount={savedInvoiceData?.cashAmount || 0}
+            upiAmount={savedInvoiceData?.upiAmount || 0}
+            cardAmount={savedInvoiceData?.cardAmount || 0}
+            creditAmount={savedInvoiceData?.creditAmount || 0}
+            refundCash={savedInvoiceData?.refundCash || 0}
+            notes={
+              savedInvoiceData?.isEstimate
+                ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? "\n" + savedInvoiceData.notes : ""}`
+                : savedInvoiceData?.notes || saleNotes
+            }
+            paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === "pay_later" ? 0 : finalAmount)}
+            previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
+            roundOff={savedInvoiceData?.roundOff ?? roundOff}
+            salesman={savedInvoiceData?.salesman || selectedSalesman || ""}
+            taxType={invoiceTaxType}
+            financerDetails={savedInvoiceData?.financerDetails || financerDetails}
+          />
+        </div>
+      </PosHiddenInvoicePrint>
+    );
+  };
 
   const handlePrintFromDialog = async () => {
 
@@ -4303,43 +4464,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
 
-        {/* Hidden Invoice for Printing (tablet) */}
-        <div
-          className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
-          style={posPrintSourceStyle}
-        >
-          <InvoiceWrapper
-            ref={invoicePrintRef}
-            template={posInvoiceTemplate}
-            format={posInvoiceWrapperFormat}
-            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber}
-            date={currentDateTime}
-            customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
-            customerMobile={savedInvoiceData?.customerPhone || customerPhone}
-            customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
-            customerTransportDetails={(customers.find(c => c.id === customerId) as any)?.transport_details || ""}
-            items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index)) : items.map((item, index) => mapPosPrintItem(item, index))}
-            subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
-            discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
-            saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
-            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-            cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
-            upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
-            paymentMethod={savedInvoiceData?.method || paymentMethod}
-            cashAmount={savedInvoiceData?.cashAmount || 0}
-            upiAmount={savedInvoiceData?.upiAmount || 0}
-            cardAmount={savedInvoiceData?.cardAmount || 0}
-            creditAmount={savedInvoiceData?.creditAmount || 0}
-            refundCash={savedInvoiceData?.refundCash || 0}
-            notes={savedInvoiceData?.notes || saleNotes}
-            paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
-            previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
-            roundOff={savedInvoiceData?.roundOff ?? roundOff}
-            salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
-            taxType={invoiceTaxType}
-            financerDetails={savedInvoiceData?.financerDetails || financerDetails}
-          />
-        </div>
+        {renderPosHiddenInvoice()}
 
         {creditCustomerRequiredDialog}
       </>
@@ -4553,43 +4678,7 @@ export default function POSSales() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Hidden Invoice for Printing */}
-        <div
-          className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
-          style={posPrintSourceStyle}
-        >
-          <InvoiceWrapper
-            ref={invoicePrintRef}
-            template={posInvoiceTemplate}
-            format={posInvoiceWrapperFormat}
-            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber}
-            date={currentDateTime}
-            customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
-            customerMobile={savedInvoiceData?.customerPhone || customerPhone}
-            customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
-            customerTransportDetails={(customers.find(c => c.id === customerId) as any)?.transport_details || ""}
-            items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index)) : items.map((item, index) => mapPosPrintItem(item, index))}
-            subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
-            discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
-            saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
-            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-            cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
-            upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
-            paymentMethod={savedInvoiceData?.method || paymentMethod}
-            cashAmount={savedInvoiceData?.cashAmount || 0}
-            upiAmount={savedInvoiceData?.upiAmount || 0}
-            cardAmount={savedInvoiceData?.cardAmount || 0}
-            creditAmount={savedInvoiceData?.creditAmount || 0}
-            refundCash={savedInvoiceData?.refundCash || 0}
-            notes={savedInvoiceData?.notes || saleNotes}
-            paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
-            previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
-            roundOff={savedInvoiceData?.roundOff ?? roundOff}
-            salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
-            taxType={invoiceTaxType}
-            financerDetails={savedInvoiceData?.financerDetails || financerDetails}
-          />
-        </div>
+        {renderPosHiddenInvoice()}
       </>
     );
   }
@@ -4732,8 +4821,8 @@ export default function POSSales() {
           
           {/* 9. Print - matches Dashboard "Credit Notes" indigo-500 */}
           <Button
-            onClick={handlePrint}
-            disabled={items.length === 0}
+            onClick={triggerBrowserPrint}
+            disabled={items.length === 0 && !savedInvoiceData}
             className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
             title="Print"
           >
@@ -6238,64 +6327,7 @@ export default function POSSales() {
           />
         )}
 
-        {/* Hidden Invoice for Printing */}
-        <div
-          className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
-          style={posPrintSourceStyle}
-        >
-          {(items.length > 0 || savedInvoiceData) && (
-            <div ref={invoicePrintRef} style={{ position: 'relative' }}>
-              {savedInvoiceData?.isEstimate && (
-                <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%) rotate(-30deg)',
-                  fontSize: posBillFormat === 'thermal' ? '28px' : '60px',
-                  fontWeight: 'bold',
-                  color: 'rgba(0, 0, 0, 0.08)',
-                  letterSpacing: '8px',
-                  pointerEvents: 'none',
-                  zIndex: 10,
-                  whiteSpace: 'nowrap',
-                }}>
-                  ESTIMATE
-                </div>
-              )}
-              <InvoiceWrapper
-                format={posInvoiceWrapperFormat}
-                billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
-                date={new Date()}
-                customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
-                customerAddress={savedInvoiceData?.customerAddress || customers.find(c => c.id === customerId)?.address || ""}
-                customerMobile={savedInvoiceData?.customerPhone || customerPhone || ""}
-                customerGSTIN={savedInvoiceData?.customerGstNumber || customers.find(c => c.id === customerId)?.gst_number || ""}
-                customerTransportDetails={savedInvoiceData?.customerTransportDetails || (customers.find(c => c.id === customerId) as any)?.transport_details || ""}
-                template={posInvoiceTemplate}
-                items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index)) : items.map((item, index) => mapPosPrintItem(item, index))}
-                subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
-                discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
-                saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
-                grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-                cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
-                upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
-                paymentMethod={savedInvoiceData?.method || paymentMethod}
-                cashAmount={savedInvoiceData?.cashAmount || 0}
-                upiAmount={savedInvoiceData?.upiAmount || 0}
-                cardAmount={savedInvoiceData?.cardAmount || 0}
-                creditAmount={savedInvoiceData?.creditAmount || 0}
-                refundCash={savedInvoiceData?.refundCash || 0}
-                notes={savedInvoiceData?.isEstimate ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}` : (savedInvoiceData?.notes || saleNotes)}
-                paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
-                previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
-                roundOff={savedInvoiceData?.roundOff ?? roundOff}
-                salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
-                taxType={invoiceTaxType}
-                financerDetails={savedInvoiceData?.financerDetails || financerDetails}
-              />
-            </div>
-          )}
-        </div>
+        {renderPosHiddenInvoice()}
 
         {/* Mix Payment Dialog */}
         <MixPaymentDialog
