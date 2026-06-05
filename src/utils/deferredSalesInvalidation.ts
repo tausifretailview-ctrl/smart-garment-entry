@@ -19,7 +19,6 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
   queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
   queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
-  queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-reconciled-stats"] });
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });
   invalidateCustomerFinancialSnapshot(queryClient);

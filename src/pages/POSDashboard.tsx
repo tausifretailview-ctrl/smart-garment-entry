@@ -240,6 +240,33 @@ const POSDashboard = () => {
     }
   }, [orgUsers, user?.id, organizationRole]);
 
+  const fetchFilterSignature = useMemo(() => {
+    if (!currentOrganization?.id) return "";
+    return [
+      currentOrganization.id,
+      startDate,
+      endDate,
+      paymentMethodFilter,
+      paymentStatusFilter.join(","),
+      saleTypeFilter,
+      refundFilter,
+      creditNoteFilter,
+      userFilter,
+      cancelFilter,
+    ].join("|");
+  }, [
+    currentOrganization?.id,
+    startDate,
+    endDate,
+    paymentMethodFilter,
+    paymentStatusFilter,
+    saleTypeFilter,
+    refundFilter,
+    creditNoteFilter,
+    userFilter,
+    cancelFilter,
+  ]);
+
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleFinancerDetails, setSaleFinancerDetails] = useState<Record<string, SaleFinancerDetailsDisplay | null>>({});
@@ -257,11 +284,14 @@ const POSDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
-  const lastFetchAtRef = useRef(0);
+  const lastFetchedAtRef = useRef(0);
   const lastFetchKeyRef = useRef("");
+  const lastFetchFilterSigRef = useRef("");
+  const fetchFilterSignatureRef = useRef(fetchFilterSignature);
+  fetchFilterSignatureRef.current = fetchFilterSignature;
   /** Set when a sale saves while this tab is hidden; cleared on next activation fetch. */
   const salesRefreshStaleRef = useRef(false);
-  const POS_DASHBOARD_FETCH_TTL_MS = 30_000;
+  const POS_FETCH_TTL_MS = 30_000;
 
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
@@ -433,7 +463,7 @@ const POSDashboard = () => {
       !force &&
       lastFetchKeyRef.current === fetchKey &&
       sales.length > 0 &&
-      Date.now() - lastFetchAtRef.current < POS_DASHBOARD_FETCH_TTL_MS
+      Date.now() - lastFetchedAtRef.current < POS_FETCH_TTL_MS
     ) {
       return;
     }
@@ -530,7 +560,8 @@ const POSDashboard = () => {
 
       setSales([...allSales]);
       lastFetchKeyRef.current = fetchKey;
-      lastFetchAtRef.current = Date.now();
+      lastFetchedAtRef.current = Date.now();
+      lastFetchFilterSigRef.current = fetchFilterSignatureRef.current;
       // Line items load on row expand only (fetchSaleItems) — avoids bulk sale_items reads on dashboard open.
       setLoading(false);
     } catch (error: any) {
@@ -550,8 +581,19 @@ const POSDashboard = () => {
       void fetchSales({ force: true });
       return;
     }
-    void fetchSales();
-  }, [routePathSegment, fetchSales]);
+
+    const isFirstLoad = lastFetchedAtRef.current === 0;
+    const isStale = Date.now() - lastFetchedAtRef.current > POS_FETCH_TTL_MS;
+    const filtersChanged = lastFetchFilterSigRef.current !== fetchFilterSignature;
+
+    if (isFirstLoad || isStale) {
+      void fetchSales();
+    } else if (filtersChanged) {
+      void fetchSales({ force: true });
+    } else {
+      setLoading(false);
+    }
+  }, [routePathSegment, fetchFilterSignature, fetchSales]);
 
   useEffect(() => {
     const onPosSalesChanged = (ev: Event) => {

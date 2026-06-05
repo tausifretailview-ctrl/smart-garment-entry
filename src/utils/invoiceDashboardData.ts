@@ -111,8 +111,7 @@ async function fetchSaleIdsMatchingLineItems(
     const batch = saleIdsInRange.slice(i, i + 200);
     const { data: matchingItems, error } = await client
       .from("sale_items")
-      .select("sale_id, sales!inner(organization_id)")
-      .eq("sales.organization_id", organizationId)
+      .select("sale_id")
       .in("sale_id", batch)
       .is("deleted_at", null)
       .or(orFilter)
@@ -318,6 +317,18 @@ export async function fetchInvoiceDashboardUnified(
         )
       : normalized;
 
+  const filteredForStats =
+    filters.paymentStatusFilter.length > 0
+      ? filteredForTable
+      : normalized.filter(
+          (inv: any) =>
+            !inv?.is_cancelled &&
+            inv?.payment_status !== "cancelled" &&
+            inv?.payment_status !== "hold",
+        );
+
+  const invoiceFaceNet = (inv: any) => Math.max(0, Number(inv.net_amount || 0));
+
   await syncStaleInvoicePaymentFields(
     client,
     filters.organizationId,
@@ -326,19 +337,43 @@ export async function fetchInvoiceDashboardUnified(
     itemsGrossBySale,
   );
 
-  const emptyStats: InvoiceDashboardStats = {
-    totalInvoices: 0,
-    totalAmount: 0,
-    totalDiscount: 0,
-    totalQty: 0,
-    pendingAmount: 0,
-    deliveredCount: 0,
-    deliveredAmount: 0,
-    undeliveredCount: 0,
-    undeliveredAmount: 0,
+  const stats: InvoiceDashboardStats = {
+    totalInvoices: filteredForStats.length,
+    totalAmount: filteredForStats.reduce((s, inv) => s + invoiceFaceNet(inv), 0),
+    totalDiscount: filteredForStats.reduce(
+      (s, inv) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0),
+      0,
+    ),
+    totalQty: filteredForStats.reduce((s, inv) => s + Number(inv.total_qty || 0), 0),
+    pendingAmount: filteredForStats.reduce(
+      (s, inv) =>
+        s +
+        (inv.is_cancelled
+          ? 0
+          : Math.round(
+              Number(
+                inv.outstanding ??
+                  Math.max(
+                    0,
+                    (inv.net_amount || 0) -
+                      (inv.paid_amount || 0) -
+                      (inv.sale_return_adjust || 0),
+                  ),
+              ),
+            )),
+      0,
+    ),
+    deliveredCount: filteredForStats.filter((inv) => inv.delivery_status === "delivered").length,
+    deliveredAmount: filteredForStats
+      .filter((inv) => inv.delivery_status === "delivered")
+      .reduce((s, inv) => s + invoiceFaceNet(inv), 0),
+    undeliveredCount: filteredForStats.filter((inv) => inv.delivery_status === "undelivered").length,
+    undeliveredAmount: filteredForStats
+      .filter((inv) => inv.delivery_status === "undelivered")
+      .reduce((s, inv) => s + invoiceFaceNet(inv), 0),
   };
 
-  return { invoices: filteredForTable, stats: emptyStats };
+  return { invoices: filteredForTable, stats };
 }
 
 /** Repair stale paid_amount / payment_status for visible page rows only (min writes). */
