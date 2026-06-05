@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { seedDefaultAccounts } from "@/utils/accounting/seedDefaultAccounts";
+import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 
 type AccountType = "Asset" | "Liability" | "Equity" | "Revenue" | "Expense";
 
@@ -117,6 +118,8 @@ export default function ChartOfAccounts() {
           New Account
         </Button>
       </div>
+
+      <AccountingEntriesGuide compact />
 
       {ACCOUNT_TYPES.map((type) => (
         <Card key={type}>

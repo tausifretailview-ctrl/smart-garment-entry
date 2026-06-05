@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 
 interface ExpensesTabProps {
   organizationId: string;
@@ -473,6 +474,8 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
 
   return (
     <div className="space-y-4">
+      <AccountingEntriesGuide compact />
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[

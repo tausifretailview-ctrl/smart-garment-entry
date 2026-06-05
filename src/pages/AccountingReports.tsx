@@ -54,6 +54,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { AccountingReportKpiCards, type AccountingKpiItem } from "@/components/accounting/AccountingReportKpiCards";
 import { AccountingReportTable } from "@/components/accounting/AccountingReportTable";
 import { accountsHistoryCardClass } from "@/components/accounts/accountsHistoryUi";
+import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 import { cn } from "@/lib/utils";
 import { groupGlTrialBalance } from "@/utils/accounting/tallyAccountGroups";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -849,6 +850,8 @@ export default function AccountingReports() {
           </p>
         </AlertDescription>
       </Alert>
+
+      <AccountingEntriesGuide />
 
       <Card className={cn("print:hidden shadow-sm rounded-xl border-slate-200", accountsHistoryCardClass)}>
         <CardHeader className="pb-2">
