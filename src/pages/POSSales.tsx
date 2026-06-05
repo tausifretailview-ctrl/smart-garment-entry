@@ -50,7 +50,10 @@ import {
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
-import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
+import {
+  getThermalReceiptPageStyleFragment,
+  INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
+} from "@/utils/thermalReceiptPrintDocument";
 import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
@@ -3379,6 +3382,7 @@ export default function POSSales() {
           overflow: visible !important;
         }
       }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
     `;
     }
     
@@ -3460,6 +3464,7 @@ export default function POSSales() {
           overflow: visible !important;
         }
       }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
     `;
   };
 

@@ -597,12 +597,6 @@
     page-break-after: auto !important;
   }
 
-  /* Thermal-specific page setup — tall roll avoids Chromium strip pagination */
-  @page {
-    size: 80mm 5000mm;
-    margin: 0;
-  }
-
   .invoice-print-source.thermal-paper-58 .thermal-print-80mm,
   .invoice-print-source.thermal-paper-58 .thermal-receipt-container,
   .print-dialog.thermal-paper-58 .thermal-print-80mm,

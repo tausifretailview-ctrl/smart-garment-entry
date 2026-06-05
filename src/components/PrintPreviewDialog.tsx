@@ -12,7 +12,10 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Printer, X } from 'lucide-react';
 import { thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
-import { getThermalReceiptPageStyleFragment } from '@/utils/thermalReceiptPrintDocument';
+import {
+  getThermalReceiptPageStyleFragment,
+  INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
+} from '@/utils/thermalReceiptPrintDocument';
 
 interface PrintPreviewDialogProps {
   open: boolean;
@@ -221,6 +224,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           overflow: visible !important;
         }
       }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
       ${selectedFormat === 'thermal' ? getThermalReceiptPageStyleFragment(thermalPaper) : ''}
     `,
     onAfterPrint: () => {

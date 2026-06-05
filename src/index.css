@@ -761,10 +761,12 @@ All colors MUST be HSL.
     max-width: 58mm !important;
   }
 
+  .invoice-print-source,
+  .invoice-print-source-screen,
   .invoice-print-source .invoice-print-root,
   .invoice-print-source .retail-tax-ezzy-print-root,
-  .invoice-print-source .retail-tax-ezzy-print-root *,
   .invoice-print-source .wholesale-a5-invoice,
+  .invoice-print-source .professional-invoice-template,
   .invoice-print-source .invoice-page,
   .invoice-print-source .thermal-print-80mm,
   .invoice-print-source .thermal-receipt-container,
@@ -772,6 +774,16 @@ All colors MUST be HSL.
     visibility: visible !important;
     opacity: 1 !important;
     display: block !important;
+  }
+
+  .invoice-print-source *,
+  .invoice-print-source-screen *,
+  .invoice-print-source .invoice-print-root *,
+  .invoice-print-source .retail-tax-ezzy-print-root *,
+  .invoice-print-source .wholesale-a5-invoice *,
+  .invoice-print-source .professional-invoice-template * {
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 
   /* Print preview dialog content */
@@ -794,6 +806,7 @@ All colors MUST be HSL.
   .print-dialog .invoice-print-root,
   .print-dialog .retail-tax-ezzy-print-root,
   .print-dialog .wholesale-a5-invoice,
+  .print-dialog .professional-invoice-template,
   .print-dialog .invoice-page,
   .print-dialog .thermal-print-80mm,
   .print-dialog .thermal-receipt-container,
@@ -804,6 +817,18 @@ All colors MUST be HSL.
     transform: none !important;
     overflow: visible !important;
     max-height: none !important;
+  }
+
+  .print-dialog .print-invoice-container *,
+  .print-dialog .invoice-print-root *,
+  .print-dialog .retail-tax-ezzy-print-root *,
+  .print-dialog .wholesale-a5-invoice *,
+  .print-dialog .professional-invoice-template * {
+    visibility: visible !important;
+    opacity: 1 !important;
+    transform: none !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   /* Invoice container takes full paper width */

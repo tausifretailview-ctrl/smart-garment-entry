@@ -12,13 +12,26 @@ import {
 const RECEIPT_ROLL_HEIGHT_MICRONS = 5_000_000;
 
 /**
- * Beat InvoicePrint.css / ModernThermal `body * { visibility: hidden }` in react-to-print iframe.
- * Requires `body` prefix so specificity exceeds `body *` (0,1,1).
+ * Beat InvoicePrint.css `body * { visibility: hidden }` in react-to-print iframe.
+ * `body` prefix on descendants exceeds `body *` specificity — root-only rules leave A4/laser blank.
  */
-export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = `
+export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
   @media print {
     body .invoice-print-source-screen,
     body .invoice-print-source,
+    body .invoice-print-source *,
+    body .invoice-print-root,
+    body .invoice-print-root *,
+    body .invoice-print,
+    body .invoice-print *,
+    body .print-invoice-container,
+    body .print-invoice-container *,
+    body .retail-tax-ezzy-print-root,
+    body .retail-tax-ezzy-print-root *,
+    body .wholesale-a5-invoice,
+    body .wholesale-a5-invoice *,
+    body .professional-invoice-template,
+    body .professional-invoice-template *,
     body .thermal-print-80mm,
     body .thermal-print-80mm *,
     body .thermal-receipt-container,
@@ -30,6 +43,9 @@ export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = `
     }
   }
 `;
+
+/** @deprecated Use INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS */
+export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS;
 
 /** Override global index.css `page-break-inside: avoid` on thermal containers. */
 export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
@@ -115,7 +131,7 @@ export function getThermalReceiptPageStyleFragment(paper: PosThermalPaper = '80m
   return `
     @page { size: ${pageSize}; margin: 0; }
     ${buildThermalReceiptPrintCss(paper)}
-    ${THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS}
+    ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
   `;
 }
 

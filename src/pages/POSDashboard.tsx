@@ -86,7 +86,10 @@ import {
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
-import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
+import {
+  getThermalReceiptPageStyleFragment,
+  INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
+} from "@/utils/thermalReceiptPrintDocument";
 
 interface SaleItem {
   id: string;
@@ -887,6 +890,7 @@ const POSDashboard = () => {
           overflow: visible !important;
         }
       }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
     `;
     }
 
@@ -1011,6 +1015,7 @@ const POSDashboard = () => {
           break-inside: avoid;
         }
       }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
     `;
   };
 
