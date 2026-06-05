@@ -3,7 +3,10 @@
  * Keeps content on one continuous roll page — avoids mid-receipt page breaks.
  */
 
-import type { PosThermalPaper } from '@/utils/invoicePrintFormat';
+import {
+  type PosThermalPaper,
+  thermalReceiptRollPageSize,
+} from '@/utils/invoicePrintFormat';
 
 /** Microns: tall roll height so Electron/Chromium do not paginate at A4 (~297mm). */
 const RECEIPT_ROLL_HEIGHT_MICRONS = 5_000_000;
@@ -60,7 +63,7 @@ export function buildThermalReceiptPrintCss(paper: PosThermalPaper = '80mm'): st
 
   return `
   @page {
-    size: ${pageWidth} auto;
+    size: ${thermalReceiptRollPageSize(paper)};
     margin: 0 !important;
   }
   html, body {
@@ -108,9 +111,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = buildThermalReceiptPrintCss('80mm');
 
 /** Fragment for react-to-print `pageStyle` when printing thermal receipts. */
 export function getThermalReceiptPageStyleFragment(paper: PosThermalPaper = '80mm'): string {
-  const { pageSize } = paper === '58mm'
-    ? { pageSize: '58mm auto' }
-    : { pageSize: '80mm auto' };
+  const pageSize = thermalReceiptRollPageSize(paper);
   return `
     @page { size: ${pageSize}; margin: 0; }
     ${buildThermalReceiptPrintCss(paper)}

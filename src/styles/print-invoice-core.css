@@ -597,9 +597,9 @@
     page-break-after: auto !important;
   }
 
-  /* Thermal-specific page setup */
+  /* Thermal-specific page setup — tall roll avoids Chromium strip pagination */
   @page {
-    size: 80mm auto;
+    size: 80mm 5000mm;
     margin: 0;
   }
 

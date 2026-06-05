@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Printer, X } from 'lucide-react';
+import { thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
 import { getThermalReceiptPageStyleFragment } from '@/utils/thermalReceiptPrintDocument';
 
 interface PrintPreviewDialogProps {
@@ -102,7 +103,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       case 'a5-horizontal':
         return 'A5 landscape';
       case 'thermal':
-        return thermalPaper === '58mm' ? '58mm auto' : '80mm auto';
+        return thermalReceiptRollPageSize(thermalPaper);
       default:
         return 'A4 portrait';
     }
@@ -182,8 +183,8 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         }
 
         .print-invoice-container {
-          width: 100% !important;
-          max-width: 100% !important;
+          width: ${selectedFormat === 'thermal' ? (thermalPaper === '58mm' ? '58mm' : '80mm') : '100%'} !important;
+          max-width: ${selectedFormat === 'thermal' ? (thermalPaper === '58mm' ? '58mm' : '80mm') : '100%'} !important;
           height: auto !important;
           max-height: none !important;
           margin: 0 !important;

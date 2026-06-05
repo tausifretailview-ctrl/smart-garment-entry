@@ -919,7 +919,8 @@ const POSDashboard = () => {
         html, body {
           margin: 0 !important;
           padding: 0 !important;
-          width: 100% !important;
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
           height: auto !important;
           overflow: visible !important;
         }
@@ -936,6 +937,11 @@ const POSDashboard = () => {
           clip-path: none !important;
           transform: none !important;
           overflow: visible !important;
+        }
+        .invoice-print-source-screen,
+        .invoice-print-source {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
         }
       }
     `;

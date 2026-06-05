@@ -713,6 +713,21 @@ All colors MUST be HSL.
     print-color-adjust: exact !important;
   }
 
+  /* Thermal roll — narrow page; `auto` height splits receipts into horizontal strips */
+  html:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
+  html:has([data-print-format="thermal"]),
+  body:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
+  body:has([data-print-format="thermal"]) {
+    width: 80mm !important;
+    max-width: 80mm !important;
+  }
+
+  html:has(.thermal-paper-58),
+  body:has(.thermal-paper-58) {
+    width: 58mm !important;
+    max-width: 58mm !important;
+  }
+
   /* POS / dashboard direct print source — un-hide for print */
   .invoice-print-source-screen,
   .invoice-print-source {
@@ -730,6 +745,20 @@ All colors MUST be HSL.
     max-width: none !important;
     max-height: none !important;
     white-space: normal !important;
+  }
+
+  .invoice-print-source-screen:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
+  .invoice-print-source:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
+  .print-invoice-container[data-print-format="thermal"] {
+    width: 80mm !important;
+    max-width: 80mm !important;
+  }
+
+  .invoice-print-source-screen.thermal-paper-58,
+  .invoice-print-source.thermal-paper-58,
+  .print-dialog.thermal-paper-58 .print-invoice-container[data-print-format="thermal"] {
+    width: 58mm !important;
+    max-width: 58mm !important;
   }
 
   .invoice-print-source .invoice-print-root,
@@ -793,6 +822,16 @@ All colors MUST be HSL.
     border: none !important;
     background: white !important;
     background-image: none !important;
+  }
+
+  .print-invoice-container[data-print-format="thermal"] {
+    width: 80mm !important;
+    max-width: 80mm !important;
+  }
+
+  .print-dialog.thermal-paper-58 .print-invoice-container[data-print-format="thermal"] {
+    width: 58mm !important;
+    max-width: 58mm !important;
   }
 
   /* Force clean black/white output for professional printing */
@@ -910,7 +949,7 @@ All colors MUST be HSL.
 }
 
 @page thermal {
-  size: 80mm auto;
+  size: 80mm 5000mm;
   margin: 0;
 }
 
