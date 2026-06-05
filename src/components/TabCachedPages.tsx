@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
@@ -8,6 +8,7 @@ import {
   type TabPageLayout,
   type TabPageRole,
 } from "@/lib/tabPageRegistry";
+import { isEntryTabPath } from "@/lib/entryPageLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { Layout } from "@/components/Layout";
@@ -16,6 +17,19 @@ import { POSLayout } from "@/components/POSLayout";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+
+/** Hidden tab panes idle longer than this may be unmounted (read-only dashboards only). */
+const IDLE_UNMOUNT_MS = 600_000;
+/** Avoid churn when few tabs are open — never auto-unmount at or below this count. */
+const MIN_KEEP_TABS = 3;
+const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
+
+/** Live working screens — never auto-unmount (cart, bill entry, unsaved-work proxy). */
+const EXPLICIT_PROTECTED_TAB_PATHS = new Set(["pos-sales", "product-entry"]);
+
+function isProtectedTabPath(path: string): boolean {
+  return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isEntryTabPath(path);
+}
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
 
@@ -111,9 +125,45 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
   });
 
   const electronSingleTab = shouldElectronMountOnlyActiveTab();
+  const lastActiveAtRef = useRef<Map<string, number>>(new Map());
+
+  const touchTabActiveAt = useCallback((path: string) => {
+    lastActiveAtRef.current.set(path, Date.now());
+  }, []);
+
+  const evictIdleMountedTabs = useCallback(() => {
+    if (electronSingleTab) return;
+
+    setMountedPaths((prev) => {
+      if (prev.size <= MIN_KEEP_TABS) return prev;
+
+      const now = Date.now();
+      const idleCandidates: string[] = [];
+
+      for (const path of prev) {
+        if (path === activePath) continue;
+        if (isProtectedTabPath(path)) continue;
+        const lastActive = lastActiveAtRef.current.get(path) ?? 0;
+        if (now - lastActive > IDLE_UNMOUNT_MS) {
+          idleCandidates.push(path);
+        }
+      }
+
+      if (idleCandidates.length === 0) return prev;
+
+      const next = new Set(prev);
+      for (const path of idleCandidates) {
+        if (next.size <= MIN_KEEP_TABS) break;
+        next.delete(path);
+      }
+
+      return next.size === prev.size ? prev : next;
+    });
+  }, [activePath, electronSingleTab]);
 
   useEffect(() => {
     if (!isTabCachePath(activePath)) return;
+    touchTabActiveAt(activePath);
     setMountedPaths((prev) => {
       if (electronSingleTab) {
         return new Set([activePath]);
@@ -121,9 +171,17 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
       if (prev.has(activePath)) return prev;
       const next = new Set(prev);
       next.add(activePath);
+      touchTabActiveAt(activePath);
       return next;
     });
-  }, [activePath, electronSingleTab]);
+    evictIdleMountedTabs();
+  }, [activePath, electronSingleTab, touchTabActiveAt, evictIdleMountedTabs]);
+
+  useEffect(() => {
+    if (electronSingleTab) return;
+    const id = window.setInterval(evictIdleMountedTabs, IDLE_UNMOUNT_CHECK_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [evictIdleMountedTabs, electronSingleTab]);
 
   // Prefetch dashboard chunk while POS is open; pre-mount hidden pane only in browser (not Electron).
   useEffect(() => {
@@ -140,9 +198,10 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
       if (prev.has("")) return prev;
       const next = new Set(prev);
       next.add("");
+      touchTabActiveAt("");
       return next;
     });
-  }, [uniquePaths, activePath, electronSingleTab]);
+  }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);
 
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);
