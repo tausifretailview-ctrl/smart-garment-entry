@@ -1,33 +1,67 @@
-# Fix engine-off orgs and the 1 stuck AdTechAgency voucher
+# Issue: INV/26-27/47 (ALANKAR FOOTWEAR) wrongly shows "Paid"
 
-## Findings from live DB
+## Database is correct
+Verified via SQL on `sales` for KS Footwear (org `4bc73037…`):
 
-**Engine OFF (2 orgs):**
-- BAWLEE (`153c07a0-7c5c-434f-90ee-9b48f95a3f0f`)
-- HIVAA COLLECTION (`056b0f96-c62c-4439-ac26-6bba54575012`)
+| Invoice | Customer | Net | Paid | Status (DB) |
+|---|---|---|---|---|
+| INV/26-27/47 | ALANKAR FOOTWEAR- NALASOPARA | ₹4,291 | 0 | **pending** ✅ |
+| INV/26-27/171 | ALANKAR FOOTWEAR | ₹12,857 | 0 | pending ✅ |
+| INV/26-27/189 | ALANKAR FOOTWEAR | ₹1,674 | 0 | pending ✅ |
+| INV/26-27/318 | ALANKAR FOOTWEAR | ₹16,823 | 0 | pending ✅ |
+| INV/26-27/40 (Milan) | MILAN SHOES MALAD | ₹7,785 | 0 | pending ✅ |
 
-**AdTechAgency stuck voucher (1 pending):**
-- `RCP/25-26/1` — ₹1,770 cash receipt from SAKIB A PATEL for INV/25-26/2
-- Voucher id: `a3e0b2a4-4fbe-46d3-b137-1c8ca563f859`
-- **Root cause:** `reference_type = 'customer_payment'` (legacy lowercase snake_case). The backfill scanner in `historicalMigration.ts` only recognises `CustomerReceipt`, `SupplierPayment`, `ExpenseVoucher`, `SalaryVoucher`, `StudentFeeReceipt`, `CustomerCreditNoteApplication`, `CustomerAdvanceApplication`, `Payment`. So `customer_payment` falls through every dispatch in `repostJournalForRestoredVoucher` and never gets a journal entry created.
+So the WhatsApp reminder and Outstanding ledger are RIGHT. The Sales Dashboard's "Paid" badge for these rows is WRONG — same bug we diagnosed last week for INV/26-27/40.
 
-## Plan
+## Root cause (same as before — never fixed in build mode)
+`src/components/InvoiceHistoryDialog.tsx` line ~167 uses
+```ts
+.ilike("description", `%${saleNumber}%`)
+```
+So when you open `INV/26-27/47`, it pulls receipts whose description mentions `INV/26-27/470, 471, …, 479` and renders them as if they paid invoice 47. Short numbers (1–2 digits) suffer the worst — `/3` matches `/30…/399`, `/47` matches `/470…/479`, etc.
 
-### Step 1 — Audit for other legacy reference_type values (read-only)
-Scan `voucher_entries` across all orgs for any `reference_type` not in the canonical PascalCase set so we know if this is a one-off or a pattern.
+For `INV/26-27/47` specifically, sibling `INV/26-27/471` has ₹6,447 paid → dialog shows it as Paid/Settled and the dashboard inherits the badge.
 
-### Step 2 — Data fix for AdTechAgency's stuck voucher
-Update that single row's `reference_type` from `customer_payment` → `CustomerReceipt` (via the insert/update tool). It already has `payment_method='cash'`, a valid customer reference, and a matching sale (`INV/25-26/2`), so the standard `CustomerReceipt` poster will handle it correctly.
-If Step 1 finds more legacy values, extend the same normalisation to those rows in the same update.
+## Scope of impact (KS Footwear only, queried just now)
+**48 invoices across 38 customers** in KS Footwear currently display a wrong "Paid/Partial" badge because their sale_number is a substring of a longer paid invoice. Worst offenders:
 
-### Step 3 — Turn engine ON for BAWLEE & HIVAA (data update)
-Update `settings.accounting_engine_enabled = true` for both orgs.
+| Pending invoice | Customer | Sibling paid invoices leaking in |
+|---|---|---|
+| INV/26-27/3 | SHREE JI FOOTWEAR-KANDIVALI W | 31 |
+| INV/26-27/5 | MAYUR FOOTWEAR-MALAD E | 12 |
+| INV/25-26/36 | PARFECT SHOE KURAR VILLAGE | 10 |
+| INV/25-26/67 | MUSKAN FOOTWAR-GORGAON E | 10 |
+| INV/25-26/14 | SHREE FOOTWEAR-DOMBIVALI E | 10 |
+| INV/25-26/30 | SHOE PALECE MIRA ROAD | 10 |
+| INV/26-27/6 | JOHNSON ENTERPRISES MIRA-ROAD | 10 |
+| … 41 more rows | | 1-8 |
 
-### Step 4 — Backfill the 3 orgs from the UI
-Ask the user to open each org and click **Run Historical Ledger Backfill** (BAWLEE, HIVAA COLLECTION, AdTechAgency). After Step 2+3 there should be 0 pending / 0 failed.
+Same code path runs for every organization, so other tenants with short sale numbers are silently affected too — but the symptom only surfaces once the longer sibling is paid.
 
-### Step 5 — Hardening (code change, optional)
-Add a tolerant normaliser in `historicalMigration.ts` + `journalService.repostJournalForRestoredVoucher` so legacy lowercase variants (`customer_payment`, `supplier_payment`, `expense`, `salary`, `student_fee_receipt`, etc.) map to their canonical PascalCase posters. Prevents this drift from recurring if old data is restored or imported.
+## Fix (frontend only, no DB change)
 
-## Open question for you
-Do you want me to do **only Steps 2 + 3** now (quick data fix), or also **Step 5** (code-level normaliser) so the backfill never misses legacy types again?
+Edit `src/components/InvoiceHistoryDialog.tsx`:
+
+1. Keep the existing `.ilike('description', '%${saleNumber}%')` as a coarse pre-filter (index-friendly).
+2. After the query, filter the result with the **word-bounded extractor** already used (correctly) by the dashboard / ledger / outstanding code:
+
+```ts
+import { extractSaleNumbersFromReceiptDescription } from "@/utils/customerBalanceUtils";
+
+customerVouchers = (custV || []).filter(v =>
+  extractSaleNumbersFromReceiptDescription(v.description || "").includes(saleNumber)
+);
+```
+
+That tokeniser already splits on whitespace / pipes / commas and matches whole invoice numbers, so `INV/26-27/47` will never absorb `INV/26-27/471`.
+
+## Verification after fix
+1. Open `INV/26-27/47` (ALANKAR) → History timeline empty, Balance Due ₹4,291, status **Pending**.
+2. Open `INV/26-27/471` → still shows its ₹6,447 receipt and stays Partial/Paid as before.
+3. Spot-check 3 of the high-leak rows above (e.g. INV/26-27/3, INV/26-27/5) → no more false Paid badge.
+4. Customer Ledger / Outstanding / WhatsApp reminders unchanged (they already use the correct extractor).
+
+## No data migration needed
+`sales.paid_amount` and `payment_status` are already correct in Postgres. This is purely a display bug in one component. Once the patch is in, the 48 affected invoices in KS Footwear (and any equivalent rows in other orgs) will display correctly without any backfill.
+
+Approve to switch to build mode and apply the one-file patch.
