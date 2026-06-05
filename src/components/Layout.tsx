@@ -7,6 +7,7 @@ import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/Keybo
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
+import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileAppHeader } from "@/components/mobile/MobileAppHeader";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
@@ -83,6 +84,7 @@ export const Layout = ({ children }: LayoutProps) => {
             </IdleMount>
 
             <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
+            <WhatsAppMessageNotifier />
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />

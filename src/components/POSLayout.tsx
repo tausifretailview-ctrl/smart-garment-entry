@@ -24,6 +24,7 @@ import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
+import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
@@ -355,8 +356,12 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
       <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
+      <WhatsAppMessageNotifier />
       <IdleMount>
         <PwaInstallBanner />
+        <div className="hidden lg:contents">
+          <FloatingWhatsAppInbox />
+        </div>
       </IdleMount>
     </div>
   );

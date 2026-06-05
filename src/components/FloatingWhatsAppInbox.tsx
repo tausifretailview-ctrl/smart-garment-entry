@@ -1,9 +1,10 @@
+import { useEffect } from "react";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
@@ -12,11 +13,17 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 export const FloatingWhatsAppInbox = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
-  const { hasSpecialPermission, loading: permLoading } = useUserPermissions();
+  const { hasMenuAccess, hasSpecialPermission, loading: permLoading } = useUserPermissions();
   
   // Tier-based polling - free tier uses manual refresh only
   const { getRefreshInterval } = useTierBasedRefresh();
+
+  const canAccess =
+    hasMenuAccess("whatsapp_inbox") ||
+    hasSpecialPermission("whatsapp_api") ||
+    hasSpecialPermission("whatsapp_send");
 
   // Query unread message count
   const { data: unreadCount = 0 } = useQuery({
@@ -37,22 +44,55 @@ export const FloatingWhatsAppInbox = () => {
       
       return data?.reduce((sum, conv) => sum + (conv.unread_count || 0), 0) || 0;
     },
-    enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000,
+    enabled: !!currentOrganization?.id && canAccess,
+    staleTime: 30_000,
     refetchInterval: getRefreshInterval('slow'), // Tier-based: false for free tier
   });
 
-  // Only show on dashboard (root path after org slug)
-  const isDashboard = (() => {
-    const path = location.pathname;
-    if (!currentOrganization?.slug) return false;
-    const orgPrefix = `/${currentOrganization.slug}`;
-    // Dashboard is either /:orgSlug or /:orgSlug/
-    return path === orgPrefix || path === `${orgPrefix}/`;
-  })();
+  // Realtime badge updates (instant alert count without waiting for poll)
+  useEffect(() => {
+    if (!currentOrganization?.id || !canAccess) return;
 
-  // Don't show if no permission, no org, or not on dashboard
-  if (permLoading || (!hasSpecialPermission("whatsapp_api") && !hasSpecialPermission("whatsapp_send")) || !currentOrganization || !isDashboard) {
+    const channel = supabase
+      .channel(`whatsapp-unread-${currentOrganization.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "whatsapp_conversations",
+          filter: `organization_id=eq.${currentOrganization.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["whatsapp-unread-count", currentOrganization.id],
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "whatsapp_messages",
+          filter: `organization_id=eq.${currentOrganization.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["whatsapp-unread-count", currentOrganization.id],
+          });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrganization?.id, canAccess, queryClient]);
+
+  const onInboxPage = location.pathname.includes("/whatsapp-inbox");
+
+  if (permLoading || !canAccess || !currentOrganization || onInboxPage) {
     return null;
   }
 
