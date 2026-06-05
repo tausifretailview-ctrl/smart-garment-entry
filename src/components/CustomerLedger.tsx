@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
-import { STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
+import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
+import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { fetchAllCustomers, fetchAllSalesSummary, fetchItemsGrossBySaleId } from "@/utils/fetchAllRows";
@@ -338,7 +338,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
 
   // Fetch all customers with their transaction summary using pagination
-  const { data: customers, isLoading } = useQuery({
+  const { data: customers, isLoading, isFetching: isCustomersFetching } = useQuery({
     queryKey: [
       "customer-ledger",
       organizationId,
@@ -807,10 +807,15 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return customerTotals;
     },
     enabled: !!organizationId,
-    staleTime: STALE_REFERENCE,
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
     refetchOnWindowFocus: false,
+    refetchOnMount: true,
     gcTime: 10 * 60 * 1000,
+    placeholderData: keepPreviousData,
   });
+
+  const isCustomersInitialLoad = isLoading && customers === undefined;
+  const isCustomersBackgroundRefresh = isCustomersFetching && !isCustomersInitialLoad;
 
   /** SQL snapshot balances (batch RPC) — loaded after list so search is not blocked. */
   const businessCustomerIds = useMemo(
@@ -871,7 +876,7 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   }, [customersForList, selectedCustomer?.id, selectedCustomer?.studentId]);
 
   // Fetch detailed transactions for selected customer
-  const { data: transactions, isPending: transactionsPending } = useQuery({
+  const { data: transactions, isPending: transactionsPending, isFetching: isTransactionsFetching } = useQuery({
     queryKey: ["customer-transactions", selectedCustomer?.id, startDate, endDate, isSchool, selectedAcademicYearId],
     queryFn: async () => {
       if (!selectedCustomer) return [];
@@ -2297,8 +2302,14 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
       return cleanedTransactions;
     },
     enabled: !!selectedCustomer?.id,
-    staleTime: STALE_FREQUENT,
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
     refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    placeholderData: (previousData, previousQuery) => {
+      const prevCustomerId = previousQuery?.queryKey[1];
+      if (prevCustomerId && prevCustomerId === selectedCustomer?.id) return previousData;
+      return undefined;
+    },
   });
 
   // Fetch payment history for selected customer
@@ -3632,7 +3643,8 @@ Please clear your dues at the earliest. Thank you!`;
 
   if (selectedCustomer) {
     const ledgerRows = transactions ?? [];
-    const ledgerLoading = transactionsPending && ledgerRows.length === 0;
+    const ledgerLoading = transactionsPending && transactions === undefined;
+    const isLedgerBackgroundRefresh = isTransactionsFetching && !ledgerLoading;
 
     return (
       <>
@@ -3733,6 +3745,13 @@ Please clear your dues at the earliest. Thank you!`;
               <Download className="mr-2 h-4 w-4" />
               {isMobile ? "Excel" : "Export Excel"}
             </Button>
+
+            {isLedgerBackgroundRefresh && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Updating…
+              </span>
+            )}
 
             <Button
               variant="outline"
@@ -5544,6 +5563,12 @@ Please clear your dues at the earliest. Thank you!`;
             )}
 
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              {isCustomersBackgroundRefresh && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Updating…
+                </span>
+              )}
               <Button variant="outline" size="sm" className="h-9" onClick={handleExportCustomerListExcel}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
                 {isMobile ? "Excel" : "Excel"}
@@ -5558,7 +5583,7 @@ Please clear your dues at the earliest. Thank you!`;
           {/* Mobile Card View */}
           {isMobile ? (
             <div className="space-y-3">
-              {isLoading ? (
+              {isCustomersInitialLoad ? (
                 <div className="text-center text-muted-foreground py-8">
                   Loading customers...
                 </div>
@@ -5657,7 +5682,7 @@ Please clear your dues at the earliest. Thank you!`;
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
+                  {isCustomersInitialLoad ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                         Loading customers...

@@ -34,7 +34,33 @@ const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "product-entry",
   "accounts",
   "customers",
+  "pos-dashboard",
+  "sales-invoice-dashboard",
 ]);
+
+/** Persist scroll positions per window tab when panes are hidden. */
+const tabScrollPositions = new Map<string, number[]>();
+
+function collectTabScrollTargets(root: HTMLElement): HTMLElement[] {
+  const targets: HTMLElement[] = [];
+  const main = root.querySelector("main");
+  if (main) targets.push(main as HTMLElement);
+  root.querySelectorAll<HTMLElement>("[data-tab-scroll]").forEach((el) => {
+    if (!targets.includes(el)) targets.push(el);
+  });
+  return targets;
+}
+
+function readScrollPositions(root: HTMLElement): number[] {
+  return collectTabScrollTargets(root).map((el) => el.scrollTop);
+}
+
+function writeScrollPositions(root: HTMLElement, positions: number[]) {
+  const targets = collectTabScrollTargets(root);
+  targets.forEach((el, i) => {
+    if (positions[i] != null) el.scrollTop = positions[i];
+  });
+}
 
 function isProtectedTabPath(path: string): boolean {
   return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isEntryTabPath(path);
@@ -131,7 +157,29 @@ function CachedTabPane({
   roles?: TabPageRole[];
   layout: TabPageLayout;
 }) {
+  const paneRef = useRef<HTMLDivElement>(null);
+  const wasActiveRef = useRef(active);
   const [loadKey, setLoadKey] = useState(0);
+
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+
+    if (wasActiveRef.current && !active) {
+      tabScrollPositions.set(path, readScrollPositions(pane));
+    }
+
+    if (!wasActiveRef.current && active) {
+      const saved = tabScrollPositions.get(path);
+      if (saved?.length) {
+        requestAnimationFrame(() => {
+          if (paneRef.current) writeScrollPositions(paneRef.current, saved);
+        });
+      }
+    }
+
+    wasActiveRef.current = active;
+  }, [active, path]);
 
   const retryTabLoad = useCallback(() => {
     resetTabPageChunk(path);
@@ -163,6 +211,7 @@ function CachedTabPane({
 
   return (
     <div
+      ref={paneRef}
       className={cn(
         "flex flex-col min-h-0",
         active ? "flex-1 h-full w-full" : "hidden",
@@ -243,7 +292,11 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     touchTabActiveAt(activePath);
     setMountedPaths((prev) => {
       if (electronSingleTab) {
-        return new Set([activePath]);
+        const next = new Set<string>([activePath]);
+        for (const path of prev) {
+          if (path !== activePath && isProtectedTabPath(path)) next.add(path);
+        }
+        return next;
       }
       if (prev.has(activePath)) return prev;
       const next = new Set(prev);
@@ -253,6 +306,23 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     });
     evictIdleMountedTabs();
   }, [activePath, electronSingleTab, touchTabActiveAt, evictIdleMountedTabs]);
+
+  // Browser: keep every open window tab mounted (Tally-style) so layout/state never resets.
+  useEffect(() => {
+    if (electronSingleTab || uniquePaths.length === 0) return;
+    setMountedPaths((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const path of uniquePaths) {
+        if (!next.has(path)) {
+          next.add(path);
+          touchTabActiveAt(path);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [uniquePaths, electronSingleTab, touchTabActiveAt]);
 
   useEffect(() => {
     if (electronSingleTab) return;

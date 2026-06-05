@@ -752,10 +752,12 @@ export default function Accounts() {
           ))}
         </div>
 
-        {/* Tab content */}
-        <div className="flex-1 overflow-y-auto px-4 py-3">
-          {selectedTab === "customer-ledger" && currentOrganization?.id && (
-            <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
+        {/* Tab content — customer ledger stays mounted to preserve scroll/customer on sub-tab return */}
+        <div data-tab-scroll className="flex-1 overflow-y-auto px-4 py-3">
+          {currentOrganization?.id && (
+            <div className={selectedTab === "customer-ledger" ? undefined : "hidden"} aria-hidden={selectedTab !== "customer-ledger"}>
+              <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
+            </div>
           )}
           {selectedTab === "supplier-ledger" && currentOrganization?.id && (
             <SupplierLedger organizationId={currentOrganization.id} />
@@ -990,8 +992,11 @@ export default function Accounts() {
           </TabsList>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3">
-        <TabsContent value="customer-ledger" forceMount className="mt-0 space-y-4 outline-none">
+        <div
+          data-tab-scroll
+          className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3"
+        >
+        <TabsContent value="customer-ledger" forceMount className="mt-0 space-y-4 outline-none data-[state=inactive]:hidden">
           {currentOrganization?.id && (
             <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
           )}
