@@ -259,6 +259,8 @@ const POSDashboard = () => {
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const lastFetchAtRef = useRef(0);
   const lastFetchKeyRef = useRef("");
+  /** Set when a sale saves while this tab is hidden; cleared on next activation fetch. */
+  const salesRefreshStaleRef = useRef(false);
   const POS_DASHBOARD_FETCH_TTL_MS = 30_000;
 
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
@@ -543,6 +545,11 @@ const POSDashboard = () => {
 
   useEffect(() => {
     if (routePathSegment !== "pos-dashboard") return;
+    if (salesRefreshStaleRef.current) {
+      salesRefreshStaleRef.current = false;
+      void fetchSales({ force: true });
+      return;
+    }
     void fetchSales();
   }, [routePathSegment, fetchSales]);
 
@@ -550,12 +557,15 @@ const POSDashboard = () => {
     const onPosSalesChanged = (ev: Event) => {
       const detail = (ev as CustomEvent<{ organizationId?: string }>).detail;
       if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
-      // Refetch even when this pane is hidden (tab cache) so switching to dashboard is instant.
-      void fetchSales({ force: true });
+      if (routePathSegment === "pos-dashboard") {
+        void fetchSales({ force: true });
+      } else {
+        salesRefreshStaleRef.current = true;
+      }
     };
     window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
     return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
-  }, [currentOrganization?.id, fetchSales]);
+  }, [currentOrganization?.id, fetchSales, routePathSegment]);
 
   const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
     if (saleItems[saleId]) return saleItems[saleId];

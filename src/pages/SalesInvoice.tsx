@@ -202,6 +202,11 @@ export default function SalesInvoice() {
   const refreshInvoiceDashboardAfterPrint = useCallback(() => {
     flushScheduledSalesInvalidation(currentOrganization?.id, { notifyPos: false });
   }, [currentOrganization?.id, flushScheduledSalesInvalidation]);
+
+  /** Flush deferred dashboard refetch after print dialog is shown — off the save-critical path. */
+  const queueInvoiceDashboardRefreshAfterPrintShown = useCallback(() => {
+    setTimeout(() => refreshInvoiceDashboardAfterPrint(), 0);
+  }, [refreshInvoiceDashboardAfterPrint]);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const shopName = useShopName();
   const { isColumnVisible } = useUserPermissions();
@@ -2559,6 +2564,7 @@ Thank you for choosing us!`;
           customer: selectedCustomer,
         });
         setShowPrintDialog(true);
+        queueInvoiceDashboardRefreshAfterPrintShown();
       } else {
         const saleNumber = await generateOrgSaleNumber(
           currentOrganization!.id,
@@ -2805,6 +2811,7 @@ Thank you for choosing us!`;
         // Now show print dialog with saved data
         setSavedInvoiceData(invoiceDataForPrint);
         setShowPrintDialog(true);
+        queueInvoiceDashboardRefreshAfterPrintShown();
       }
     } catch (error: any) {
       if (newSaleIdForRollback && !editingInvoiceId) {
@@ -2840,7 +2847,6 @@ Thank you for choosing us!`;
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     onAfterPrint: () => {
-      refreshInvoiceDashboardAfterPrint();
       toast({
         title: "Success",
         description: "Invoice printed successfully",
@@ -2870,7 +2876,6 @@ Thank you for choosing us!`;
             handlePrint();
           },
           onSuccess: () => {
-            refreshInvoiceDashboardAfterPrint();
             if (!editingInvoiceId) {
               setSavedInvoiceData(null);
             }
@@ -2888,7 +2893,6 @@ Thank you for choosing us!`;
   };
 
   const handleClosePrintDialog = () => {
-    refreshInvoiceDashboardAfterPrint();
     setShowPrintDialog(false);
     
     // If editing, navigate back to dashboard

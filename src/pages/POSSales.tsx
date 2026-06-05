@@ -298,6 +298,11 @@ export default function POSSales() {
     }
   }, [currentOrganization?.id, flushScheduledSalesInvalidation, queryClient]);
 
+  /** Run deferred dashboard refetch after print UI is shown — not on the save/print-critical path. */
+  const queueDashboardRefreshAfterPrintShown = useCallback(() => {
+    setTimeout(() => refreshPosAfterBillPrint(), 0);
+  }, [refreshPosAfterBillPrint]);
+
   const [searchParams] = useSearchParams();
   const { orgNavigate: orgNavigatePOS } = useOrgNavigation();
   const _savedCart = (() => {
@@ -874,7 +879,6 @@ export default function POSSales() {
           paperSize,
           onFallback,
           onSuccess: async () => {
-            refreshPosAfterBillPrint();
             setSavedInvoiceData(null);
             setSelectedSalesman("");
             const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
@@ -887,7 +891,7 @@ export default function POSSales() {
         });
       });
     },
-    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData, refreshPosAfterBillPrint],
+    [isDirectPrintEnabled, isAutoPrintEnabled, posBillFormat, directPrint, settingsData],
   );
 
   // Keyboard shortcuts for POS actions
@@ -3022,6 +3026,7 @@ export default function POSSales() {
       setPointsToRedeem(0);
       
       triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
+      queueDashboardRefreshAfterPrintShown();
       
       // Focus on barcode input for next sale
       setTimeout(() => {
@@ -3284,6 +3289,7 @@ export default function POSSales() {
       if (invoiceDataForPrint) {
         setSavedInvoiceData(invoiceDataForPrint);
         triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
+        queueDashboardRefreshAfterPrintShown();
       }
       
       // Focus on barcode input for next sale
@@ -3420,7 +3426,6 @@ export default function POSSales() {
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
     pageStyle: getPageStyle(),
     onAfterPrint: async () => {
-      refreshPosAfterBillPrint();
       toast.success("Success", { description: "Invoice printed successfully" });
 
       // Clear saved invoice data so screen is ready for new invoice
@@ -3468,7 +3473,6 @@ export default function POSSales() {
             }
           },
           onSuccess: async () => {
-            refreshPosAfterBillPrint();
             setSavedInvoiceData(null);
             setShowPrintPreview(false);
             // Open cash drawer if enabled
@@ -3496,7 +3500,6 @@ export default function POSSales() {
   };
 
   const handleClosePrintConfirmDialog = () => {
-    refreshPosAfterBillPrint();
     setShowPrintConfirmDialog(false);
     setSavedInvoiceData(null);
     
@@ -4525,7 +4528,6 @@ export default function POSSales() {
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-row gap-2">
               <AlertDialogCancel onClick={() => {
-                refreshPosAfterBillPrint();
                 setShowPrintConfirmDialog(false);
                 setSavedInvoiceData(null);
                 barcodeInputRef.current?.focus();
@@ -4537,7 +4539,6 @@ export default function POSSales() {
                 className="flex items-center gap-2"
                 onClick={() => {
                   handleWhatsAppShare();
-                  refreshPosAfterBillPrint();
                   setShowPrintConfirmDialog(false);
                   setSavedInvoiceData(null);
                 }}
