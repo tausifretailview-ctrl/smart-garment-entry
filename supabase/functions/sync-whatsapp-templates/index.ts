@@ -41,6 +41,15 @@ function resolveWabaId(settings: OrgWhatsAppSettings): string {
   return (settings.waba_id?.trim() || settings.business_id?.trim() || "");
 }
 
+/** Template list API needs token + WABA/Business ID + provider URL — not phone_number_id. */
+function orgCanSyncTemplates(settings: OrgWhatsAppSettings | null): boolean {
+  if (!settings) return false;
+  if (!normalizeWhatsAppAccessToken(settings.access_token)) return false;
+  if (!resolveWabaId(settings)) return false;
+  if (!settings.custom_api_url?.trim()) return false;
+  return true;
+}
+
 function buildTemplatesUrl(settings: OrgWhatsAppSettings): string {
   const baseUrl = resolveBaseUrl(settings);
   const version = normalizeWhatsAppApiVersion(settings.api_version);
@@ -89,10 +98,10 @@ serve(async (req) => {
 
     let credentials: OrgWhatsAppSettings | null = null;
 
-    const useDefaultApi = orgSettings?.use_default_api !== false;
-    const hasOwnCreds = orgSettings?.phone_number_id && orgSettings?.access_token;
+    const usePlatformDefault = orgSettings?.use_default_api === true;
+    const useOrgCredentials = !usePlatformDefault && orgCanSyncTemplates(orgSettings);
 
-    if (useDefaultApi || !hasOwnCreds) {
+    if (!useOrgCredentials) {
       const { data: platformSettings, error: platformError } = await supabase
         .from("platform_settings")
         .select("setting_value")
@@ -150,13 +159,16 @@ serve(async (req) => {
     const templates = data.data || [];
     const approvedTemplates = templates.filter((t: { status?: string }) => t.status === "APPROVED");
 
+    const syncedKeys = new Set<string>();
     for (const template of approvedTemplates) {
+      const language = template.language || "en";
+      syncedKeys.add(`${template.name}\0${language}`);
       await supabase.from("whatsapp_meta_templates").upsert(
         {
           organization_id: organizationId,
           template_name: template.name,
           template_category: template.category,
-          template_language: template.language,
+          template_language: language,
           template_status: template.status,
           components: template.components,
           updated_at: new Date().toISOString(),
@@ -165,10 +177,24 @@ serve(async (req) => {
       );
     }
 
+    const { data: existingRows } = await supabase
+      .from("whatsapp_meta_templates")
+      .select("id, template_name, template_language")
+      .eq("organization_id", organizationId);
+
+    const staleIds = (existingRows || [])
+      .filter((row) => !syncedKeys.has(`${row.template_name}\0${row.template_language || "en"}`))
+      .map((row) => row.id);
+
+    if (staleIds.length > 0) {
+      await supabase.from("whatsapp_meta_templates").delete().in("id", staleIds);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         count: approvedTemplates.length,
+        removed: staleIds.length,
         provider: credentials.api_provider || "third_party",
         apiBase: resolveBaseUrl(credentials),
       }),

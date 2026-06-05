@@ -94,13 +94,16 @@ export async function syncWhatsAppTemplatesFromProvider(
   const templates = ((data as { data?: MetaTemplateRow[] }).data || []) as MetaTemplateRow[];
   const approvedTemplates = templates.filter((t) => t.status === "APPROVED");
 
+  const syncedKeys = new Set<string>();
   for (const template of approvedTemplates) {
+    const language = template.language || "en";
+    syncedKeys.add(`${template.name}\0${language}`);
     const { error } = await supabase.from("whatsapp_meta_templates").upsert(
       {
         organization_id: organizationId,
         template_name: template.name,
         template_category: template.category,
-        template_language: template.language,
+        template_language: language,
         template_status: template.status,
         components: template.components as any,
         updated_at: new Date().toISOString(),
@@ -111,8 +114,39 @@ export async function syncWhatsAppTemplatesFromProvider(
     if (error) throw error;
   }
 
+  const removed = await pruneStaleWhatsAppTemplates(organizationId, syncedKeys);
+
   return {
     count: approvedTemplates.length,
+    removed,
     provider: settings.api_provider || "third_party",
   };
+}
+
+/** Remove templates no longer returned by the provider (e.g. after switching accounts). */
+export async function pruneStaleWhatsAppTemplates(
+  organizationId: string,
+  syncedKeys: Set<string>,
+): Promise<number> {
+  const { data: existingRows, error: fetchError } = await supabase
+    .from("whatsapp_meta_templates")
+    .select("id, template_name, template_language")
+    .eq("organization_id", organizationId);
+
+  if (fetchError) throw fetchError;
+  if (!existingRows?.length) return 0;
+
+  const staleIds = existingRows
+    .filter((row) => !syncedKeys.has(`${row.template_name}\0${row.template_language || "en"}`))
+    .map((row) => row.id);
+
+  if (staleIds.length === 0) return 0;
+
+  const { error: deleteError } = await supabase
+    .from("whatsapp_meta_templates")
+    .delete()
+    .in("id", staleIds);
+
+  if (deleteError) throw deleteError;
+  return staleIds.length;
 }

@@ -47,6 +47,25 @@ export const SyncMetaTemplates = () => {
         throw new Error("Configure access token and save settings first");
       }
 
+      const orgSyncSettings = {
+        api_provider: settings.api_provider,
+        custom_api_url: settings.custom_api_url,
+        api_version: settings.api_version,
+        waba_id: settings.waba_id,
+        business_id: settings.business_id,
+        access_token: settings.access_token,
+      };
+
+      // Own org credentials: sync directly so we never pull platform-default (old account) templates.
+      const usePlatformDefault = settings.use_default_api === true;
+      if (!usePlatformDefault && canSyncWhatsAppTemplates(orgSyncSettings)) {
+        const result = await syncWhatsAppTemplatesFromProvider(
+          currentOrganization.id,
+          orgSyncSettings,
+        );
+        return result.count;
+      }
+
       const { data, error } = await supabase.functions.invoke("sync-whatsapp-templates", {
         body: { organizationId: currentOrganization.id },
       });

@@ -167,6 +167,11 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     const currentPath = getCurrentPath();
     setActiveWindow(currentPath);
+
+    // Warm main dashboard chunk while user is on POS so first return is instant.
+    if (currentPath === "pos-sales") {
+      prefetchTabPage("");
+    }
     
     // Auto-add current page to open windows if not already there
     if (currentPath && PAGE_CONFIG[currentPath] && canAccessPath(currentPath)) {

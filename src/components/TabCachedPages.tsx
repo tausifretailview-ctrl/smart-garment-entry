@@ -3,6 +3,7 @@ import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
   isTabCachePath,
+  prefetchTabPage,
   prefetchTabPagesIdle,
   type TabPageLayout,
   type TabPageRole,
@@ -13,9 +14,15 @@ import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
 import { cn } from "@/lib/utils";
+import { DashboardSkeleton } from "@/components/ui/skeletons";
 
-function TabPageFallback({ active }: { active: boolean }) {
+const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
+
+function TabPageFallback({ active, path }: { active: boolean; path: string }) {
   if (!active) return null;
+  if (DASHBOARD_TAB_PATHS.has(path)) {
+    return <DashboardSkeleton />;
+  }
   return (
     <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center">
       <div className="h-7 w-7 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -49,7 +56,7 @@ function CachedTabPane({
   if (!LazyPage) return null;
 
   const page = (
-    <Suspense fallback={<TabPageFallback active={active} />}>
+    <Suspense fallback={<TabPageFallback active={active} path={path} />}>
       <LazyPage />
     </Suspense>
   );
@@ -111,6 +118,23 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
       return next;
     });
   }, [activePath]);
+
+  // Warm main dashboard in the background while POS (or other tabs) are open — instant first return.
+  useEffect(() => {
+    const shouldWarmDashboard =
+      uniquePaths.includes("") ||
+      uniquePaths.includes("pos-sales") ||
+      activePath === "pos-sales";
+    if (!shouldWarmDashboard) return;
+
+    prefetchTabPage("");
+    setMountedPaths((prev) => {
+      if (prev.has("")) return prev;
+      const next = new Set(prev);
+      next.add("");
+      return next;
+    });
+  }, [uniquePaths, activePath]);
 
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);

@@ -6,6 +6,8 @@ const RETRY_BASE_MS = 350;
 
 /** Paths prefetched right after org login so first bill open does not cold-load a large chunk. */
 export const POST_LOGIN_PREFETCH_TAB_PATHS = [
+  "", // main dashboard — fast return from POS / window tabs
+  "pos-sales",
   "sales-invoice",
   "sales-invoice-dashboard",
   "purchase-entry",

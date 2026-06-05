@@ -251,6 +251,14 @@ export const WhatsAppAPISettings = () => {
       payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
     }
 
+    const hasOwnProviderCreds =
+      !!payload.access_token?.trim() &&
+      !!payload.custom_api_url?.trim() &&
+      !!(payload.waba_id?.trim() || payload.business_id?.trim());
+    if (hasOwnProviderCreds) {
+      payload.use_default_api = false;
+    }
+
     updateSettings(payload);
   };
 
