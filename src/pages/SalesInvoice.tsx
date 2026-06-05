@@ -224,7 +224,12 @@ export default function SalesInvoice() {
     currentOrganization?.id || null
   );
   // Customer brand discounts hook
-  const { getBrandDiscount, hasBrandDiscounts, brandDiscounts, isLoading: isBrandDiscountsLoading } = useCustomerBrandDiscounts(selectedCustomerId || null);
+  const {
+    getBrandDiscountForProduct,
+    hasBrandDiscounts,
+    brandDiscounts,
+    isLoading: isBrandDiscountsLoading,
+  } = useCustomerBrandDiscounts(selectedCustomerId || null);
 
   // CRM Loyalty Points
   const {
@@ -1039,51 +1044,57 @@ export default function SalesInvoice() {
     }
   }, [taxType]);
 
-  // Apply brand discounts to existing line items when brand discounts load
+  // Apply brand discounts to line items when discounts load or items/customer change.
   useEffect(() => {
-    // Preserve historical invoice pricing while opening an existing bill in edit mode.
     if (isInitializingEditRef.current) return;
-    if (editingInvoiceId && !hasManuallyAddedNewItemRef.current) return;
     if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
-    if (!productsData) return;
-    
-    // Check if customer has master discount (brand discounts should not apply in that case)
-    const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+
+    const customerHasMasterDiscount =
+      !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
     if (customerHasMasterDiscount) return;
-    
-    // Check if any line items need discount updates
-    let hasChanges = false;
-    const updatedItems = lineItems.map(item => {
-      if (!item.productId) return item;
-      
-      // Prefer the brand captured on the line at add time; fall back to a
-      // productsData lookup (which can miss for inactive/unloaded products).
-      const brand = item.brand || productsData.find((p: any) => p.id === item.productId)?.brand;
-      if (!brand) return item;
-      
-      // Get the brand discount
-      const brandDiscount = getBrandDiscount(brand);
-      
-      // Only update if current discount is 0 and brand discount exists
-      if (item.discountPercent === 0 && brandDiscount > 0) {
+
+    let applied = false;
+    setLineItems((prev) => {
+      if (prev.length === 0) return prev;
+
+      let hasChanges = false;
+      const updatedItems = prev.map((item) => {
+        if (!item.productId || item.discountPercent !== 0) return item;
+
+        const product = productsData?.find((p: any) => p.id === item.productId);
+        const brand = item.brand || product?.brand;
+        const brandDiscount = getBrandDiscountForProduct(brand, item.productName || product?.product_name);
+        if (brandDiscount <= 0) return item;
+
         hasChanges = true;
         return calculateLineTotal({
           ...item,
+          brand: brand || item.brand,
           discountPercent: brandDiscount,
         });
-      }
-      
-      return item;
+      });
+
+      if (!hasChanges) return prev;
+      applied = true;
+      return updatedItems;
     });
-    
-    if (hasChanges) {
-      setLineItems(updatedItems);
+
+    if (applied) {
       toast({
         title: "Brand discounts applied",
         description: "Discounts have been updated for matching products",
       });
     }
-  }, [brandDiscounts, hasBrandDiscounts, isBrandDiscountsLoading, productsData, selectedCustomer?.discount_percent, editingInvoiceId]);
+  }, [
+    brandDiscounts,
+    hasBrandDiscounts,
+    isBrandDiscountsLoading,
+    productsData,
+    selectedCustomer?.discount_percent,
+    selectedCustomerId,
+    lineItems.length,
+    getBrandDiscountForProduct,
+  ]);
 
   // Build in-memory barcode index for O(1) lookup (like POS)
   const barcodeIndex = useMemo(() => {
@@ -1409,8 +1420,11 @@ export default function SalesInvoice() {
         // Find empty row in working array or add new
         const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
         
-        // Check for brand-wise customer discount
-        const brandDiscount = getBrandDiscount(product.brand);
+        const customerHasMasterDiscount =
+          !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+        const brandDiscount = customerHasMasterDiscount
+          ? 0
+          : getBrandDiscountForProduct(product.brand, buildProductDisplayName(product));
         const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
         
         const newItem: LineItem = calculateLineTotal({
@@ -1656,8 +1670,11 @@ export default function SalesInvoice() {
     const salePrice = overridePrice?.sale_price ?? masterSalePrice;
     const mrpToUse = overridePrice?.mrp ?? masterMrp;
     
-    const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
-    const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
+    const customerHasMasterDiscount =
+      !!selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+    const brandDiscount = customerHasMasterDiscount
+      ? 0
+      : getBrandDiscountForProduct(product.brand, buildProductDisplayName(product));
     // Auto-apply product-level sale discount if no brand/customer discount
     const productSaleDiscount = (() => {
       const sdt = (product as any).sale_discount_type;
@@ -1795,16 +1812,20 @@ export default function SalesInvoice() {
         customerMeta = customerRow || null;
       }
 
-      // Fetch product UOMs so MTR/roll multiplier is applied on edit
+      // Fetch product UOM + brand for MTR multiplier and brand-wise discounts on edit
       const productIds = [...new Set((invoiceData.sale_items || []).map((it: any) => it.product_id).filter(Boolean))];
       const productUomMap = new Map<string, string>();
+      const productBrandMap = new Map<string, string>();
       if (productIds.length > 0) {
         const { data: productsData } = await supabase
           .from('products')
-          .select('id, uom')
+          .select('id, uom, brand')
           .in('id', productIds as string[]);
         if (productsData) {
-          productsData.forEach((p: any) => productUomMap.set(p.id, p.uom || 'NOS'));
+          productsData.forEach((p: any) => {
+            productUomMap.set(p.id, p.uom || 'NOS');
+            if (p.brand) productBrandMap.set(p.id, p.brand);
+          });
         }
       }
 
@@ -1860,6 +1881,7 @@ export default function SalesInvoice() {
           lineTotal: item.line_total || 0,
           hsnCode: item.hsn_code || '',
           uom: item.uom || productUomMap.get(item.product_id) || 'NOS',
+          brand: productBrandMap.get(item.product_id) || '',
         }));
 
         const missingNames = transformedItems.filter((i) => !i.productName || i.productName === 'Unknown Product');

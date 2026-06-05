@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -36,14 +37,33 @@ export function useCustomerBrandDiscounts(customerId: string | null) {
     (s || "").trim().toLowerCase().replace(/\s+/g, " ");
 
   // Get discount for a specific brand
-  const getBrandDiscount = (brand: string | null | undefined): number => {
+  const getBrandDiscount = useCallback((brand: string | null | undefined): number => {
     const target = normalizeBrand(brand);
     if (!target) return 0;
     const discount = brandDiscounts.find(
       (bd) => normalizeBrand(bd.brand) === target
     );
     return discount?.discount_percent || 0;
-  };
+  }, [brandDiscounts]);
+
+  /** Match product brand field, then fall back to tokens in product name (e.g. PUG-RLX-KIDS → RLX). */
+  const getBrandDiscountForProduct = useCallback((
+    brand: string | null | undefined,
+    productName?: string | null,
+  ): number => {
+    const direct = getBrandDiscount(brand);
+    if (direct > 0) return direct;
+    if (!productName || brandDiscounts.length === 0) return 0;
+    const segments = productName
+      .split(/[-/\s|]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const segment of segments) {
+      const match = getBrandDiscount(segment);
+      if (match > 0) return match;
+    }
+    return 0;
+  }, [brandDiscounts, getBrandDiscount]);
 
   // Check if customer has any brand discounts configured
   const hasBrandDiscounts = brandDiscounts.length > 0;
@@ -51,6 +71,7 @@ export function useCustomerBrandDiscounts(customerId: string | null) {
   return {
     brandDiscounts,
     getBrandDiscount,
+    getBrandDiscountForProduct,
     hasBrandDiscounts,
     isLoading,
   };

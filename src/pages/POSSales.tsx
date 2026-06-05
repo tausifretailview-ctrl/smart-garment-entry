@@ -336,7 +336,7 @@ export default function POSSales() {
   // Customer points hooks
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
-  const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
+  const { getBrandDiscountForProduct, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [items, setItemsRaw] = useState<CartItem[]>(() => {
     try {
@@ -2328,7 +2328,9 @@ export default function POSSales() {
       // If customer has master discount, it's applied as flat discount instead
       const customer = customers?.find((c: any) => c.id === customerId);
       const customerHasMasterDiscount = customer?.discount_percent && customer.discount_percent > 0;
-      const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
+      const brandDiscount = customerHasMasterDiscount
+        ? 0
+        : getBrandDiscountForProduct(product.brand, product.product_name);
       // Auto-apply product-level sale discount if no brand/customer discount
       const productSaleDiscount = (() => {
         const sdt = (product as any).sale_discount_type;
