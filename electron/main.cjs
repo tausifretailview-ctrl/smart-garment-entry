@@ -266,14 +266,19 @@ function createWindow() {
       --pos-toolbar-h: 136px !important;
     }
 
-    /* Sales Invoice (and other full-height entry forms): if the content is
-       taller than the window, allow the page to scroll instead of hard-
-       clipping the bottom totals bar / top fields. */
+    /* Sales Invoice / Purchase Entry: scroll when tall; keep room above the
+       fixed ERP status bar so Save Invoice / Save Bill is never covered. */
     [data-entry-form] {
       height: auto !important;
       min-height: 100vh;
       overflow-y: auto !important;
-      padding-bottom: 0 !important;
+      padding-bottom: var(--erp-status-bar-height, 1.75rem) !important;
+    }
+
+    .entry-page-footer {
+      position: sticky !important;
+      bottom: var(--erp-status-bar-height, 1.75rem) !important;
+      z-index: 55 !important;
     }
   `;
 
@@ -282,8 +287,11 @@ function createWindow() {
     mainWindow.webContents.setZoomFactor(0.8);
   });
 
-  // Show window smoothly after content loads
+  // Show maximized by default so bill entry footers and fields fit without manual resize
   mainWindow.once('ready-to-show', () => {
+    if (!mainWindow.isMaximized()) {
+      mainWindow.maximize();
+    }
     mainWindow.show();
     mainWindow.focus();
   });

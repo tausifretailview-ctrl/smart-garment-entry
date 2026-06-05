@@ -566,8 +566,19 @@ All colors MUST be HSL.
 
   /* Bill entry footers (Save Invoice / Save Bill) sit above the status bar on desktop */
   @media (min-width: 1024px) {
-    [data-entry-form] > footer {
+    [data-entry-form] {
+      padding-bottom: var(--erp-status-bar-height);
+    }
+
+    [data-entry-form] > footer,
+    [data-entry-form] > .entry-page-footer {
       flex-shrink: 0;
+    }
+
+    .entry-page-footer {
+      position: sticky;
+      bottom: var(--erp-status-bar-height);
+      z-index: 55;
     }
   }
 
