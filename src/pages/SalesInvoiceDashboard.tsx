@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
-import { STALE_PAGINATED, STALE_SETTINGS } from "@/lib/queryStaleTimes";
+import { STALE_DASHBOARD_TAB_RETURN, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -584,6 +584,7 @@ export default function SalesInvoiceDashboard() {
   const {
     data: dashboardUnified,
     isLoading,
+    isFetching,
     refetch,
     error: invoicesError,
     dataUpdatedAt: invoicesUpdatedAt,
@@ -629,10 +630,14 @@ export default function SalesInvoiceDashboard() {
       });
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_PAGINATED,
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
     refetchOnWindowFocus: false,
     refetchOnMount: true,
+    placeholderData: keepPreviousData,
   });
+
+  const isDashboardInitialLoad = isLoading && dashboardUnified === undefined;
+  const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
 
   const allInvoicesData = dashboardUnified?.invoices || [];
   const reconciledStats = dashboardUnified?.stats;
@@ -649,7 +654,7 @@ export default function SalesInvoiceDashboard() {
   const downloadTriggeredRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!downloadPdfId || isLoading || downloadTriggeredRef.current === downloadPdfId) return;
+    if (!downloadPdfId || isDashboardInitialLoad || downloadTriggeredRef.current === downloadPdfId) return;
     downloadTriggeredRef.current = downloadPdfId;
     // Find the invoice in loaded data or fetch it directly
     const found = invoicesData.find((inv: any) => inv.id === downloadPdfId);
@@ -669,7 +674,7 @@ export default function SalesInvoiceDashboard() {
     // Clean up the URL param
     searchParams.delete('downloadPdf');
     setSearchParams(searchParams, { replace: true });
-  }, [downloadPdfId, isLoading, invoicesData]);
+  }, [downloadPdfId, isDashboardInitialLoad, invoicesData]);
 
   // Fetch distinct shop names for filter
   const { data: shopNames = [] } = useQuery({
@@ -2553,7 +2558,7 @@ export default function SalesInvoiceDashboard() {
         </div>
 
         <div className="flex-1 px-4 space-y-2.5 pb-4">
-          {isLoading ? (
+          {isDashboardInitialLoad ? (
             Array.from({length: 5}).map((_,i) => (
               <div key={i} className="h-20 bg-card rounded-2xl animate-pulse" />
             ))
@@ -2811,6 +2816,12 @@ export default function SalesInvoiceDashboard() {
               Sales Invoice Dashboard
             </h1>
             <p className="text-slate-400 text-base mt-0.5">View and manage all sales invoices</p>
+            {isDashboardBackgroundRefresh && (
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Updating…
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">

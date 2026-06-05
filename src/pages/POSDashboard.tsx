@@ -189,6 +189,7 @@ const POSDashboard = () => {
   const showFinancerOnExpand = mobileERP.enabled && mobileERP.financer_billing;
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Default to today's date
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -469,7 +470,12 @@ const POSDashboard = () => {
       return;
     }
 
-    setLoading(true);
+    const isFirstLoad = sales.length === 0;
+    if (isFirstLoad) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
     try {
       // Use range-based pagination to bypass 1000-row limit
       const allSales: any[] = [];
@@ -565,6 +571,7 @@ const POSDashboard = () => {
       lastFetchFilterSigRef.current = fetchFilterSignatureRef.current;
       // Line items load on row expand only (fetchSaleItems) — avoids bulk sale_items reads on dashboard open.
       setLoading(false);
+      setIsRefreshing(false);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -572,6 +579,7 @@ const POSDashboard = () => {
         variant: "destructive",
       });
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [currentOrganization?.id, startDate, endDate, toast, sales.length]);
 
@@ -2092,7 +2100,7 @@ const POSDashboard = () => {
           </div>
 
           <div className="flex-1 px-4 space-y-2.5 pb-4 pt-2">
-            {loading ? (
+            {loading && sales.length === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="h-20 bg-card rounded-2xl animate-pulse" />
               ))
@@ -2176,6 +2184,12 @@ const POSDashboard = () => {
               POS Dashboard
             </h1>
             <p className="text-slate-400 text-base mt-0.5">View and manage all POS sales</p>
+            {isRefreshing && (
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Updating…
+              </p>
+            )}
           </div>
           <div className="flex gap-2 items-center">
             <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
@@ -2591,7 +2605,7 @@ const POSDashboard = () => {
           </div>
 
           <div className="flex-1 min-h-0 flex flex-col">
-            {loading ? (
+            {loading && sales.length === 0 ? (
               <div className="flex-1 min-h-0 border-t overflow-hidden">
                 <div className="h-10 bg-muted/70 border-b" />
                 <div className="divide-y">
