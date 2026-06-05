@@ -8,6 +8,26 @@ import type { PosThermalPaper } from '@/utils/invoicePrintFormat';
 /** Microns: tall roll height so Electron/Chromium do not paginate at A4 (~297mm). */
 const RECEIPT_ROLL_HEIGHT_MICRONS = 5_000_000;
 
+/**
+ * Beat InvoicePrint.css / ModernThermal `body * { visibility: hidden }` in react-to-print iframe.
+ * Requires `body` prefix so specificity exceeds `body *` (0,1,1).
+ */
+export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = `
+  @media print {
+    body .invoice-print-source-screen,
+    body .invoice-print-source,
+    body .thermal-print-80mm,
+    body .thermal-print-80mm *,
+    body .thermal-receipt-container,
+    body .thermal-receipt-container *,
+    body .modern-thermal-receipt,
+    body .modern-thermal-receipt * {
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+  }
+`;
+
 /** Override global index.css `page-break-inside: avoid` on thermal containers. */
 export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
   @media print {
@@ -94,6 +114,7 @@ export function getThermalReceiptPageStyleFragment(paper: PosThermalPaper = '80m
   return `
     @page { size: ${pageSize}; margin: 0; }
     ${buildThermalReceiptPrintCss(paper)}
+    ${THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS}
   `;
 }
 
