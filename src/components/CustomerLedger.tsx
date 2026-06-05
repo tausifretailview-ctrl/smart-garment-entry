@@ -3746,12 +3746,14 @@ Please clear your dues at the earliest. Thank you!`;
               {isMobile ? "Excel" : "Export Excel"}
             </Button>
 
-            {isLedgerBackgroundRefresh && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Updating…
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0 min-w-[5.5rem] h-4">
+              {isLedgerBackgroundRefresh && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Updating…
+                </>
+              )}
+            </span>
 
             <Button
               variant="outline"
@@ -3891,7 +3893,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-0">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2 mb-0 min-h-[4.5rem]">
               {/* For school non-structure students, opening_balance IS totalSales — show only once as "Opening Balance" */}
               {selectedCustomer.opening_balance !== 0 && !(isSchool && (selectedCustomer as any).hasStructures === false) && (
                 <Card className="border border-slate-200 shadow-sm rounded-lg bg-white overflow-hidden">
@@ -5563,12 +5565,14 @@ Please clear your dues at the earliest. Thank you!`;
             )}
 
             <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              {isCustomersBackgroundRefresh && (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Updating…
-                </span>
-              )}
+              <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-[5.5rem] h-4">
+                {isCustomersBackgroundRefresh && (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Updating…
+                  </>
+                )}
+              </span>
               <Button variant="outline" size="sm" className="h-9" onClick={handleExportCustomerListExcel}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
                 {isMobile ? "Excel" : "Excel"}

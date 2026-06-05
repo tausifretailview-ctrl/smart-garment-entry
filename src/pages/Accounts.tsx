@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Plus, Coins, Loader2, BookMarked, Trash2 } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -137,9 +138,11 @@ export default function Accounts() {
       return data as any;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    placeholderData: keepPreviousData,
   });
 
   const {
@@ -753,7 +756,7 @@ export default function Accounts() {
         </div>
 
         {/* Tab content — customer ledger stays mounted to preserve scroll/customer on sub-tab return */}
-        <div data-tab-scroll className="flex-1 overflow-y-auto px-4 py-3">
+        <div data-tab-scroll className="flex-1 overflow-y-auto tab-scroll-stable px-4 py-3">
           {currentOrganization?.id && (
             <div className={selectedTab === "customer-ledger" ? undefined : "hidden"} aria-hidden={selectedTab !== "customer-ledger"}>
               <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
@@ -820,7 +823,7 @@ export default function Accounts() {
         </div>
       </div>
 
-      <div className="shrink-0 my-2">
+      <div className="shrink-0 my-2 min-h-[5.5rem]">
         <AccountsDashboardCards
           dashboardMetrics={dashboardMetrics}
           paymentStats={paymentStats}
@@ -994,7 +997,7 @@ export default function Accounts() {
 
         <div
           data-tab-scroll
-          className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3"
+          className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3"
         >
         <TabsContent value="customer-ledger" forceMount className="mt-0 space-y-4 outline-none data-[state=inactive]:hidden">
           {currentOrganization?.id && (

@@ -2816,12 +2816,14 @@ export default function SalesInvoiceDashboard() {
               Sales Invoice Dashboard
             </h1>
             <p className="text-slate-400 text-base mt-0.5">View and manage all sales invoices</p>
-            {isDashboardBackgroundRefresh && (
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Updating…
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-1 h-4 flex items-center gap-1">
+              {isDashboardBackgroundRefresh && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Updating…
+                </>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
@@ -2910,7 +2912,7 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 w-full">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 w-full min-h-[5.5rem]">
           <Card 
             className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
@@ -3190,7 +3192,7 @@ export default function SalesInvoiceDashboard() {
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
-                <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain">
+                <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain min-h-[320px] tab-scroll-stable">
                 <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
                   <TableHeader className="!static">
                     <TableRow>
@@ -3215,7 +3217,20 @@ export default function SalesInvoiceDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedInvoices.length === 0 ? (
+                    {isDashboardInitialLoad ? (
+                      Array.from({ length: 8 }).map((_, i) => (
+                        <TableRow key={`invoice-skel-${i}`}>
+                          <TableCell colSpan={invoiceTableColumnCount} className="py-2.5">
+                            <div className="flex items-center gap-3 px-1">
+                              <div className="h-4 w-4 rounded bg-muted animate-pulse shrink-0" />
+                              <div className="h-4 flex-1 max-w-[12rem] rounded bg-muted animate-pulse" />
+                              <div className="h-4 flex-1 max-w-[10rem] rounded bg-muted animate-pulse hidden sm:block" />
+                              <div className="h-4 w-20 rounded bg-muted animate-pulse shrink-0 ml-auto" />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : paginatedInvoices.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={invoiceTableColumnCount} className="text-center py-8 text-muted-foreground text-base">
                           No invoices found

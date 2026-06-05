@@ -69,7 +69,7 @@ export const Layout = ({ children }: LayoutProps) => {
                     isSalesInvoicePage
                       ? mobileFullscreenMainClass
                       : showDesktopChrome
-                        ? "flex-1 overflow-auto relative z-[1] min-w-0 p-3 sm:p-4 pb-14 animate-fade-in"
+                        ? "flex-1 overflow-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 pb-14 animate-fade-in"
                         : mobileMainContentClass
                   }
                 >

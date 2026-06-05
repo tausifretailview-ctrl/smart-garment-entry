@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
+import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -293,7 +294,7 @@ const POSDashboard = () => {
   fetchFilterSignatureRef.current = fetchFilterSignature;
   /** Set when a sale saves while this tab is hidden; cleared on next activation fetch. */
   const salesRefreshStaleRef = useRef(false);
-  const POS_FETCH_TTL_MS = 30_000;
+  const POS_FETCH_TTL_MS = STALE_DASHBOARD_TAB_RETURN;
 
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
@@ -2184,12 +2185,14 @@ const POSDashboard = () => {
               POS Dashboard
             </h1>
             <p className="text-slate-400 text-base mt-0.5">View and manage all POS sales</p>
-            {isRefreshing && (
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Updating…
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-1 h-4 flex items-center gap-1">
+              {isRefreshing && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Updating…
+                </>
+              )}
+            </p>
           </div>
           <div className="flex gap-2 items-center">
             <Button variant="outline" onClick={handleExportExcel} className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium">
@@ -2226,7 +2229,7 @@ const POSDashboard = () => {
         </div>
 
         {/* Summary — same vibrant card style as Sales Invoice Dashboard */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 gap-2 w-full shrink-0">
+        <div className="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 gap-2 w-full shrink-0 min-h-[4.5rem]">
           <Card className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0" onClick={() => setPaymentStatusFilter([])}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-0 pt-2 px-2.5">
               <CardDescription className="text-xs font-medium text-white/80">Total Bills</CardDescription>
@@ -2625,7 +2628,7 @@ const POSDashboard = () => {
             ) : (
               <div 
                 ref={tableContainerRef}
-                className="flex-1 min-h-0 overflow-auto border-t"
+                className="flex-1 min-h-[320px] overflow-auto border-t tab-scroll-stable"
               >
                 <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_tbody_td]:text-sm [&_tbody_td]:align-top">
                   <TableHeader className="!static">

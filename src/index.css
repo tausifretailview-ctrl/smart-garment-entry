@@ -1806,3 +1806,10 @@ input.no-uppercase {
   font-size: 0.875rem !important;
   font-weight: 600 !important;
 }
+
+/* Dashboard tab return — reserve scrollbar gutter so fields don't shift horizontally */
+main.overflow-auto,
+[data-tab-scroll],
+.tab-scroll-stable {
+  scrollbar-gutter: stable;
+}
