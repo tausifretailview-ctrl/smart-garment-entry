@@ -592,7 +592,8 @@
     margin: 0 auto !important;
     background: white !important;
     color: black !important;
-    page-break-inside: avoid !important;
+    page-break-inside: auto !important;
+    break-inside: auto !important;
     page-break-after: auto !important;
   }
 

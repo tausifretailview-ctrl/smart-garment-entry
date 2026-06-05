@@ -3605,9 +3605,7 @@ export default function POSSales() {
       setShowPrintPreview(true);
     } else {
       // Direct print without preview - wait for data + DOM + images
-      waitForPrintReady(invoicePrintRef, () => {
-        handlePrint();
-      });
+      handleTriggerBrowserPrint();
     }
   };
 
@@ -3721,7 +3719,7 @@ export default function POSSales() {
     try {
       // Wait for invoice to be fully rendered then print
       waitForPrintReady(invoicePrintRef, () => {
-        handlePrint();
+        handleTriggerBrowserPrint();
         setShowPrintDialog(false);
       });
     } catch (error: any) {

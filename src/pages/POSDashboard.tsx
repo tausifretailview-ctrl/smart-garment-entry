@@ -85,6 +85,7 @@ import {
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
 
 interface SaleItem {
   id: string;
@@ -895,9 +896,40 @@ const POSDashboard = () => {
         break;
       case 'thermal': {
         const thermalPage = posThermalPageCss(posThermalPaper);
-        size = thermalPage.pageSize;
-        margin = '3mm';
-        break;
+        return `
+      @page {
+        size: ${thermalPage.pageSize};
+        margin: 0;
+      }
+      ${getThermalReceiptPageStyleFragment(posThermalPaper)}
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .invoice-print-root,
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .thermal-print-80mm,
+        .thermal-receipt-container,
+        .modern-thermal-receipt {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
       }
       default:
         size = 'A5 portrait';
