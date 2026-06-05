@@ -21,7 +21,11 @@ import html2canvas from "html2canvas";
 import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import { computeA4SheetMargins } from '@/utils/a4SheetLayout';
-import { resolveTemplateLabelDimensions } from "@/utils/labelTemplateDimensions";
+import {
+  resolveStandardSheetTypeForLabelDimensions,
+  resolveTemplateLabelDimensions,
+  sheetPresetDimensions,
+} from "@/utils/labelTemplateDimensions";
 import {
   buildPrecisionLabelDocument,
   buildStandardLabelDocument,
@@ -1456,6 +1460,35 @@ export default function BarcodePrinting() {
           };
           setLabelConfig(configWithBarcode);
           setSelectedLabelTemplate(template.name);
+          const templateDims = resolveTemplateLabelDimensions(template);
+          if (templateDims) {
+            const savedDims = defaultFormat.sheetType
+              ? sheetPresetDimensions(sheetPresets, String(defaultFormat.sheetType))
+              : null;
+            const dimsMismatch =
+              !savedDims ||
+              Math.abs(savedDims.width - templateDims.width) >= 0.5 ||
+              Math.abs(savedDims.height - templateDims.height) >= 0.5;
+            if (dimsMismatch) {
+              const resolved = resolveStandardSheetTypeForLabelDimensions(
+                templateDims.width,
+                templateDims.height,
+                sheetPresets,
+              );
+              if (resolved.custom) {
+                setSheetType("custom");
+                setCustomWidth(resolved.custom.width);
+                setCustomHeight(resolved.custom.height);
+                setCustomCols(resolved.custom.cols);
+                setCustomRows(resolved.custom.rows);
+                setCustomGap(resolved.custom.gap);
+                setSelectedPreset("");
+              } else {
+                setSheetType(resolved.sheetType as SheetType);
+                setSelectedPreset("");
+              }
+            }
+          }
         } else {
           // Template not found - notify user and suggest re-selecting
           console.warn(`Default template "${defaultFormat.defaultTemplate}" not found in saved templates. Available templates:`, dbLabelTemplates.map((t: LabelTemplate) => t.name));
@@ -2910,6 +2943,10 @@ export default function BarcodePrinting() {
       const mergedConfig = ensureCompleteFieldOrder(template.config);
       setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(templateName);
+      const templateDims = resolveTemplateLabelDimensions(template);
+      if (templateDims) {
+        applyStandardSheetForTemplateDims(templateDims.width, templateDims.height);
+      }
       toast.success(`Loaded template "${templateName}"`);
     }
   };
@@ -2974,6 +3011,40 @@ export default function BarcodePrinting() {
       return field && (field.x !== undefined || field.y !== undefined);
     });
   };
+
+  /** Align Standard tab sheet size with template sticker (prevents 1st label split on 50×38 etc.). */
+  const applyStandardSheetForTemplateDims = useCallback(
+    (width: number, height: number, opts?: { force?: boolean }) => {
+      const current =
+        sheetType === "custom"
+          ? { width: customWidth, height: customHeight }
+          : sheetPresetDimensions(sheetPresets, sheetType);
+      const matches =
+        current &&
+        Math.abs(current.width - width) < 0.5 &&
+        Math.abs(current.height - height) < 0.5;
+      if (!opts?.force && matches) return;
+
+      const resolved = resolveStandardSheetTypeForLabelDimensions(
+        width,
+        height,
+        sheetPresets,
+      );
+      if (resolved.custom) {
+        setSheetType("custom");
+        setCustomWidth(resolved.custom.width);
+        setCustomHeight(resolved.custom.height);
+        setCustomCols(resolved.custom.cols);
+        setCustomRows(resolved.custom.rows);
+        setCustomGap(resolved.custom.gap);
+        setSelectedPreset("");
+      } else {
+        setSheetType(resolved.sheetType as SheetType);
+        setSelectedPreset("");
+      }
+    },
+    [sheetType, customWidth, customHeight],
+  );
 
   // Get label dimensions based on current sheet type
   const getLabelDimensions = () => {
@@ -3449,7 +3520,7 @@ export default function BarcodePrinting() {
         const rowsOnPage = Math.ceil((endIdx - startIdx) / dimensions.cols);
 
         const gridDiv = document.createElement("div");
-        gridDiv.className = "label-grid";
+        gridDiv.className = isThermal1Up() ? "label-grid thermal-page" : "label-grid";
         gridDiv.style.cssText = isThermal1Up()
           ? `
               display: block;
@@ -3463,6 +3534,7 @@ export default function BarcodePrinting() {
               padding-bottom: ${bottomOffset}mm;
               padding-right: ${rightOffset}mm;
               box-sizing: border-box;
+              overflow: hidden;
               page-break-inside: avoid;
               break-inside: avoid-page;
               page-break-after: always;
@@ -3640,11 +3712,34 @@ export default function BarcodePrinting() {
       const printEl = document.getElementById("printArea");
       if (printEl?.innerHTML.trim()) {
         const standardCss = `
-          .label-grid { display: block; page-break-after: always; break-after: page; }
-          .label-grid:last-child { page-break-after: auto; break-after: auto; }
+          html, body { margin: 0 !important; padding: 0 !important; width: ${labelW}mm !important; }
+          .label-grid, .thermal-page {
+            display: block !important;
+            width: ${labelW}mm !important;
+            height: ${labelH}mm !important;
+            min-height: ${labelH}mm !important;
+            max-height: ${labelH}mm !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          .label-grid:last-child, .thermal-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
           .label-cell {
-            width: ${labelW}mm; height: ${labelH}mm; overflow: hidden;
-            page-break-inside: avoid; break-inside: avoid-page;
+            width: ${labelW}mm !important;
+            height: ${labelH}mm !important;
+            min-height: ${labelH}mm !important;
+            max-height: ${labelH}mm !important;
+            overflow: hidden !important;
+            position: relative !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid-page !important;
           }
           .label-row { display: flex; flex-wrap: nowrap; }
           svg.barcode { max-width: 100%; height: auto; }
@@ -4584,6 +4679,7 @@ export default function BarcodePrinting() {
                   <SelectItem value="thermal_40x30_1up">40×30mm (small retail)</SelectItem>
                   <SelectItem value="thermal_50x25_1up">50×25mm (standard)</SelectItem>
                   <SelectItem value="thermal_50x30_1up">50×30mm (retail)</SelectItem>
+                  <SelectItem value="thermal_50x38_1up">50×38mm (Ella Noor / garment)</SelectItem>
                   
                   {/* Thermal Roll Presets - 1UP Medium */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Medium</div>
@@ -6131,13 +6227,14 @@ export default function BarcodePrinting() {
             overflow: visible !important;
           }
           
-          #printArea .label-grid {
+          #printArea .label-grid,
+          #printArea .thermal-page {
             ${isThermal1Up() ? `
               display: block !important;
-              width: ${(sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm !important;
-              height: ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
-              min-height: ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
-              max-height: ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm !important;
+              width: ${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm !important;
+              height: ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm !important;
+              min-height: ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm !important;
+              max-height: ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm !important;
               page-break-before: auto !important;
               break-before: auto !important;
               page-break-after: always !important;
@@ -6149,7 +6246,7 @@ export default function BarcodePrinting() {
               padding-bottom: ${bottomOffset}mm !important;
               padding-right: ${rightOffset}mm !important;
               margin: 0 !important;
-              overflow: visible !important;
+              overflow: hidden !important;
               box-sizing: border-box !important;
               position: relative !important;
             ` : `
@@ -6157,7 +6254,8 @@ export default function BarcodePrinting() {
             `}
           }
 
-          #printArea .label-grid:last-child {
+          #printArea .label-grid:last-child,
+          #printArea .thermal-page:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
           }
@@ -6165,7 +6263,7 @@ export default function BarcodePrinting() {
           #printArea .label-cell {
             page-break-inside: avoid;
             break-inside: avoid-page;
-            overflow: ${isThermal1Up() || hasAbsolutePositioning(labelConfig) ? "visible" : "hidden"} !important;
+            overflow: ${isThermal1Up() ? "hidden" : hasAbsolutePositioning(labelConfig) ? "visible" : "hidden"} !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             ${isThermal1Up() ? `
@@ -6182,7 +6280,7 @@ export default function BarcodePrinting() {
             ` : ''}
           }
 
-          ${isThermal1Up() ? `
+          ${isThermal1Up() && hasAbsolutePositioning(labelConfig) ? `
           #printArea .label-cell > div {
             position: absolute !important;
           }
