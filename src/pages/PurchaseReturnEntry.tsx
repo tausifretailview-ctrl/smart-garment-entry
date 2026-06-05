@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { Loader2, CalendarIcon, Trash2, Plus, Search, Barcode } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
+import { entryPageContentClass, entryPageShellClass } from "@/lib/entryPageLayout";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
@@ -1368,9 +1369,13 @@ const PurchaseReturnEntry = () => {
     );
   }
 
+  const displayNetAmount = isDC ? grossAmount - discountAmount : netAmount;
+
   return (
     <>
-    <div className="w-full max-w-none px-2 sm:px-3 lg:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+    <div className={entryPageShellClass} data-entry-form>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className={cn(entryPageContentClass, "space-y-4 sm:space-y-6")}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
@@ -1383,7 +1388,7 @@ const PurchaseReturnEntry = () => {
         <BackToDashboard to="/purchase-returns" label="Back to Returns" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Return Details</CardTitle>
@@ -1868,16 +1873,25 @@ const PurchaseReturnEntry = () => {
           )}
         </CardContent>
       </Card>
-
-      <div className="flex justify-end gap-4">
-        <Button variant="outline" onClick={() => navigate("/purchase-returns")}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={loading}>
-          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isEditMode ? "Update Return" : "Save Return"}
-        </Button>
+        </div>
       </div>
+
+      <footer className="shrink-0 border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-2 sm:px-3 lg:px-4 py-3 flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground hidden sm:block">
+          {lineItems.length === 0
+            ? "No items added yet"
+            : `${lineItems.length} item(s) · Net: ₹${displayNetAmount.toFixed(2)}`}
+        </p>
+        <div className="flex justify-end gap-4 ml-auto">
+          <Button variant="outline" onClick={() => navigate("/purchase-returns")}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isEditMode ? "Update Return" : "Save Return"}
+          </Button>
+        </div>
+      </footer>
     </div>
 
       {/* Draft Resume Dialog */}
