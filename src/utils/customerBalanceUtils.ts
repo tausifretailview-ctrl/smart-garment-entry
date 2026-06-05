@@ -396,7 +396,12 @@ function matchInvoiceIdsFromCustomerReceiptRow(
       if (normalizeSaleNumberToken(num) === token) matched.add(id);
     }
   }
-  if (matched.size === 0 && descLower.includes("inv/")) {
+  // Substring fallback only when no concrete sale-number token was extracted
+  // from the description. Otherwise the receipt clearly references a specific
+  // invoice — and if that invoice isn't in our list, we MUST NOT leak the
+  // payment onto a shorter-numbered invoice whose sale_number happens to be a
+  // substring (e.g. "Payment for INV/26-27/471" attaching to INV/26-27/47).
+  if (matched.size === 0 && descTokens.length === 0 && descLower.includes("inv/")) {
     for (const { id, num } of byNumber) {
       if (descLower.includes(normalizeSaleNumberToken(num).toLowerCase())) matched.add(id);
     }
