@@ -16,12 +16,18 @@ export function isEntryTabPath(pathSegment: string): boolean {
 /** Height reserved for the fixed desktop status bar (see .erp-status-bar in index.css). */
 export const ERP_STATUS_BAR_HEIGHT_CLASS = "lg:pb-[var(--erp-status-bar-height,1.75rem)]";
 
-/** Outer shell for desktop bill entry screens — h-full fits the layout flex slot (not 100vh, which clips the footer on Windows). */
-export const entryPageShellClass =
-  `h-full min-h-0 w-full max-w-none flex flex-col min-w-0 ${ERP_STATUS_BAR_HEIGHT_CLASS}`;
+/**
+ * FullScreenLayout <main> for bill entry — flex column so header/main/footer fill viewport.
+ */
+export const entryPageLayoutMainClass =
+  "flex flex-1 flex-col min-h-0 min-w-0 h-full w-full overflow-hidden";
 
-/** Scrollable bill lines live in <main>; shell must not clip the header toolbar (New / Save). */
-export const entryPageMainClass = "flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden";
+/** Outer shell: header + scrollable lines + footer pinned to bottom (POS-style fixed shell). */
+export const entryPageShellClass =
+  `flex flex-1 flex-col min-h-0 w-full max-w-none ${ERP_STATUS_BAR_HEIGHT_CLASS}`;
+
+/** Line items table scrolls; header/footer sections stay shrink-0. */
+export const entryPageMainClass = "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden";
 
 /** Horizontal padding for entry sections — tighter than px-6 to use screen width */
 export const entryPageSectionX = "px-2 sm:px-3 lg:px-4";

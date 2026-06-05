@@ -18,7 +18,7 @@ import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileS
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
-import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
+import { entryPageLayoutMainClass, isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
 
 interface FullScreenLayoutProps {
@@ -38,13 +38,20 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
     <ChatProvider>
       <DashboardToolbarProvider>
         <MobileScanProvider>
-          <SidebarProvider defaultOpen={false}>
+          <SidebarProvider
+            defaultOpen={false}
+            className={
+              isEntryFullscreenPage
+                ? "min-h-0 h-full max-h-full overflow-hidden"
+                : undefined
+            }
+          >
             <OfflineIndicator />
 
             <div
               className={
                 isEntryFullscreenPage
-                  ? "flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-background"
+                  ? "flex h-full min-h-0 max-h-full w-full flex-1 overflow-hidden bg-background"
                   : "flex min-h-screen w-full bg-background"
               }
             >
@@ -77,7 +84,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                 <main
                   className={
                     isEntryFullscreenPage
-                      ? `${mobileFullscreenMainClass} w-full min-w-0 animate-fade-in`
+                      ? `${entryPageLayoutMainClass} animate-fade-in`
                       : `${mobileMainContentClass} animate-fade-in`
                   }
                 >

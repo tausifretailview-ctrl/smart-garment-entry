@@ -5,7 +5,16 @@ import { useEffect } from "react";
  * zoomed out / clipped). Minimize→restore triggers resize and fixes layout — this hook
  * does the same sync on mount, focus, and visibility without user action.
  */
+const ENTRY_BILL_BODY_CLASS = "entry-bill-screen";
+
 export function useEntryViewportSync(): void {
+  useEffect(() => {
+    document.body.classList.add(ENTRY_BILL_BODY_CLASS);
+    return () => {
+      document.body.classList.remove(ENTRY_BILL_BODY_CLASS);
+    };
+  }, []);
+
   useEffect(() => {
     const sync = () => {
       const root = document.documentElement;

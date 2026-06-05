@@ -175,16 +175,29 @@ export const OrgLayout = () => {
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 w-full h-full min-h-[100dvh] lg:min-h-0 lg:h-[100dvh]">
+    <div
+      className={
+        isEntryPage
+          ? "flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden"
+          : "flex min-h-[100dvh] w-full flex-col"
+      }
+    >
       <GlobalShortcuts />
-      {tabPaths.length > 0 && (
+      {/* Hidden while on bill entry — otherwise flex-1 splits viewport and footer floats mid-screen */}
+      {tabPaths.length > 0 && !isEntryPage && (
         <TabCachedPages
           paths={tabPaths}
           activePath={renderViaTabCache ? currentPath : ""}
         />
       )}
       {!renderViaTabCache && (
-        <div className={isEntryPage ? "flex flex-1 flex-col min-h-0 min-w-0 h-full w-full" : "contents"}>
+        <div
+          className={
+            isEntryPage
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
+              : "contents"
+          }
+        >
           <Outlet />
         </div>
       )}

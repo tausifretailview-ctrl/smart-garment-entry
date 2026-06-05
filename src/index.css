@@ -589,6 +589,33 @@ All colors MUST be HSL.
     max-width: 100%;
   }
 
+  /* Bill entry — no page scroll; only the line-items grid scrolls inside <main> */
+  body.entry-bill-screen,
+  body.entry-bill-screen #root {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  [data-entry-form] {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-entry-form] > header,
+  [data-entry-form] > footer {
+    flex-shrink: 0;
+  }
+
+  [data-entry-form] > main {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .erp-status-bar .status-item {
     @apply flex items-center gap-1 opacity-90;
   }
