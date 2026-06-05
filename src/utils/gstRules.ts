@@ -5,8 +5,9 @@
  * attract 18% GST instead of 5%. Threshold is configurable per-org.
  *
  * Behaviour:
- *  - When effective price > threshold => bumps current GST up to 18% (if lower).
- *  - When effective price <= threshold => restores GST to baseGst (purchase GST).
+ *  - When effective price > threshold => bumps Sale GST up to 18% (if lower).
+ *  - When effective price <= threshold => keeps configured Sale GST % (e.g. 5%).
+ *  - Purchase GST is not forced onto sale lines when Sale GST was set separately.
  *  - Manual selections higher than 18% are always preserved.
  *  - "Effective price" should be the post-discount per-unit price (net unit price),
  *    not raw MRP — so discount-driven downgrades work (e.g. MRP 3000 -20% = 2400).
@@ -92,7 +93,9 @@ export function getEffectiveUnitSalePrice(params: {
 }
 
 /**
- * Resolve Sale GST % for a line using purchase GST as the sub-threshold base.
+ * Resolve Sale GST % for a line.
+ * Sub-threshold: configured Sale GST (falls back to Purchase GST only when Sale is unset).
+ * Above threshold: auto-bump to 18% when rule enabled.
  */
 export function resolveGarmentGstForLine(
   effectiveUnitPrice: number,
@@ -100,7 +103,22 @@ export function resolveGarmentGstForLine(
   saleGst: number,
   settings?: GarmentGstRuleSettings | null
 ): number {
-  const base = Number(purchaseGst) || 0;
-  const sale = Number(saleGst) || base;
-  return applyGarmentGstRule(effectiveUnitPrice, sale, settings, base);
+  const purchase = Number(purchaseGst) || 0;
+  const sale = Number(saleGst);
+  const hasExplicitSale =
+    saleGst !== null && saleGst !== undefined && !Number.isNaN(sale);
+  const subThresholdGst = hasExplicitSale ? sale : purchase;
+
+  if (!isGarmentGstRuleEnabled(settings)) {
+    return subThresholdGst;
+  }
+
+  const threshold = getGarmentGstThreshold(settings);
+  const price = Number(effectiveUnitPrice) || 0;
+
+  if (price > threshold && subThresholdGst < GARMENT_BUMPED_GST) {
+    return GARMENT_BUMPED_GST;
+  }
+
+  return subThresholdGst;
 }

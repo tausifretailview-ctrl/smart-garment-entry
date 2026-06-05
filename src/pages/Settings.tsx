@@ -1713,7 +1713,7 @@ export default function Settings() {
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         When sale price exceeds the threshold below, Sale GST % auto-changes to 18%.
-                        Below or equal, it follows Purchase GST %. Manual GST &gt; 18% is preserved.
+                        Below or equal to the threshold, configured Sale GST % is kept (e.g. 5%). Manual GST &gt; 18% is preserved.
                       </p>
                     </div>
                     <Switch

@@ -2353,7 +2353,7 @@ export default function POSSales() {
         mrp: displayMrp,
         originalMrp: mrpToUse,
         purchaseGstPer: product.purchase_gst_percent ?? product.gst_per ?? 0,
-        gstPer: product.sale_gst_percent || product.gst_per || 0,
+        gstPer: product.sale_gst_percent ?? product.gst_per ?? 0,
         discountPercent: useMrpAsPrice ? 0 : discountPercent,
         discountAmount,
         unitCost: useMrpAsPrice ? displayMrp : salePrice,
