@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -74,10 +74,30 @@ export default function Accounts() {
   const { summary: receivablesSummary } = useOrganizationReceivablesSummary(currentOrganization?.id);
   const queryClient = useQueryClient();
   const { isAdmin, isPlatformAdmin } = useUserRoles();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get("tab");
   const urlCustomerId = searchParams.get("customer");
   const [selectedTab, setSelectedTab] = useState(urlTab || "customer-ledger");
+
+  const handleAccountsTabChange = useCallback(
+    (tab: string) => {
+      setSelectedTab(tab);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("tab", tab);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  useEffect(() => {
+    const tab = urlTab || "customer-ledger";
+    if (tab !== selectedTab) setSelectedTab(tab);
+  }, [urlTab, selectedTab]);
 
   // Card filter state
   const [paymentCardFilter, setPaymentCardFilter] = useState<string | null>(null);
@@ -670,7 +690,7 @@ export default function Accounts() {
 
   const handleCardClick = (filter: string | null) => {
     setPaymentCardFilter(filter);
-    setSelectedTab("customer-ledger");
+    handleAccountsTabChange("customer-ledger");
   };
 
   const isMobile = useIsMobile();
@@ -721,7 +741,7 @@ export default function Accounts() {
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setSelectedTab(t.id)}
+              onClick={() => handleAccountsTabChange(t.id)}
               className={cn(
                 "flex-shrink-0 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all touch-manipulation",
                 selectedTab === t.id ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground"
@@ -954,7 +974,7 @@ export default function Accounts() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex flex-col flex-1 min-h-0 gap-0">
+      <Tabs value={selectedTab} onValueChange={handleAccountsTabChange} className="flex flex-col flex-1 min-h-0 gap-0">
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm shrink-0 overflow-hidden">
           <TabsList className="w-full h-auto p-0 bg-slate-50/80 border-b border-slate-100 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
           <TabsTrigger value="customer-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Customer Ledger</TabsTrigger>
@@ -971,7 +991,7 @@ export default function Accounts() {
         </div>
 
         <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3">
-        <TabsContent value="customer-ledger" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="customer-ledger" forceMount className="mt-0 space-y-4 outline-none">
           {currentOrganization?.id && (
             <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
           )}

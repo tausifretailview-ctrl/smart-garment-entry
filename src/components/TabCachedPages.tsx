@@ -29,7 +29,12 @@ const MIN_KEEP_TABS = 3;
 const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
 
 /** Live working screens — never auto-unmount (cart, bill entry, unsaved-work proxy). */
-const EXPLICIT_PROTECTED_TAB_PATHS = new Set(["pos-sales", "product-entry"]);
+const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
+  "pos-sales",
+  "product-entry",
+  "accounts",
+  "customers",
+]);
 
 function isProtectedTabPath(path: string): boolean {
   return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isEntryTabPath(path);

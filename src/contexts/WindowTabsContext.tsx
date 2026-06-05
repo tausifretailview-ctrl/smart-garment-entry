@@ -16,6 +16,8 @@ interface WindowTab {
   path: string;
   label: string;
   icon: string;
+  /** Last query string for this window tab (e.g. ?tab=customer-ledger&customer=uuid). */
+  search?: string;
 }
 
 interface WindowTabsContextType {
@@ -127,6 +129,15 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     return !permission || permissions === null || hasMenuAccess(permission);
   }, [hasMenuAccess, permissions, permissionsLoading]);
 
+  const navigateToWindowPath = useCallback(
+    (path: string, windows: WindowTab[] = openWindows) => {
+      const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+      const savedSearch = windows.find((w) => w.path === cleanPath)?.search || "";
+      navigate(getOrgPath(`/${cleanPath}`) + savedSearch);
+    },
+    [navigate, getOrgPath, openWindows],
+  );
+
   // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(openWindows));
@@ -163,7 +174,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     getOrgPath,
   ]);
 
-  // Update active window on location change and auto-add to tabs
+  // Update active window on location change, persist query string per tab, auto-add to tabs
   useEffect(() => {
     const currentPath = getCurrentPath();
     setActiveWindow(currentPath);
@@ -173,15 +184,30 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       prefetchTabPage("");
     }
     
-    // Auto-add current page to open windows if not already there
+    // Auto-add current page to open windows if not already there; keep each tab's last ?query
     if (currentPath && PAGE_CONFIG[currentPath] && canAccessPath(currentPath)) {
       const config = PAGE_CONFIG[currentPath];
-      const exists = openWindows.some(w => w.path === currentPath);
-      if (!exists && openWindows.length < MAX_WINDOWS) {
-        setOpenWindows(prev => [...prev, { path: currentPath, label: config.label, icon: config.icon }]);
-      }
+      const currentSearch = location.search || undefined;
+      setOpenWindows((prev) => {
+        const exists = prev.some((w) => w.path === currentPath);
+        if (!exists && prev.length < MAX_WINDOWS) {
+          return [
+            ...prev,
+            { path: currentPath, label: config.label, icon: config.icon, search: currentSearch },
+          ];
+        }
+        if (!exists) return prev;
+        let changed = false;
+        const next = prev.map((w) => {
+          if (w.path !== currentPath) return w;
+          if (w.search === currentSearch) return w;
+          changed = true;
+          return { ...w, search: currentSearch };
+        });
+        return changed ? next : prev;
+      });
     }
-  }, [location.pathname, getCurrentPath, canAccessPath]);
+  }, [location.pathname, location.search, getCurrentPath, canAccessPath]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -196,7 +222,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
             ? (currentIndex - 1 + allowedWindows.length) % allowedWindows.length
             : (currentIndex + 1) % allowedWindows.length;
           const nextWindow = allowedWindows[nextIndex];
-          navigate(getOrgPath(`/${nextWindow.path}`));
+          navigateToWindowPath(nextWindow.path, allowedWindows);
         }
       }
       
@@ -213,7 +239,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
         const idx = parseInt(e.key, 10) - 1;
         if (idx < allowedWindows.length) {
           e.preventDefault();
-          navigate(getOrgPath(`/${allowedWindows[idx].path}`));
+          navigateToWindowPath(allowedWindows[idx].path, allowedWindows);
         }
       }
 
@@ -233,12 +259,15 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     if (!config || !canAccessPath(cleanPath)) return;
 
     prefetchTabPage(cleanPath);
-    const exists = openWindows.some(w => w.path === cleanPath);
-    if (!exists && openWindows.length < MAX_WINDOWS) {
-      setOpenWindows(prev => [...prev, { path: cleanPath, label: config.label, icon: config.icon }]);
+    const existing = openWindows.find((w) => w.path === cleanPath);
+    if (!existing && openWindows.length < MAX_WINDOWS) {
+      setOpenWindows((prev) => [
+        ...prev,
+        { path: cleanPath, label: config.label, icon: config.icon },
+      ]);
     }
-    navigate(getOrgPath(`/${cleanPath}`));
-  }, [openWindows, navigate, getOrgPath, canAccessPath]);
+    navigateToWindowPath(cleanPath);
+  }, [openWindows, navigateToWindowPath, canAccessPath]);
 
   const closeWindow = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
@@ -249,15 +278,15 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     if (cleanPath === activeWindow && newWindows.length > 0) {
       const closedIndex = openWindows.findIndex(w => w.path === cleanPath);
       const nextWindow = newWindows[Math.max(0, closedIndex - 1)];
-      navigate(getOrgPath(`/${nextWindow.path}`));
+      navigateToWindowPath(nextWindow.path, newWindows);
     }
-  }, [openWindows, activeWindow, navigate, getOrgPath]);
+  }, [openWindows, activeWindow, navigateToWindowPath]);
 
   const switchWindow = useCallback((path: string) => {
     if (!canAccessPath(path)) return;
     prefetchTabPage(path);
-    navigate(getOrgPath(`/${path}`));
-  }, [navigate, getOrgPath, canAccessPath]);
+    navigateToWindowPath(path);
+  }, [navigateToWindowPath, canAccessPath]);
 
   const isWindowOpen = useCallback((path: string) => {
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;

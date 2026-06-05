@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
@@ -219,8 +220,29 @@ function LedgerTableTotalsFooter({
 }
 
 export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
+  const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  const selectCustomer = useCallback(
+    (customer: Customer | null) => {
+      setSelectedCustomer(customer);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (customer) {
+            next.set("customer", customer.id);
+            if (!next.get("tab")) next.set("tab", "customer-ledger");
+          } else {
+            next.delete("customer");
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(paymentFilter || "all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -3622,7 +3644,7 @@ Please clear your dues at the earliest. Thank you!`;
             className="h-9 shrink-0"
             onClick={() => {
               setShowOverpaymentRefundDialog(false);
-              setSelectedCustomer(null);
+              selectCustomer(null);
             }}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -5549,7 +5571,7 @@ Please clear your dues at the earliest. Thank you!`;
                   <Card 
                     key={customer.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => setSelectedCustomer(customer)}
+                    onClick={() => selectCustomer(customer)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
@@ -5608,7 +5630,7 @@ Please clear your dues at the earliest. Thank you!`;
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedCustomer(customer);
+                            selectCustomer(customer);
                           }}
                         >
                           View Ledger
@@ -5652,7 +5674,7 @@ Please clear your dues at the earliest. Thank you!`;
                       <TableRow 
                         key={customer.id}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setSelectedCustomer(customer)}
+                        onClick={() => selectCustomer(customer)}
                       >
                         <TableCell className="font-medium">
                           <button
@@ -5712,7 +5734,7 @@ Please clear your dues at the earliest. Thank you!`;
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedCustomer(customer);
+                              selectCustomer(customer);
                             }}
                           >
                             View Ledger
