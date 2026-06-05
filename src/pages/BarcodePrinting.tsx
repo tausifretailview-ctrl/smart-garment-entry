@@ -6184,7 +6184,7 @@ export default function BarcodePrinting() {
 
         @page { 
           size: ${isThermal1Up() 
-            ? `${(sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)) + leftOffset + rightOffset}mm ${(sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)) + topOffset + bottomOffset}mm` 
+            ? `${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm ${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm` 
             : 'A4 portrait'}; 
           margin: ${isThermal1Up() ? '0mm' : `${topOffset}mm ${rightOffset}mm ${bottomOffset}mm ${leftOffset}mm`} !important;
         }
