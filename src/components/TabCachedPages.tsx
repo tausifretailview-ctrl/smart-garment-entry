@@ -1,19 +1,23 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle } from "lucide-react";
 import {
   getLazyTabPage,
   TAB_PAGE_REGISTRY,
   isTabCachePath,
   prefetchTabPage,
   prefetchTabPagesIdle,
+  resetTabPageChunk,
   type TabPageLayout,
   type TabPageRole,
 } from "@/lib/tabPageRegistry";
 import { isEntryTabPath } from "@/lib/entryPageLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
+import { TabPaneErrorBoundary } from "@/components/TabPaneErrorBoundary";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
@@ -32,12 +36,60 @@ function isProtectedTabPath(path: string): boolean {
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
+/** Match SalesmanLayout — never spin forever on slow desktop WebView / many open tabs. */
+const TAB_LOAD_TIMEOUT_MS = 8_000;
 
-function TabPageFallback({ active, path }: { active: boolean; path: string }) {
+function TabPageFallback({
+  active,
+  path,
+  onRetry,
+}: {
+  active: boolean;
+  path: string;
+  onRetry: () => void;
+}) {
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (!active) {
+      setTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      console.warn(`[TabCachedPages] Load timeout for tab: ${path || "dashboard"}`);
+      setTimedOut(true);
+    }, TAB_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [active, path]);
+
   if (!active) return null;
-  if (DASHBOARD_TAB_PATHS.has(path)) {
+
+  if (DASHBOARD_TAB_PATHS.has(path) && !timedOut) {
     return <DashboardSkeleton />;
   }
+
+  if (timedOut) {
+    return (
+      <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center p-6">
+        <div className="text-center space-y-3 max-w-sm">
+          <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto" />
+          <p className="text-sm font-medium">Taking longer than expected</p>
+          <p className="text-xs text-muted-foreground">
+            This page is still loading. Retry the tab or refresh the app.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button size="sm" onClick={onRetry}>
+              Retry tab
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+              Refresh app
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center">
       <div className="h-7 w-7 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -67,13 +119,26 @@ function CachedTabPane({
   roles?: TabPageRole[];
   layout: TabPageLayout;
 }) {
+  const [loadKey, setLoadKey] = useState(0);
+
+  const retryTabLoad = useCallback(() => {
+    resetTabPageChunk(path);
+    prefetchTabPage(path);
+    setLoadKey((k) => k + 1);
+  }, [path]);
+
   const LazyPage = getLazyTabPage(path);
   if (!LazyPage) return null;
 
   const page = (
-    <Suspense fallback={<TabPageFallback active={active} path={path} />}>
-      <LazyPage />
-    </Suspense>
+    <TabPaneErrorBoundary tabPath={path} onRetry={retryTabLoad}>
+      <Suspense
+        key={loadKey}
+        fallback={<TabPageFallback active={active} path={path} onRetry={retryTabLoad} />}
+      >
+        <LazyPage />
+      </Suspense>
+    </TabPaneErrorBoundary>
   );
 
   const withLayout = wrapWithLayout(layout, page);
@@ -206,6 +271,14 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);
   }, [uniquePaths, activePath]);
+
+  // Electron: warm heavy admin chunks as soon as the tab is opened (not idle-batched).
+  useEffect(() => {
+    if (!electronSingleTab) return;
+    if (activePath === "settings" || uniquePaths.includes("settings")) {
+      prefetchTabPage("settings");
+    }
+  }, [activePath, uniquePaths, electronSingleTab]);
 
   if (uniquePaths.length === 0) return null;
 

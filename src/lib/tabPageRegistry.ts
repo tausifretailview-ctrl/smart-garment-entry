@@ -131,6 +131,12 @@ export function prefetchTabPage(path: string): void {
   prefetchCache.set(path, promise);
 }
 
+/** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
+export function resetTabPageChunk(path: string): void {
+  prefetchCache.delete(path);
+  lazyCache.delete(path);
+}
+
 /** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */
 export function prefetchPostLoginCriticalPages(): void {
   POST_LOGIN_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);

@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
+const ROLE_FETCH_TIMEOUT_MS = 8_000;
+
 export const useUserRoles = (organizationId?: string) => {
   const { user } = useAuth();
   const [roles, setRoles] = useState<AppRole[]>([]);
@@ -17,9 +19,21 @@ export const useUserRoles = (organizationId?: string) => {
   useEffect(() => {
     // Reset retry count on dependency change
     retryCountRef.current = 0;
+    let cancelled = false;
+    let fetchTimedOut = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const loadTimeout = window.setTimeout(() => {
+      if (cancelled) return;
+      fetchTimedOut = true;
+      console.warn("useUserRoles: fetch timed out after", ROLE_FETCH_TIMEOUT_MS, "ms");
+      setError(new Error("Permission check timed out"));
+      setRoles([]);
+      setLoading(false);
+    }, ROLE_FETCH_TIMEOUT_MS);
     
     const fetchRoles = async () => {
       if (!user) {
+        if (cancelled || fetchTimedOut) return;
         setRoles([]);
         setLoading(false);
         setError(null);
@@ -27,6 +41,8 @@ export const useUserRoles = (organizationId?: string) => {
       }
 
       try {
+        if (cancelled || fetchTimedOut) return;
+        setLoading(true);
         setError(null);
         
         // Fetch global user roles
@@ -35,6 +51,7 @@ export const useUserRoles = (organizationId?: string) => {
           .select("role")
           .eq("user_id", user.id);
 
+        if (cancelled || fetchTimedOut) return;
         if (globalError) throw globalError;
 
         const allRoles: AppRole[] = globalRoles?.map((r: any) => r.role as AppRole) || [];
@@ -57,10 +74,13 @@ export const useUserRoles = (organizationId?: string) => {
           }
         }
 
+        if (cancelled || fetchTimedOut) return;
+        window.clearTimeout(loadTimeout);
         setRoles(allRoles);
         setLoading(false);
         retryCountRef.current = 0; // Reset on success
       } catch (err: any) {
+        if (cancelled || fetchTimedOut) return;
         // Only log in development
         if (import.meta.env.DEV) {
           console.error("Error fetching roles:", err);
@@ -75,10 +95,11 @@ export const useUserRoles = (organizationId?: string) => {
         if (isNetworkError && retryCountRef.current < maxRetries) {
           retryCountRef.current++;
           const delay = 1000 * Math.pow(2, retryCountRef.current - 1); // 1s, 2s, 4s
-          setTimeout(fetchRoles, delay);
+          retryTimer = setTimeout(fetchRoles, delay);
           return;
         }
         
+        window.clearTimeout(loadTimeout);
         setError(err);
         setRoles([]);
         setLoading(false);
@@ -86,6 +107,12 @@ export const useUserRoles = (organizationId?: string) => {
     };
 
     fetchRoles();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadTimeout);
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [user, organizationId]);
 
   const hasRole = (role: AppRole) => roles.includes(role);

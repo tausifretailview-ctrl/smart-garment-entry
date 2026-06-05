@@ -3,6 +3,8 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 const CHUNK_RELOAD_KEY = "chunk_reload_count";
 const MAX_IMPORT_RETRIES = 3;
 const RETRY_BASE_MS = 350;
+/** Per-attempt ceiling so a hung dynamic import cannot block Suspense forever. */
+export const MODULE_LOAD_TIMEOUT_MS = 25_000;
 
 /** Paths prefetched right after org login so first bill open does not cold-load a large chunk. */
 export const POST_LOGIN_PREFETCH_TAB_PATHS = [
@@ -26,8 +28,30 @@ export function isChunkLoadError(error: unknown): boolean {
     msg.includes("Importing a module script failed") ||
     msg.includes("error loading dynamically imported module") ||
     msg.includes("Loading chunk") ||
-    msg.includes("Loading CSS chunk")
+    msg.includes("Loading CSS chunk") ||
+    msg.includes("Module load timed out")
   );
+}
+
+function importWithTimeout<T>(
+  importFn: () => Promise<T>,
+  timeoutMs = MODULE_LOAD_TIMEOUT_MS,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error("Module load timed out"));
+    }, timeoutMs);
+
+    importFn()
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
 }
 
 /**
@@ -39,7 +63,7 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
 
   for (let attempt = 0; attempt < MAX_IMPORT_RETRIES; attempt++) {
     try {
-      return await importFn();
+      return await importWithTimeout(importFn);
     } catch (error) {
       lastError = error;
       if (!isChunkLoadError(error) || attempt >= MAX_IMPORT_RETRIES - 1) {

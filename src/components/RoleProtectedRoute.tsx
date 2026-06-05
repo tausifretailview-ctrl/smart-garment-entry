@@ -1,8 +1,11 @@
+import { useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+const ROLE_LOAD_TIMEOUT_MS = 8_000;
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
@@ -27,12 +30,45 @@ export const RoleProtectedRoute = ({
   const { roles, loading, error } = useUserRoles(
     isPlatformAdminOnly ? undefined : currentOrganization?.id
   );
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const isWaiting = loading || (!isPlatformAdminOnly && orgLoading);
+
+  useEffect(() => {
+    if (!isWaiting) {
+      setLoadingTimedOut(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      console.warn("RoleProtectedRoute: permission check timed out");
+      setLoadingTimedOut(true);
+    }, ROLE_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [isWaiting]);
 
   // For platform admin routes, don't wait for org context
-  if (loading || (!isPlatformAdminOnly && orgLoading)) {
+  if (isWaiting && !loadingTimedOut) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isWaiting && loadingTimedOut) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="text-center space-y-3 max-w-sm">
+          <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto" />
+          <p className="text-sm font-medium">Permission check is taking too long</p>
+          <p className="text-xs text-muted-foreground">
+            Unable to verify access. Retry or refresh the app.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button size="sm" onClick={() => window.location.reload()}>
+              Retry
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

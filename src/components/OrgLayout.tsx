@@ -56,16 +56,19 @@ export const OrgLayout = () => {
     return prefetchTabPagesIdle(tabPaths, isEntryPage ? "" : currentPath);
   }, [tabPaths, currentPath, isEntryPage]);
 
-  // Warm bill-entry chunks after login. Electron: only POS + dashboard — full prefetch can OOM the renderer.
+  // Warm bill-entry chunks after login. Electron: only POS + dashboard (+ open admin tabs).
   useEffect(() => {
     if (!isOrgSynced || !user) return;
     if (shouldElectronMountOnlyActiveTab()) {
       prefetchTabPage("pos-sales");
       prefetchTabPage("");
+      if (tabPaths.includes("settings")) {
+        prefetchTabPage("settings");
+      }
       return;
     }
     prefetchPostLoginCriticalPages();
-  }, [isOrgSynced, user]);
+  }, [isOrgSynced, user, tabPaths]);
 
   // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.
   const renderViaTabCache =
