@@ -19,7 +19,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -1444,20 +1444,30 @@ export function CustomerPaymentTab({
                 ) : (
                   <>
                     <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
+                      {((customerInvoices?.length ?? 0) > 0 || openingBalanceRemaining > 0) && (
+                        <div className="grid grid-cols-[auto_minmax(0,1fr)_4.5rem_3.5rem_5.5rem_auto] gap-x-2 gap-y-0 px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
+                          <span className="w-4" />
+                          <span>Invoice</span>
+                          <span className="text-center">Date</span>
+                          <span className="text-center">Days</span>
+                          <span className="text-right">Pending</span>
+                          <span className="w-28" />
+                        </div>
+                      )}
                       {openingBalanceRemaining > 0 && (() => {
                         const isSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
                         return (
                           <div
                             key={OPENING_BALANCE_ID}
-                            className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-amber-100/60 dark:bg-amber-900/20 border border-amber-400/40" : "hover:bg-muted")}
+                            className={cn("grid grid-cols-[auto_minmax(0,1fr)_4.5rem_3.5rem_5.5rem_auto] gap-x-2 items-center p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-amber-100/60 dark:bg-amber-900/20 border border-amber-400/40" : "hover:bg-muted")}
                             onClick={() => setSelectedInvoiceIds(prev => prev.includes(OPENING_BALANCE_ID) ? prev.filter(id => id !== OPENING_BALANCE_ID) : [...prev, OPENING_BALANCE_ID])}
                           >
                             <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                            <div className="flex-1 flex justify-between items-center">
-                              <span className="font-medium text-amber-700 dark:text-amber-400">Opening Balance</span>
-                              <span className="text-sm text-muted-foreground">—</span>
-                              <Badge variant="destructive">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
-                            </div>
+                            <span className="font-medium text-amber-700 dark:text-amber-400 truncate">Opening Balance</span>
+                            <span className="text-sm text-muted-foreground text-center">—</span>
+                            <span className="text-sm text-muted-foreground text-center">—</span>
+                            <Badge variant="destructive" className="justify-self-end">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
+                            <span />
                           </div>
                         );
                       })()}
@@ -1467,8 +1477,11 @@ export function CustomerPaymentTab({
                         const isSelected = selectedInvoiceIds.includes(invoice.id);
                         const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
                         const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime()) ? format(invoiceDate, "dd/MM/yy") : "-";
+                        const pendingDays = invoiceDate && !Number.isNaN(invoiceDate.getTime())
+                          ? Math.max(0, differenceInDays(voucherDate, invoiceDate))
+                          : null;
                         return (
-                          <div key={invoice.id} className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted")}
+                          <div key={invoice.id} className={cn("grid grid-cols-[auto_minmax(0,1fr)_4.5rem_3.5rem_5.5rem_auto] gap-x-2 items-center p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted")}
                             onClick={() => {
                               setSelectedInvoiceIds(prev => {
                                 const exists = prev.includes(invoice.id);
@@ -1485,29 +1498,43 @@ export function CustomerPaymentTab({
                               });
                             }}>
                             <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                            <div className="flex-1 flex justify-between items-center gap-3">
-                              <span className="font-medium">{invoice.sale_number}</span>
-                              <span className="text-sm text-muted-foreground">{invoiceDateText}</span>
-                              <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"}>₹{roundedBalance.toFixed(2)}</Badge>
-                              {isSelected && (
-                                <Input
-                                  type="number"
-                                  step="1"
-                                  className="h-8 w-28"
-                                  value={allocatedAmounts[invoice.id] ?? roundedBalance.toFixed(2)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => {
-                                    const raw = e.target.value;
-                                    if (raw === "") {
-                                      setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
-                                      return;
-                                    }
-                                    const next = Math.min(roundedBalance, roundToRupee(raw));
-                                    setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
-                                  }}
-                                />
+                            <span className="font-medium truncate">{invoice.sale_number}</span>
+                            <span className="text-sm text-muted-foreground text-center">{invoiceDateText}</span>
+                            <span
+                              className={cn(
+                                "text-sm text-center font-mono tabular-nums",
+                                pendingDays === null
+                                  ? "text-muted-foreground"
+                                  : pendingDays > 30
+                                    ? "text-destructive font-medium"
+                                    : pendingDays > 7
+                                      ? "text-amber-600 dark:text-amber-400"
+                                      : "text-muted-foreground",
                               )}
-                            </div>
+                            >
+                              {pendingDays !== null ? `${pendingDays}d` : "—"}
+                            </span>
+                            <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"} className="justify-self-end">₹{roundedBalance.toFixed(2)}</Badge>
+                            {isSelected ? (
+                              <Input
+                                type="number"
+                                step="1"
+                                className="h-8 w-28"
+                                value={allocatedAmounts[invoice.id] ?? roundedBalance.toFixed(2)}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  if (raw === "") {
+                                    setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
+                                    return;
+                                  }
+                                  const next = Math.min(roundedBalance, roundToRupee(raw));
+                                  setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
+                                }}
+                              />
+                            ) : (
+                              <span />
+                            )}
                           </div>
                         );
                       })}
