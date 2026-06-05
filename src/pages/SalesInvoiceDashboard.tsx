@@ -580,7 +580,7 @@ export default function SalesInvoiceDashboard() {
     [queryDateRange.start, queryDateRange.end],
   );
 
-  // Single filtered fetch for table + summary tiles (avoids duplicate full-month sales scans).
+  // Invoice table rows (one filtered fetch). Summary tiles use invoice-dashboard-reconciled-stats RPC.
   const {
     data: dashboardUnified,
     isLoading,
@@ -634,8 +634,54 @@ export default function SalesInvoiceDashboard() {
     refetchOnMount: true,
   });
 
+  const { data: reconciledStats } = useQuery({
+    queryKey: [
+      "invoice-dashboard-reconciled-stats",
+      currentOrganization?.id,
+      debouncedSearch,
+      deliveryFilter,
+      paymentStatusFilter,
+      shopFilter,
+      userFilter,
+      queryDateRange.start,
+      queryDateRange.end,
+    ],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase.rpc("get_invoice_dashboard_stats", {
+        p_organization_id: currentOrganization.id,
+        p_date_from: saleDateFilter.start,
+        p_date_to: saleDateFilter.end,
+        p_filters: {
+          search: debouncedSearch,
+          deliveryFilter,
+          paymentStatusFilter,
+          shopFilter,
+          userFilter,
+          voucherDateFrom: queryDateRange.start,
+          voucherDateTo: queryDateRange.end,
+        },
+      });
+      if (error) throw error;
+      return data as {
+        totalInvoices: number;
+        totalAmount: number;
+        totalDiscount: number;
+        totalQty: number;
+        pendingAmount: number;
+        deliveredCount: number;
+        deliveredAmount: number;
+        undeliveredCount: number;
+        undeliveredAmount: number;
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: STALE_PAGINATED,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+  });
+
   const allInvoicesData = dashboardUnified?.invoices || [];
-  const reconciledStats = dashboardUnified?.stats;
   const totalCount = allInvoicesData.length;
   const invoicesData = useMemo(() => {
     const from = (currentPage - 1) * itemsPerPage;
@@ -874,6 +920,7 @@ export default function SalesInvoiceDashboard() {
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
@@ -901,6 +948,7 @@ export default function SalesInvoiceDashboard() {
       setInvoiceToCancel(null);
       setCancelReason('');
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
@@ -924,6 +972,7 @@ export default function SalesInvoiceDashboard() {
       }
       setInvoiceToHardDelete(null);
       queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
@@ -1140,6 +1189,7 @@ export default function SalesInvoiceDashboard() {
     if (!st?.refreshSalesList) return;
     setCurrentPage(1);
     void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
+    void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-reconciled-stats'] });
     window.history.replaceState({}, document.title);
   }, [location.state, queryClient]);
 
