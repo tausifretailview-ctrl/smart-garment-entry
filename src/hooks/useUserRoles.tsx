@@ -1,119 +1,130 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  PERMISSION_VERIFY_BACKOFF_MS,
+  isTransientPermissionError,
+  refreshAuthSessionQuietly,
+  sleep,
+  withAttemptTimeout,
+} from "@/lib/resilientPermissionVerify";
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
-const ROLE_FETCH_TIMEOUT_MS = 8_000;
+const MAX_VERIFY_ATTEMPTS = PERMISSION_VERIFY_BACKOFF_MS.length + 1;
+
+async function loadUserRolesOnce(
+  userId: string,
+  organizationId?: string,
+): Promise<AppRole[]> {
+  return withAttemptTimeout(async () => {
+    const { data: globalRoles, error: globalError } = await (supabase as any)
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    if (globalError) throw globalError;
+
+    const allRoles: AppRole[] = globalRoles?.map((r: any) => r.role as AppRole) || [];
+
+    const orgId =
+      organizationId ||
+      localStorage.getItem(`currentOrgId_${userId}`) ||
+      localStorage.getItem("selectedOrgId");
+
+    if (orgId) {
+      const { data: orgMember, error: orgError } = await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+
+      if (!orgError && orgMember?.role && !allRoles.includes(orgMember.role as AppRole)) {
+        allRoles.push(orgMember.role as AppRole);
+      }
+    }
+
+    return allRoles;
+  });
+}
 
 export const useUserRoles = (organizationId?: string) => {
   const { user } = useAuth();
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
-  // Track retry count with ref to persist across effect runs
-  const retryCountRef = useRef(0);
-  const maxRetries = 3;
+  const [verifyGeneration, setVerifyGeneration] = useState(0);
+  const runIdRef = useRef(0);
+
+  const refetch = useCallback(() => {
+    setVerifyGeneration((g) => g + 1);
+  }, []);
 
   useEffect(() => {
-    // Reset retry count on dependency change
-    retryCountRef.current = 0;
+    const runId = ++runIdRef.current;
     let cancelled = false;
-    let fetchTimedOut = false;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    const loadTimeout = window.setTimeout(() => {
-      if (cancelled) return;
-      fetchTimedOut = true;
-      console.warn("useUserRoles: fetch timed out after", ROLE_FETCH_TIMEOUT_MS, "ms");
-      setError(new Error("Permission check timed out"));
-      setRoles([]);
-      setLoading(false);
-    }, ROLE_FETCH_TIMEOUT_MS);
-    
-    const fetchRoles = async () => {
+
+    const verifyRoles = async () => {
       if (!user) {
-        if (cancelled || fetchTimedOut) return;
+        if (cancelled || runId !== runIdRef.current) return;
         setRoles([]);
         setLoading(false);
         setError(null);
         return;
       }
 
-      try {
-        if (cancelled || fetchTimedOut) return;
-        setLoading(true);
-        setError(null);
-        
-        // Fetch global user roles
-        const { data: globalRoles, error: globalError } = await (supabase as any)
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id);
+      if (cancelled || runId !== runIdRef.current) return;
+      setLoading(true);
+      setError(null);
 
-        if (cancelled || fetchTimedOut) return;
-        if (globalError) throw globalError;
+      let lastError: Error | null = null;
 
-        const allRoles: AppRole[] = globalRoles?.map((r: any) => r.role as AppRole) || [];
+      for (let attempt = 0; attempt < MAX_VERIFY_ATTEMPTS; attempt++) {
+        if (cancelled || runId !== runIdRef.current) return;
 
-        // Also fetch organization-specific role if organization is available
-        const orgId =
-          organizationId ||
-          (user.id ? localStorage.getItem(`currentOrgId_${user.id}`) : null) ||
-          localStorage.getItem("selectedOrgId");
-        if (orgId) {
-          const { data: orgMember, error: orgError } = await supabase
-            .from("organization_members")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("organization_id", orgId)
-            .maybeSingle();
-
-          if (!orgError && orgMember?.role && !allRoles.includes(orgMember.role as AppRole)) {
-            allRoles.push(orgMember.role as AppRole);
-          }
+        if (attempt > 0) {
+          await refreshAuthSessionQuietly();
+          await sleep(PERMISSION_VERIFY_BACKOFF_MS[attempt - 1]);
         }
 
-        if (cancelled || fetchTimedOut) return;
-        window.clearTimeout(loadTimeout);
-        setRoles(allRoles);
-        setLoading(false);
-        retryCountRef.current = 0; // Reset on success
-      } catch (err: any) {
-        if (cancelled || fetchTimedOut) return;
-        // Only log in development
-        if (import.meta.env.DEV) {
-          console.error("Error fetching roles:", err);
-        }
-        
-        // Retry on network/fetch errors with exponential backoff
-        const isNetworkError = err?.message?.includes('fetch') || 
-                               err?.message?.includes('network') ||
-                               err?.message?.includes('Failed to fetch') ||
-                               err?.code === 'NETWORK_ERROR';
-        
-        if (isNetworkError && retryCountRef.current < maxRetries) {
-          retryCountRef.current++;
-          const delay = 1000 * Math.pow(2, retryCountRef.current - 1); // 1s, 2s, 4s
-          retryTimer = setTimeout(fetchRoles, delay);
+        try {
+          const allRoles = await loadUserRolesOnce(user.id, organizationId);
+          if (cancelled || runId !== runIdRef.current) return;
+          setRoles(allRoles);
+          setLoading(false);
+          setError(null);
           return;
+        } catch (err: unknown) {
+          if (cancelled || runId !== runIdRef.current) return;
+          lastError = err instanceof Error ? err : new Error(String(err));
+
+          if (import.meta.env.DEV) {
+            console.warn(
+              `useUserRoles: attempt ${attempt + 1}/${MAX_VERIFY_ATTEMPTS} failed:`,
+              lastError.message,
+            );
+          }
+
+          const canRetry =
+            attempt < MAX_VERIFY_ATTEMPTS - 1 && isTransientPermissionError(lastError);
+
+          if (!canRetry) break;
         }
-        
-        window.clearTimeout(loadTimeout);
-        setError(err);
-        setRoles([]);
-        setLoading(false);
       }
+
+      if (cancelled || runId !== runIdRef.current) return;
+      setError(lastError ?? new Error("Unable to verify permissions"));
+      setRoles([]);
+      setLoading(false);
     };
 
-    fetchRoles();
+    void verifyRoles();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(loadTimeout);
-      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [user, organizationId]);
+  }, [user, organizationId, verifyGeneration]);
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isAdmin = hasRole("admin");
@@ -126,6 +137,7 @@ export const useUserRoles = (organizationId?: string) => {
     roles,
     loading,
     error,
+    refetch,
     hasRole,
     isAdmin,
     isManager,
