@@ -14,6 +14,8 @@ interface QuickServiceProductDialogProps {
   onOpenChange: (open: boolean) => void;
   serviceCode: string;
   productName?: string;
+  /** Pre-fill MRP from product/variant master (sale price or MRP set at product entry). */
+  defaultMrp?: number;
   onAdd: (data: {
     code: string;
     quantity: number;
@@ -27,6 +29,7 @@ export const QuickServiceProductDialog = ({
   onOpenChange,
   serviceCode,
   productName,
+  defaultMrp,
   onAdd,
 }: QuickServiceProductDialogProps) => {
   const [quantity, setQuantity] = useState(1);
@@ -38,7 +41,7 @@ export const QuickServiceProductDialog = ({
 
   useEffect(() => {
     if (open) {
-      setMrp("");
+      setMrp(defaultMrp && defaultMrp > 0 ? String(defaultMrp) : "");
       setDescription("");
       setQuantity(1);
       setTimeout(() => {
@@ -46,7 +49,7 @@ export const QuickServiceProductDialog = ({
         quantityInputRef.current?.select();
       }, 100);
     }
-  }, [open]);
+  }, [open, defaultMrp]);
 
   const handleSubmit = () => {
     const mrpValue = parseFloat(mrp);

@@ -14,6 +14,7 @@ import { isEntryTabPath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
+  prefetchPostLoginIdlePages,
   prefetchTabPage,
   prefetchTabPagesIdle,
 } from "@/lib/tabPageRegistry";
@@ -68,6 +69,7 @@ export const OrgLayout = () => {
       return;
     }
     prefetchPostLoginCriticalPages();
+    prefetchPostLoginIdlePages();
   }, [isOrgSynced, user, tabPaths]);
 
   // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.

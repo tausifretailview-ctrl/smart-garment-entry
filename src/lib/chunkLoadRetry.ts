@@ -16,6 +16,13 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "purchase-bill-dashboard",
 ] as const;
 
+/** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
+export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
+  "settings",
+  "user-rights",
+  "audit-log",
+] as const;
+
 export function isChunkLoadError(error: unknown): boolean {
   const msg =
     error instanceof Error

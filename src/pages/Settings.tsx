@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense, type ReactNode } from "react";
+import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -15,26 +16,63 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { UserManagement } from "@/components/UserManagement";
-import { SizeGroupManagement } from "@/components/SizeGroupManagement";
-import { WhatsAppTemplateSettings } from "@/components/WhatsAppTemplateSettings";
-import { WhatsAppAPISettings } from "@/components/WhatsAppAPISettings";
-import { SMSTemplateSettings } from "@/components/SMSTemplateSettings";
-import { StockReconciliation } from "@/components/StockReconciliation";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
-import { printBarcodesDirectly } from "@/utils/barcodePrinter";
-
-import { LabelCalibrationUI, CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
+import type { CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
-import BackupSettings from "@/components/BackupSettings";
-import { DesktopPrintSettings } from "@/components/DesktopPrintSettings";
-import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
-import { ChequeFormatManagement } from "@/components/ChequeFormatManagement";
-import { PaymentGatewaySettings } from "@/components/PaymentGatewaySettings";
-import { DuplicatePurchaseBillsReconciler } from "@/components/DuplicatePurchaseBillsReconciler";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+
+const LazyUserManagement = lazyWithRetry(() =>
+  import("@/components/UserManagement").then((m) => ({ default: m.UserManagement })),
+);
+const LazySizeGroupManagement = lazyWithRetry(() =>
+  import("@/components/SizeGroupManagement").then((m) => ({ default: m.SizeGroupManagement })),
+);
+const LazyWhatsAppTemplateSettings = lazyWithRetry(() =>
+  import("@/components/WhatsAppTemplateSettings").then((m) => ({ default: m.WhatsAppTemplateSettings })),
+);
+const LazyWhatsAppAPISettings = lazyWithRetry(() =>
+  import("@/components/WhatsAppAPISettings").then((m) => ({ default: m.WhatsAppAPISettings })),
+);
+const LazySMSTemplateSettings = lazyWithRetry(() =>
+  import("@/components/SMSTemplateSettings").then((m) => ({ default: m.SMSTemplateSettings })),
+);
+const LazyStockReconciliation = lazyWithRetry(() =>
+  import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
+);
+const LazyInvoiceWrapper = lazyWithRetry(() =>
+  import("@/components/InvoiceWrapper").then((m) => ({ default: m.InvoiceWrapper })),
+);
+const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings"));
+const LazyDesktopPrintSettings = lazyWithRetry(() =>
+  import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings })),
+);
+const LazyGiftRewardsManagement = lazyWithRetry(() =>
+  import("@/components/GiftRewardsManagement").then((m) => ({ default: m.GiftRewardsManagement })),
+);
+const LazyChequeFormatManagement = lazyWithRetry(() =>
+  import("@/components/ChequeFormatManagement").then((m) => ({ default: m.ChequeFormatManagement })),
+);
+const LazyPaymentGatewaySettings = lazyWithRetry(() =>
+  import("@/components/PaymentGatewaySettings").then((m) => ({ default: m.PaymentGatewaySettings })),
+);
+const LazyDuplicatePurchaseBillsReconciler = lazyWithRetry(() =>
+  import("@/components/DuplicatePurchaseBillsReconciler").then((m) => ({
+    default: m.DuplicatePurchaseBillsReconciler,
+  })),
+);
+
+function SettingsPanelFallback() {
+  return (
+    <div className="flex items-center justify-center p-8">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
+
+function LazySettingsPanel({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<SettingsPanelFallback />}>{children}</Suspense>;
+}
 
 interface FieldConfig {
   label: string;
@@ -443,7 +481,7 @@ export default function Settings() {
     gstin: '24AABCS1234D1ZP'
   };
 
-  const [settingsDbPresets, setSettingsDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+  const [settingsDbPresets, setSettingsDbPresets] = useState<CalibrationPreset[]>([]);
   const [allOrgPresets, setAllOrgPresets] = useState<Array<{
     preset: CalibrationPreset;
     orgId: string;
@@ -759,8 +797,9 @@ export default function Settings() {
 
       const selectedFormat = settings.bill_barcode_settings?.barcode_format || 'a4_12x4';
       
-      await printBarcodesDirectly(sampleItems, { 
-        sheetType: selectedFormat as any 
+      const { printBarcodesDirectly } = await import("@/utils/barcodePrinter");
+      await printBarcodesDirectly(sampleItems, {
+        sheetType: selectedFormat as any,
       });
       
       toast({
@@ -1249,7 +1288,9 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="sms">
-            <SMSTemplateSettings />
+            <LazySettingsPanel>
+              <LazySMSTemplateSettings />
+            </LazySettingsPanel>
           </TabsContent>
 
           <TabsContent value="product">
@@ -1600,7 +1641,9 @@ export default function Settings() {
               </CardContent>
             </Card>
             
-            <SizeGroupManagement />
+            <LazySettingsPanel>
+              <LazySizeGroupManagement />
+            </LazySettingsPanel>
           </TabsContent>
 
           <TabsContent value="purchase">
@@ -2059,7 +2102,9 @@ export default function Settings() {
               </CardContent>
             </Card>
             <div className="mt-4">
-              <DuplicatePurchaseBillsReconciler />
+              <LazySettingsPanel>
+                <LazyDuplicatePurchaseBillsReconciler />
+              </LazySettingsPanel>
             </div>
           </TabsContent>
 
@@ -4198,7 +4243,9 @@ export default function Settings() {
 
                         {/* Gift Rewards Management */}
                         <div className="pt-4 border-t border-dashed">
-                          <GiftRewardsManagement />
+                          <LazySettingsPanel>
+                            <LazyGiftRewardsManagement />
+                          </LazySettingsPanel>
                         </div>
                       </div>
                     </div>
@@ -4259,7 +4306,8 @@ export default function Settings() {
                         transformOrigin: 'top center',
                       }}
                     >
-                      <InvoiceWrapper
+                      <LazySettingsPanel>
+                      <LazyInvoiceWrapper
                         billNo={sampleInvoiceData.billNo}
                         date={sampleInvoiceData.date}
                         customerName={sampleInvoiceData.customerName}
@@ -4311,6 +4359,7 @@ export default function Settings() {
                         showProductBrand={(settings.sale_settings as any)?.show_product_brand}
                         showProductStyle={(settings.sale_settings as any)?.show_product_style}
                       />
+                      </LazySettingsPanel>
                     </div>
                   </div>
                 </CardContent>
@@ -4319,7 +4368,9 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="bill">
-            <DesktopPrintSettings />
+            <LazySettingsPanel>
+              <LazyDesktopPrintSettings />
+            </LazySettingsPanel>
             <Card>
               <CardHeader>
                 <CardTitle>Bill & Barcode Settings</CardTitle>
@@ -5405,7 +5456,9 @@ export default function Settings() {
                     </div>
                     <div><p className="text-sm font-semibold">Cheque Printing Format</p><p className="text-xs text-muted-foreground">Configure cheque layout for payment vouchers</p></div>
                   </div>
-                  <ChequeFormatManagement />
+                  <LazySettingsPanel>
+                    <LazyChequeFormatManagement />
+                  </LazySettingsPanel>
                 </div>
               </CardContent>
             </Card>
@@ -5449,7 +5502,9 @@ export default function Settings() {
 
             {/* Stock Reconciliation Tool */}
             <div className="mt-6">
-              <StockReconciliation />
+              <LazySettingsPanel>
+                <LazyStockReconciliation />
+              </LazySettingsPanel>
             </div>
 
             {/* Customer Balance Reconciliation */}
@@ -5487,7 +5542,9 @@ export default function Settings() {
                     Manage User Rights
                   </Button>
                 </div>
-                <UserManagement />
+                <LazySettingsPanel>
+                  <LazyUserManagement />
+                </LazySettingsPanel>
               </CardContent>
             </Card>
           </TabsContent>
@@ -5501,21 +5558,29 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <WhatsAppAPISettings />
+                <LazySettingsPanel>
+                  <LazyWhatsAppAPISettings />
+                </LazySettingsPanel>
                 <div className="border-t pt-6">
                   <h3 className="text-lg font-semibold mb-4">Message Templates</h3>
-                  <WhatsAppTemplateSettings />
+                  <LazySettingsPanel>
+                    <LazyWhatsAppTemplateSettings />
+                  </LazySettingsPanel>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="backup">
-            <BackupSettings />
+            <LazySettingsPanel>
+              <LazyBackupSettings />
+            </LazySettingsPanel>
           </TabsContent>
 
           <TabsContent value="payment">
-            <PaymentGatewaySettings />
+            <LazySettingsPanel>
+              <LazyPaymentGatewaySettings />
+            </LazySettingsPanel>
           </TabsContent>
         </Tabs>
       </div>

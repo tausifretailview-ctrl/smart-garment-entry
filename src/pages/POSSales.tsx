@@ -227,6 +227,16 @@ function posLineNetUnitPrice(item: CartItem): number {
   return item.quantity > 0 ? item.netAmount / item.quantity : item.unitCost;
 }
 
+/** Default POS service price from variant master (MRP, else sale price from product entry). */
+function resolveServiceVariantDefaultMrp(variant: {
+  sale_price?: number | string | null;
+  mrp?: number | string | null;
+}): number {
+  const salePrice = parseFloat(String(variant.sale_price || 0)) || 0;
+  const rawMrp = variant.mrp ? parseFloat(String(variant.mrp)) : 0;
+  return rawMrp > 0 ? rawMrp : salePrice;
+}
+
 /** Recompute line net, then Sale GST % from post-discount unit price vs threshold. */
 function applyPosGarmentGstToItem(
   item: CartItem,
@@ -2183,8 +2193,7 @@ export default function POSSales() {
       const serviceQuickEntryEnabled =
         (settingsData as any)?.product_settings?.service_quick_entry_dialog !== false;
       const svcSalePrice = parseFloat(variant.sale_price || 0) || 0;
-      const svcRawMrp = variant.mrp ? parseFloat(variant.mrp) : 0;
-      const svcMrp = svcRawMrp > 0 ? svcRawMrp : svcSalePrice;
+      const svcMrp = resolveServiceVariantDefaultMrp(variant);
       const hasPredefinedPrice = svcMrp > 0 || svcSalePrice > 0;
 
       // Default behaviour, or fall back to the dialog when no price was defined.
@@ -6471,6 +6480,23 @@ export default function POSSales() {
           }}
           serviceCode={quickServiceCode}
           productName={quickServiceProductForAdd?.product?.product_name}
+          defaultMrp={(() => {
+            if (quickServiceProductForAdd?.variant) {
+              return resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant);
+            }
+            if (quickServiceCode && productsData) {
+              for (const product of productsData) {
+                const variantMatch = product.product_variants?.find(
+                  (v: { barcode?: string | null }) =>
+                    v.barcode?.toLowerCase() === quickServiceCode.toLowerCase(),
+                );
+                if (variantMatch) {
+                  return resolveServiceVariantDefaultMrp(variantMatch);
+                }
+              }
+            }
+            return undefined;
+          })()}
           onAdd={handleQuickServiceAdd}
         />
 

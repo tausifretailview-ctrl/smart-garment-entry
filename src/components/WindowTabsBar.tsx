@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
@@ -236,6 +237,7 @@ export function WindowTabsBar() {
                     <DropdownMenuItem
                       key={page.path}
                       onClick={() => openWindow(page.path)}
+                      onMouseEnter={() => prefetchTabPage(page.path)}
                       className={cn(isOpen && "bg-muted")}
                     >
                       <IconComponent className="h-4 w-4 mr-2" />

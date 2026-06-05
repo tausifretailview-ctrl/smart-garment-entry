@@ -1443,101 +1443,134 @@ export function CustomerPaymentTab({
                   </div>
                 ) : (
                   <>
-                    <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
-                      {((customerInvoices?.length ?? 0) > 0 || openingBalanceRemaining > 0) && (
-                        <div className="grid grid-cols-[auto_minmax(0,1fr)_4.5rem_3.5rem_5.5rem_auto] gap-x-2 gap-y-0 px-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
-                          <span className="w-4" />
-                          <span>Invoice</span>
-                          <span className="text-center">Date</span>
-                          <span className="text-center">Days</span>
-                          <span className="text-right">Pending</span>
-                          <span className="w-28" />
-                        </div>
-                      )}
-                      {openingBalanceRemaining > 0 && (() => {
-                        const isSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
-                        return (
-                          <div
-                            key={OPENING_BALANCE_ID}
-                            className={cn("grid grid-cols-[auto_minmax(0,1fr)_4.5rem_3.5rem_5.5rem_auto] gap-x-2 items-center p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-amber-100/60 dark:bg-amber-900/20 border border-amber-400/40" : "hover:bg-muted")}
-                            onClick={() => setSelectedInvoiceIds(prev => prev.includes(OPENING_BALANCE_ID) ? prev.filter(id => id !== OPENING_BALANCE_ID) : [...prev, OPENING_BALANCE_ID])}
-                          >
-                            <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                            <span className="font-medium text-amber-700 dark:text-amber-400 truncate">Opening Balance</span>
-                            <span className="text-sm text-muted-foreground text-center">—</span>
-                            <span className="text-sm text-muted-foreground text-center">—</span>
-                            <Badge variant="destructive" className="justify-self-end">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
-                            <span />
-                          </div>
-                        );
-                      })()}
-                      {customerInvoices?.map((invoice) => {
-                        const balance = getInvoiceOutstanding(invoice, customerInvoiceVoucherSplits.get(invoice.id));
-                        const roundedBalance = roundToRupee(balance);
-                        const isSelected = selectedInvoiceIds.includes(invoice.id);
-                        const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
-                        const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime()) ? format(invoiceDate, "dd/MM/yy") : "-";
-                        const pendingDays = invoiceDate && !Number.isNaN(invoiceDate.getTime())
-                          ? Math.max(0, differenceInDays(voucherDate, invoiceDate))
-                          : null;
-                        return (
-                          <div key={invoice.id} className={cn("grid grid-cols-[auto_minmax(0,1fr)_4.5rem_3.5rem_5.5rem_auto] gap-x-2 items-center p-2 rounded-md cursor-pointer transition-colors", isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted")}
-                            onClick={() => {
-                              setSelectedInvoiceIds(prev => {
-                                const exists = prev.includes(invoice.id);
-                                if (exists) {
-                                  setAllocatedAmounts((old) => {
-                                    const next = { ...old };
-                                    delete next[invoice.id];
-                                    return next;
+                    <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-muted/30">
+                      <table className="w-full table-fixed border-collapse">
+                        <colgroup>
+                          <col className="w-8" />
+                          <col />
+                          <col className="w-[4.75rem]" />
+                          <col className="w-[3.25rem]" />
+                          <col className="w-[6.75rem]" />
+                          <col className="w-28" />
+                        </colgroup>
+                        {((customerInvoices?.length ?? 0) > 0 || openingBalanceRemaining > 0) && (
+                          <thead>
+                            <tr className="text-[10px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
+                              <th className="pb-1.5 pt-0.5" />
+                              <th className="pb-1.5 pt-0.5 text-left font-medium">Invoice</th>
+                              <th className="pb-1.5 pt-0.5 text-center font-medium">Date</th>
+                              <th className="pb-1.5 pt-0.5 text-center font-medium">Days</th>
+                              <th className="pb-1.5 pt-0.5 text-right font-medium">Pending</th>
+                              <th className="pb-1.5 pt-0.5" />
+                            </tr>
+                          </thead>
+                        )}
+                        <tbody>
+                          {openingBalanceRemaining > 0 && (() => {
+                            const isSelected = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
+                            return (
+                              <tr
+                                key={OPENING_BALANCE_ID}
+                                className={cn(
+                                  "cursor-pointer transition-colors",
+                                  isSelected ? "bg-amber-100/60 dark:bg-amber-900/20" : "hover:bg-muted",
+                                )}
+                                onClick={() => setSelectedInvoiceIds(prev => prev.includes(OPENING_BALANCE_ID) ? prev.filter(id => id !== OPENING_BALANCE_ID) : [...prev, OPENING_BALANCE_ID])}
+                              >
+                                <td className="py-2 pl-1 pr-0 align-middle">
+                                  <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
+                                </td>
+                                <td className="py-2 pr-2 align-middle font-medium text-amber-700 dark:text-amber-400 truncate">Opening Balance</td>
+                                <td className="py-2 px-1 align-middle text-sm text-muted-foreground text-center">—</td>
+                                <td className="py-2 px-1 align-middle text-sm text-muted-foreground text-center">—</td>
+                                <td className="py-2 pl-1 pr-2 align-middle text-right">
+                                  <Badge variant="destructive" className="font-mono tabular-nums">₹{Number(openingBalanceRemaining).toFixed(2)}</Badge>
+                                </td>
+                                <td className="py-2 pr-1 align-middle" />
+                              </tr>
+                            );
+                          })()}
+                          {customerInvoices?.map((invoice) => {
+                            const balance = getInvoiceOutstanding(invoice, customerInvoiceVoucherSplits.get(invoice.id));
+                            const roundedBalance = roundToRupee(balance);
+                            const isSelected = selectedInvoiceIds.includes(invoice.id);
+                            const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
+                            const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime()) ? format(invoiceDate, "dd/MM/yy") : "-";
+                            const pendingDays = invoiceDate && !Number.isNaN(invoiceDate.getTime())
+                              ? Math.max(0, differenceInDays(voucherDate, invoiceDate))
+                              : null;
+                            return (
+                              <tr
+                                key={invoice.id}
+                                className={cn(
+                                  "cursor-pointer transition-colors",
+                                  isSelected ? "bg-primary/10" : "hover:bg-muted",
+                                )}
+                                onClick={() => {
+                                  setSelectedInvoiceIds(prev => {
+                                    const exists = prev.includes(invoice.id);
+                                    if (exists) {
+                                      setAllocatedAmounts((old) => {
+                                        const next = { ...old };
+                                        delete next[invoice.id];
+                                        return next;
+                                      });
+                                      return prev.filter(id => id !== invoice.id);
+                                    }
+                                    setAllocatedAmounts((old) => ({ ...old, [invoice.id]: roundedBalance.toFixed(2) }));
+                                    return [...prev, invoice.id];
                                   });
-                                  return prev.filter(id => id !== invoice.id);
-                                }
-                                setAllocatedAmounts((old) => ({ ...old, [invoice.id]: roundedBalance.toFixed(2) }));
-                                return [...prev, invoice.id];
-                              });
-                            }}>
-                            <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
-                            <span className="font-medium truncate">{invoice.sale_number}</span>
-                            <span className="text-sm text-muted-foreground text-center">{invoiceDateText}</span>
-                            <span
-                              className={cn(
-                                "text-sm text-center font-mono tabular-nums",
-                                pendingDays === null
-                                  ? "text-muted-foreground"
-                                  : pendingDays > 30
-                                    ? "text-destructive font-medium"
-                                    : pendingDays > 7
-                                      ? "text-amber-600 dark:text-amber-400"
-                                      : "text-muted-foreground",
-                              )}
-                            >
-                              {pendingDays !== null ? `${pendingDays}d` : "—"}
-                            </span>
-                            <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"} className="justify-self-end">₹{roundedBalance.toFixed(2)}</Badge>
-                            {isSelected ? (
-                              <Input
-                                type="number"
-                                step="1"
-                                className="h-8 w-28"
-                                value={allocatedAmounts[invoice.id] ?? roundedBalance.toFixed(2)}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                  const raw = e.target.value;
-                                  if (raw === "") {
-                                    setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
-                                    return;
-                                  }
-                                  const next = Math.min(roundedBalance, roundToRupee(raw));
-                                  setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
                                 }}
-                              />
-                            ) : (
-                              <span />
-                            )}
-                          </div>
-                        );
-                      })}
+                              >
+                                <td className="py-2 pl-1 pr-0 align-middle">
+                                  <input type="checkbox" checked={isSelected} readOnly className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none" />
+                                </td>
+                                <td className="py-2 pr-2 align-middle font-medium truncate">{invoice.sale_number}</td>
+                                <td className="py-2 px-1 align-middle text-sm text-muted-foreground text-center font-mono tabular-nums">{invoiceDateText}</td>
+                                <td
+                                  className={cn(
+                                    "py-2 px-1 align-middle text-sm text-center font-mono tabular-nums",
+                                    pendingDays === null
+                                      ? "text-muted-foreground"
+                                      : pendingDays > 30
+                                        ? "text-destructive font-medium"
+                                        : pendingDays > 7
+                                          ? "text-amber-600 dark:text-amber-400"
+                                          : "text-muted-foreground",
+                                  )}
+                                >
+                                  {pendingDays !== null ? `${pendingDays}d` : "—"}
+                                </td>
+                                <td className="py-2 pl-1 pr-2 align-middle text-right">
+                                  <Badge variant={roundedBalance > 0 ? "destructive" : "secondary"} className="font-mono tabular-nums">
+                                    ₹{roundedBalance.toFixed(2)}
+                                  </Badge>
+                                </td>
+                                <td className="py-2 pr-1 align-middle">
+                                  {isSelected && (
+                                    <Input
+                                      type="number"
+                                      step="1"
+                                      className="h-8 w-full min-w-0"
+                                      value={allocatedAmounts[invoice.id] ?? roundedBalance.toFixed(2)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const raw = e.target.value;
+                                        if (raw === "") {
+                                          setAllocatedAmounts((old) => ({ ...old, [invoice.id]: "" }));
+                                          return;
+                                        }
+                                        const next = Math.min(roundedBalance, roundToRupee(raw));
+                                        setAllocatedAmounts((old) => ({ ...old, [invoice.id]: next.toFixed(2) }));
+                                      }}
+                                    />
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                     {selectedInvoiceIds.length === 0 && referenceId && (
                       <p className="text-xs text-red-600 dark:text-red-400">⚠️ Please select at least one invoice to proceed</p>

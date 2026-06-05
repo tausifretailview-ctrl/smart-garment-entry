@@ -38,6 +38,13 @@ function isProtectedTabPath(path: string): boolean {
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
 /** Match SalesmanLayout — never spin forever on slow desktop WebView / many open tabs. */
 const TAB_LOAD_TIMEOUT_MS = 8_000;
+/** Large admin chunks (Settings ~5k lines) need more time on first cold load. */
+const HEAVY_TAB_LOAD_TIMEOUT_MS = 20_000;
+const HEAVY_TAB_PATHS = new Set(["settings", "user-rights", "barcode-printing", "accounts"]);
+
+function getTabLoadTimeoutMs(path: string): number {
+  return HEAVY_TAB_PATHS.has(path) ? HEAVY_TAB_LOAD_TIMEOUT_MS : TAB_LOAD_TIMEOUT_MS;
+}
 
 function TabPageFallback({
   active,
@@ -58,7 +65,7 @@ function TabPageFallback({
     const timer = window.setTimeout(() => {
       console.warn(`[TabCachedPages] Load timeout for tab: ${path || "dashboard"}`);
       setTimedOut(true);
-    }, TAB_LOAD_TIMEOUT_MS);
+    }, getTabLoadTimeoutMs(path));
     return () => window.clearTimeout(timer);
   }, [active, path]);
 
@@ -272,13 +279,12 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     return prefetchTabPagesIdle(uniquePaths, activePath);
   }, [uniquePaths, activePath]);
 
-  // Electron: warm heavy admin chunks as soon as the tab is opened (not idle-batched).
+  // Warm Settings chunk as soon as the tab is opened or listed in the tab bar.
   useEffect(() => {
-    if (!electronSingleTab) return;
     if (activePath === "settings" || uniquePaths.includes("settings")) {
       prefetchTabPage("settings");
     }
-  }, [activePath, uniquePaths, electronSingleTab]);
+  }, [activePath, uniquePaths]);
 
   if (uniquePaths.length === 0) return null;
 

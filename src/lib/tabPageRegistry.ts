@@ -2,6 +2,7 @@ import type { ComponentType, LazyExoticComponent } from "react";
 import {
   importWithRetry,
   lazyWithRetry,
+  POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
 } from "@/lib/chunkLoadRetry";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
@@ -140,6 +141,16 @@ export function resetTabPageChunk(path: string): void {
 /** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */
 export function prefetchPostLoginCriticalPages(): void {
   POST_LOGIN_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+}
+
+/** Warm heavy admin chunks when the browser is idle (Settings first-open timeout). */
+export function prefetchPostLoginIdlePages(): void {
+  const run = () => POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+  if (typeof requestIdleCallback !== "undefined") {
+    requestIdleCallback(run, { timeout: 12_000 });
+  } else {
+    window.setTimeout(run, 4000);
+  }
 }
 
 export function prefetchTabPages(paths: string[]): void {
