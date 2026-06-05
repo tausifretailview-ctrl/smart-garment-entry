@@ -4,6 +4,7 @@ import {
   lazyWithRetry,
   POST_LOGIN_PREFETCH_TAB_PATHS,
 } from "@/lib/chunkLoadRetry";
+import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
 export { POST_LOGIN_PREFETCH_TAB_PATHS };
 
@@ -142,6 +143,8 @@ export function prefetchTabPages(paths: string[]): void {
 /** Prefetch the active tab immediately; load other open tabs when the browser is idle. */
 export function prefetchTabPagesIdle(paths: string[], activePath: string): () => void {
   if (isTabCachePath(activePath)) prefetchTabPage(activePath);
+  // Electron: prefetch only the visible tab — idle prefetch of many chunks can spike memory.
+  if (shouldElectronMountOnlyActiveTab()) return () => {};
   const rest = paths.filter((p) => isTabCachePath(p) && p !== activePath);
   if (rest.length === 0) return () => {};
 

@@ -15,6 +15,7 @@ import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
+import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
 
@@ -109,17 +110,22 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     return initial;
   });
 
+  const electronSingleTab = shouldElectronMountOnlyActiveTab();
+
   useEffect(() => {
     if (!isTabCachePath(activePath)) return;
     setMountedPaths((prev) => {
+      if (electronSingleTab) {
+        return new Set([activePath]);
+      }
       if (prev.has(activePath)) return prev;
       const next = new Set(prev);
       next.add(activePath);
       return next;
     });
-  }, [activePath]);
+  }, [activePath, electronSingleTab]);
 
-  // Warm main dashboard in the background while POS (or other tabs) are open — instant first return.
+  // Prefetch dashboard chunk while POS is open; pre-mount hidden pane only in browser (not Electron).
   useEffect(() => {
     const shouldWarmDashboard =
       uniquePaths.includes("") ||
@@ -128,13 +134,15 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     if (!shouldWarmDashboard) return;
 
     prefetchTabPage("");
+    if (electronSingleTab) return;
+
     setMountedPaths((prev) => {
       if (prev.has("")) return prev;
       const next = new Set(prev);
       next.add("");
       return next;
     });
-  }, [uniquePaths, activePath]);
+  }, [uniquePaths, activePath, electronSingleTab]);
 
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);

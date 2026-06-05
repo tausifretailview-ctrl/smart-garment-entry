@@ -19,6 +19,16 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Application Error:', error, errorInfo);
+    if (isChunkLoadError(error)) {
+      const reloadCount = parseInt(
+        sessionStorage.getItem('chunk_reload_count') || '0',
+        10,
+      );
+      if (reloadCount < 1) {
+        sessionStorage.setItem('chunk_reload_count', String(reloadCount + 1));
+        window.location.reload();
+      }
+    }
   }
 
   private handleClearCacheAndRetry = async () => {

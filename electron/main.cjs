@@ -128,6 +128,36 @@ function resolveIcon() {
   return null;
 }
 
+let loadRetryCount = 0;
+const MAX_LOAD_RETRIES = 4;
+
+function getAppUrl() {
+  return isDev ? DEV_URL : PROD_URL;
+}
+
+function reloadMainWindow(reason) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  console.warn('[EzzyERP] Reloading window:', reason);
+  loadRetryCount += 1;
+  if (loadRetryCount > MAX_LOAD_RETRIES) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'Connection problem',
+      message: 'EzzyERP could not load the application.',
+      detail: 'Check your internet connection, then use View → Reload or restart the app.',
+      buttons: ['OK'],
+    }).catch(() => {});
+    loadRetryCount = 0;
+    return;
+  }
+  const delay = Math.min(1500 * loadRetryCount, 6000);
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.reload();
+    }
+  }, delay);
+}
+
 function createWindow() {
   const icon = resolveIcon();
 
@@ -162,11 +192,45 @@ function createWindow() {
   });
 
   if (isDev) {
-    mainWindow.loadURL(DEV_URL);
+    mainWindow.loadURL(getAppUrl());
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    mainWindow.loadURL(PROD_URL);
+    mainWindow.loadURL(getAppUrl());
   }
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    loadRetryCount = 0;
+  });
+
+  // Network / CDN failure — retry instead of leaving a blank window
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
+    if (!isMainFrame) return;
+    if (errorCode === -3) return; // ERR_ABORTED — navigation cancelled
+    reloadMainWindow(`did-fail-load (${errorCode})`);
+  });
+
+  // Renderer crash (common when too many heavy pages stay mounted) — auto-recover
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[EzzyERP] render-process-gone:', details);
+    reloadMainWindow(`render-process-gone (${details && details.reason ? details.reason : 'unknown'})`);
+  });
+
+  mainWindow.webContents.on('unresponsive', () => {
+    console.warn('[EzzyERP] window unresponsive');
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      buttons: ['Wait', 'Reload now'],
+      defaultId: 1,
+      cancelId: 0,
+      title: 'EzzyERP is not responding',
+      message: 'The application stopped responding.',
+      detail: 'Reload to recover. Unsaved work on the current screen may be lost.',
+    });
+    if (choice === 1) {
+      loadRetryCount = 0;
+      mainWindow.webContents.reload();
+    }
+  });
 
   // Make the app's navy header act as the title bar (draggable) and keep its
   // right-side icons clear of the window control buttons. Injected only inside

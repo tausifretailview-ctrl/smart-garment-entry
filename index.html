@@ -102,13 +102,21 @@
         }
       </style>
       <script>
-        // Auto-remove splash screen after 10s as fallback if React fails to mount
+        // If React never mounts, show recovery UI instead of a blank white screen
         setTimeout(function() {
+          var root = document.getElementById('root');
+          if (root && root.childNodes.length > 0) return;
           var splash = document.getElementById('splash-screen');
-          if (splash && splash.parentNode) {
-            splash.style.display = 'none';
-          }
-        }, 10000);
+          if (!splash) return;
+          splash.innerHTML =
+            '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;text-align:center;font-family:system-ui,sans-serif;">' +
+            '<div style="font-size:22px;font-weight:700;color:#1e293b;margin-bottom:8px;">EzzyERP</div>' +
+            '<p style="color:#64748b;font-size:14px;max-width:320px;margin-bottom:20px;">The app is taking longer than expected to load. This can happen after an update or a brief network issue.</p>' +
+            '<button type="button" onclick="location.reload()" style="padding:10px 24px;font-size:14px;font-weight:600;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">Reload</button>' +
+            '</div>';
+          splash.style.display = 'flex';
+          splash.style.opacity = '1';
+        }, 12000);
       </script>
     </div>
     <div id="root"></div>

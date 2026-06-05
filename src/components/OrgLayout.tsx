@@ -14,8 +14,10 @@ import { isEntryTabPath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
+  prefetchTabPage,
   prefetchTabPagesIdle,
 } from "@/lib/tabPageRegistry";
+import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -54,9 +56,14 @@ export const OrgLayout = () => {
     return prefetchTabPagesIdle(tabPaths, isEntryPage ? "" : currentPath);
   }, [tabPaths, currentPath, isEntryPage]);
 
-  // Warm large bill-entry chunks once org is ready (first open after login on Windows WebView).
+  // Warm bill-entry chunks after login. Electron: only POS + dashboard — full prefetch can OOM the renderer.
   useEffect(() => {
     if (!isOrgSynced || !user) return;
+    if (shouldElectronMountOnlyActiveTab()) {
+      prefetchTabPage("pos-sales");
+      prefetchTabPage("");
+      return;
+    }
     prefetchPostLoginCriticalPages();
   }, [isOrgSynced, user]);
 
