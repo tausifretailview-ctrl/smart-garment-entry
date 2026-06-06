@@ -184,14 +184,14 @@ export function InvoiceHistoryDialog({
       let split: SaleReceiptVoucherSplit = { cash: 0, cn: 0, adv: 0, discount: 0 };
       if (sale) {
         const splitMap = buildSaleReceiptSplitMap(
-          [
+          ([
             {
               id: sale.id,
               sale_number: sale.sale_number,
               net_amount: sale.net_amount,
               sale_return_adjust: sale.sale_return_adjust,
             },
-          ],
+          ] as unknown as Parameters<typeof buildSaleReceiptSplitMap>[0]),
           vouchers,
         );
         split = splitMap.get(sale.id) ?? split;

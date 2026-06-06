@@ -130,7 +130,7 @@ export default function CustomerAccountStatementAuditPage() {
     return computeCustomerOutstanding(
       {
         openingBalance: Number(auditBundle.customer.opening_balance || 0),
-        sales: salesInRange,
+        sales: salesInRange as unknown as Parameters<typeof computeCustomerOutstanding>[0]["sales"],
         voucherEntries: vouchersInRange,
         customerAdvances: auditBundle.advances,
         advanceRefunds: auditBundle.refunds,

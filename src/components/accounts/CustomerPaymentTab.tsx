@@ -1032,7 +1032,7 @@ export function CustomerPaymentTab({
         onShowReceipt({
           voucherNumber: data.voucherNumber, voucherDate: format(voucherDate, 'yyyy-MM-dd'),
           customerName: customer?.customer_name || 'Customer', customerPhone: customer?.phone || '',
-          customerAddress: customer?.address || '', invoiceNumber: 'Opening Balance',
+          customerAddress: (customer as { address?: string } | undefined)?.address || '', invoiceNumber: 'Opening Balance',
           invoiceDate: format(voucherDate, 'yyyy-MM-dd'), invoiceAmount: customerBalance || 0,
           paidAmount: totalPaid, discountAmount: discountValue, discountReason: data.discountReason || '',
           previousBalance: customerBalance || 0, currentBalance: (customerBalance || 0) - totalSettled,

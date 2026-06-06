@@ -280,7 +280,7 @@ export const FloatingSupplierLedger = ({
         );
         const cnEffect = supplierCreditNoteLedgerDebit(
           Number(cn.total_amount) || 0,
-          prLinked
+          prLinked as unknown as Parameters<typeof supplierCreditNoteLedgerDebit>[1]
         );
         runningBalance -= cnEffect;
         allTransactions.push({
@@ -288,7 +288,7 @@ export const FloatingSupplierLedger = ({
           date: cn.voucher_date,
           type: "credit_note",
           reference: cn.voucher_number,
-          description: supplierCreditNoteLedgerDescriptionFromCn(cn, prLinked, billById),
+          description: supplierCreditNoteLedgerDescriptionFromCn(cn, prLinked as unknown as Parameters<typeof supplierCreditNoteLedgerDescriptionFromCn>[1], billById),
           debit: cnEffect,
           credit: 0,
           balance: runningBalance,
