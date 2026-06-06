@@ -2564,8 +2564,9 @@ export default function POSSales() {
   // Calculate points redemption value
   const pointsRedemptionValue = calculateRedemptionValue(pointsToRedeem);
   
-  const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff - pointsRedemptionValue;
-  const finalAmount = amountBeforeCredit - creditApplied;
+  // Align with amountBeforeRoundOff (includes exclusive GST + credit); avoids footer/print showing taxable-only total.
+  const finalAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
+  const amountBeforeCredit = finalAmount + creditApplied;
   const paymentModeLabel =
     paymentMethod === 'pay_later'
       ? 'Credit'
