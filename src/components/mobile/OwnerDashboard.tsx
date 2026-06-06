@@ -226,7 +226,7 @@ export const OwnerDashboard = () => {
     queryKey: ["owner-cn-drift", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return { count: 0, customers: [] as string[] };
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as unknown as { from: (t: string) => ReturnType<typeof supabase.from> })
         .from("cn_drift_alerts")
         .select("customer_id, delta, severity")
         .eq("organization_id", currentOrganization.id)
@@ -236,7 +236,7 @@ export const OwnerDashboard = () => {
         console.warn("cn_drift_alerts query failed (table may not be deployed yet):", error.message);
         return { count: 0, customers: [] };
       }
-      const rows = data || [];
+      const rows = (data || []) as Array<{ customer_id: string }>;
       return { count: rows.length, customers: rows.map((r) => r.customer_id) };
     },
     enabled: !!currentOrganization && isOnline,

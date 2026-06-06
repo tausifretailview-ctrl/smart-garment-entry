@@ -120,7 +120,7 @@ export async function syncWhatsAppTemplatesFromProvider(
     count: approvedTemplates.length,
     removed,
     provider: settings.api_provider || "third_party",
-  };
+  } as { count: number; removed: number; provider: string };
 }
 
 /** Remove templates no longer returned by the provider (e.g. after switching accounts). */

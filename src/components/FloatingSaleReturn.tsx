@@ -1668,13 +1668,13 @@ export const FloatingSaleReturn = ({
         isThermalPrint ? (
           <SaleReturnThermalPrint
             ref={printRef}
-            saleReturn={returnToPrint as React.ComponentProps<typeof SaleReturnThermalPrint>["saleReturn"]}
+            saleReturn={returnToPrint as unknown as React.ComponentProps<typeof SaleReturnThermalPrint>["saleReturn"]}
             businessDetails={businessDetails}
           />
         ) : (
           <SaleReturnPrint
             ref={printRef}
-            saleReturn={returnToPrint as React.ComponentProps<typeof SaleReturnPrint>["saleReturn"]}
+            saleReturn={returnToPrint as unknown as React.ComponentProps<typeof SaleReturnPrint>["saleReturn"]}
             businessDetails={businessDetails}
           />
         )

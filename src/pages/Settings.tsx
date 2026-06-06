@@ -42,7 +42,9 @@ const LazyStockReconciliation = lazyWithRetry(() =>
 );
 const LazyInvoiceWrapper = lazyWithRetry(() =>
   import("@/components/InvoiceWrapper").then((m) => ({ default: m.InvoiceWrapper })),
-);
+) as unknown as React.ComponentType<
+  React.ComponentProps<typeof import("@/components/InvoiceWrapper").InvoiceWrapper>
+>;
 const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings"));
 const LazyDesktopPrintSettings = lazyWithRetry(() =>
   import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings })),

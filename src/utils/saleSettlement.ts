@@ -382,7 +382,7 @@ export async function applyCreditNoteFifoToSale(
   let remaining = requested;
   let applied = 0;
   const chunks: CnFifoVoucherChunk[] = [];
-  const sb = supabase as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }> };
+  const sb = supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }> };
 
   for (const sr of pool) {
     if (remaining <= 0.01) break;
