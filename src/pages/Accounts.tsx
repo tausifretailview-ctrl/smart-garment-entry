@@ -9,7 +9,7 @@ import { ArrowDownLeft, ArrowUpRight, BookOpen, AlertCircle, Receipt, FileText a
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, Coins, Loader2, BookMarked, Trash2 } from "lucide-react";
+import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
@@ -860,16 +860,27 @@ export default function Accounts() {
       {isAdmin && currentOrganization?.id && (
         <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm shrink-0">
           <CardHeader className="pb-2 pt-3 px-4">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
-              <BookMarked className="h-4 w-4 text-blue-600" />
-              Accounting migration
-              {backfillAllLastResult && backfillAllLastResult.organizationsFailed === 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
-                  Backfill success
-                </span>
-              )}
-            </CardTitle>
-            <CardDescription className="text-xs space-y-1.5">
+            <button
+              type="button"
+              onClick={() => setMigrationExpanded((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+              aria-expanded={migrationExpanded}
+            >
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                <BookMarked className="h-4 w-4 text-blue-600" />
+                Accounting migration
+                {backfillAllLastResult && backfillAllLastResult.organizationsFailed === 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
+                    Backfill success
+                  </span>
+                )}
+              </CardTitle>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${migrationExpanded ? "rotate-180" : ""}`}
+              />
+            </button>
+            {migrationExpanded && (
+            <CardDescription className="text-xs space-y-1.5 mt-2">
               <p>
                 <strong className="text-foreground">Operational tally</strong> (Customer Ledger, Payments, Trial Balance / P&amp;L tabs)
                 uses live invoices and the customer snapshot SQL — apply pending Supabase migrations; no GL backfill required.
@@ -879,12 +890,15 @@ export default function Accounts() {
                 sales, purchases, returns, and vouchers (expenses, salaries, receipts, supplier payments). Safe to re-run.
               </p>
             </CardDescription>
+            )}
+            {migrationExpanded && (
             <PendingGlBackfillStatus
               counts={pendingGlCounts}
               loading={pendingGlCountsLoading}
               onFailedClick={() => setShowFailedJournalsDialog(true)}
             />
-            {isPlatformAdmin && (
+            )}
+            {migrationExpanded && isPlatformAdmin && (
               <AllOrgBackfillStatus
                 running={backfillAllOrgsRunning}
                 progress={backfillAllProgress}
@@ -898,6 +912,7 @@ export default function Accounts() {
               />
             )}
           </CardHeader>
+          {migrationExpanded && (
           <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
             <Button
               type="button"
@@ -960,6 +975,7 @@ export default function Accounts() {
               </p>
             )}
           </CardContent>
+          )}
         </Card>
       )}
 
