@@ -22,6 +22,7 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "settings",
   "user-rights",
   "audit-log",
+  "barcode-printing",
 ] as const;
 
 export function isChunkLoadError(error: unknown): boolean {

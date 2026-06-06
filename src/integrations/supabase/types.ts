@@ -4257,6 +4257,7 @@ export type Database = {
       purchase_returns: {
         Row: {
           created_at: string
+          credit_available_balance: number | null
           credit_note_id: string | null
           credit_status: string | null
           deleted_at: string | null
@@ -4282,6 +4283,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          credit_available_balance?: number | null
           credit_note_id?: string | null
           credit_status?: string | null
           deleted_at?: string | null
@@ -4307,6 +4309,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          credit_available_balance?: number | null
           credit_note_id?: string | null
           credit_status?: string | null
           deleted_at?: string | null
