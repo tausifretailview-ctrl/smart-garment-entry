@@ -1,68 +1,87 @@
-# Phase 1b — Type-only fixes to unblock the build
+# Phase 2 — Performance & Cloud-Usage Audit
 
-17 TypeScript errors are blocking the build. All come from recent cursor-github merges (last 3 days), not from Phase 1. Each fix below is **type-only or type-narrowing** — **zero logic, UI, print, search, or RLS change**. After this, build passes and Phase 1 ships.
+Goal: cut Chrome / Windows app dashboard load time, fix "connection problem" errors, and reduce Lovable Cloud (DB) usage. Zero changes to business logic, UI design, bill / barcode printing, or search behavior.
 
-## Fix-by-fix (one-liner each, no behavior change)
+## What the audit found (evidence from live DB)
 
-### 1. `src/components/FloatingSaleReturn.tsx` (lines 1671, 1677) — print props cast
-TS now requires `as unknown as` for cross-shape casts. Change:
-- `returnToPrint as React.ComponentProps<typeof SaleReturnThermalPrint>["saleReturn"]`
-- → `returnToPrint as unknown as React.ComponentProps<typeof SaleReturnThermalPrint>["saleReturn"]`
-- Same for `SaleReturnPrint`. **Print payload unchanged.**
+| Signal | Value | Meaning |
+|---|---|---|
+| `organization_members` sequential scans | **2,072,078,215** (~2 billion) | RLS / `has_role()` re-evaluated for every row of every query — biggest CPU cost on Cloud |
+| `user_roles` sequential scans | 218 million | Same — `has_role()` called per-row, not cached |
+| `product_variants` seq scans | 54 million | Same RLS pattern |
+| `sales`, `customers`, `credit_notes`, `products` | tens of millions of idx_scan + 100k+ seq_scan | Healthy index use, but RLS adds overhead per call |
+| `audit_logs` table | **168 MB / 75k rows** | Bloating writes & backups; nothing prunes it |
+| `stock_movements` | 114 MB / 252k rows | Heavy table, fine, but no archival |
+| DB size | 601 MB | Headroom OK, but growth is uncontrolled |
+| Active connections | 2 | Healthy |
 
-### 2. `src/components/FloatingSupplierLedger.tsx` (lines 283, 291) — relationship cast
-`purchaseReturnsData` typed as `SelectQueryError[]` because of a Supabase join shape. Cast to the helper's expected type at the two call sites:
-- `prLinked as unknown as PurchaseReturnCnLink[]`. **No data flow change.**
+Root cause of the slowness users feel: **RLS policies on hot tables call `has_role()` / `is_member_of_org()` per row, and Postgres re-runs them billions of times**. Even though indexes exist, the function call cost dominates. This is also the #1 driver of Cloud compute usage.
 
-### 3. `src/components/InvoiceHistoryDialog.tsx` (line 191) — buildSaleReceiptSplitMap input shape
-The helper signature lost `net_amount` / `sale_return_adjust`. Cast the inline array to the helper's expected param type with `as unknown as Parameters<typeof buildSaleReceiptSplitMap>[0]`. Same numbers go in.
+## Phase 2 fixes — split into 4 safe sub-phases
 
-### 4. `src/components/accounts/CustomerPaymentTab.tsx` (line 1035) — `address` field
-`CustomerPaymentPickerRow` doesn't include `address`. Replace `customer?.address` with `(customer as { address?: string } | undefined)?.address` so the receipt still shows the address when present. **Same runtime behavior.**
+### 2A. RLS function caching (biggest win, zero risk)
 
-### 5. `src/components/mobile/OwnerDashboard.tsx` (lines 229–240) — `cn_drift_alerts` not in types
-The table doesn't exist in the live DB yet (planned later). Two safe options — I will use (a):
-- (a) Cast the supabase chain to `any` for this one query: `(supabase as any).from("cn_drift_alerts")...`. The existing try/catch already returns `{ count: 0, customers: [] }` if the table is missing, so the widget shows zero until the table is added. **Owner Dashboard keeps working.**
+Add `STABLE` + `PARALLEL SAFE` markers and wrap calls in `(SELECT …)` so Postgres caches one result per statement instead of per row.
 
-### 6. `src/lib/syncWhatsAppTemplates.ts` (line 121) — `removed` extra field
-Return type declares `{ count, provider }` only. Widen the return type to include `removed: number`. **No call-site change.**
+- Re-create `public.has_role(uuid, app_role)` as `STABLE PARALLEL SAFE` (already `SECURITY DEFINER`, keep that).
+- Re-create `public.is_member_of_org(uuid)` / `public.current_user_org_id()` likewise.
+- Rewrite RLS policies on the **hot** tables to call them as `(SELECT public.has_role(auth.uid(),'admin'))` — Postgres treats this as an InitPlan and runs it once per query, not once per row.
+- Hot tables touched: `sales`, `sale_items`, `products`, `product_variants`, `customers`, `purchase_items`, `stock_movements`, `voucher_entries`, `journal_lines`, `customer_ledger_entries`, `audit_logs`, `whatsapp_logs`.
 
-### 7. `src/pages/CustomerAccountStatementAuditPage.tsx` (line 133) and `src/pages/CustomerAuditReport.tsx` (line 253)
-`computeCustomerOutstanding`'s `sales` param expects `net_amount` etc., but `salesInRange` only carries `id, items_gross` after a recent narrowing. Cast at the call site: `sales: salesInRange as unknown as Parameters<typeof computeCustomerOutstanding>[0]["sales"]`. **Math unchanged.**
+**No policy intent changes. Same rows visible to same users. Just faster.**
 
-### 8. `src/pages/Settings.tsx` (line 4311) — `LazyInvoiceWrapper` JSX props
-`LazyInvoiceWrapper` resolved to `ComponentType<{}>`. Type the lazy import: `const LazyInvoiceWrapper = lazy(() => import("./InvoiceWrapper")) as React.ComponentType<React.ComponentProps<typeof import("./InvoiceWrapper").default>>;` — or simpler, declare its props via a small `type` alias near the import. **Same component, same props at runtime — sample invoice preview unchanged.**
+Expected impact: 5–20× fewer function calls, large drop in CPU on Cloud, dashboards open noticeably faster.
 
-### 9. `src/utils/saleSettlement.ts` (line 385) — supabase RPC type
-Existing cast pattern is now rejected. Change `supabase as { rpc: … }` to `supabase as unknown as { rpc: … }`. **Same RPC call.**
+### 2B. Missing composite indexes on hot read paths
 
-### 10. `src/utils/customerBalanceCore.shumama.test.ts` (lines 1–2) — node test runner
-This is a stand-alone unit test that uses `node:test`. Two options:
-- (a) Exclude from app tsconfig by adding the file to `tsconfig.app.json`'s `exclude`. Test still runs under `node --test`. **No production impact.** I will do this.
+From `pg_stat_user_tables`, these tables already have org-scoped indexes; we'll add the few that are missing where dashboards aggregate:
 
-## What does NOT change
+- `audit_logs (organization_id, created_at DESC)` — used by every dashboard "recent activity"
+- `whatsapp_logs (organization_id, created_at DESC)`
+- `stock_movements (organization_id, product_id, created_at DESC)` if not present
+- `voucher_entries (organization_id, voucher_date DESC)` if not present
 
-- ❌ No business logic, no math, no printing, no barcode, no search, no save flows
-- ❌ No RLS, no migration, no RPC behavior
-- ❌ No UI element / layout / style
-- ❌ No package install (no `@types/node` add — option 10a avoids it)
+Each is `CREATE INDEX IF NOT EXISTS` + `CONCURRENTLY` where possible.
 
-## Files touched (10 surgical edits, ~1–3 lines each)
+### 2C. Audit-log + stock-movement retention (controls Cloud growth)
 
-1. `src/components/FloatingSaleReturn.tsx` — 2 lines
-2. `src/components/FloatingSupplierLedger.tsx` — 2 lines
-3. `src/components/InvoiceHistoryDialog.tsx` — 1 line
-4. `src/components/accounts/CustomerPaymentTab.tsx` — 1 line
-5. `src/components/mobile/OwnerDashboard.tsx` — 1 line (cast only; logic preserved)
-6. `src/lib/syncWhatsAppTemplates.ts` — 1 line (return-type widen)
-7. `src/pages/CustomerAccountStatementAuditPage.tsx` — 1 line
-8. `src/pages/CustomerAuditReport.tsx` — 1 line
-9. `src/pages/Settings.tsx` — 1 line (type alias for LazyInvoiceWrapper)
-10. `src/utils/saleSettlement.ts` — 1 line
-11. `tsconfig.app.json` — add `src/utils/customerBalanceCore.shumama.test.ts` to `exclude`
+- Add a daily pg_cron job that **soft-archives** `audit_logs` older than 180 days into `audit_logs_archive` and deletes from primary. Keeps recent audit history hot (used by History dialog) and stops 168 MB → multi-GB growth.
+- Same pattern for `whatsapp_logs` older than 90 days.
+- No data is lost — archive table stays.
 
-## Verification
+User confirms retention windows before running (180d / 90d are defaults — easy to change).
 
-- Build passes (`tsc` clean).
-- Open POS Sales, Sale Return print, Supplier Ledger, Invoice History dialog, Customer Payment dialog, Owner Dashboard (mobile), Settings → Invoice preview — all render exactly the same.
-- Phase 1 (DB column + heavy-tab list) remains in effect.
+### 2D. Frontend connection / loading resilience
+
+- Reduce parallel Supabase channels on dashboard mount (currently several pages open 3–6 realtime channels). Consolidate to one per page via existing `useRealtimeChannel` helper — no UI change.
+- Add a single `staleTime: 30_000` default to React Query in `App.tsx` so dashboards don't re-fetch every tab focus during a slow Chrome session.
+- Increase `fetch` timeout for the `supabase-js` client wrapper from 15 s to 30 s and add one automatic retry on `Failed to fetch` (the exact symptom users report).
+- Already-shipped Phase 1: heavy-tab budget (8 s → 20 s), DB column restored, barcode prefetch.
+
+## What is explicitly NOT changed
+
+- ❌ No change to bill / barcode print templates, thermal layouts, QR positioning
+- ❌ No change to search dropdown logic, hybrid product search, or CRM price memory
+- ❌ No change to any business calculation (CN, customer balance, GST, COGS, stock formula)
+- ❌ No change to UI layout, dashboard density, semantic tokens, or theme
+- ❌ No change to RLS *intent* — same rows visible to same users, only faster
+- ❌ No package install, no client.ts edit, no types.ts edit
+
+## Roll-out order
+
+1. 2A migration (RLS function caching) — apply, test 1 dashboard, confirm load time drops.
+2. 2B migration (indexes) — `CREATE INDEX IF NOT EXISTS`.
+3. 2D frontend (staleTime + fetch timeout + channel consolidation).
+4. 2C retention — only after you confirm retention windows.
+
+Each sub-phase is independently revertible.
+
+## Verification after each sub-phase
+
+- Open POS Dashboard, Sales Invoice Dashboard, Owner Dashboard, Inventory, Accounts — confirm same data, faster load.
+- Spot-check: 1 sale create, 1 purchase create, 1 sale return, 1 barcode print, 1 thermal bill — all unchanged.
+- Re-query `pg_stat_user_tables` after 24 h to confirm seq_scan growth rate dropped 10×+.
+
+## Approval needed
+
+Reply **"go 2A"** to start with the safest, highest-impact step (RLS function caching). I'll send each sub-phase as its own migration so you can review before applying.
