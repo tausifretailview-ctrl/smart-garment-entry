@@ -9,7 +9,7 @@ import { ArrowDownLeft, ArrowUpRight, BookOpen, AlertCircle, Receipt, FileText a
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown, Lock } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
