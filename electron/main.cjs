@@ -353,6 +353,49 @@ function createWindow() {
     #ezzy-hint-bar .meta { color: #64748b; font-size: 10px; }
     /* Push main content above the hint strip too */
     html.desktop-shell body { padding-bottom: 22px; }
+
+    /* ── Step 5: Multi-document tab strip (Vyapar / browser-style) ─────
+       Pins WindowTabsBar to the top of the layout, repaints the tabs as
+       square Windows-native document tabs. Web/PWA is unchanged. */
+    html.desktop-shell [data-window-tabs-bar] {
+      position: sticky !important;
+      top: 0;
+      z-index: 45;
+      background: #e2e8f0 !important;
+      border-bottom: 1px solid #94a3b8 !important;
+      padding: 2px 6px 0 6px !important;
+    }
+    html.desktop-shell [data-window-tabs-bar][data-collapsed] {
+      padding: 0 6px !important;
+      background: #eef2f7 !important;
+    }
+    /* Square Chrome/Edge-style document tabs */
+    html.desktop-shell [data-window-tabs-bar] .group {
+      border-radius: 4px 4px 0 0 !important;
+      padding: 3px 8px !important;
+      height: 24px;
+      border: 1px solid transparent !important;
+      border-bottom: 0 !important;
+      margin-bottom: -1px;
+      background: transparent;
+      color: #475569;
+    }
+    html.desktop-shell [data-window-tabs-bar] .group:hover {
+      background: #f1f5f9 !important;
+    }
+    /* Active tab — raised, white, with subtle navy top accent */
+    html.desktop-shell [data-window-tabs-bar] .group.bg-background {
+      background: #ffffff !important;
+      border-color: #94a3b8 !important;
+      color: #1e3a8a !important;
+      box-shadow: 0 -2px 0 0 #1e3a8a inset, 0 -1px 0 0 #ffffff !important;
+      font-weight: 600;
+    }
+    /* Close (×) always visible on active tab */
+    html.desktop-shell [data-window-tabs-bar] .group.bg-background button {
+      opacity: 1 !important;
+    }
+  `;
   `;
 
   // Tally-style keyboard hint strip — path-aware, updated on URL change.
