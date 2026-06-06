@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CheckCircle2, XCircle, Download, Search, Wrench, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import {
   computeCustomerOutstanding,
   type SaleReturnLedgerRow,
@@ -64,6 +65,12 @@ export default function CustomerReconciliation() {
   const [calculatedBalance, setCalculatedBalance] = useState(0);
   const [calculatedBalanceType, setCalculatedBalanceType] = useState<"Dr (Outstanding)" | "Cr (Advance)">("Dr (Outstanding)");
   const [systemLedgerBalance, setSystemLedgerBalance] = useState(0);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Server-side customer search — works even when the reconciliation table is empty
+  // (RPC slow / RLS / no activity). Lets the user pick ANY customer to audit.
+  const { filteredCustomers: pickerCustomers, isLoading: pickerLoading } =
+    useCustomerSearch(search);
 
   // Source 1: Raw transaction math via RPC
   const { data: rawBalances, isLoading: rawLoading, refetch, dataUpdatedAt } = useQuery({
@@ -489,7 +496,43 @@ export default function CustomerReconciliation() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search customer name or phone..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
+          <Input
+            placeholder="Search customer name or phone..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPickerOpen(true);
+            }}
+            onFocus={() => setPickerOpen(true)}
+            onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+            className="pl-8 h-9"
+          />
+          {pickerOpen && search.trim().length > 0 && (
+            <div className="absolute z-50 mt-1 w-full max-h-72 overflow-auto rounded-md border bg-popover shadow-lg">
+              {pickerLoading ? (
+                <div className="px-3 py-2 text-xs text-muted-foreground">Searching...</div>
+              ) : pickerCustomers.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-muted-foreground">No customer matches "{search}"</div>
+              ) : (
+                pickerCustomers.slice(0, 50).map((c: any) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-muted/60 ${selectedCustomerId === c.id ? "bg-blue-50 dark:bg-blue-950/20" : ""}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSelectedCustomerId(c.id);
+                      setSelectedCustomerName(c.customer_name);
+                      setPickerOpen(false);
+                    }}
+                  >
+                    <div className="font-medium">{c.customer_name}</div>
+                    {c.phone && <div className="text-[10px] text-muted-foreground">{c.phone}</div>}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Switch id="mismatch" checked={mismatchOnly} onCheckedChange={setMismatchOnly} />
