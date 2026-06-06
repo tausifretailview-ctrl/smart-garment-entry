@@ -28,6 +28,8 @@ import {
   resolveSaleReturnUnitPrice,
   type SaleItemPriceFields,
 } from "@/utils/saleReturnPricing";
+import { entryPageContentClass, entryPageShellClass } from "@/lib/entryPageLayout";
+import { cn } from "@/lib/utils";
 
 interface Customer {
   id: string;
@@ -1063,7 +1065,9 @@ export default function SaleReturnEntry() {
   }
 
   return (
-    <div className="w-full max-w-none px-2 sm:px-3 lg:px-4 py-4 sm:py-5 space-y-4 sm:space-y-5">
+    <div className={entryPageShellClass} data-entry-form>
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className={cn(entryPageContentClass, "space-y-4 sm:space-y-5")}>
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1538,15 +1542,17 @@ export default function SaleReturnEntry() {
           />
         </div>
       </div>
+        </div>
+      </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4">
-        <p className="text-sm text-muted-foreground">
+      {/* Pinned footer — always visible (entry fullscreen layout clips overflow) */}
+      <footer className="shrink-0 border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-2 sm:px-3 lg:px-4 py-3 flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground hidden sm:block">
           {returnItems.length === 0
             ? 'No items added yet'
             : `${returnItems.length} item(s) · Net Return: ₹${totals.netAmount.toFixed(2)}`}
         </p>
-        <div className="flex gap-3">
+        <div className="flex gap-3 ml-auto">
           <Button
             variant="outline"
             size="sm"
@@ -1568,7 +1574,7 @@ export default function SaleReturnEntry() {
             )}
           </Button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
