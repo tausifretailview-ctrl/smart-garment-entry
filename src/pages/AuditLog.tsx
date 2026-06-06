@@ -1,4 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,7 @@ interface AuditLog {
 
 export default function AuditLog() {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterAction, setFilterAction] = useState<string>("all");
@@ -47,6 +51,28 @@ export default function AuditLog() {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.auditLog,
+    currentOrganization?.id,
+    useMemo(
+      () => ({ filterAction, filterEntityType, filterUser, dateFrom, dateTo }),
+      [filterAction, filterEntityType, filterUser, dateFrom, dateTo],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["filterAction", setFilterAction],
+          ["filterEntityType", setFilterEntityType],
+          ["filterUser", setFilterUser],
+        ],
+        optionalDates: [
+          ["dateFrom", setDateFrom],
+          ["dateTo", setDateTo],
+        ],
+      });
+    },
+  );
 
   useEffect(() => {
     fetchLogs();

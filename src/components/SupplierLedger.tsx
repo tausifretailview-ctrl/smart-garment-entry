@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +72,38 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<LedgerTab>("all");
+  const pendingRestoredSupplierIdRef = useRef<string | null>(null);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.accountsSupplierLedger,
+    organizationId,
+    useMemo(
+      () => ({
+        searchQuery,
+        selectedSupplierId: selectedSupplier?.id,
+        paymentStatusFilter,
+        startDate,
+        endDate,
+        activeTab,
+      }),
+      [searchQuery, selectedSupplier, paymentStatusFilter, startDate, endDate, activeTab],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["paymentStatusFilter", setPaymentStatusFilter],
+          ["activeTab", (v) => setActiveTab(v as LedgerTab)],
+        ],
+        optionalDates: [
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+        ],
+      });
+      const id = typeof saved.selectedSupplierId === "string" ? saved.selectedSupplierId : null;
+      if (id) pendingRestoredSupplierIdRef.current = id;
+    },
+  );
 
   // Suppliers list + balances: keep list loading even if balance aggregation fails (RLS / schema).
   const { data: ledgerData, isLoading } = useQuery({
@@ -107,6 +141,16 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
   });
 
   const suppliers = ledgerData?.suppliers;
+
+  useEffect(() => {
+    const idToSelect = pendingRestoredSupplierIdRef.current;
+    if (!idToSelect || !suppliers?.length || selectedSupplier) return;
+    const found = suppliers.find((s) => s.id === idToSelect);
+    if (found) {
+      setSelectedSupplier(found);
+      pendingRestoredSupplierIdRef.current = null;
+    }
+  }, [suppliers, selectedSupplier]);
   const balanceSnapshotError = ledgerData?.balanceSnapshotError ?? null;
 
   const { data: selectedSupplierSnapshot } = useQuery({

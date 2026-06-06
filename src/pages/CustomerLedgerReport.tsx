@@ -1,6 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { CustomerLedger } from "@/components/CustomerLedger";
+import { WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 
 export default function CustomerLedgerReport() {
   const { currentOrganization } = useOrganization();
@@ -20,6 +21,7 @@ export default function CustomerLedgerReport() {
       <CustomerLedger
         organizationId={currentOrganization.id}
         preSelectedCustomerId={preSelectedCustomerId}
+        persistenceWindowId={WINDOW_FILTER_IDS.customerLedgerReport}
       />
     </div>
   );

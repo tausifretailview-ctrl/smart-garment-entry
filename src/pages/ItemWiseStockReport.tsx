@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -61,6 +63,36 @@ export default function ItemWiseStockReport() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.itemWiseStock,
+    currentOrganization?.id,
+    useMemo(
+      () => ({
+        searchQuery,
+        groupBy,
+        brandFilter,
+        categoryFilter,
+        departmentFilter,
+        supplierFilter,
+        currentPage,
+      }),
+      [searchQuery, groupBy, brandFilter, categoryFilter, departmentFilter, supplierFilter, currentPage],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["groupBy", (v) => setGroupBy(v as GroupByField)],
+          ["brandFilter", setBrandFilter],
+          ["categoryFilter", setCategoryFilter],
+          ["departmentFilter", setDepartmentFilter],
+          ["supplierFilter", setSupplierFilter],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
 
   // Auto-load data when any groupBy is selected (always true) OR any filter/search is active
   const hasActiveFilter = true;

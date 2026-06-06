@@ -1,4 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -99,6 +101,22 @@ export default function Accounts() {
     const tab = urlTab || "customer-ledger";
     if (tab !== selectedTab) setSelectedTab(tab);
   }, [urlTab, selectedTab]);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.accounts,
+    currentOrganization?.id,
+    useMemo(
+      () => ({ selectedTab: urlTab ? undefined : selectedTab }),
+      [selectedTab, urlTab],
+    ),
+    (saved) => {
+      if (!urlTab) {
+        restoreDashboardFilters(saved, {
+          strings: [["selectedTab", setSelectedTab]],
+        });
+      }
+    },
+  );
 
   // Card filter state
   const [paymentCardFilter, setPaymentCardFilter] = useState<string | null>(null);
@@ -759,7 +777,12 @@ export default function Accounts() {
         <div data-tab-scroll className="flex-1 overflow-y-auto tab-scroll-stable px-4 py-3">
           {currentOrganization?.id && (
             <div className={selectedTab === "customer-ledger" ? undefined : "hidden"} aria-hidden={selectedTab !== "customer-ledger"}>
-              <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
+              <CustomerLedger
+                organizationId={currentOrganization.id}
+                paymentFilter={paymentCardFilter}
+                preSelectedCustomerId={urlCustomerId}
+                persistenceWindowId={WINDOW_FILTER_IDS.accountsCustomerLedger}
+              />
             </div>
           )}
           {selectedTab === "supplier-ledger" && currentOrganization?.id && (
@@ -1001,7 +1024,12 @@ export default function Accounts() {
         >
         <TabsContent value="customer-ledger" forceMount className="mt-0 space-y-4 outline-none data-[state=inactive]:hidden">
           {currentOrganization?.id && (
-            <CustomerLedger organizationId={currentOrganization.id} paymentFilter={paymentCardFilter} preSelectedCustomerId={urlCustomerId} />
+            <CustomerLedger
+              organizationId={currentOrganization.id}
+              paymentFilter={paymentCardFilter}
+              preSelectedCustomerId={urlCustomerId}
+              persistenceWindowId={WINDOW_FILTER_IDS.accountsCustomerLedger}
+            />
           )}
         </TabsContent>
 

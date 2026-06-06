@@ -13,8 +13,12 @@ type UseDashboardFilterPersistenceOptions = {
 };
 
 /**
- * Persists list/dashboard filter state in sessionStorage (per org + dashboard route).
+ * Persists list/dashboard filter state in sessionStorage (per org + window route id).
  * Restores on remount so filters survive Electron single-tab unmount and tab switches.
+ *
+ * Entity fields (selectedCustomerId, selectedSupplierId, customerId) are plain strings
+ * in the snapshot — use restoreDashboardFilters `entityIds` for those setters.
+ * Skip entity restore when URL has ?customer= / ?customerId= (apply URL first).
  */
 export function useDashboardFilterPersistence(
   dashboardId: string,

@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { Link } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +64,66 @@ const TallyExport = () => {
   const [includePurchaseReturns, setIncludePurchaseReturns] = useState(true);
   const [includeReceipts, setIncludeReceipts] = useState(true);
   const [includePayments, setIncludePayments] = useState(true);
+
+  const tallyExportFilterSnapshot = useMemo(
+    () => ({
+      periodType,
+      exportType,
+      fromDate,
+      toDate,
+      includeCustomers,
+      includeSuppliers,
+      includeProducts,
+      includeSales,
+      includePurchases,
+      includeSaleReturns,
+      includePurchaseReturns,
+      includeReceipts,
+      includePayments,
+    }),
+    [
+      periodType,
+      exportType,
+      fromDate,
+      toDate,
+      includeCustomers,
+      includeSuppliers,
+      includeProducts,
+      includeSales,
+      includePurchases,
+      includeSaleReturns,
+      includePurchaseReturns,
+      includeReceipts,
+      includePayments,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.tallyExport,
+    currentOrganization?.id,
+    tallyExportFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["periodType", (v) => setPeriodType(v as PeriodType)],
+          ["exportType", (v) => setExportType(v as ExportType)],
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        booleans: [
+          ["includeCustomers", setIncludeCustomers],
+          ["includeSuppliers", setIncludeSuppliers],
+          ["includeProducts", setIncludeProducts],
+          ["includeSales", setIncludeSales],
+          ["includePurchases", setIncludePurchases],
+          ["includeSaleReturns", setIncludeSaleReturns],
+          ["includePurchaseReturns", setIncludePurchaseReturns],
+          ["includeReceipts", setIncludeReceipts],
+          ["includePayments", setIncludePayments],
+        ],
+      });
+    },
+  );
 
   // Preview counts
   const [counts, setCounts] = useState({

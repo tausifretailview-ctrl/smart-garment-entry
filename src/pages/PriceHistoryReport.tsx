@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import {
   ArrowLeft,
   Search,
@@ -139,6 +141,51 @@ const PriceHistoryReport = () => {
   const [endDate, setEndDate] = useState("");
   const [showPriceChangesOnly, setShowPriceChangesOnly] = useState(false);
   const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
+
+  const priceHistoryFilterSnapshot = useMemo(
+    () => ({
+      activeTab,
+      searchTerm,
+      selectedSupplier,
+      selectedCustomer,
+      startDate,
+      endDate,
+      showPriceChangesOnly,
+      movementTypeFilter,
+    }),
+    [
+      activeTab,
+      searchTerm,
+      selectedSupplier,
+      selectedCustomer,
+      startDate,
+      endDate,
+      showPriceChangesOnly,
+      movementTypeFilter,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.priceHistory,
+    currentOrganization?.id,
+    priceHistoryFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["activeTab", setActiveTab],
+          ["searchTerm", setSearchTerm],
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+          ["movementTypeFilter", setMovementTypeFilter],
+        ],
+        entityIds: [
+          ["selectedSupplier", setSelectedSupplier],
+          ["selectedCustomer", setSelectedCustomer],
+        ],
+        booleans: [["showPriceChangesOnly", setShowPriceChangesOnly]],
+      });
+    },
+  );
 
   useEffect(() => {
     if (currentOrganization?.id) {

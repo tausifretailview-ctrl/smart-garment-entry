@@ -17,6 +17,8 @@ import { format, startOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie, PieChart, Cell } from "recharts";
 import { Badge } from "@/components/ui/badge";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 
 interface Sale {
   id: string;
@@ -90,6 +92,34 @@ const SalesReportByCustomer = () => {
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
   const [currentPage, setCurrentPage] = useState(1);
+
+  const salesReportFilterSnapshot = useMemo(
+    () => ({
+      selectedCustomerId,
+      selectedSalesman,
+      startDate,
+      endDate,
+      currentPage,
+    }),
+    [selectedCustomerId, selectedSalesman, startDate, endDate, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.salesReportByCustomer,
+    currentOrganization?.id,
+    salesReportFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        entityIds: [["selectedCustomerId", setSelectedCustomerId]],
+        strings: [["selectedSalesman", setSelectedSalesman]],
+        requiredDates: [
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
 
   // Fetch customers with caching
   const { data: customers = [] } = useQuery({

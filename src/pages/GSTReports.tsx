@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subMonths } from "date-fns";
 import { 
   FileSpreadsheet, 
@@ -119,6 +121,22 @@ const GSTReports = () => {
   const [hsnData, setHsnData] = useState<HSNSummary[]>([]);
   const [businessInfo, setBusinessInfo] = useState<{ name: string; gstin: string }>({ name: "", gstin: "" });
   const [isDownloadingGstr1Json, setIsDownloadingGstr1Json] = useState(false);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.gstReports,
+    currentOrganization?.id,
+    useMemo(() => ({ fromDate, toDate, periodType, activeReport }), [fromDate, toDate, periodType, activeReport]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+          ["periodType", (v) => setPeriodType(v as PeriodType)],
+          ["activeReport", (v) => setActiveReport(v as ReportType)],
+        ],
+      });
+    },
+  );
 
   // Get current financial year
   const getCurrentFY = () => {

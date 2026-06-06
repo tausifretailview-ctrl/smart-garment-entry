@@ -22,6 +22,8 @@ import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSp
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 
 type PeriodType = "daily" | "monthly" | "quarterly" | "yearly" | "all" | "custom";
 
@@ -97,6 +99,81 @@ export default function ItemWiseSalesReport() {
   const [brandPage, setBrandPage] = useState(1);
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 100;
+
+  const itemWiseSalesFilterSnapshot = useMemo(
+    () => ({
+      periodType,
+      selectedDate,
+      customDateFrom: customDateRange.from,
+      customDateTo: customDateRange.to,
+      searchQuery,
+      selectedBrand,
+      selectedCategory,
+      selectedDepartment,
+      selectedCustomer,
+      selectedColor,
+      selectedUser,
+      activeTab,
+      saleDetailsGroupBy,
+      saleDetailsSearch,
+      currentPage,
+      customerPage,
+      brandPage,
+      saleDetailsPage,
+    }),
+    [
+      periodType,
+      selectedDate,
+      customDateRange,
+      searchQuery,
+      selectedBrand,
+      selectedCategory,
+      selectedDepartment,
+      selectedCustomer,
+      selectedColor,
+      selectedUser,
+      activeTab,
+      saleDetailsGroupBy,
+      saleDetailsSearch,
+      currentPage,
+      customerPage,
+      brandPage,
+      saleDetailsPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.itemWiseSales,
+    currentOrganization?.id,
+    itemWiseSalesFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["periodType", (v) => setPeriodType(v as PeriodType)],
+          ["searchQuery", setSearchQuery],
+          ["selectedBrand", setSelectedBrand],
+          ["selectedCategory", setSelectedCategory],
+          ["selectedDepartment", setSelectedDepartment],
+          ["selectedColor", setSelectedColor],
+          ["selectedUser", setSelectedUser],
+          ["activeTab", (v) => setActiveTab(v as typeof activeTab)],
+          ["saleDetailsGroupBy", (v) => setSaleDetailsGroupBy(v as typeof saleDetailsGroupBy)],
+          ["saleDetailsSearch", setSaleDetailsSearch],
+        ],
+        entityIds: [["selectedCustomer", setSelectedCustomer]],
+        requiredDates: [["selectedDate", setSelectedDate]],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["customerPage", setCustomerPage],
+          ["brandPage", setBrandPage],
+          ["saleDetailsPage", setSaleDetailsPage],
+        ],
+      });
+      const from = parsePersistedDate(saved.customDateFrom);
+      const to = parsePersistedDate(saved.customDateTo);
+      if (from && to) setCustomDateRange({ from, to });
+    },
+  );
 
   // Fetch filter options with caching
   const { data: filterOptionsData } = useQuery({

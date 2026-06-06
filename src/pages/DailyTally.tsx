@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,6 +87,18 @@ const DailyTally = () => {
   const [denomCounts, setDenomCounts] = useState<Record<number, number>>({ ...DEFAULT_DENOM_COUNTS });
   const [coinsBulk, setCoinsBulk] = useState(0);
   const [tallyTab, setTallyTab] = useState<string>("manual");
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.dailyTally,
+    currentOrganization?.id,
+    useMemo(() => ({ selectedDate, tallyTab }), [selectedDate, tallyTab]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [["tallyTab", setTallyTab]],
+        requiredDates: [["selectedDate", setSelectedDate]],
+      });
+    },
+  );
 
   const orgId = currentOrganization?.id;
   const dateStr = format(selectedDate, "yyyy-MM-dd");

@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -97,6 +99,24 @@ export default function EInvoiceReport() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRetryingAll, setIsRetryingAll] = useState(false);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.einvoiceReport,
+    currentOrganization?.id,
+    useMemo(
+      () => ({ periodFilter, statusFilter, searchQuery }),
+      [periodFilter, statusFilter, searchQuery],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["periodFilter", (v) => setPeriodFilter(v as PeriodFilter)],
+          ["statusFilter", (v) => setStatusFilter(v as StatusFilter)],
+          ["searchQuery", setSearchQuery],
+        ],
+      });
+    },
+  );
 
   const getDateRange = (period: PeriodFilter) => {
     const now = new Date();

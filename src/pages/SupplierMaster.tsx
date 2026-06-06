@@ -1,4 +1,6 @@
 import { useState, useMemo, type ReactNode } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -127,6 +129,27 @@ const SupplierMaster = () => {
   // Debounced search for server-side filtering
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.suppliers,
+    currentOrganization?.id,
+    useMemo(
+      () => ({ searchQuery, segmentFilter, currentPage }),
+      [searchQuery, segmentFilter, currentPage],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", (v) => {
+            setSearchQuery(v);
+            setDebouncedSearch(v);
+          }],
+          ["segmentFilter", (v) => setSegmentFilter(v as SegmentFilter)],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
   
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);

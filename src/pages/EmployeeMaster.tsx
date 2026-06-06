@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,6 +72,17 @@ const EmployeeMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.employees,
+    currentOrganization?.id,
+    useMemo(() => ({ searchQuery }), [searchQuery]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [["searchQuery", setSearchQuery]],
+      });
+    },
+  );
 
   // Fetch organization users for dropdown
   const { data: orgUsers = [], isLoading: isLoadingUsers } = useQuery({

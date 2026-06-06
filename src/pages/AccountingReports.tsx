@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Link } from "react-router-dom";
@@ -250,6 +252,54 @@ export default function AccountingReports() {
   const [glLedgerRows, setGlLedgerRows] = useState<GlAccountLedgerRow[]>([]);
   const [glLedgerLoading, setGlLedgerLoading] = useState(false);
   const [glLedgerPartyId, setGlLedgerPartyId] = useState<string>("all");
+
+  const accountingReportsFilterSnapshot = useMemo(
+    () => ({
+      activeTab,
+      showLegacyReports,
+      glTbGrouped,
+      periodType,
+      asOfDate,
+      fromDate,
+      toDate,
+      glTrialMode,
+      glLedgerPartyId,
+    }),
+    [
+      activeTab,
+      showLegacyReports,
+      glTbGrouped,
+      periodType,
+      asOfDate,
+      fromDate,
+      toDate,
+      glTrialMode,
+      glLedgerPartyId,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.accountingReports,
+    currentOrganization?.id,
+    accountingReportsFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["activeTab", setActiveTab],
+          ["periodType", (v) => setPeriodType(v as typeof periodType)],
+          ["asOfDate", setAsOfDate],
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+          ["glTrialMode", (v) => setGlTrialMode(v as typeof glTrialMode)],
+          ["glLedgerPartyId", setGlLedgerPartyId],
+        ],
+        booleans: [
+          ["showLegacyReports", setShowLegacyReports],
+          ["glTbGrouped", setGlTbGrouped],
+        ],
+      });
+    },
+  );
 
   const { data: accountingSettings } = useQuery({
     queryKey: ["settings-accounting-flag", currentOrganization?.id],

@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
@@ -72,6 +74,8 @@ interface CustomerLedgerProps {
   organizationId: string;
   paymentFilter?: string | null;
   preSelectedCustomerId?: string | null;
+  /** When set, persists filters + selected customer for tab/window restore. */
+  persistenceWindowId?: string;
 }
 
 interface Customer {
@@ -219,10 +223,16 @@ function LedgerTableTotalsFooter({
   );
 }
 
-export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
+export function CustomerLedger({
+  organizationId,
+  paymentFilter,
+  preSelectedCustomerId,
+  persistenceWindowId,
+}: CustomerLedgerProps) {
   const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const pendingRestoredCustomerIdRef = useRef<string | null>(null);
 
   const selectCustomer = useCallback(
     (customer: Customer | null) => {
@@ -250,6 +260,57 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
   const [activeTab, setActiveTab] = useState("transactions");
   const [customerPage, setCustomerPage] = useState(0);
   const CUSTOMERS_PER_PAGE = 20;
+
+  const customerLedgerFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      selectedCustomerId:
+        preSelectedCustomerId ? undefined : (selectedCustomer?.studentId || selectedCustomer?.id),
+      paymentStatusFilter,
+      startDate,
+      endDate,
+      selectedAcademicYearId,
+      activeTab,
+      customerPage,
+    }),
+    [
+      searchQuery,
+      selectedCustomer,
+      preSelectedCustomerId,
+      paymentStatusFilter,
+      startDate,
+      endDate,
+      selectedAcademicYearId,
+      activeTab,
+      customerPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    persistenceWindowId ?? "",
+    organizationId,
+    customerLedgerFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["paymentStatusFilter", setPaymentStatusFilter],
+          ["selectedAcademicYearId", setSelectedAcademicYearId],
+          ["activeTab", setActiveTab],
+        ],
+        optionalDates: [
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+        ],
+        numbers: [["customerPage", setCustomerPage]],
+      });
+      if (!preSelectedCustomerId) {
+        const id = typeof saved.selectedCustomerId === "string" ? saved.selectedCustomerId : null;
+        if (id) pendingRestoredCustomerIdRef.current = id;
+      }
+    },
+    { enabled: !!persistenceWindowId },
+  );
   
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
@@ -849,18 +910,19 @@ export function CustomerLedger({ organizationId, paymentFilter, preSelectedCusto
 
   const customersForList = customersWithBalances ?? customers;
 
-  // Auto-select customer when preSelectedCustomerId is provided and data is loaded
+  // Auto-select customer from URL or persisted session when list is loaded
   useEffect(() => {
-    if (preSelectedCustomerId && customersForList && customersForList.length > 0 && !selectedCustomer) {
-      const found = customersForList.find(
-        (c: any) =>
-          c.id === preSelectedCustomerId ||
-          c.customerRecordId === preSelectedCustomerId ||
-          (isSchool && c.studentId === preSelectedCustomerId)
-      );
-      if (found) {
-        setSelectedCustomer(found);
-      }
+    const idToSelect = preSelectedCustomerId || pendingRestoredCustomerIdRef.current;
+    if (!idToSelect || !customersForList?.length || selectedCustomer) return;
+    const found = customersForList.find(
+      (c: any) =>
+        c.id === idToSelect ||
+        c.customerRecordId === idToSelect ||
+        (isSchool && c.studentId === idToSelect),
+    );
+    if (found) {
+      setSelectedCustomer(found);
+      pendingRestoredCustomerIdRef.current = null;
     }
   }, [preSelectedCustomerId, customersForList, selectedCustomer, isSchool]);
 

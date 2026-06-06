@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths } from "date-fns";
 import { FileSpreadsheet, Download, Calendar, Building2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,6 +51,21 @@ const GSTSalePurchaseRegister = () => {
     purchaseCount: number;
     purchaseReturnCount: number;
   } | null>(null);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.gstRegister,
+    currentOrganization?.id,
+    useMemo(() => ({ fromDate, toDate, periodType }), [fromDate, toDate, periodType]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+          ["periodType", (v) => setPeriodType(v as PeriodType)],
+        ],
+      });
+    },
+  );
 
   // Get current financial year
   const getCurrentFY = () => {

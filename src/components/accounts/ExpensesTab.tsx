@@ -11,6 +11,8 @@ import { CalendarIcon, Plus, Pencil, Trash2, Printer, FileDown, Search, IndianRu
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
@@ -63,6 +65,34 @@ export function ExpensesTab({ organizationId, vouchers, embedded = false }: Expe
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>();
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterPayment, setFilterPayment] = useState("all");
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.accountsExpenses,
+    organizationId,
+    useMemo(
+      () => ({
+        searchQuery,
+        filterDateFrom,
+        filterDateTo,
+        filterCategory,
+        filterPayment,
+      }),
+      [searchQuery, filterDateFrom, filterDateTo, filterCategory, filterPayment],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["filterCategory", setFilterCategory],
+          ["filterPayment", setFilterPayment],
+        ],
+        optionalDates: [
+          ["filterDateFrom", setFilterDateFrom],
+          ["filterDateTo", setFilterDateTo],
+        ],
+      });
+    },
+  );
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = useState(false);

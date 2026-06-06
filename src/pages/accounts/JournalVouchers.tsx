@@ -1,4 +1,6 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, BookText, ChevronDown, ChevronUp, Info, Plus } from "lucide-react";
@@ -110,6 +112,23 @@ export default function JournalVouchers() {
   const [fromDate, setFromDate] = useState<Date>(initialFrom ? new Date(initialFrom) : new Date());
   const [toDate, setToDate] = useState<Date>(initialTo ? new Date(initialTo) : new Date());
   const [referenceType, setReferenceType] = useState<RefTypeFilter>(initialRef);
+  const skipSessionRestoreRef = useRef(!!(initialFrom || initialTo));
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.journalVouchers,
+    currentOrganization?.id,
+    useMemo(() => ({ fromDate, toDate, referenceType }), [fromDate, toDate, referenceType]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        requiredDates: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        strings: [["referenceType", (v) => setReferenceType(v as RefTypeFilter)]],
+      });
+    },
+    { enabled: !skipSessionRestoreRef.current },
+  );
 
   useEffect(() => {
     const from = searchParams.get("from");

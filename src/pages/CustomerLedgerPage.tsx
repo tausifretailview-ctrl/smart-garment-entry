@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import { CalendarIcon, Printer, FileText, ArrowDownCircle, ArrowUpCircle, Wallet } from "lucide-react";
@@ -101,6 +103,30 @@ export default function CustomerLedgerPage() {
   const [fromDate, setFromDate] = useState<Date | undefined>(fyStart);
   const [toDate, setToDate] = useState<Date | undefined>(fyEnd);
   const [custOpen, setCustOpen] = useState(false);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.customerAccountStatement,
+    currentOrganization?.id,
+    useMemo(
+      () => ({
+        customerId: preSelectedCustomerId ? undefined : customerId,
+        fromDate,
+        toDate,
+      }),
+      [customerId, fromDate, toDate, preSelectedCustomerId],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        optionalDates: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        nullableStrings: preSelectedCustomerId
+          ? []
+          : [["customerId", setCustomerId]],
+      });
+    },
+  );
 
   // Customers list — paginate past PostgREST default max (1000 rows).
   const { data: customers = [] } = useQuery({

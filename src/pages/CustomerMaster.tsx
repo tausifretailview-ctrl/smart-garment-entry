@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
@@ -249,6 +251,27 @@ const CustomerMaster = () => {
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.customers,
+    currentOrganization?.id,
+    useMemo(
+      () => ({ searchQuery, segmentFilter, currentPage }),
+      [searchQuery, segmentFilter, currentPage],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", (v) => {
+            setSearchQuery(v);
+            setDebouncedSearch(v);
+          }],
+          ["segmentFilter", (v) => setSegmentFilter(v as SegmentFilter)],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
   
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);

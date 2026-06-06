@@ -1,4 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -157,6 +159,38 @@ const ProductTrackingReport = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const productTrackingFilterSnapshot = useMemo(
+    () => ({
+      searchBarcode,
+      startDate,
+      endDate,
+      movementTypeFilter,
+      categoryFilter,
+      brandFilter,
+      currentPage,
+    }),
+    [searchBarcode, startDate, endDate, movementTypeFilter, categoryFilter, brandFilter, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.productTracking,
+    currentOrganization?.id,
+    productTrackingFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchBarcode", setSearchBarcode],
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+          ["movementTypeFilter", setMovementTypeFilter],
+          ["categoryFilter", setCategoryFilter],
+          ["brandFilter", setBrandFilter],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
 
   // Validate date range
   const dateRangeError = useMemo(() => {

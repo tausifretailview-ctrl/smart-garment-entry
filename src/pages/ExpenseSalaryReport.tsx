@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -101,6 +103,54 @@ export default function ExpenseSalaryReport() {
   const [typeFilter, setTypeFilter] = useState<EntryTypeFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const expenseSalaryFilterSnapshot = useMemo(
+    () => ({
+      preset,
+      customFrom,
+      customTo,
+      searchQuery,
+      categoryFilter,
+      paymentMethodFilter,
+      typeFilter,
+      currentPage,
+      sortDirection,
+    }),
+    [
+      preset,
+      customFrom,
+      customTo,
+      searchQuery,
+      categoryFilter,
+      paymentMethodFilter,
+      typeFilter,
+      currentPage,
+      sortDirection,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.expenseSalaryReport,
+    currentOrganization?.id,
+    expenseSalaryFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["preset", (v) => setPreset(v as DatePreset)],
+          ["searchQuery", setSearchQuery],
+          ["categoryFilter", setCategoryFilter],
+          ["paymentMethodFilter", setPaymentMethodFilter],
+          ["typeFilter", (v) => setTypeFilter(v as EntryTypeFilter)],
+          ["sortDirection", (v) => setSortDirection(v as SortDirection)],
+        ],
+        optionalDates: [
+          ["customFrom", setCustomFrom],
+          ["customTo", setCustomTo],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
 
   const activeRange = useMemo(() => {
     if (preset === "custom") {

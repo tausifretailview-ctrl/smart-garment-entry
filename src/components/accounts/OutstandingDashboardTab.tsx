@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +59,25 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
   const [sortField, setSortField] = useState<SortField>("totalOutstanding");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [minAmount, setMinAmount] = useState<string>("all");
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.accountsOutstanding,
+    organizationId,
+    useMemo(
+      () => ({ search, sortField, sortDir, minAmount }),
+      [search, sortField, sortDir, minAmount],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["search", setSearch],
+          ["sortField", (v) => setSortField(v as SortField)],
+          ["sortDir", (v) => setSortDir(v as SortDir)],
+          ["minAmount", setMinAmount],
+        ],
+      });
+    },
+  );
 
   // Fetch all outstanding invoices (pending + partial)
   const { data: outstandingData, isLoading } = useQuery({

@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationData } from "@/hooks/useOrganizationData";
@@ -66,6 +68,26 @@ export default function StockAgeingReport() {
   const [ageFilter, setAgeFilter] = useState("30");
   const [brandFilter, setBrandFilter] = useState("all");
   const [page, setPage] = useState(0);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.stockAgeing,
+    organizationId,
+    useMemo(
+      () => ({ search, supplierFilter, ageFilter, brandFilter, page }),
+      [search, supplierFilter, ageFilter, brandFilter, page],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["search", setSearch],
+          ["supplierFilter", setSupplierFilter],
+          ["ageFilter", setAgeFilter],
+          ["brandFilter", setBrandFilter],
+        ],
+        numbers: [["page", setPage]],
+      });
+    },
+  );
 
   const { data: rawData, isLoading } = useQuery({
     queryKey: ["stock-ageing", organizationId],

@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -35,6 +37,18 @@ const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [period, setPeriod] = useState<PeriodType>("daily");
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.dailyCashierReport,
+    currentOrganization?.id,
+    useMemo(() => ({ selectedDate, period }), [selectedDate, period]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [["period", (v) => setPeriod(v as PeriodType)]],
+        requiredDates: [["selectedDate", setSelectedDate]],
+      });
+    },
+  );
 
   // Calculate date range based on period
   const getDateRange = () => {

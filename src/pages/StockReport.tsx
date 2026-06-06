@@ -28,6 +28,12 @@ import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { sortSizes } from "@/utils/sizeSort";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import {
+  isDashboardFilterRestoring,
+  restoreDashboardFilters,
+  WINDOW_FILTER_IDS,
+} from "@/lib/dashboardFilterPersistence";
 
 interface StockItem {
   id: string;
@@ -125,6 +131,70 @@ export default function StockReport() {
   // Pagination for All Stock tab
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
+
+  const stockFilterSnapshot = useMemo(
+    () => ({
+      searchTerm,
+      productNameFilter,
+      sizeWiseSearch,
+      sizeFilter,
+      categoryFilter,
+      activeTab: searchParams.get("tab") ? undefined : activeTab,
+      brandFilter,
+      departmentFilter,
+      supplierFilter,
+      supplierInvoiceFilter,
+      stockStatusFilter,
+      colorFilter,
+      lowStockThreshold,
+      currentPage,
+    }),
+    [
+      searchTerm,
+      productNameFilter,
+      sizeWiseSearch,
+      sizeFilter,
+      categoryFilter,
+      activeTab,
+      searchParams,
+      brandFilter,
+      departmentFilter,
+      supplierFilter,
+      supplierInvoiceFilter,
+      stockStatusFilter,
+      colorFilter,
+      lowStockThreshold,
+      currentPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.stockReport,
+    currentOrganization?.id,
+    stockFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchTerm", setSearchTerm],
+          ["productNameFilter", setProductNameFilter],
+          ["sizeWiseSearch", setSizeWiseSearch],
+          ["sizeFilter", setSizeFilter],
+          ["categoryFilter", setCategoryFilter],
+          ["brandFilter", setBrandFilter],
+          ["departmentFilter", setDepartmentFilter],
+          ["supplierFilter", setSupplierFilter],
+          ["supplierInvoiceFilter", setSupplierInvoiceFilter],
+          ["stockStatusFilter", setStockStatusFilter],
+          ["colorFilter", setColorFilter],
+          ...(!searchParams.get("tab") ? [["activeTab", setActiveTab] as [string, (v: string) => void]] : []),
+        ],
+        numbers: [
+          ["lowStockThreshold", setLowStockThreshold],
+          ["currentPage", setCurrentPage],
+        ],
+      });
+    },
+  );
 
   // Global keyboard shortcut for Ctrl+G
   useEffect(() => {
@@ -959,6 +1029,7 @@ export default function StockReport() {
 
   // Reset to page 1 when filters change
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
 

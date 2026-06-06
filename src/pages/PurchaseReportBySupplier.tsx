@@ -15,6 +15,8 @@ import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportK
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 
 interface PurchaseBill {
   id: string;
@@ -31,6 +33,30 @@ const PurchaseReportBySupplier = () => {
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
+
+  const purchaseReportFilterSnapshot = useMemo(
+    () => ({
+      selectedSupplierId,
+      startDate,
+      endDate,
+    }),
+    [selectedSupplierId, startDate, endDate],
+  );
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.purchaseReportBySupplier,
+    currentOrganization?.id,
+    purchaseReportFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        entityIds: [["selectedSupplierId", setSelectedSupplierId]],
+        optionalDates: [
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+        ],
+      });
+    },
+  );
 
   const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
 

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -121,6 +123,30 @@ export default function CustomerAuditReport() {
     date: string;
   } | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  useDashboardFilterPersistence(
+    WINDOW_FILTER_IDS.customerAuditReport,
+    currentOrganization?.id,
+    useMemo(
+      () => ({
+        customerId: preSelectedCustomerId ? undefined : customerId,
+        fromDate,
+        toDate,
+      }),
+      [customerId, fromDate, toDate, preSelectedCustomerId],
+    ),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        optionalDates: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        nullableStrings: preSelectedCustomerId
+          ? []
+          : [["customerId", setCustomerId]],
+      });
+    },
+  );
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
