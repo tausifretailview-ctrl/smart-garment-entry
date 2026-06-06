@@ -205,6 +205,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
       zoomFactor: 0.8, // medium zoom — content was too large at 100%
+      backgroundThrottling: false,
     },
   });
 
@@ -301,7 +302,8 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
-    mainWindow.webContents.setZoomFactor(0.8);
+    // zoomFactor is already applied via webPreferences — no need to re-set it
+    // here (was causing a one-time layout reflow after first paint).
   });
 
   // Show maximized by default so bill entry footers and fields fit without manual resize
