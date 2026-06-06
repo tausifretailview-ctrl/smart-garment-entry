@@ -166,7 +166,8 @@ function reloadMainWindow(reason) {
     loadRetryCount = 0;
     return;
   }
-  const delay = Math.min(1500 * loadRetryCount, 6000);
+  // First retry fast (400ms), then back off — recovers instantly from a brief flap.
+  const delay = loadRetryCount === 1 ? 400 : Math.min(1500 * loadRetryCount, 6000);
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.reload();
