@@ -690,6 +690,35 @@ export const FloatingSaleReturn = ({
         const cnDescription = isPartial
           ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
           : `Credit note ${cn.returnNumber} applied via POS`;
+        // Ensure a `credit_notes` row exists for this sale-return and bump its
+        // `used_amount` so the CN ledger reflects the redeem. Prevents one-sided
+        // CN drift (voucher posted without CN header bump).
+        const ensuredCnIdSolo = await ensureCreditNoteForSaleReturn(supabase, {
+          organizationId,
+          saleReturnId: cn.id,
+          customerNameFallback: effectiveCustomerName || undefined,
+          returnNumberFallback: cn.returnNumber,
+          creditAmountFallback: cn.creditAmount,
+        });
+        if (ensuredCnIdSolo) {
+          const { data: cnHdr } = await supabase
+            .from("credit_notes")
+            .select("credit_amount, used_amount")
+            .eq("id", ensuredCnIdSolo)
+            .eq("organization_id", organizationId)
+            .maybeSingle();
+          const usedNow = Number((cnHdr as { used_amount?: number } | null)?.used_amount || 0);
+          const creditNow = Number((cnHdr as { credit_amount?: number } | null)?.credit_amount || 0);
+          const newUsed = Math.min(creditNow, usedNow + redeemAmount);
+          await supabase
+            .from("credit_notes")
+            .update({
+              used_amount: newUsed,
+              status: newUsed >= creditNow - 0.01 ? "fully_used" : "active",
+            } as any)
+            .eq("id", ensuredCnIdSolo)
+            .eq("organization_id", organizationId);
+        }
         const cnCreated = await createReceiptVoucher(supabase, {
           organizationId,
           referenceId: effectiveCustomerId,
