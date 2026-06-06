@@ -15,6 +15,14 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "sales-invoice-dashboard",
   "purchase-entry",
   "purchase-bill-dashboard",
+  // Frequently switched-to from Sales/Purchase — warm so first open is instant
+  "stock-report",
+  "customers",
+  "suppliers",
+  "product-dashboard",
+  "sale-return-dashboard",
+  "purchase-return-dashboard",
+  "accounts",
 ] as const;
 
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
