@@ -44,6 +44,8 @@ if (!gotTheLock) {
       session.defaultSession.preconnect({ url: PROD_URL, numSockets: 2 });
       session.defaultSession.preconnect({ url: SUPABASE_URL, numSockets: 2 });
     } catch {}
+    // Branded splash — destroyed once the main window is ready-to-show.
+    try { showSplash(); } catch {}
     createWindow();
     createTray();
     createMenu();
