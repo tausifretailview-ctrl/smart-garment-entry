@@ -82,7 +82,11 @@ export function WindowTabsBar() {
   // Collapsed state - just show toggle button
   if (!isTabsBarVisible) {
     return (
-      <div className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-between">
+      <div
+        data-window-tabs-bar
+        data-collapsed
+        className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-between"
+      >
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
           <span className="hidden md:inline">•</span>
@@ -111,7 +115,7 @@ export function WindowTabsBar() {
   }
 
   return (
-    <div className="bg-muted/30 border-b px-2 py-0.5">
+    <div data-window-tabs-bar className="bg-muted/30 border-b px-2 py-0.5">
       <div className="flex items-center gap-0.5">
         {canMainDashboard && (
           <Tooltip>
