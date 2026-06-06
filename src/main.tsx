@@ -38,23 +38,5 @@ createRoot(document.getElementById("root")!).render(
   </ErrorBoundary>
 );
 
-// Desktop shell: recover from blank root after chunk/network failures (white screen)
-if (isElectronShell()) {
-  const ELECTRON_BLANK_RELOAD_KEY = "electron_blank_reload_count";
-  window.setTimeout(() => {
-    const root = document.getElementById("root");
-    if (root && root.childNodes.length > 0) return;
-    const reloadCount = parseInt(sessionStorage.getItem(ELECTRON_BLANK_RELOAD_KEY) || "0", 10);
-    if (reloadCount < 2) {
-      sessionStorage.setItem(ELECTRON_BLANK_RELOAD_KEY, String(reloadCount + 1));
-      window.location.reload();
-    }
-  }, 15000);
-
-  window.setTimeout(() => {
-    const root = document.getElementById("root");
-    if (root && root.childNodes.length > 0) {
-      sessionStorage.removeItem(ELECTRON_BLANK_RELOAD_KEY);
-    }
-  }, 20000);
-}
+// Auto-reload disabled per user request — keep window sticky with existing data.
+// User can manually reload via View → Reload if needed.
