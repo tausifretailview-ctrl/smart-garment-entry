@@ -279,7 +279,12 @@ const App = () => {
         sessionStorage.getItem("chunk_reload_count") || "0",
         10,
       );
-      if (reloadCount < 1) {
+      // Only auto-reload when the user is actively on the page. A reload while
+      // the tab is hidden / idle (5–10 min away) is what causes the "PWA keeps
+      // refreshing on its own" complaint — background prefetches that fail
+      // because of network/SW eviction should NOT yank the page out from under
+      // the user.
+      if (reloadCount < 1 && document.visibilityState === "visible") {
         event.preventDefault();
         sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
         window.location.reload();
