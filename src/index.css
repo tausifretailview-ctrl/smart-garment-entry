@@ -1730,8 +1730,22 @@ input.no-uppercase {
 }
 
 .erp-entry-lines-table .col-product {
-  width: 30%;
-  min-width: 12rem;
+  /* Absorb remaining width after fixed numeric columns (table-layout: fixed). */
+  width: auto;
+  min-width: 14rem;
+  max-width: none;
+}
+
+.erp-entry-lines-table .col-product button,
+.erp-entry-lines-table .col-product .truncate {
+  max-width: 100%;
+}
+
+.erp-entry-lines-table .col-action {
+  width: 2rem;
+  max-width: 2rem;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* ─── ERP Form Compact — Tally-style entry fields ─── */

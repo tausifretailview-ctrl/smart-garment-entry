@@ -3819,17 +3819,17 @@ Thank you for choosing us!`;
       </section>
 
       {/* Line Items Table — fills remaining space; only this area scrolls */}
-      <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative", entryPageSectionX)}>
+      <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-slate-100 relative w-full min-w-0", entryPageSectionX)}>
         <div
           ref={tableContainerRef}
-          className="h-full overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
+          className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
-         <div className="bg-white min-h-full pb-4">
-          <table className="w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+         <div className="bg-white min-h-full pb-4 w-full min-w-0">
+          <table className="w-full min-w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
-                <th className="col-product text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 min-w-[200px]">PRODUCT</th>
+                <th className="col-product text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3">PRODUCT</th>
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
                 {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">COLOR</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
@@ -3842,7 +3842,7 @@ Thank you for choosing us!`;
                 {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">DISC ₹</th>}
                 {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-16">GST%</th>}
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-28 bg-blue-700 rounded-tr-lg">TOTAL</th>
-                <th className="w-8 px-1 h-10 bg-slate-800"></th>
+                <th className="col-action h-10 bg-slate-800" aria-hidden="true" />
               </tr>
             </thead>
             <tbody>
@@ -3990,7 +3990,7 @@ Thank you for choosing us!`;
                           ₹{item.lineTotal.toFixed(2)}
                         </span>
                       </td>
-                      <td className="px-1 py-1.5">
+                      <td className="col-action px-0 py-1.5 text-center">
                         <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => removeItem(item.id)}>
                           <X className="h-3.5 w-3.5" />
                         </Button>
@@ -4059,8 +4059,9 @@ Thank you for choosing us!`;
       {/* Footer — sibling of <main>, locked above the global StatusBar */}
       <footer className="entry-page-footer shrink-0 relative z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         {/* Top Row: Inputs + Stats + Net Amount — single line */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-blue-600">
-          <div className="flex items-center px-4 py-3 gap-0 min-w-max">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white border-t-2 border-blue-600 w-full">
+          <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0">
+            <div className="flex items-center gap-0 shrink-0 overflow-x-auto">
             {/* FLAT DISC % */}
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Flat Disc %</span>
             <Input
@@ -4120,10 +4121,11 @@ Thank you for choosing us!`;
                 </span>
               </>
             )}
+            </div>
 
             {/* Right-pinned Net Amount */}
             {/* Mini stats block: Items / Qty / Gross / Discount */}
-            <div className="ml-auto flex items-center gap-4 shrink-0">
+            <div className="flex items-center gap-4 shrink-0">
               <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-slate-600">
                 <div className="flex items-center justify-between gap-3 min-w-[120px]">
                   <span className="text-[12px] uppercase tracking-wider text-slate-300 font-extrabold">Items</span>
