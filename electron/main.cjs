@@ -321,6 +321,7 @@ function createWindow() {
 
   // Show maximized by default so bill entry footers and fields fit without manual resize
   mainWindow.once('ready-to-show', () => {
+    try { closeSplash(); } catch {}
     if (!mainWindow.isMaximized()) {
       mainWindow.maximize();
     }
@@ -332,6 +333,64 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Native right-click context menu (Cut / Copy / Paste / Select All / Print).
+  // Works on every input, table cell, link, image — no web-side change.
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    const items = [];
+    const editable = params.isEditable;
+    const hasSelection = !!(params.selectionText && params.selectionText.trim());
+
+    if (editable) {
+      items.push({ role: 'undo' }, { role: 'redo' }, { type: 'separator' });
+      items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' });
+      items.push({ type: 'separator' }, { role: 'selectAll' });
+    } else if (hasSelection) {
+      items.push({ role: 'copy' });
+    }
+
+    if (params.linkURL) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({
+        label: 'Open Link in Browser',
+        click: () => shell.openExternal(params.linkURL),
+      });
+      items.push({
+        label: 'Copy Link',
+        click: () => require('electron').clipboard.writeText(params.linkURL),
+      });
+    }
+
+    if (params.hasImageContents && params.srcURL) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({
+        label: 'Copy Image Address',
+        click: () => require('electron').clipboard.writeText(params.srcURL),
+      });
+      items.push({
+        label: 'Save Image As…',
+        click: () => mainWindow.webContents.downloadURL(params.srcURL),
+      });
+    }
+
+    if (items.length) items.push({ type: 'separator' });
+    items.push({
+      label: 'Print…',
+      accelerator: 'CmdOrCtrl+P',
+      click: () => mainWindow.webContents.print({ silent: false, printBackground: true }, () => {}),
+    });
+    items.push({ role: 'reload', accelerator: 'CmdOrCtrl+R' });
+
+    if (!app.isPackaged) {
+      items.push({ type: 'separator' });
+      items.push({
+        label: 'Inspect Element',
+        click: () => mainWindow.webContents.inspectElement(params.x, params.y),
+      });
+    }
+
+    Menu.buildFromTemplate(items).popup({ window: mainWindow });
   });
 
   // Close to tray instead of quitting (like Tally minimizing to tray)
