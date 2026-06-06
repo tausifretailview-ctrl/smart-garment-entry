@@ -1043,6 +1043,34 @@ export const FloatingSaleReturn = ({
                 .eq("id", cn.id);
             }
 
+            // Ensure CN header exists and bump used_amount before posting voucher
+            const ensuredCnIdAlong = await ensureCreditNoteForSaleReturn(supabase, {
+              organizationId,
+              saleReturnId: cn.id,
+              customerNameFallback: effectiveCustomerName || undefined,
+              returnNumberFallback: cn.returnNumber,
+              creditAmountFallback: cn.creditAmount,
+            });
+            if (ensuredCnIdAlong) {
+              const { data: cnHdr } = await supabase
+                .from("credit_notes")
+                .select("credit_amount, used_amount")
+                .eq("id", ensuredCnIdAlong)
+                .eq("organization_id", organizationId)
+                .maybeSingle();
+              const usedNow = Number((cnHdr as { used_amount?: number } | null)?.used_amount || 0);
+              const creditNow = Number((cnHdr as { credit_amount?: number } | null)?.credit_amount || 0);
+              const newUsed = Math.min(creditNow, usedNow + redeemAmount);
+              await supabase
+                .from("credit_notes")
+                .update({
+                  used_amount: newUsed,
+                  status: newUsed >= creditNow - 0.01 ? "fully_used" : "active",
+                } as any)
+                .eq("id", ensuredCnIdAlong)
+                .eq("organization_id", organizationId);
+            }
+
             await createReceiptVoucher(supabase, {
               organizationId,
               referenceId: effectiveCustomerId,
