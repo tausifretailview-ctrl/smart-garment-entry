@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { applyCreditNoteFifoToSale, getAvailableCN } from "@/utils/saleSettlement";
 
 interface CreditNoteData {
   saleId: string;
@@ -143,61 +144,32 @@ export function useCreditNotes() {
 
     setIsApplying(true);
     try {
-      // Atomic RPC: applies CN(s) FIFO, writes voucher, updates sale.paid_amount
-      const { data, error } = await supabase.rpc('apply_credit_note_to_sale', {
-        p_customer_id: customerId,
-        p_sale_id: saleId,
-        p_apply_amount: amountToApply,
-        p_organization_id: currentOrganization.id,
+      const { returns: cnPool } = await getAvailableCN(
+        supabase,
+        customerId,
+        currentOrganization.id,
+        { includeUnlinkedAdjusted: true },
+      );
+      if (!cnPool.length) {
+        throw new Error("No credit note balance available for this customer");
+      }
+
+      const fifo = await applyCreditNoteFifoToSale(supabase, {
+        organizationId: currentOrganization.id,
+        saleId,
+        amount: amountToApply,
+        cnPool,
+        adjustedBy: user?.id ?? null,
+        notes: "POS credit apply (FIFO)",
       });
 
-      if (error) throw error;
-
-      const result = (data as any) || {};
-      const totalApplied: number = Number(result.applied_amount) || 0;
-      const creditNotesUsed: string[] = Array.isArray(result.notes_used) ? result.notes_used : [];
-
-      // Keep sale_return credit status in sync with the underlying credit_notes usage.
-      // If a linked credit note is fully consumed, mark that sale_return as adjusted.
-      if (creditNotesUsed.length > 0) {
-        const { data: usedNotes, error: usedNotesError } = await supabase
-          .from("credit_notes")
-          .select("id, status, credit_amount, used_amount")
-          .eq("organization_id", currentOrganization.id)
-          .eq("customer_id", customerId)
-          .in("credit_note_number", creditNotesUsed);
-
-        if (!usedNotesError && usedNotes && usedNotes.length > 0) {
-          const fullyUsedIds = usedNotes
-            .filter((note: any) => {
-              const creditAmount = Number(note.credit_amount) || 0;
-              const usedAmount = Number(note.used_amount) || 0;
-              return String(note.status || "").toLowerCase() === "fully_used" || usedAmount >= creditAmount - 0.01;
-            })
-            .map((note: any) => note.id)
-            .filter(Boolean);
-
-          if (fullyUsedIds.length > 0) {
-            await supabase
-              .from("sale_returns")
-              .update({
-                credit_status: "adjusted",
-                linked_sale_id: saleId,
-              } as any)
-              .eq("organization_id", currentOrganization.id)
-              .eq("customer_id", customerId)
-              .eq("refund_type", "credit_note")
-              .is("deleted_at", null)
-              .in("credit_note_id", fullyUsedIds as any)
-              .in("credit_status", ["pending", "adjusted_outstanding"]);
-          }
-        }
-      }
+      const totalApplied = fifo.applied;
+      const creditNotesUsed = fifo.chunks.map((c) => c.voucherNumber).filter(Boolean);
 
       if (totalApplied > 0) {
         toast({
           title: "Credit Applied",
-          description: `₹${totalApplied.toFixed(2)} credit applied from ${creditNotesUsed.length} credit note(s)`,
+          description: `₹${totalApplied.toFixed(2)} credit applied from ${fifo.chunks.length} allocation(s)`,
         });
       }
 

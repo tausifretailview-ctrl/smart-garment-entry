@@ -11,6 +11,9 @@ Breaking these has caused real production bugs. Read before changing payment, ba
 - Lovable owns the cloud backend. Never hand-edit `src/integrations/supabase/client.ts`, `types.ts`, `.env`, or `supabase/migrations/*`. New schema = a NEW timestamped migration; GRANTs after CREATE TABLE.
 - Merge conflicts: remove ALL marker remnants - `<<<<<<<`, `=======`, `>>>>>>>` AND the branch-name text on those lines. A past merge left `cursor/...`/`main` text + both code lines in `customerBalanceUtils.ts` and broke the build.
 
+## Credit note adjustment
+- A `credit_note_adjustment` voucher MUST be created only via `adjust_invoice_balance` RPC (or `applyCreditNoteFifoToSale`, which calls it). Direct `createReceiptVoucher` / bare inserts are forbidden — blocked by app guard and `trg_cn_adjust_sync` (requires `source_document_id`; trigger is sole writer of `credit_notes.used_amount`).
+
 ## Payment status / balance
 - Do NOT invent a new balance formula. At one point FIVE divergent ones existed and drifted. Canonical: `computeCustomerOutstanding` (`customerBalanceUtils.ts`). Note the duplicate in `customerAuditMath.ts` - collapse toward the canonical one, don't add a third.
 - Do NOT reference `recomputeSalePaymentState` as if it exists - it does NOT yet. Current canonical writer logic is `derivePaidAndStatus` (`saleSettlement.ts`). The single-source-of-truth helper is planned, not built. (KNOWN-LATENT ITEM, note only - not an action item here.)

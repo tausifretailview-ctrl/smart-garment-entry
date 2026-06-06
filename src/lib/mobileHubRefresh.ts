@@ -11,6 +11,7 @@ export async function invalidateOwnerDashboardQueries(qc: QueryClient) {
     qc.invalidateQueries({ queryKey: ["owner-purchase-today"] }),
     qc.invalidateQueries({ queryKey: ["owner-payments-today"] }),
     qc.invalidateQueries({ queryKey: ["owner-outstanding"] }),
+    qc.invalidateQueries({ queryKey: ["owner-cn-drift"] }),
   ]);
 }
 

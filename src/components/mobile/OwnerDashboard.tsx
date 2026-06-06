@@ -221,6 +221,28 @@ export const OwnerDashboard = () => {
     staleTime: 60000,
   });
 
+  /* ── Query: CN drift alerts (nightly reconciliation) ── */
+  const { data: cnDrift, isLoading: cnDriftLoading } = useQuery({
+    queryKey: ["owner-cn-drift", currentOrganization?.id, today],
+    queryFn: async () => {
+      if (!currentOrganization) return { count: 0, customers: [] as string[] };
+      const { data, error } = await supabase
+        .from("cn_drift_alerts")
+        .select("customer_id, delta, severity")
+        .eq("organization_id", currentOrganization.id)
+        .eq("check_date", today)
+        .neq("severity", "ok");
+      if (error) {
+        console.warn("cn_drift_alerts query failed (table may not be deployed yet):", error.message);
+        return { count: 0, customers: [] };
+      }
+      const rows = data || [];
+      return { count: rows.length, customers: rows.map((r) => r.customer_id) };
+    },
+    enabled: !!currentOrganization && isOnline,
+    staleTime: 300000,
+  });
+
   /* ── Query: Low stock (qty < 5) ── */
   const { data: lowStock, isLoading: lowStockLoading } = useQuery({
     queryKey: ["owner-low-stock", currentOrganization?.id],
@@ -454,6 +476,35 @@ export const OwnerDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── CN DRIFT ALERTS ── */}
+      {(cnDriftLoading || (cnDrift?.count ?? 0) > 0) && (
+        <div className="px-4 mt-5">
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardHeader className="pb-2 px-4 pt-4">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                CN Drift
+                {!cnDriftLoading && cnDrift && cnDrift.count > 0 && (
+                  <span className="ml-auto text-[10px] bg-destructive/15 text-destructive font-bold px-2 py-0.5 rounded-full">
+                    {cnDrift.count} customer{cnDrift.count === 1 ? "" : "s"}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-4 pb-3">
+              {cnDriftLoading ? (
+                <Skeleton className="h-4 w-full" />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Credit-note voucher totals diverge from CN headers for {cnDrift?.count} customer
+                  {cnDrift?.count === 1 ? "" : "s"} today. Review in Accounts → Customer reconciliation.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ── LOW STOCK ALERTS ── */}
       <div className="px-4 mt-5">

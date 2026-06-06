@@ -83,6 +83,24 @@ export type CreateReceiptVoucherParams = {
   referenceType?: "sale" | "customer";
 };
 
+/** Files allowed to reference `credit_note_adjustment` (see scripts/check-cn-adjust-literals.sh). */
+export const CN_ADJUST_ALLOWED_CALLERS = [
+  "saleSettlement.ts",
+  "customerBalanceUtils.ts",
+  "customerBalanceCore.ts",
+  "customerAuditBundle.ts",
+  "journalService.ts",
+  "InvoiceHistoryDialog.tsx",
+  "CustomerLedger.tsx",
+  "CustomerLedgerPage.tsx",
+  "CreditNoteHistoryDialog.tsx",
+  "CustomerBalanceAdjustmentDialog.tsx",
+  "OutstandingDashboardTab.tsx",
+  "CustomerPaymentTab.tsx",
+  "SalesInvoiceDashboard.tsx",
+  "AdjustCustomerCreditNoteDialog.tsx",
+] as const;
+
 /**
  * Create a voucher_entries receipt row.
  * Invoice-linked receipts always use reference_type = 'sale'.
@@ -91,6 +109,11 @@ export async function createReceiptVoucher(
   supabase: SupabaseClient,
   params: CreateReceiptVoucherParams,
 ): Promise<{ id: string; voucher_number: string }> {
+  if (params.paymentMethod === "credit_note_adjustment") {
+    throw new Error(
+      "credit_note_adjustment vouchers must be created via adjust_invoice_balance RPC (or applyCreditNoteFifoToSale). Direct createReceiptVoucher is forbidden.",
+    );
+  }
   const referenceType = params.referenceType ?? "sale";
   const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
 

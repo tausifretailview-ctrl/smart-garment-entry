@@ -4403,6 +4403,7 @@ export default function POSSales() {
           organizationId={currentOrganization?.id || ""}
           customerId={customerId}
           customerName={customerName || undefined}
+          posCurrentSaleId={currentSaleId}
           onReturnSaved={(amount, returnNumber, refundType) => {
             if (refundType === "exchange" || refundType === "credit_note") {
               setSaleReturnAdjust(amount);
@@ -4536,6 +4537,7 @@ export default function POSSales() {
           organizationId={currentOrganization?.id || ""}
           customerId={customerId}
           customerName={customerName || undefined}
+          posCurrentSaleId={currentSaleId}
           onReturnSaved={(amount, returnNumber, refundType) => {
             if (refundType === "exchange" || refundType === "credit_note") {
               setSaleReturnAdjust(amount);
@@ -6465,6 +6467,7 @@ export default function POSSales() {
           organizationId={currentOrganization?.id || ""}
           customerId={customerId}
           customerName={customerName || undefined}
+          posCurrentSaleId={currentSaleId}
           onReturnSaved={(amount, returnNumber, refundType) => {
             if (refundType === "exchange" || refundType === "credit_note") {
               setSaleReturnAdjust(amount);

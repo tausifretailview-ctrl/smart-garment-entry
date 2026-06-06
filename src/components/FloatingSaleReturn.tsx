@@ -20,7 +20,8 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
+import { ensureCreditNoteHeadroom } from "@/utils/saleReturnCnBalance";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
 import { useSettings } from "@/hooks/useSettings";
 import { useReactToPrint } from "react-to-print";
@@ -81,6 +82,8 @@ interface FloatingSaleReturnProps {
   organizationId: string;
   customerId?: string;
   customerName?: string;
+  /** Saved POS / held sale id — CN redeem uses adjust_invoice_balance when set */
+  posCurrentSaleId?: string | null;
   onReturnSaved: (returnAmount: number, returnNumber: string, refundType: RefundType) => void;
 }
 
@@ -90,6 +93,7 @@ export const FloatingSaleReturn = ({
   organizationId,
   customerId,
   customerName,
+  posCurrentSaleId,
   onReturnSaved,
 }: FloatingSaleReturnProps) => {
   const { toast } = useToast();
@@ -193,6 +197,68 @@ export const FloatingSaleReturn = ({
   // Effective customer (prop wins, otherwise inline-picked)
   const effectiveCustomerId = customerId || pickedCustomerId || undefined;
   const effectiveCustomerName = customerName || pickedCustomerName || undefined;
+
+  const applyCnViaAdjustInvoice = async (
+    saleReturnId: string,
+    creditNoteId: string | null,
+    amount: number,
+    targetSaleId: string,
+    cnMeta: { returnNumber: string; creditAmount: number },
+  ) => {
+    const cnId = await ensureCreditNoteForSaleReturn(supabase, {
+      organizationId,
+      saleReturnId,
+      creditNoteIdHint: creditNoteId,
+      customerNameFallback: effectiveCustomerName,
+      returnNumberFallback: cnMeta.returnNumber,
+      creditAmountFallback: cnMeta.creditAmount,
+    });
+    if (!cnId) throw new Error("Credit note not found for this return");
+
+    await ensureCreditNoteHeadroom(supabase, {
+      organizationId,
+      creditNoteId: cnId,
+      amountNeeded: amount,
+      maxPoolFromReturn: cnMeta.creditAmount,
+      saleReturnId,
+    });
+
+    const { data, error } = await supabase.rpc("adjust_invoice_balance", {
+      p_organization_id: organizationId,
+      p_invoice_id: targetSaleId,
+      p_adjustment_type: "CREDIT_NOTE",
+      p_source_document_id: cnId,
+      p_amount_applied: amount,
+      p_adjusted_by: null,
+      p_notes: "POS credit note redeem",
+    });
+    if (error) throw error;
+
+    const voucherEntryId = String(
+      (data as { voucher_entry_id?: string } | null)?.voucher_entry_id ?? "",
+    );
+    if (!voucherEntryId) {
+      throw new Error("Receipt voucher missing after credit-note adjustment.");
+    }
+
+    const { data: acctPos } = await supabase
+      .from("settings")
+      .select("accounting_engine_enabled")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (isAccountingEngineEnabled(acctPos as { accounting_engine_enabled?: boolean } | null)) {
+      const cnVoucherDate = new Date().toISOString().split("T")[0];
+      const cnDescription = `Credit note ${cnMeta.returnNumber} applied via POS`;
+      await recordCustomerCreditNoteApplicationJournalEntry(
+        voucherEntryId,
+        organizationId,
+        amount,
+        cnVoucherDate,
+        cnDescription,
+        supabase,
+      );
+    }
+  };
 
   // Pending credit notes for current customer (unapplied sale returns with credit_status = 'pending')
   const [pendingCreditNotes, setPendingCreditNotes] = useState<Array<{
@@ -685,56 +751,15 @@ export const FloatingSaleReturn = ({
           }).eq("id", cn.id);
         }
 
-        const cnVoucherDate = new Date().toISOString().split("T")[0];
-        const cnDescription = isPartial
-          ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
-          : `Credit note ${cn.returnNumber} applied via POS`;
-        const cnCreated = await createReceiptVoucher(supabase, {
-          organizationId,
-          referenceId: effectiveCustomerId,
-          referenceType: "customer",
-          amount: redeemAmount,
-          paymentMethod: "credit_note_adjustment",
-          description: cnDescription,
-          voucherDate: cnVoucherDate,
-        });
-        const cnVoucherId = cnCreated.id;
-        const { data: acctPos } = await supabase
-          .from("settings")
-          .select("accounting_engine_enabled")
-          .eq("organization_id", organizationId)
-          .maybeSingle();
-        if (
-          cnVoucherId &&
-          isAccountingEngineEnabled(acctPos as { accounting_engine_enabled?: boolean } | null)
-        ) {
-          try {
-            await recordCustomerCreditNoteApplicationJournalEntry(
-              cnVoucherId,
-              organizationId,
-              redeemAmount,
-              cnVoucherDate,
-              cnDescription,
-              supabase
-            );
-          } catch (glErr) {
-            await deleteJournalEntryByReference(
-              organizationId,
-              "CustomerCreditNoteApplication",
-              cnVoucherId,
-              supabase
-            );
-            await supabase.from("voucher_entries").delete().eq("id", cnVoucherId);
-            if (isPartial) {
-              await supabase
-                .from("sale_returns")
-                .update({ net_amount: cn.creditAmount } as any)
-                .eq("id", cn.id);
-            } else {
-              await supabase.from("sale_returns").update({ credit_status: "pending" }).eq("id", cn.id);
-            }
-            throw glErr;
-          }
+        const targetSaleId = billSaleId || posCurrentSaleId || null;
+        if (targetSaleId) {
+          await applyCnViaAdjustInvoice(
+            cn.id,
+            cn.creditNoteId,
+            redeemAmount,
+            targetSaleId,
+            { returnNumber: cn.returnNumber, creditAmount: cn.creditAmount },
+          );
         }
 
         toast({
@@ -1013,17 +1038,16 @@ export const FloatingSaleReturn = ({
                 .eq("id", cn.id);
             }
 
-            await createReceiptVoucher(supabase, {
-              organizationId,
-              referenceId: effectiveCustomerId,
-              referenceType: "customer",
-              amount: redeemAmount,
-              paymentMethod: "credit_note_adjustment",
-              description: isPartial
-                ? `Credit note ${cn.returnNumber} partially applied (₹${Math.round(redeemAmount)} of ₹${Math.round(cn.creditAmount)}) via POS`
-                : `Credit note ${cn.returnNumber} applied via POS`,
-              voucherDate: new Date().toISOString().split("T")[0],
-            });
+            const targetSaleId = billSaleId || posCurrentSaleId || null;
+            if (targetSaleId) {
+              await applyCnViaAdjustInvoice(
+                cn.id,
+                cn.creditNoteId,
+                redeemAmount,
+                targetSaleId,
+                { returnNumber: cn.returnNumber, creditAmount: cn.creditAmount },
+              );
+            }
           }
         } catch (cnErr) {
           console.error("Credit note apply failed:", cnErr);

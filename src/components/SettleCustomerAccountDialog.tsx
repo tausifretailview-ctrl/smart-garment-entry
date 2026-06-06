@@ -272,6 +272,40 @@ export function SettleCustomerAccountDialog({
   const handleSettle = async () => {
     if (!customerId || selectedTotal <= 0 || isProcessing || selectedInvoices.size === 0) return;
 
+    let liveCnPool = sortedCnReturns.map((r) => ({ ...r, available: r.available }));
+    if (cnToApply > 0.01) {
+      try {
+        const live = await getAvailableCN(supabase, customerId, organizationId, {
+          includeUnlinkedAdjusted: true,
+        });
+        liveCnPool = live.returns;
+        if (live.total <= 0.01) {
+          toast({
+            title: "No CN balance",
+            description: "Customer has no credit note pool available. Use cash/advance or adjust CN on an invoice first.",
+            variant: "destructive",
+          });
+          return;
+        }
+        if (cnToApply > live.total + 0.01) {
+          toast({
+            title: "Insufficient CN balance",
+            description: `Live CN pool is ₹${live.total.toLocaleString("en-IN")}; cannot apply ₹${cnToApply.toLocaleString("en-IN")}.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (cnErr) {
+        console.error("CN balance refetch failed:", cnErr);
+        toast({
+          title: "Error",
+          description: "Could not verify credit note balance. Please retry.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const cashEntered = parseFloat(cashAmount) || 0;
     const totalApplied =
       advanceToApply + cnToApply + discountToApply + cashEntered;
@@ -302,7 +336,7 @@ export function SettleCustomerAccountDialog({
       let cashRemaining = cashEntered;
       let discountRemaining = discountToApply;
 
-      const cnPool = sortedCnReturns.map((r) => ({ ...r, available: r.available }));
+      const cnPool = liveCnPool;
 
       for (const inv of invoicesToSettle) {
         const due = inv.outstanding;
@@ -476,6 +510,9 @@ export function SettleCustomerAccountDialog({
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
                     <p className="text-[10px] uppercase font-semibold text-amber-700">CN Available</p>
                     <p className="text-lg font-bold text-amber-800 tabular-nums">{fmt(availableCN)}</p>
+                    {availableCN <= 0.01 && (
+                      <p className="text-[10px] text-amber-900/80 mt-1">No CN pool — use Adjust CN on invoice</p>
+                    )}
                   </div>
                 </div>
 

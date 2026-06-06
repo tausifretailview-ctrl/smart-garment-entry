@@ -520,6 +520,7 @@ export function AdjustCustomerCreditNoteDialog({
   const invoiceApplyDisabled =
     loading ||
     returnMetaLoading ||
+    cnAvailable <= 0.01 ||
     overAllocated ||
     totalAllocated <= 0.01 ||
     unpaidSales.length === 0;
