@@ -40,6 +40,8 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
   derivePurchaseBillDisplayStatus,
   getEffectivePaidAmountForPurchaseBill,
@@ -164,6 +166,51 @@ const PurchaseBillDashboard = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [dcFilter, setDcFilter] = useState<string>("all");
+
+  const purchaseFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      startDate,
+      endDate,
+      sortOrder,
+      paymentStatusFilter,
+      dcFilter,
+      currentPage,
+      itemsPerPage,
+    }),
+    [
+      searchQuery,
+      startDate,
+      endDate,
+      sortOrder,
+      paymentStatusFilter,
+      dcFilter,
+      currentPage,
+      itemsPerPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    "purchase-bill-dashboard",
+    currentOrganization?.id,
+    purchaseFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+          ["sortOrder", setSortOrder],
+          ["paymentStatusFilter", setPaymentStatusFilter],
+          ["dcFilter", setDcFilter],
+        ],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["itemsPerPage", setItemsPerPage],
+        ],
+      });
+    },
+  );
 
   // Image upload and lock states
   const [uploadingImageForBill, setUploadingImageForBill] = useState<string | null>(null);
@@ -361,12 +408,13 @@ const PurchaseBillDashboard = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      setCurrentPage(1);
+      if (!isDashboardFilterRestoring()) setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [startDate, endDate, itemsPerPage, paymentStatusFilter, dcFilter]);
 

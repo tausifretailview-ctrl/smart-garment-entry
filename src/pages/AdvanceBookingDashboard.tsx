@@ -27,6 +27,8 @@ import { useSearchParams } from "react-router-dom";
 import { createAdvanceRefund } from "@/utils/advanceRefundService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { deleteJournalEntryByReference } from "@/utils/accounting/journalService";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 const PAGE_SIZE = 50;
 
@@ -44,6 +46,33 @@ export default function AdvanceBookingDashboard() {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const advanceBookingFilterSnapshot = useMemo(
+    () => ({
+      search,
+      dateFilter,
+      statusFilter,
+      currentPage,
+    }),
+    [search, dateFilter, statusFilter, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    "advance-booking-dashboard",
+    orgId,
+    advanceBookingFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["search", setSearch],
+          ["dateFilter", (v) => setDateFilter(v as DateFilter)],
+          ["statusFilter", (v) => setStatusFilter(v as StatusFilter)],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
+
    const [addDialogOpen, setAddDialogOpen] = useState(false);
    const [refundDialogOpen, setRefundDialogOpen] = useState(false);
    const [editDialogOpen, setEditDialogOpen] = useState(false);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -13,6 +13,8 @@ import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -75,6 +77,38 @@ export default function PurchaseOrderDashboard() {
   const [isConverting, setIsConverting] = useState(false);
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
+
+  const purchaseOrderFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      statusFilter,
+      supplierFilter,
+      fromDate,
+      toDate,
+      currentPage,
+    }),
+    [searchQuery, statusFilter, supplierFilter, fromDate, toDate, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    "purchase-orders",
+    currentOrganization?.id,
+    purchaseOrderFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["statusFilter", setStatusFilter],
+          ["supplierFilter", setSupplierFilter],
+        ],
+        optionalDates: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
 
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: ['purchase-orders', currentOrganization?.id],

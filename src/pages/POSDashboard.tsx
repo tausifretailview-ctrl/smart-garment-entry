@@ -90,6 +90,8 @@ import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 interface SaleItem {
   id: string;
@@ -288,6 +290,67 @@ const POSDashboard = () => {
   const [isBulkCancelling, setIsBulkCancelling] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  const posFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      startDate,
+      endDate,
+      periodFilter,
+      paymentMethodFilter,
+      paymentStatusFilter,
+      saleTypeFilter,
+      refundFilter,
+      creditNoteFilter,
+      userFilter: userFilter === "__pending__" ? undefined : userFilter,
+      cancelFilter,
+      currentPage,
+      itemsPerPage,
+    }),
+    [
+      searchQuery,
+      startDate,
+      endDate,
+      periodFilter,
+      paymentMethodFilter,
+      paymentStatusFilter,
+      saleTypeFilter,
+      refundFilter,
+      creditNoteFilter,
+      userFilter,
+      cancelFilter,
+      currentPage,
+      itemsPerPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    routePathSegment || "pos-dashboard",
+    currentOrganization?.id,
+    posFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+          ["periodFilter", setPeriodFilter],
+          ["paymentMethodFilter", setPaymentMethodFilter],
+          ["saleTypeFilter", setSaleTypeFilter],
+          ["refundFilter", setRefundFilter],
+          ["creditNoteFilter", setCreditNoteFilter],
+          ["cancelFilter", setCancelFilter],
+          ["userFilter", setUserFilter],
+        ],
+        stringArrays: [["paymentStatusFilter", setPaymentStatusFilter]],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["itemsPerPage", setItemsPerPage],
+        ],
+      });
+    },
+  );
+
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const lastFetchedAtRef = useRef(0);
@@ -1919,6 +1982,7 @@ const POSDashboard = () => {
   };
 
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter]);
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
@@ -35,6 +35,8 @@ import { Search, Plus, Calendar as CalendarIcon, FileText, Trash2, ArrowRight, L
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 export default function DeliveryChallanDashboard() {
   const { toast } = useToast();
@@ -46,6 +48,35 @@ export default function DeliveryChallanDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
+
+  const deliveryChallanFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      statusFilter,
+      dateFrom,
+      dateTo,
+    }),
+    [searchQuery, statusFilter, dateFrom, dateTo],
+  );
+
+  useDashboardFilterPersistence(
+    "delivery-challan-dashboard",
+    currentOrganization?.id,
+    deliveryChallanFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["statusFilter", setStatusFilter],
+        ],
+        requiredDates: [
+          ["dateFrom", setDateFrom],
+          ["dateTo", setDateTo],
+        ],
+      });
+    },
+  );
+
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [convertConfirm, setConvertConfirm] = useState<any | null>(null);
   const [isConverting, setIsConverting] = useState(false);

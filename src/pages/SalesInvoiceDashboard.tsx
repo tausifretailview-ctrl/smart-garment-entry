@@ -101,6 +101,8 @@ import {
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import { fetchInvoiceDashboardUnified } from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -251,6 +253,60 @@ export default function SalesInvoiceDashboard() {
    const [isHardDeleting, setIsHardDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  const invoiceFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      periodFilter,
+      paymentStatusFilter,
+      deliveryFilter,
+      shopFilter,
+      userFilter: userFilter === "__pending__" ? undefined : userFilter,
+      startDate,
+      endDate,
+      currentPage,
+      itemsPerPage,
+    }),
+    [
+      searchQuery,
+      periodFilter,
+      paymentStatusFilter,
+      deliveryFilter,
+      shopFilter,
+      userFilter,
+      startDate,
+      endDate,
+      currentPage,
+      itemsPerPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    "sales-invoice-dashboard",
+    currentOrganization?.id,
+    invoiceFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["periodFilter", setPeriodFilter],
+          ["deliveryFilter", setDeliveryFilter],
+          ["shopFilter", setShopFilter],
+          ["userFilter", setUserFilter],
+        ],
+        stringArrays: [["paymentStatusFilter", setPaymentStatusFilter]],
+        optionalDates: [
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+        ],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["itemsPerPage", setItemsPerPage],
+        ],
+      });
+    },
+  );
+
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
@@ -1147,6 +1203,7 @@ export default function SalesInvoiceDashboard() {
   };
 
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [debouncedSearch, itemsPerPage, periodFilter, paymentStatusFilter, deliveryFilter, userFilter, startDate, endDate]);
 

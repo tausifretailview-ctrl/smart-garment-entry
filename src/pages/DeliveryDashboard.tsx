@@ -7,6 +7,8 @@ import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarI
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useState, useMemo, useCallback } from "react";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,37 @@ const DeliveryDashboard = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+
+  const deliveryFilterSnapshot = useMemo(
+    () => ({
+      selectedStatus,
+      searchQuery,
+      dateFrom,
+      dateTo,
+      paymentStatusFilter,
+    }),
+    [selectedStatus, searchQuery, dateFrom, dateTo, paymentStatusFilter],
+  );
+
+  useDashboardFilterPersistence(
+    "delivery-dashboard",
+    currentOrganization?.id,
+    deliveryFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["paymentStatusFilter", setPaymentStatusFilter],
+        ],
+        nullableStrings: [["selectedStatus", setSelectedStatus]],
+        optionalDates: [
+          ["dateFrom", setDateFrom],
+          ["dateTo", setDateTo],
+        ],
+      });
+    },
+  );
+
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [selectedInvoiceForStatus, setSelectedInvoiceForStatus] = useState<any>(null);
   const [newDeliveryStatus, setNewDeliveryStatus] = useState<string>("");

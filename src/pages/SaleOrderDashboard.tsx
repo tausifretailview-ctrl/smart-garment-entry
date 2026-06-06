@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
@@ -49,6 +49,8 @@ import { Check, FileText, X } from "lucide-react";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { formatDistanceToNow } from "date-fns";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 interface ConversionItem {
   id: string;
@@ -93,6 +95,39 @@ export default function SaleOrderDashboard() {
   const { formatSaleOrderMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
+
+  const saleOrderFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      statusFilter,
+      customerFilter,
+      fromDate,
+      toDate,
+      currentPage,
+    }),
+    [searchQuery, statusFilter, customerFilter, fromDate, toDate, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    "sale-order-dashboard",
+    currentOrganization?.id,
+    saleOrderFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["statusFilter", setStatusFilter],
+          ["customerFilter", setCustomerFilter],
+        ],
+        optionalDates: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
+
   const [orderToAccept, setOrderToAccept] = useState<any>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   

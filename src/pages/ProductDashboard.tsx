@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import * as XLSX from "xlsx";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -108,6 +110,58 @@ const ProductDashboard = () => {
   const [selectedStockLevel, setSelectedStockLevel] = useState<string>("all");
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
+
+  // Selection and pagination states (declared early for filter persistence)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  const productFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      selectedCategory,
+      selectedProductType,
+      selectedSizeGroup,
+      selectedStockLevel,
+      minPrice,
+      maxPrice,
+      currentPage,
+      itemsPerPage,
+    }),
+    [
+      searchQuery,
+      selectedCategory,
+      selectedProductType,
+      selectedSizeGroup,
+      selectedStockLevel,
+      minPrice,
+      maxPrice,
+      currentPage,
+      itemsPerPage,
+    ],
+  );
+
+  useDashboardFilterPersistence(
+    "product-dashboard",
+    currentOrganization?.id,
+    productFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["selectedCategory", setSelectedCategory],
+          ["selectedProductType", setSelectedProductType],
+          ["selectedSizeGroup", setSelectedSizeGroup],
+          ["selectedStockLevel", setSelectedStockLevel],
+          ["minPrice", setMinPrice],
+          ["maxPrice", setMaxPrice],
+        ],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["itemsPerPage", setItemsPerPage],
+        ],
+      });
+    },
+  );
   
   // Data for filter options
   const [sizeGroups, setSizeGroups] = useState<Array<{ id: string; group_name: string }>>([]);
@@ -116,8 +170,6 @@ const ProductDashboard = () => {
 
   // Selection and pagination states
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);

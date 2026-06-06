@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
@@ -22,6 +22,8 @@ import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,6 +56,39 @@ export default function QuotationDashboard() {
   const { formatQuotationMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
+
+  const quotationFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      statusFilter,
+      customerFilter,
+      fromDate,
+      toDate,
+      currentPage,
+    }),
+    [searchQuery, statusFilter, customerFilter, fromDate, toDate, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    "quotation-dashboard",
+    currentOrganization?.id,
+    quotationFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["statusFilter", setStatusFilter],
+          ["customerFilter", setCustomerFilter],
+        ],
+        optionalDates: [
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
+
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   const { user } = useAuth();

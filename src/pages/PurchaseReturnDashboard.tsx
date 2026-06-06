@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,8 @@ import {
   formatPurchaseReturnOrigBill,
   type LinkedBillLabel,
 } from "@/utils/purchaseReturnCnDisplay";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 interface PurchaseReturnItem {
   id: string;
@@ -103,15 +105,48 @@ const PurchaseReturnDashboard = () => {
   const [pageSize, setPageSize] = useState(50);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
+  const purchaseReturnFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      startDate,
+      endDate,
+      dcFilter,
+      currentPage,
+      pageSize,
+    }),
+    [searchQuery, startDate, endDate, dcFilter, currentPage, pageSize],
+  );
+
+  useDashboardFilterPersistence(
+    "purchase-return-dashboard",
+    currentOrganization?.id,
+    purchaseReturnFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+          ["dcFilter", setDcFilter],
+        ],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["pageSize", setPageSize],
+        ],
+      });
+    },
+  );
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery);
-      setCurrentPage(1);
+      if (!isDashboardFilterRestoring()) setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [startDate, endDate]);
 

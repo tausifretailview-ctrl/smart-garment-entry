@@ -46,6 +46,8 @@ import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
@@ -166,6 +168,40 @@ export default function PaymentsDashboard() {
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  const paymentsFilterSnapshot = useMemo(
+    () => ({
+      searchQuery,
+      statusFilter,
+      dateFrom,
+      dateTo,
+      currentPage,
+      itemsPerPage,
+    }),
+    [searchQuery, statusFilter, dateFrom, dateTo, currentPage, itemsPerPage],
+  );
+
+  useDashboardFilterPersistence(
+    "payments-dashboard",
+    currentOrganization?.id,
+    paymentsFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchQuery", setSearchQuery],
+          ["statusFilter", setStatusFilter],
+        ],
+        optionalDates: [
+          ["dateFrom", setDateFrom],
+          ["dateTo", setDateTo],
+        ],
+        numbers: [
+          ["currentPage", setCurrentPage],
+          ["itemsPerPage", setItemsPerPage],
+        ],
+      });
+    },
+  );
   
   // Payment recording dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);

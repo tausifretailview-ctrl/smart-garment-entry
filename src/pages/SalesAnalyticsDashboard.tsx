@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, subDays, startOfMonth, endOfMonth, startOfYear, subMonths, parseISO, startOfWeek, endOfWeek } from "date-fns";
 import { CalendarIcon, TrendingUp, TrendingDown, IndianRupee, ShoppingCart, Users, Package, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -40,6 +42,34 @@ export default function SalesAnalyticsDashboard() {
   const [periodType, setPeriodType] = useState<PeriodType>("this-month");
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
+
+  const salesAnalyticsFilterSnapshot = useMemo(
+    () => ({
+      activeTab,
+      periodType,
+      startDate,
+      endDate,
+    }),
+    [activeTab, periodType, startDate, endDate],
+  );
+
+  useDashboardFilterPersistence(
+    "sales-analytics",
+    currentOrganization?.id,
+    salesAnalyticsFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["activeTab", setActiveTab],
+          ["periodType", (v) => setPeriodType(v as PeriodType)],
+        ],
+        requiredDates: [
+          ["startDate", setStartDate],
+          ["endDate", setEndDate],
+        ],
+      });
+    },
+  );
   
   // Sync tab from URL on mount
   useEffect(() => {

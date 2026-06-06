@@ -39,6 +39,8 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
 interface SaleReturn {
   id: string;
@@ -152,6 +154,34 @@ export default function SaleReturnDashboard() {
   // Status filter
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const saleReturnFilterSnapshot = useMemo(
+    () => ({
+      searchTerm,
+      fromDate,
+      toDate,
+      statusFilter,
+      currentPage,
+    }),
+    [searchTerm, fromDate, toDate, statusFilter, currentPage],
+  );
+
+  useDashboardFilterPersistence(
+    "sale-returns",
+    currentOrganization?.id,
+    saleReturnFilterSnapshot,
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [
+          ["searchTerm", setSearchTerm],
+          ["fromDate", setFromDate],
+          ["toDate", setToDate],
+          ["statusFilter", setStatusFilter],
+        ],
+        numbers: [["currentPage", setCurrentPage]],
+      });
+    },
+  );
+
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
   const [billFormat, setBillFormat] = useState<string>('a4');
@@ -202,13 +232,14 @@ export default function SaleReturnDashboard() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm);
-      setCurrentPage(1);
+      if (!isDashboardFilterRestoring()) setCurrentPage(1);
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
   // Reset page on filter change
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [fromDate, toDate, statusFilter]);
 

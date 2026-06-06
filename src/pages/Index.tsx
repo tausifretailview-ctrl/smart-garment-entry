@@ -62,6 +62,8 @@ import {
 } from "@/components/ui/tooltip";
 import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 // Currency formatter helper
 const formatCurrency = (value: number) => {
@@ -220,6 +222,18 @@ const DesktopDashboard = () => {
   const canNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
+
+  useDashboardFilterPersistence(
+    "",
+    currentOrganization?.id,
+    useMemo(() => ({ dateRange }), [dateRange]),
+    (saved) => {
+      restoreDashboardFilters(saved, {
+        strings: [["dateRange", (v) => setDateRange(v as DateRangeType)]],
+      });
+    },
+  );
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metricsLoadRequested, setMetricsLoadRequested] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
