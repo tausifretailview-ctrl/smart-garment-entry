@@ -594,6 +594,19 @@ function createMenu() {
         { label: 'Backup', click: nav('settings/backup') },
         { type: 'separator' },
         {
+          label: 'Default Printer…',
+          click: () => chooseDefaultPrinter('invoice'),
+        },
+        {
+          label: 'Default Receipt Printer (Thermal)…',
+          click: () => chooseDefaultPrinter('receipt'),
+        },
+        {
+          label: 'Default Barcode Printer…',
+          click: () => chooseDefaultPrinter('barcode'),
+        },
+        { type: 'separator' },
+        {
           label: 'Exit',
           accelerator: 'CmdOrCtrl+Q',
           click: () => { app.isQuitting = true; app.quit(); },
