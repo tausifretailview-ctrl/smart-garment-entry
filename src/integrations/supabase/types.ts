@@ -5257,6 +5257,7 @@ export type Database = {
           shop_name: string | null
           signed_invoice: string | null
           signed_qr_code: string | null
+          tax_type: string
           terms_conditions: string | null
           total_qty: number | null
           updated_at: string
@@ -5321,6 +5322,7 @@ export type Database = {
           shop_name?: string | null
           signed_invoice?: string | null
           signed_qr_code?: string | null
+          tax_type?: string
           terms_conditions?: string | null
           total_qty?: number | null
           updated_at?: string
@@ -5385,6 +5387,7 @@ export type Database = {
           shop_name?: string | null
           signed_invoice?: string | null
           signed_qr_code?: string | null
+          tax_type?: string
           terms_conditions?: string | null
           total_qty?: number | null
           updated_at?: string
