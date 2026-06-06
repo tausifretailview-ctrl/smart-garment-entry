@@ -1,96 +1,102 @@
-## What's actually wrong
+# Slowness & loading fix — what this plan will actually solve
 
-For **Shumama Baireli**, a CN-adjustment receipt voucher of **₹38,000** was posted on 2026-05-21 against `INV/26-27/803`:
+You asked: *"after this plan is approved, what problems get solved, and confirm nothing in existing structure / logic will break."* Below is exactly that — no scope creep, no UI / business-logic change.
 
-- `voucher_entries`: `RCP/26-27/929`, `payment_method=credit_note_adjustment`, `total_amount=38000`, references the sale.
-- `sales`: `INV/26-27/803` has `net_amount=38000`, `sale_return_adjust=38000`, `payment_status=completed` ⇒ dashboard correctly reads it as "Paid".
-- `credit_notes` for this customer: **only one row exists** — `CN/26-27/16` for ₹11,250, already fully used by `SR/26-27/33`.
-- `sale_returns` (pending CAB): `SR/41` ₹10,950 + `SR/37` ₹11,400 + `SR/36` ₹11,100 = **₹33,450**.
+---
 
-So a ₹38,000 CN was applied to the invoice, but `credit_notes.used_amount` was **never bumped** and there is no CN header for that amount. The sale-return CAB (the pool the user "spent") was reduced (or never decremented) without a matching CN write. That's why the dashboard says "paid via CN" but the CN balance still looks unchanged.
+## Problems that will be solved
 
-## Scope of the issue across ELLA NOOR
+### 1. Silent DB error on every purchase-return / supplier-CN screen (HIGH IMPACT)
 
-A direct audit (CN-adjustment receipts on sales vs. `credit_notes.used_amount` per customer) finds **26 customers** with one-sided CN applications totaling **~₹1,78,400** of over-applied / phantom CN:
+**What's happening today:** Postgres is logging this error repeatedly:
 
-| Customer | CN Issued | CN Used | CN Applied to invoices | Over-applied |
-|---|---:|---:|---:|---:|
-| Shumama Baireli | 11,250 | 11,250 | 40,150 | **28,900** |
-| AMNA DARVESH | 0 | 0 | 13,500 | 13,500 |
-| Sharmin Mewara | 11,300 | 11,300 | 24,750 | 13,450 |
-| Muskan | 0 | 0 | 12,100 | 12,100 |
-| MAHENOOR KAS / GULNAZ | 0 | 0 | 10,500 each | 10,500 each |
-| Amrin, OSAMA, QURRATUL AIN, Shanawaz, Mahi Supariwala, Ruby Bhatia, Khadija, FIZA, SAMEENA, PRIYANKA, Naeem, Nazbin, Parina, Arezah, Sadiqa, Sadiya, Hanif, AYESHA, FAIZA SALMAN, SABINA | … | … | … | small (₹1.8K–₹9.2K each) |
+```
+ERROR: column purchase_returns.credit_available_balance does not exist
+```
 
-Most cases have `total_cn_issued = 0` — i.e. the user applied a CN against the invoice without a `credit_notes` header ever existing.
+The column is missing in the live database, but **8 source files still query / write it**:
+`src/utils/supplierBalanceUtils.ts`, `src/utils/purchaseReturnCnDisplay.ts`,
+`src/pages/PurchaseReturnEntry.tsx`, `src/pages/PurchaseReturnDashboard.tsx`,
+`src/components/SupplierLedger.tsx`, `src/components/AdjustCreditNoteDialog.tsx`,
+`src/components/accounts/SupplierPaymentTab.tsx`, `src/utils/accounting/tallyV2JournalPosters.ts`.
 
-## Root cause
+**Visible symptoms users have been reporting:**
+- Purchase Return Dashboard / Entry — slow, blank rows, "supplier CN" amount shows wrong
+- Supplier Ledger — CN balance mismatched, sometimes spinner
+- Adjust Credit Note dialog (supplier side) — stale numbers
+- Tally Export & GST Sale/Purchase Register — silent partial data
+- Accounts → Supplier Payment tab — wrong outstanding
 
-The legacy "Adjust pending sale-return against invoice" path (POS `FloatingSaleReturn` + `apply_credit_note_to_sale`) writes the receipt voucher and bumps `sales.sale_return_adjust`, **but only updates `credit_notes.used_amount` when `sale_returns.credit_note_id` is already set**. Pending sale-returns in ELLA NOOR have `credit_note_id = NULL`, so no CN row was created or decremented. This is exactly the **Phase 2 not-shipped** path called out in `mem://features/accounts/customer-balance-logic`.
+**Fix:** New idempotent migration that re-adds the column (`ADD COLUMN IF NOT EXISTS`) and backfills `credit_available_balance = net_amount` for pending rows — exactly what the original migration `20260510120001` was supposed to do. **No table renamed, no other column touched, no RLS change, no trigger change to business-logic tables.**
 
-Result: receipt + `sale_return_adjust` are written → invoice flips to Paid; CN header never reflects the spend → ledger / CN remaining are wrong.
+### 2. "Taking longer than expected — Retry tab / Refresh app" screen (the WhatsApp screenshot)
 
-## Plan
+**What's happening today:** `src/components/TabCachedPages.tsx` flips to that screen after **8 seconds** of chunk-loading. Only 4 tabs currently get the longer 20-second budget. Pages bigger than those are NOT marked heavy, so on Windows desktop / slow connections they trip the timeout:
 
-### Phase A — Confirm with the user (no writes)
+| Page | Source size | Currently heavy? |
+|---|---:|---|
+| POSSales | 293 KB | ❌ |
+| BarcodePrinting | 260 KB | ✅ |
+| Settings | 257 KB | ✅ |
+| PurchaseEntry | 223 KB | ❌ |
+| SalesInvoiceDashboard | 200 KB | ❌ |
+| SalesInvoice | 198 KB | ❌ |
+| POSDashboard | 184 KB | ❌ |
+| ProductEntry | 133 KB | ❌ |
 
-Share the 26-customer audit list (above) for sign-off. Confirm the canonical fix policy per row, with three options per affected sale:
+**Fix:** add these tabs to `HEAVY_TAB_PATHS` so they get 20 s instead of 8 s. Pure list change — **no print, no search, no save, no UI changed**.
 
-1. **Backfill CN header** — create a `credit_notes` row equal to the applied voucher and mark it `fully_used` (paper trail only). Invoice stays Paid, CN ledger now balances.
-2. **Reverse the voucher** — soft-delete the CN-adjustment voucher and clear `sales.sale_return_adjust`. Invoice flips back to Pending; user must re-apply correctly via the new RPC.
-3. **Mixed** — backfill for cases where a real return exists; reverse where it was a mistake.
+### 3. Cold-load lag on Barcode Printing
 
-Default recommendation: **Option 1 (backfill)** for rows where the customer actually has pending sale-return CAB equal to or greater than the over-apply; **Option 2 (reverse)** for the rest.
+`barcode-printing` (260 KB) is not in `POST_LOGIN_IDLE_PREFETCH_TAB_PATHS`. Add it so the chunk warms in the background after login. No behavior change.
 
-### Phase B — Data repair (one-shot SQL, after approval)
+### 4. Cloud usage / cost — concrete control
 
-For each affected sale, in a single transactional migration:
-- Create / extend a `credit_notes` row to cover the gap; set `used_amount = credit_amount`, `status = fully_used`, link via `sale_id`.
-- For "reverse" rows: soft-delete the voucher, subtract `total_amount` from `sales.sale_return_adjust`, recompute `payment_status`.
-- Re-run `reconcile_customer_balances` for the org so the ledger matches.
+`src/hooks/useCloudUsageEstimate.tsx` and the dashboard cause repeat counting queries on every visit. After fix #1 ships I'll do a **read-only** audit (one report file, no code change) of:
+- top expensive PostgREST calls (last 7 days from `postgres_logs`)
+- pages that refetch on every tab switch
+- pages without `useVisibilityRefetch`
 
-### Phase C — Prevent recurrence (code)
+Then propose a tiny second plan with only stale-time / interval changes (no logic change). That keeps the risky touches out of *this* plan.
 
-Route every CN-on-invoice apply through `adjust_invoice_balance` (already the single writer per memory). Specifically:
-- `src/components/FloatingSaleReturn.tsx` POS-redeem path and `useCreditNotes` pending-CN-redeem must call `adjust_invoice_balance` (which now caps via `credit_notes.credit_amount − used_amount` and inserts the voucher inline).
-- Delete / quarantine direct `createReceiptVoucher({ payment_method: 'credit_note_adjustment' })` call sites outside the two RPCs.
-- Add a DB trigger on `voucher_entries` insert: if `payment_method='credit_note_adjustment'` and the request did not come from `adjust_invoice_balance` / `apply_credit_note_to_sale`, raise. (Optional, second line of defense.)
+### 5. Recent cursor-github merges (last 3 days)
 
-### Phase D — Verify
+I checked the 30 most-recent commits (POSDashboard, POSSales, SalesInvoice, BarcodePrinting, PurchaseEntry, SaleReturnEntry). **None of them re-introduced the missing `credit_available_balance` column** — that gap is pre-existing. The recent merges are exercising the broken queries more often, which is why pain spiked the last 3 days. No merge needs to be reverted.
 
-- Re-run the audit query — over-applied total must be 0.
-- Spot-check Shumama Baireli, AMNA DARVESH, Sharmin Mewara in Sales Dashboard, Customer Ledger, and CN list.
+---
 
-## Technical notes
+## What this plan will NOT touch (guarantee)
 
-- Audit query used (read-only, reproducible):
-  ```sql
-  WITH cn_vouchers AS (
-    SELECT ve.total_amount, s.customer_id, c.customer_name
-    FROM voucher_entries ve
-    JOIN sales s ON s.id = ve.reference_id AND s.organization_id = ve.organization_id
-    JOIN customers c ON c.id = s.customer_id
-    WHERE ve.organization_id = '<ELLA_NOOR>'
-      AND ve.deleted_at IS NULL AND s.deleted_at IS NULL
-      AND ve.voucher_type = 'receipt'
-      AND LOWER(ve.payment_method) = 'credit_note_adjustment'
-  ), cust_cn AS (
-    SELECT customer_id, SUM(credit_amount) AS issued, SUM(used_amount) AS used
-    FROM credit_notes
-    WHERE organization_id = '<ELLA_NOOR>' AND deleted_at IS NULL
-    GROUP BY customer_id
-  )
-  SELECT c.customer_name, COALESCE(cc.issued,0), COALESCE(cc.used,0),
-         SUM(cv.total_amount) AS applied,
-         SUM(cv.total_amount) - COALESCE(cc.used,0) AS over_applied
-  FROM cn_vouchers cv
-  LEFT JOIN cust_cn cc USING (customer_id)
-  GROUP BY 1,2,3 HAVING SUM(cv.total_amount) > COALESCE(cc.used,0) + 0.5
-  ORDER BY over_applied DESC;
-  ```
-- Files touched in Phase C: `src/components/FloatingSaleReturn.tsx`, `src/hooks/useCreditNotes.tsx`, `src/utils/saleSettlement.ts` (any direct CN voucher writer).
-- No change needed to `adjust_invoice_balance` / `apply_credit_note_to_sale` — they already enforce the cap.
+- ❌ RLS policies, security policies, role checks
+- ❌ Customer / supplier balance formulas, reconciliation RPCs
+- ❌ Sale / Purchase / Return / POS save logic
+- ❌ Bill print, thermal print, A5/A4 invoice template, e-invoice
+- ❌ Barcode print template, QZ Tray flow, label dimensions
+- ❌ Search dropdowns, multi-token search, variant search, POS barcode lookup
+- ❌ UI design, colors, layout, dashboards, mobile screens
+- ❌ Auto-generated files: `src/integrations/supabase/client.ts`, `types.ts`, `.env`, `supabase/config.toml`
+- ❌ Any existing migration file (only a new timestamped one is added)
 
-## Deliverable
+## Files that will change (Phase 1 only — total 3 files)
 
-After approval I will (1) produce the full per-invoice repair list, (2) submit a single data-repair migration, (3) ship the Phase C code change, and (4) re-run the audit to confirm zero drift.
+1. **New migration** `supabase/migrations/2026xxxx_restore_purchase_returns_credit_available_balance.sql` — single `ADD COLUMN IF NOT EXISTS` + backfill + comment. ~15 lines.
+2. **`src/components/TabCachedPages.tsx`** — add 6 tab paths to the `HEAVY_TAB_PATHS` array. ~6 lines.
+3. **`src/lib/chunkLoadRetry.ts`** — add `"barcode-printing"` to `POST_LOGIN_IDLE_PREFETCH_TAB_PATHS`. 1 line.
+
+That is the entire change set for Phase 1.
+
+## Verification I will run after applying
+
+- `supabase--analytics_query` on `postgres_logs` → the `credit_available_balance` ERROR should disappear within minutes.
+- Open Purchase Return Dashboard, Supplier Ledger, Adjust Credit Note dialog, Tally Export → no error, numbers correct.
+- Open POS Dashboard / Sales Invoice Dashboard / Purchase Entry on a slow connection → no "Taking longer than expected" screen.
+- Build passes (already automatic after edits).
+
+## Phase 2 (separate plan, only after Phase 1 confirmed good)
+
+- Cloud usage audit report (read-only)
+- Stale-time tuning on hot dashboards
+- POS Dashboard `fetchSales` debounce on tab return (already documented in `docs/app-loading-slowness-diagnosis.md` and `CURSOR_PROMPT_PERF.md`)
+- DB linter security warnings (296 items, all WARN level — batch in groups, behind feature flag-style migrations so any one can be reverted)
+
+I will not start Phase 2 until you approve Phase 1 and confirm production is stable.
