@@ -58,6 +58,11 @@ import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
+import {
+  computePosBillGst,
+  posLineDisplayTotal,
+} from "@/utils/posGstTotals";
+import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -258,12 +263,14 @@ function applyPosGarmentGstToItem(
   return { ...withNet, gstPer };
 }
 
-function mapPosPrintItem(item: any, index: number) {
-  const rate = posLineNetUnitPrice(item as CartItem);
+function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclusive") {
+  const taxableUnit = posLineNetUnitPrice(item as CartItem);
+  const taxableTotal = Number(item.netAmount) || 0;
+  const printTotal = posLineDisplayTotal(taxableTotal, item.gstPer || 0, taxType);
   const displayMrp = Math.max(
     Number(item?.originalMrp) || 0,
     Number(item?.mrp) || 0,
-    Number(rate) || 0
+    Number(taxableUnit) || 0
   );
   return {
     sr: index + 1,
@@ -272,11 +279,11 @@ function mapPosPrintItem(item: any, index: number) {
     barcode: item.barcode || "",
     hsn: item.hsnCode || "",
     color: item.color || "",
-    sp: rate,
+    sp: taxableUnit,
     mrp: displayMrp,
     qty: item.quantity,
-    rate,
-    total: item.netAmount,
+    rate: taxableUnit,
+    total: printTotal,
     gstPercent: item.gstPer || 0,
     discountPercent: item.discountPercent || 0,
     itemNotes: item.itemNotes || "",
@@ -679,6 +686,9 @@ export default function POSSales() {
             if (holdData.roundOff !== undefined) {
               setRoundOff(holdData.roundOff);
             }
+            if (holdData.taxType === "exclusive" || holdData.taxType === "inclusive") {
+              setTaxType(holdData.taxType);
+            }
           }
         } catch (parseError) {
           console.error("Error loading held cart data:", parseError);
@@ -743,6 +753,10 @@ export default function POSSales() {
 
         toast.success(`Invoice ${sale.sale_number} loaded for editing`);
 
+        const loadedTaxType =
+          (sale as { tax_type?: string }).tax_type === "exclusive" ? "exclusive" : "inclusive";
+        setTaxType(loadedTaxType);
+
         const effectiveFlat =
           flatRes.percentLooksClean ? Number(sale.flat_discount_amount) || 0 : flatRes.value;
         setSavedInvoiceData({
@@ -769,7 +783,7 @@ export default function POSSales() {
           salesman: sale.salesman || null,
           roundOff: Number(sale.round_off) || 0,
           notes: sale.notes || null,
-          taxType,
+          taxType: loadedTaxType,
         });
       }
 
@@ -2498,9 +2512,18 @@ export default function POSSales() {
   const flatDiscountPercent = flatDiscountMode === 'percent' 
     ? flatDiscountValue 
     : totals.mrp > 0 ? (flatDiscountValue / totals.mrp) * 100 : 0;
+
+  const posGst = computePosBillGst(items, taxType, flatDiscountAmount);
   
   // Calculate amount before round-off (without roundOff in calculation)
-  const amountBeforeRoundOff = totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
+  const amountBeforeRoundOff =
+    taxType === "exclusive"
+      ? posGst.taxableSubtotal -
+        flatDiscountAmount -
+        saleReturnAdjust -
+        creditApplied +
+        posGst.totalGst
+      : totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
   
   // Auto-calculate round-off to make final amount a whole number
   const calculatedRoundOff = Math.round(amountBeforeRoundOff) - amountBeforeRoundOff;
@@ -2701,6 +2724,7 @@ export default function POSSales() {
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       pointsRedeemedAmount: pointsRedemptionValue,
+      taxType,
     };
 
     // Use updateSale if editing existing sale, otherwise create new
@@ -2952,6 +2976,7 @@ export default function POSSales() {
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       pointsRedeemedAmount: pointsRedemptionValue,
+      taxType,
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -3140,6 +3165,7 @@ export default function POSSales() {
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       pointsRedeemedAmount: pointsRedemptionValue,
+      taxType,
     };
 
     const paymentMethodType: 'multiple' = 'multiple';
@@ -3544,8 +3570,10 @@ export default function POSSales() {
             customerTransportDetails={savedInvoiceData?.customerTransportDetails || (customers.find((c) => c.id === customerId) as any)?.transport_details || ''}
             items={
               savedInvoiceData
-                ? savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index))
-                : items.map((item, index) => mapPosPrintItem(item, index))
+                ? savedInvoiceData.items.map((item: any, index: number) =>
+                    mapPosPrintItem(item, index, invoiceTaxType),
+                  )
+                : items.map((item, index) => mapPosPrintItem(item, index, invoiceTaxType))
             }
             subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
             discount={
@@ -3813,6 +3841,9 @@ export default function POSSales() {
       rawInvoiceTs ? format(new Date(rawInvoiceTs), "dd/MM/yyyy HH:mm:ss") : null,
     );
 
+    const navTaxType =
+      (sale as { tax_type?: string }).tax_type === "exclusive" ? "exclusive" : "inclusive";
+    setTaxType(navTaxType);
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
     isInitializingEditRef.current = false;
@@ -3841,6 +3872,7 @@ export default function POSSales() {
       cardAmount: Number(sale.card_amount) || 0,
       creditAmount: Number((sale as any).credit_amount) || 0,
       salesman: sale.salesman || null,
+      taxType: navTaxType,
     });
 
     toast.success(`Invoice #${sale.sale_number} loaded successfully`);
@@ -4031,6 +4063,7 @@ export default function POSSales() {
         roundOff,
         netAmount: finalAmount,
         notes: saleNotes || null,
+        taxType,
       };
       await holdSale(holdData);
     }
@@ -4074,6 +4107,7 @@ export default function POSSales() {
       roundOff,
       netAmount: finalAmount,
       notes: saleNotes || null,
+      taxType,
     };
 
     const result = await holdSale(saleData);
@@ -5567,12 +5601,18 @@ export default function POSSales() {
                           </div>
                           <div
                             className="flex items-center justify-end text-sm text-muted-foreground"
-                            title="Net unit after line Disc% / Disc Rs"
+                            title={
+                              taxType === "exclusive"
+                                ? "Taxable unit (GST added in line total)"
+                                : "Net unit after line Disc% / Disc Rs"
+                            }
                           >
                             ₹{formatINR2(posLineNetUnitPrice(item))}
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="font-extrabold text-base md:text-lg">₹{formatINR2(item.netAmount)}</span>
+                            <span className="font-extrabold text-base md:text-lg">
+                              ₹{formatINR2(posLineDisplayTotal(item.netAmount, item.gstPer, taxType))}
+                            </span>
                             <Button
                               size="icon"
                               variant="ghost"
@@ -5981,6 +6021,16 @@ export default function POSSales() {
             </div>
             
             <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
+
+            {taxType === "exclusive" && posGst.totalGst > 0.005 && (
+              <>
+                <div className="text-center px-3 shrink-0">
+                  <div className="text-lg font-bold leading-tight">₹{formatINR2(posGst.totalGst)}</div>
+                  <div className="text-[11px] text-white/70 uppercase font-semibold">GST</div>
+                </div>
+                <div className="w-px h-8 bg-white/20 mx-3 shrink-0" />
+              </>
+            )}
             
             {/* Right Summary — MRP (strikethrough), Net Amount, discount badge */}
             <div className="text-center shrink-0 min-w-[160px]">
@@ -6094,7 +6144,7 @@ export default function POSSales() {
                   mrp: item.originalMrp || item.mrp,
                   qty: item.quantity,
                   rate: posLineNetUnitPrice(item),
-                  total: item.netAmount,
+                  total: posLineDisplayTotal(item.netAmount, item.gstPer, invoiceTaxType),
                   gstPercent: item.gstPer || 0,
                   discountPercent: item.discountPercent || 0,
                 }))}
@@ -6279,7 +6329,9 @@ export default function POSSales() {
                 customerGSTIN={savedInvoiceData.customerGstNumber || ""}
                 customerTransportDetails={savedInvoiceData.customerTransportDetails || ""}
                 template={posInvoiceTemplate}
-              items={savedInvoiceData.items.map((item: any, index: number) => mapPosPrintItem(item, index))}
+              items={savedInvoiceData.items.map((item: any, index: number) =>
+                mapPosPrintItem(item, index, invoiceTaxType),
+              )}
                 subTotal={savedInvoiceData.totals.subtotal}
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}

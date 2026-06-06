@@ -55,6 +55,7 @@ interface SaleData {
   salesman?: string | null;
   notes?: string | null;
   pointsRedeemedAmount?: number;
+  taxType?: "inclusive" | "exclusive";
 }
 
 export const useSaveSale = () => {
@@ -670,6 +671,7 @@ export const useSaveSale = () => {
           points_redeemed_amount: saleData.pointsRedeemedAmount || 0,
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
+          tax_type: saleData.taxType || "inclusive",
           created_by: user.id,
           organization_id: currentOrganization.id,
           shop_name: shopName || null,
@@ -1294,6 +1296,7 @@ export const useSaveSale = () => {
           points_redeemed_amount: saleData.pointsRedeemedAmount || 0,
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
+          tax_type: saleData.taxType || "inclusive",
           updated_at: new Date().toISOString(),
         })
         .eq('id', saleId)
@@ -1471,6 +1474,7 @@ export const useSaveSale = () => {
         flatDiscountPercent: saleData.flatDiscountPercent,
         saleReturnAdjust: saleData.saleReturnAdjust,
         roundOff: saleData.roundOff,
+        taxType: saleData.taxType || "inclusive",
       };
 
       const isMissingRpcError = (err: any) =>
@@ -1538,6 +1542,7 @@ export const useSaveSale = () => {
         salesman: saleData.salesman || null,
         held_cart_data: holdData as any,
         notes: saleData.notes || null,
+        tax_type: saleData.taxType || "inclusive",
         created_by: user.id,
         organization_id: currentOrganization.id,
         shop_name: shopName || null,
@@ -1757,6 +1762,7 @@ export const useSaveSale = () => {
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
+          tax_type: saleData.taxType || "inclusive",
           updated_at: new Date().toISOString(),
         })
         .eq('id', heldSaleId)

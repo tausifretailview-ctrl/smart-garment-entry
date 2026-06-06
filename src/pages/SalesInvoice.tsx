@@ -627,6 +627,13 @@ export default function SalesInvoice() {
     }
   }, [settingsData]);
 
+  // Default GST type from org settings (new invoices only)
+  useEffect(() => {
+    if (!settingsData || editingInvoiceId || isInitializingEditRef.current) return;
+    const defaultTax = (settingsData.sale_settings as { default_tax_type?: string })?.default_tax_type;
+    setTaxType(defaultTax === "exclusive" ? "exclusive" : "inclusive");
+  }, [settingsData, editingInvoiceId]);
+
   // Direct print hook
   const { isDirectPrintEnabled, directPrint } = useDirectPrint(
     (settingsData as any)?.bill_barcode_settings
@@ -923,6 +930,9 @@ export default function SalesInvoice() {
       );
       setOtherCharges(invoiceData.other_charges || 0);
       setRoundOff(invoiceData.round_off || 0);
+      setTaxType(
+        (invoiceData as { tax_type?: string }).tax_type === "exclusive" ? "exclusive" : "inclusive",
+      );
       
       // Transform sale items back to line items
       if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
@@ -1861,6 +1871,9 @@ export default function SalesInvoice() {
       );
       setOtherCharges(invoiceData.other_charges || 0);
       setRoundOff(invoiceData.round_off || 0);
+      setTaxType(
+        (invoiceData as { tax_type?: string }).tax_type === "exclusive" ? "exclusive" : "inclusive",
+      );
 
       if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
         const transformedItems: any[] = invoiceData.sale_items.map((item: any) => ({
@@ -2519,6 +2532,7 @@ Thank you for choosing us!`;
             shipping_address: shippingAddress || null,
             shipping_instructions: shippingInstructions || null,
             salesman: salesman || null,
+            tax_type: taxType,
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingInvoiceId);
@@ -2624,6 +2638,7 @@ Thank you for choosing us!`;
             shipping_address: shippingAddress || null,
             shipping_instructions: shippingInstructions || null,
             salesman: salesman || null,
+            tax_type: taxType,
           }])
           .select()
           .single();
