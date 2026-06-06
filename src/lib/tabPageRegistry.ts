@@ -71,7 +71,20 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     roles: ["admin", "manager"],
   },
   "stock-report": { loader: () => import("@/pages/StockReport"), layout: "layout" },
+  "stock-adjustment": {
+    loader: () => import("@/pages/StockAdjustment"),
+    layout: "layout",
+    roles: ["admin"],
+  },
+  "stock-ageing": { loader: () => import("@/pages/StockAgeingReport"), layout: "layout" },
+  "stock-settlement": {
+    loader: () => import("@/pages/StockSettlement"),
+    layout: "layout",
+    roles: ["admin"],
+  },
+  "stock-analysis": { loader: () => import("@/pages/StockAnalysis"), layout: "layout" },
   "item-wise-sales": { loader: () => import("@/pages/ItemWiseSalesReport"), layout: "layout" },
+  "item-wise-stock": { loader: () => import("@/pages/ItemWiseStockReport"), layout: "layout" },
   "sales-report-by-customer": { loader: () => import("@/pages/SalesReportByCustomer"), layout: "layout" },
   "purchase-report-by-supplier": {
     loader: () => import("@/pages/PurchaseReportBySupplier"),
@@ -85,6 +98,71 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "product-tracking": { loader: () => import("@/pages/ProductTrackingReport"), layout: "layout" },
   "daily-cashier-report": { loader: () => import("@/pages/DailyCashierReport"), layout: "layout" },
+  "daily-tally": { loader: () => import("@/pages/DailyTallyDashboard"), layout: "layout" },
+  "daily-sale-analysis": { loader: () => import("@/pages/DailySaleAnalysis"), layout: "layout" },
+  "hourly-sales-analysis": { loader: () => import("@/pages/HourlySalesAnalysis"), layout: "layout" },
+  "sales-analytics": { loader: () => import("@/pages/SalesAnalyticsDashboard"), layout: "layout" },
+  "net-profit-analysis": {
+    loader: () => import("@/pages/NetProfitAnalysis"),
+    layout: "fullscreen",
+    roles: ["admin", "manager"],
+  },
+  "einvoice-report": { loader: () => import("@/pages/EInvoiceReport"), layout: "layout" },
+  "customer-ledger-report": { loader: () => import("@/pages/CustomerLedgerReport"), layout: "layout" },
+  "customer-account-statement": { loader: () => import("@/pages/CustomerLedgerPage"), layout: "layout" },
+  "customer-account-statement-audit": {
+    loader: () => import("@/pages/CustomerAccountStatementAuditPage"),
+    layout: "layout",
+  },
+  "customer-balance-activity": {
+    loader: () => import("@/pages/CustomerBalanceActivityPage"),
+    layout: "layout",
+  },
+  "customer-audit-report": { loader: () => import("@/pages/CustomerAuditReport"), layout: "layout" },
+  "customer-reconciliation": {
+    loader: () => import("@/pages/CustomerReconciliation"),
+    layout: "layout",
+    roles: ["admin"],
+  },
+  "accounting-reports": {
+    loader: () => import("@/pages/AccountingReports"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "expense-salary-report": {
+    loader: () => import("@/pages/ExpenseSalaryReport"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "gst-reports": {
+    loader: () => import("@/pages/GSTReports"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "purchase-orders": {
+    loader: () => import("@/pages/PurchaseOrderDashboard"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "delivery-challan-dashboard": {
+    loader: () => import("@/pages/DeliveryChallanDashboard"),
+    layout: "layout",
+  },
+  "advance-booking-dashboard": {
+    loader: () => import("@/pages/AdvanceBookingDashboard"),
+    layout: "layout",
+  },
+  "salesman-commission": {
+    loader: () => import("@/pages/SalesmanCommission"),
+    layout: "fullscreen",
+    roles: ["admin", "manager"],
+  },
+  "bulk-product-update": {
+    loader: () => import("@/pages/BulkProductUpdate"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  profile: { loader: () => import("@/pages/Profile"), layout: "layout" },
   "gst-register": {
     loader: () => import("@/pages/GSTSalePurchaseRegister"),
     layout: "layout",
@@ -125,6 +203,9 @@ const URL_ALIASES: Record<string, keyof typeof TAB_PAGE_REGISTRY> = {
   products: "product-dashboard",
   "purchase-bills": "purchase-bill-dashboard",
   "purchase-returns": "purchase-return-dashboard",
+  // Shorter sidebar slugs that map to the long registry keys.
+  "sales-report": "sales-report-by-customer",
+  "purchase-report": "purchase-report-by-supplier",
 };
 for (const [alias, target] of Object.entries(URL_ALIASES)) {
   if (!TAB_PAGE_REGISTRY[alias] && TAB_PAGE_REGISTRY[target]) {
