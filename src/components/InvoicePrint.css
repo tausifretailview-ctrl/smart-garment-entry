@@ -758,18 +758,24 @@
     padding: 2mm !important;
   }
 
-  /* Prevent page breaks inside invoice */
-  .invoice-print {
+  /* Prevent page breaks inside invoice (A4/A5 only — not thermal roll) */
+  .invoice-print:not(.invoice-format-thermal-receipt) {
     page-break-inside: avoid !important;
   }
 
-  .invoice-print .header,
-  .invoice-print .bill-info-container,
-  .invoice-print .items-table,
-  .invoice-print .payment-section,
-  .invoice-print .footer-section,
-  .invoice-print .terms-section {
+  .invoice-print:not(.invoice-format-thermal-receipt) .header,
+  .invoice-print:not(.invoice-format-thermal-receipt) .bill-info-container,
+  .invoice-print:not(.invoice-format-thermal-receipt) .items-table,
+  .invoice-print:not(.invoice-format-thermal-receipt) .payment-section,
+  .invoice-print:not(.invoice-format-thermal-receipt) .footer-section,
+  .invoice-print:not(.invoice-format-thermal-receipt) .terms-section {
     page-break-inside: avoid !important;
+  }
+
+  .invoice-print.invoice-format-thermal-receipt,
+  .invoice-print.invoice-format-thermal-receipt * {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
   }
 
   /* Hide dialog controls during print */

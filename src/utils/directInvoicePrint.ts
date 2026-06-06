@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import { thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
 import {
   buildThermalReceiptPrintCss,
   detectThermalPaperFromHtml,
@@ -243,7 +244,7 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 0; width: ${isThermal ? (thermalPaper === '58mm' ? '58mm' : '80mm') : 'auto'}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { margin: 0; ${isThermal ? `size: ${thermalPaper === '58mm' ? '58mm' : '80mm'} 210mm;` : ''} }
+    @page { margin: 0; ${isThermal ? `size: ${thermalReceiptRollPageSize(thermalPaper)};` : ''} }
     ${allStyles}
     ${thermalPrintCss}
   </style>

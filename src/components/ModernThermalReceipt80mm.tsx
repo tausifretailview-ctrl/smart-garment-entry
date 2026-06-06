@@ -162,7 +162,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
           @media print {
             .modern-thermal-receipt { position: absolute; left: 0; top: 0; page-break-inside: auto !important; break-inside: auto !important; overflow: visible !important; }
             .modern-thermal-receipt, .modern-thermal-receipt * { page-break-inside: auto !important; break-inside: auto !important; }
-            @page { margin: 0; size: 80mm 210mm; }
+            @page { margin: 0; size: 80mm 5000mm; }
             .mtr-print-hidden { display: none !important; }
           }
         `}</style>

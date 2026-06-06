@@ -53,17 +53,21 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
 /** @deprecated Use INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS */
 export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS;
 
-/** Override global index.css `page-break-inside: avoid` on thermal containers. */
+/** Override global index.css / InvoicePrint.css page-break rules on thermal receipts. */
 export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
   @media print {
+    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
+    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt) *,
     .print-thermal,
     .thermal-print-80mm,
     .thermal-receipt-container,
     .invoice-format-thermal-receipt,
+    .invoice-print.invoice-format-thermal-receipt,
     .modern-thermal-receipt,
     .thermal-print-80mm *,
     .thermal-receipt-container *,
-    .modern-thermal-receipt * {
+    .modern-thermal-receipt *,
+    .invoice-print.invoice-format-thermal-receipt * {
       page-break-inside: auto !important;
       break-inside: auto !important;
       page-break-before: auto !important;

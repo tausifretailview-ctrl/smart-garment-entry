@@ -1007,7 +1007,7 @@ All colors MUST be HSL.
 }
 
 @page thermal {
-  size: 80mm 210mm;
+  size: 80mm 5000mm;
   margin: 0;
 }
 
