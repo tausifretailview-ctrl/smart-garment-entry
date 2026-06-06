@@ -982,9 +982,29 @@ export default function Accounts() {
       )}
 
       {isAdmin && currentOrganization?.id && (
-        <div className="shrink-0 mb-2">
-          <AccountingPeriodLockCard />
-        </div>
+        <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm shrink-0 mb-2">
+          <CardHeader className="pb-2 pt-3 px-4">
+            <button
+              type="button"
+              onClick={() => setPeriodLockExpanded((v) => !v)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+              aria-expanded={periodLockExpanded}
+            >
+              <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                <Lock className="h-4 w-4 text-blue-600" />
+                Accounting period lock
+              </CardTitle>
+              <ChevronDown
+                className={`h-4 w-4 text-muted-foreground transition-transform ${periodLockExpanded ? "rotate-180" : ""}`}
+              />
+            </button>
+          </CardHeader>
+          {periodLockExpanded && (
+            <CardContent className="px-4 pb-3">
+              <AccountingPeriodLockCard />
+            </CardContent>
+          )}
+        </Card>
       )}
 
       <AlertDialog open={resetLedgerDialogOpen} onOpenChange={setResetLedgerDialogOpen}>
