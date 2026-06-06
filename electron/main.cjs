@@ -9,6 +9,16 @@ const isDev = !app.isPackaged;
 
 const PROD_URL = 'https://app.inventoryshop.in';
 const DEV_URL = 'http://localhost:8080';
+const SUPABASE_URL = 'https://lkbbrqcsbhqjvsxiorvp.supabase.co';
+
+// ═══ PERF SWITCHES (must be set BEFORE app.whenReady) ═══
+// Keep timers/queries running normally when the window is hidden or in tray,
+// so reopening the app feels instant instead of "frozen for a few seconds".
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Larger HTTP disk cache so JS chunks / images survive across launches on a busy ERP.
+app.commandLine.appendSwitch('disk-cache-size', '536870912'); // 512 MB
 
 let mainWindow;
 let tray;
@@ -27,6 +37,12 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    // Warm TLS sockets to the website + backend so the first request is faster.
+    try {
+      const { session } = require('electron');
+      session.defaultSession.preconnect({ url: PROD_URL, numSockets: 2 });
+      session.defaultSession.preconnect({ url: SUPABASE_URL, numSockets: 2 });
+    } catch {}
     createWindow();
     createTray();
     createMenu();
