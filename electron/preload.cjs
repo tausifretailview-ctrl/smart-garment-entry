@@ -1,5 +1,23 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Mark the document so Electron-only CSS can scope itself with `html.desktop-shell`.
+// Browser users never get this class, so the website is untouched.
+function tagDesktopShell() {
+  try {
+    const root = document && document.documentElement;
+    if (root && !root.classList.contains('desktop-shell')) {
+      root.classList.add('desktop-shell');
+    }
+  } catch {}
+}
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tagDesktopShell, { once: true });
+  } else {
+    tagDesktopShell();
+  }
+}
+
 // Expose a minimal, safe API to the renderer (the web app).
 // This is additive only — the web app works identically with or without it.
 contextBridge.exposeInMainWorld('electronAPI', {
