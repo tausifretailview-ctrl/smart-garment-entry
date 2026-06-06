@@ -752,12 +752,20 @@ All colors MUST be HSL.
     z-index: auto !important;
     pointer-events: none !important;
     overflow: visible !important;
-    width: 100% !important;
-    max-width: none !important;
     max-height: none !important;
     white-space: normal !important;
+    transform: none !important;
+    zoom: 1 !important;
   }
 
+  .invoice-print-source-screen:not(.thermal-print-page):not(:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt)),
+  .invoice-print-source:not(.thermal-print-page):not(:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt)) {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .invoice-print-source-screen.thermal-print-page,
+  .invoice-print-source.thermal-print-page,
   .invoice-print-source-screen:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
   .invoice-print-source:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
   .print-invoice-container[data-print-format="thermal"] {
@@ -765,11 +773,23 @@ All colors MUST be HSL.
     max-width: 80mm !important;
   }
 
+  .invoice-print-source-screen.thermal-paper-58.thermal-print-page,
+  .invoice-print-source.thermal-paper-58.thermal-print-page,
   .invoice-print-source-screen.thermal-paper-58,
   .invoice-print-source.thermal-paper-58,
   .print-dialog.thermal-paper-58 .print-invoice-container[data-print-format="thermal"] {
     width: 58mm !important;
     max-width: 58mm !important;
+  }
+
+  .thermal-print-page .invoice-print-root,
+  .invoice-print-source .invoice-print-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    zoom: 1 !important;
   }
 
   .invoice-print-source,
@@ -985,7 +1005,7 @@ All colors MUST be HSL.
 }
 
 @page thermal {
-  size: 80mm 5000mm;
+  size: 80mm 210mm;
   margin: 0;
 }
 

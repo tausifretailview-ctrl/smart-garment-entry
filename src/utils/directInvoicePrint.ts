@@ -239,11 +239,11 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=80mm, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    @page { margin: 0; }
+    body { margin: 0; padding: 0; width: ${isThermal ? (thermalPaper === '58mm' ? '58mm' : '80mm') : 'auto'}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { margin: 0; ${isThermal ? `size: ${thermalPaper === '58mm' ? '58mm' : '80mm'} 210mm;` : ''} }
     ${allStyles}
     ${thermalPrintCss}
   </style>

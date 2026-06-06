@@ -5,7 +5,7 @@
 
 import {
   type PosThermalPaper,
-  thermalReceiptRollPageSize,
+  thermalReceiptBrowserPageSize,
 } from '@/utils/invoicePrintFormat';
 
 /** Microns: tall roll height so Electron/Chromium do not paginate at A4 (~297mm). */
@@ -73,25 +73,35 @@ export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
 `;
 
 export function buildThermalReceiptPrintCss(paper: PosThermalPaper = '80mm'): string {
-  const pageWidth = paper === '58mm' ? '58mm' : '80mm';
   const bodyWidth = paper === '58mm' ? '58mm' : '80mm';
   const contentWidth = paper === '58mm' ? '48mm' : '72mm';
+  const browserPageSize = thermalReceiptBrowserPageSize(paper);
 
   return `
   @page {
-    size: ${thermalReceiptRollPageSize(paper)};
+    size: ${browserPageSize};
     margin: 0 !important;
   }
   html, body {
     width: ${bodyWidth} !important;
     max-width: ${bodyWidth} !important;
     height: auto !important;
-    margin: 0 auto !important;
+    margin: 0 !important;
     padding: 0 !important;
     overflow-x: hidden !important;
     background: #fff !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+  .invoice-print-source-screen,
+  .invoice-print-source,
+  .invoice-print-root {
+    width: ${bodyWidth} !important;
+    max-width: ${bodyWidth} !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    zoom: 1 !important;
   }
   .thermal-print-80mm,
   .thermal-receipt-container,
@@ -127,7 +137,7 @@ export const THERMAL_RECEIPT_PRINT_CSS = buildThermalReceiptPrintCss('80mm');
 
 /** Fragment for react-to-print `pageStyle` when printing thermal receipts. */
 export function getThermalReceiptPageStyleFragment(paper: PosThermalPaper = '80mm'): string {
-  const pageSize = thermalReceiptRollPageSize(paper);
+  const pageSize = thermalReceiptBrowserPageSize(paper);
   return `
     @page { size: ${pageSize}; margin: 0; }
     ${buildThermalReceiptPrintCss(paper)}

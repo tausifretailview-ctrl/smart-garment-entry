@@ -42,8 +42,14 @@ import { useReactToPrint } from "react-to-print";
 import {
   resolveSaleBillFormat,
   toInvoiceWrapperFormat,
+  resolvePosThermalPaper,
+  posThermalPageCss,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import {
+  getThermalReceiptPageStyleFragment,
+  INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
+} from "@/utils/thermalReceiptPrintDocument";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -518,6 +524,10 @@ export default function SalesInvoiceDashboard() {
   const saleInvoiceWrapperFormat = useMemo(
     () => toInvoiceWrapperFormat(effectiveSaleBillFormat),
     [effectiveSaleBillFormat],
+  );
+
+  const saleThermalPaper = resolvePosThermalPaper(
+    (settings as any)?.bill_barcode_settings?.direct_print_sale_paper,
   );
 
   const salePrintSourceStyle = useMemo(
@@ -1188,10 +1198,35 @@ export default function SalesInvoiceDashboard() {
         size = 'A5 landscape';
         margin = '2mm';
         break;
-      case 'thermal':
-        size = '80mm auto';
-        margin = '3mm';
-        break;
+      case 'thermal': {
+        const thermalPage = posThermalPageCss(saleThermalPaper);
+        return `
+      @page {
+        size: ${thermalPage.pageSize};
+        margin: 0;
+      }
+      ${getThermalReceiptPageStyleFragment(saleThermalPaper)}
+      @media print {
+        html, body {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+        }
+        .invoice-print-source-screen,
+        .invoice-print-source,
+        .invoice-print-root {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          transform: none !important;
+          zoom: 1 !important;
+        }
+      }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+    `;
+      }
       default: // a4
         size = 'A4 portrait';
         margin = '6mm';
@@ -2750,7 +2785,8 @@ export default function SalesInvoiceDashboard() {
         {/* Hidden invoice for mobile PDF / direct print */}
         {invoiceToPrint && (
           <div
-            className="invoice-print-source-screen invoice-print-source"
+            className={`invoice-print-source-screen invoice-print-source${effectiveSaleBillFormat === "thermal" ? " thermal-print-page" : ""}${effectiveSaleBillFormat === "thermal" && saleThermalPaper === "58mm" ? " thermal-paper-58" : ""}`}
+            data-print-format={effectiveSaleBillFormat === "thermal" ? "thermal" : undefined}
             style={salePrintSourceStyle}
           >
             <InvoiceWrapper
@@ -4231,7 +4267,8 @@ export default function SalesInvoiceDashboard() {
         {/* Hidden invoice for direct print — must not use no-print or opacity:0 */}
         {invoiceToPrint && (
           <div
-            className="invoice-print-source-screen invoice-print-source"
+            className={`invoice-print-source-screen invoice-print-source${effectiveSaleBillFormat === "thermal" ? " thermal-print-page" : ""}${effectiveSaleBillFormat === "thermal" && saleThermalPaper === "58mm" ? " thermal-paper-58" : ""}`}
+            data-print-format={effectiveSaleBillFormat === "thermal" ? "thermal" : undefined}
             style={salePrintSourceStyle}
           >
             <InvoiceWrapper

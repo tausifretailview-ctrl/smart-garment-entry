@@ -3452,9 +3452,14 @@ export default function POSSales() {
           overflow: visible !important;
         }
         .invoice-print-source-screen,
-        .invoice-print-source {
+        .invoice-print-source,
+        .invoice-print-root {
           width: ${thermalPage.sourceWidth} !important;
           max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          transform: none !important;
+          zoom: 1 !important;
         }
       }
     `;
@@ -3535,7 +3540,8 @@ export default function POSSales() {
     if (items.length === 0 && !savedInvoiceData) return null;
     return (
       <div
-        className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+        className={`invoice-print-source-screen invoice-print-source${posBillFormat === 'thermal' ? ' thermal-print-page' : ''}${posBillFormat === 'thermal' && posThermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+        data-print-format={posBillFormat === 'thermal' ? 'thermal' : undefined}
         style={posPrintSourceStyle}
       >
         <div ref={invoicePrintRef} className="invoice-print-source" style={{ position: 'relative' }}>

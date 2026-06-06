@@ -943,9 +943,14 @@ const POSDashboard = () => {
           overflow: visible !important;
         }
         .invoice-print-source-screen,
-        .invoice-print-source {
+        .invoice-print-source,
+        .invoice-print-root {
           width: ${thermalPage.sourceWidth} !important;
           max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          transform: none !important;
+          zoom: 1 !important;
         }
       }
     `;
@@ -3524,12 +3529,14 @@ const POSDashboard = () => {
       {typeof document !== "undefined" &&
         createPortal(
           <div
-            className={`invoice-print-source-screen${effectivePosBillFormat === "thermal" && posThermalPaper === "58mm" ? " thermal-paper-58" : ""}`}
+            className={`invoice-print-source-screen invoice-print-source${effectivePosBillFormat === "thermal" ? " thermal-print-page" : ""}${effectivePosBillFormat === "thermal" && posThermalPaper === "58mm" ? " thermal-paper-58" : ""}`}
+            data-print-format={effectivePosBillFormat === "thermal" ? "thermal" : undefined}
             style={posPrintSourceStyle}
           >
             <div
               ref={invoicePrintRef}
               className="invoice-print-source"
+              style={{ position: "relative" }}
             >
               {printData && (
                 <InvoiceWrapper

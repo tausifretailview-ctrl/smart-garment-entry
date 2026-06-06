@@ -65,13 +65,22 @@ export function resolveSaleBillFormat(
 
 export type PosThermalPaper = '58mm' | '80mm';
 
-/** Tall roll height — Chromium paginates badly with `auto` (splits receipt into strips). */
+/** Tall roll height for Electron silent print (one continuous roll; avoids mid-receipt cuts). */
 export const THERMAL_RECEIPT_ROLL_HEIGHT_MM = 5000;
 
-/** @page size for browser/Electron thermal print (one continuous roll page). */
+/** Common 80mm driver page height (Chrome preview: "80 x 210 mm"). */
+export const THERMAL_RECEIPT_BROWSER_PAGE_HEIGHT_MM = 210;
+
+/** @page size for Electron/QZ roll printing. */
 export function thermalReceiptRollPageSize(paper: PosThermalPaper): string {
   const width = paper === '58mm' ? '58mm' : '80mm';
   return `${width} ${THERMAL_RECEIPT_ROLL_HEIGHT_MM}mm`;
+}
+
+/** @page size for browser print dialog — must match thermal driver page or preview scales content down. */
+export function thermalReceiptBrowserPageSize(paper: PosThermalPaper): string {
+  const width = paper === '58mm' ? '58mm' : '80mm';
+  return `${width} ${THERMAL_RECEIPT_BROWSER_PAGE_HEIGHT_MM}mm`;
 }
 
 /** Thermal roll width for POS (Settings → Direct print POS paper, default 80mm). */
@@ -81,9 +90,9 @@ export function resolvePosThermalPaper(directPrintPosPaper?: string | null): Pos
 
 export function posThermalPageCss(paper: PosThermalPaper): { pageSize: string; sourceWidth: string } {
   if (paper === '58mm') {
-    return { pageSize: thermalReceiptRollPageSize('58mm'), sourceWidth: '58mm' };
+    return { pageSize: thermalReceiptBrowserPageSize('58mm'), sourceWidth: '58mm' };
   }
-  return { pageSize: thermalReceiptRollPageSize('80mm'), sourceWidth: '80mm' };
+  return { pageSize: thermalReceiptBrowserPageSize('80mm'), sourceWidth: '80mm' };
 }
 
 /** Paper size passed to direct print / QZ for a POS bill. */
