@@ -569,6 +569,97 @@ function sendNavigateShortcut(path) {
   mainWindow.webContents.send('erp-navigate', path);
 }
 
+// ── Step 8: System printer pinning ─────────────────────────────────
+// Lists OS printers and saves the user's pick to localStorage under the
+// existing PRINT_PREF_KEYS used by src/utils/appPrint.ts — so the entire
+// silent-print pipeline (invoices, thermal receipts, barcodes) picks it up
+// without any web-side change.
+const PRINTER_PREF_KEY = {
+  invoice: 'ezzy_invoice_printer',
+  receipt: 'ezzy_thermal_printer',
+  barcode: 'ezzy_barcode_printer',
+};
+const PRINTER_LABEL = {
+  invoice: 'A4 / Invoice Printer',
+  receipt: 'Thermal Receipt Printer',
+  barcode: 'Barcode Label Printer',
+};
+
+async function chooseDefaultPrinter(kind) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  let printers = [];
+  try {
+    const wc = mainWindow.webContents;
+    printers =
+      typeof wc.getPrintersAsync === 'function'
+        ? await wc.getPrintersAsync()
+        : wc.getPrinters();
+  } catch {
+    printers = [];
+  }
+
+  if (!printers || printers.length === 0) {
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Default Printer',
+      message: 'No printers found',
+      detail: 'Install/connect a printer in Windows Settings and try again.',
+      buttons: ['OK'],
+    });
+    return;
+  }
+
+  const prefKey = PRINTER_PREF_KEY[kind];
+  const current =
+    (await mainWindow.webContents
+      .executeJavaScript(`localStorage.getItem(${JSON.stringify(prefKey)})`)
+      .catch(() => '')) || '';
+
+  const names = printers.map((p) => p.displayName || p.name);
+  // showMessageBox supports up to a reasonable number of buttons; if too many
+  // we still show them — Windows will scroll.
+  const buttons = [...names, 'Clear', 'Cancel'];
+  const result = dialog.showMessageBoxSync(mainWindow, {
+    type: 'question',
+    title: `Default ${PRINTER_LABEL[kind]}`,
+    message: `Pick the ${PRINTER_LABEL[kind]}`,
+    detail: current ? `Currently set: ${current}` : 'No printer pinned yet.',
+    buttons,
+    cancelId: buttons.length - 1,
+    noLink: true,
+  });
+
+  if (result === buttons.length - 1) return; // Cancel
+  if (result === buttons.length - 2) {
+    // Clear
+    await mainWindow.webContents
+      .executeJavaScript(`localStorage.removeItem(${JSON.stringify(prefKey)})`)
+      .catch(() => {});
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Default Printer',
+      message: `${PRINTER_LABEL[kind]} cleared.`,
+      buttons: ['OK'],
+    });
+    return;
+  }
+
+  const picked = printers[result];
+  const pickedName = picked.name; // exact device name needed by Electron print API
+  await mainWindow.webContents
+    .executeJavaScript(
+      `localStorage.setItem(${JSON.stringify(prefKey)}, ${JSON.stringify(pickedName)})`,
+    )
+    .catch(() => {});
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'Default Printer',
+    message: `${PRINTER_LABEL[kind]} set to:`,
+    detail: picked.displayName || pickedName,
+    buttons: ['OK'],
+  });
+}
+
 // Application menu — Tally / Vyapar style. All items navigate via
 // sendNavigateShortcut (existing IPC) — no new routes, no business logic.
 // Accelerators avoid F1–F11 so POS shortcuts keep working.
