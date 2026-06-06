@@ -21,6 +21,7 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
 import { useSettings } from "@/hooks/useSettings";
 import { useReactToPrint } from "react-to-print";
