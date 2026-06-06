@@ -345,7 +345,7 @@ export function AddAdvanceBookingDialog({
           {/* Customer Selection */}
           <div className="space-y-2">
             <Label>Customer *</Label>
-            <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+            <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen} modal>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -359,14 +359,14 @@ export function AddAdvanceBookingDialog({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0" align="start">
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] sm:w-[400px] p-0" align="start">
                 <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Search customer by name or phone..."
                     value={customerSearchTerm}
                     onValueChange={setCustomerSearchTerm}
                   />
-                  <CommandList>
+                  <CommandList className="max-h-[min(280px,50vh)]">
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
                       {customers
@@ -414,7 +414,6 @@ export function AddAdvanceBookingDialog({
               placeholder="Enter amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              autoFocus
             />
           </div>
 
