@@ -11,11 +11,15 @@ export function buildPrecisionLabelDocument(
     contentWidthMm: number;
     pageHeightMm: number;
     isA4: boolean;
+    /** 2 = thermal 2-up row; must keep flex layout or labels stack as 1-up */
+    thermalCols?: number;
   },
 ): string {
   const pageWidth = opts.isA4 ? "210mm" : `${opts.contentWidthMm}mm`;
   const pageSize = opts.isA4 ? "210mm 297mm" : `${opts.contentWidthMm}mm ${opts.pageHeightMm}mm`;
   const areaHeight = opts.isA4 ? "297mm" : `${opts.pageHeightMm}mm`;
+  const thermalCols = Math.max(1, opts.thermalCols ?? 1);
+  const isThermal2Up = !opts.isA4 && thermalCols > 1;
   const pageSelector = opts.isA4
     ? ".precision-print-area > div"
     : ".precision-print-area > .precision-thermal-page, .precision-print-area > div";
@@ -34,10 +38,15 @@ export function buildPrecisionLabelDocument(
       max-height: ${areaHeight} !important;
       overflow: hidden !important; box-sizing: border-box !important;
       position: relative !important;
-      display: ${opts.isA4 ? "block" : "block"} !important;
+      display: ${isThermal2Up ? "flex" : "block"} !important;
+      ${isThermal2Up ? "flex-wrap: nowrap !important; align-items: stretch !important;" : ""}
       align-content: start !important;
       page-break-after: always !important; page-break-inside: avoid !important;
       break-after: page !important; break-inside: avoid !important;
+    }
+    .precision-print-area > .precision-thermal-page-2up > div {
+      flex: 0 0 auto !important;
+      overflow: hidden !important;
     }
     .precision-print-area > .precision-thermal-page:last-child,
     .precision-print-area > div:last-child {

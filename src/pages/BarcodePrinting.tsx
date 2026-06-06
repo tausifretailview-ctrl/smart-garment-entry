@@ -3276,6 +3276,11 @@ export default function BarcodePrinting() {
   const getThermal2UpGap = (): number => {
     if (!isThermal2Up()) return 0;
 
+    // Precision Pro: horizontal gap between 2-up labels uses calibration V-Gap
+    if (precisionSettings.enabled) {
+      return Math.max(0, precisionSettings.vGap || 0);
+    }
+
     if (sheetType === "custom") {
       return Math.max(0, customGap || 0);
     }
@@ -3670,6 +3675,7 @@ export default function BarcodePrinting() {
         contentWidthMm: w,
         pageHeightMm: h,
         isA4,
+        thermalCols: cols,
       });
       const electronPageSize = isA4
         ? "A4"

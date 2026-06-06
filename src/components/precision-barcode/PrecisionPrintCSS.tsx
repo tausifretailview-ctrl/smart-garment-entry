@@ -4,9 +4,11 @@ interface PrecisionPrintCSSProps {
   labelWidth: number;
   labelHeight: number;
   mode: "thermal" | "a4";
+  thermalCols?: number;
 }
 
-export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPrintCSSProps) {
+export function PrecisionPrintCSS({ labelWidth, labelHeight, mode, thermalCols = 1 }: PrecisionPrintCSSProps) {
+  const isThermal2Up = mode === "thermal" && thermalCols > 1;
   useEffect(() => {
     const styleId = "precision-print-css";
     let style = document.getElementById(styleId) as HTMLStyleElement | null;
@@ -60,10 +62,16 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
           overflow: hidden !important;
           box-sizing: border-box !important;
           position: relative !important;
+          display: ${isThermal2Up ? "flex" : "block"} !important;
+          ${isThermal2Up ? "flex-wrap: nowrap !important; align-items: stretch !important;" : ""}
           page-break-after: always !important;
           page-break-inside: avoid !important;
           break-after: page !important;
           break-inside: avoid !important;
+        }
+        .precision-print-area > .precision-thermal-page-2up > div {
+          flex: 0 0 auto !important;
+          overflow: hidden !important;
         }
         .precision-print-area > div:last-child {
           page-break-after: auto !important;
@@ -88,7 +96,7 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode }: PrecisionPr
     return () => {
       style?.remove();
     };
-  }, [labelWidth, labelHeight, mode]);
+  }, [labelWidth, labelHeight, mode, thermalCols, isThermal2Up]);
 
   return null;
 }

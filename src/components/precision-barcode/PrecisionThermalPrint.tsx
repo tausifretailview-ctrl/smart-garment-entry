@@ -37,12 +37,12 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
 
       return (
         <>
-          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight} mode="thermal" />
+          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight} mode="thermal" thermalCols={cols} />
           <div ref={ref} className="precision-print-area">
             {rows.map((row, rowIdx) => (
               <div
                 key={rowIdx}
-                className="precision-thermal-page"
+                className="precision-thermal-page precision-thermal-page-2up"
                 style={{
                   width: `${pageWidth}mm`,
                   height: `${labelHeight}mm`,
