@@ -2132,6 +2132,27 @@ export type Database = {
           },
         ]
       }
+      ella_noor_cn_repair_20260606_snapshot: {
+        Row: {
+          captured_at: string
+          payload: Json | null
+          row_id: string | null
+          snapshot_kind: string | null
+        }
+        Insert: {
+          captured_at?: string
+          payload?: Json | null
+          row_id?: string | null
+          snapshot_kind?: string | null
+        }
+        Update: {
+          captured_at?: string
+          payload?: Json | null
+          row_id?: string | null
+          snapshot_kind?: string | null
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           address: string | null
