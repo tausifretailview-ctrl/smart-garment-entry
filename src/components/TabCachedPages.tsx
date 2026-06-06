@@ -79,6 +79,14 @@ const HEAVY_TAB_PATHS = new Set([
   "pos-dashboard",
   "sales-invoice-dashboard",
   "purchase-bill-dashboard",
+  "pos-sales",
+  "sales-invoice",
+  "purchase-entry",
+  "product-entry",
+  "sale-return-entry",
+  "purchase-return-entry",
+  "purchase-return-dashboard",
+  "sale-return-dashboard",
 ]);
 
 function getTabLoadTimeoutMs(path: string): number {
