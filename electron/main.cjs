@@ -311,10 +311,53 @@ function createWindow() {
       bottom: var(--erp-status-bar-height, 1.75rem) !important;
       z-index: 55 !important;
     }
+
+    /* ── Tally / Vyapar keyboard-hint strip (Electron only) ─────────
+       A thin chip bar sits ABOVE the existing app status bar and shows
+       context-aware F-key shortcuts for the current page. Web/PWA users
+       never see this — it is injected from the desktop shell only. */
+    #ezzy-hint-bar {
+      position: fixed;
+      left: 0; right: 0;
+      bottom: var(--erp-status-bar-height, 1.75rem);
+      height: 22px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      background: #eef2f7;
+      border-top: 1px solid #cbd5e1;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 11px;
+      color: #334155;
+      z-index: 60;
+      pointer-events: none;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    #ezzy-hint-bar .hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 6px;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 3px;
+    }
+    #ezzy-hint-bar .hint b {
+      font-weight: 600;
+      color: #1e3a8a;
+      font-family: 'Consolas', 'Menlo', monospace;
+    }
+    #ezzy-hint-bar .spacer { flex: 1; }
+    #ezzy-hint-bar .meta { color: #64748b; font-size: 10px; }
+    /* Push main content above the hint strip too */
+    html.desktop-shell body { padding-bottom: 22px; }
   `;
 
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
+    mainWindow.webContents.executeJavaScript(HINT_BAR_JS).catch(() => {});
     // zoomFactor is already applied via webPreferences — no need to re-set it
     // here (was causing a one-time layout reflow after first paint).
   });
