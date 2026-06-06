@@ -82,6 +82,7 @@ export default function Accounts() {
   const urlCustomerId = searchParams.get("customer");
   const [selectedTab, setSelectedTab] = useState(urlTab || "customer-ledger");
   const [migrationExpanded, setMigrationExpanded] = useState(false);
+  const [periodLockExpanded, setPeriodLockExpanded] = useState(false);
 
   const handleAccountsTabChange = useCallback(
     (tab: string) => {
