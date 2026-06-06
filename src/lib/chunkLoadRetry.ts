@@ -23,6 +23,10 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "sale-return-dashboard",
   "purchase-return-dashboard",
   "accounts",
+  // URL-slug aliases used in App.tsx routes (resolved to the same chunks)
+  "products",
+  "purchase-bills",
+  "purchase-returns",
 ] as const;
 
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
