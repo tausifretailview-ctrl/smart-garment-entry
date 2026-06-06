@@ -2972,6 +2972,16 @@ const POSDashboard = () => {
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-1">
+                                {columnSettings.print && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handlePrintClick(sale, e)}
+                                    title="Print Invoice (Ctrl+P)"
+                                  >
+                                    <Printer className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
                                 {(!isPaidCompletedForDashboard(sale) && sale.payment_status !== 'hold') && (
                                   <Button 
                                     variant="ghost" 
@@ -3025,16 +3035,6 @@ const POSDashboard = () => {
                                     disabled={!sale.customer_phone || isSendingWhatsAppAPI}
                                   >
                                     <Send className="h-3.5 w-3.5 text-teal-600" />
-                                  </Button>
-                                )}
-                                {columnSettings.print && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => handlePrintClick(sale, e)}
-                                    title="Print Invoice (Ctrl+P)"
-                                  >
-                                    <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
                                 {(saleSettings?.einvoice_settings?.enabled ?? false) &&
