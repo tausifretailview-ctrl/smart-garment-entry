@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog, ipcMain } = 
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+const { showSplash, closeSplash } = require('./splash.cjs');
 
 // Dev = running from source (electron .), Prod = packaged .exe.
 // Using app.isPackaged avoids an extra runtime dependency.
