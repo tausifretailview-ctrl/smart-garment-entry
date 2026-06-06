@@ -478,7 +478,7 @@ export default function SalesInvoice() {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "p") {
         e.preventDefault();
-        if (savedInvoiceData) {
+        if (savedInvoiceData || editingInvoiceId) {
           handlePrintInvoice();
         }
       }
@@ -488,7 +488,7 @@ export default function SalesInvoice() {
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
     };
-  }, [savedInvoiceData]);
+  }, [savedInvoiceData, editingInvoiceId]);
 
   // Ctrl+S to save invoice
   useEffect(() => {
@@ -4252,6 +4252,18 @@ Thank you for choosing us!`;
               <X className="h-4 w-4" />
               Cancel
             </Button>
+            {(editingInvoiceId || savedInvoiceData) && (
+              <Button
+                size="sm"
+                onClick={handlePrintInvoice}
+                disabled={!savedInvoiceData || isSaving}
+                className="h-9 px-4 text-[14px] bg-green-600 text-white hover:bg-green-500 font-extrabold gap-1.5 shadow-[0_0_12px_rgba(34,197,94,0.35)] active:scale-95 transition-all"
+                title="Print invoice (Ctrl+P)"
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={handleSaveInvoice}
