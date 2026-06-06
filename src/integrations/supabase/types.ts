@@ -353,6 +353,57 @@ export type Database = {
           },
         ]
       }
+      audit_logs_archive: {
+        Row: {
+          action: string
+          archived_at: string
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          new_values: Json | null
+          old_values: Json | null
+          organization_id: string | null
+          user_agent: string | null
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          archived_at?: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id: string
+          ip_address?: string | null
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          organization_id?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          archived_at?: string
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          organization_id?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       backup_logs: {
         Row: {
           backup_type: string
@@ -7078,6 +7129,72 @@ export type Database = {
           },
         ]
       }
+      whatsapp_logs_archive: {
+        Row: {
+          archived_at: string
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          followup_data: Json | null
+          id: string
+          message: string | null
+          organization_id: string
+          pending_followup: boolean | null
+          phone_number: string
+          provider_response: Json | null
+          read_at: string | null
+          reference_id: string | null
+          reference_type: string | null
+          sent_at: string | null
+          status: string
+          template_name: string | null
+          template_type: string
+          wamid: string | null
+        }
+        Insert: {
+          archived_at?: string
+          created_at: string
+          delivered_at?: string | null
+          error_message?: string | null
+          followup_data?: Json | null
+          id: string
+          message?: string | null
+          organization_id: string
+          pending_followup?: boolean | null
+          phone_number: string
+          provider_response?: Json | null
+          read_at?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          sent_at?: string | null
+          status: string
+          template_name?: string | null
+          template_type: string
+          wamid?: string | null
+        }
+        Update: {
+          archived_at?: string
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          followup_data?: Json | null
+          id?: string
+          message?: string | null
+          organization_id?: string
+          pending_followup?: boolean | null
+          phone_number?: string
+          provider_response?: Json | null
+          read_at?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          sent_at?: string | null
+          status?: string
+          template_name?: string | null
+          template_type?: string
+          wamid?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_message_stats: {
         Row: {
           created_at: string
@@ -7664,6 +7781,14 @@ export type Database = {
           p_sale_id: string
         }
         Returns: Json
+      }
+      archive_audit_logs_older_than: {
+        Args: { _days?: number }
+        Returns: number
+      }
+      archive_whatsapp_logs_older_than: {
+        Args: { _days?: number }
+        Returns: number
       }
       cancel_invoice: {
         Args: { p_reason?: string; p_sale_id: string }
