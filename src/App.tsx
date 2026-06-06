@@ -279,18 +279,12 @@ const App = () => {
         sessionStorage.getItem("chunk_reload_count") || "0",
         10,
       );
-      // Only auto-reload when the user is actively on the page. A reload while
-      // the tab is hidden / idle (5–10 min away) is what causes the "PWA keeps
-      // refreshing on its own" complaint — background prefetches that fail
-      // because of network/SW eviction should NOT yank the page out from under
-      // the user.
-      if (reloadCount < 1 && document.visibilityState === "visible") {
-        event.preventDefault();
-        sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
-        window.location.reload();
-        return;
-      }
-      console.error("Chunk load failed after reload:", event.reason);
+      // Never auto-reload — user explicitly wants tabs to stay put and only
+      // refresh manually. Swallow the rejection so it does not bubble into a
+      // crash overlay; the TabPaneErrorBoundary already shows a Retry button.
+      event.preventDefault();
+      sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
+      console.warn("Chunk load failed (auto-reload disabled):", event.reason);
     };
 
     window.addEventListener("unhandledrejection", handleRejection);
