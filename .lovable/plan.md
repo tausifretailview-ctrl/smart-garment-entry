@@ -1,68 +1,59 @@
-## What I found (audit)
+## Batch 1 — Make Electron app feel like Tally / Vyapar (Steps 1, 4, 6, 7)
 
-Your Electron app is configured **as a thin shell that loads the live website** (`https://app.inventoryshop.in`) — it does NOT bundle the React build locally.
+Electron-only changes. Web app, business logic, search, prints, RLS, dashboards — untouched. Browser/PWA users see zero difference.
 
-```text
-Windows .exe (Electron)
-        │
-        └── BrowserWindow.loadURL("https://app.inventoryshop.in")
-                        │
-                        └── same React app users get in Chrome
-```
+### Step 1 — Native Windows menu bar
+Edit `electron/main.cjs` only.
+- Set `autoHideMenuBar: false` so the menu is always visible (classic Windows feel).
+- Expand the current `createMenu()` into the standard ERP structure. Every item just calls the existing `sendNavigateShortcut(path)` — no new routes:
+  - **File** — New Sale (Alt+N), New Purchase (Alt+B), Print (Ctrl+P → forwards to web print), Backup → /settings/backup, Exit
+  - **Edit** — Cut / Copy / Paste / Select All (Electron `role` defaults)
+  - **Masters** — Customers, Suppliers, Products, Categories
+  - **Transactions** — POS Sale (Alt+P), Sale Invoice (Alt+N), Purchase (Alt+B), Sale Return, Purchase Return, Receipt, Payment
+  - **Reports** — Day Book, Stock (Alt+S), GSTR-1, GSTR-3B, Outstanding, P&L
+  - **Utilities** — Stock Settlement, Recycle Bin, User Rights, WhatsApp Inbox
+  - **Window** — Zoom In/Out/Reset, Full Screen (F12), Reload
+  - **Help** — Keyboard Shortcuts (opens injected overlay), About, WhatsApp Support, Check for Updates
+- F1–F11 POS keys stay untouched (no menu accelerator collides with them).
 
-Implications:
-1. Every "slow / loading" issue you feel in the desktop app = same as the website. Electron itself adds <100 ms.
-2. First open is bound by network (CDN + Supabase round-trips). No local bundle = nothing cached on disk between launches except what the browser cache holds.
-3. Phase 1 + 2 fixes already done (RLS parallel-safe, indexes, 30 s staleTime, 20 s tab budget) directly help the desktop app — no Electron change needed for those.
+### Step 4 — "Desktop software" CSS sheet (Electron-only)
+Inject one stylesheet via `webContents.insertCSS` on `did-finish-load`, scoped under `html.desktop-shell` (class added by preload). Browsers ignore it.
+- Border-radius `0.5rem` → `0.25rem` on cards, dialogs, inputs, buttons.
+- `shadow-md` / `shadow-lg` → `shadow-sm` (flatter Windows feel).
+- Remove gradient backgrounds, use flat navy.
+- Thin gray scrollbars (Windows 11 style) via `::-webkit-scrollbar` width 10px.
+- Sidebar gets a 1px right border instead of soft shadow.
+- Number/text inputs get a 1px solid `#94a3b8` border + white background (Vyapar look).
+- Buttons keep current colors but lose hover-scale.
+- The existing in-page sticky footers / `[data-entry-form]` rules from the current header CSS injection stay exactly as they are — no z-index conflict.
 
-What's actually wrong on the Electron side:
-- `backgroundThrottling` not disabled → when minimized to tray, timers/queries throttle, first un-minimize feels frozen.
-- No HTTP disk-cache size set → Chromium default (~80 MB) gets evicted fast on a busy ERP; cold reloads re-download chunks.
-- `zoomFactor: 0.8` is applied **after** first paint (in `did-finish-load`) → layout re-flows once, visible jank.
-- `loadURL` runs immediately with no readiness check; if internet is briefly slow on launch, retry waits 1.5 s before first retry.
-- No `session.preconnect` to `app.inventoryshop.in` / Supabase → TLS handshake adds 200–400 ms on cold start.
-- Old `loadRetryCount` still increments on harmless reloads (SPA navigations that mis-fire `did-fail-load`).
-- `electron:build` uses `electron-builder` — fine for your own machine, but the dev-server sandbox can't actually package `.exe` (7-zip dynamic-link issue). Build must run on your Windows box. I'll document that, not change it.
+### Step 6 — Branded splash before first paint
+- New file `electron/splash.html` — frameless 320×220 navy panel with white "EzzyERP" wordmark, "Smart Inventory & Billing" subtitle, indeterminate progress bar, and `v{version}`.
+- New file `electron/splash.cjs` — tiny helper that creates the splash `BrowserWindow` during `app.whenReady`, then destroys it when `mainWindow` fires `ready-to-show`.
+- Wired from `main.cjs` only; no other file changes.
+- Eliminates the 1–2 s blank navy window on cold start.
 
-## Plan (Electron-only, no business-logic changes)
+### Step 7 — Native right-click context menu
+- Listen on `webContents.on('context-menu', (e, params) => …)` in `main.cjs`.
+- Build a Menu with Cut / Copy / Paste / Select All (standard `role`s), separator, "Copy Link" when `params.linkURL`, "Save Image As" when `params.hasImageContents`, separator, "Print" (forwards to existing silent-print pipeline), "Inspect Element" only when `!app.isPackaged`.
+- No web-side change — works on every input/table/cell automatically.
 
-### Step 1 — main.cjs perf tuning (single file, ~15 lines)
-- Add `app.commandLine.appendSwitch('disable-renderer-backgrounding')` and `('disable-background-timer-throttling')` before `app.whenReady`.
-- In `webPreferences`, set `backgroundThrottling: false`.
-- Set Chromium disk cache to 512 MB: `app.commandLine.appendSwitch('disk-cache-size', '536870912')`.
-- Move `setZoomFactor(0.8)` from `did-finish-load` into `webPreferences.zoomFactor` only (already there) — drop the duplicate set so no re-flow.
-- Preconnect on app ready: `session.defaultSession.preconnect({ url: PROD_URL, numSockets: 2 })` and same for the Supabase REST origin.
-- First retry delay 1.5 s → 400 ms (only the first retry; later ones keep current back-off).
-- Guard `reloadMainWindow` so SPA history changes don't count toward `MAX_LOAD_RETRIES`.
-
-### Step 2 — Splash polish
-- Keep the existing navy `backgroundColor: '#F5F7FA'` (already prevents white flash).
-- Inject a tiny "Loading EzzyERP…" centered text via `loadURL`'s `data:` fallback only if `did-fail-load` fires twice in a row — so a flaky network shows status instead of a blank window.
-
-### Step 3 — Build & runtime checklist (docs only)
-Add `electron/README.md` with:
-- Exact Windows build command (`npm run electron:build:win`) and required Node version.
-- How auto-update works (already wired to GitHub releases via `electron-updater`).
-- "Run from source" command for local QA: `npm run electron:dev`.
-- Note: packaging must run on a real Windows machine — Lovable sandbox can't produce `.exe`.
-
-### Step 4 — Verify
-After Step 1+2 are in:
-- Run `npm run electron:dev` locally on Windows.
-- Cold launch → first paint should be ~30 – 40 % faster (preconnect + cache + no re-zoom reflow).
-- Minimize to tray for 5 min, restore → no frozen UI (background throttling off).
-- Kill internet briefly → app retries quickly and shows readable fallback instead of blank.
+## Files touched
+- `electron/main.cjs` — menu expansion, autoHideMenuBar false, context-menu handler, splash wiring, insertCSS payload extended.
+- `electron/preload.cjs` — add `document.documentElement.classList.add('desktop-shell')` on `DOMContentLoaded`.
+- `electron/splash.html` (new)
+- `electron/splash.cjs` (new)
 
 ## Explicitly NOT changing
-- React / Vite bundle, business logic, RLS, search, print templates, dashboard layout.
-- Switching to a bundled offline app (would break auto-update flow and add complexity — your call if you ever want it).
-- `vite.config.ts` `base` path — irrelevant because the app loads from a remote URL, not `file://`.
-- Edge functions, DB schema, types.ts, client.ts.
+- Any React component, page, route, context.
+- `index.css`, `tailwind.config.ts`, design tokens.
+- Print templates, search, RLS, edge functions, migrations, `client.ts`, `types.ts`.
+- Existing F1–F11 / Alt-key shortcut handlers.
+- The web preview / PWA — desktop-shell CSS is gated by a class that only the Electron preload adds.
 
-## What this solves
-- "Slow loading" on cold start of the .exe → preconnect + bigger disk cache.
-- "App freezes after sitting in tray" → background throttling off.
-- "Blank window when internet hiccups" → faster first retry + readable fallback.
-- One-time layout jitter at launch → single zoom factor, no post-load re-zoom.
+## Verify
+- `npm run electron:dev` on Windows → menu bar visible at top, splash on launch, right-click works everywhere, cards look flatter and more "Windows-native".
+- Open browser preview → identical to before (no `desktop-shell` class → no CSS overrides applied).
+- Spot-check 5 screens: POS Sale, Sales Invoice, Purchase Entry, Stock Report, Dashboard — no layout regressions, sticky footers still pinned, F-keys still work.
 
-Approve and I'll implement Step 1 + Step 2 + Step 3 in one batch.
+Approve and I'll implement Batch 1 in one go.
