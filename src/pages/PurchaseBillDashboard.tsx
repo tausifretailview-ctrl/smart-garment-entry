@@ -284,7 +284,7 @@ const PurchaseBillDashboard = () => {
               bill_number: bill.software_bill_no || bill.supplier_invoice_no,
               supplier_code: supplierCode,
             }));
-            navigate("/barcode-printing", { state: { purchaseItems: barcodeItems, openTab: "standard" } });
+            navigate("/barcode-printing", { state: { purchaseItems: barcodeItems, billId: bill.id } });
           } catch (err) {
             toast({ title: "Error loading items for barcode print", variant: "destructive" });
           }
@@ -1126,7 +1126,7 @@ const PurchaseBillDashboard = () => {
       }));
 
       navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems, billId: billId, openTab: "standard" } 
+        state: { purchaseItems: barcodeItems, billId: billId } 
       });
       
     } catch (error: any) {

@@ -31,6 +31,7 @@ import {
   buildStandardLabelDocument,
   printBarcodeViaDesktop,
 } from '@/utils/barcodeDesktopPrint';
+import { resolveBarcodePrintTab, type ResolveBarcodePrintTabInput } from "@/utils/resolveBarcodePrintTab";
 import {
   DndContext,
   closestCenter,
@@ -1279,6 +1280,8 @@ export default function BarcodePrinting() {
   const [testPrintActive, setTestPrintActive] = useState(false);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
   const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
+  /** From bill_barcode_settings — not overwritten when user toggles tabs */
+  const [precisionProEnabledFromSettings, setPrecisionProEnabledFromSettings] = useState(false);
   const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
     try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
   });
@@ -1577,67 +1580,35 @@ export default function BarcodePrinting() {
     setSettingsLoading(true);
   }, [currentOrganization?.id]);
 
-  // Resolve the initial barcode-printing tab once per organization.
-  // Rule:
-  //   1. If a route caller (e.g. Purchase Dashboard) explicitly requested a
-  //      tab, honour that.
-  //   2. Else if the user has a saved A4 sheet design as the standard default
-  //      → open Standard Printing (Laser printer A4 workflow).
-  //   3. Else if Precision Pro is enabled or any printer preset is the default
-  //      → open Precision Pro (thermal/barcode printer workflow).
-  //   4. Else fall back to Standard.
+  // Resolve barcode-printing tab from Settings (same rules as web app).
+  // Re-resolve on every purchase navigation so Windows tab-cache does not stick
+  // on the wrong tab from a prior visit.
+  const purchaseNavKey = useMemo(() => {
+    const st = location.state as { purchaseItems?: unknown[]; billId?: string } | null;
+    if (!st?.purchaseItems?.length) return null;
+    const billId = st.billId ?? "";
+    const count = st.purchaseItems.length;
+    const firstSku = (st.purchaseItems[0] as { sku_id?: string })?.sku_id ?? "";
+    return `${location.key}|${billId}|${count}|${firstSku}`;
+  }, [location.key, location.state]);
+
   useEffect(() => {
-    if (hasResolvedDefaultTabRef.current) return;
     if (settingsLoading || isLoadingSettings) return;
     if (!precisionConfigReady) return;
 
-    const isA4SheetType = (st: unknown): boolean => {
-      if (typeof st !== "string") return false;
-      if (st.startsWith("a4_")) return true;
-      if (st === "custom") {
-        const dim: any = (dbDefaultFormat as any)?.customDimensions;
-        // Treat custom dimensions whose page width is roughly A4 (210mm) as A4.
-        if (dim && Number(dim.width) > 0 && Number(dim.cols) > 0) {
-          const totalWidth = Number(dim.width) * Number(dim.cols) + Number(dim.gap || 0) * (Number(dim.cols) - 1);
-          if (totalWidth >= 180 && totalWidth <= 230) return true;
-        }
-      }
-      return false;
-    };
+    const fromPurchase = !!purchaseNavKey;
+    if (!fromPurchase && hasResolvedDefaultTabRef.current) return;
 
-    const ddf = dbDefaultFormat as any;
-    const hasA4Default = !!ddf && isA4SheetType(ddf.sheetType);
-    const hasDefaultPreset = Array.isArray(dbPresets) && dbPresets.some((p: any) => p?.isDefault);
-    const precisionEnabled = precisionSettings.enabled === true;
-    // Manual override saved in Settings → Barcode tab. "auto" / unset means use rules below.
-    const manualOverride: "standard" | "precision" | null =
-      settingsDefaultBarTab === "standard" || settingsDefaultBarTab === "precision"
-        ? settingsDefaultBarTab
-        : null;
-
-    let resolved: "standard" | "precision";
-    if (routeRequestedTab) {
-      resolved = routeRequestedTab;
-    } else if (manualOverride === "precision" && (precisionEnabled || hasDefaultPreset)) {
-      resolved = "precision";
-    } else if (manualOverride === "standard") {
-      resolved = "standard";
-    } else if (hasA4Default) {
-      resolved = "standard";
-    } else if (hasDefaultPreset || precisionEnabled) {
-      resolved = "precision";
-    } else {
-      resolved = "standard";
-    }
+    const resolved = resolveBarcodePrintTab({
+      routeRequestedTab,
+      settingsDefaultBarTab,
+      precisionProEnabled: precisionProEnabledFromSettings,
+      defaultFormat: dbDefaultFormat as ResolveBarcodePrintTabInput["defaultFormat"],
+      presets: dbPresets,
+    });
 
     hasResolvedDefaultTabRef.current = true;
     setActiveBarTab(resolved);
-    // Keep precisionSettings.enabled in sync with the resolved tab so that
-    // handlePrint picks the right branch on the very first click after
-    // landing on this page (e.g. when navigating directly from Purchase
-    // Dashboard). Without this, enabled may stay true from saved settings
-    // while the visible tab is "standard", causing the wrong print pipeline
-    // to run until the user manually toggles tabs.
     setPrecisionSettings(prev =>
       prev.enabled === (resolved === "precision")
         ? prev
@@ -1650,8 +1621,9 @@ export default function BarcodePrinting() {
     routeRequestedTab,
     dbDefaultFormat,
     dbPresets,
-    precisionSettings.enabled,
+    precisionProEnabledFromSettings,
     settingsDefaultBarTab,
+    purchaseNavKey,
   ]);
 
   // Debounced auto-save for precision designer changes
@@ -1748,6 +1720,7 @@ export default function BarcodePrinting() {
               ? "standard"
               : "auto";
           setSettingsDefaultBarTab(configuredDefaultTab);
+          setPrecisionProEnabledFromSettings(bbs.precision_pro_enabled === true);
           setPrecisionSettings(prev => ({
             ...prev,
             enabled: bbs.precision_pro_enabled === true,
