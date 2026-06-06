@@ -116,6 +116,22 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   "user-rights": { loader: () => import("@/pages/UserRights"), layout: "layout", roles: ["admin"] },
 };
 
+// URL-path aliases. App.tsx routes use shorter slugs (e.g. /products,
+// /purchase-bills, /purchase-returns) while the legacy registry uses the
+// longer "-dashboard" keys. Register both so visiting these URLs goes
+// through the cached tab pane instead of remounting via <Outlet> every time.
+// Same loader + layout + roles — no duplicate chunk.
+const URL_ALIASES: Record<string, keyof typeof TAB_PAGE_REGISTRY> = {
+  products: "product-dashboard",
+  "purchase-bills": "purchase-bill-dashboard",
+  "purchase-returns": "purchase-return-dashboard",
+};
+for (const [alias, target] of Object.entries(URL_ALIASES)) {
+  if (!TAB_PAGE_REGISTRY[alias] && TAB_PAGE_REGISTRY[target]) {
+    TAB_PAGE_REGISTRY[alias] = TAB_PAGE_REGISTRY[target];
+  }
+}
+
 const prefetchCache = new Map<string, Promise<unknown>>();
 
 export function isTabCachePath(path: string): boolean {
