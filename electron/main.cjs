@@ -355,6 +355,79 @@ function createWindow() {
     html.desktop-shell body { padding-bottom: 22px; }
   `;
 
+  // Tally-style keyboard hint strip — path-aware, updated on URL change.
+  // Also embeds app version + online status (Step 2 of desktop-feel plan).
+  const HINT_BAR_JS = `
+    (function () {
+      if (window.__ezzyHintBarInstalled) return;
+      window.__ezzyHintBarInstalled = true;
+      var APP_VERSION = ${JSON.stringify(app.getVersion())};
+
+      var HINTS = {
+        'pos-sales':         [['F2','Search'],['F4','Customer'],['F9','Save'],['F10','Print'],['Esc','Back']],
+        'sales-invoice':     [['F2','Search'],['F4','Customer'],['F9','Save'],['F11','Print'],['Esc','Back']],
+        'purchase-entry':    [['F2','Search'],['F4','Supplier'],['F9','Save'],['Esc','Back']],
+        'stock-report':      [['F2','Search'],['Ctrl+E','Export'],['Ctrl+P','Print'],['Esc','Back']],
+        'item-wise-sales':   [['F2','Search'],['Ctrl+E','Export'],['Esc','Back']],
+        'dashboard':         [['Alt+N','Sale'],['Alt+B','Purchase'],['Alt+P','POS'],['Alt+S','Stock']],
+        'accounts':          [['F2','Search'],['Ctrl+P','Print'],['Esc','Back']],
+        'daily-tally':       [['F2','Search'],['Ctrl+P','Print'],['Esc','Back']],
+        'customer-master':   [['F2','Search'],['Alt+N','New'],['Esc','Back']],
+        'supplier-master':   [['F2','Search'],['Alt+N','New'],['Esc','Back']],
+        'product-dashboard': [['F2','Search'],['Alt+N','New'],['Esc','Back']],
+        'recycle-bin':       [['F2','Search'],['Esc','Back']]
+      };
+      var DEFAULT_HINTS = [['F1','Help'],['F2','Search'],['Alt+N','New Sale'],['Alt+B','Purchase'],['Alt+P','POS'],['Esc','Back']];
+
+      function key(pathname) {
+        var segs = pathname.split('/').filter(Boolean);
+        return segs[segs.length - 1] || '';
+      }
+      function renderChips(arr) {
+        return arr.map(function (h) {
+          return '<span class="hint"><b>' + h[0] + '</b> ' + h[1] + '</span>';
+        }).join('');
+      }
+      function ensureBar() {
+        var bar = document.getElementById('ezzy-hint-bar');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.id = 'ezzy-hint-bar';
+          document.body.appendChild(bar);
+        }
+        return bar;
+      }
+      function update() {
+        try {
+          var bar = ensureBar();
+          var k = key(location.pathname);
+          var hints = HINTS[k] || DEFAULT_HINTS;
+          var online = navigator.onLine ? '● Online' : '○ Offline';
+          bar.innerHTML =
+            renderChips(hints) +
+            '<span class="spacer"></span>' +
+            '<span class="meta">' + online + ' · Desktop v' + APP_VERSION + '</span>';
+        } catch (e) {}
+      }
+
+      // React to SPA navigation
+      var _push = history.pushState;
+      var _replace = history.replaceState;
+      history.pushState = function () { _push.apply(this, arguments); update(); };
+      history.replaceState = function () { _replace.apply(this, arguments); update(); };
+      window.addEventListener('popstate', update);
+      window.addEventListener('online', update);
+      window.addEventListener('offline', update);
+
+      // Initial paint — wait for body
+      if (document.body) update();
+      else document.addEventListener('DOMContentLoaded', update);
+
+      // Re-assert every 2s in case SPA re-renders wipe the body children
+      setInterval(update, 2000);
+    })();
+  `;
+
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
     mainWindow.webContents.executeJavaScript(HINT_BAR_JS).catch(() => {});
