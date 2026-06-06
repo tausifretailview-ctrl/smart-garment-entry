@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, Tray, shell, nativeImage, dialog, ipcMain } = 
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
+const { showSplash, closeSplash } = require('./splash.cjs');
 
 // Dev = running from source (electron .), Prod = packaged .exe.
 // Using app.isPackaged avoids an extra runtime dependency.
@@ -43,6 +44,8 @@ if (!gotTheLock) {
       session.defaultSession.preconnect({ url: PROD_URL, numSockets: 2 });
       session.defaultSession.preconnect({ url: SUPABASE_URL, numSockets: 2 });
     } catch {}
+    // Branded splash — destroyed once the main window is ready-to-show.
+    try { showSplash(); } catch {}
     createWindow();
     createTray();
     createMenu();
@@ -186,16 +189,9 @@ function createWindow() {
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
-    // Single-header look: hide the native title bar and the menu bar so the app's
-    // own navy header is the top of the window. Keep the Windows min/max/close
-    // buttons as an overlay tinted to match the header (#1e40af).
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#1e40af',
-      symbolColor: '#ffffff',
-      height: 36,
-    },
-    autoHideMenuBar: true, // hide menu bar (accelerators still work; Alt reveals)
+    // Native Windows chrome — gives the Tally / Vyapar "desktop software" feel.
+    // Title bar + menu bar are visible at the top, drawn by Windows itself.
+    autoHideMenuBar: false,
 
     backgroundColor: '#F5F7FA', // match index.html splash — no white flash on Windows cold start
     show: false, // Show after ready-to-show (branded splash in page)
@@ -250,23 +246,40 @@ function createWindow() {
     }
   });
 
-  // Make the app's navy header act as the title bar (draggable) and keep its
-  // right-side icons clear of the window control buttons. Injected only inside
-  // the desktop app, so the deployed website is unaffected. Re-applied on every
-  // full load; persists across in-app (SPA) navigation.
+  // Electron-only stylesheet:
+  //   1) Desktop fit fixes (POS toolbar height, sticky entry-form footer)
+  //   2) Tally / Vyapar "desktop software" polish — scoped to html.desktop-shell
+  //      so the browser / PWA experience is completely untouched.
   const HEADER_CSS = `
-    [class~="bg-[#1e40af]"] {
-      -webkit-app-region: drag;
-      padding-right: 150px !important;
+    /* ── Tally / Vyapar polish (Electron only) ─────────────────────── */
+    html.desktop-shell, html.desktop-shell body {
+      font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
     }
-    [class~="bg-[#1e40af]"] button,
-    [class~="bg-[#1e40af]"] a,
-    [class~="bg-[#1e40af]"] input,
-    [class~="bg-[#1e40af]"] select,
-    [class~="bg-[#1e40af]"] [role="button"],
-    [class~="bg-[#1e40af]"] [contenteditable] {
-      -webkit-app-region: no-drag;
+    /* Flatter, more "Windows software" corners */
+    html.desktop-shell .rounded-lg  { border-radius: 0.25rem !important; }
+    html.desktop-shell .rounded-md  { border-radius: 0.25rem !important; }
+    html.desktop-shell .rounded-xl  { border-radius: 0.375rem !important; }
+    html.desktop-shell .rounded-2xl { border-radius: 0.5rem !important; }
+    /* Softer shadows — Vyapar uses very subtle elevation */
+    html.desktop-shell .shadow-lg,
+    html.desktop-shell .shadow-md  { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important; }
+    html.desktop-shell .shadow-xl  { box-shadow: 0 2px 4px rgba(15, 23, 42, 0.10) !important; }
+    /* Crisp 1px input borders (data-entry feel) */
+    html.desktop-shell input[type="text"],
+    html.desktop-shell input[type="number"],
+    html.desktop-shell input[type="search"],
+    html.desktop-shell input[type="tel"],
+    html.desktop-shell input[type="email"],
+    html.desktop-shell input[type="date"],
+    html.desktop-shell select,
+    html.desktop-shell textarea {
+      border-radius: 0.25rem !important;
     }
+    /* Thin Windows 11–style scrollbars */
+    html.desktop-shell ::-webkit-scrollbar           { width: 10px; height: 10px; }
+    html.desktop-shell ::-webkit-scrollbar-track     { background: transparent; }
+    html.desktop-shell ::-webkit-scrollbar-thumb     { background: #cbd5e1; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+    html.desktop-shell ::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: padding-box; border: 2px solid transparent; }
 
     /* ── Desktop fit fixes ──────────────────────────────────────────────
        The POS / Sales Invoice screens use fixed-height "shells" that were
@@ -308,6 +321,7 @@ function createWindow() {
 
   // Show maximized by default so bill entry footers and fields fit without manual resize
   mainWindow.once('ready-to-show', () => {
+    try { closeSplash(); } catch {}
     if (!mainWindow.isMaximized()) {
       mainWindow.maximize();
     }
@@ -319,6 +333,64 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Native right-click context menu (Cut / Copy / Paste / Select All / Print).
+  // Works on every input, table cell, link, image — no web-side change.
+  mainWindow.webContents.on('context-menu', (_event, params) => {
+    const items = [];
+    const editable = params.isEditable;
+    const hasSelection = !!(params.selectionText && params.selectionText.trim());
+
+    if (editable) {
+      items.push({ role: 'undo' }, { role: 'redo' }, { type: 'separator' });
+      items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' });
+      items.push({ type: 'separator' }, { role: 'selectAll' });
+    } else if (hasSelection) {
+      items.push({ role: 'copy' });
+    }
+
+    if (params.linkURL) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({
+        label: 'Open Link in Browser',
+        click: () => shell.openExternal(params.linkURL),
+      });
+      items.push({
+        label: 'Copy Link',
+        click: () => require('electron').clipboard.writeText(params.linkURL),
+      });
+    }
+
+    if (params.hasImageContents && params.srcURL) {
+      if (items.length) items.push({ type: 'separator' });
+      items.push({
+        label: 'Copy Image Address',
+        click: () => require('electron').clipboard.writeText(params.srcURL),
+      });
+      items.push({
+        label: 'Save Image As…',
+        click: () => mainWindow.webContents.downloadURL(params.srcURL),
+      });
+    }
+
+    if (items.length) items.push({ type: 'separator' });
+    items.push({
+      label: 'Print…',
+      accelerator: 'CmdOrCtrl+P',
+      click: () => mainWindow.webContents.print({ silent: false, printBackground: true }, () => {}),
+    });
+    items.push({ role: 'reload', accelerator: 'CmdOrCtrl+R' });
+
+    if (!app.isPackaged) {
+      items.push({ type: 'separator' });
+      items.push({
+        label: 'Inspect Element',
+        click: () => mainWindow.webContents.inspectElement(params.x, params.y),
+      });
+    }
+
+    Menu.buildFromTemplate(items).popup({ window: mainWindow });
   });
 
   // Close to tray instead of quitting (like Tally minimizing to tray)
@@ -381,72 +453,161 @@ function sendNavigateShortcut(path) {
   mainWindow.webContents.send('erp-navigate', path);
 }
 
-// Application menu — accelerators must not steal POS F1–F10 (only F11 was conflicting; use F12 for fullscreen).
+// Application menu — Tally / Vyapar style. All items navigate via
+// sendNavigateShortcut (existing IPC) — no new routes, no business logic.
+// Accelerators avoid F1–F11 so POS shortcuts keep working.
 function createMenu() {
+  const nav = (p) => () => sendNavigateShortcut(p);
+
   const template = [
     {
-      label: 'File',
+      label: '&File',
       submenu: [
+        { label: 'New Sale Invoice', accelerator: 'Alt+N', click: nav('sales-invoice') },
+        { label: 'New Purchase Bill', accelerator: 'Alt+B', click: nav('purchase-entry') },
+        { label: 'New POS Sale', accelerator: 'Alt+P', click: nav('pos-sales') },
+        { type: 'separator' },
         {
-          label: 'Quit',
+          label: 'Print…',
+          accelerator: 'CmdOrCtrl+P',
+          click: () =>
+            mainWindow &&
+            mainWindow.webContents.print({ silent: false, printBackground: true }, () => {}),
+        },
+        { type: 'separator' },
+        { label: 'Backup', click: nav('settings/backup') },
+        { type: 'separator' },
+        {
+          label: 'Exit',
           accelerator: 'CmdOrCtrl+Q',
-          click: () => {
-            app.isQuitting = true;
-            app.quit();
-          },
+          click: () => { app.isQuitting = true; app.quit(); },
         },
       ],
     },
     {
-      label: 'Go',
+      label: '&Edit',
       submenu: [
-        { label: 'Dashboard', accelerator: 'Alt+D', click: () => sendNavigateShortcut('dashboard') },
+        { role: 'undo' },
+        { role: 'redo' },
         { type: 'separator' },
-        { label: 'POS Sale', accelerator: 'Alt+P', click: () => sendNavigateShortcut('pos-sales') },
-        { label: 'Sale Invoice', accelerator: 'Alt+N', click: () => sendNavigateShortcut('sales-invoice') },
-        { label: 'Purchase Bill', accelerator: 'Alt+B', click: () => sendNavigateShortcut('purchase-entry') },
-        { label: 'Stock Report', accelerator: 'Alt+S', click: () => sendNavigateShortcut('stock-report') },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { role: 'selectAll' },
       ],
     },
     {
-      label: 'View',
+      label: '&Masters',
       submenu: [
-        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
+        { label: 'Customers', click: nav('customers') },
+        { label: 'Suppliers', click: nav('suppliers') },
+        { label: 'Products', click: nav('products') },
+        { label: 'Categories', click: nav('categories') },
+      ],
+    },
+    {
+      label: '&Transactions',
+      submenu: [
+        { label: 'POS Sale', accelerator: 'Alt+P', click: nav('pos-sales') },
+        { label: 'Sale Invoice', accelerator: 'Alt+N', click: nav('sales-invoice') },
+        { label: 'Purchase Bill', accelerator: 'Alt+B', click: nav('purchase-entry') },
         { type: 'separator' },
-        {
-          label: 'Full Screen',
-          accelerator: 'F12',
-          click: () => mainWindow && mainWindow.setFullScreen(!mainWindow.isFullScreen()),
-        },
+        { label: 'Sale Return', click: nav('sale-returns') },
+        { label: 'Purchase Return', click: nav('purchase-returns') },
+        { type: 'separator' },
+        { label: 'Receipt (Customer Payment)', click: nav('customer-payments') },
+        { label: 'Payment (Supplier Payment)', click: nav('supplier-payments') },
+        { label: 'Expense Entry', click: nav('expenses') },
+      ],
+    },
+    {
+      label: '&Reports',
+      submenu: [
+        { label: 'Dashboard', accelerator: 'Alt+D', click: nav('dashboard') },
+        { type: 'separator' },
+        { label: 'Day Book', click: nav('day-book') },
+        { label: 'Stock Report', accelerator: 'Alt+S', click: nav('stock-report') },
+        { label: 'Item-Wise Sales', click: nav('item-wise-sales') },
+        { type: 'separator' },
+        { label: 'GSTR-1', click: nav('gst/gstr1') },
+        { label: 'GSTR-3B', click: nav('gst/gstr3b') },
+        { type: 'separator' },
+        { label: 'Outstanding (Customers)', click: nav('outstanding-customers') },
+        { label: 'Outstanding (Suppliers)', click: nav('outstanding-suppliers') },
+        { label: 'Profit & Loss', click: nav('accounts/profit-loss') },
+      ],
+    },
+    {
+      label: '&Utilities',
+      submenu: [
+        { label: 'Stock Settlement', click: nav('stock-settlement') },
+        { label: 'Recycle Bin', click: nav('recycle-bin') },
+        { label: 'User Rights', click: nav('settings/user-rights') },
+        { label: 'WhatsApp Inbox', click: nav('whatsapp-inbox') },
+      ],
+    },
+    {
+      label: '&Window',
+      submenu: [
+        { role: 'reload', accelerator: 'CmdOrCtrl+R' },
         { type: 'separator' },
         {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+=',
-          click: () =>
-            mainWindow &&
-            mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5),
+          click: () => mainWindow && mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5),
         },
         {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
-          click: () =>
-            mainWindow &&
-            mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5),
+          click: () => mainWindow && mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5),
         },
         {
           label: 'Reset Zoom',
           accelerator: 'CmdOrCtrl+0',
           click: () => mainWindow && mainWindow.webContents.setZoomLevel(0),
         },
+        { type: 'separator' },
+        {
+          label: 'Full Screen',
+          accelerator: 'F12',
+          click: () => mainWindow && mainWindow.setFullScreen(!mainWindow.isFullScreen()),
+        },
+        { role: 'minimize' },
       ],
     },
     {
-      label: 'Help',
+      label: '&Help',
       submenu: [
         {
-          label: 'Check for Updates…',
-          click: () => checkForUpdatesManually(),
+          label: 'Keyboard Shortcuts',
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Keyboard Shortcuts',
+              message: 'EzzyERP — Keyboard Shortcuts',
+              detail:
+                'Alt+N   New Sale Invoice\n' +
+                'Alt+B   New Purchase Bill\n' +
+                'Alt+P   POS Sale\n' +
+                'Alt+S   Stock Report\n' +
+                'Alt+D   Dashboard\n' +
+                'Ctrl+P  Print\n' +
+                'Ctrl+R  Reload\n' +
+                'F1      Help (in-app)\n' +
+                'F2      Search (in-app)\n' +
+                'F9      Save (in-app)\n' +
+                'F10     Print preview (in-app)\n' +
+                'F12     Full Screen\n' +
+                'Esc     Back / Cancel',
+              buttons: ['OK'],
+            });
+          },
         },
+        { label: 'Check for Updates…', click: () => checkForUpdatesManually() },
+        { type: 'separator' },
+        { label: 'WhatsApp Support', click: () => shell.openExternal('https://wa.me/919876543210') },
+        { label: 'Visit Website', click: () => shell.openExternal(PROD_URL) },
         { type: 'separator' },
         {
           label: 'About EzzyERP',
@@ -459,10 +620,6 @@ function createMenu() {
               buttons: ['OK'],
             });
           },
-        },
-        {
-          label: 'WhatsApp Support',
-          click: () => shell.openExternal('https://wa.me/919876543210'),
         },
       ],
     },
