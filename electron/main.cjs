@@ -156,26 +156,9 @@ function getAppUrl() {
 
 function reloadMainWindow(reason) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  console.warn('[EzzyERP] Reloading window:', reason);
-  loadRetryCount += 1;
-  if (loadRetryCount > MAX_LOAD_RETRIES) {
-    dialog.showMessageBox(mainWindow, {
-      type: 'error',
-      title: 'Connection problem',
-      message: 'EzzyERP could not load the application.',
-      detail: 'Check your internet connection, then use View → Reload or restart the app.',
-      buttons: ['OK'],
-    }).catch(() => {});
-    loadRetryCount = 0;
-    return;
-  }
-  // First retry fast (400ms), then back off — recovers instantly from a brief flap.
-  const delay = loadRetryCount === 1 ? 400 : Math.min(1500 * loadRetryCount, 6000);
-  setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.reload();
-    }
-  }, delay);
+  // Auto-reload disabled per user request — keep window sticky with existing data.
+  // User can manually reload via View → Reload.
+  console.warn('[EzzyERP] Skipping auto-reload (disabled):', reason);
 }
 
 function createWindow() {
@@ -216,17 +199,16 @@ function createWindow() {
     loadRetryCount = 0;
   });
 
-  // Network / CDN failure — retry instead of leaving a blank window
+  // Auto-reload on network/CDN failure disabled — user reloads manually if needed.
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
     if (!isMainFrame) return;
-    if (errorCode === -3) return; // ERR_ABORTED — navigation cancelled
-    reloadMainWindow(`did-fail-load (${errorCode})`);
+    if (errorCode === -3) return;
+    console.warn('[EzzyERP] did-fail-load (auto-reload disabled):', errorCode);
   });
 
-  // Renderer crash (common when too many heavy pages stay mounted) — auto-recover
+  // Renderer crash — log only, no auto-reload. User keeps window state.
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[EzzyERP] render-process-gone:', details);
-    reloadMainWindow(`render-process-gone (${details && details.reason ? details.reason : 'unknown'})`);
+    console.error('[EzzyERP] render-process-gone (auto-reload disabled):', details);
   });
 
   mainWindow.webContents.on('unresponsive', () => {
