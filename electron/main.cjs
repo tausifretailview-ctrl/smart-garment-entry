@@ -396,7 +396,6 @@ function createWindow() {
       opacity: 1 !important;
     }
   `;
-  `;
 
   // Tally-style keyboard hint strip — path-aware, updated on URL change.
   // Also embeds app version + online status (Step 2 of desktop-feel plan).
