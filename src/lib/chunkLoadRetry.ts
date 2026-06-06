@@ -139,7 +139,11 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
     sessionStorage.getItem(CHUNK_RELOAD_KEY) || "0",
     10,
   );
-  if (isChunkLoadError(lastError) && reloadCount < 1) {
+  // Never auto-reload while the tab is hidden — a background/idle prefetch
+  // failure would otherwise refresh the app after 5–10 min of inactivity.
+  const tabVisible =
+    typeof document === "undefined" || document.visibilityState === "visible";
+  if (isChunkLoadError(lastError) && reloadCount < 1 && tabVisible) {
     sessionStorage.setItem(CHUNK_RELOAD_KEY, String(reloadCount + 1));
     window.location.reload();
     return new Promise(() => {});
