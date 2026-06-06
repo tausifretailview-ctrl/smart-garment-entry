@@ -10,6 +10,7 @@ export const MODULE_LOAD_TIMEOUT_MS = 25_000;
 export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "", // main dashboard — fast return from POS / window tabs
   "pos-sales",
+  "pos-dashboard",
   "sales-invoice",
   "sales-invoice-dashboard",
   "purchase-entry",

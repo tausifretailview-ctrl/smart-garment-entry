@@ -71,7 +71,15 @@ const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
 const TAB_LOAD_TIMEOUT_MS = 8_000;
 /** Large admin chunks (Settings ~5k lines) need more time on first cold load. */
 const HEAVY_TAB_LOAD_TIMEOUT_MS = 20_000;
-const HEAVY_TAB_PATHS = new Set(["settings", "user-rights", "barcode-printing", "accounts"]);
+const HEAVY_TAB_PATHS = new Set([
+  "settings",
+  "user-rights",
+  "barcode-printing",
+  "accounts",
+  "pos-dashboard",
+  "sales-invoice-dashboard",
+  "purchase-bill-dashboard",
+]);
 
 function getTabLoadTimeoutMs(path: string): number {
   return HEAVY_TAB_PATHS.has(path) ? HEAVY_TAB_LOAD_TIMEOUT_MS : TAB_LOAD_TIMEOUT_MS;
@@ -330,7 +338,7 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     return () => window.clearInterval(id);
   }, [evictIdleMountedTabs, electronSingleTab]);
 
-  // Prefetch dashboard chunk while POS is open; pre-mount hidden pane only in browser (not Electron).
+  // Prefetch dashboard + POS dashboard chunks while POS is open; pre-mount hidden pane only in browser (not Electron).
   useEffect(() => {
     const shouldWarmDashboard =
       uniquePaths.includes("") ||
@@ -339,6 +347,7 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     if (!shouldWarmDashboard) return;
 
     prefetchTabPage("");
+    prefetchTabPage("pos-dashboard");
     if (electronSingleTab) return;
 
     setMountedPaths((prev) => {
