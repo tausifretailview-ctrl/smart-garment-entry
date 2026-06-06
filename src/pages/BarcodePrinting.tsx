@@ -11,6 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
@@ -31,6 +41,7 @@ import {
   buildStandardLabelDocument,
   printBarcodeViaDesktop,
 } from '@/utils/barcodeDesktopPrint';
+import { isElectron } from "@/utils/appPrint";
 import { resolveBarcodePrintTab, type ResolveBarcodePrintTabInput } from "@/utils/resolveBarcodePrintTab";
 import {
   DndContext,
@@ -1255,6 +1266,10 @@ export default function BarcodePrinting() {
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
   const [showCustomizeFields, setShowCustomizeFields] = useState(false);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  const [precisionPrintConfirmOpen, setPrecisionPrintConfirmOpen] = useState(false);
+  const [precisionPrintConfirmQty, setPrecisionPrintConfirmQty] = useState(0);
+  const [isPrecisionPrintRunning, setIsPrecisionPrintRunning] = useState(false);
+  const precisionPrintOkRef = useRef<HTMLButtonElement>(null);
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
@@ -3607,72 +3622,107 @@ export default function BarcodePrinting() {
     // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
 
+  const getTotalBarcodeLabelQty = useCallback(
+    () => labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+    [labelItems],
+  );
+
+  const executePrecisionPrint = async () => {
+    // Wait for settings to be fully loaded before printing
+    if (!settingsFullyLoadedRef.current) {
+      toast.info("Loading print settings...");
+      const maxWait = 3000;
+      const interval = 100;
+      let waited = 0;
+      await new Promise<void>((resolve) => {
+        const check = setInterval(() => {
+          waited += interval;
+          if (settingsFullyLoadedRef.current || waited >= maxWait) {
+            clearInterval(check);
+            resolve();
+          }
+        }, interval);
+      });
+    }
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+
+    const printArea = precisionPrintRef.current;
+    if (!printArea) return;
+
+    const labelHTML = printArea.innerHTML;
+    const cols =
+      precisionSettings.printMode === "thermal2up"
+        ? Math.max(2, precisionSettings.thermalCols || 2)
+        : precisionSettings.thermalCols || 1;
+    const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
+    const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
+    const isA4 = precisionSettings.printMode === "a4";
+    // Thermal: page size must match physical sticker (50×38 etc.). vGap is A4 row gap only.
+    const h = isA4
+      ? 297
+      : precisionSettings.labelHeight;
+
+    const htmlDoc = buildPrecisionLabelDocument(labelHTML, {
+      contentWidthMm: w,
+      pageHeightMm: h,
+      isA4,
+      thermalCols: cols,
+    });
+    const electronPageSize = isA4
+      ? "A4"
+      : { width: Math.round(w * 1000), height: Math.round(h * 1000) };
+
+    if (await printBarcodeViaDesktop(htmlDoc, electronPageSize)) {
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Popup blocked — please allow popups for this site.");
+      return;
+    }
+
+    printWindow.document.write(htmlDoc);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 400);
+  };
+
+  const handleConfirmPrecisionPrint = async () => {
+    if (isPrecisionPrintRunning) return;
+    setPrecisionPrintConfirmOpen(false);
+    setIsPrecisionPrintRunning(true);
+    try {
+      await executePrecisionPrint();
+    } finally {
+      setIsPrecisionPrintRunning(false);
+    }
+  };
+
   const handlePrint = async () => {
     if (precisionSettings.enabled) {
-      // Wait for settings to be fully loaded before printing
-      if (!settingsFullyLoadedRef.current) {
-        toast.info("Loading print settings...");
-        const maxWait = 3000;
-        const interval = 100;
-        let waited = 0;
-        await new Promise<void>((resolve) => {
-          const check = setInterval(() => {
-            waited += interval;
-            if (settingsFullyLoadedRef.current || waited >= maxWait) {
-              clearInterval(check);
-              resolve();
-            }
-          }, interval);
-        });
-      }
-
-      await new Promise<void>((resolve) => setTimeout(resolve, 300));
-
-      const printArea = precisionPrintRef.current;
-      if (!printArea) return;
-
-      const labelHTML = printArea.innerHTML;
-      const cols =
-        precisionSettings.printMode === "thermal2up"
-          ? Math.max(2, precisionSettings.thermalCols || 2)
-          : precisionSettings.thermalCols || 1;
-      const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
-      const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
-      const isA4 = precisionSettings.printMode === "a4";
-      // Thermal: page size must match physical sticker (50×38 etc.). vGap is A4 row gap only.
-      const h = isA4
-        ? 297
-        : precisionSettings.labelHeight;
-
-      const htmlDoc = buildPrecisionLabelDocument(labelHTML, {
-        contentWidthMm: w,
-        pageHeightMm: h,
-        isA4,
-        thermalCols: cols,
-      });
-      const electronPageSize = isA4
-        ? "A4"
-        : { width: Math.round(w * 1000), height: Math.round(h * 1000) };
-
-      if (await printBarcodeViaDesktop(htmlDoc, electronPageSize)) {
+      const totalQty = getTotalBarcodeLabelQty();
+      if (totalQty <= 0) {
+        toast.error("Please add at least one label with quantity > 0");
         return;
       }
 
-      const pageSize = isA4 ? "210mm 297mm" : `${w}mm ${h}mm`;
-      const pageWidth = isA4 ? "210mm" : `${w}mm`;
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        toast.error("Popup blocked — please allow popups for this site.");
+      if (isElectron()) {
+        setPrecisionPrintConfirmQty(totalQty);
+        setPrecisionPrintConfirmOpen(true);
         return;
       }
 
-      printWindow.document.write(htmlDoc);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 400);
+      setIsPrecisionPrintRunning(true);
+      try {
+        await executePrecisionPrint();
+      } finally {
+        setIsPrecisionPrintRunning(false);
+      }
       return;
     }
 
@@ -5721,8 +5771,8 @@ export default function BarcodePrinting() {
               <Eye className="h-4 w-4 mr-2" />
               Preview Labels
             </Button>
-            <Button onClick={handlePrint} variant="outline" disabled={settingsLoading || isLoadingSettings} title={settingsLoading ? "Loading print settings..." : "Print labels"}>
-              {settingsLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Loading...</> : "Print"}
+            <Button onClick={handlePrint} variant="outline" disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning} title={settingsLoading ? "Loading print settings..." : "Print labels"}>
+              {settingsLoading || isPrecisionPrintRunning ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> {isPrecisionPrintRunning ? "Printing..." : "Loading..."}</> : "Print"}
             </Button>
             <Button variant="outline" onClick={handleTestPrint}>
               🖨️ Print Test Label
@@ -5990,6 +6040,60 @@ export default function BarcodePrinting() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Windows app: confirm barcode qty before Precision Pro print */}
+      <AlertDialog open={precisionPrintConfirmOpen} onOpenChange={setPrecisionPrintConfirmOpen}>
+        <AlertDialogContent
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            setTimeout(() => precisionPrintOkRef.current?.focus(), 50);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !isPrecisionPrintRunning) {
+              e.preventDefault();
+              void handleConfirmPrecisionPrint();
+            }
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              Confirm Barcode Print
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-base text-foreground">
+                <p>
+                  You Are Printing barcode Qty{" "}
+                  <span className="font-bold tabular-nums text-primary">{precisionPrintConfirmQty}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Press OK or Enter to continue. Load labels in the printer manually if needed.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPrecisionPrintRunning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              ref={precisionPrintOkRef}
+              disabled={isPrecisionPrintRunning}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmPrecisionPrint();
+              }}
+            >
+              {isPrecisionPrintRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Printing...
+                </>
+              ) : (
+                "OK"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Direct Print Dialog for Thermal Printers */}
       <DirectPrintDialog
