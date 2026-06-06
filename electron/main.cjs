@@ -246,23 +246,40 @@ function createWindow() {
     }
   });
 
-  // Make the app's navy header act as the title bar (draggable) and keep its
-  // right-side icons clear of the window control buttons. Injected only inside
-  // the desktop app, so the deployed website is unaffected. Re-applied on every
-  // full load; persists across in-app (SPA) navigation.
+  // Electron-only stylesheet:
+  //   1) Desktop fit fixes (POS toolbar height, sticky entry-form footer)
+  //   2) Tally / Vyapar "desktop software" polish — scoped to html.desktop-shell
+  //      so the browser / PWA experience is completely untouched.
   const HEADER_CSS = `
-    [class~="bg-[#1e40af]"] {
-      -webkit-app-region: drag;
-      padding-right: 150px !important;
+    /* ── Tally / Vyapar polish (Electron only) ─────────────────────── */
+    html.desktop-shell, html.desktop-shell body {
+      font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
     }
-    [class~="bg-[#1e40af]"] button,
-    [class~="bg-[#1e40af]"] a,
-    [class~="bg-[#1e40af]"] input,
-    [class~="bg-[#1e40af]"] select,
-    [class~="bg-[#1e40af]"] [role="button"],
-    [class~="bg-[#1e40af]"] [contenteditable] {
-      -webkit-app-region: no-drag;
+    /* Flatter, more "Windows software" corners */
+    html.desktop-shell .rounded-lg  { border-radius: 0.25rem !important; }
+    html.desktop-shell .rounded-md  { border-radius: 0.25rem !important; }
+    html.desktop-shell .rounded-xl  { border-radius: 0.375rem !important; }
+    html.desktop-shell .rounded-2xl { border-radius: 0.5rem !important; }
+    /* Softer shadows — Vyapar uses very subtle elevation */
+    html.desktop-shell .shadow-lg,
+    html.desktop-shell .shadow-md  { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08) !important; }
+    html.desktop-shell .shadow-xl  { box-shadow: 0 2px 4px rgba(15, 23, 42, 0.10) !important; }
+    /* Crisp 1px input borders (data-entry feel) */
+    html.desktop-shell input[type="text"],
+    html.desktop-shell input[type="number"],
+    html.desktop-shell input[type="search"],
+    html.desktop-shell input[type="tel"],
+    html.desktop-shell input[type="email"],
+    html.desktop-shell input[type="date"],
+    html.desktop-shell select,
+    html.desktop-shell textarea {
+      border-radius: 0.25rem !important;
     }
+    /* Thin Windows 11–style scrollbars */
+    html.desktop-shell ::-webkit-scrollbar           { width: 10px; height: 10px; }
+    html.desktop-shell ::-webkit-scrollbar-track     { background: transparent; }
+    html.desktop-shell ::-webkit-scrollbar-thumb     { background: #cbd5e1; border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+    html.desktop-shell ::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: padding-box; border: 2px solid transparent; }
 
     /* ── Desktop fit fixes ──────────────────────────────────────────────
        The POS / Sales Invoice screens use fixed-height "shells" that were
