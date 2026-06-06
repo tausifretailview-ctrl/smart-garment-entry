@@ -719,7 +719,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     };
 
     return (
-      <div ref={ref} className="sale-order-print-container">
+      <div ref={ref} className="sale-order-print-container sale-order-print print-document">
         <style>{`
           @media print {
             @page { size: ${isA4 ? 'A4' : isHorizontal ? 'A5 landscape' : 'A5 portrait'}; margin: 0; }

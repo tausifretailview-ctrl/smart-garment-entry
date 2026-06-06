@@ -20,6 +20,8 @@ import { cn } from "@/lib/utils";
 import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
+import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
+import { waitForPrintReady } from "@/utils/printReady";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -1051,7 +1053,19 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `SaleOrder-${order.order_number}`,
-    pageStyle: getPageStyle(),
+    pageStyle: `${getPageStyle()}
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+      @media print {
+        body .sale-order-print-container,
+        body .sale-order-print-container * {
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+      }`,
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(printRef, resolve, { maxWait: 8000 });
+      }),
   });
 
   // Fetch brand/style from products
@@ -1103,7 +1117,7 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
 
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
-      <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+      <AlertDialogContent className="print-dialog max-w-4xl max-h-[90vh] overflow-auto">
         <AlertDialogHeader>
           <AlertDialogTitle>Print Sale Order</AlertDialogTitle>
           <AlertDialogDescription>

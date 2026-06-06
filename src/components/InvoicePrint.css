@@ -582,11 +582,19 @@
   }
   
   .invoice-print,
-  .invoice-print * {
+  .invoice-print *,
+  .sale-order-print-container,
+  .sale-order-print-container *,
+  .sale-order-print,
+  .sale-order-print *,
+  .professional-invoice-template,
+  .professional-invoice-template * {
     visibility: visible;
   }
   
-  .invoice-print {
+  .invoice-print,
+  .sale-order-print-container,
+  .sale-order-print {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;

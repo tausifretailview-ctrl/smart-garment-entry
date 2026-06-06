@@ -838,6 +838,9 @@ All colors MUST be HSL.
   .print-dialog .retail-tax-ezzy-print-root,
   .print-dialog .wholesale-a5-invoice,
   .print-dialog .professional-invoice-template,
+  .print-dialog .sale-order-print-container,
+  .print-dialog .sale-order-print,
+  .print-dialog .sale-order-page,
   .print-dialog .invoice-page,
   .print-dialog .thermal-print-80mm,
   .print-dialog .thermal-receipt-container,
@@ -854,7 +857,10 @@ All colors MUST be HSL.
   .print-dialog .invoice-print-root *,
   .print-dialog .retail-tax-ezzy-print-root *,
   .print-dialog .wholesale-a5-invoice *,
-  .print-dialog .professional-invoice-template * {
+  .print-dialog .professional-invoice-template *,
+  .print-dialog .sale-order-print-container *,
+  .print-dialog .sale-order-print *,
+  .print-dialog .sale-order-page * {
     visibility: visible !important;
     opacity: 1 !important;
     transform: none !important;

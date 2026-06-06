@@ -54,6 +54,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
+import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
+import { waitForPrintReady } from "@/utils/printReady";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
 
@@ -261,6 +263,12 @@ export default function SaleOrderEntry() {
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `SaleOrder_${orderNumber}`,
+    pageStyle: `@page { size: A4 portrait; margin: 10mm; }
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}`,
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(printRef, resolve, { maxWait: 8000 });
+      }),
   });
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
@@ -1105,10 +1113,13 @@ export default function SaleOrderEntry() {
         netAmount,
       });
 
-      setTimeout(() => {
-        handlePrint();
-        navigate('/sale-order-dashboard');
-      }, 100);
+      // Let React commit printData before cloning for react-to-print
+      requestAnimationFrame(() => {
+        waitForPrintReady(printRef, () => {
+          handlePrint();
+          navigate('/sale-order-dashboard');
+        }, { maxWait: 8000 });
+      });
     }
   };
 
@@ -1761,8 +1772,8 @@ export default function SaleOrderEntry() {
         </div>
       </div>
 
-      {/* Print Component (hidden) */}
-      <div className="hidden">
+      {/* Off-screen print source — do not use Tailwind hidden (blanks react-to-print) */}
+      <div className="invoice-print-source-screen">
         <SaleOrderPrint
           ref={printRef}
           businessName={settings?.business_name || ''}
