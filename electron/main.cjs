@@ -453,72 +453,161 @@ function sendNavigateShortcut(path) {
   mainWindow.webContents.send('erp-navigate', path);
 }
 
-// Application menu — accelerators must not steal POS F1–F10 (only F11 was conflicting; use F12 for fullscreen).
+// Application menu — Tally / Vyapar style. All items navigate via
+// sendNavigateShortcut (existing IPC) — no new routes, no business logic.
+// Accelerators avoid F1–F11 so POS shortcuts keep working.
 function createMenu() {
+  const nav = (p) => () => sendNavigateShortcut(p);
+
   const template = [
     {
-      label: 'File',
+      label: '&File',
       submenu: [
+        { label: 'New Sale Invoice', accelerator: 'Alt+N', click: nav('sales-invoice') },
+        { label: 'New Purchase Bill', accelerator: 'Alt+B', click: nav('purchase-entry') },
+        { label: 'New POS Sale', accelerator: 'Alt+P', click: nav('pos-sales') },
+        { type: 'separator' },
         {
-          label: 'Quit',
+          label: 'Print…',
+          accelerator: 'CmdOrCtrl+P',
+          click: () =>
+            mainWindow &&
+            mainWindow.webContents.print({ silent: false, printBackground: true }, () => {}),
+        },
+        { type: 'separator' },
+        { label: 'Backup', click: nav('settings/backup') },
+        { type: 'separator' },
+        {
+          label: 'Exit',
           accelerator: 'CmdOrCtrl+Q',
-          click: () => {
-            app.isQuitting = true;
-            app.quit();
-          },
+          click: () => { app.isQuitting = true; app.quit(); },
         },
       ],
     },
     {
-      label: 'Go',
+      label: '&Edit',
       submenu: [
-        { label: 'Dashboard', accelerator: 'Alt+D', click: () => sendNavigateShortcut('dashboard') },
+        { role: 'undo' },
+        { role: 'redo' },
         { type: 'separator' },
-        { label: 'POS Sale', accelerator: 'Alt+P', click: () => sendNavigateShortcut('pos-sales') },
-        { label: 'Sale Invoice', accelerator: 'Alt+N', click: () => sendNavigateShortcut('sales-invoice') },
-        { label: 'Purchase Bill', accelerator: 'Alt+B', click: () => sendNavigateShortcut('purchase-entry') },
-        { label: 'Stock Report', accelerator: 'Alt+S', click: () => sendNavigateShortcut('stock-report') },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { role: 'selectAll' },
       ],
     },
     {
-      label: 'View',
+      label: '&Masters',
       submenu: [
-        { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => mainWindow && mainWindow.reload() },
+        { label: 'Customers', click: nav('customers') },
+        { label: 'Suppliers', click: nav('suppliers') },
+        { label: 'Products', click: nav('products') },
+        { label: 'Categories', click: nav('categories') },
+      ],
+    },
+    {
+      label: '&Transactions',
+      submenu: [
+        { label: 'POS Sale', accelerator: 'Alt+P', click: nav('pos-sales') },
+        { label: 'Sale Invoice', accelerator: 'Alt+N', click: nav('sales-invoice') },
+        { label: 'Purchase Bill', accelerator: 'Alt+B', click: nav('purchase-entry') },
         { type: 'separator' },
-        {
-          label: 'Full Screen',
-          accelerator: 'F12',
-          click: () => mainWindow && mainWindow.setFullScreen(!mainWindow.isFullScreen()),
-        },
+        { label: 'Sale Return', click: nav('sale-returns') },
+        { label: 'Purchase Return', click: nav('purchase-returns') },
+        { type: 'separator' },
+        { label: 'Receipt (Customer Payment)', click: nav('customer-payments') },
+        { label: 'Payment (Supplier Payment)', click: nav('supplier-payments') },
+        { label: 'Expense Entry', click: nav('expenses') },
+      ],
+    },
+    {
+      label: '&Reports',
+      submenu: [
+        { label: 'Dashboard', accelerator: 'Alt+D', click: nav('dashboard') },
+        { type: 'separator' },
+        { label: 'Day Book', click: nav('day-book') },
+        { label: 'Stock Report', accelerator: 'Alt+S', click: nav('stock-report') },
+        { label: 'Item-Wise Sales', click: nav('item-wise-sales') },
+        { type: 'separator' },
+        { label: 'GSTR-1', click: nav('gst/gstr1') },
+        { label: 'GSTR-3B', click: nav('gst/gstr3b') },
+        { type: 'separator' },
+        { label: 'Outstanding (Customers)', click: nav('outstanding-customers') },
+        { label: 'Outstanding (Suppliers)', click: nav('outstanding-suppliers') },
+        { label: 'Profit & Loss', click: nav('accounts/profit-loss') },
+      ],
+    },
+    {
+      label: '&Utilities',
+      submenu: [
+        { label: 'Stock Settlement', click: nav('stock-settlement') },
+        { label: 'Recycle Bin', click: nav('recycle-bin') },
+        { label: 'User Rights', click: nav('settings/user-rights') },
+        { label: 'WhatsApp Inbox', click: nav('whatsapp-inbox') },
+      ],
+    },
+    {
+      label: '&Window',
+      submenu: [
+        { role: 'reload', accelerator: 'CmdOrCtrl+R' },
         { type: 'separator' },
         {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+=',
-          click: () =>
-            mainWindow &&
-            mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5),
+          click: () => mainWindow && mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5),
         },
         {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
-          click: () =>
-            mainWindow &&
-            mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5),
+          click: () => mainWindow && mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5),
         },
         {
           label: 'Reset Zoom',
           accelerator: 'CmdOrCtrl+0',
           click: () => mainWindow && mainWindow.webContents.setZoomLevel(0),
         },
+        { type: 'separator' },
+        {
+          label: 'Full Screen',
+          accelerator: 'F12',
+          click: () => mainWindow && mainWindow.setFullScreen(!mainWindow.isFullScreen()),
+        },
+        { role: 'minimize' },
       ],
     },
     {
-      label: 'Help',
+      label: '&Help',
       submenu: [
         {
-          label: 'Check for Updates…',
-          click: () => checkForUpdatesManually(),
+          label: 'Keyboard Shortcuts',
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Keyboard Shortcuts',
+              message: 'EzzyERP — Keyboard Shortcuts',
+              detail:
+                'Alt+N   New Sale Invoice\n' +
+                'Alt+B   New Purchase Bill\n' +
+                'Alt+P   POS Sale\n' +
+                'Alt+S   Stock Report\n' +
+                'Alt+D   Dashboard\n' +
+                'Ctrl+P  Print\n' +
+                'Ctrl+R  Reload\n' +
+                'F1      Help (in-app)\n' +
+                'F2      Search (in-app)\n' +
+                'F9      Save (in-app)\n' +
+                'F10     Print preview (in-app)\n' +
+                'F12     Full Screen\n' +
+                'Esc     Back / Cancel',
+              buttons: ['OK'],
+            });
+          },
         },
+        { label: 'Check for Updates…', click: () => checkForUpdatesManually() },
+        { type: 'separator' },
+        { label: 'WhatsApp Support', click: () => shell.openExternal('https://wa.me/919876543210') },
+        { label: 'Visit Website', click: () => shell.openExternal(PROD_URL) },
         { type: 'separator' },
         {
           label: 'About EzzyERP',
@@ -531,10 +620,6 @@ function createMenu() {
               buttons: ['OK'],
             });
           },
-        },
-        {
-          label: 'WhatsApp Support',
-          click: () => shell.openExternal('https://wa.me/919876543210'),
         },
       ],
     },
