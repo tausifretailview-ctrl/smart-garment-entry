@@ -9,6 +9,16 @@ const isDev = !app.isPackaged;
 
 const PROD_URL = 'https://app.inventoryshop.in';
 const DEV_URL = 'http://localhost:8080';
+const SUPABASE_URL = 'https://lkbbrqcsbhqjvsxiorvp.supabase.co';
+
+// ═══ PERF SWITCHES (must be set BEFORE app.whenReady) ═══
+// Keep timers/queries running normally when the window is hidden or in tray,
+// so reopening the app feels instant instead of "frozen for a few seconds".
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+// Larger HTTP disk cache so JS chunks / images survive across launches on a busy ERP.
+app.commandLine.appendSwitch('disk-cache-size', '536870912'); // 512 MB
 
 let mainWindow;
 let tray;
@@ -27,6 +37,12 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
+    // Warm TLS sockets to the website + backend so the first request is faster.
+    try {
+      const { session } = require('electron');
+      session.defaultSession.preconnect({ url: PROD_URL, numSockets: 2 });
+      session.defaultSession.preconnect({ url: SUPABASE_URL, numSockets: 2 });
+    } catch {}
     createWindow();
     createTray();
     createMenu();
@@ -150,7 +166,8 @@ function reloadMainWindow(reason) {
     loadRetryCount = 0;
     return;
   }
-  const delay = Math.min(1500 * loadRetryCount, 6000);
+  // First retry fast (400ms), then back off — recovers instantly from a brief flap.
+  const delay = loadRetryCount === 1 ? 400 : Math.min(1500 * loadRetryCount, 6000);
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.reload();
@@ -188,6 +205,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
       zoomFactor: 0.8, // medium zoom — content was too large at 100%
+      backgroundThrottling: false,
     },
   });
 
@@ -284,7 +302,8 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
-    mainWindow.webContents.setZoomFactor(0.8);
+    // zoomFactor is already applied via webPreferences — no need to re-set it
+    // here (was causing a one-time layout reflow after first paint).
   });
 
   // Show maximized by default so bill entry footers and fields fit without manual resize

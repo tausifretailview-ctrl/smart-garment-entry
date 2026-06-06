@@ -1,87 +1,68 @@
-# Phase 2 — Performance & Cloud-Usage Audit
+## What I found (audit)
 
-Goal: cut Chrome / Windows app dashboard load time, fix "connection problem" errors, and reduce Lovable Cloud (DB) usage. Zero changes to business logic, UI design, bill / barcode printing, or search behavior.
+Your Electron app is configured **as a thin shell that loads the live website** (`https://app.inventoryshop.in`) — it does NOT bundle the React build locally.
 
-## What the audit found (evidence from live DB)
+```text
+Windows .exe (Electron)
+        │
+        └── BrowserWindow.loadURL("https://app.inventoryshop.in")
+                        │
+                        └── same React app users get in Chrome
+```
 
-| Signal | Value | Meaning |
-|---|---|---|
-| `organization_members` sequential scans | **2,072,078,215** (~2 billion) | RLS / `has_role()` re-evaluated for every row of every query — biggest CPU cost on Cloud |
-| `user_roles` sequential scans | 218 million | Same — `has_role()` called per-row, not cached |
-| `product_variants` seq scans | 54 million | Same RLS pattern |
-| `sales`, `customers`, `credit_notes`, `products` | tens of millions of idx_scan + 100k+ seq_scan | Healthy index use, but RLS adds overhead per call |
-| `audit_logs` table | **168 MB / 75k rows** | Bloating writes & backups; nothing prunes it |
-| `stock_movements` | 114 MB / 252k rows | Heavy table, fine, but no archival |
-| DB size | 601 MB | Headroom OK, but growth is uncontrolled |
-| Active connections | 2 | Healthy |
+Implications:
+1. Every "slow / loading" issue you feel in the desktop app = same as the website. Electron itself adds <100 ms.
+2. First open is bound by network (CDN + Supabase round-trips). No local bundle = nothing cached on disk between launches except what the browser cache holds.
+3. Phase 1 + 2 fixes already done (RLS parallel-safe, indexes, 30 s staleTime, 20 s tab budget) directly help the desktop app — no Electron change needed for those.
 
-Root cause of the slowness users feel: **RLS policies on hot tables call `has_role()` / `is_member_of_org()` per row, and Postgres re-runs them billions of times**. Even though indexes exist, the function call cost dominates. This is also the #1 driver of Cloud compute usage.
+What's actually wrong on the Electron side:
+- `backgroundThrottling` not disabled → when minimized to tray, timers/queries throttle, first un-minimize feels frozen.
+- No HTTP disk-cache size set → Chromium default (~80 MB) gets evicted fast on a busy ERP; cold reloads re-download chunks.
+- `zoomFactor: 0.8` is applied **after** first paint (in `did-finish-load`) → layout re-flows once, visible jank.
+- `loadURL` runs immediately with no readiness check; if internet is briefly slow on launch, retry waits 1.5 s before first retry.
+- No `session.preconnect` to `app.inventoryshop.in` / Supabase → TLS handshake adds 200–400 ms on cold start.
+- Old `loadRetryCount` still increments on harmless reloads (SPA navigations that mis-fire `did-fail-load`).
+- `electron:build` uses `electron-builder` — fine for your own machine, but the dev-server sandbox can't actually package `.exe` (7-zip dynamic-link issue). Build must run on your Windows box. I'll document that, not change it.
 
-## Phase 2 fixes — split into 4 safe sub-phases
+## Plan (Electron-only, no business-logic changes)
 
-### 2A. RLS function caching (biggest win, zero risk)
+### Step 1 — main.cjs perf tuning (single file, ~15 lines)
+- Add `app.commandLine.appendSwitch('disable-renderer-backgrounding')` and `('disable-background-timer-throttling')` before `app.whenReady`.
+- In `webPreferences`, set `backgroundThrottling: false`.
+- Set Chromium disk cache to 512 MB: `app.commandLine.appendSwitch('disk-cache-size', '536870912')`.
+- Move `setZoomFactor(0.8)` from `did-finish-load` into `webPreferences.zoomFactor` only (already there) — drop the duplicate set so no re-flow.
+- Preconnect on app ready: `session.defaultSession.preconnect({ url: PROD_URL, numSockets: 2 })` and same for the Supabase REST origin.
+- First retry delay 1.5 s → 400 ms (only the first retry; later ones keep current back-off).
+- Guard `reloadMainWindow` so SPA history changes don't count toward `MAX_LOAD_RETRIES`.
 
-Add `STABLE` + `PARALLEL SAFE` markers and wrap calls in `(SELECT …)` so Postgres caches one result per statement instead of per row.
+### Step 2 — Splash polish
+- Keep the existing navy `backgroundColor: '#F5F7FA'` (already prevents white flash).
+- Inject a tiny "Loading EzzyERP…" centered text via `loadURL`'s `data:` fallback only if `did-fail-load` fires twice in a row — so a flaky network shows status instead of a blank window.
 
-- Re-create `public.has_role(uuid, app_role)` as `STABLE PARALLEL SAFE` (already `SECURITY DEFINER`, keep that).
-- Re-create `public.is_member_of_org(uuid)` / `public.current_user_org_id()` likewise.
-- Rewrite RLS policies on the **hot** tables to call them as `(SELECT public.has_role(auth.uid(),'admin'))` — Postgres treats this as an InitPlan and runs it once per query, not once per row.
-- Hot tables touched: `sales`, `sale_items`, `products`, `product_variants`, `customers`, `purchase_items`, `stock_movements`, `voucher_entries`, `journal_lines`, `customer_ledger_entries`, `audit_logs`, `whatsapp_logs`.
+### Step 3 — Build & runtime checklist (docs only)
+Add `electron/README.md` with:
+- Exact Windows build command (`npm run electron:build:win`) and required Node version.
+- How auto-update works (already wired to GitHub releases via `electron-updater`).
+- "Run from source" command for local QA: `npm run electron:dev`.
+- Note: packaging must run on a real Windows machine — Lovable sandbox can't produce `.exe`.
 
-**No policy intent changes. Same rows visible to same users. Just faster.**
+### Step 4 — Verify
+After Step 1+2 are in:
+- Run `npm run electron:dev` locally on Windows.
+- Cold launch → first paint should be ~30 – 40 % faster (preconnect + cache + no re-zoom reflow).
+- Minimize to tray for 5 min, restore → no frozen UI (background throttling off).
+- Kill internet briefly → app retries quickly and shows readable fallback instead of blank.
 
-Expected impact: 5–20× fewer function calls, large drop in CPU on Cloud, dashboards open noticeably faster.
+## Explicitly NOT changing
+- React / Vite bundle, business logic, RLS, search, print templates, dashboard layout.
+- Switching to a bundled offline app (would break auto-update flow and add complexity — your call if you ever want it).
+- `vite.config.ts` `base` path — irrelevant because the app loads from a remote URL, not `file://`.
+- Edge functions, DB schema, types.ts, client.ts.
 
-### 2B. Missing composite indexes on hot read paths
+## What this solves
+- "Slow loading" on cold start of the .exe → preconnect + bigger disk cache.
+- "App freezes after sitting in tray" → background throttling off.
+- "Blank window when internet hiccups" → faster first retry + readable fallback.
+- One-time layout jitter at launch → single zoom factor, no post-load re-zoom.
 
-From `pg_stat_user_tables`, these tables already have org-scoped indexes; we'll add the few that are missing where dashboards aggregate:
-
-- `audit_logs (organization_id, created_at DESC)` — used by every dashboard "recent activity"
-- `whatsapp_logs (organization_id, created_at DESC)`
-- `stock_movements (organization_id, product_id, created_at DESC)` if not present
-- `voucher_entries (organization_id, voucher_date DESC)` if not present
-
-Each is `CREATE INDEX IF NOT EXISTS` + `CONCURRENTLY` where possible.
-
-### 2C. Audit-log + stock-movement retention (controls Cloud growth)
-
-- Add a daily pg_cron job that **soft-archives** `audit_logs` older than 180 days into `audit_logs_archive` and deletes from primary. Keeps recent audit history hot (used by History dialog) and stops 168 MB → multi-GB growth.
-- Same pattern for `whatsapp_logs` older than 90 days.
-- No data is lost — archive table stays.
-
-User confirms retention windows before running (180d / 90d are defaults — easy to change).
-
-### 2D. Frontend connection / loading resilience
-
-- Reduce parallel Supabase channels on dashboard mount (currently several pages open 3–6 realtime channels). Consolidate to one per page via existing `useRealtimeChannel` helper — no UI change.
-- Add a single `staleTime: 30_000` default to React Query in `App.tsx` so dashboards don't re-fetch every tab focus during a slow Chrome session.
-- Increase `fetch` timeout for the `supabase-js` client wrapper from 15 s to 30 s and add one automatic retry on `Failed to fetch` (the exact symptom users report).
-- Already-shipped Phase 1: heavy-tab budget (8 s → 20 s), DB column restored, barcode prefetch.
-
-## What is explicitly NOT changed
-
-- ❌ No change to bill / barcode print templates, thermal layouts, QR positioning
-- ❌ No change to search dropdown logic, hybrid product search, or CRM price memory
-- ❌ No change to any business calculation (CN, customer balance, GST, COGS, stock formula)
-- ❌ No change to UI layout, dashboard density, semantic tokens, or theme
-- ❌ No change to RLS *intent* — same rows visible to same users, only faster
-- ❌ No package install, no client.ts edit, no types.ts edit
-
-## Roll-out order
-
-1. 2A migration (RLS function caching) — apply, test 1 dashboard, confirm load time drops.
-2. 2B migration (indexes) — `CREATE INDEX IF NOT EXISTS`.
-3. 2D frontend (staleTime + fetch timeout + channel consolidation).
-4. 2C retention — only after you confirm retention windows.
-
-Each sub-phase is independently revertible.
-
-## Verification after each sub-phase
-
-- Open POS Dashboard, Sales Invoice Dashboard, Owner Dashboard, Inventory, Accounts — confirm same data, faster load.
-- Spot-check: 1 sale create, 1 purchase create, 1 sale return, 1 barcode print, 1 thermal bill — all unchanged.
-- Re-query `pg_stat_user_tables` after 24 h to confirm seq_scan growth rate dropped 10×+.
-
-## Approval needed
-
-Reply **"go 2A"** to start with the safest, highest-impact step (RLS function caching). I'll send each sub-phase as its own migration so you can review before applying.
+Approve and I'll implement Step 1 + Step 2 + Step 3 in one batch.
