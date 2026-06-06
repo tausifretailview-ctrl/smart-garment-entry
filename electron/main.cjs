@@ -189,16 +189,9 @@ function createWindow() {
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
-    // Single-header look: hide the native title bar and the menu bar so the app's
-    // own navy header is the top of the window. Keep the Windows min/max/close
-    // buttons as an overlay tinted to match the header (#1e40af).
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#1e40af',
-      symbolColor: '#ffffff',
-      height: 36,
-    },
-    autoHideMenuBar: true, // hide menu bar (accelerators still work; Alt reveals)
+    // Native Windows chrome — gives the Tally / Vyapar "desktop software" feel.
+    // Title bar + menu bar are visible at the top, drawn by Windows itself.
+    autoHideMenuBar: false,
 
     backgroundColor: '#F5F7FA', // match index.html splash — no white flash on Windows cold start
     show: false, // Show after ready-to-show (branded splash in page)
