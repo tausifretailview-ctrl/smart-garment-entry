@@ -24,7 +24,7 @@ export const entryPageLayoutMainClass =
 
 /** Outer shell: header + scrollable lines + footer pinned to bottom (POS-style fixed shell). */
 export const entryPageShellClass =
-  `flex flex-1 flex-col min-h-0 w-full max-w-none ${ERP_STATUS_BAR_HEIGHT_CLASS}`;
+  "flex flex-1 flex-col min-h-0 w-full max-w-none";
 
 /** Line items table scrolls; header/footer sections stay shrink-0. */
 export const entryPageMainClass = "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden";

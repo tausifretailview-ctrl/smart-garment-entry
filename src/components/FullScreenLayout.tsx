@@ -106,7 +106,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                 <FloatingChatButton />
               </div>
             </IdleMount>
-            <StatusBar />
+            {!isEntryFullscreenPage && <StatusBar />}
           </SidebarProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>
