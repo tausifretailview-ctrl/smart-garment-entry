@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
+import { BackgroundSyncBadge } from "@/components/BackgroundSyncBadge";
 
 const getCurrentPageName = (path: string): string => {
   const PAGE_NAMES: Record<string, string> = {
@@ -104,6 +105,8 @@ export const StatusBar = () => {
         </>
       )}
       <div className="flex-1" />
+      <BackgroundSyncBadge />
+      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
       <div className="status-item opacity-50 text-[10px]">
         EzzyERP v2.0
       </div>

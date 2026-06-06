@@ -6,7 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, keepPreviousData } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
@@ -300,6 +300,13 @@ const App = () => {
         refetchOnWindowFocus: false,
         // refetchOnMount: true (default) — first page visit always fetches; tab return within staleTime skips
         retry: 1,
+        // Tally/Vyapar feel: keep showing the previous data while a refetch runs
+        // in the background. Combined with the always-mounted window tabs, this
+        // makes switching dashboards instant — no skeleton flash, no scroll jump.
+        placeholderData: keepPreviousData,
+        // Only re-render consumers when data/error actually changes — silences
+        // background `isFetching` flips so the page doesn't visibly "blink".
+        notifyOnChangeProps: ["data", "error"],
       },
     },
   }));
