@@ -1293,6 +1293,19 @@ export default function BarcodePrinting() {
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
+  /**
+   * Gates the persistent `<style>` block that contains an `@page` rule for
+   * standard-mode label printing. The block must only be present in the DOM
+   * while a label print job is actually running — otherwise the `@page size`
+   * leaks into other print jobs (e.g. thermal receipts via react-to-print),
+   * which causes the invoice preview to shrink to the label page size.
+   */
+  const [printPageActive, setPrintPageActive] = useState(false);
+  useEffect(() => {
+    const handleAfterPrint = () => setPrintPageActive(false);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
   const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
   /** From bill_barcode_settings — not overwritten when user toggles tabs */
