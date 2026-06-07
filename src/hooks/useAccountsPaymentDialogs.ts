@@ -100,7 +100,9 @@ export function useAccountsPaymentDialogs(settings: any) {
         bankAccounts,
         editReceivingBankAccountId,
       );
-      if (!bankValidation.ok) throw new Error(bankValidation.message);
+      if (!bankValidation.ok) {
+        throw new Error("message" in bankValidation ? bankValidation.message : "Invalid receiving bank");
+      }
       const receivingBankAccountId = bankValidation.bankAccountId;
       const bankAccount = receivingBankAccountId
         ? bankAccounts.find((a) => a.id === receivingBankAccountId) ?? null
