@@ -28,6 +28,7 @@ import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { isElectronShell, reloadElectronApp } from "@/lib/electronShell";
+import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 
 /** Row-2 shortcut buttons — solid fills, white label/icons */
 const shortcutBtn = (colorClass: string, extra?: string) =>
@@ -136,6 +137,11 @@ export const Header = () => {
     );
   }, [canQuickCustomerStatement, permissions, permissionsLoading, hasMenuAccess]);
 
+  const openPosSales = () => {
+    orgNavigate("/pos-sales");
+    requestPosBarcodeFocus();
+  };
+
   const handleQuickAction = (action: (typeof quickActions)[0]) => {
     if (action.dialogKey === "sizeStock") {
       setSizeStockOpen(true);
@@ -143,6 +149,8 @@ export const Header = () => {
       setQuickStockOpen(true);
     } else if (action.dialogKey === "customerStatement") {
       setCustomerStatementOpen(true);
+    } else if (action.path === "/pos-sales") {
+      openPosSales();
     } else {
       orgNavigate(action.path);
     }
@@ -195,7 +203,7 @@ export const Header = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-52 text-sm">
                 {can("pos_sales") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/pos-sales")} className="cursor-pointer">
+                  <DropdownMenuItem onClick={openPosSales} className="cursor-pointer">
                     <ShoppingCart className="h-3.5 w-3.5 mr-2 opacity-60" /> New POS Sale
                   </DropdownMenuItem>
                 )}
@@ -602,7 +610,7 @@ export const Header = () => {
           <div className="flex items-center">
             <Button
               variant="ghost"
-              onClick={() => orgNavigate("/pos-sales")}
+              onClick={openPosSales}
               className={shortcutBtn("bg-blue-600 hover:bg-blue-700", "px-3 rounded-r-none border-r border-white/25")}
             >
               <Plus className="h-3.5 w-3.5" />

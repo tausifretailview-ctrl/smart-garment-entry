@@ -11,7 +11,7 @@ export function Toaster() {
   useEffect(() => {
     if (activeError) return; // wait until current modal is closed
     const next = toasts.find(
-      (t: any) => t.variant === "destructive" && !t.inline && t.open !== false,
+      (t: any) => t.variant === "destructive" && t.persistent && t.open !== false,
     );
     if (next) {
       const titleStr = typeof next.title === "string" ? next.title : undefined;
@@ -31,9 +31,9 @@ export function Toaster() {
     }
   };
 
-  // Bottom-right toasts: everything that's NOT a (non-inline) destructive
-  const nonDestructive = toasts.filter(
-    (t: any) => t.variant !== "destructive" || t.inline,
+  // Bottom-right toasts — auto-dismiss; blocking modal only when persistent destructive
+  const viewportToasts = toasts.filter(
+    (t: any) => !(t.variant === "destructive" && t.persistent),
   );
 
   return (
@@ -47,7 +47,7 @@ export function Toaster() {
       />
 
       <ToastProvider>
-        {nonDestructive.map(function ({ id, title, description, action, ...props }) {
+        {viewportToasts.map(function ({ id, title, description, action, ...props }) {
           return (
             <Toast key={id} {...props}>
               <div className="grid gap-1">

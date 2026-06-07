@@ -7,7 +7,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
 import { useSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
@@ -55,7 +55,10 @@ import {
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
 import { localDayBounds, todayLocalYmd } from "@/lib/localDayBounds";
-import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
+import {
+  notifyPosSalesChanged,
+  POS_FOCUS_BARCODE_EVENT,
+} from "@/utils/posSalesRefresh";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
 import {
@@ -591,17 +594,86 @@ export default function POSSales() {
     }
   }, [searchParams, currentOrganization?.id]);
 
-  // Auto-focus barcode input on mount and keep focus when idle
-  // Disabled on iPad to prevent soft keyboard from popping up unexpectedly
+  const location = useLocation();
+
+  const focusBarcodeScanInput = useCallback(() => {
+    if (isIOS) return;
+
+    const tryFocus = () => {
+      const el = barcodeInputRef.current;
+      if (!el) return false;
+
+      const tabPane = el.closest('[data-tab-cache-path]');
+      if (tabPane?.classList.contains('hidden') || tabPane?.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+      if (document.querySelector('[role="dialog"][data-state="open"]')) {
+        return false;
+      }
+
+      el.focus({ preventScroll: true });
+      return document.activeElement === el;
+    };
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!tryFocus()) {
+          window.setTimeout(() => tryFocus(), 120);
+        }
+      });
+    });
+  }, [isIOS]);
+
+  // Focus barcode when POS opens, tab becomes visible, or New Sale is clicked.
   useEffect(() => {
-    if (isIOS) return; // Skip auto-focus on iOS — user taps when ready
-    
-    // Focus once on mount (small delay to let initial render settle)
-    const initialFocus = setTimeout(() => barcodeInputRef.current?.focus(), 100);
+    if (isIOS) return;
+    if (!location.pathname.includes('/pos-sales')) return;
+    focusBarcodeScanInput();
+  }, [location.pathname, location.search, isIOS, focusBarcodeScanInput]);
+
+  useEffect(() => {
+    if (isIOS) return;
+
+    const onFocusRequest = () => focusBarcodeScanInput();
+    window.addEventListener(POS_FOCUS_BARCODE_EVENT, onFocusRequest);
+
+    let observer: IntersectionObserver | null = null;
+    let setupTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const attachVisibilityObserver = () => {
+      const el = barcodeInputRef.current;
+      const tabPane = el?.closest('[data-tab-cache-path]');
+      if (!el || !tabPane) return false;
+
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            focusBarcodeScanInput();
+          }
+        },
+        { threshold: 0.12 },
+      );
+      observer.observe(tabPane);
+      return true;
+    };
+
+    if (!attachVisibilityObserver()) {
+      setupTimer = window.setTimeout(() => attachVisibilityObserver(), 200);
+    }
+
+    return () => {
+      window.removeEventListener(POS_FOCUS_BARCODE_EVENT, onFocusRequest);
+      if (setupTimer) window.clearTimeout(setupTimer);
+      observer?.disconnect();
+    };
+  }, [isIOS, focusBarcodeScanInput]);
+
+  // Keep focus on barcode when user clicks empty areas (continuous scanning).
+  useEffect(() => {
+    if (isIOS) return;
 
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      // Don't refocus if user is clicking on input, select, textarea, or button
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'SELECT' ||
@@ -614,16 +686,12 @@ export default function POSSales() {
       ) {
         return;
       }
-      // Refocus on barcode input after a small delay
-      setTimeout(() => barcodeInputRef.current?.focus(), 50);
+      window.setTimeout(() => focusBarcodeScanInput(), 50);
     };
 
     document.addEventListener('click', handleGlobalClick);
-    return () => {
-      document.removeEventListener('click', handleGlobalClick);
-      clearTimeout(initialFocus);
-    };
-  }, [isIPadSafari]);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, [isIOS, focusBarcodeScanInput]);
 
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
@@ -2096,7 +2164,6 @@ export default function POSSales() {
       setProductSearchResults([]);
       setIsProductSearchLoading(false);
       playErrorBeep();
-      toast.error("Product not found", { description: `No product matches: ${searchTerm}` });
     }
   }
 
@@ -2158,7 +2225,7 @@ export default function POSSales() {
 
     // If no matching product found, we cannot save to sale_items (product_id/variant_id are required UUID columns)
     if (!productId || !variantId) {
-      toast.error("Product not found", { description: `Cannot add item: barcode "${code}" not found in products. Please create the product first.` });
+      playErrorBeep();
       setShowQuickServiceDialog(false);
       setQuickServiceCode("");
       return;

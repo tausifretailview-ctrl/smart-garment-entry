@@ -1597,11 +1597,6 @@ export default function SalesInvoice() {
     }
 
     playErrorBeep();
-    toast({
-      title: "Product not found",
-      description: "No product matches the scanned barcode.",
-      variant: "destructive",
-    });
     setSearchInput("");
     barcodeInputRef.current?.focus();
   }, [productsData, barcodeIndex, currentOrganization?.id, entryMode, playSuccessBeep, playErrorBeep, toast]);

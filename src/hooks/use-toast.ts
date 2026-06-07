@@ -2,8 +2,10 @@ import * as React from "react";
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
+import { ENTRY_SCREEN_TOAST_MS } from "@/utils/entryScreenToast";
+
 const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 3000;
+const TOAST_REMOVE_DELAY = ENTRY_SCREEN_TOAST_MS;
 
 type ToasterToast = ToastProps & {
   id: string;
@@ -12,6 +14,8 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement;
   /** When true, render destructive toast as bottom-right toast (skip modal). */
   inline?: boolean;
+  /** When true, destructive toast opens blocking ErrorDialog until OK (rare / critical only). */
+  persistent?: boolean;
 };
 
 const actionTypes = {
@@ -54,14 +58,18 @@ interface State {
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
-const addToRemoveQueue = (toastId: string, variant?: string, inline?: boolean) => {
+const addToRemoveQueue = (
+  toastId: string,
+  variant?: string,
+  inline?: boolean,
+  persistent?: boolean,
+) => {
   if (toastTimeouts.has(toastId)) {
     return;
   }
 
-  // Destructive toasts (rendered as modal ErrorDialog) are dismissed manually via OK click.
-  // Inline destructive toasts still auto-dismiss like regular toasts.
-  if (variant === "destructive" && !inline) return;
+  // Only blocking modal errors stay until the user clicks OK.
+  if (variant === "destructive" && persistent && !inline) return;
 
   const timeout = setTimeout(() => {
     toastTimeouts.delete(toastId);
@@ -95,10 +103,20 @@ export const reducer = (state: State, action: Action): State => {
       // but I'll keep it here for simplicity
       if (toastId) {
         const t = state.toasts.find((x) => x.id === toastId);
-        addToRemoveQueue(toastId, (t as any)?.variant, (t as any)?.inline);
+        addToRemoveQueue(
+          toastId,
+          (t as any)?.variant,
+          (t as any)?.inline,
+          (t as any)?.persistent,
+        );
       } else {
         state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id, (toast as any).variant, (toast as any).inline);
+          addToRemoveQueue(
+            toast.id,
+            (toast as any).variant,
+            (toast as any).inline,
+            (toast as any).persistent,
+          );
         });
       }
 
@@ -162,6 +180,10 @@ function toast({ ...props }: Toast) {
       },
     },
   });
+
+  if (!(props.variant === "destructive" && props.persistent)) {
+    window.setTimeout(() => dismiss(), TOAST_REMOVE_DELAY);
+  }
 
   return {
     id: id,
