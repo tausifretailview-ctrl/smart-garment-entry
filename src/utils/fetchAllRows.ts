@@ -299,7 +299,7 @@ export async function fetchAllVouchers(organizationId: string) {
 }
 
 const CUSTOMER_RECEIPT_VOUCHER_SELECT =
-  "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at";
+  "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, receiving_bank_account_id, created_at";
 
 /**
  * Fetch customer payment receipts only (RCP), ordered by entry time (created_at).

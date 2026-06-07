@@ -28,6 +28,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { cn } from "@/lib/utils";
 import { useAccountsPaymentDialogs } from "@/hooks/useAccountsPaymentDialogs";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts";
+import { ReceivingBankAccountPicker } from "@/components/accounts/ReceivingBankAccountPicker";
+import { paymentMethodNeedsReceivingBank } from "@/utils/organizationBankAccounts";
 
 type AccountsPaymentDialogsApi = ReturnType<typeof useAccountsPaymentDialogs>;
 
@@ -37,6 +41,8 @@ interface AccountsPaymentDialogsProps {
 }
 
 export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPaymentDialogsProps) {
+  const { currentOrganization } = useOrganization();
+  const { accounts: bankAccounts } = useOrganizationBankAccounts(currentOrganization?.id);
   const {
     receiptRef,
     showReceiptDialog,
@@ -59,6 +65,8 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
     setEditTransactionId,
     editDescription,
     setEditDescription,
+    editReceivingBankAccountId,
+    setEditReceivingBankAccountId,
     updatePayment,
     handlePrintReceipt,
     handleSendWhatsApp,
@@ -156,11 +164,20 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
                 value={editPaymentMethod}
                 onValueChange={(value) => {
                   setEditPaymentMethod(value);
+                  if (!paymentMethodNeedsReceivingBank(value)) {
+                    setEditReceivingBankAccountId(null);
+                  }
                   if (value !== "cheque") {
                     setEditChequeNumber("");
                     setEditChequeDate(undefined);
                   }
-                  if (value !== "upi" && value !== "bank_transfer" && value !== "other") {
+                  if (
+                    value !== "upi" &&
+                    value !== "bank_transfer" &&
+                    value !== "card" &&
+                    value !== "online" &&
+                    value !== "other"
+                  ) {
                     setEditTransactionId("");
                   }
                 }}
@@ -174,10 +191,19 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
                   <SelectItem value="upi">UPI</SelectItem>
                   <SelectItem value="cheque">Cheque</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="online">Online</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {currentOrganization?.id && (
+              <ReceivingBankAccountPicker
+                organizationId={currentOrganization.id}
+                paymentMethod={editPaymentMethod}
+                value={editReceivingBankAccountId}
+                onChange={setEditReceivingBankAccountId}
+              />
+            )}
             {editPaymentMethod === "cheque" && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -206,6 +232,8 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
             )}
             {(editPaymentMethod === "upi" ||
               editPaymentMethod === "bank_transfer" ||
+              editPaymentMethod === "card" ||
+              editPaymentMethod === "online" ||
               editPaymentMethod === "other") && (
               <div className="space-y-2">
                 <Label>Transaction ID</Label>
@@ -231,7 +259,7 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
               Cancel
             </Button>
             <Button
-              onClick={() => updatePayment.mutate()}
+              onClick={() => updatePayment.mutate({ bankAccounts })}
               disabled={updatePayment.isPending || !editPaymentAmount || parseFloat(editPaymentAmount) <= 0}
             >
               {updatePayment.isPending ? "Saving..." : "Save Changes"}

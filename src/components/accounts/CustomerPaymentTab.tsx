@@ -46,6 +46,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
 import { AdaptivePaymentMethodPicker } from "@/components/mobile/AdaptivePaymentMethodPicker";
+import { ReceivingBankAccountPicker } from "@/components/accounts/ReceivingBankAccountPicker";
+import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts";
+import {
+  appendReceivingBankToDescription,
+  formatBankAccountLabel,
+  paymentMethodNeedsReceivingBank,
+  validateReceivingBankForSave,
+} from "@/utils/organizationBankAccounts";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
@@ -183,6 +191,11 @@ export function CustomerPaymentTab({
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const isMobile = useIsMobile();
+  const { accounts: bankAccounts } = useOrganizationBankAccounts(organizationId);
+  const bankAccountById = useMemo(
+    () => new Map(bankAccounts.map((a) => [a.id, a])),
+    [bankAccounts],
+  );
 
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -192,6 +205,7 @@ export function CustomerPaymentTab({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string | null>(null);
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [transactionId, setTransactionId] = useState("");
@@ -479,6 +493,7 @@ export function CustomerPaymentTab({
     setDescription("");
     setAmount("");
     setPaymentMethod("cash");
+    setSelectedBankAccountId(null);
     setChequeNumber("");
     setChequeDate(undefined);
     setTransactionId("");
@@ -642,6 +657,20 @@ export function CustomerPaymentTab({
       const includesOpeningBalance = selectedInvoiceIds.includes(OPENING_BALANCE_ID);
       const invoicesToProcess = selectedInvoiceIds.filter(id => id !== OPENING_BALANCE_ID);
       if (!referenceId) throw new Error("Please select a customer to record payment");
+      const bankValidation = validateReceivingBankForSave(
+        paymentMethod,
+        bankAccounts,
+        selectedBankAccountId,
+      );
+      if (!bankValidation.ok) throw new Error(bankValidation.message);
+      const receivingBankAccountId = bankValidation.bankAccountId;
+      const receivingBankAccount = receivingBankAccountId
+        ? bankAccountById.get(receivingBankAccountId) ?? null
+        : null;
+      const applyBankToDescription = (desc: string) =>
+        receivingBankAccount
+          ? appendReceivingBankToDescription(desc, receivingBankAccount)
+          : desc;
       const { cash: paymentAmount, discount: discountValue } = resolvePaymentBreakdown(
         amount,
         discountPercent,
@@ -716,7 +745,14 @@ export function CustomerPaymentTab({
       if (paymentMethod === 'cheque' && chequeNumber) {
         paymentDetails = ` | Cheque No: ${chequeNumber}`;
         if (chequeDate) paymentDetails += `, Date: ${format(chequeDate, 'dd/MM/yyyy')}`;
-      } else if ((paymentMethod === 'other' || paymentMethod === 'bank_transfer' || paymentMethod === 'upi') && transactionId) {
+      } else if (
+        (paymentMethod === 'other' ||
+          paymentMethod === 'bank_transfer' ||
+          paymentMethod === 'upi' ||
+          paymentMethod === 'card' ||
+          paymentMethod === 'online') &&
+        transactionId
+      ) {
         paymentDetails = ` | Transaction ID: ${transactionId}`;
         if (paymentMethod === 'upi' && upiPaymentDate) paymentDetails += `, UPI Date: ${format(upiPaymentDate, 'dd/MM/yyyy')}`;
       }
@@ -750,15 +786,17 @@ export function CustomerPaymentTab({
             discountAmount: openingBalanceDiscount,
             discountReason: openingBalanceDiscount > 0 ? discountReason || null : null,
             paymentMethod,
-            description: `Opening Balance Payment${paymentDetails}${obDiscSuffix}`,
+            receivingBankAccountId,
+            description: applyBankToDescription(`Opening Balance Payment${paymentDetails}${obDiscSuffix}`),
           });
+          const obDesc = applyBankToDescription(`Opening Balance Payment${paymentDetails}${obDiscSuffix}`);
           const obVoucher = {
             id: obCreated.id,
             voucher_number: obCreated.voucher_number,
             total_amount: openingBalanceCash,
             discount_amount: openingBalanceDiscount,
             voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            description: `Opening Balance Payment${paymentDetails}${obDiscSuffix}`,
+            description: obDesc,
           };
           createdVouchers.push(obVoucher);
           if (
@@ -824,15 +862,17 @@ export function CustomerPaymentTab({
             discountAmount: processed.discountApplied,
             discountReason: processed.discountApplied > 0 ? discountReason || null : null,
             paymentMethod,
-            description: invoiceDescription + invoiceDiscountSuffix,
+            receivingBankAccountId,
+            description: applyBankToDescription(invoiceDescription + invoiceDiscountSuffix),
           });
+          const invDesc = applyBankToDescription(invoiceDescription + invoiceDiscountSuffix);
           const voucher = {
             id: created.id,
             voucher_number: created.voucher_number,
             total_amount: processed.cashApplied,
             discount_amount: processed.discountApplied,
             voucher_date: format(voucherDate, "yyyy-MM-dd"),
-            description: invoiceDescription + invoiceDiscountSuffix,
+            description: invDesc,
           };
           createdVouchers.push(voucher);
           if (
@@ -895,7 +935,8 @@ export function CustomerPaymentTab({
           discountAmount: discountValue,
           discountReason: discountReason || null,
           paymentMethod,
-          description: finalDescription + discountSuffix,
+          receivingBankAccountId,
+          description: applyBankToDescription(finalDescription + discountSuffix),
         });
         const voucher = {
           id: created.id,
@@ -1608,11 +1649,21 @@ export function CustomerPaymentTab({
                 value={paymentMethod}
                 onChange={(value) => {
                   setPaymentMethod(value);
+                  if (!paymentMethodNeedsReceivingBank(value)) {
+                    setSelectedBankAccountId(null);
+                  }
                   setChequeNumber("");
                   setChequeDate(undefined);
                   setTransactionId("");
                   setUpiPaymentDate(undefined);
                 }}
+              />
+
+              <ReceivingBankAccountPicker
+                organizationId={organizationId}
+                paymentMethod={paymentMethod}
+                value={selectedBankAccountId}
+                onChange={setSelectedBankAccountId}
               />
 
               {/* Cheque fields */}
@@ -1639,7 +1690,11 @@ export function CustomerPaymentTab({
                 </div>
               )}
 
-              {(paymentMethod === 'upi' || paymentMethod === 'other' || paymentMethod === 'bank_transfer') && (
+              {(paymentMethod === 'upi' ||
+                paymentMethod === 'other' ||
+                paymentMethod === 'bank_transfer' ||
+                paymentMethod === 'card' ||
+                paymentMethod === 'online') && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Transaction ID</Label>
@@ -1886,7 +1941,7 @@ export function CustomerPaymentTab({
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>Filter by Method</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {["cash", "cheque", "upi", "bank_transfer", "advance_adjustment", "credit_note_adjustment", "other"].map((m) => (
+                {["cash", "cheque", "upi", "card", "bank_transfer", "online", "advance_adjustment", "credit_note_adjustment", "other"].map((m) => (
                   <DropdownMenuCheckboxItem
                     key={m}
                     checked={paymentMethodFilter.includes(m)}
@@ -2173,7 +2228,19 @@ export function CustomerPaymentTab({
                     <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                     <TableCell>{customerName}</TableCell>
                     <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
-                    <TableCell className="uppercase text-xs">{voucher.payment_method || "-"}</TableCell>
+                    <TableCell className="text-xs">
+                      <div className="uppercase">{voucher.payment_method || "-"}</div>
+                      {(() => {
+                        const bankId = (voucher as { receiving_bank_account_id?: string | null })
+                          .receiving_bank_account_id;
+                        const bank = bankId ? bankAccountById.get(bankId) : null;
+                        return bank ? (
+                          <div className="text-[10px] text-muted-foreground normal-case truncate max-w-[8rem]">
+                            {formatBankAccountLabel(bank)}
+                          </div>
+                        ) : null;
+                      })()}
+                    </TableCell>
                     <TableCell className="text-xs tabular-nums">{extractedDate}</TableCell>
                     <TableCell className="text-xs tabular-nums font-mono">
                       {Number((voucher as any).discount_amount) > 0

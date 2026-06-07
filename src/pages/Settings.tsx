@@ -46,6 +46,8 @@ const LazyInvoiceWrapper = lazyWithRetry(() =>
   React.ComponentProps<typeof import("@/components/InvoiceWrapper").InvoiceWrapper>
 >;
 const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings"));
+import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
+
 const LazyDesktopPrintSettings = lazyWithRetry(() =>
   import("@/components/DesktopPrintSettings").then((m) => ({ default: m.DesktopPrintSettings })),
 );
@@ -1158,6 +1160,7 @@ export default function Settings() {
                     }
                   />
                 </div>
+                <CompanyProfileBankAccounts />
               </CardContent>
             </Card>
           </TabsContent>

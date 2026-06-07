@@ -75,6 +75,8 @@ export type CreateReceiptVoucherParams = {
   discountReason?: string | null;
   paymentMethod: string;
   description: string;
+  /** Which org bank account received this electronic payment (tracking only). */
+  receivingBankAccountId?: string | null;
   voucherDate?: string;
   voucherNumber?: string;
   shopName?: string | null;
@@ -139,6 +141,9 @@ export async function createReceiptVoucher(
     payment_method: params.paymentMethod,
     description: params.description,
   };
+  if (params.receivingBankAccountId) {
+    insertRow.receiving_bank_account_id = params.receivingBankAccountId;
+  }
   if (params.discountReason != null) {
     insertRow.discount_reason = params.discountReason;
   }

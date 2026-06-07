@@ -10,6 +10,13 @@ import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
 } from "@/utils/customerBalanceUtils";
+import {
+  appendReceivingBankToDescription,
+  paymentMethodNeedsReceivingBank,
+  stripReceivingBankFromDescription,
+  validateReceivingBankForSave,
+  type OrganizationBankAccount,
+} from "@/utils/organizationBankAccounts";
 
 export function useAccountsPaymentDialogs(settings: any) {
   const { currentOrganization } = useOrganization();
@@ -28,6 +35,7 @@ export function useAccountsPaymentDialogs(settings: any) {
   const [editChequeDate, setEditChequeDate] = useState<Date | undefined>(undefined);
   const [editTransactionId, setEditTransactionId] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editReceivingBankAccountId, setEditReceivingBankAccountId] = useState<string | null>(null);
 
   const handleShowReceipt = (data: any) => {
     setReceiptData(data);
@@ -51,19 +59,24 @@ export function useAccountsPaymentDialogs(settings: any) {
     } else if (desc.includes("Transaction ID:")) {
       const txMatch = desc.match(/Transaction ID: (\S+)/);
       if (txMatch) setEditTransactionId(txMatch[1]);
-      setEditPaymentMethod("upi");
+      setEditPaymentMethod(voucher.payment_method || "upi");
     } else {
       setEditPaymentMethod(voucher.payment_method || "cash");
       setEditChequeNumber("");
       setEditChequeDate(undefined);
       setEditTransactionId("");
     }
-    setEditDescription(desc);
+    setEditReceivingBankAccountId(
+      (voucher as { receiving_bank_account_id?: string | null }).receiving_bank_account_id ?? null,
+    );
+    setEditDescription(stripReceivingBankFromDescription(desc));
     setShowEditPaymentDialog(true);
   };
 
   const updatePayment = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({
+      bankAccounts = [],
+    }: { bankAccounts?: OrganizationBankAccount[] } = {}) => {
       if (!editingPayment || !currentOrganization?.id) throw new Error("No payment selected");
       const newAmount = parseFloat(editPaymentAmount);
       const oldAmount = editingPayment.total_amount || 0;
@@ -75,19 +88,38 @@ export function useAccountsPaymentDialogs(settings: any) {
       } else if (
         (editPaymentMethod === "upi" ||
           editPaymentMethod === "bank_transfer" ||
+          editPaymentMethod === "card" ||
+          editPaymentMethod === "online" ||
           editPaymentMethod === "other") &&
         editTransactionId
       ) {
         paymentDetails = ` | Transaction ID: ${editTransactionId}`;
       }
-      const baseDescription = editDescription.split(" | Cheque No:")[0].split(" | Transaction ID:")[0];
-      const finalDescription = baseDescription + paymentDetails;
+      const bankValidation = validateReceivingBankForSave(
+        editPaymentMethod,
+        bankAccounts,
+        editReceivingBankAccountId,
+      );
+      if (!bankValidation.ok) throw new Error(bankValidation.message);
+      const receivingBankAccountId = bankValidation.bankAccountId;
+      const bankAccount = receivingBankAccountId
+        ? bankAccounts.find((a) => a.id === receivingBankAccountId) ?? null
+        : null;
+      const baseDescription = stripReceivingBankFromDescription(
+        editDescription.split(" | Cheque No:")[0].split(" | Transaction ID:")[0],
+      );
+      let finalDescription = baseDescription + paymentDetails;
+      if (bankAccount) {
+        finalDescription = appendReceivingBankToDescription(finalDescription, bankAccount);
+      }
       const { error: voucherError } = await supabase
         .from("voucher_entries")
         .update({
           voucher_date: format(editPaymentDate, "yyyy-MM-dd"),
           total_amount: newAmount,
+          payment_method: editPaymentMethod,
           description: finalDescription,
+          receiving_bank_account_id: receivingBankAccountId,
         })
         .eq("id", editingPayment.id)
         .eq("organization_id", currentOrganization.id);
@@ -215,6 +247,8 @@ export function useAccountsPaymentDialogs(settings: any) {
     setEditTransactionId,
     editDescription,
     setEditDescription,
+    editReceivingBankAccountId,
+    setEditReceivingBankAccountId,
     updatePayment,
     handlePrintReceipt,
     handleSendWhatsApp,

@@ -5,6 +5,7 @@ import {
   FileText,
   Building2,
   MoreHorizontal,
+  Globe,
   Check,
   type LucideIcon,
 } from "lucide-react";
@@ -24,6 +25,7 @@ export const DEFAULT_RECEIPT_PAYMENT_METHODS: PaymentMethodOption[] = [
   { value: "card", label: "Card", icon: CreditCard, accentClass: "bg-cyan-600 hover:bg-cyan-700 text-white" },
   { value: "cheque", label: "Cheque", icon: FileText, accentClass: "bg-amber-600 hover:bg-amber-700 text-white" },
   { value: "bank_transfer", label: "Bank Transfer", icon: Building2, accentClass: "bg-slate-600 hover:bg-slate-700 text-white" },
+  { value: "online", label: "Online", icon: Globe, accentClass: "bg-indigo-600 hover:bg-indigo-700 text-white" },
   { value: "other", label: "Other", icon: MoreHorizontal, accentClass: "bg-muted-foreground hover:bg-muted-foreground/90 text-white" },
 ];
 
