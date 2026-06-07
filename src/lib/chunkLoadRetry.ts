@@ -33,6 +33,20 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "purchase-returns",
 ] as const;
 
+/**
+ * Slim post-login prefetch list for web/PWA — only the modules a cashier
+ * typically opens first. Avoids a 20+ chunk waterfall on cold load that
+ * starves the visible tab and triggers the "Taking longer than expected"
+ * screen on slow shop Wi-Fi.
+ */
+export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = [
+  "",
+  "pos-sales",
+  "pos-dashboard",
+  "sales-invoice-dashboard",
+  "stock-report",
+] as const;
+
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
 export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "settings",
