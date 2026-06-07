@@ -47,6 +47,17 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = [
   "stock-report",
 ] as const;
 
+/**
+ * Inventory dashboards — warmed on browser idle after login (web/PWA only).
+ * Small list so first Purchase/Products open is faster without a chunk waterfall.
+ */
+export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
+  "product-dashboard",
+  "products",
+  "purchase-bill-dashboard",
+  "purchase-bills",
+] as const;
+
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
 export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "settings",

@@ -98,3 +98,15 @@ await window.__ezzyNavPerf.copyReport()
 ```
 
 Include: environment (web/Electron), org size (approx product/sale count), and which transitions felt slow to the user.
+
+## Phase 1 fixes (verify with NavPerf)
+
+After Phase 1, re-run the test script and expect:
+
+| Transition | Expected improvement |
+|------------|---------------------|
+| Products first open | `table-skeleton` not `full-page-spinner`; layout visible immediately |
+| Purchase ↔ Products within 30s | `data-fetch` skipped or &lt;50ms (`staleTime` 30s) |
+| Products/Purchase first open (web) | Lower `chunk` ms after idle prefetch (~12s post-login) |
+| POS open | No `customer-balances` fetch until customer dropdown opens |
+| POS alt-tab | No `todays-sales` / `customer-balances` refetch on focus |

@@ -5,6 +5,7 @@ import {
   POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
+  POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
 } from "@/lib/chunkLoadRetry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
@@ -248,10 +249,14 @@ export function prefetchPostLoginCriticalPages(): void {
 
 /** Warm heavy admin chunks when the browser is idle (Settings first-open timeout). */
 export function prefetchPostLoginIdlePages(): void {
-  // Web/PWA: skip entirely — these 30+ chunks compete with whatever the
-  // user actually clicked. Desktop still warms them on idle.
-  if (!isElectronShell()) return;
-  const run = () => POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+  const run = () => {
+    if (isElectronShell()) {
+      POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+      return;
+    }
+    // Web/PWA: only warm inventory dashboards on idle — avoids 30+ chunk waterfall.
+    POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+  };
   if (typeof requestIdleCallback !== "undefined") {
     requestIdleCallback(run, { timeout: 12_000 });
   } else {

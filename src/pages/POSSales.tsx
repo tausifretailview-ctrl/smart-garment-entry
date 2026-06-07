@@ -889,37 +889,22 @@ export default function POSSales() {
   const [posRuntimeSettings, setPosRuntimeSettings] = useState<POSBarcodeRuntimeSettings | null>(null);
   const posRuntimeSettingsRef = useRef<POSBarcodeRuntimeSettings | null>(null);
 
-  const fetchPOSSettings = useCallback(async () => {
-    if (!currentOrganization?.id) return;
-    const { data } = await supabase
-      .from('settings')
-      .select('sale_settings, purchase_settings')
-      .eq('organization_id', currentOrganization.id)
-      .maybeSingle();
-    const saleSettings = (data as any)?.sale_settings || {};
-    const purchaseSettings = (data as any)?.purchase_settings || {};
+  // Derive barcode/MRP runtime flags from cached useSettings() — no duplicate DB fetch.
+  useEffect(() => {
+    if (!settingsData) return;
+    const saleSettings = (settingsData as any)?.sale_settings || {};
+    const purchaseSettings = (settingsData as any)?.purchase_settings || {};
     const next: POSBarcodeRuntimeSettings = {
       pos_barcode_price_mode: saleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price',
       enable_mrp: purchaseSettings.show_mrp === true,
     };
     setPosRuntimeSettings(next);
     posRuntimeSettingsRef.current = next;
-    console.log('POS Settings loaded:', next);
-  }, [currentOrganization?.id]);
+  }, [settingsData]);
 
   useEffect(() => {
     posRuntimeSettingsRef.current = posRuntimeSettings;
   }, [posRuntimeSettings]);
-
-  useEffect(() => {
-    void fetchPOSSettings();
-  }, [fetchPOSSettings]);
-
-  useEffect(() => {
-    const onFocus = () => { void fetchPOSSettings(); };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [fetchPOSSettings]);
 
   // Garment / Footwear GST auto-bump rule (from purchase_settings)
   const garmentGstSettings = {
@@ -1383,7 +1368,7 @@ export default function POSSales() {
     enabled: !!currentOrganization?.id,
     staleTime: 30_000,
     refetchInterval: posRefetchInterval,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const isHoldLikeBill = (sale: any) => {
@@ -1611,7 +1596,7 @@ export default function POSSales() {
     getCustomerCreditNote,
     balancesLoading,
     balancesFetching,
-  } = useCustomerBalances();
+  } = useCustomerBalances({ enabled: openCustomerSearch });
 
   useNavPerfQueryWatch("pos-products", PERF_PATH, {
     isLoading: productsLoading,
@@ -5207,10 +5192,10 @@ export default function POSSales() {
                   onValueChange={setCustomerName}
                 />
                 <CommandList>
-                  {isCustomersLoading ? (
+                  {isCustomersLoading || balancesLoading ? (
                     <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Loading customers...
+                      {isCustomersLoading ? "Loading customers..." : "Loading balances..."}
                     </div>
                   ) : isCustomersError ? (
                     <div className="flex flex-col items-center justify-center p-4 text-sm">
