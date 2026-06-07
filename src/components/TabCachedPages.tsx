@@ -71,10 +71,13 @@ function isProtectedTabPath(path: string): boolean {
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
-/** Match SalesmanLayout — never spin forever on slow desktop WebView / many open tabs. */
-const TAB_LOAD_TIMEOUT_MS = 8_000;
+/** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
+ *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */
+const TAB_LOAD_TIMEOUT_MS = 20_000;
 /** Large admin chunks (Settings ~5k lines) need more time on first cold load. */
-const HEAVY_TAB_LOAD_TIMEOUT_MS = 20_000;
+const HEAVY_TAB_LOAD_TIMEOUT_MS = 45_000;
+/** When to swap the bare spinner for a friendlier "Still loading…" hint. */
+const SOFT_LOADING_HINT_MS = 8_000;
 const HEAVY_TAB_PATHS = new Set([
   "settings",
   "user-rights",
@@ -109,17 +112,23 @@ function TabPageFallback({
   onRetry: () => void;
 }) {
   const [timedOut, setTimedOut] = useState(false);
+  const [showSoftHint, setShowSoftHint] = useState(false);
 
   useEffect(() => {
     if (!active) {
       setTimedOut(false);
+      setShowSoftHint(false);
       return;
     }
+    const hintTimer = window.setTimeout(() => setShowSoftHint(true), SOFT_LOADING_HINT_MS);
     const timer = window.setTimeout(() => {
       console.warn(`[TabCachedPages] Load timeout for tab: ${path || "dashboard"}`);
       setTimedOut(true);
     }, getTabLoadTimeoutMs(path));
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(hintTimer);
+    };
   }, [active, path]);
 
   if (!active) return null;
@@ -151,8 +160,11 @@ function TabPageFallback({
   }
 
   return (
-    <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center">
+    <div className="flex flex-1 h-full min-h-[40vh] w-full flex-col items-center justify-center gap-3">
       <div className="h-7 w-7 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      {showSoftHint && (
+        <p className="text-xs text-muted-foreground">Still loading… slow network</p>
+      )}
     </div>
   );
 }
@@ -329,22 +341,11 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     evictIdleMountedTabs();
   }, [activePath, electronSingleTab, touchTabActiveAt, evictIdleMountedTabs]);
 
-  // Browser: keep every open window tab mounted (Tally-style) so layout/state never resets.
-  useEffect(() => {
-    if (electronSingleTab || uniquePaths.length === 0) return;
-    setMountedPaths((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const path of uniquePaths) {
-        if (!next.has(path)) {
-          next.add(path);
-          touchTabActiveAt(path);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [uniquePaths, electronSingleTab, touchTabActiveAt]);
+  // Browser/PWA: mount tabs lazily — only when the user activates them.
+  // The activePath effect above already mounts the visible tab, and protected
+  // working screens (POS, bill entry, etc.) stay mounted once visited.
+  // Eagerly mounting every saved tab on cold load was triggering a chunk
+  // waterfall and the "Taking longer than expected" screen on slow Wi-Fi.
 
   useEffect(() => {
     if (electronSingleTab) return;
@@ -362,16 +363,9 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
 
     prefetchTabPage("");
     prefetchTabPage("pos-dashboard");
-    if (electronSingleTab) return;
-
-    setMountedPaths((prev) => {
-      if (prev.has("")) return prev;
-      const next = new Set(prev);
-      next.add("");
-      touchTabActiveAt("");
-      return next;
-    });
-  }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);
+    // Note: previously also pre-mounted the dashboard pane in browser. Removed
+    // to avoid a hidden React tree + chunk waterfall on cold load.
+  }, [uniquePaths, activePath]);
 
   // Prefetch inventory chunks while inventory tabs are open; pre-mount product dashboard in browser.
   useEffect(() => {
@@ -392,16 +386,9 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     prefetchTabPage("purchase-bill-dashboard");
     prefetchTabPage("product-entry");
     prefetchTabPage("barcode-printing");
-    if (electronSingleTab) return;
-
-    setMountedPaths((prev) => {
-      if (prev.has("product-dashboard")) return prev;
-      const next = new Set(prev);
-      next.add("product-dashboard");
-      touchTabActiveAt("product-dashboard");
-      return next;
-    });
-  }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);
+    // Note: previously also pre-mounted product-dashboard. Removed to avoid
+    // hidden chunk waterfall on cold load.
+  }, [uniquePaths, activePath]);
 
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);

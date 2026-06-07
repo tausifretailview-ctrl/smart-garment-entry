@@ -4,8 +4,9 @@ import {
   lazyWithRetry,
   POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
+  POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
 } from "@/lib/chunkLoadRetry";
-import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
 export { POST_LOGIN_PREFETCH_TAB_PATHS };
 
@@ -237,11 +238,19 @@ export function resetTabPageChunk(path: string): void {
 
 /** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */
 export function prefetchPostLoginCriticalPages(): void {
-  POST_LOGIN_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
+  // Web/PWA: slim list to avoid cold-start chunk waterfall.
+  // Desktop (Electron): keep the full warm list — chunks are local files.
+  const list = isElectronShell()
+    ? POST_LOGIN_PREFETCH_TAB_PATHS
+    : POST_LOGIN_PREFETCH_TAB_PATHS_WEB;
+  list.forEach(prefetchTabPage);
 }
 
 /** Warm heavy admin chunks when the browser is idle (Settings first-open timeout). */
 export function prefetchPostLoginIdlePages(): void {
+  // Web/PWA: skip entirely — these 30+ chunks compete with whatever the
+  // user actually clicked. Desktop still warms them on idle.
+  if (!isElectronShell()) return;
   const run = () => POST_LOGIN_IDLE_PREFETCH_TAB_PATHS.forEach(prefetchTabPage);
   if (typeof requestIdleCallback !== "undefined") {
     requestIdleCallback(run, { timeout: 12_000 });
@@ -262,12 +271,22 @@ export function prefetchTabPagesIdle(paths: string[], activePath: string): () =>
   const rest = paths.filter((p) => isTabCachePath(p) && p !== activePath);
   if (rest.length === 0) return () => {};
 
+  // Web/PWA: skip background prefetch entirely on slow links (2g / slow-2g)
+  // so the visible tab gets all the bandwidth.
+  if (!isElectronShell()) {
+    type NetInfo = { effectiveType?: string; saveData?: boolean };
+    const conn = (navigator as Navigator & { connection?: NetInfo }).connection;
+    if (conn && (conn.saveData || conn.effectiveType === "slow-2g" || conn.effectiveType === "2g")) {
+      return () => {};
+    }
+  }
+
   const run = () => rest.forEach(prefetchTabPage);
   if (typeof requestIdleCallback !== "undefined") {
-    const id = requestIdleCallback(run, { timeout: 5000 });
+    const id = requestIdleCallback(run, { timeout: 12_000 });
     return () => cancelIdleCallback(id);
   }
-  const t = window.setTimeout(run, 2500);
+  const t = window.setTimeout(run, 5000);
   return () => window.clearTimeout(t);
 }
 
