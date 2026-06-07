@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText, Scale, Banknote } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText, Scale, Banknote, RefreshCw } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -27,6 +27,7 @@ import { useDashboardToolbarOptional } from "@/contexts/DashboardToolbarContext"
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
+import { isElectronShell, reloadElectronApp } from "@/lib/electronShell";
 
 /** Row-2 shortcut buttons — solid fills, white label/icons */
 const shortcutBtn = (colorClass: string, extra?: string) =>
@@ -48,6 +49,7 @@ export const Header = () => {
   const [customerStatementOpen, setCustomerStatementOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
+  const isDesktopApp = isElectronShell();
   const dashboardToolbar = useDashboardToolbarOptional();
   const { isSchool } = useSchoolFeatures();
   const { hasMenuAccess, hasSpecialPermission, permissions, loading: permissionsLoading } = useUserPermissions();
@@ -545,6 +547,17 @@ export const Header = () => {
               <span className="hidden sm:inline text-[11px] font-medium">Install App</span>
             </Button>
           )}
+          {isDesktopApp && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex"
+              title="Refresh app (F5)"
+              onClick={() => reloadElectronApp()}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <UIScaleSelector triggerClassName="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex" />
           <Button variant="ghost" size="icon" className="h-7 w-7 text-white/90 hover:text-white hover:bg-white/10 hidden md:flex">
             <Bell className="h-3.5 w-3.5" />
@@ -566,6 +579,16 @@ export const Header = () => {
               <div className="px-2 py-1.5"><p className="text-xs text-muted-foreground">{user?.email}</p></div>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer text-sm">App Settings</DropdownMenuItem>
+              {isDesktopApp && (
+                <DropdownMenuItem
+                  onClick={() => reloadElectronApp()}
+                  className="cursor-pointer text-sm"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-2 opacity-60" />
+                  Refresh App
+                  <span className="ml-auto text-[10px] text-muted-foreground">F5</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer text-sm">Sign Out</DropdownMenuItem>
             </DropdownMenuContent>

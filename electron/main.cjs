@@ -157,8 +157,16 @@ function getAppUrl() {
 function reloadMainWindow(reason) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   // Auto-reload disabled per user request — keep window sticky with existing data.
-  // User can manually reload via View → Reload.
+  // User can manually refresh via F5, Ctrl+R, right-click, or File → Refresh App.
   console.warn('[EzzyERP] Skipping auto-reload (disabled):', reason);
+}
+
+/** User-initiated full reload (menu, F5, right-click, in-app button). */
+function manualReloadMainWindow(source) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  loadRetryCount = 0;
+  console.log('[EzzyERP] Manual refresh:', source || 'unknown');
+  mainWindow.webContents.reload();
 }
 
 function createWindow() {
@@ -223,8 +231,22 @@ function createWindow() {
       detail: 'Reload to recover. Unsaved work on the current screen may be lost.',
     });
     if (choice === 1) {
-      loadRetryCount = 0;
-      mainWindow.webContents.reload();
+      manualReloadMainWindow('unresponsive-dialog');
+    }
+  });
+
+  // F5 / Ctrl+R — always reload the app (Windows-style refresh), even when focus is in a form.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    const f5 = input.key === 'F5';
+    const ctrlR =
+      input.control &&
+      !input.shift &&
+      !input.alt &&
+      (input.key === 'r' || input.key === 'R');
+    if (f5 || ctrlR) {
+      event.preventDefault();
+      manualReloadMainWindow(f5 ? 'F5' : 'Ctrl+R');
     }
   });
 
@@ -516,11 +538,15 @@ function createWindow() {
 
     if (items.length) items.push({ type: 'separator' });
     items.push({
+      label: 'Refresh App',
+      accelerator: 'F5',
+      click: () => manualReloadMainWindow('context-menu'),
+    });
+    items.push({
       label: 'Print…',
       accelerator: 'CmdOrCtrl+P',
       click: () => mainWindow.webContents.print({ silent: false, printBackground: true }, () => {}),
     });
-    items.push({ role: 'reload', accelerator: 'CmdOrCtrl+R' });
 
     if (!app.isPackaged) {
       items.push({ type: 'separator' });
@@ -565,6 +591,10 @@ function createTray() {
           mainWindow.focus();
         }
       },
+    },
+    {
+      label: 'Refresh App',
+      click: () => manualReloadMainWindow('tray-menu'),
     },
     { type: 'separator' },
     {
@@ -705,6 +735,11 @@ function createMenu() {
             mainWindow &&
             mainWindow.webContents.print({ silent: false, printBackground: true }, () => {}),
         },
+        {
+          label: 'Refresh App',
+          accelerator: 'F5',
+          click: () => manualReloadMainWindow('file-menu'),
+        },
         { type: 'separator' },
         { label: 'Backup', click: nav('settings/backup') },
         { type: 'separator' },
@@ -794,7 +829,16 @@ function createMenu() {
     {
       label: '&Window',
       submenu: [
-        { role: 'reload', accelerator: 'CmdOrCtrl+R' },
+        {
+          label: 'Refresh App',
+          accelerator: 'F5',
+          click: () => manualReloadMainWindow('window-menu'),
+        },
+        {
+          label: 'Reload',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => manualReloadMainWindow('window-menu-ctrl-r'),
+        },
         { type: 'separator' },
         {
           label: 'Zoom In',
@@ -836,8 +880,9 @@ function createMenu() {
                 'Alt+P   POS Sale\n' +
                 'Alt+S   Stock Report\n' +
                 'Alt+D   Dashboard\n' +
+                'F5      Refresh app\n' +
+                'Ctrl+R  Refresh app\n' +
                 'Ctrl+P  Print\n' +
-                'Ctrl+R  Reload\n' +
                 'F1      Help (in-app)\n' +
                 'F2      Search (in-app)\n' +
                 'F9      Save (in-app)\n' +
@@ -871,6 +916,11 @@ function createMenu() {
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
+
+ipcMain.handle('reload-app', async () => {
+  manualReloadMainWindow('ipc');
+  return { success: true };
+});
 
 // ═══ PRINTER IPC ═══
 // Silent/direct printing so the desktop app prints like Tally/Vyapar (no dialog).

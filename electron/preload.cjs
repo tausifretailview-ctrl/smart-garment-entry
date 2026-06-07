@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printToPdf: (options) => ipcRenderer.invoke('print-to-pdf', options),
   printHtml: (options) => ipcRenderer.invoke('print-html', options),
 
+  /** Full page reload — same as F5 / File → Refresh App. */
+  reloadApp: () => ipcRenderer.invoke('reload-app'),
+
   /** Desktop menu accelerators → same routes as Alt+P / Alt+N / Alt+B in the web app. */
   onNavigate: (callback) => {
     const listener = (_event, path) => callback(path);

@@ -1,7 +1,25 @@
+type ElectronWindowApi = {
+  isElectron?: boolean;
+  reloadApp?: () => Promise<{ success?: boolean }>;
+};
+
 /** True when running inside the EzzyERP Electron desktop shell. */
 export function isElectronShell(): boolean {
-  return !!(window as Window & { electronAPI?: { isElectron?: boolean } }).electronAPI
-    ?.isElectron;
+  return !!getElectronAPI()?.isElectron;
+}
+
+function getElectronAPI(): ElectronWindowApi | undefined {
+  return (window as Window & { electronAPI?: ElectronWindowApi }).electronAPI;
+}
+
+/** Manual full reload — desktop shell uses native reload; browser falls back to location.reload(). */
+export function reloadElectronApp(): void {
+  const api = getElectronAPI();
+  if (api?.reloadApp) {
+    void api.reloadApp();
+    return;
+  }
+  window.location.reload();
 }
 
 /**

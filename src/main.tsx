@@ -39,4 +39,4 @@ createRoot(document.getElementById("root")!).render(
 );
 
 // Auto-reload disabled per user request — keep window sticky with existing data.
-// User can manually reload via View → Reload if needed.
+// User can manually refresh via F5, Ctrl+R, right-click, or File → Refresh App.
