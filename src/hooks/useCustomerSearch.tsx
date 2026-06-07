@@ -176,8 +176,9 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
  * Outstanding Dr uses client ledger math (matches Customer Ledger / useCustomerBalance).
  * Advance/CN from financial snapshot RPC.
  */
-export const useCustomerBalances = () => {
+export const useCustomerBalances = (options?: { enabled?: boolean }) => {
   const { currentOrganization } = useOrganization();
+  const queryEnabled = options?.enabled ?? true;
 
   const {
     data: snapshotByCustomerId = {},
@@ -202,9 +203,9 @@ export const useCustomerBalances = () => {
       }
       return merged;
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && queryEnabled,
     staleTime: 30 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const getCustomerBalance = useCallback(

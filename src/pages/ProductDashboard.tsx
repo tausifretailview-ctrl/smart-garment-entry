@@ -520,7 +520,7 @@ const ProductDashboard = () => {
     const seq = ++fetchSeqRef.current;
     if (productRows.length === 0) {
       setLoading(true);
-      navPerf.loadingUi(PERF_PATH, "full-page-spinner");
+      navPerf.loadingUi(PERF_PATH, "table-skeleton");
     } else {
       setIsRefetching(true);
     }
@@ -1247,14 +1247,6 @@ const ProductDashboard = () => {
       </div>
     );
   }, [showMrp, filteredRows]);
-
-  if (loading && productRows.length === 0) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
 
   // Use server-side stats from RPC
   const totalStockQty = dashboardStats.total_stock_qty;
