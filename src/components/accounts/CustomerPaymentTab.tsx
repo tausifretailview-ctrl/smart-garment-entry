@@ -662,7 +662,9 @@ export function CustomerPaymentTab({
         bankAccounts,
         selectedBankAccountId,
       );
-      if (!bankValidation.ok) throw new Error(bankValidation.message);
+      if (!bankValidation.ok) {
+        throw new Error("message" in bankValidation ? bankValidation.message : "Invalid receiving bank");
+      }
       const receivingBankAccountId = bankValidation.bankAccountId;
       const receivingBankAccount = receivingBankAccountId
         ? bankAccountById.get(receivingBankAccountId) ?? null
