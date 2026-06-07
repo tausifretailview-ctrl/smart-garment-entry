@@ -459,12 +459,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     })();
   }, []);
 
-  // Logged-in bootstrap: hide HTML splash once session is resolved
+  // Hide HTML splash once auth bootstrap finishes (logged-in or login screen).
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading) {
       requestAnimationFrame(() => hideAppBootSplash());
     }
-  }, [loading, user]);
+  }, [loading]);
 
   const signOut = async () => {
     // Store org slug before signing out for PWA recovery
