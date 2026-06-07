@@ -363,16 +363,9 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
 
     prefetchTabPage("");
     prefetchTabPage("pos-dashboard");
-    if (electronSingleTab) return;
-
-    setMountedPaths((prev) => {
-      if (prev.has("")) return prev;
-      const next = new Set(prev);
-      next.add("");
-      touchTabActiveAt("");
-      return next;
-    });
-  }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);
+    // Note: previously also pre-mounted the dashboard pane in browser. Removed
+    // to avoid a hidden React tree + chunk waterfall on cold load.
+  }, [uniquePaths, activePath]);
 
   // Prefetch inventory chunks while inventory tabs are open; pre-mount product dashboard in browser.
   useEffect(() => {
@@ -393,16 +386,9 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     prefetchTabPage("purchase-bill-dashboard");
     prefetchTabPage("product-entry");
     prefetchTabPage("barcode-printing");
-    if (electronSingleTab) return;
-
-    setMountedPaths((prev) => {
-      if (prev.has("product-dashboard")) return prev;
-      const next = new Set(prev);
-      next.add("product-dashboard");
-      touchTabActiveAt("product-dashboard");
-      return next;
-    });
-  }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);
+    // Note: previously also pre-mounted product-dashboard. Removed to avoid
+    // hidden chunk waterfall on cold load.
+  }, [uniquePaths, activePath]);
 
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);
