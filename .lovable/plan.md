@@ -1,45 +1,52 @@
-## Problem
-
-After printing barcode labels and then opening the thermal receipt print, the invoice appears shrunken in the print preview (Chrome and Edge). It only happens once a barcode print has run in the same session.
+# Fix: Thermal receipt prints as blank narrow page after using Barcode Printing
 
 ## Root cause
 
-`src/pages/BarcodePrinting.tsx` renders a JSX `<style>` block (around line 6178 / 6268) that contains an `@page` rule, e.g.:
+The previous fix gated the inline `<style>` block in `BarcodePrinting.tsx`, but there is a **second, stronger leak**: `src/components/precision-barcode/PrecisionPrintCSS.tsx`.
 
-```css
-@page { size: 50mm 30mm; margin: 0; }
-```
+That component, via `useEffect`, injects `<style id="precision-print-css">` directly into `document.head`. The style contains:
 
-This `<style>` is part of the React tree and stays mounted while the Barcode Printing tab is alive. With Window Tabs keeping pages mounted, the rule remains in the document even after the user leaves the page.
+- `@page { size: <labelWidth>mm <labelHeight>mm; margin: 0 }`
+- `body * { visibility: hidden }` + `.precision-print-area * { visibility: visible }`
 
-When the user later opens the thermal receipt print preview, `react-to-print` (used by `PrintPreviewDialog`) clones the parent document's styles into the hidden print iframe. CSS `@page` rules do not cascade by selector specificity — the leftover label-sized `@page size: 50mm 30mm` competes with the dialog's intended thermal `@page size: 80mm auto`, and the browser/driver collapses the receipt to the smaller page, producing the "shrink" the user sees.
+It is mounted whenever the Barcode Printing → Precision Pro tab is active (or the Test Label area is mounted), even when no print is happening. Because the WindowTabs system keeps pages alive in the background, this `<style>` survives navigation. When the user then opens the Print Preview dialog from POS and prints a thermal receipt:
 
-This matches the reproduction signal exactly: only after a barcode print, in both Chrome and Edge.
+1. The browser uses the precision `@page` size (58×30mm or similar) instead of the receipt's `80mm auto` → tiny page.
+2. `body * { visibility: hidden }` hides the entire receipt; only elements inside `.precision-print-area` (which is the barcode label area) stay visible → that's why the user sees just a small barcode in the print preview.
+
+This matches the screenshot exactly (narrow page, barcode at top, no receipt body) and the "only after barcode print" reproduction.
 
 ## Fix
 
-Scope the BarcodePrinting `@page` so it is only present in the document while the user is actually printing labels.
+Gate the precision style injection on an "active print" flag, exactly like the standard tab fix.
 
-1. **Extract the `@page` rule out of the permanent JSX `<style>**` in `src/pages/BarcodePrinting.tsx` (the block starting at line 6178 and the `@page { size: ... }` at line 6268). Keep the non-`@page` print rules (visibility, label-cell layout) in the persistent style — those are scoped to `#printArea` and don't conflict.
-2. **Dynamically attach the `@page` rule only during a print**:
-  - Add a small helper that, just before triggering `window.print()` on the barcode page, creates a `<style id="barcode-active-page-rule">` element with the current `@page { size: ...; margin: ... }` and appends it to `document.head`.
-  - Remove that element on `window.onafterprint` (and as a fallback, on a `setTimeout` cleanup) so no `@page` rule from the barcode tab survives the print job.
-  - Apply this to both the precision-print path and the standard print path (the two code branches that currently emit `@page`).
-3. **Audit the other inline `@page` sources** found in the codebase to confirm none of them have the same "persistent JSX `<style>`" pattern:
-  - `src/utils/barcodePrinter.ts`, `src/utils/barcodeDesktopPrint.ts`, `src/utils/thermalReceiptPrintDocument.ts` already inject into isolated documents/iframes — safe, no change needed.
-  - Other pages that grep matched (`POSDashboard`, `SaleOrderDashboard`, etc.) need a quick check; if any render `@page` in the persistent React tree, apply the same dynamic mount/unmount pattern. Otherwise leave them alone.
-4. **No changes to `PrintPreviewDialog.tsx**` — its own `pageStyle` is correct; the leak is upstream.
+### 1. `src/components/precision-barcode/PrecisionPrintCSS.tsx`
+
+- Add a new optional prop `active?: boolean` (default `false`).
+- Inside the `useEffect`, only create / update the `<style>` when `active === true`. When `active` is false, remove any existing `#precision-print-css` element.
+- Keep the unmount cleanup that removes the style.
+
+### 2. `src/pages/BarcodePrinting.tsx`
+
+- Reuse existing `printPageActive` state + the `afterprint` listener already added in the previous fix.
+- Pass `active={printPageActive}` to both `PrecisionPrintCSS` usages (test label block at ~L6145 and the conditional one referenced inside `PrecisionThermalPrint` / `PrecisionA4SheetPrint`).
+- Before each precision `window.print()` call (the two locations near L3808 and L3926, and the test-label print path), set `setPrintPageActive(true)` then call `window.print()` on the next tick (`requestAnimationFrame` or microtask) so the `<style>` is in the DOM before the print dialog opens. Add the same 1500ms safety timeout already used for standard mode to reset the flag if `afterprint` doesn't fire.
+
+### 3. `PrecisionThermalPrint.tsx` / `PrecisionA4SheetPrint.tsx`
+
+These also render `<PrecisionPrintCSS ... />` internally. Add the same `active` prop pass-through so the gate works regardless of which path renders the CSS. Default `active` to `false` so existing callers don't accidentally inject the style.
 
 ## Verification
 
-- Reload, print a thermal receipt → confirm correct 80mm size.
-- Open Barcode Printing, print labels → confirm labels still print at configured label size.
-- Without reloading, immediately print a thermal receipt → confirm it is no longer shrunken (the `@page size` should now be 80mm again).
-- Repeat the sequence in both Chrome and Edge.
-- Confirm `document.head` contains no `barcode-active-page-rule` style element after the barcode print dialog closes.
+1. Reload, open POS, print a thermal receipt → confirm full 80mm receipt prints correctly.
+2. Open Barcode Printing → Precision Pro tab, print a label → confirm labels still print at correct size.
+3. Without reloading, switch back to POS and print another thermal receipt → confirm it is no longer blank/shrunken.
+4. Inspect `document.head` after each print → confirm `#precision-print-css` is absent when no precision print is in flight.
+5. Repeat in both Chrome and Edge.
+6. not after barcode print even new session show this issue
 
 ## Out of scope
 
-- No changes to thermal templates or `PrintPreviewDialog`.
-- No backend / DB changes.
-- Barcode printing setting not change only work thermal receipt Print problem preview show attachment image 
+- `PrintPreviewDialog.tsx` `pageStyle` (already correct).
+- `barcodePrinter.ts`, `barcodeDesktopPrint.ts`, `thermalReceiptPrintDocument.ts` (each writes into an isolated print document/window, no leak).
+- The standard-tab `<style>` gating from the previous fix (already in place; this plan only adds the precision-tab equivalent).
