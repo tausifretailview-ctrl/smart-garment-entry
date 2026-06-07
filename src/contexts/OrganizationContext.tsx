@@ -26,7 +26,9 @@ interface OrganizationContextType {
   canAccessFeature: (featureName: string, requiredTier?: string) => boolean;
 }
 
-const ORG_FETCH_TIMEOUT = 6000;
+// Cold start in desktop WebView / slow networks can easily exceed 6s.
+// Bump to 20s and fall back to cached orgs on timeout instead of blanking the app.
+const ORG_FETCH_TIMEOUT = 20000;
 const SESSION_REFRESH_IF_EXPIRES_WITHIN_SEC = 300;
 const ORG_CACHE_KEY_PREFIX = "cachedOrgs_";
 
@@ -124,7 +126,32 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     let didTimeout = false;
     const timeoutId = setTimeout(() => {
       didTimeout = true;
-      console.warn("Organization fetch timed out after", ORG_FETCH_TIMEOUT, "ms");
+      console.warn("Organization fetch timed out after", ORG_FETCH_TIMEOUT, "ms — online=", navigator.onLine);
+      // Try to fall back to cached orgs so the user can keep working instead of
+      // seeing a Connection Problem screen on slow startup.
+      const cached = getCachedOrgs(user.id);
+      if (cached && cached.length > 0) {
+        const cachedAsOrgs = cached.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          subscription_tier: "free" as const,
+          enabled_features: [],
+          settings: {},
+          organization_type: "business" as const,
+          organization_number: 0,
+        }));
+        setOrganizations(cachedAsOrgs);
+        const selectedOrgSlug = localStorage.getItem("selectedOrgSlug");
+        const selected = cachedAsOrgs.find((o) => o.slug === selectedOrgSlug) ?? cachedAsOrgs[0];
+        if (selected) {
+          setCurrentOrganization(selected);
+          setOrganizationRole("user");
+        }
+        setHasResolvedOrganizations(true);
+        setLoading(false);
+        return;
+      }
       setFetchError(true);
       setLoading(false);
     }, ORG_FETCH_TIMEOUT);

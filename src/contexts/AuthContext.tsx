@@ -10,7 +10,10 @@ const REFRESH_LOCK_KEY = 'auth_refresh_lock';
 const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown between refreshes
 const SESSION_EXPIRY_BUFFER = 900; // 15 minutes buffer before expiry
 const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
-const SESSION_TIMEOUT = 10000; // 10 seconds timeout for initial session fetch
+// Initial session fetch can be slow on cold start (desktop WebView, slow mobile networks,
+// Chrome restoring local storage). Use a longer timeout, and only when the user is also
+// offline do we show the Connection Problem screen immediately.
+const SESSION_TIMEOUT = 25000; // 25 seconds
 const MAX_REFRESH_RETRIES = 3;
 const RETRY_DELAY = 2000; // 2 seconds between retries
 
@@ -315,7 +318,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Timeout: if getSession takes too long (slow Jio networks), show retry UI
     const timeoutId = setTimeout(() => {
-      setConnectionTimedOut(true);
+      // Only escalate to the Connection Problem screen if the browser reports offline
+      // OR we still have nothing to show. Otherwise just stop the splash and let the
+      // app render — auth listener will catch up when the session resolves.
+      console.warn("[Auth] Initial session fetch slow (>", SESSION_TIMEOUT, "ms). online=", navigator.onLine);
+      if (!navigator.onLine) {
+        setConnectionTimedOut(true);
+      }
       setLoading(false);
     }, SESSION_TIMEOUT);
 
@@ -413,14 +422,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const retryConnection = useCallback(() => {
     setConnectionTimedOut(false);
     setLoading(true);
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    }).catch(() => {
-      setConnectionTimedOut(true);
-      setLoading(false);
-    });
+    // Clear any stale refresh lock so retry isn't a no-op
+    localStorage.removeItem(REFRESH_LOCK_KEY);
+    (async () => {
+      try {
+        const { data: { session: s } } = await supabase.auth.getSession();
+        if (s) {
+          setSession(s);
+          setUser(s.user);
+          setLoading(false);
+          return;
+        }
+        // No session — try a refresh with retries
+        for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
+          try {
+            const { data, error } = await supabase.auth.refreshSession();
+            if (!error && data.session) {
+              setSession(data.session);
+              setUser(data.session.user);
+              setLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn(`[Auth] retry refresh ${attempt} failed`, e);
+          }
+          if (attempt < MAX_REFRESH_RETRIES) await delay(RETRY_DELAY);
+        }
+        setSession(null);
+        setUser(null);
+        setLoading(false);
+      } catch (err) {
+        console.error("[Auth] retryConnection error:", err);
+        setConnectionTimedOut(true);
+        setLoading(false);
+      }
+    })();
   }, []);
 
   // Logged-in bootstrap: hide HTML splash once session is resolved
