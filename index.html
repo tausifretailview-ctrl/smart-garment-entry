@@ -102,12 +102,18 @@
         }
       </style>
       <script>
-        // If React never mounts, show recovery UI instead of a blank white screen
+        // Dismiss splash if React mounted but auth never called hideAppBootSplash (Windows Electron).
         setTimeout(function() {
-          var root = document.getElementById('root');
-          if (root && root.childNodes.length > 0) return;
           var splash = document.getElementById('splash-screen');
-          if (!splash) return;
+          if (!splash || splash.dataset.hiding === '1') return;
+          var root = document.getElementById('root');
+          if (root && root.childNodes.length > 0) {
+            splash.dataset.hiding = '1';
+            splash.style.transition = 'opacity 0.25s ease-out';
+            splash.style.opacity = '0';
+            setTimeout(function() { splash.remove(); }, 280);
+            return;
+          }
           splash.innerHTML =
             '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;text-align:center;font-family:system-ui,sans-serif;">' +
             '<div style="font-size:22px;font-weight:700;color:#1e293b;margin-bottom:8px;">EzzyERP</div>' +
@@ -116,7 +122,7 @@
             '</div>';
           splash.style.display = 'flex';
           splash.style.opacity = '1';
-        }, 12000);
+        }, 10000);
       </script>
     </div>
     <div id="root"></div>

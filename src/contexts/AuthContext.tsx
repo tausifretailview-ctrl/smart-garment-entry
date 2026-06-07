@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
+import { isElectronShell } from "@/lib/electronShell";
 import { toast } from "sonner";
 
 // Global constants for cross-tab refresh coordination
@@ -13,7 +14,8 @@ const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
 // Initial session fetch can be slow on cold start (desktop WebView, slow mobile networks,
 // Chrome restoring local storage). Use a longer timeout, and only when the user is also
 // offline do we show the Connection Problem screen immediately.
-const SESSION_TIMEOUT = 25000; // 25 seconds
+// Electron WebView cold start: resolve auth sooner so the HTML splash can dismiss.
+const SESSION_TIMEOUT = isElectronShell() ? 12_000 : 25_000;
 const MAX_REFRESH_RETRIES = 3;
 const RETRY_DELAY = 2000; // 2 seconds between retries
 

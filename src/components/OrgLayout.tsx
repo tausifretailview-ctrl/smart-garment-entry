@@ -19,7 +19,7 @@ import {
   prefetchTabPage,
   prefetchTabPagesIdle,
 } from "@/lib/tabPageRegistry";
-import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import {
   isNavigationPerfEnabled,
   recordNavigation,
@@ -66,19 +66,34 @@ export const OrgLayout = () => {
     return prefetchTabPagesIdle(tabPaths, isEntryPage ? "" : currentPath);
   }, [tabPaths, currentPath, isEntryPage]);
 
-  // Warm bill-entry chunks after login. Electron: only POS + dashboard (+ open admin tabs).
+  // Warm bill-entry chunks after login. Electron: defer prefetch so login paint is not blocked.
   useEffect(() => {
     if (!isOrgSynced || !user) return;
-    if (shouldElectronMountOnlyActiveTab()) {
-      prefetchTabPage("pos-sales");
-      prefetchTabPage("");
-      if (tabPaths.includes("settings")) {
-        prefetchTabPage("settings");
+
+    const run = () => {
+      if (shouldElectronMountOnlyActiveTab()) {
+        prefetchTabPage("pos-sales");
+        prefetchTabPage("");
+        if (tabPaths.includes("settings")) {
+          prefetchTabPage("settings");
+        }
+        return;
       }
+      prefetchPostLoginCriticalPages();
+      prefetchPostLoginIdlePages();
+    };
+
+    if (!isElectronShell()) {
+      run();
       return;
     }
-    prefetchPostLoginCriticalPages();
-    prefetchPostLoginIdlePages();
+
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(run, { timeout: 4_000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(run, 1_500);
+    return () => window.clearTimeout(t);
   }, [isOrgSynced, user, tabPaths]);
 
   // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.
@@ -167,9 +182,10 @@ export const OrgLayout = () => {
     }
   }, [currentOrganization, orgSlug]);
 
-  // Authenticated shell — remove HTML boot splash once past auth/org gates.
+  // Remove HTML boot splash once auth is ready (login screen) or org list is loaded (signed in).
   useEffect(() => {
-    if (authLoading || !user || orgLoading) return;
+    if (authLoading) return;
+    if (user && orgLoading) return;
     hideAppBootSplash();
   }, [authLoading, user, orgLoading]);
 
