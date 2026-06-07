@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
+import { useNavPerfManualFetch, useNavPerfPage } from "@/hooks/useNavigationPerf";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -172,7 +173,11 @@ const DEFAULT_POS_COLUMNS = {
   print: true,
   modify: true,
 };
+const PERF_PATH = "pos-dashboard";
+
 const POSDashboard = () => {
+  useNavPerfPage(PERF_PATH);
+  const navPerf = useNavPerfManualFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -540,9 +545,11 @@ const POSDashboard = () => {
     const isFirstLoad = sales.length === 0;
     if (isFirstLoad) {
       setLoading(true);
+      navPerf.loadingUi(PERF_PATH, "sales-skeleton");
     } else {
       setIsRefreshing(true);
     }
+    navPerf.start("pos-sales-list", PERF_PATH);
     try {
       // Use range-based pagination to bypass 1000-row limit
       const allSales: any[] = [];
@@ -636,10 +643,12 @@ const POSDashboard = () => {
       lastFetchKeyRef.current = fetchKey;
       lastFetchedAtRef.current = Date.now();
       lastFetchFilterSigRef.current = fetchFilterSignatureRef.current;
+      navPerf.end("pos-sales-list", PERF_PATH, { rowCount: allSales.length, forced: force });
       // Line items load on row expand only (fetchSaleItems) — avoids bulk sale_items reads on dashboard open.
       setLoading(false);
       setIsRefreshing(false);
     } catch (error: any) {
+      navPerf.end("pos-sales-list", PERF_PATH, { error: true });
       toast({
         title: "Error",
         description: error.message || "Failed to load sales",

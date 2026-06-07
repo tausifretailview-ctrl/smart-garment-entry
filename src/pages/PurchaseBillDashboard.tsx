@@ -48,6 +48,7 @@ import {
   getPurchaseBillPendingAmount,
 } from "@/utils/purchaseBillSettlement";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 
@@ -136,7 +137,10 @@ interface PurchaseBill {
   purchase_items?: { count: number }[];
 }
 
+const PERF_PATH = "purchase-bills";
+
 const PurchaseBillDashboard = () => {
+  useNavPerfPage(PERF_PATH);
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
@@ -1198,7 +1202,7 @@ const PurchaseBillDashboard = () => {
   }, [bills, sortOrder]);
 
   // Server-side summary stats — mirrors ALL filters from the bills query (no pagination)
-  const { data: purchaseSummaryData } = useQuery({
+  const { data: purchaseSummaryData, isLoading: purchaseSummaryLoading, isFetching: purchaseSummaryFetching } = useQuery({
     queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, debouncedSearch],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
@@ -1296,6 +1300,15 @@ const PurchaseBillDashboard = () => {
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_LIVE,
+  });
+
+  useNavPerfQueryWatch("purchase-bills-list", PERF_PATH, {
+    isLoading: billsQueryLoading,
+    rowCount: bills.length,
+  });
+  useNavPerfQueryWatch("purchase-summary", PERF_PATH, {
+    isLoading: purchaseSummaryLoading,
+    isFetching: purchaseSummaryFetching,
   });
 
   const summaryStats = useMemo(() => ({

@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { AlertCircle } from "lucide-react";
 import {
   getLazyTabPage,
@@ -21,6 +21,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import {
+  isNavigationPerfEnabled,
+  recordChunkLoadEnd,
+  recordChunkLoadStart,
+  recordTabSwitch,
+} from "@/lib/navigationPerfDiagnostics";
 
 /** Hidden tab panes idle longer than this may be unmounted (read-only dashboards only). */
 const IDLE_UNMOUNT_MS = 600_000;
@@ -102,6 +108,21 @@ function getTabLoadTimeoutMs(path: string): number {
   return HEAVY_TAB_PATHS.has(path) ? HEAVY_TAB_LOAD_TIMEOUT_MS : TAB_LOAD_TIMEOUT_MS;
 }
 
+function TabPageWithPerf({
+  path,
+  LazyPage,
+}: {
+  path: string;
+  LazyPage: ComponentType;
+}) {
+  useEffect(() => {
+    if (!isNavigationPerfEnabled()) return;
+    recordChunkLoadEnd(path);
+  }, [path]);
+
+  return <LazyPage />;
+}
+
 function TabPageFallback({
   active,
   path,
@@ -113,12 +134,14 @@ function TabPageFallback({
 }) {
   const [timedOut, setTimedOut] = useState(false);
   const [showSoftHint, setShowSoftHint] = useState(false);
-
   useEffect(() => {
     if (!active) {
       setTimedOut(false);
       setShowSoftHint(false);
       return;
+    }
+    if (isNavigationPerfEnabled()) {
+      recordChunkLoadStart(path);
     }
     const hintTimer = window.setTimeout(() => setShowSoftHint(true), SOFT_LOADING_HINT_MS);
     const timer = window.setTimeout(() => {
@@ -230,7 +253,7 @@ function CachedTabPane({
         key={loadKey}
         fallback={<TabPageFallback active={active} path={path} onRetry={retryTabLoad} />}
       >
-        <LazyPage />
+        <TabPageWithPerf path={path} LazyPage={LazyPage} />
       </Suspense>
     </TabPaneErrorBoundary>
   );
@@ -321,8 +344,16 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
     });
   }, [activePath, electronSingleTab]);
 
+  const prevActivePathRef = useRef(activePath);
   useEffect(() => {
     if (!isTabCachePath(activePath)) return;
+    if (isNavigationPerfEnabled() && prevActivePathRef.current !== activePath) {
+      recordTabSwitch(activePath, {
+        from: prevActivePathRef.current,
+        mounted: [...mountedPaths],
+      });
+    }
+    prevActivePathRef.current = activePath;
     touchTabActiveAt(activePath);
     setMountedPaths((prev) => {
       if (electronSingleTab) {
