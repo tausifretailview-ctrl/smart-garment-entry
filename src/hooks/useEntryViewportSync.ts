@@ -16,14 +16,27 @@ export function useEntryViewportSync(): void {
   }, []);
 
   useEffect(() => {
+    let syncing = false;
+
     const sync = () => {
-      const root = document.documentElement;
-      root.classList.add("entry-viewport-synced");
-      root.style.setProperty("--entry-vw", `${window.innerWidth}px`);
-      if (root.style.zoom && root.style.zoom !== "1") {
-        root.style.zoom = "1";
+      if (syncing) return;
+      syncing = true;
+      try {
+        const root = document.documentElement;
+        const nextVw = `${window.innerWidth}px`;
+        const prevVw = root.style.getPropertyValue("--entry-vw");
+        root.classList.add("entry-viewport-synced");
+        root.style.setProperty("--entry-vw", nextVw);
+        if (root.style.zoom && root.style.zoom !== "1") {
+          root.style.zoom = "1";
+        }
+        // Notify layout listeners only when width changes — avoid resize→sync recursion.
+        if (prevVw !== nextVw) {
+          window.dispatchEvent(new Event("resize"));
+        }
+      } finally {
+        syncing = false;
       }
-      window.dispatchEvent(new Event("resize"));
     };
 
     sync();

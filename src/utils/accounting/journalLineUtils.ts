@@ -27,7 +27,18 @@ export function mergeJournalLines(lines: PostJournalLineInput[]): PostJournalLin
     existing.debitAmount = round2(existing.debitAmount + line.debitAmount);
     existing.creditAmount = round2(existing.creditAmount + line.creditAmount);
   }
-  return [...map.values()].filter((l) => l.debitAmount > 0 || l.creditAmount > 0);
+  return [...map.values()]
+    .map((line) => {
+      const dr = round2(line.debitAmount);
+      const cr = round2(line.creditAmount);
+      const net = round2(dr - cr);
+      if (Math.abs(net) < 0.005) return null;
+      if (net > 0) {
+        return { ...line, debitAmount: net, creditAmount: 0 };
+      }
+      return { ...line, debitAmount: 0, creditAmount: -net };
+    })
+    .filter((line): line is PostJournalLineInput => line != null);
 }
 
 export function pushLine(
