@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import OrgAuth from "@/pages/OrgAuth";
 import { storeOrgSlug } from "@/lib/orgSlug";
+import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
@@ -40,6 +41,8 @@ export const OrgLayout = () => {
   const [isOrgSynced, setIsOrgSynced] = useState(false);
   const [syncTimeout, setSyncTimeout] = useState(false);
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
+  /** Tab-cache pane has mounted for the current path — keep Outlet as fallback until then. */
+  const [tabPaneReady, setTabPaneReady] = useState(false);
   const location = useLocation();
   const { openWindows } = useWindowTabs();
 
@@ -79,8 +82,15 @@ export const OrgLayout = () => {
   }, [isOrgSynced, user, tabPaths]);
 
   // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.
-  const renderViaTabCache =
+  const wantsTabCache =
     !isEntryPage && isTabCachePath(currentPath) && tabPaths.length > 0;
+  // Keep <Outlet> visible until the cached pane has mounted — avoids a blank screen
+  // when the lazy chunk is still loading (reported after Phase 1/2 on purchase-bills).
+  const renderViaTabCache = wantsTabCache && tabPaneReady;
+
+  useEffect(() => {
+    setTabPaneReady(false);
+  }, [currentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
@@ -157,6 +167,12 @@ export const OrgLayout = () => {
     }
   }, [currentOrganization, orgSlug]);
 
+  // Authenticated shell — remove HTML boot splash once past auth/org gates.
+  useEffect(() => {
+    if (authLoading || !user || orgLoading) return;
+    hideAppBootSplash();
+  }, [authLoading, user, orgLoading]);
+
   // For public routes, allow access without authentication
   if (isPublicRoute) {
     // Store org slug for context even for public views (in both storages)
@@ -216,24 +232,37 @@ export const OrgLayout = () => {
       }
     >
       <GlobalShortcuts />
-      {/* Hidden while on bill entry — otherwise flex-1 splits viewport and footer floats mid-screen */}
-      {tabPaths.length > 0 && !isEntryPage && (
-        <TabCachedPages
-          paths={tabPaths}
-          activePath={renderViaTabCache ? currentPath : ""}
-        />
-      )}
-      {!renderViaTabCache && (
-        <div
-          className={
-            isEntryPage
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
-              : "contents"
-          }
-        >
-          <Outlet />
-        </div>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col w-full">
+        {/* Hidden while on bill entry — otherwise flex-1 splits viewport and footer floats mid-screen */}
+        {tabPaths.length > 0 && !isEntryPage && (
+          <div
+            className={
+              wantsTabCache && !tabPaneReady
+                ? "hidden"
+                : "flex min-h-0 flex-1 flex-col w-full"
+            }
+          >
+            <TabCachedPages
+              paths={tabPaths}
+              activePath={wantsTabCache ? currentPath : ""}
+              onActivePaneReady={(path) => {
+                if (path === currentPath) setTabPaneReady(true);
+              }}
+            />
+          </div>
+        )}
+        {!renderViaTabCache && (
+          <div
+            className={
+              isEntryPage
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
+                : "contents"
+            }
+          >
+            <Outlet />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

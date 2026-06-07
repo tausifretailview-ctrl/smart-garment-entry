@@ -11,7 +11,6 @@ import {
   type TabPageRole,
 } from "@/lib/tabPageRegistry";
 import { isEntryTabPath } from "@/lib/entryPageLayout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { TabPaneErrorBoundary } from "@/components/TabPaneErrorBoundary";
 import { Layout } from "@/components/Layout";
@@ -111,14 +110,20 @@ function getTabLoadTimeoutMs(path: string): number {
 function TabPageWithPerf({
   path,
   LazyPage,
+  onReady,
 }: {
   path: string;
   LazyPage: ComponentType;
+  onReady?: () => void;
 }) {
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
     recordChunkLoadEnd(path);
   }, [path]);
+
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
 
   return <LazyPage />;
 }
@@ -208,11 +213,13 @@ function CachedTabPane({
   active,
   roles,
   layout,
+  onActivePaneReady,
 }: {
   path: string;
   active: boolean;
   roles?: TabPageRole[];
   layout: TabPageLayout;
+  onActivePaneReady?: (path: string) => void;
 }) {
   const paneRef = useRef<HTMLDivElement>(null);
   const wasActiveRef = useRef(active);
@@ -253,7 +260,11 @@ function CachedTabPane({
         key={loadKey}
         fallback={<TabPageFallback active={active} path={path} onRetry={retryTabLoad} />}
       >
-        <TabPageWithPerf path={path} LazyPage={LazyPage} />
+        <TabPageWithPerf
+          path={path}
+          LazyPage={LazyPage}
+          onReady={active ? () => onActivePaneReady?.(path) : undefined}
+        />
       </Suspense>
     </TabPaneErrorBoundary>
   );
@@ -276,7 +287,7 @@ function CachedTabPane({
       aria-hidden={!active}
       data-tab-cache-path={path}
     >
-      <ProtectedRoute>{withRole}</ProtectedRoute>
+      {withRole}
     </div>
   );
 }
@@ -286,6 +297,8 @@ type TabCachedPagesProps = {
   paths: string[];
   /** Current URL path segment — which cached pane is visible. */
   activePath: string;
+  /** Fired when the active pane's lazy chunk has mounted (Suspense resolved). */
+  onActivePaneReady?: (path: string) => void;
 };
 
 /**
@@ -295,7 +308,7 @@ type TabCachedPagesProps = {
  * On full reload only the active tab is mounted first — other open tabs mount when
  * the user switches to them (avoids loading 8+ dashboards at once).
  */
-export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
+export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCachedPagesProps) {
   const uniquePaths = useMemo(
     () => [...new Set(paths.filter((p) => isTabCachePath(p)))],
     [paths],
@@ -447,6 +460,7 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
             active={path === activePath}
             layout={meta.layout}
             roles={meta.roles}
+            onActivePaneReady={onActivePaneReady}
           />
         );
       })}
