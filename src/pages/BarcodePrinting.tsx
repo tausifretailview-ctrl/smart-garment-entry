@@ -6146,6 +6146,7 @@ export default function BarcodePrinting() {
             labelWidth={precisionSettings.labelWidth}
             labelHeight={precisionSettings.labelHeight}
             mode="thermal"
+            active={printPageActive}
           />
           <TestLabelPrint
             ref={testPrintRef}
@@ -6172,6 +6173,7 @@ export default function BarcodePrinting() {
               config={precisionSettings.labelConfig || undefined}
               thermalCols={precisionSettings.printMode === 'thermal2up' ? Math.max(2, precisionSettings.thermalCols || 2) : (precisionSettings.thermalCols || 1)}
               horizontalGap={getThermal2UpGap()}
+              active={printPageActive}
             />
           ) : (
             <PrecisionA4SheetPrint
@@ -6186,6 +6188,7 @@ export default function BarcodePrinting() {
               vGap={precisionSettings.vGap}
               config={precisionSettings.labelConfig || undefined}
               startPosition={startPosition}
+              active={printPageActive}
             />
           )}
         </div>

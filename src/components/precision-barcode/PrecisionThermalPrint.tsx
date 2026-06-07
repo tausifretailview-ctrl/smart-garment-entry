@@ -13,10 +13,12 @@ interface PrecisionThermalPrintProps {
   config?: LabelDesignConfig;
   thermalCols?: number;
   horizontalGap?: number;
+  /** Gate the global `<style>` injection so it only happens during an active print job. */
+  active?: boolean;
 }
 
 export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermalPrintProps>(
-  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1, horizontalGap = 0 }, ref) => {
+  ({ items, labelWidth, labelHeight, xOffset, yOffset, vGap = 0, config, thermalCols = 1, horizontalGap = 0, active = false }, ref) => {
     const expandedItems: LabelItem[] = [];
     items.forEach((item) => {
       const qty = item.qty && item.qty > 0 ? item.qty : 0;
@@ -37,7 +39,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
 
       return (
         <>
-          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight} mode="thermal" thermalCols={cols} />
+          <PrecisionPrintCSS labelWidth={pageWidth} labelHeight={labelHeight} mode="thermal" thermalCols={cols} active={active} />
           <div ref={ref} className="precision-print-area">
             {rows.map((row, rowIdx) => (
               <div
@@ -94,7 +96,7 @@ export const PrecisionThermalPrint = forwardRef<HTMLDivElement, PrecisionThermal
     // vGap is roll spacing only — do not inflate page height (causes first-label drift vs driver).
     return (
       <>
-        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="thermal" />
+        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="thermal" active={active} />
         <div ref={ref} className="precision-print-area">
           {expandedItems.map((item, idx) => (
             <div
