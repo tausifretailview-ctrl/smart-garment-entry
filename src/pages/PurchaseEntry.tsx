@@ -6,6 +6,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -200,11 +201,16 @@ const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant
   });
 };
 
+function purchaseEntrySessionKey(orgId: string, userId: string): string {
+  return `purchaseEntryState:${orgId}:${userId}`;
+}
+
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const { invalidatePurchases } = useDashboardInvalidation();
   const queryClient = useQueryClient();
   const { isColumnVisible } = useUserPermissions();
@@ -251,7 +257,8 @@ const PurchaseEntry = () => {
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
-  const initialDraftCheckDone = useRef(false); // Track if initial draft check was done
+  const workRestoredRef = useRef(false);
+  const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
@@ -367,6 +374,65 @@ const PurchaseEntry = () => {
     stopAutoSave,
   } = useDraftSave('purchase');
 
+  const getEntrySessionKey = useCallback(() => {
+    if (!currentOrganization?.id || !user?.id) return null;
+    return purchaseEntrySessionKey(currentOrganization.id, user.id);
+  }, [currentOrganization?.id, user?.id]);
+
+  const clearEntrySession = useCallback(() => {
+    const key = getEntrySessionKey();
+    if (key) sessionStorage.removeItem(key);
+  }, [getEntrySessionKey]);
+
+  const persistEntrySession = useCallback(
+    (snapshot: Record<string, unknown> | null) => {
+      const key = getEntrySessionKey();
+      if (!key) return;
+      const items = snapshot?.lineItems;
+      if (!Array.isArray(items) || items.length === 0) {
+        sessionStorage.removeItem(key);
+        return;
+      }
+      try {
+        sessionStorage.setItem(key, JSON.stringify(snapshot));
+      } catch {
+        // sessionStorage full — DB draft remains the fallback
+      }
+    },
+    [getEntrySessionKey],
+  );
+
+  const buildEntrySnapshot = useCallback(() => {
+    if (lineItems.length === 0) return null;
+    return {
+      billData,
+      softwareBillNo,
+      billDate: billDate.toISOString(),
+      lineItems,
+      roundOff,
+      otherCharges,
+      discountAmount,
+      entryMode,
+      isDcPurchase,
+      isEditMode,
+      editingBillId,
+      originalLineItems,
+    };
+  }, [
+    billData,
+    softwareBillNo,
+    billDate,
+    lineItems,
+    roundOff,
+    otherCharges,
+    discountAmount,
+    entryMode,
+    isDcPurchase,
+    isEditMode,
+    editingBillId,
+    originalLineItems,
+  ]);
+
   // Handle product edit panel updates
   const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => {
     const touched = new Set<string>();
@@ -439,45 +505,112 @@ const PurchaseEntry = () => {
     }
   }, []);
 
-  // Load draft automatically if navigated from dashboard with loadDraft flag
+  // Restore in-progress work when returning to Purchase Entry (tab switch / app refocus).
   useEffect(() => {
-    if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
-      initialDraftCheckDone.current = true;
-      loadDraftData(draftData);
-      deleteDraft(); // Clear the draft from database after loading
-    }
-  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
+    if (workRestoredRef.current) return;
+    if (location.state?.editBillId) return;
+    if (!currentOrganization?.id || !user?.id) return;
+
+    const restoreWork = async () => {
+      const sessionKey = getEntrySessionKey();
+      if (sessionKey) {
+        const raw = sessionStorage.getItem(sessionKey);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed?.lineItems) && parsed.lineItems.length > 0) {
+              workRestoredRef.current = true;
+              await loadDraftData(parsed);
+              return;
+            }
+          } catch {
+            sessionStorage.removeItem(sessionKey);
+          }
+        }
+      }
+
+      if (location.state?.loadDraft) {
+        if (hasDraft && draftData) {
+          workRestoredRef.current = true;
+          await loadDraftData(draftData);
+          await deleteDraft();
+        }
+        return;
+      }
+
+      if (hasDraft && draftData?.lineItems?.length > 0) {
+        workRestoredRef.current = true;
+        await loadDraftData(draftData);
+      }
+    };
+
+    void restoreWork();
+  }, [
+    currentOrganization?.id,
+    user?.id,
+    hasDraft,
+    draftData,
+    location.state?.editBillId,
+    location.state?.loadDraft,
+    getEntrySessionKey,
+    loadDraftData,
+    deleteDraft,
+  ]);
 
   useEntryViewportSync();
 
   // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    const snapshot = buildEntrySnapshot();
+    latestSnapshotRef.current = snapshot;
+
     if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
     autoSaveDebounceRef.current = setTimeout(() => {
-      if (lineItems.length > 0) {
-        updateCurrentData({
-          billData,
-          softwareBillNo,
-          billDate: billDate.toISOString(),
-          lineItems,
-          roundOff,
-          otherCharges,
-          discountAmount,
-          entryMode,
-          isDcPurchase,
-          isEditMode,
-          editingBillId,
-          originalLineItems,
-        });
+      if (snapshot) {
+        updateCurrentData(snapshot);
+        persistEntrySession(snapshot);
       } else {
         updateCurrentData(null);
+        clearEntrySession();
       }
     }, lineItems.length > 200 ? 3000 : 1000);
     return () => {
       if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
     };
-  }, [billData, softwareBillNo, billDate, lineItems, roundOff, otherCharges, discountAmount, entryMode, isDcPurchase, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
+  }, [
+    buildEntrySnapshot,
+    lineItems.length,
+    updateCurrentData,
+    persistEntrySession,
+    clearEntrySession,
+  ]);
+
+  const flushEntryPersistence = useCallback(() => {
+    const snapshot = latestSnapshotRef.current;
+    if (snapshot?.lineItems && Array.isArray(snapshot.lineItems) && snapshot.lineItems.length > 0) {
+      updateCurrentData(snapshot);
+      persistEntrySession(snapshot);
+      void saveDraft(snapshot, false);
+      return;
+    }
+    updateCurrentData(null);
+    clearEntrySession();
+  }, [updateCurrentData, persistEntrySession, clearEntrySession, saveDraft]);
+
+  // Save immediately when leaving the tab or minimizing the desktop app.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushEntryPersistence();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flushEntryPersistence();
+    };
+  }, [flushEntryPersistence]);
   
   // Memoize selectedForPrint as object for O(1) lookup without triggering re-renders
   const selectedForPrintObj = useMemo(
@@ -864,33 +997,6 @@ const PurchaseEntry = () => {
     loadBillById(allBillIds[newIndex].id);
   }, [allBillIds, navBillIndex, loadBillById]);
 
-  useEffect(() => {
-    const savedState = sessionStorage.getItem('purchaseEntryState');
-    if (savedState) {
-      (async () => {
-        try {
-          const parsed = JSON.parse(savedState);
-          setBillData(parsed.billData);
-          setSoftwareBillNo(parsed.softwareBillNo);
-          setBillDate(new Date(parsed.billDate));
-          const enriched = await enrichItemsWithUom(parsed.lineItems || []);
-          setLineItems(enriched);
-          setRoundOff(parsed.roundOff || 0);
-          // Restore edit mode state if it was saved
-          if (parsed.isEditMode) {
-            setIsEditMode(true);
-            setEditingBillId(parsed.editingBillId);
-            setOriginalLineItems(parsed.originalLineItems || []);
-          }
-          sessionStorage.removeItem('purchaseEntryState');
-          deleteDraft();
-        } catch (error) {
-          console.error('Error restoring purchase state:', error);
-        }
-      })();
-    }
-  }, []);
-
   // Auto-populate supplier invoice number for new bills
   useEffect(() => {
     if (nextSupplierInvNo && !isEditMode && !billData.supplier_invoice_no) {
@@ -901,14 +1007,14 @@ const PurchaseEntry = () => {
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
     const loadOrGenerateBill = async () => {
-      // Skip loading bill from DB when resuming from a draft (draft already contains the latest state)
-      if (location.state?.loadDraft) {
+      // Skip loading bill from DB when resuming saved in-progress work
+      if (location.state?.loadDraft || workRestoredRef.current) {
         return;
       }
 
-      // Skip if we already restored edit mode from sessionStorage
+      // Skip if we already restored edit mode from a snapshot/draft
       if (isEditMode && editingBillId && !location.state?.editBillId) {
-        return; // Edit mode was restored from sessionStorage, don't reload
+        return;
       }
 
       const billId = location.state?.editBillId;
@@ -3109,6 +3215,7 @@ const PurchaseEntry = () => {
         // Clear draft after successful save
         await deleteDraft();
         updateCurrentData(null);
+        clearEntrySession();
 
         // Reset edit mode state - Critical fix for duplicate bill prevention
         setIsEditMode(false);
@@ -3327,6 +3434,7 @@ const PurchaseEntry = () => {
         // Clear draft after successful save and prevent re-save on cleanup
         await deleteDraft();
         updateCurrentData(null);
+        clearEntrySession();
 
         // Reset edit mode if we were editing
         if (isEditMode) {
@@ -4129,6 +4237,8 @@ const PurchaseEntry = () => {
               setSelectedForPrint(new Set());
               setIsDcPurchase(false);
               deleteDraft();
+              clearEntrySession();
+              workRestoredRef.current = false;
               
             }}
             className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
