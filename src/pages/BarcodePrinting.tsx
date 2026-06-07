@@ -6193,7 +6193,7 @@ export default function BarcodePrinting() {
         <div id="printArea" className="hidden"></div>
       )}
 
-      {!precisionSettings.enabled && <style>{`
+      {!precisionSettings.enabled && printPageActive && <style>{`
         #printArea {
           width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm` : '210mm'};
           min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm` : '297mm'};
