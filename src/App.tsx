@@ -1494,8 +1494,8 @@ const App = () => {
             </WindowTabsProvider>
           </OrganizationProvider>
         </AuthProvider>
+        <NavigationPerfPanel />
       </BrowserRouter>
-      <NavigationPerfPanel />
     </TooltipProvider>
     </QueryClientProvider>
     </ThemeProvider>
