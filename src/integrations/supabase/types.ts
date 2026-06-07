@@ -3151,56 +3151,6 @@ export type Database = {
           },
         ]
       }
-      organization_bank_accounts: {
-        Row: {
-          account_holder: string | null
-          account_number: string | null
-          bank_name: string
-          branch: string | null
-          created_at: string
-          deleted_at: string | null
-          id: string
-          ifsc_code: string | null
-          is_default: boolean
-          organization_id: string
-          updated_at: string
-        }
-        Insert: {
-          account_holder?: string | null
-          account_number?: string | null
-          bank_name: string
-          branch?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          id?: string
-          ifsc_code?: string | null
-          is_default?: boolean
-          organization_id: string
-          updated_at?: string
-        }
-        Update: {
-          account_holder?: string | null
-          account_number?: string | null
-          bank_name?: string
-          branch?: string | null
-          created_at?: string
-          deleted_at?: string | null
-          id?: string
-          ifsc_code?: string | null
-          is_default?: boolean
-          organization_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "organization_bank_accounts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       organizations: {
         Row: {
           created_at: string
@@ -6701,7 +6651,6 @@ export type Database = {
           paid_by: string | null
           payment_method: string | null
           receipt_number: string | null
-          receiving_bank_account_id: string | null
           reference_id: string | null
           reference_type: string | null
           total_amount: number
@@ -6725,7 +6674,6 @@ export type Database = {
           paid_by?: string | null
           payment_method?: string | null
           receipt_number?: string | null
-          receiving_bank_account_id?: string | null
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
@@ -6749,7 +6697,6 @@ export type Database = {
           paid_by?: string | null
           payment_method?: string | null
           receipt_number?: string | null
-          receiving_bank_account_id?: string | null
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
@@ -6764,13 +6711,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "voucher_entries_receiving_bank_account_id_fkey"
-            columns: ["receiving_bank_account_id"]
-            isOneToOne: false
-            referencedRelation: "organization_bank_accounts"
             referencedColumns: ["id"]
           },
           {
