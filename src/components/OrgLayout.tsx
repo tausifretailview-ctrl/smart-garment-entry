@@ -19,6 +19,12 @@ import {
   prefetchTabPagesIdle,
 } from "@/lib/tabPageRegistry";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import {
+  isNavigationPerfEnabled,
+  recordNavigation,
+  recordRenderPath,
+  recordTabCacheSnapshot,
+} from "@/lib/navigationPerfDiagnostics";
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -75,6 +81,21 @@ export const OrgLayout = () => {
   // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.
   const renderViaTabCache =
     !isEntryPage && isTabCachePath(currentPath) && tabPaths.length > 0;
+
+  useEffect(() => {
+    if (!isNavigationPerfEnabled()) return;
+    recordNavigation(currentPath, { orgSlug, tabCount: tabPaths.length });
+    recordRenderPath(
+      currentPath,
+      renderViaTabCache ? "tab-cache" : "outlet",
+      { isEntryPage, tabPaths },
+    );
+    recordTabCacheSnapshot({
+      activePath: currentPath,
+      mountedTabPaths: tabPaths,
+      openTabPaths: openWindows.map((w) => w.path),
+    });
+  }, [currentPath, renderViaTabCache, orgSlug, tabPaths, openWindows, isEntryPage]);
 
   // Safety timeout: if org sync takes too long (8s), force render to prevent infinite spinner
   useEffect(() => {

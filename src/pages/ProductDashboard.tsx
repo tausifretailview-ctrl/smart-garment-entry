@@ -10,6 +10,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { useNavPerfManualFetch, useNavPerfPage } from "@/hooks/useNavigationPerf";
 import * as XLSX from "xlsx";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -84,7 +85,11 @@ interface DashboardStats {
   sale_value: number;
 }
 
+const PERF_PATH = "products";
+
 const ProductDashboard = () => {
+  useNavPerfPage(PERF_PATH);
+  const navPerf = useNavPerfManualFetch();
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
@@ -488,6 +493,7 @@ const ProductDashboard = () => {
 
   const fetchStats = async () => {
     if (!currentOrganization?.id) return;
+    navPerf.start("product-stats", PERF_PATH);
     setStatsLoading(true);
     try {
       const { data, error } = await supabase.rpc("get_product_dashboard_stats", getRpcParams());
@@ -504,6 +510,7 @@ const ProductDashboard = () => {
     } catch (error) {
       console.error("Stats fetch error:", error);
     } finally {
+      navPerf.end("product-stats", PERF_PATH);
       setStatsLoading(false);
     }
   };
@@ -513,9 +520,12 @@ const ProductDashboard = () => {
     const seq = ++fetchSeqRef.current;
     if (productRows.length === 0) {
       setLoading(true);
+      navPerf.loadingUi(PERF_PATH, "full-page-spinner");
     } else {
       setIsRefetching(true);
     }
+    navPerf.start("product-catalog", PERF_PATH);
+    let fetchedRowCount = 0;
     try {
       const params = { ...getRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
       const { data, error } = await supabase.rpc("get_product_catalog_page", params);
@@ -563,6 +573,7 @@ const ProductDashboard = () => {
         rows.forEach(r => { r.user_cancelled_at = cancelledMap.get(r.product_id) || null; });
       }
 
+      fetchedRowCount = rows.length;
       setProductRows(rows);
       setFetchError(null);
       
@@ -604,6 +615,7 @@ const ProductDashboard = () => {
       });
     } finally {
       if (seq === fetchSeqRef.current) {
+        navPerf.end("product-catalog", PERF_PATH, { rowCount: fetchedRowCount });
         setLoading(false);
         setIsRefetching(false);
       }

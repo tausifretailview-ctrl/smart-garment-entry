@@ -179,7 +179,11 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
 export const useCustomerBalances = () => {
   const { currentOrganization } = useOrganization();
 
-  const { data: snapshotByCustomerId = {} } = useQuery({
+  const {
+    data: snapshotByCustomerId = {},
+    isLoading: balancesLoading,
+    isFetching: balancesFetching,
+  } = useQuery({
     queryKey: ["customer-balances-search", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return {} as Record<string, CustomerFinancialSnapshot>;
@@ -225,6 +229,8 @@ export const useCustomerBalances = () => {
 
   return {
     customerBalances: snapshotByCustomerId,
+    balancesLoading,
+    balancesFetching,
     getCustomerBalance,
     getCustomerAdvance,
     getCustomerCreditNote,

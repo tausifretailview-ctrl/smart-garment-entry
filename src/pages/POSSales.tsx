@@ -15,6 +15,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
@@ -293,7 +294,10 @@ function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclus
   };
 }
 
+const PERF_PATH = "pos-sales";
+
 export default function POSSales() {
+  useNavPerfPage(PERF_PATH);
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
@@ -1355,7 +1359,7 @@ export default function POSSales() {
   }, [currentSaleId, currentOrganization?.id, settingsData]);
 
   // Fetch today's sales
-  const { data: todaysSales } = useQuery({
+  const { data: todaysSales, isLoading: todaysSalesLoading, isFetching: todaysSalesFetching } = useQuery({
     queryKey: ['todays-sales', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -1501,7 +1505,7 @@ export default function POSSales() {
   const [dcTransferItems, setDcTransferItems] = useState<any[]>([]);
   const [dcTransferSaleId, setDcTransferSaleId] = useState("");
 
-  const { data: productsData } = useQuery({
+  const { data: productsData, isLoading: productsLoading, isFetching: productsFetching } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -1601,7 +1605,28 @@ export default function POSSales() {
     hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerName, { enabled: !customerJustSelected.current });
   
-  const { getCustomerBalance, getCustomerAdvance, getCustomerCreditNote } = useCustomerBalances();
+  const {
+    getCustomerBalance,
+    getCustomerAdvance,
+    getCustomerCreditNote,
+    balancesLoading,
+    balancesFetching,
+  } = useCustomerBalances();
+
+  useNavPerfQueryWatch("pos-products", PERF_PATH, {
+    isLoading: productsLoading,
+    isFetching: productsFetching,
+    rowCount: productsData?.length,
+  });
+  useNavPerfQueryWatch("todays-sales", PERF_PATH, {
+    isLoading: todaysSalesLoading,
+    isFetching: todaysSalesFetching,
+    rowCount: todaysSales?.length,
+  });
+  useNavPerfQueryWatch("customer-balances", PERF_PATH, {
+    isLoading: balancesLoading,
+    isFetching: balancesFetching,
+  });
 
   // Fetch credit balance and pending sale return credit notes when customer changes
   useEffect(() => {

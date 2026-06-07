@@ -28,6 +28,8 @@ import { AppBootSplash } from "@/components/AppBootSplash";
 import { isAppBootRoute } from "@/lib/appBootSplash";
 import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback";
+import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
+import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
 
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazyWithRetry(() => import("./pages/OrganizationManagement"));
@@ -284,6 +286,10 @@ const App = () => {
 
     window.addEventListener("unhandledrejection", handleRejection);
     return () => window.removeEventListener("unhandledrejection", handleRejection);
+  }, []);
+
+  useEffect(() => {
+    initNavigationPerfDiagnostics();
   }, []);
 
   const [queryClient] = useState(() => new QueryClient({
@@ -1489,6 +1495,7 @@ const App = () => {
           </OrganizationProvider>
         </AuthProvider>
       </BrowserRouter>
+      <NavigationPerfPanel />
     </TooltipProvider>
     </QueryClientProvider>
     </ThemeProvider>
