@@ -74,15 +74,19 @@ export const THERMAL_RECEIPT_ROLL_HEIGHT_MM = 5000;
  */
 export const THERMAL_RECEIPT_BROWSER_PAGE_HEIGHT_MM = 210;
 
-/** @page size for thermal roll — one continuous page (Electron, QZ, browser). */
+/** @page size for thermal roll — tall continuous page (Electron / QZ silent print only). */
 export function thermalReceiptRollPageSize(paper: PosThermalPaper): string {
   const width = paper === '58mm' ? '58mm' : '80mm';
   return `${width} ${THERMAL_RECEIPT_ROLL_HEIGHT_MM}mm`;
 }
 
-/** Same as roll size — 210mm page height repeatedly caused cut/gap on long POS receipts. */
+/**
+ * @page size for browser print (react-to-print / Ctrl+P).
+ * Use `auto` height so preview fits receipt content — 5000mm roll height shows as a blank strip on Windows thermal drivers.
+ */
 export function thermalReceiptBrowserPageSize(paper: PosThermalPaper): string {
-  return thermalReceiptRollPageSize(paper);
+  const width = paper === '58mm' ? '58mm' : '80mm';
+  return `${width} auto`;
 }
 
 /** Thermal roll width for POS (Settings → Direct print POS paper, default 80mm). */

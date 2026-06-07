@@ -583,6 +583,16 @@
   
   .invoice-print,
   .invoice-print *,
+  .invoice-print-source-screen,
+  .invoice-print-source-screen *,
+  .invoice-print-source,
+  .invoice-print-source *,
+  .thermal-print-80mm,
+  .thermal-print-80mm *,
+  .thermal-receipt-container,
+  .thermal-receipt-container *,
+  .modern-thermal-receipt,
+  .modern-thermal-receipt *,
   .sale-order-print-container,
   .sale-order-print-container *,
   .sale-order-print,
@@ -756,6 +766,14 @@
     min-height: auto !important;
     max-width: 80mm !important;
     padding: 2mm !important;
+  }
+
+  .thermal-paper-58 .invoice-print.invoice-format-thermal-receipt,
+  .invoice-print-source.thermal-paper-58 .invoice-print.invoice-format-thermal-receipt,
+  .invoice-print-source.thermal-paper-58 .modern-thermal-receipt,
+  .thermal-paper-58 .modern-thermal-receipt {
+    width: 48mm !important;
+    max-width: 48mm !important;
   }
 
   /* Prevent page breaks inside invoice (A4/A5 only — not thermal roll) */

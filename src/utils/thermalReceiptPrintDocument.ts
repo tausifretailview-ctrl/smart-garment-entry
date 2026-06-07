@@ -6,6 +6,7 @@
 import {
   type PosThermalPaper,
   thermalReceiptBrowserPageSize,
+  thermalReceiptRollPageSize,
 } from '@/utils/invoicePrintFormat';
 
 /** Microns: tall roll height so Electron/Chromium do not paginate at A4 (~297mm). */
@@ -82,10 +83,20 @@ export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
   }
 `;
 
-export function buildThermalReceiptPrintCss(paper: PosThermalPaper = '80mm'): string {
+export type BuildThermalReceiptPrintCssOptions = {
+  /** Electron/QZ silent print — use tall roll @page to avoid mid-receipt cuts. */
+  forElectronRoll?: boolean;
+};
+
+export function buildThermalReceiptPrintCss(
+  paper: PosThermalPaper = '80mm',
+  options?: BuildThermalReceiptPrintCssOptions,
+): string {
   const bodyWidth = paper === '58mm' ? '58mm' : '80mm';
   const contentWidth = paper === '58mm' ? '48mm' : '72mm';
-  const browserPageSize = thermalReceiptBrowserPageSize(paper);
+  const browserPageSize = options?.forElectronRoll
+    ? thermalReceiptRollPageSize(paper)
+    : thermalReceiptBrowserPageSize(paper);
 
   return `
   @page {
@@ -183,7 +194,7 @@ export function wrapReceiptHtmlForElectron(html: string): string {
   if (html.includes(marker)) return html;
 
   const paper = detectThermalPaperFromHtml(html);
-  const styleBlock = `<style id="thermal-electron-print">${buildThermalReceiptPrintCss(paper)}</style>`;
+  const styleBlock = `<style id="thermal-electron-print">${buildThermalReceiptPrintCss(paper, { forElectronRoll: true })}</style>`;
 
   if (/<html[\s>]/i.test(html)) {
     if (/<head[\s>]/i.test(html)) {

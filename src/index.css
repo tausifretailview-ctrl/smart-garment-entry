@@ -720,7 +720,7 @@ All colors MUST be HSL.
     print-color-adjust: exact !important;
   }
 
-  /* Thermal roll — narrow page; `auto` height splits receipts into horizontal strips */
+  /* Thermal roll — narrow page width; @page height uses `auto` (see thermalReceiptBrowserPageSize) */
   html:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
   html:has([data-print-format="thermal"]),
   body:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
@@ -1007,7 +1007,12 @@ All colors MUST be HSL.
 }
 
 @page thermal {
-  size: 80mm 5000mm;
+  size: 80mm auto;
+  margin: 0;
+}
+
+@page thermal-58 {
+  size: 58mm auto;
   margin: 0;
 }
 
