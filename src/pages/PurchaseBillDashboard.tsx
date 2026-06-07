@@ -263,7 +263,7 @@ const PurchaseBillDashboard = () => {
             toast({ title: "Bill Cancelled", description: "Cancelled bills cannot be edited.", variant: "destructive" });
             return;
           }
-          navigate(`/purchase-entry/${bill.id}`);
+          navigate("/purchase-entry", { state: { editBillId: bill.id } });
         },
         disabled: bill.is_cancelled,
       },
@@ -1872,7 +1872,7 @@ const PurchaseBillDashboard = () => {
               : "bg-rose-50 text-rose-700 border-rose-200";
             const statusLabel = isPaid ? "Paid" : isPartial ? "Partial" : "Unpaid";
             return (
-              <div key={bill.id} onClick={() => !bill.is_cancelled && navigate(`/purchase-entry/${bill.id}`)}
+              <div key={bill.id} onClick={() => !bill.is_cancelled && navigate("/purchase-entry", { state: { editBillId: bill.id } })}
                 className={cn("bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.99] transition-all touch-manipulation", bill.is_cancelled && "opacity-60")}>
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
