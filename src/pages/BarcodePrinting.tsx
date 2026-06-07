@@ -3803,9 +3803,12 @@ export default function BarcodePrinting() {
 
       const originalTitle = document.title;
       document.title = " ";
+      setPrintPageActive(true);
       setTimeout(() => {
         window.print();
         document.title = originalTitle;
+        // Fallback in case `afterprint` does not fire (some browsers/dialogs).
+        setTimeout(() => setPrintPageActive(false), 1500);
       }, 200);
       return;
     }
@@ -3918,10 +3921,12 @@ export default function BarcodePrinting() {
     setTestPrintActive(true);
     const originalTitle = document.title;
     document.title = ' ';
+    setPrintPageActive(true);
     setTimeout(() => {
       window.print();
       document.title = originalTitle;
       setTestPrintActive(false);
+      setTimeout(() => setPrintPageActive(false), 1500);
     }, 300);
   };
 
