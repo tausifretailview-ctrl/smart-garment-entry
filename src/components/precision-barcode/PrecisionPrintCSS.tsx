@@ -5,12 +5,25 @@ interface PrecisionPrintCSSProps {
   labelHeight: number;
   mode: "thermal" | "a4";
   thermalCols?: number;
+  /**
+   * When false (default) the `<style>` element is NOT injected into
+   * `document.head`. This prevents the precision `@page` rule and the
+   * `body * { visibility: hidden }` rule from leaking into unrelated
+   * print jobs (e.g. thermal receipts from POS) while this component is
+   * mounted on a backgrounded tab.
+   */
+  active?: boolean;
 }
 
-export function PrecisionPrintCSS({ labelWidth, labelHeight, mode, thermalCols = 1 }: PrecisionPrintCSSProps) {
+export function PrecisionPrintCSS({ labelWidth, labelHeight, mode, thermalCols = 1, active = false }: PrecisionPrintCSSProps) {
   const isThermal2Up = mode === "thermal" && thermalCols > 1;
   useEffect(() => {
     const styleId = "precision-print-css";
+    if (!active) {
+      const existing = document.getElementById(styleId);
+      if (existing) existing.remove();
+      return;
+    }
     let style = document.getElementById(styleId) as HTMLStyleElement | null;
     if (!style) {
       style = document.createElement("style");
@@ -96,7 +109,7 @@ export function PrecisionPrintCSS({ labelWidth, labelHeight, mode, thermalCols =
     return () => {
       style?.remove();
     };
-  }, [labelWidth, labelHeight, mode, thermalCols, isThermal2Up]);
+  }, [labelWidth, labelHeight, mode, thermalCols, isThermal2Up, active]);
 
   return null;
 }

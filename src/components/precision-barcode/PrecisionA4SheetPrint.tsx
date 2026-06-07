@@ -20,6 +20,8 @@ interface PrecisionA4SheetPrintProps {
   config?: LabelDesignConfig;
   /** 1-based slot on the first page to begin printing (default 1). */
   startPosition?: number;
+  /** Gate the global `<style>` injection so it only happens during an active print job. */
+  active?: boolean;
 }
 
 export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4SheetPrintProps>(
@@ -36,6 +38,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
       columnGap = 0,
       config,
       startPosition = 1,
+      active = false,
     },
     ref,
   ) => {
@@ -68,7 +71,7 @@ export const PrecisionA4SheetPrint = forwardRef<HTMLDivElement, PrecisionA4Sheet
 
     return (
       <>
-        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="a4" />
+        <PrecisionPrintCSS labelWidth={labelWidth} labelHeight={labelHeight} mode="a4" active={active} />
         <div ref={ref} className="precision-print-area">
           {pages.map((pageItems, pageIdx) => (
             <div
