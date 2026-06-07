@@ -258,14 +258,9 @@ function NonOrgLegacySaleReturnDashboardRedirect() {
 })();
 
 const App = () => {
-  // Clear chunk reload counter only after the app has loaded successfully for 5s.
-  // This prevents infinite reload loops when a chunk is persistently broken:
-  // if the app crashes before 5s the guard remains and stops a second reload.
+  // Auto-reload is fully disabled — clear any stale counter from older builds.
   useEffect(() => {
-    const clearTimer = setTimeout(() => {
-      sessionStorage.removeItem("chunk_reload_count");
-    }, 5000);
-    return () => clearTimeout(clearTimer);
+    sessionStorage.removeItem("chunk_reload_count");
   }, []);
 
   // Recover from transient chunk load failures (common on first navigation after login in desktop WebView).

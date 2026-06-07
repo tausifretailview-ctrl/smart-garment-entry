@@ -1,48 +1,50 @@
-# ELLA NOOR — Outstanding repair after CN over-application audit
+# Stop unwanted auto-reload (web + Windows app)
 
-The CSV lists 35 receipt vouchers on sales where a `credit_note_adjustment` was applied even though either no credit note existed (`REVERSE_NO_SOURCE`), an unprocessed sale-return pool should have been the source (`BACKFILL_FROM_PENDING_SR`), or CN issuance and application don't line up cleanly (`REVIEW_MIXED`). Net effect: customer outstanding is understated by **₹2,16,400** across 28 customers.
+## What the user is seeing
+The Windows app (and sometimes the web app) shows the blue spinner and then "auto-refreshes" by itself — usually after the machine has been idle / asleep, or right after first open. The runtime log confirms it: `Module load timed out` is being thrown, a React error boundary catches it, and that boundary calls `window.location.reload()`. After the reload the same lazy chunk may time out again, so it looks like the app is constantly refreshing on its own.
 
-Goal: bring each customer's `get_customer_true_outstanding` back to the economically correct value without breaking sale-level paid_amount/payment_status integrity.
+Most of the auto-reload code has already been disabled (Electron `main.cjs`, `App.tsx` unhandled-rejection handler, `chunkLoadRetry.ts`, `TabPaneErrorBoundary`). **Two boundaries still auto-reload silently** — those are the remaining cause.
 
-## Bucket plan
+## Root cause (still active)
 
-```text
-Bucket                       Rows  Σ over-applied   Action
-REVERSE_NO_SOURCE              28      1,57,600     Soft-delete voucher_entries, recompute sales
-BACKFILL_FROM_PENDING_SR        4       72,250      Issue CN from the pending SR, re-link voucher to that CN
-REVIEW_MIXED (Sharmin Mewara)   3       13,450      Manual: 1 case-by-case review before any write
-```
+1. `src/components/RootErrorBoundary.tsx` — `componentDidCatch` calls `window.location.reload()` when the error is a chunk-load / "Module load timed out" error (guarded by `chunk_reload_count < 1`, but `App.tsx` clears that counter after 5 s, so it triggers again on the next idle wake).
+2. `src/components/ErrorBoundary.tsx` — same pattern in `componentDidCatch`. This is the top-level boundary wrapping `<App />` in `main.tsx`, so it fires before anything else can catch the error.
 
-## Steps (all run as migrations / supabase--insert, ELLA NOOR org only)
+Result: any transient dynamic-import failure (sleep / wake, brief network blip, CDN hiccup) → boundary catches → silent full reload.
 
-1. **Snapshot** — copy the 35 affected rows into `audit.ella_noor_cn_repair_20260606` (voucher_entries, sales.paid_amount/payment_status, credit_notes.used_amount).
-2. **REVERSE_NO_SOURCE (28 rows)**
-  - `UPDATE voucher_entries SET deleted_at = now(), deleted_reason = 'cn_over_apply_repair_20260606' WHERE id IN (…28 ids…)`.
-  - For each sale_id, call `compute_sale_settlement(sale_id, org_id)` to refresh `paid_amount` and `payment_status` (the existing trigger fires on voucher delete; we'll call it explicitly to be safe).
-3. **BACKFILL_FROM_PENDING_SR (4 rows: Shumama ×2, FAIZA, Parina)**
-  - For each row, locate the oldest pending sale_return with sufficient `credit_amount` on the same customer.
-  - Insert a `credit_notes` row (status='used', used_amount=cn_applied_amt, linked sale_return_id).
-  - `UPDATE voucher_entries SET source_credit_note_id = <new cn id>` so the receipt is now backed by a real CN.
-  - Mark the source `sale_returns.credit_status='adjusted'` and update `credit_notes.used_amount`.
-  - Recompute the sale.
-4. **REVIEW_MIXED (Sharmin Mewara — 3 invoices, ₹24,750 applied vs ₹11,300 issued = ₹13,450 excess)**
-  - Manually decide which receipt(s) to partially/fully reverse. Default proposal: keep the earliest two (INV/231 ₹11,500 and INV/261 ₹1,950 = ₹13,450) backed by the ₹11,300 CN + ₹2,150 partial; reverse INV/397 ₹11,300 entirely. Needs confirmation before write.
-5. **Customer recompute** — `SELECT public.reconcile_customer_balances('<ella_noor_org_id>')` then run `scripts/audit-balance-formula-parity.sql` — expect zero drift > ₹1.
-6. **Verification report** — per-customer before/after table written to `/mnt/documents/ella_noor_outstanding_after_repair.csv` (opening, gross, receipts, CN applied, sale_returns, calculated_balance, delta vs pre-repair).
+## Change
 
-## Safety
+Make both boundaries behave like the rest of the app: **never auto-reload**, just render the existing recovery UI with manual "Refresh" / "Try Again" buttons. The user stays on the current page with their data intact and decides whether to refresh.
 
-- All writes scoped by `organization_id = ELLA NOOR` and the explicit voucher_id / sale_id lists from the CSV.
-- Soft-delete only (no hard delete) — fully reversible from the snapshot table.
-- Migration runs in a single transaction per bucket so a failure rolls back cleanly.
-- Stock is not touched (CN-adjust receipts don't move stock).
+### Files to edit
 
-## Clarifying question before I write the migration
+- `src/components/RootErrorBoundary.tsx`
+  - In `componentDidCatch`, remove the `if (isChunkLoadError(error)) { … window.location.reload() }` block. Keep the `console.error` so we can still see crashes.
+  - Keep the recovery UI (`Refresh Page`, `Try Again`, `Go to Dashboard`) — those are user-initiated and stay.
 
-For the `REVIEW_MIXED` Sharmin Mewara case (₹13,450 to reverse out of three invoices), should I:
+- `src/components/ErrorBoundary.tsx`
+  - In `componentDidCatch`, remove the `isChunkLoadError` auto-reload branch. Just log the error.
+  - Keep all existing buttons (`Try Again`, `Clear Cache & Reload`, `Go to Home`) — manual only.
 
-- **A)** Use my default proposal above (reverse INV/26-27/397 RCP-00714 ₹11,300 in full, leave the other two), then re-check
-- **B)** Reverse proportionally across all three receipts
-- **C)** Skip Sharmin in this batch and handle separately
+- `src/App.tsx`
+  - Remove the `setTimeout(() => sessionStorage.removeItem("chunk_reload_count"), 5000)` effect — with no auto-reload code remaining, the counter is dead and the timer just adds noise. Replace with a one-time cleanup on mount: `sessionStorage.removeItem("chunk_reload_count")`.
 
-Reply with A / B / C and I'll generate the migration + verification CSV. Update with option A 
+### What stays the same (intentionally)
+
+- Electron `main.cjs` — already no auto-reload; the "Unresponsive" dialog still asks the user before reloading. ✅
+- `chunkLoadRetry.ts` — still retries the dynamic import 3× with backoff before surfacing the error to the boundary. ✅
+- All `window.location.reload()` calls behind user buttons (`OrgAuth`, `OrganizationSetup`, `ProductDashboard` after stock import, `useClearCache`, `MobileErrorBoundary` "Clear cache & retry", `SalesmanLayout`, etc.) — these only run when the user explicitly clicks them. ✅
+- Suspense fallbacks and `TabPaneErrorBoundary` — already manual. ✅
+
+## Expected behaviour after the change
+
+- Idle wake / brief network blip → at worst the user sees the "Something went wrong / This tab failed to load" panel with a **Retry** and **Refresh** button. No silent reload. No lost form / cart / bill state.
+- A genuinely broken deploy → user still has a one-click Refresh, plus the existing "Clear Cache & Reload" path.
+- No database, RLS, or backend changes. UI-only.
+
+## Verification
+
+1. Open `/demo/accounts` in the preview, leave the tab inactive for several minutes, come back — page should remain as-is, no spinner / reload.
+2. In DevTools console, run `throw new Error("Module load timed out")` inside a child component (or temporarily simulate by adding `throw` in a lazy page) — should render the error panel, not reload.
+3. Click "Refresh Page" in the panel → reloads as expected.
+4. `rg -n "location\.reload" src/components/RootErrorBoundary.tsx src/components/ErrorBoundary.tsx` should show only the button `onClick={() => window.location.reload()}` handlers, no `componentDidCatch` reloads.
