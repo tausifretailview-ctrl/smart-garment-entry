@@ -539,7 +539,6 @@ const ProductDashboard = () => {
     isLoading: catalogLoading,
     isFetching: catalogFetching,
     error: catalogError,
-    refetch: refetchCatalog,
   } = useQuery({
     queryKey: [
       "product-catalog",
