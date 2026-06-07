@@ -1,8 +1,9 @@
 import { NavLink as RouterNavLink, NavLinkProps, useParams } from "react-router-dom";
-import { forwardRef, useMemo } from "react";
+import { forwardRef, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getStoredOrgSlug, isValidOrgSlug, normalizeOrgSlug } from "@/lib/orgSlug";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
   className?: string;
   activeClassName?: string;
@@ -10,7 +11,7 @@ interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
 }
 
 const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
-  ({ className, activeClassName, pendingClassName, to, ...props }, ref) => {
+  ({ className, activeClassName, pendingClassName, to, onMouseEnter, onFocus, ...props }, ref) => {
     const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
     const { currentOrganization } = useOrganization();
     
@@ -60,10 +61,33 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
       return `/${effectiveOrgSlug}/${cleanPath}`;
     }, [to, orgSlug]);
 
+    const prefetchRouteChunk = useCallback(() => {
+      const path = typeof to === "string" ? to : to.pathname || "";
+      if (
+        path.startsWith("/auth") ||
+        path.startsWith("/platform-admin") ||
+        path.startsWith("/invoice/view") ||
+        path.startsWith("/organization-setup") ||
+        path.startsWith("/pay")
+      ) {
+        return;
+      }
+      const cleanPath = path === "/" || path === "" ? "" : path.replace(/^\/+/, "");
+      prefetchTabPage(cleanPath);
+    }, [to]);
+
     return (
       <RouterNavLink
         ref={ref}
         to={orgScopedTo}
+        onMouseEnter={(e) => {
+          prefetchRouteChunk();
+          onMouseEnter?.(e);
+        }}
+        onFocus={(e) => {
+          prefetchRouteChunk();
+          onFocus?.(e);
+        }}
         className={({ isActive, isPending }) =>
           cn(className, isActive && activeClassName, isPending && pendingClassName)
         }
