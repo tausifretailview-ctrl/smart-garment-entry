@@ -110,3 +110,12 @@ After Phase 1, re-run the test script and expect:
 | Products/Purchase first open (web) | Lower `chunk` ms after idle prefetch (~12s post-login) |
 | POS open | No `customer-balances` fetch until customer dropdown opens |
 | POS alt-tab | No `todays-sales` / `customer-balances` refetch on focus |
+
+## Phase 2 fixes (verify with NavPerf)
+
+| Change | Expected |
+|--------|----------|
+| Product Dashboard → React Query | Tab return shows previous rows instantly (`placeholderData`) |
+| POS Dashboard → React Query | `pos-dashboard-sales` cached 30s; invalidate on POS save event |
+| Purchase summary RPC | `purchase-summary` fetch &lt;200ms without search filter |
+| Sidebar hover prefetch | First click after hover shows lower `chunk` ms |

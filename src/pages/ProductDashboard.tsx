@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -10,7 +12,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
-import { useNavPerfManualFetch, useNavPerfPage } from "@/hooks/useNavigationPerf";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import * as XLSX from "xlsx";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
@@ -87,9 +89,16 @@ interface DashboardStats {
 
 const PERF_PATH = "products";
 
+const EMPTY_DASHBOARD_STATS: DashboardStats = {
+  total_items: 0,
+  total_stock_qty: 0,
+  purchase_value: 0,
+  sale_value: 0,
+};
+
 const ProductDashboard = () => {
   useNavPerfPage(PERF_PATH);
-  const navPerf = useNavPerfManualFetch();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
@@ -97,12 +106,6 @@ const ProductDashboard = () => {
   const canDelete = hasSpecialPermission('delete_records');
   const { data: orgSettings } = useSettings();
   const lowStockThreshold = Number((orgSettings as any)?.product_settings?.low_stock_threshold) || 10;
-  const [productRows, setProductRows] = useState<ProductRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({ total_items: 0, total_stock_qty: 0, purchase_value: 0, sale_value: 0 });
-  const [totalCount, setTotalCount] = useState(0);
-  const [isRefetching, setIsRefetching] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -168,10 +171,7 @@ const ProductDashboard = () => {
     },
   );
   
-  // Data for filter options
-  const [sizeGroups, setSizeGroups] = useState<Array<{ id: string; group_name: string }>>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [productTypes, setProductTypes] = useState<string[]>([]);
+  // Data for filter options (size groups loaded via query below)
 
   // Selection and pagination states
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -191,7 +191,8 @@ const ProductDashboard = () => {
   // Product history dialog states
   const [showProductHistory, setShowProductHistory] = useState(false);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<{id: string; name: string} | null>(null);
-  const [showMrp, setShowMrp] = useState(false);
+  const showMrp = (orgSettings as { purchase_settings?: { show_mrp?: boolean } } | undefined)
+    ?.purchase_settings?.show_mrp === true;
 
   // Product image gallery states
   const [imageViewerOpen, setImageViewerOpen] = useState(false);
@@ -416,30 +417,6 @@ const ProductDashboard = () => {
   }, [searchQuery]);
 
   useEffect(() => {
-    fetchSizeGroups();
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      if (!currentOrganization?.id) return;
-      const { data, error } = await supabase
-        .from("settings")
-        .select("purchase_settings")
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data?.purchase_settings && typeof data.purchase_settings === 'object') {
-        const purchaseSettings = data.purchase_settings as any;
-        setShowMrp(purchaseSettings.show_mrp || false);
-      }
-    } catch (error) {
-      console.error("Failed to load settings:", error);
-    }
-  };
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
 
@@ -448,6 +425,7 @@ const ProductDashboard = () => {
 
   const fetchVariantsForProduct = useCallback(async (productId: string) => {
     if (variantCache[productId]) return variantCache[productId];
+    if (!currentOrganization?.id) return [];
     const { data, error } = await supabase
       .from("product_variants")
       .select("id, size, color, barcode, pur_price, sale_price, mrp, stock_qty")
@@ -462,22 +440,30 @@ const ProductDashboard = () => {
     }));
     setVariantCache(prev => ({ ...prev, [productId]: variants }));
     return variants;
-  }, [variantCache]);
+  }, [variantCache, currentOrganization?.id]);
 
-  // Request sequencing to prevent stale responses
-  const fetchSeqRef = useRef(0);
+  const rpcFilterKey = useMemo(
+    () => ({
+      debouncedSearch,
+      selectedCategory,
+      selectedProductType,
+      selectedSizeGroup,
+      selectedStockLevel,
+      minPrice,
+      maxPrice,
+    }),
+    [
+      debouncedSearch,
+      selectedCategory,
+      selectedProductType,
+      selectedSizeGroup,
+      selectedStockLevel,
+      minPrice,
+      maxPrice,
+    ],
+  );
 
-  // Fetch only current page of products with server-side filters via RPC
-  useEffect(() => {
-    fetchProducts();
-  }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice]);
-
-  // Fetch stats separately (lightweight)
-  useEffect(() => {
-    fetchStats();
-  }, [currentOrganization?.id, debouncedSearch, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice]);
-
-  const getRpcParams = () => {
+  const buildRpcParams = useCallback(() => {
     const term = debouncedSearch.trim() || undefined;
     return {
       p_org_id: currentOrganization!.id,
@@ -489,49 +475,83 @@ const ProductDashboard = () => {
       p_min_price: minPrice ? parseFloat(minPrice) : null,
       p_max_price: maxPrice ? parseFloat(maxPrice) : null,
     };
-  };
+  }, [
+    currentOrganization?.id,
+    debouncedSearch,
+    selectedCategory,
+    selectedProductType,
+    selectedSizeGroup,
+    selectedStockLevel,
+    minPrice,
+    maxPrice,
+  ]);
 
-  const fetchStats = async () => {
-    if (!currentOrganization?.id) return;
-    navPerf.start("product-stats", PERF_PATH);
-    setStatsLoading(true);
-    try {
-      const { data, error } = await supabase.rpc("get_product_dashboard_stats", getRpcParams());
+  const { data: sizeGroups = [] } = useQuery({
+    queryKey: ["product-size-groups"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("size_groups")
+        .select("id, group_name")
+        .order("group_name");
       if (error) throw error;
-      if (data) {
-        const s = data as any;
-        setDashboardStats({
-          total_items: s.total_items || 0,
-          total_stock_qty: s.total_stock_qty || 0,
-          purchase_value: s.purchase_value || 0,
-          sale_value: s.sale_value || 0,
-        });
-      }
-    } catch (error) {
-      console.error("Stats fetch error:", error);
-    } finally {
-      navPerf.end("product-stats", PERF_PATH);
-      setStatsLoading(false);
-    }
-  };
+      return data || [];
+    },
+    staleTime: STALE_REFERENCE,
+  });
 
-  const fetchProducts = async (retryCount = 0) => {
-    if (!currentOrganization?.id) return;
-    const seq = ++fetchSeqRef.current;
-    if (productRows.length === 0) {
-      setLoading(true);
-      navPerf.loadingUi(PERF_PATH, "table-skeleton");
-    } else {
-      setIsRefetching(true);
-    }
-    navPerf.start("product-catalog", PERF_PATH);
-    let fetchedRowCount = 0;
-    try {
-      const params = { ...getRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
+  const { data: filterOptions } = useQuery({
+    queryKey: ["product-filter-options", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { categories: [] as string[], productTypes: [] as string[] };
+      const [catRes, typeRes] = await Promise.all([
+        supabase
+          .from("products")
+          .select("category")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .not("category", "is", null),
+        supabase
+          .from("products")
+          .select("product_type")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .not("product_type", "is", null),
+      ]);
+      if (catRes.error) throw catRes.error;
+      if (typeRes.error) throw typeRes.error;
+      const categories = Array.from(
+        new Set((catRes.data || []).map((p: { category: string }) => p.category).filter(Boolean)),
+      ).sort() as string[];
+      const productTypes = Array.from(
+        new Set((typeRes.data || []).map((p: { product_type: string }) => p.product_type).filter(Boolean)),
+      ).sort() as string[];
+      return { categories, productTypes };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: STALE_REFERENCE,
+  });
+
+  const categories = filterOptions?.categories ?? [];
+  const productTypes = filterOptions?.productTypes ?? [];
+
+  const {
+    data: catalogData,
+    isLoading: catalogLoading,
+    isFetching: catalogFetching,
+    error: catalogError,
+  } = useQuery({
+    queryKey: [
+      "product-catalog",
+      currentOrganization?.id,
+      currentPage,
+      itemsPerPage,
+      rpcFilterKey,
+    ],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { rows: [] as ProductRow[], totalCount: 0 };
+      const params = { ...buildRpcParams(), p_page: currentPage, p_page_size: itemsPerPage };
       const { data, error } = await supabase.rpc("get_product_catalog_page", params);
       if (error) throw error;
-      // Stale response guard — ignore if a newer request was fired
-      if (seq !== fetchSeqRef.current) return;
 
       const rows: ProductRow[] = (data || []).map((p: any) => ({
         product_id: p.product_id,
@@ -552,92 +572,99 @@ const ProductDashboard = () => {
         variant_count: Number(p.variant_count) || 0,
       }));
 
-      // Get total_count from first row (all rows carry same total_count)
+      let totalCount = 0;
       if (data && data.length > 0) {
-        setTotalCount(Number((data as any)[0].total_count) || 0);
+        totalCount = Number((data as any)[0].total_count) || 0;
       } else if (currentPage === 1) {
-        setTotalCount(0);
+        totalCount = 0;
       }
 
-      // Fetch user_cancelled_at flags for the visible page's products
       if (rows.length > 0) {
-        const ids = rows.map(r => r.product_id);
+        const ids = rows.map((r) => r.product_id);
         const { data: cancelledData } = await supabase
           .from("products")
           .select("id, user_cancelled_at")
           .in("id", ids)
           .not("user_cancelled_at", "is", null);
         const cancelledMap = new Map<string, string>(
-          (cancelledData || []).map((p: any) => [p.id, p.user_cancelled_at])
+          (cancelledData || []).map((p: any) => [p.id, p.user_cancelled_at]),
         );
-        rows.forEach(r => { r.user_cancelled_at = cancelledMap.get(r.product_id) || null; });
+        rows.forEach((r) => {
+          r.user_cancelled_at = cancelledMap.get(r.product_id) || null;
+        });
       }
 
-      fetchedRowCount = rows.length;
-      setProductRows(rows);
-      setFetchError(null);
-      
-      // Extract unique categories/types for filters (only once)
-      if (categories.length === 0) {
-        const { data: catData } = await supabase
-          .from("products")
-          .select("category")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .not("category", "is", null);
-        const uniqueCategories = Array.from(new Set((catData || []).map((p: any) => p.category).filter(Boolean))).sort();
-        if (seq === fetchSeqRef.current) setCategories(uniqueCategories as string[]);
-      }
+      return { rows, totalCount };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: STALE_REFERENCE,
+    placeholderData: keepPreviousData,
+    retry: 1,
+  });
 
-      if (productTypes.length === 0) {
-        const { data: typeData } = await supabase
-          .from("products")
-          .select("product_type")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .not("product_type", "is", null);
-        const uniqueTypes = Array.from(new Set((typeData || []).map((p: any) => p.product_type).filter(Boolean))).sort();
-        if (seq === fetchSeqRef.current) setProductTypes(uniqueTypes as string[]);
-      }
-    } catch (error: any) {
-      // Ignore errors from stale requests
-      if (seq !== fetchSeqRef.current) return;
-      console.error("ProductDashboard fetch error:", error);
-      if (retryCount < 1) {
-        setTimeout(() => fetchProducts(retryCount + 1), 1000);
-        return;
-      }
-      setFetchError(error.message || "Failed to load products");
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load products",
-        variant: "destructive",
-      });
-    } finally {
-      if (seq === fetchSeqRef.current) {
-        navPerf.end("product-catalog", PERF_PATH, { rowCount: fetchedRowCount });
-        setLoading(false);
-        setIsRefetching(false);
-      }
-    }
-  };
-
-  // Alias for backward compatibility with context menu etc.
-  const fetchProductVariants = fetchProducts;
-
-  const fetchSizeGroups = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("size_groups")
-        .select("id, group_name")
-        .order("group_name");
-
+  const {
+    data: dashboardStats = EMPTY_DASHBOARD_STATS,
+    isLoading: statsLoading,
+    isFetching: statsFetching,
+  } = useQuery({
+    queryKey: ["product-dashboard-stats", currentOrganization?.id, rpcFilterKey],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return EMPTY_DASHBOARD_STATS;
+      const { data, error } = await supabase.rpc("get_product_dashboard_stats", buildRpcParams());
       if (error) throw error;
-      setSizeGroups(data || []);
-    } catch (error: any) {
-      console.error("Failed to load size groups:", error);
+      const s = (data || {}) as Record<string, number>;
+      return {
+        total_items: s.total_items || 0,
+        total_stock_qty: s.total_stock_qty || 0,
+        purchase_value: s.purchase_value || 0,
+        sale_value: s.sale_value || 0,
+      };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: STALE_REFERENCE,
+    placeholderData: keepPreviousData,
+  });
+
+  const productRows = catalogData?.rows ?? [];
+  const totalCount = catalogData?.totalCount ?? 0;
+  const loading = catalogLoading && productRows.length === 0;
+  const isRefetching = catalogFetching && productRows.length > 0;
+
+  useNavPerfQueryWatch("product-catalog", PERF_PATH, {
+    isLoading: catalogLoading,
+    isFetching: catalogFetching,
+    rowCount: productRows.length,
+    blockedUi: loading,
+  });
+  useNavPerfQueryWatch("product-stats", PERF_PATH, {
+    isLoading: statsLoading,
+    isFetching: statsFetching,
+  });
+
+  useEffect(() => {
+    if (!catalogError) {
+      setFetchError(null);
+      return;
     }
-  };
+    const message =
+      catalogError instanceof Error ? catalogError.message : "Failed to load products";
+    setFetchError(message);
+    toast({
+      title: "Error",
+      description: message,
+      variant: "destructive",
+    });
+  }, [catalogError, toast]);
+
+  const refreshProductDashboard = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["product-catalog", currentOrganization?.id] }),
+      queryClient.invalidateQueries({ queryKey: ["product-dashboard-stats", currentOrganization?.id] }),
+      queryClient.invalidateQueries({ queryKey: ["product-filter-options", currentOrganization?.id] }),
+    ]);
+  }, [queryClient, currentOrganization?.id]);
+
+  const fetchProductVariants = refreshProductDashboard;
 
   const toggleExpanded = async (productId: string) => {
     const shouldExpand = !expandedRows.has(productId);

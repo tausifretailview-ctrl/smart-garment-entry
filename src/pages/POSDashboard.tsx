@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
-import { useNavPerfManualFetch, useNavPerfPage } from "@/hooks/useNavigationPerf";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
+import { fetchPosDashboardSales } from "@/utils/posDashboardSales";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -177,7 +178,6 @@ const PERF_PATH = "pos-dashboard";
 
 const POSDashboard = () => {
   useNavPerfPage(PERF_PATH);
-  const navPerf = useNavPerfManualFetch();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -198,9 +198,6 @@ const POSDashboard = () => {
   const { hasSpecialPermission } = useUserPermissions();
   const mobileERP = useMobileERP();
   const showFinancerOnExpand = mobileERP.enabled && mobileERP.financer_billing;
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Default to today's date
   const today = format(new Date(), 'yyyy-MM-dd');
@@ -253,38 +250,10 @@ const POSDashboard = () => {
     }
   }, [orgUsers, user?.id, organizationRole]);
 
-  const fetchFilterSignature = useMemo(() => {
-    if (!currentOrganization?.id) return "";
-    return [
-      currentOrganization.id,
-      startDate,
-      endDate,
-      paymentMethodFilter,
-      paymentStatusFilter.join(","),
-      saleTypeFilter,
-      refundFilter,
-      creditNoteFilter,
-      userFilter,
-      cancelFilter,
-    ].join("|");
-  }, [
-    currentOrganization?.id,
-    startDate,
-    endDate,
-    paymentMethodFilter,
-    paymentStatusFilter,
-    saleTypeFilter,
-    refundFilter,
-    creditNoteFilter,
-    userFilter,
-    cancelFilter,
-  ]);
-
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleFinancerDetails, setSaleFinancerDetails] = useState<Record<string, SaleFinancerDetailsDisplay | null>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
-  const [creditNoteUsage, setCreditNoteUsage] = useState<Record<string, { credit_amount: number; used_amount: number; status: string }>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
@@ -358,15 +327,6 @@ const POSDashboard = () => {
 
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
-  const lastFetchedAtRef = useRef(0);
-  const lastFetchKeyRef = useRef("");
-  const lastFetchFilterSigRef = useRef("");
-  const fetchFilterSignatureRef = useRef(fetchFilterSignature);
-  fetchFilterSignatureRef.current = fetchFilterSignature;
-  /** Set when a sale saves while this tab is hidden; cleared on next activation fetch. */
-  const salesRefreshStaleRef = useRef(false);
-  const POS_FETCH_TTL_MS = STALE_DASHBOARD_TAB_RETURN;
-
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
@@ -512,6 +472,60 @@ const POSDashboard = () => {
     [effectivePosBillFormat, posThermalPaper],
   );
 
+  const {
+    data: salesPayload,
+    isLoading: salesQueryLoading,
+    isFetching: salesQueryFetching,
+    error: salesQueryError,
+    refetch: refetchSales,
+  } = useQuery({
+    queryKey: ["pos-dashboard-sales", currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!currentOrganization?.id) {
+        return { sales: [] as Sale[], creditNoteUsage: {} as Record<string, { credit_amount: number; used_amount: number; status: string }> };
+      }
+      return fetchPosDashboardSales(currentOrganization.id, startDate, endDate);
+    },
+    enabled: !!currentOrganization?.id && routePathSegment === "pos-dashboard",
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
+    refetchOnWindowFocus: false,
+  });
+
+  const sales = salesPayload?.sales ?? [];
+  const creditNoteUsage = salesPayload?.creditNoteUsage ?? {};
+  const loading = salesQueryLoading && sales.length === 0;
+  const isRefreshing = salesQueryFetching && sales.length > 0;
+
+  useNavPerfQueryWatch("pos-sales-list", PERF_PATH, {
+    isLoading: salesQueryLoading,
+    isFetching: salesQueryFetching,
+    rowCount: sales.length,
+    blockedUi: loading,
+  });
+
+  useEffect(() => {
+    if (!salesQueryError) return;
+    const message =
+      salesQueryError instanceof Error ? salesQueryError.message : "Failed to load sales";
+    toast({
+      title: "Error",
+      description: message,
+      variant: "destructive",
+    });
+  }, [salesQueryError, toast]);
+
+  useEffect(() => {
+    const onPosSalesChanged = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ organizationId?: string }>).detail;
+      if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
+      void queryClient.invalidateQueries({
+        queryKey: ["pos-dashboard-sales", currentOrganization?.id],
+      });
+    };
+    window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
+    return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
+  }, [currentOrganization?.id, queryClient]);
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "p") {
@@ -528,171 +542,6 @@ const POSDashboard = () => {
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [expandedSale, sales]);
-
-  const fetchSales = useCallback(async (options?: { force?: boolean }) => {
-    if (!currentOrganization?.id) return;
-    const force = options?.force === true;
-    const fetchKey = `${currentOrganization.id}|${startDate}|${endDate}`;
-    if (
-      !force &&
-      lastFetchKeyRef.current === fetchKey &&
-      sales.length > 0 &&
-      Date.now() - lastFetchedAtRef.current < POS_FETCH_TTL_MS
-    ) {
-      return;
-    }
-
-    const isFirstLoad = sales.length === 0;
-    if (isFirstLoad) {
-      setLoading(true);
-      navPerf.loadingUi(PERF_PATH, "sales-skeleton");
-    } else {
-      setIsRefreshing(true);
-    }
-    navPerf.start("pos-sales-list", PERF_PATH);
-    try {
-      // Use range-based pagination to bypass 1000-row limit
-      const allSales: any[] = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("sales")
-          // Include customer GSTIN so e-invoice actions (Generate) work on POS dashboard.
-          // Without this, `sale.customers?.gst_number` is undefined and the generate option hides.
-          .select("*, customers:customer_id (gst_number)")
-          .eq("organization_id", currentOrganization.id)
-          .in("sale_type", ["pos", "delivery_challan"])
-          .is("deleted_at", null);
-
-        // Server-side date filter for performance — avoids loading entire history.
-        // sale_date is timestamptz, so use full-day bounds to include sales saved
-        // later in the day (otherwise lte("2026-04-25") excludes 2026-04-25 05:35:56).
-        const startIso = localDayStartUtcIso(startDate);
-        const endIso = localDayEndUtcIso(endDate);
-        if (startIso) query = query.gte("sale_date", startIso);
-        if (endIso) query = query.lte("sale_date", endIso);
-
-        const { data, error } = await query
-          .order("sale_date", { ascending: false })
-          .order("id")
-          .range(offset, offset + pageSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allSales.push(...data);
-          offset += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // Fetch credit_notes by sale_id (reverse lookup) to populate CN columns
-      // This handles cases where credit_note_id isn't directly stored on the sale
-      const saleIdsForCN = allSales.map((s: any) => s.id);
-      if (saleIdsForCN.length > 0) {
-        const cnBatchSize = 500;
-        const cnBySaleId: Record<string, any> = {};
-        for (let i = 0; i < saleIdsForCN.length; i += cnBatchSize) {
-          const batch = saleIdsForCN.slice(i, i + cnBatchSize);
-          if (batch.length === 0) continue;
-          const { data: cnData } = await supabase
-            .from('credit_notes')
-            .select('id, sale_id, credit_amount, used_amount, status')
-            .in('sale_id', batch)
-            .is('deleted_at', null);
-          if (cnData) {
-            cnData.forEach((c: any) => {
-              if (c.sale_id) cnBySaleId[c.sale_id] = c;
-            });
-          }
-        }
-        // Patch sales with CN data and build usage map
-        const usageMap: Record<string, { credit_amount: number; used_amount: number; status: string }> = {};
-        allSales.forEach((s: any) => {
-          const cn = cnBySaleId[s.id];
-          if (cn) {
-            s.credit_note_id = s.credit_note_id || cn.id;
-            s.credit_note_amount = s.credit_note_amount || cn.credit_amount || 0;
-            usageMap[cn.id] = {
-              credit_amount: cn.credit_amount || 0,
-              used_amount: cn.used_amount || 0,
-              status: cn.status,
-            };
-          }
-        });
-        // Also include directly linked credit_note_ids
-        const directCnIds = allSales.map((s: any) => s.credit_note_id).filter((id: any) => id && !usageMap[id]);
-        if (directCnIds.length > 0) {
-          const { data: directCN } = await supabase
-            .from('credit_notes')
-            .select('id, credit_amount, used_amount, status')
-            .in('id', directCnIds);
-          directCN?.forEach((c: any) => {
-            usageMap[c.id] = { credit_amount: c.credit_amount || 0, used_amount: c.used_amount || 0, status: c.status };
-          });
-        }
-        setCreditNoteUsage(usageMap);
-      }
-
-      setSales([...allSales]);
-      lastFetchKeyRef.current = fetchKey;
-      lastFetchedAtRef.current = Date.now();
-      lastFetchFilterSigRef.current = fetchFilterSignatureRef.current;
-      navPerf.end("pos-sales-list", PERF_PATH, { rowCount: allSales.length, forced: force });
-      // Line items load on row expand only (fetchSaleItems) — avoids bulk sale_items reads on dashboard open.
-      setLoading(false);
-      setIsRefreshing(false);
-    } catch (error: any) {
-      navPerf.end("pos-sales-list", PERF_PATH, { error: true });
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load sales",
-        variant: "destructive",
-      });
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [currentOrganization?.id, startDate, endDate, toast, sales.length]);
-
-  useEffect(() => {
-    if (routePathSegment !== "pos-dashboard") return;
-    if (salesRefreshStaleRef.current) {
-      salesRefreshStaleRef.current = false;
-      void fetchSales({ force: true });
-      return;
-    }
-
-    const isFirstLoad = lastFetchedAtRef.current === 0;
-    const isStale = Date.now() - lastFetchedAtRef.current > POS_FETCH_TTL_MS;
-    const filtersChanged = lastFetchFilterSigRef.current !== fetchFilterSignature;
-
-    if (isFirstLoad || isStale) {
-      void fetchSales();
-    } else if (filtersChanged) {
-      void fetchSales({ force: true });
-    } else {
-      setLoading(false);
-    }
-  }, [routePathSegment, fetchFilterSignature, fetchSales]);
-
-  useEffect(() => {
-    const onPosSalesChanged = (ev: Event) => {
-      const detail = (ev as CustomEvent<{ organizationId?: string }>).detail;
-      if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
-      if (routePathSegment === "pos-dashboard") {
-        void fetchSales({ force: true });
-      } else {
-        salesRefreshStaleRef.current = true;
-      }
-    };
-    window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
-    return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
-  }, [currentOrganization?.id, fetchSales, routePathSegment]);
 
   const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
     if (saleItems[saleId]) return saleItems[saleId];
@@ -849,7 +698,7 @@ const POSDashboard = () => {
         description: `Sale ${saleToDelete.sale_number} moved to recycle bin`,
       });
 
-      await fetchSales();
+      await refetchSales();
     } catch (error: any) {
       console.error("Error deleting sale:", error);
       toast({
@@ -887,7 +736,7 @@ const POSDashboard = () => {
 
       setSelectedSales(new Set());
       setShowBulkDeleteDialog(false);
-      await fetchSales();
+      await refetchSales();
     } catch (error: any) {
       console.error("Error deleting sales:", error);
       toast({
@@ -933,7 +782,7 @@ const POSDashboard = () => {
       setSelectedSales(new Set());
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
-      await fetchSales();
+      await refetchSales();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to cancel sales', variant: 'destructive' });
     } finally {
@@ -1552,7 +1401,7 @@ const POSDashboard = () => {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      await fetchSales();
+      await refetchSales();
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
       if (insertedVoucherId && currentOrganization?.id) {
@@ -1850,7 +1699,7 @@ const POSDashboard = () => {
       if (!result) throw new Error("No response received from e-Invoice service");
       if (result.success) {
         toast({ title: "✅ E-Invoice Generated Successfully!", description: `IRN: ${result.irn?.substring(0, 30)}...${result.ackNo ? ` | Ack No: ${result.ackNo}` : ''}` });
-        fetchSales();
+        void refetchSales();
       } else {
         const errorMsg = safeErrorString(result.error || result.message) || "E-Invoice generation failed";
         toast({ title: "E-Invoice Failed", description: errorMsg, variant: "destructive" });
@@ -1909,14 +1758,14 @@ const POSDashboard = () => {
       if (!result) throw new Error("No response from cancel service");
       if (result.success) {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
-        fetchSales();
+        void refetchSales();
       } else {
         const errorMsg = safeErrorString(result.error) || "Cancellation failed";
         // If PeriOne says "not active" or already cancelled, sync local status
         if (errorMsg.toLowerCase().includes('not active') || errorMsg.toLowerCase().includes('already cancelled')) {
           await supabase.from('sales').update({ einvoice_status: 'cancelled' }).eq('id', sale.id);
           toast({ title: "IRN Already Cancelled", description: "This IRN was already cancelled. Status has been updated.", variant: "destructive" });
-          fetchSales();
+          void refetchSales();
         } else {
           toast({ title: "Cancellation Failed", description: errorMsg, variant: "destructive" });
         }

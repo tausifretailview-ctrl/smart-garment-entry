@@ -49,6 +49,7 @@ import {
 } from "@/utils/purchaseBillSettlement";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
+import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 
@@ -1206,97 +1207,14 @@ const PurchaseBillDashboard = () => {
     queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, debouncedSearch],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-
-      let query = supabase
-        .from("purchase_bills")
-        .select("net_amount, paid_amount, payment_status, total_qty")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-
-      if (startDate) query = query.gte("bill_date", startDate);
-      if (endDate) query = query.lte("bill_date", endDate);
-
-      // Same cancelled-aware filter as bills query
-      if (paymentStatusFilter === "all" || !paymentStatusFilter) {
-        query = query.or("is_cancelled.is.null,is_cancelled.eq.false");
-      } else if (paymentStatusFilter === "cancelled") {
-        query = query.eq("is_cancelled", true);
-      } else if (paymentStatusFilter === "all_including_cancelled") {
-        // show everything
-      } else if (paymentStatusFilter === "not_paid") {
-        query = query
-          .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .or("payment_status.is.null,payment_status.eq.unpaid,payment_status.eq.pending");
-      } else {
-        query = query
-          .or("is_cancelled.is.null,is_cancelled.eq.false")
-          .eq("payment_status", paymentStatusFilter);
-      }
-
-      if (dcFilter === "dc") {
-        query = query.eq("is_dc_purchase", true);
-      } else if (dcFilter === "gst") {
-        query = query.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
-      }
-
-      // Search filter — same logic as bills query
-      if (debouncedSearch) {
-        const searchStr = debouncedSearch.trim();
-        const { data: matchingItems } = await (supabase as any)
-          .from("purchase_items")
-          .select("bill_id")
-          .is("deleted_at", null)
-          .or(
-            `product_name.ilike.%${searchStr}%,brand.ilike.%${searchStr}%,barcode.ilike.%${searchStr}%,style.ilike.%${searchStr}%,category.ilike.%${searchStr}%,color.ilike.%${searchStr}%`
-          )
-          .limit(300);
-
-        const matchingBillIds = [...new Set((matchingItems || []).map((i: any) => i.bill_id).filter(Boolean))] as string[];
-        const billTextFilter = `supplier_name.ilike.%${searchStr}%,supplier_invoice_no.ilike.%${searchStr}%,software_bill_no.ilike.%${searchStr}%`;
-
-        if (matchingBillIds.length > 0) {
-          const { data: textMatches } = await supabase
-            .from("purchase_bills").select("id")
-            .eq("organization_id", currentOrganization.id).is("deleted_at", null)
-            .or(billTextFilter);
-          const allMatchIds = [...new Set([...(textMatches || []).map((b: any) => b.id), ...matchingBillIds])];
-          query = query.in("id", allMatchIds);
-        } else {
-          query = query.or(billTextFilter);
-        }
-      }
-
-      // Fetch all matching bills (no pagination) — only lightweight columns
-      const allBills: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      let hasMore = true;
-      while (hasMore) {
-        const { data, error } = await query.range(from, from + batchSize - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allBills.push(...data);
-          from += batchSize;
-          hasMore = data.length === batchSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      const total_count = allBills.length;
-      const total_amount = allBills.reduce((s, b) => s + (b.net_amount || 0), 0);
-      let paid_amount = 0;
-      let partial_amount = 0;
-      let unpaid_amount = 0;
-      for (const b of allBills) {
-        const net = Number(b.net_amount || 0);
-        const st = derivePurchaseBillDisplayStatus(b);
-        if (st === "paid") paid_amount += net;
-        else if (st === "partial") partial_amount += net;
-        else unpaid_amount += net;
-      }
-
-      return { total_count, total_amount, paid_amount, unpaid_amount, partial_amount };
+      return fetchPurchaseDashboardSummary({
+        organizationId: currentOrganization.id,
+        startDate,
+        endDate,
+        paymentStatusFilter,
+        dcFilter,
+        debouncedSearch,
+      });
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
