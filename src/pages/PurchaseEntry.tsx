@@ -257,6 +257,8 @@ const PurchaseEntry = () => {
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
+  const isInitializingEditRef = useRef(false);
+  const loadedEditBillIdRef = useRef<string | null>(null);
   const workRestoredRef = useRef(false);
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
@@ -501,6 +503,7 @@ const PurchaseEntry = () => {
     if (data.isEditMode && data.editingBillId) {
       setIsEditMode(true);
       setEditingBillId(data.editingBillId);
+      loadedEditBillIdRef.current = data.editingBillId;
       setOriginalLineItems(data.originalLineItems || []);
     }
   }, []);
@@ -889,10 +892,20 @@ const PurchaseEntry = () => {
     staleTime: 60000,
   });
 
-  // Load a purchase bill by ID for navigation
-  const loadBillById = useCallback(async (billId: string) => {
+  // Load a purchase bill by ID (edit from dashboard or prev/next navigation)
+  const loadBillById = useCallback(async (billId: string, options?: { usePageLoader?: boolean }) => {
     if (!currentOrganization?.id) return;
-    setIsLoadingNavBill(true);
+    if (isInitializingEditRef.current) return;
+    if (loadedEditBillIdRef.current === billId) return;
+
+    isInitializingEditRef.current = true;
+    loadedEditBillIdRef.current = billId;
+    if (options?.usePageLoader) {
+      setLoading(true);
+    } else {
+      setIsLoadingNavBill(true);
+    }
+
     try {
       const { data: existingBill, error: billError } = await supabase
         .from('purchase_bills')
@@ -900,6 +913,17 @@ const PurchaseEntry = () => {
         .eq('id', billId)
         .single();
       if (billError) throw billError;
+
+      if ((existingBill as any)?.is_cancelled) {
+        loadedEditBillIdRef.current = null;
+        toast({
+          title: "Cannot Edit Cancelled Bill",
+          description: "This bill was cancelled and cannot be edited. Create a new bill or contact admin.",
+          variant: "destructive",
+        });
+        navigate("/purchase-bills");
+        return;
+      }
 
       setBillData({
         supplier_id: existingBill.supplier_id || '',
@@ -912,6 +936,7 @@ const PurchaseEntry = () => {
       setRoundOff(Number(existingBill.round_off) || 0);
       setOtherCharges(Number(existingBill.other_charges) || 0);
       setDiscountAmount(Number(existingBill.discount_amount) || 0);
+      setIsDcPurchase(existingBill.is_dc_purchase === true);
       setIsBillLocked(existingBill.is_locked === true);
 
       const { data: itemsData, error: itemsError } = await supabase
@@ -921,7 +946,7 @@ const PurchaseEntry = () => {
       if (itemsError) throw itemsError;
 
       const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
-      let productDetailsMap = new Map<string, any>();
+      const productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string; uom: string }>();
       if (productIds.length > 0) {
         const { data: productsData } = await supabase
           .from('products')
@@ -929,23 +954,29 @@ const PurchaseEntry = () => {
           .in('id', productIds);
         if (productsData) {
           productsData.forEach((p: any) => {
-            productDetailsMap.set(p.id, { brand: p.brand || '', category: p.category || '', style: p.style || '', color: p.color || '', uom: p.uom || 'NOS' });
+            productDetailsMap.set(p.id, {
+              brand: p.brand || '',
+              category: p.category || '',
+              style: p.style || '',
+              color: p.color || '',
+              uom: p.uom || 'NOS',
+            });
           });
         }
       }
 
       const loadedItems: LineItem[] = itemsData.map((item: any) => {
-        const pd = productDetailsMap.get(item.product_id);
-        const uom = pd?.uom || 'NOS';
+        const productDetails = productDetailsMap.get(item.product_id);
+        const uom = productDetails?.uom || 'NOS';
         const base = {
           temp_id: item.id,
           product_id: item.product_id,
           sku_id: item.sku_id || '',
           product_name: item.product_name || '',
-          brand: item.brand || pd?.brand || '',
-          category: item.category || pd?.category || '',
-          color: item.color || pd?.color || '',
-          style: item.style || pd?.style || '',
+          brand: item.brand || productDetails?.brand || '',
+          category: item.category || productDetails?.category || '',
+          color: item.color || productDetails?.color || '',
+          style: item.style || productDetails?.style || '',
           size: item.size,
           qty: item.qty,
           pur_price: Number(item.pur_price),
@@ -969,13 +1000,23 @@ const PurchaseEntry = () => {
       setIsEditMode(true);
       setEditingBillId(billId);
       setSavedBillId(billId);
+      window.history.replaceState({}, '', location.pathname);
     } catch (err: any) {
+      loadedEditBillIdRef.current = null;
       console.error('Failed to load bill:', err);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to load purchase bill' });
+      if (options?.usePageLoader) {
+        navigate("/purchase-bills");
+      }
     } finally {
-      setIsLoadingNavBill(false);
+      isInitializingEditRef.current = false;
+      if (options?.usePageLoader) {
+        setLoading(false);
+      } else {
+        setIsLoadingNavBill(false);
+      }
     }
-  }, [currentOrganization?.id, toast]);
+  }, [currentOrganization?.id, toast, navigate, location.pathname]);
 
   const handleLastBill = useCallback(() => {
     if (!allBillIds || allBillIds.length === 0) return;
@@ -1004,142 +1045,14 @@ const PurchaseEntry = () => {
     }
   }, [nextSupplierInvNo, isEditMode]);
 
-  // Load existing bill data if in edit mode or generate new bill number
+  // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
   useEffect(() => {
-    const loadOrGenerateBill = async () => {
-      // Skip loading bill from DB when resuming saved in-progress work
-      if (location.state?.loadDraft || workRestoredRef.current) {
-        return;
-      }
-
-      // Skip if we already restored edit mode from a snapshot/draft
-      if (isEditMode && editingBillId && !location.state?.editBillId) {
-        return;
-      }
-
-      const billId = location.state?.editBillId;
-
-      if (billId) {
-        // Edit mode - load existing bill
-        setIsEditMode(true);
-        setEditingBillId(billId);
-        setLoading(true);
-        
-        try {
-          // Load bill header
-          const { data: existingBill, error: billError } = await supabase
-            .from("purchase_bills")
-            .select("*")
-            .eq("id", billId)
-            .single();
-          
-          if (billError) throw billError;
-
-          if ((existingBill as any)?.is_cancelled) {
-            toast({
-              title: "Cannot Edit Cancelled Bill",
-              description: "This bill was cancelled and cannot be edited. Create a new bill or contact admin.",
-              variant: "destructive",
-            });
-            navigate("/purchase-bills");
-            return;
-          }
-
-          setBillData({
-            supplier_id: existingBill.supplier_id || "",
-            supplier_name: existingBill.supplier_name,
-            supplier_invoice_no: existingBill.supplier_invoice_no || "",
-          });
-          setSoftwareBillNo(existingBill.software_bill_no || "");
-          setBillDate(new Date(existingBill.bill_date));
-          setBillEntryAt(getPurchaseBillEntryAt(existingBill as { bill_entry_at?: string | null; created_at?: string }));
-          setRoundOff(Number(existingBill.round_off) || 0);
-          setOtherCharges(Number(existingBill.other_charges) || 0);
-          setDiscountAmount(Number(existingBill.discount_amount) || 0);
-          setIsDcPurchase(existingBill.is_dc_purchase === true);
-          setIsBillLocked(existingBill.is_locked === true);
-          const { data: itemsData, error: itemsError } = await supabase
-            .from("purchase_items")
-            .select("*")
-            .eq("bill_id", billId);
-          
-          if (itemsError) throw itemsError;
-
-          // Fetch product details to fill in missing style/brand/category for older records
-          const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
-          let productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string; uom: string }>();
-          
-          if (productIds.length > 0) {
-            const { data: productsData } = await supabase
-              .from("products")
-              .select("id, brand, category, style, color, uom")
-              .in("id", productIds);
-            
-            if (productsData) {
-              productsData.forEach((p: any) => {
-                productDetailsMap.set(p.id, {
-                  brand: p.brand || "",
-                  category: p.category || "",
-                  style: p.style || "",
-                  color: p.color || "",
-                  uom: p.uom || "NOS",
-                });
-              });
-            }
-          }
-          
-          const loadedItems: LineItem[] = itemsData.map((item: any) => {
-            const productDetails = productDetailsMap.get(item.product_id);
-            const uom = productDetails?.uom || 'NOS';
-            const base = {
-              temp_id: item.id,
-              product_id: item.product_id,
-              sku_id: item.sku_id || "",
-              product_name: item.product_name || "",
-              brand: item.brand || productDetails?.brand || "",
-              category: item.category || productDetails?.category || "",
-              color: item.color || productDetails?.color || "",
-              style: item.style || productDetails?.style || "",
-              size: item.size,
-              qty: item.qty,
-              pur_price: Number(item.pur_price),
-              sale_price: Number(item.sale_price),
-              mrp: Number(item.mrp) || 0,
-              gst_per: item.gst_per,
-              hsn_code: item.hsn_code || "",
-              barcode: item.barcode || "",
-              discount_percent: 0,
-              uom,
-              line_total: Number(item.line_total),
-            } as LineItem;
-            const mult = getMtrMultiplier(base);
-            const sub = mult * base.pur_price;
-            base.line_total = sub * (1 - (base.discount_percent || 0) / 100);
-            return base;
-          });
-          
-          setLineItems(loadedItems);
-          setOriginalLineItems(loadedItems); // Store original items for comparison
-          
-        } catch (error: any) {
-          console.error("Error loading bill:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load purchase bill",
-            variant: "destructive",
-          });
-          navigate("/purchase-bills");
-        } finally {
-          setLoading(false);
-        }
-      } else if (!isEditMode) {
-        // New bill mode - bill number will be auto-generated on save
-        setSoftwareBillNo("");
-      }
-    };
-    
-    loadOrGenerateBill();
-  }, [location.state?.editBillId, toast, navigate, isEditMode, editingBillId]);
+    const billId = location.state?.editBillId;
+    if (!billId || location.state?.loadDraft || workRestoredRef.current) return;
+    if (!currentOrganization?.id) return;
+    if (loadedEditBillIdRef.current === billId) return;
+    void loadBillById(billId, { usePageLoader: true });
+  }, [location.state?.editBillId, location.state?.loadDraft, currentOrganization?.id, loadBillById]);
 
   useEffect(() => {
     if (searchQuery.length >= 1) {
@@ -4239,7 +4152,9 @@ const PurchaseEntry = () => {
               deleteDraft();
               clearEntrySession();
               workRestoredRef.current = false;
-              
+              loadedEditBillIdRef.current = null;
+              isInitializingEditRef.current = false;
+
             }}
             className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
             title="New Bill">
