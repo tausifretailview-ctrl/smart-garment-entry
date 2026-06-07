@@ -1,11 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import {
-  isQZReady,
-  ensureQZConnection,
-  printViaQZTray,
-  extractInvoiceHTML,
-} from '@/utils/directInvoicePrint';
+import { extractInvoiceHTML } from '@/utils/directInvoicePrint';
 import {
   appPrint,
   isDesktopAutoPrintEnabled,
@@ -114,40 +109,9 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
           }
         }
 
-        // QZ Tray (Bill & Barcode direct print settings)
-        if (!isQzDirectPrintEnabled) {
-          options.onFallback?.();
-          return false;
-        }
-
-        const printerName = getPrinterForContext(options.context);
-        if (!printerName) {
-          toast.warning('No printer configured for direct printing. Using browser print.');
-          options.onFallback?.();
-          return false;
-        }
-
-        if (!isQZReady()) {
-          const connected = await ensureQZConnection();
-          if (!connected) {
-            toast.warning('QZ Tray not available. Using browser print.');
-            options.onFallback?.();
-            return false;
-          }
-        }
-
-        const success = await printViaQZTray(html, {
-          printerName,
-          paperSize: resolvedPaperSize,
-          copies: billBarcodeSettings?.direct_print_copies || 1,
-        });
-
-        if (success) {
-          toast.success('Invoice sent to printer');
-          options.onSuccess?.();
-          return true;
-        }
-
+        // QZ Tray bridge has been removed. Fall back to the browser
+        // print dialog (or Electron silent print handled above).
+        void html;
         options.onFallback?.();
         return false;
       } catch (err) {

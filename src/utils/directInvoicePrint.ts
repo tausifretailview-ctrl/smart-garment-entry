@@ -1,15 +1,8 @@
-import { toast } from 'sonner';
 import { thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
 import {
   buildThermalReceiptPrintCss,
   detectThermalPaperFromHtml,
 } from '@/utils/thermalReceiptPrintDocument';
-
-declare global {
-  interface Window {
-    qz: any;
-  }
-}
 
 interface PrintConfig {
   printerName: string;
@@ -17,186 +10,24 @@ interface PrintConfig {
   copies?: number;
 }
 
-const QZ_CONNECT_OPTIONS = {
-  retries: 2,
-  delay: 1,
-  keepAlive: 60,
-};
-
 /**
- * Check if QZ Tray is available and connected
+ * QZ Tray bridge has been removed. These functions are kept as no-op stubs so
+ * existing imports (useDirectPrint, Settings) keep compiling. None of them
+ * attempt any WebSocket connection or load qz-tray.js.
  */
-export const isQZReady = (): boolean => {
-  if (typeof window === 'undefined' || !window.qz) return false;
-  return window.qz.websocket?.isActive?.() === true;
-};
-
-/**
- * Wait for the QZ Tray script to fully load (max 8 seconds).
- * The script is loaded async in index.html, so window.qz
- * may not exist immediately when the app boots.
- */
-export const waitForQZ = (): Promise<boolean> => {
-  return new Promise((resolve) => {
-    if (typeof window !== 'undefined' && window.qz) {
-      resolve(true);
-      return;
-    }
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-      if (typeof window !== 'undefined' && window.qz) {
-        clearInterval(interval);
-        resolve(true);
-      } else if (attempts >= 40) { // 40 × 200ms = 8s timeout
-        clearInterval(interval);
-        resolve(false);
-      }
-    }, 200);
-  });
-};
-
-/**
- * Setup QZ security for anonymous mode — must be called before connect() and printers.find()
- */
-function setupQZSecurity() {
-  if (!window.qz) return;
-  window.qz.security.setCertificatePromise(function(resolve: Function, reject: Function) {
-    resolve();
-  });
-  window.qz.security.setSignaturePromise(function(toSign: string, resolve: Function, reject: Function) {
-    resolve();
-  });
-}
-
-/**
- * Connect to QZ Tray if not already connected
- */
-export const ensureQZConnection = async (): Promise<boolean> => {
-  const loaded = await waitForQZ();
-  if (!loaded || typeof window === 'undefined' || !window.qz) return false;
-  try {
-    if (window.qz.websocket.isActive()) return true;
-    // Set security before connect
-    window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
-    window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
-    await window.qz.websocket.connect(QZ_CONNECT_OPTIONS);
-    return true;
-  } catch (err) {
-    console.error('QZ Tray connection failed:', err);
-    return false;
-  }
-};
-
-/**
- * Get list of available printers from QZ Tray
- */
-export const getQZPrinters = async (): Promise<string[]> => {
-  // Wait for QZ script to be available (handles async/defer loading)
-  const loaded = await waitForQZ();
-  if (!loaded) return [];
-  const connected = await ensureQZConnection();
-  if (!connected) return [];
-  try {
-    // Set security before printers.find()
-    window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
-    window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
-    const result = await window.qz.printers.find();
-    const list = Array.isArray(result) ? result : (result ? [String(result)] : []);
-
-    if (list.length === 0) {
-      await new Promise(r => setTimeout(r, 500));
-      window.qz.security.setCertificatePromise(function(resolve: Function) { resolve(); });
-      window.qz.security.setSignaturePromise(function(_: string, resolve: Function) { resolve(); });
-      const result2 = await window.qz.printers.find();
-      return Array.isArray(result2) ? result2 : (result2 ? [String(result2)] : []);
-    }
-
-    return list;
-  } catch (err) {
-    console.error('Failed to get printers:', err);
-    return [];
-  }
-};
-
-/**
- * Core function: Print HTML via QZ Tray pixel printing mode.
- * This reuses existing invoice templates rendered as HTML.
- */
+export const isQZReady = (): boolean => false;
+export const waitForQZ = (): Promise<boolean> => Promise.resolve(false);
+export const ensureQZConnection = async (): Promise<boolean> => false;
+export const getQZPrinters = async (): Promise<string[]> => [];
 export const printViaQZTray = async (
-  html: string,
-  config: PrintConfig
-): Promise<boolean> => {
-  if (!config.printerName) {
-    toast.error('No printer selected for direct printing');
-    return false;
-  }
-
-  // Ensure QZ connection
-  const connected = await ensureQZConnection();
-  if (!connected) {
-    toast.error('QZ Tray is not connected. Please install QZ Tray from https://qz.io/download/');
-    return false;
-  }
-
-  try {
-    const qz = window.qz;
-
-    // Determine print config based on paper size
-    let qzConfig: any;
-    const paperSize = config.paperSize || '80mm';
-
-    if (paperSize === '80mm' || paperSize === '58mm') {
-      // Thermal printer config
-      const widthMm = paperSize === '80mm' ? 72 : 48; // printable width
-      qzConfig = qz.configs.create(config.printerName, {
-        size: { width: widthMm, height: null }, // auto height
-        units: 'mm',
-        rasterize: true,
-        scaleContent: true,
-        margins: { top: 0, right: 0, bottom: 0, left: 0 },
-        copies: config.copies || 1,
-      });
-    } else if (paperSize === 'A5') {
-      qzConfig = qz.configs.create(config.printerName, {
-        size: { width: 148, height: 210 },
-        units: 'mm',
-        rasterize: true,
-        scaleContent: true,
-        margins: { top: 5, right: 5, bottom: 5, left: 5 },
-        copies: config.copies || 1,
-      });
-    } else {
-      // A4
-      qzConfig = qz.configs.create(config.printerName, {
-        size: { width: 210, height: 297 },
-        units: 'mm',
-        rasterize: true,
-        scaleContent: true,
-        margins: { top: 5, right: 5, bottom: 5, left: 5 },
-        copies: config.copies || 1,
-      });
-    }
-
-    const printData = [{
-      type: 'pixel',
-      format: 'html',
-      data: html,
-    }];
-
-    await qz.print(qzConfig, printData);
-    return true;
-  } catch (err: any) {
-    console.error('QZ Tray print error:', err);
-    toast.error(err?.message || 'Direct printing failed');
-    return false;
-  }
-};
+  _html: string,
+  _config: PrintConfig,
+): Promise<boolean> => false;
 
 /**
  * Extract the rendered HTML from an invoice ref element.
- * Injects the app's full stylesheets so Tailwind classes render
- * correctly in QZ Tray's headless Chromium instance.
+ * Injects the app's full stylesheets so Tailwind classes render correctly
+ * in the browser/Electron print window.
  */
 export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
   // Get the current app's stylesheet content to inject inline
@@ -259,18 +90,7 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
  * Print a test receipt to verify printer connectivity
  */
 export const printTestReceipt = async (printerName: string, paperSize: '58mm' | '80mm' | 'A4' | 'A5' = '80mm'): Promise<boolean> => {
-  const testHtml = `
-    <div style="font-family: Arial, sans-serif; padding: 10px; text-align: center;">
-      <h2 style="margin: 0 0 8px 0; font-size: 16px;">🖨️ QZ Tray Test Print</h2>
-      <hr style="border: 1px dashed #000; margin: 8px 0;" />
-      <p style="margin: 4px 0; font-size: 13px;"><strong>Printer:</strong> ${printerName}</p>
-      <p style="margin: 4px 0; font-size: 13px;"><strong>Paper:</strong> ${paperSize}</p>
-      <p style="margin: 4px 0; font-size: 13px;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
-      <hr style="border: 1px dashed #000; margin: 8px 0;" />
-      <p style="margin: 4px 0; font-size: 12px;">Direct printing is working!</p>
-      <p style="margin: 4px 0; font-size: 11px; color: #666;">EzzyERP - Smart Billing</p>
-    </div>
-  `;
-
-  return printViaQZTray(testHtml, { printerName, paperSize });
+  void printerName;
+  void paperSize;
+  return false;
 };
