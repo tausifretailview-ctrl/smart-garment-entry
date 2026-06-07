@@ -14,16 +14,7 @@ export class RootErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('EzzyERP crashed:', error, info.componentStack);
-    if (isChunkLoadError(error)) {
-      const reloadCount = parseInt(
-        sessionStorage.getItem('chunk_reload_count') || '0',
-        10,
-      );
-      if (reloadCount < 1) {
-        sessionStorage.setItem('chunk_reload_count', String(reloadCount + 1));
-        window.location.reload();
-      }
-    }
+    // Auto-reload disabled — user keeps current page/state. Manual buttons below.
   }
 
   render() {
