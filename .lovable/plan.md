@@ -1,52 +1,33 @@
-# Fix: Thermal receipt prints as blank narrow page after using Barcode Printing
+## Diagnosis
 
-## Root cause
+The hosted backend is currently healthy. The screenshots match the app’s own startup timeout screen, not a confirmed backend outage.
 
-The previous fix gated the inline `<style>` block in `BarcodePrinting.tsx`, but there is a **second, stronger leak**: `src/components/precision-barcode/PrecisionPrintCSS.tsx`.
+The app shows this screen when `AuthContext` does not resolve `supabase.auth.getSession()` within 10 seconds after refresh/reload. On slower networks, Windows/desktop WebView, browser profile issues, token refresh delays, or temporary auth/network stalls, this creates a false “Connection Problem” even if the backend is up.
 
-That component, via `useEffect`, injects `<style id="precision-print-css">` directly into `document.head`. The style contains:
+A second related issue exists in `OrganizationContext`: organization loading times out after 6 seconds and can also produce a connection-style failure during reload.
 
-- `@page { size: <labelWidth>mm <labelHeight>mm; margin: 0 }`
-- `body * { visibility: hidden }` + `.precision-print-area * { visibility: visible }`
+## Plan
 
-It is mounted whenever the Barcode Printing → Precision Pro tab is active (or the Test Label area is mounted), even when no print is happening. Because the WindowTabs system keeps pages alive in the background, this `<style>` survives navigation. When the user then opens the Print Preview dialog from POS and prints a thermal receipt:
+1. **Make startup auth more tolerant**
+   - Replace the fixed 10-second hard failure with a staged startup:
+     - keep showing the boot/loading state longer during initial reload
+     - only show the full “Connection Problem” after a stronger timeout
+     - avoid immediately failing while the browser is still restoring local session data
 
-1. The browser uses the precision `@page` size (58×30mm or similar) instead of the receipt's `80mm auto` → tiny page.
-2. `body * { visibility: hidden }` hides the entire receipt; only elements inside `.precision-print-area` (which is the barcode label area) stay visible → that's why the user sees just a small barcode in the print preview.
+2. **Improve Retry behavior**
+   - Make the Retry button attempt `getSession()` and, if needed, `refreshSession()` with retry/backoff.
+   - Clear stale auth refresh locks before retrying.
+   - Keep the selected organization slug intact so users return to the right shop after recovery.
 
-This matches the screenshot exactly (narrow page, barcode at top, no receipt body) and the "only after barcode print" reproduction.
+3. **Reduce false organization fetch failures**
+   - Increase the organization fetch timeout from 6 seconds to a safer value.
+   - Use cached organization data as a temporary fallback when the network is slow, instead of blanking the app immediately.
+   - Keep the existing secure backend query as the source of truth once it succeeds.
 
-## Fix
+4. **Add lightweight diagnostics**
+   - Log whether the failure was session timeout, refresh timeout, org fetch timeout, or true network offline.
+   - This helps identify whether future reports are browser/network/auth-token related instead of guessing.
 
-Gate the precision style injection on an "active print" flag, exactly like the standard tab fix.
-
-### 1. `src/components/precision-barcode/PrecisionPrintCSS.tsx`
-
-- Add a new optional prop `active?: boolean` (default `false`).
-- Inside the `useEffect`, only create / update the `<style>` when `active === true`. When `active` is false, remove any existing `#precision-print-css` element.
-- Keep the unmount cleanup that removes the style.
-
-### 2. `src/pages/BarcodePrinting.tsx`
-
-- Reuse existing `printPageActive` state + the `afterprint` listener already added in the previous fix.
-- Pass `active={printPageActive}` to both `PrecisionPrintCSS` usages (test label block at ~L6145 and the conditional one referenced inside `PrecisionThermalPrint` / `PrecisionA4SheetPrint`).
-- Before each precision `window.print()` call (the two locations near L3808 and L3926, and the test-label print path), set `setPrintPageActive(true)` then call `window.print()` on the next tick (`requestAnimationFrame` or microtask) so the `<style>` is in the DOM before the print dialog opens. Add the same 1500ms safety timeout already used for standard mode to reset the flag if `afterprint` doesn't fire.
-
-### 3. `PrecisionThermalPrint.tsx` / `PrecisionA4SheetPrint.tsx`
-
-These also render `<PrecisionPrintCSS ... />` internally. Add the same `active` prop pass-through so the gate works regardless of which path renders the CSS. Default `active` to `false` so existing callers don't accidentally inject the style.
-
-## Verification
-
-1. Reload, open POS, print a thermal receipt → confirm full 80mm receipt prints correctly.
-2. Open Barcode Printing → Precision Pro tab, print a label → confirm labels still print at correct size.
-3. Without reloading, switch back to POS and print another thermal receipt → confirm it is no longer blank/shrunken.
-4. Inspect `document.head` after each print → confirm `#precision-print-css` is absent when no precision print is in flight.
-5. Repeat in both Chrome and Edge.
-6. not after barcode print even new session show this issue
-
-## Out of scope
-
-- `PrintPreviewDialog.tsx` `pageStyle` (already correct).
-- `barcodePrinter.ts`, `barcodeDesktopPrint.ts`, `thermalReceiptPrintDocument.ts` (each writes into an isolated print document/window, no leak).
-- The standard-tab `<style>` gating from the previous fix (already in place; this plan only adds the precision-tab equivalent).
+5. **Do not change database or backend rules**
+   - No schema changes are needed.
+   - The issue is in frontend startup resilience and timeout handling.
