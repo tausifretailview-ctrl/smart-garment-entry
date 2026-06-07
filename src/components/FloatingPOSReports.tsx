@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
@@ -524,6 +524,18 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Default cursor in the barcode/search field whenever the dialog opens,
+  // so a scanner can fire immediately without an extra click.
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [open]);
 
   // Fetch all products for dropdown suggestions (limit for performance)
   const { data: allProducts, isLoading: isLoadingProducts } = useQuery({
@@ -702,6 +714,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={inputRef}
             placeholder="Search by barcode, product name, brand, size..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
