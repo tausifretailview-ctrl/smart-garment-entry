@@ -1346,6 +1346,7 @@ export default function BarcodePrinting() {
   const hasLoadedDefaultsRef = useRef(false);
   const hasLoadedPrecisionConfigRef = useRef(false);
   const settingsFullyLoadedRef = useRef(false);
+  const settingsOrgLoadedRef = useRef<string | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
 
   const savePrecisionConfigToSettings = useCallback(async (configToSave: LabelDesignConfig, orgId: string) => {
@@ -1605,6 +1606,7 @@ export default function BarcodePrinting() {
     hasResolvedDefaultTabRef.current = false;
     setPrecisionConfigReady(false);
     settingsFullyLoadedRef.current = false;
+    settingsOrgLoadedRef.current = null;
     setSettingsLoading(true);
   }, [currentOrganization?.id]);
 
@@ -1675,8 +1677,12 @@ export default function BarcodePrinting() {
     };
   }, [precisionSettings.labelConfig, precisionSettings.labelWidth, precisionSettings.labelHeight, activePrecisionTemplateName, currentOrganization?.id, autoSavePrecisionConfig]);
 
-  // Fetch business name from settings (organization-scoped)
+  // Fetch business name from settings (organization-scoped) — once per org.
   useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    if (settingsOrgLoadedRef.current === orgId) return;
+
     const fetchBusinessName = async () => {
       if (!currentOrganization?.id) return;
       
@@ -1835,10 +1841,11 @@ export default function BarcodePrinting() {
       await fetchBusinessName();
       await fetchDbPresets();
       settingsFullyLoadedRef.current = true;
+      settingsOrgLoadedRef.current = orgId;
       setSettingsLoading(false);
     };
     loadAll();
-  }, [activePrecisionTemplateName, currentOrganization?.id, routeRequestedTab, settingsDefaultBarTab]);
+  }, [currentOrganization?.id]);
 
   // Set a preset as default for auto-loading from purchase
   const handleSetDefaultPreset = async (presetId: string, presetName: string) => {

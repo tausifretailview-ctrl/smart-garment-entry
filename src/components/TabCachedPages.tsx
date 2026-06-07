@@ -32,6 +32,10 @@ const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
 const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "pos-sales",
   "product-entry",
+  "product-dashboard",
+  "products",
+  "purchase-bill-dashboard",
+  "purchase-bills",
   "accounts",
   "customers",
   "pos-dashboard",
@@ -87,6 +91,8 @@ const HEAVY_TAB_PATHS = new Set([
   "purchase-return-entry",
   "purchase-return-dashboard",
   "sale-return-dashboard",
+  "product-dashboard",
+  "products",
 ]);
 
 function getTabLoadTimeoutMs(path: string): number {
@@ -363,6 +369,36 @@ export function TabCachedPages({ paths, activePath }: TabCachedPagesProps) {
       const next = new Set(prev);
       next.add("");
       touchTabActiveAt("");
+      return next;
+    });
+  }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);
+
+  // Prefetch inventory chunks while inventory tabs are open; pre-mount product dashboard in browser.
+  useEffect(() => {
+    const inventoryPaths = [
+      "product-dashboard",
+      "products",
+      "purchase-bill-dashboard",
+      "purchase-bills",
+      "product-entry",
+      "barcode-printing",
+    ];
+    const shouldWarmInventory = inventoryPaths.some(
+      (p) => uniquePaths.includes(p) || activePath === p,
+    );
+    if (!shouldWarmInventory) return;
+
+    prefetchTabPage("product-dashboard");
+    prefetchTabPage("purchase-bill-dashboard");
+    prefetchTabPage("product-entry");
+    prefetchTabPage("barcode-printing");
+    if (electronSingleTab) return;
+
+    setMountedPaths((prev) => {
+      if (prev.has("product-dashboard")) return prev;
+      const next = new Set(prev);
+      next.add("product-dashboard");
+      touchTabActiveAt("product-dashboard");
       return next;
     });
   }, [uniquePaths, activePath, electronSingleTab, touchTabActiveAt]);

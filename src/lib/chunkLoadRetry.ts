@@ -23,6 +23,7 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = [
   "customers",
   "suppliers",
   "product-dashboard",
+  "product-entry",
   "sale-return-dashboard",
   "purchase-return-dashboard",
   "accounts",
