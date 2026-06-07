@@ -1293,6 +1293,19 @@ export default function BarcodePrinting() {
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
   const [testPrintActive, setTestPrintActive] = useState(false);
+  /**
+   * Gates the persistent `<style>` block that contains an `@page` rule for
+   * standard-mode label printing. The block must only be present in the DOM
+   * while a label print job is actually running — otherwise the `@page size`
+   * leaks into other print jobs (e.g. thermal receipts via react-to-print),
+   * which causes the invoice preview to shrink to the label page size.
+   */
+  const [printPageActive, setPrintPageActive] = useState(false);
+  useEffect(() => {
+    const handleAfterPrint = () => setPrintPageActive(false);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
   const [activeBarTab, setActiveBarTab] = useState<string>("standard");
   const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
   /** From bill_barcode_settings — not overwritten when user toggles tabs */
@@ -3790,9 +3803,12 @@ export default function BarcodePrinting() {
 
       const originalTitle = document.title;
       document.title = " ";
+      setPrintPageActive(true);
       setTimeout(() => {
         window.print();
         document.title = originalTitle;
+        // Fallback in case `afterprint` does not fire (some browsers/dialogs).
+        setTimeout(() => setPrintPageActive(false), 1500);
       }, 200);
       return;
     }
@@ -3905,10 +3921,12 @@ export default function BarcodePrinting() {
     setTestPrintActive(true);
     const originalTitle = document.title;
     document.title = ' ';
+    setPrintPageActive(true);
     setTimeout(() => {
       window.print();
       document.title = originalTitle;
       setTestPrintActive(false);
+      setTimeout(() => setPrintPageActive(false), 1500);
     }, 300);
   };
 
@@ -6175,7 +6193,7 @@ export default function BarcodePrinting() {
         <div id="printArea" className="hidden"></div>
       )}
 
-      {!precisionSettings.enabled && <style>{`
+      {!precisionSettings.enabled && printPageActive && <style>{`
         #printArea {
           width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm` : '210mm'};
           min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm` : '297mm'};
