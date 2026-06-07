@@ -1,10 +1,13 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 
 const CHUNK_RELOAD_KEY = "chunk_reload_count";
-const MAX_IMPORT_RETRIES = 3;
-const RETRY_BASE_MS = 350;
-/** Per-attempt ceiling so a hung dynamic import cannot block Suspense forever. */
-export const MODULE_LOAD_TIMEOUT_MS = 25_000;
+const MAX_IMPORT_RETRIES = 5;
+const RETRY_BASE_MS = 500;
+/** Per-attempt ceiling so a hung dynamic import cannot block Suspense forever.
+ *  Raised from 25s → 60s because slow networks / Windows WebView cold starts
+ *  legitimately need more time, and a false timeout dumps the user on the
+ *  "This tab failed to load" screen. */
+export const MODULE_LOAD_TIMEOUT_MS = 60_000;
 
 /** Paths prefetched right after org login so first bill open does not cold-load a large chunk. */
 export const POST_LOGIN_PREFETCH_TAB_PATHS = [
