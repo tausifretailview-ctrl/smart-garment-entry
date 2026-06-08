@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
@@ -253,6 +254,16 @@ const CustomerMaster = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  useCreateFormDraftPersistence(
+    `${WINDOW_FILTER_IDS.customers}:create`,
+    currentOrganization?.id,
+    isDialogOpen,
+    formData,
+    setIsDialogOpen,
+    setFormData,
+    { enabled: !editingCustomer },
+  );
+
   useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.customers,
     currentOrganization?.id,
@@ -294,6 +305,7 @@ const CustomerMaster = () => {
       return count || 0;
     },
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 60000,
   });
 
@@ -306,8 +318,8 @@ const CustomerMaster = () => {
     queryKey: ["customer-segments", currentOrganization?.id],
     queryFn: () => fetchCustomerSegmentIndex(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
     retry: 2,
   });
 

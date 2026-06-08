@@ -72,6 +72,9 @@ import { BankReconciliationTab } from "@/components/accounts/BankReconciliationT
 import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashboardTab";
 import { AccountingPeriodLockCard } from "@/components/accounts/AccountingPeriodLockCard";
 
+/** Keep sub-tab DOM mounted (hidden) so ledger/payment state survives tab switches. */
+const STICKY_TAB_CONTENT_CLASS = "mt-0 space-y-4 outline-none data-[state=inactive]:hidden";
+
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
@@ -160,7 +163,6 @@ export default function Accounts() {
     },
     enabled: !!currentOrganization?.id,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
-    refetchOnMount: true,
   });
 
   const {
@@ -773,54 +775,60 @@ export default function Accounts() {
           ))}
         </div>
 
-        {/* Tab content — customer ledger stays mounted to preserve scroll/customer on sub-tab return */}
+        {/* Tab content — all panes stay mounted (hidden) like Sales Dashboard window tabs */}
         <div data-tab-scroll className="flex-1 overflow-y-auto tab-scroll-stable px-4 py-3">
           {currentOrganization?.id && (
-            <div className={selectedTab === "customer-ledger" ? undefined : "hidden"} aria-hidden={selectedTab !== "customer-ledger"}>
-              <CustomerLedger
-                organizationId={currentOrganization.id}
-                paymentFilter={paymentCardFilter}
-                preSelectedCustomerId={urlCustomerId}
-                persistenceWindowId={WINDOW_FILTER_IDS.accountsCustomerLedger}
-              />
+            <>
+              <div className={cn(selectedTab !== "customer-ledger" && "hidden")} aria-hidden={selectedTab !== "customer-ledger"}>
+                <CustomerLedger
+                  organizationId={currentOrganization.id}
+                  paymentFilter={paymentCardFilter}
+                  preSelectedCustomerId={urlCustomerId}
+                  persistenceWindowId={WINDOW_FILTER_IDS.accountsCustomerLedger}
+                />
+              </div>
+              <div className={cn(selectedTab !== "supplier-ledger" && "hidden")} aria-hidden={selectedTab !== "supplier-ledger"}>
+                <SupplierLedger organizationId={currentOrganization.id} />
+              </div>
+              <div className={cn(selectedTab !== "outstanding" && "hidden")} aria-hidden={selectedTab !== "outstanding"}>
+                <OutstandingDashboardTab organizationId={currentOrganization.id} />
+              </div>
+              <div className={cn(selectedTab !== "customer-payment" && "hidden")} aria-hidden={selectedTab !== "customer-payment"}>
+                <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} />
+              </div>
+              <div className={cn(selectedTab !== "supplier-payment" && "hidden")} aria-hidden={selectedTab !== "supplier-payment"}>
+                <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} />
+              </div>
+              <div className={cn(selectedTab !== "employee-salary" && "hidden")} aria-hidden={selectedTab !== "employee-salary"}>
+                <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />
+              </div>
+              <div className={cn(selectedTab !== "expenses" && "hidden")} aria-hidden={selectedTab !== "expenses"}>
+                <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />
+              </div>
+            </>
+          )}
+          <div className={cn(selectedTab !== "voucher-entry" && "hidden")} aria-hidden={selectedTab !== "voucher-entry"}>
+            <VoucherEntryTab vouchers={vouchers} />
+          </div>
+          {currentOrganization?.id && (
+            <div className={cn(selectedTab !== "reconciliation" && "hidden")} aria-hidden={selectedTab !== "reconciliation"}>
+              <Tabs defaultValue="payments" className="w-full space-y-4">
+                <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
+                  <TabsTrigger value="payments" className="rounded-md text-xs font-medium">
+                    Payment receipts
+                  </TabsTrigger>
+                  <TabsTrigger value="bank-gl" className="rounded-md text-xs font-medium">
+                    Bank GL
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="payments" forceMount className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
+                  <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
+                </TabsContent>
+                <TabsContent value="bank-gl" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
+                  <BankReconciliationTab organizationId={currentOrganization.id} />
+                </TabsContent>
+              </Tabs>
             </div>
-          )}
-          {selectedTab === "supplier-ledger" && currentOrganization?.id && (
-            <SupplierLedger organizationId={currentOrganization.id} />
-          )}
-          {selectedTab === "outstanding" && currentOrganization?.id && (
-            <OutstandingDashboardTab organizationId={currentOrganization.id} />
-          )}
-          {selectedTab === "customer-payment" && currentOrganization?.id && (
-            <CustomerPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} sales={sales} customers={customers} settings={settings} onShowReceipt={paymentDialogs.handleShowReceipt} onShowAdvanceDialog={() => setShowAdvanceDialog(true)} onEditPayment={paymentDialogs.openEditPaymentDialog} />
-          )}
-          {selectedTab === "supplier-payment" && currentOrganization?.id && (
-            <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} />
-          )}
-          {selectedTab === "employee-salary" && currentOrganization?.id && (
-            <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />
-          )}
-          {selectedTab === "expenses" && currentOrganization?.id && (
-            <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />
-          )}
-          {selectedTab === "voucher-entry" && <VoucherEntryTab vouchers={vouchers} />}
-          {selectedTab === "reconciliation" && currentOrganization?.id && (
-            <Tabs defaultValue="payments" className="w-full space-y-4">
-              <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
-                <TabsTrigger value="payments" className="rounded-md text-xs font-medium">
-                  Payment receipts
-                </TabsTrigger>
-                <TabsTrigger value="bank-gl" className="rounded-md text-xs font-medium">
-                  Bank GL
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="payments" className="mt-0 space-y-0 outline-none">
-                <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
-              </TabsContent>
-              <TabsContent value="bank-gl" className="mt-0 outline-none">
-                <BankReconciliationTab organizationId={currentOrganization.id} />
-              </TabsContent>
-            </Tabs>
           )}
         </div>
 
@@ -1058,7 +1066,7 @@ export default function Accounts() {
           data-tab-scroll
           className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3"
         >
-        <TabsContent value="customer-ledger" forceMount className="mt-0 space-y-4 outline-none data-[state=inactive]:hidden">
+        <TabsContent value="customer-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
             <CustomerLedger
               organizationId={currentOrganization.id}
@@ -1069,15 +1077,15 @@ export default function Accounts() {
           )}
         </TabsContent>
 
-        <TabsContent value="supplier-ledger" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="supplier-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && <SupplierLedger organizationId={currentOrganization.id} />}
         </TabsContent>
 
-        <TabsContent value="outstanding" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="outstanding" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && <OutstandingDashboardTab organizationId={currentOrganization.id} />}
         </TabsContent>
 
-        <TabsContent value="customer-payment" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="customer-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
             <CustomerPaymentTab
               organizationId={currentOrganization.id}
@@ -1092,25 +1100,25 @@ export default function Accounts() {
           )}
         </TabsContent>
 
-        <TabsContent value="supplier-payment" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="supplier-payment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
             <SupplierPaymentTab organizationId={currentOrganization.id} vouchers={vouchers} suppliers={suppliers} onEditPayment={paymentDialogs.openEditPaymentDialog} />
           )}
         </TabsContent>
 
-        <TabsContent value="employee-salary" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="employee-salary" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && <EmployeeSalaryTab organizationId={currentOrganization.id} vouchers={vouchers} />}
         </TabsContent>
 
-        <TabsContent value="expenses" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="expenses" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && <ExpensesTab organizationId={currentOrganization.id} vouchers={vouchers} />}
         </TabsContent>
 
-        <TabsContent value="voucher-entry" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="voucher-entry" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           <VoucherEntryTab vouchers={vouchers} />
         </TabsContent>
 
-        <TabsContent value="reconciliation" className="mt-0 space-y-4 outline-none">
+        <TabsContent value="reconciliation" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
             <Tabs defaultValue="payments" className="w-full space-y-4">
               <TabsList className="grid w-full max-w-lg grid-cols-2 h-9 bg-muted/60 p-1 rounded-lg">
@@ -1121,10 +1129,10 @@ export default function Accounts() {
                   Bank GL
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="payments" className="mt-0 space-y-0 outline-none">
+              <TabsContent value="payments" forceMount className="mt-0 space-y-0 outline-none data-[state=inactive]:hidden">
                 <ReconciliationTab organizationId={currentOrganization.id} customers={customers} />
               </TabsContent>
-              <TabsContent value="bank-gl" className="mt-0 outline-none">
+              <TabsContent value="bank-gl" forceMount className="mt-0 outline-none data-[state=inactive]:hidden">
                 <BankReconciliationTab organizationId={currentOrganization.id} />
               </TabsContent>
             </Tabs>
@@ -1132,7 +1140,7 @@ export default function Accounts() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="balance-adjustment" className="mt-0 space-y-4 outline-none">
+          <TabsContent value="balance-adjustment" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5" /> Customer Balance Adjustment</CardTitle>

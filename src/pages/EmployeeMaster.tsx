@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -73,6 +74,16 @@ const EmployeeMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+
+  useCreateFormDraftPersistence(
+    `${WINDOW_FILTER_IDS.employees}:create`,
+    currentOrganization?.id,
+    isDialogOpen,
+    formData,
+    setIsDialogOpen,
+    setFormData,
+    { enabled: !editingEmployee },
+  );
 
   useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.employees,
