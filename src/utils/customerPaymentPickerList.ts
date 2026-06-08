@@ -1,6 +1,10 @@
+import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import {
+  fetchOrgLedgerCustomersReference,
+  fetchOrgLedgerSalesSummaryReference,
+} from "@/hooks/useOrgLedgerReferenceData";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { fetchOrganizationReceivableRows } from "@/utils/organizationReceivables";
 
@@ -30,8 +34,9 @@ async function buildPickerListFromSalesLedger(
   organizationId: string,
   allCustomers: Array<{ id: string; customer_name?: string; phone?: string | null; opening_balance?: number | null }>,
   client: SupabaseClient = supabase,
+  queryClient?: QueryClient,
 ): Promise<CustomerPaymentPickerRow[]> {
-  const allSales = await fetchAllSalesSummary(organizationId);
+  const allSales = await fetchOrgLedgerSalesSummaryReference(organizationId, queryClient);
   const { data: allVouchers } = await client
     .from("voucher_entries")
     .select("reference_id, reference_type, total_amount, discount_amount")
@@ -85,8 +90,9 @@ async function buildPickerListFromSalesLedger(
 export async function fetchCustomersWithBalanceForPaymentPicker(
   organizationId: string,
   client: SupabaseClient = supabase,
+  queryClient?: QueryClient,
 ): Promise<CustomerPaymentPickerRow[]> {
-  const allCustomers = await fetchAllCustomers(organizationId);
+  const allCustomers = await fetchOrgLedgerCustomersReference(organizationId, queryClient);
   const customerById = new Map(allCustomers.map((c) => [c.id, c]));
 
   try {
@@ -109,5 +115,5 @@ export async function fetchCustomersWithBalanceForPaymentPicker(
     console.warn("[customerPaymentPicker] reconcile_customer_balances failed; using fallback", err);
   }
 
-  return buildPickerListFromSalesLedger(organizationId, allCustomers, client);
+  return buildPickerListFromSalesLedger(organizationId, allCustomers, client, queryClient);
 }

@@ -273,7 +273,7 @@ export function CustomerPaymentTab({
     refetch: refetchCustomersWithBalance,
   } = useQuery({
     queryKey: ["customers-with-balance", organizationId, "payment-picker-v2"],
-    queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId),
+    queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId, supabase, queryClient),
     enabled: !!organizationId,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,

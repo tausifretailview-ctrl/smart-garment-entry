@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllCustomers, fetchAllSalesSummary, fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 
 export type AccountsPaymentTabId =
   | "customer-payment"
@@ -53,23 +54,12 @@ export function useAccountsVoucherData(
   });
 
   const needsSales = loadAllParties || activeTab === "customer-payment";
-  const { data: sales } = useQuery({
-    queryKey: ["sales-summary-accounts", organizationId],
-    queryFn: () => fetchAllSalesSummary(organizationId!),
-    enabled: orgReady && needsSales,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
   const needsCustomers = loadAllParties || activeTab === "customer-payment";
-  const { data: customers } = useQuery({
-    queryKey: ["customers", organizationId],
-    queryFn: () => fetchAllCustomers(organizationId!),
-    enabled: orgReady && needsCustomers,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
+
+  const { customers, salesSummary: sales } = useOrgLedgerReferenceData(organizationId, {
+    enabled: orgReady,
+    loadCustomers: needsCustomers,
+    loadSalesSummary: needsSales,
   });
 
   const needsSuppliers = activeTab === "supplier-payment";

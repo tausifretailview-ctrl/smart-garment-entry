@@ -484,7 +484,7 @@ const CustomerMaster = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
-      invalidateCustomers();
+      invalidateCustomers(currentOrganization?.id);
       toast({ title: "Customer created successfully" });
       resetForm();
       setIsDialogOpen(false);

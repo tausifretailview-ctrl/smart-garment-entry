@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 
 export type CustomerFinancialSnapshot = {
   outstandingDr: number;
@@ -172,6 +173,7 @@ export function invalidateCustomerFinancialSnapshot(
     queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY],
   });
   if (organizationId) {
+    invalidateOrgLedgerReferenceData(queryClient, organizationId);
     queryClient.invalidateQueries({
       queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "org-totals", organizationId],
     });
@@ -180,9 +182,6 @@ export function invalidateCustomerFinancialSnapshot(
     });
     queryClient.invalidateQueries({
       queryKey: ["customer-balances-search", organizationId],
-    });
-    queryClient.invalidateQueries({
-      queryKey: ["customers", organizationId],
     });
   }
   if (organizationId && customerId) {

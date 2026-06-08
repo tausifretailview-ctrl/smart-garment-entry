@@ -14,10 +14,13 @@ import {
   ArrowUpDown, ArrowDown, ArrowUp, Phone, FileDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, differenceInDays } from "date-fns";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import {
+  fetchOrgLedgerCustomersReference,
+  fetchOrgLedgerSalesSummaryReference,
+} from "@/hooks/useOrgLedgerReferenceData";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -54,6 +57,7 @@ type SortField = "name" | "totalOutstanding" | "invoiceCount" | "oldestDays";
 type SortDir = "asc" | "desc";
 
 export function OutstandingDashboardTab({ organizationId }: OutstandingDashboardTabProps) {
+  const queryClient = useQueryClient();
   const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("totalOutstanding");
@@ -84,8 +88,8 @@ export function OutstandingDashboardTab({ organizationId }: OutstandingDashboard
     queryKey: ["outstanding-dashboard", organizationId],
     queryFn: async () => {
       const [customersData, salesData] = await Promise.all([
-        fetchAllCustomers(organizationId),
-        fetchAllSalesSummary(organizationId),
+        fetchOrgLedgerCustomersReference(organizationId, queryClient),
+        fetchOrgLedgerSalesSummaryReference(organizationId, queryClient),
       ]);
 
       // Fetch voucher payments for accurate outstanding calc
