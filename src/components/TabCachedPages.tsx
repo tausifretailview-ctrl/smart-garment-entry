@@ -19,6 +19,7 @@ import { POSLayout } from "@/components/POSLayout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
+import { Skeleton } from "@/components/ui/skeleton";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import {
   isNavigationPerfEnabled,
@@ -95,6 +96,14 @@ function isProtectedTabPath(path: string): boolean {
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
+/** Inventory list dashboards — static shell while chunk loads (no center spinner). */
+const LIST_DASHBOARD_SHELL_PATHS = new Set([
+  ...DASHBOARD_TAB_PATHS,
+  "product-dashboard",
+  "products",
+  "purchase-bill-dashboard",
+  "purchase-bills",
+]);
 /** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
  *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */
 const TAB_LOAD_TIMEOUT_MS = 20_000;
@@ -102,6 +111,9 @@ const TAB_LOAD_TIMEOUT_MS = 20_000;
 const HEAVY_TAB_LOAD_TIMEOUT_MS = 45_000;
 /** When to swap the bare spinner for a friendlier "Still loading…" hint. */
 const SOFT_LOADING_HINT_MS = 8_000;
+/** Bill-entry tabs — show a static header/table shell while the chunk loads. */
+const ENTRY_TAB_SHELL_PATHS = new Set(["purchase-entry"]);
+
 const HEAVY_TAB_PATHS = new Set([
   "settings",
   "user-rights",
@@ -124,6 +136,19 @@ const HEAVY_TAB_PATHS = new Set([
 
 function getTabLoadTimeoutMs(path: string): number {
   return HEAVY_TAB_PATHS.has(path) ? HEAVY_TAB_LOAD_TIMEOUT_MS : TAB_LOAD_TIMEOUT_MS;
+}
+
+function EntryTabShellFallback() {
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col bg-slate-50">
+      <div className="h-[52px] shrink-0 bg-gradient-to-r from-slate-900 to-slate-800 border-b-2 border-green-500/50" />
+      <div className="flex-1 min-h-0 space-y-3 p-3 sm:p-4">
+        <Skeleton className="h-20 w-full rounded-lg" />
+        <Skeleton className="h-10 w-full max-w-xl rounded-md" />
+        <Skeleton className="h-[min(50vh,28rem)] w-full rounded-lg" />
+      </div>
+    </div>
+  );
 }
 
 function TabPageWithPerf({
@@ -180,7 +205,11 @@ function TabPageFallback({
 
   if (!active) return null;
 
-  if (DASHBOARD_TAB_PATHS.has(path) && !timedOut) {
+  if (ENTRY_TAB_SHELL_PATHS.has(path) && !timedOut) {
+    return <EntryTabShellFallback />;
+  }
+
+  if (LIST_DASHBOARD_SHELL_PATHS.has(path) && !timedOut) {
     return <DashboardSkeleton />;
   }
 
@@ -447,6 +476,8 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
 
     prefetchTabPage("product-dashboard");
     prefetchTabPage("purchase-bill-dashboard");
+    prefetchTabPage("purchase-bills");
+    prefetchTabPage("purchase-entry");
     prefetchTabPage("product-entry");
     prefetchTabPage("barcode-printing");
     // Note: previously also pre-mounted product-dashboard. Removed to avoid

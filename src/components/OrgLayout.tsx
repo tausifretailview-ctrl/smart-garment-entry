@@ -110,12 +110,23 @@ export const OrgLayout = () => {
   // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
   const wantsTabCache =
     isCacheableTabPath(currentPath) && tabPaths.length > 0;
-  // Keep <Outlet> visible until the cached pane has mounted — avoids a blank screen
-  // when the lazy chunk is still loading (reported after Phase 1/2 on purchase-bills).
-  const renderViaTabCache = wantsTabCache && tabPaneReady;
-  /** Keep dashboard panes mounted (hidden) during bill entry so inventory tabs don't remount. */
+  // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
+  // Dashboards: keep <Outlet> visible until the cached pane has mounted (chunk still loading).
+  const renderViaTabCache =
+    wantsTabCache && (isCacheableEntryActive || tabPaneReady);
+  /**
+   * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
+   * panes stay mounted (hidden). Cacheable entry must use currentPath — otherwise
+   * tabPaneReady hides both Outlet and TabCachedPages → blank blue screen.
+   */
   const tabCacheActivePath =
-    isEntryPage || !wantsTabCache ? TAB_CACHE_INACTIVE : currentPath;
+    !wantsTabCache || (isEntryPage && !isCacheableEntryActive)
+      ? TAB_CACHE_INACTIVE
+      : currentPath;
+  /** Hide tab-cache container while Outlet shows the first-load fallback (dashboards only). */
+  const hideTabCacheContainer =
+    (isEntryPage && !isCacheableEntryActive) ||
+    (wantsTabCache && !tabPaneReady && !isCacheableEntryActive);
 
   useEffect(() => {
     setTabPaneReady(tabPaneReadyPathsRef.current.has(currentPath));
@@ -268,9 +279,7 @@ export const OrgLayout = () => {
           <div
             className={cn(
               "flex min-h-0 flex-col w-full",
-              isEntryPage || (wantsTabCache && !tabPaneReady)
-                ? "hidden"
-                : "flex-1",
+              hideTabCacheContainer ? "hidden" : "flex-1",
             )}
           >
             <TabCachedPages
