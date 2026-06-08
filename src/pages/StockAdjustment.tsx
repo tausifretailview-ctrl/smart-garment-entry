@@ -1,5 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
+import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +39,10 @@ interface VariantWithMovements {
   stockQtyChanged: boolean;
 }
 
+const PERF_PATH = "stock-adjustment";
+
 const StockAdjustment = () => {
+  useNavPerfPage(PERF_PATH);
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -170,6 +176,15 @@ const StockAdjustment = () => {
       }) || [];
     },
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  const tableLoading = isLoading && variants.length === 0;
+
+  useNavPerfQueryWatch("stock-adjustment-variants", PERF_PATH, {
+    isLoading,
+    rowCount: variants.length,
+    blockedUi: tableLoading,
   });
 
   // Initialize variants state when data loads
@@ -392,18 +407,7 @@ const StockAdjustment = () => {
     return { withOpening, withSales, opening15 };
   }, [variants]);
 
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-4">
-        <BackToDashboard />
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-muted rounded w-1/4" />
-          <div className="h-64 bg-muted rounded" />
-        </div>
-      </div>
-    );
-  }
-
+  // Shell renders immediately; table area shows skeleton rows while variants load.
   return (
     <div className="p-4 md:p-6 space-y-4">
       <BackToDashboard />
@@ -423,19 +427,19 @@ const StockAdjustment = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="p-3">
             <div className="text-xs text-muted-foreground">With Opening Qty</div>
-            <div className="text-xl font-bold">{stats.withOpening}</div>
+            <div className="text-xl font-bold">{tableLoading ? "…" : stats.withOpening}</div>
           </Card>
           <Card className="p-3">
             <div className="text-xs text-muted-foreground">With Sales</div>
-            <div className="text-xl font-bold text-orange-600">{stats.withSales}</div>
+            <div className="text-xl font-bold text-orange-600">{tableLoading ? "…" : stats.withSales}</div>
           </Card>
           <Card className="p-3">
             <div className="text-xs text-muted-foreground">Opening = 15</div>
-            <div className="text-xl font-bold text-blue-600">{stats.opening15}</div>
+            <div className="text-xl font-bold text-blue-600">{tableLoading ? "…" : stats.opening15}</div>
           </Card>
           <Card className="p-3">
             <div className="text-xs text-muted-foreground">Pending Changes</div>
-            <div className="text-xl font-bold text-primary">{changesCount}</div>
+            <div className="text-xl font-bold text-primary">{tableLoading ? "…" : changesCount}</div>
           </Card>
         </div>
 
@@ -535,6 +539,13 @@ const StockAdjustment = () => {
 
         {/* Data Table */}
         <Card>
+          {tableLoading ? (
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Skeleton key={i} className="h-9 w-full rounded-md" />
+              ))}
+            </div>
+          ) : (
           <ScrollArea className="h-[400px]">
             <Table>
               <TableHeader>
@@ -631,6 +642,7 @@ const StockAdjustment = () => {
               </TableBody>
             </Table>
           </ScrollArea>
+          )}
         </Card>
 
         {/* Save Button */}

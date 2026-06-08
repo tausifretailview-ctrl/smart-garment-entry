@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -66,13 +67,15 @@ interface PurchaseReturn {
   credit_available_balance?: number | null;
 }
 
+const PERF_PATH = "purchase-returns";
+
 const PurchaseReturnDashboard = () => {
+  useNavPerfPage(PERF_PATH);
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -266,8 +269,7 @@ const PurchaseReturnDashboard = () => {
       return { returns: returnsWithQty as unknown as PurchaseReturn[], totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_LIVE,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   const linkedBillIds = [...new Set((returnsData?.returns || []).map((r) => r.linked_bill_id).filter(Boolean))] as string[];
@@ -289,7 +291,7 @@ const PurchaseReturnDashboard = () => {
       );
     },
     enabled: !!currentOrganization?.id && linkedBillIds.length > 0,
-    staleTime: STALE_LIVE,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   const { data: cnAmountByReturnId = new Map<string, number>() } = useQuery({
@@ -316,15 +318,14 @@ const PurchaseReturnDashboard = () => {
       return map;
     },
     enabled: !!returnsData?.returns?.length,
-    staleTime: STALE_LIVE,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   useEffect(() => {
-    if (returnsData || returnsError) {
-      setReturns(returnsData?.returns || []);
-      setLoading(false);
+    if (returnsData) {
+      setReturns(returnsData.returns || []);
     }
-  }, [returnsData, returnsError]);
+  }, [returnsData]);
 
   useEffect(() => {
     if (!returnsError) return;
@@ -336,9 +337,13 @@ const PurchaseReturnDashboard = () => {
     });
   }, [returnsError, toast]);
 
-  useEffect(() => {
-    if (returnsLoading && returns.length === 0) setLoading(true);
-  }, [returnsLoading]);
+  const tableLoading = returnsLoading && returns.length === 0;
+
+  useNavPerfQueryWatch("purchase-returns-list", PERF_PATH, {
+    isLoading: returnsLoading,
+    rowCount: returns.length,
+    blockedUi: tableLoading,
+  });
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -631,24 +636,12 @@ const PurchaseReturnDashboard = () => {
   const totalPages = Math.ceil((returnsData?.totalCount || returns.length) / pageSize);
 
   const totalReturnAmount = returns.reduce((sum, ret) => sum + ret.net_amount, 0);
-  const averageReturnValue = returns.length > 0 
-    ? totalReturnAmount / returns.length 
+  const averageReturnValue = returns.length > 0
+    ? totalReturnAmount / returns.length
     : 0;
+  const totalReturnsCount = returnsData?.totalCount ?? returns.length;
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-4 py-6 space-y-5">
-        <Skeleton className="h-12 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Skeleton className="h-28 rounded-xl" />
-          <Skeleton className="h-28 rounded-xl" />
-          <Skeleton className="h-28 rounded-xl" />
-        </div>
-        <Skeleton className="h-96 rounded-xl" />
-      </div>
-    );
-  }
-
+  // Shell renders immediately; table shows skeleton rows while data loads.
   return (
     <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
       <div className="w-full min-w-0 max-w-none space-y-5">
@@ -737,7 +730,9 @@ const PurchaseReturnDashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">{filteredReturns.length}</div>
+            <div className="text-2xl font-black text-white tabular-nums">
+              {tableLoading ? "…" : totalReturnsCount}
+            </div>
             <p className="text-sm text-white/65 mt-0.5">All return records</p>
           </CardContent>
         </Card>
@@ -750,7 +745,9 @@ const PurchaseReturnDashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">₹{totalReturnAmount.toFixed(0)}</div>
+            <div className="text-2xl font-black text-white tabular-nums">
+              {tableLoading ? "…" : `₹${totalReturnAmount.toFixed(0)}`}
+            </div>
             <p className="text-sm text-white/65 mt-0.5">Net refund value</p>
           </CardContent>
         </Card>
@@ -763,7 +760,9 @@ const PurchaseReturnDashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="px-3 pb-3 pt-0">
-            <div className="text-2xl font-black text-white tabular-nums">₹{averageReturnValue.toFixed(0)}</div>
+            <div className="text-2xl font-black text-white tabular-nums">
+              {tableLoading ? "…" : `₹${averageReturnValue.toFixed(0)}`}
+            </div>
             <p className="text-sm text-white/65 mt-0.5">Per return</p>
           </CardContent>
         </Card>
@@ -803,7 +802,13 @@ const PurchaseReturnDashboard = () => {
           </select>
         </div>
         <CardContent className="p-0 pt-0">
-          {paginatedReturns.length === 0 ? (
+          {tableLoading ? (
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-md" />
+              ))}
+            </div>
+          ) : paginatedReturns.length === 0 ? (
             <div className="text-center py-12">
               <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No Purchase Returns Found</h3>

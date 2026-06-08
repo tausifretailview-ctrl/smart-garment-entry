@@ -56,6 +56,8 @@ export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
   "products",
   "purchase-bill-dashboard",
   "purchase-bills",
+  "purchase-return-dashboard",
+  "purchase-returns",
 ] as const;
 
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
