@@ -578,10 +578,16 @@ All colors MUST be HSL.
     }
   }
 
-  /* Bill entry — header toolbar scrolls instead of clipping New/Save on narrow WebView width */
+  /* Bill entry — title scrolls; action buttons stay pinned on the right (Electron WebView width) */
   [data-entry-form] .entry-page-header-row {
     min-width: 0;
     max-width: 100%;
+    overflow: hidden;
+  }
+
+  [data-entry-form] .entry-page-header-leading {
+    min-width: 0;
+    flex: 1 1 0%;
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: thin;

@@ -3220,33 +3220,31 @@ Thank you for choosing us!`;
     <div className={cn(entryPageShellClass, "bg-slate-50 dark:bg-background pos-desktop-readable")} data-entry-form>
       {/* Professional Header Bar */}
       <header className="bg-gradient-to-r from-slate-900 to-slate-800 shrink-0 flex flex-col">
-        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-3", entryPageSectionX)}>
-          {/* Left: Nav */}
-          <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } })}
-            className="h-8 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
-            <ChevronLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </Button>
-          <div className="w-px h-6 bg-white/15 mx-1" />
-          <span className="text-white font-bold text-[15px] whitespace-nowrap">
-            {editingInvoiceId ? 'Edit Invoice' : 'Sales Invoice'}
-          </span>
-          <span className="bg-blue-600 text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md">
-            {editingInvoiceId && allInvoiceIds?.[navInvoiceIndex ?? -1]?.sale_number
-              ? allInvoiceIds[navInvoiceIndex!].sale_number
-              : (savedInvoiceData?.sale_number || 'NEW')}
-          </span>
-          {navInvoiceIndex !== null && allInvoiceIds && (
-            <span className="text-white/50 text-xs hidden lg:inline">
-              {navInvoiceIndex + 1} of {allInvoiceIds.length}
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
+          <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } })}
+              className="h-8 shrink-0 text-white/70 hover:text-white hover:bg-white/10 border border-white/15 text-xs gap-1.5">
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+            <div className="w-px h-6 bg-white/15 shrink-0" />
+            <span className="text-white font-bold text-[15px] whitespace-nowrap hidden md:inline">
+              {editingInvoiceId ? 'Edit Invoice' : 'Sales Invoice'}
             </span>
-          )}
-          {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-white/60" />}
+            <span className="bg-blue-600 text-white font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
+              {editingInvoiceId && allInvoiceIds?.[navInvoiceIndex ?? -1]?.sale_number
+                ? allInvoiceIds[navInvoiceIndex!].sale_number
+                : (savedInvoiceData?.sale_number || 'NEW')}
+            </span>
+            {navInvoiceIndex !== null && allInvoiceIds && (
+              <span className="text-white/50 text-xs hidden lg:inline shrink-0">
+                {navInvoiceIndex + 1} of {allInvoiceIds.length}
+              </span>
+            )}
+            {isLoadingNavInvoice && <Loader2 className="h-4 w-4 animate-spin text-white/60 shrink-0" />}
+          </div>
 
-          <div className="flex-1 min-w-[8px]" />
-
-          {/* Right: Actions */}
-          <div className="entry-page-header-actions flex items-center gap-1">
+          <div className="entry-page-header-actions flex items-center gap-0.5 shrink-0">
             <Button variant="ghost" size="sm" onClick={handleLastInvoice}
               disabled={isLoadingNavInvoice || !allInvoiceIds?.length}
               className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
@@ -3298,10 +3296,10 @@ Thank you for choosing us!`;
                 invoiceSavedRef.current = false;
                 savingLockRef.current = false;
               }}
-              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
+              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5"
               title="New Bill">
               <Plus className="h-3.5 w-3.5" />
-              <span>New</span>
+              <span className="hidden xl:inline">New</span>
             </Button>
             {(editingInvoiceId || savedInvoiceData) && (
               <>
