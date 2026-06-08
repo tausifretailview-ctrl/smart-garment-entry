@@ -103,11 +103,9 @@ const LIST_DASHBOARD_SHELL_PATHS = new Set([
   "products",
   "purchase-bill-dashboard",
   "purchase-bills",
- cursor/inventory-shell-first-97d7
   "purchase-return-dashboard",
   "purchase-returns",
   "stock-adjustment",
-main
 ]);
 /** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
  *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */
