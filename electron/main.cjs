@@ -169,6 +169,27 @@ function manualReloadMainWindow(source) {
   mainWindow.webContents.reload();
 }
 
+/** Stuck on Supabase OAuth JSON error (e.g. missing Google client secret). */
+function recoverSupabaseOAuthJsonErrorPage() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const url = mainWindow.webContents.getURL();
+  if (!url.includes('supabase.co/auth/v1/')) return;
+
+  mainWindow.webContents
+    .executeJavaScript('document.body && document.body.innerText ? document.body.innerText.trim() : ""')
+    .then((text) => {
+      if (
+        typeof text === 'string' &&
+        text.startsWith('{') &&
+        (text.includes('missing OAuth secret') || text.includes('validation_failed'))
+      ) {
+        console.warn('[EzzyERP] Recovering from Supabase OAuth JSON error page');
+        mainWindow.loadURL(`${PROD_URL}?electron_oauth_error=1`);
+      }
+    })
+    .catch(() => {});
+}
+
 function createWindow() {
   const icon = resolveIcon();
 
@@ -205,6 +226,7 @@ function createWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     loadRetryCount = 0;
+    recoverSupabaseOAuthJsonErrorPage();
   });
 
   // Auto-reload on network/CDN failure disabled — user reloads manually if needed.
@@ -495,6 +517,14 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // OAuth URLs return raw JSON errors inside the Electron webview — use system browser.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url.includes('supabase.co/auth/v1/authorize')) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
   });
 
   // Native right-click context menu (Cut / Copy / Paste / Select All / Print).
@@ -920,6 +950,12 @@ function createMenu() {
 ipcMain.handle('reload-app', async () => {
   manualReloadMainWindow('ipc');
   return { success: true };
+});
+
+ipcMain.handle('open-external', async (_event, url) => {
+  if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
+    await shell.openExternal(url);
+  }
 });
 
 // ═══ PRINTER IPC ═══

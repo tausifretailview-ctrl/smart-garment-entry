@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Full page reload — same as F5 / File → Refresh App. */
   reloadApp: () => ipcRenderer.invoke('reload-app'),
 
+  /** Open a URL in the system browser (OAuth must not run inside the Electron webview). */
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
   /** Desktop menu accelerators → same routes as Alt+P / Alt+N / Alt+B in the web app. */
   onNavigate: (callback) => {
     const listener = (_event, path) => callback(path);

@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
 import { isValidOrgSlug, normalizeOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
-import { lovable } from "@/integrations/lovable/index";
+import { signInWithGoogleOAuth } from "@/lib/googleOAuthSignIn";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import ezzyerpLogoFull from "@/assets/ezzyerp-logo-full.png";
 import posIllustration from "@/assets/pos-illustration.png";
@@ -858,37 +858,14 @@ export default function OrgAuth() {
                   onClick={async () => {
                     setLoading(true);
                     setError("");
-                    
-                    // Detect custom domain - auth bridge only works on *.lovable.app
-                    const isCustomDomain =
-                      !window.location.hostname.includes("lovable.app") &&
-                      !window.location.hostname.includes("lovableproject.com") &&
-                      !window.location.hostname.includes("localhost");
-                    
-                    if (isCustomDomain) {
-                      // Bypass Lovable auth bridge for custom domains
-                      const { data, error } = await supabase.auth.signInWithOAuth({
-                        provider: "google",
-                        options: {
-                          redirectTo: "https://app.inventoryshop.in/" + (orgSlug || ""),
-                          skipBrowserRedirect: true,
-                        },
-                      });
-                      if (error) {
-                        setError(error.message || "Google sign-in failed");
-                        setLoading(false);
-                      } else if (data?.url) {
-                        window.location.href = data.url;
-                      }
-                    } else {
-                      const { error } = await lovable.auth.signInWithOAuth("google", {
-                        redirect_uri: "https://app.inventoryshop.in",
-                      });
-                      if (error) {
-                        setError(error.message || "Google sign-in failed");
-                        setLoading(false);
+                    const result = await signInWithGoogleOAuth({ orgSlug });
+                    if (!result.ok) {
+                      setError(result.message);
+                      if (result.message.includes("browser")) {
+                        toast.info(result.message);
                       }
                     }
+                    setLoading(false);
                   }}
                 >
                   <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">

@@ -5,7 +5,10 @@ import { initNativeShell } from "@/hooks/useNativeApp";
 import { initForceDesktopViewPreference } from "@/lib/desktopViewPreference";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { initBootSplashWatchdog } from "@/lib/appBootSplash";
+import { recoverElectronOAuthErrorPage } from "@/lib/electronOAuthRecovery";
 import "./index.css";
+
+recoverElectronOAuthErrorPage();
 
 initForceDesktopViewPreference();
 initUIScale();

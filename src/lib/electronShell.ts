@@ -1,6 +1,7 @@
 type ElectronWindowApi = {
   isElectron?: boolean;
   reloadApp?: () => Promise<{ success?: boolean }>;
+  openExternal?: (url: string) => Promise<void>;
 };
 
 /** True when running inside the EzzyERP Electron desktop shell. */

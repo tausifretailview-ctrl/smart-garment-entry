@@ -29,6 +29,7 @@ import { isAppBootRoute } from "@/lib/appBootSplash";
 import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback";
 import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
+import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
 import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
 
 // Lazy-loaded page components for code splitting
@@ -319,6 +320,7 @@ const App = () => {
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ElectronOAuthRecovery />
         <NativeAppBridge />
         <AuthProvider>
           <OrganizationProvider>
