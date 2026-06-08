@@ -72,6 +72,11 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useStockValidation } from "@/hooks/useStockValidation";
+import {
+  insertSaleItemsInChunks,
+  isStatementTimeoutError,
+  saleSaveTimeoutMessage,
+} from "@/utils/insertSaleItemsInChunks";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -2479,9 +2484,12 @@ Thank you for choosing us!`;
           hsn_code: item.hsnCode || null,
         }));
 
-        const { error: itemsError } = await supabase
-          .from('sale_items')
-          .insert(saleItems);
+        let itemsError: unknown = null;
+        try {
+          await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
+        } catch (err) {
+          itemsError = err;
+        }
 
         if (itemsError) {
           if (saleItemsSnapshot && saleItemsSnapshot.length > 0) {
@@ -2506,7 +2514,7 @@ Thank you for choosing us!`;
               return;
             }
           }
-          throw itemsError;
+          throw itemsError as Error;
         }
 
         // Step 3: Update the sales record
@@ -2677,11 +2685,7 @@ Thank you for choosing us!`;
           hsn_code: item.hsnCode || null,
         }));
 
-        const { error: itemsError } = await supabase
-          .from('sale_items')
-          .insert(saleItems);
-
-        if (itemsError) throw itemsError;
+        await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
         newSaleIdForRollback = null;
 
         // Save financer details if provided
@@ -2865,7 +2869,9 @@ Thank you for choosing us!`;
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to save invoice",
+        description: isStatementTimeoutError(error)
+          ? saleSaveTimeoutMessage()
+          : (error?.message || "Failed to save invoice"),
       });
       setPaymentOverride(null);
     } finally {
