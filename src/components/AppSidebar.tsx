@@ -476,7 +476,7 @@ export function AppSidebar() {
                         {(isAdminPermissions || hasMenuAccess("purchase_bill")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-entry")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
-                              <NavLink to="/purchase-entry" className="flex items-center gap-2 group">
+                              <NavLink to="/purchase-entry" state={{ newBill: true }} className="flex items-center gap-2 group">
                                 <ShoppingBag className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Purchase Bill</span>
                               </NavLink>

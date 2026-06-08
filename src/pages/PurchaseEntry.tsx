@@ -386,6 +386,40 @@ const PurchaseEntry = () => {
     if (key) sessionStorage.removeItem(key);
   }, [getEntrySessionKey]);
 
+  const resetToNewBill = useCallback(() => {
+    setLineItems([]);
+    setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
+    setSoftwareBillNo("");
+    setBillDate(new Date());
+    setBillEntryAt(null);
+    setOtherCharges(0);
+    setRoundOff(0);
+    setDiscountAmount(0);
+    setEditingBillId(null);
+    setIsEditMode(false);
+    setOriginalLineItems([]);
+    setNavBillIndex(null);
+    setSavedBillId(null);
+    setSavedPurchaseItems([]);
+    setNewlyAddedItems([]);
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSearch(false);
+    setSelectedProduct(null);
+    setShowPrintDialog(false);
+    setBarcodeWarnings(new Map());
+    setDetectedPriceChanges([]);
+    setSelectedForPrint(new Set());
+    setIsDcPurchase(false);
+    setIsBillLocked(false);
+    deleteDraft();
+    clearEntrySession();
+    workRestoredRef.current = false;
+    loadedEditBillIdRef.current = null;
+    isInitializingEditRef.current = false;
+    updateCurrentData(null);
+  }, [clearEntrySession, deleteDraft, updateCurrentData]);
+
   const persistEntrySession = useCallback(
     (snapshot: Record<string, unknown> | null) => {
       const key = getEntrySessionKey();
@@ -511,7 +545,7 @@ const PurchaseEntry = () => {
   // Restore in-progress work when returning to Purchase Entry (tab switch / app refocus).
   useEffect(() => {
     if (workRestoredRef.current) return;
-    if (location.state?.editBillId) return;
+    if (location.state?.editBillId || location.state?.newBill) return;
     if (!currentOrganization?.id || !user?.id) return;
 
     const restoreWork = async () => {
@@ -522,9 +556,14 @@ const PurchaseEntry = () => {
           try {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed?.lineItems) && parsed.lineItems.length > 0) {
-              workRestoredRef.current = true;
-              await loadDraftData(parsed);
-              return;
+              // Cached edit of a saved bill — start fresh; use Last / dashboard to reopen it.
+              if (parsed.isEditMode && parsed.editingBillId) {
+                sessionStorage.removeItem(sessionKey);
+              } else {
+                workRestoredRef.current = true;
+                await loadDraftData(parsed);
+                return;
+              }
             }
           } catch {
             sessionStorage.removeItem(sessionKey);
@@ -542,8 +581,12 @@ const PurchaseEntry = () => {
       }
 
       if (hasDraft && draftData?.lineItems?.length > 0) {
-        workRestoredRef.current = true;
-        await loadDraftData(draftData);
+        if (draftData.isEditMode && draftData.editingBillId) {
+          await deleteDraft();
+        } else {
+          workRestoredRef.current = true;
+          await loadDraftData(draftData);
+        }
       }
     };
 
@@ -554,6 +597,7 @@ const PurchaseEntry = () => {
     hasDraft,
     draftData,
     location.state?.editBillId,
+    location.state?.newBill,
     location.state?.loadDraft,
     getEntrySessionKey,
     loadDraftData,
@@ -1044,6 +1088,13 @@ const PurchaseEntry = () => {
       setBillData(prev => ({ ...prev, supplier_invoice_no: nextSupplierInvNo }));
     }
   }, [nextSupplierInvNo, isEditMode]);
+
+  // Menu / Alt+B — open blank new bill (not the last edited bill).
+  useEffect(() => {
+    if (!location.state?.newBill) return;
+    resetToNewBill();
+    window.history.replaceState({}, "", location.pathname);
+  }, [location.state?.newBill, location.pathname, resetToNewBill]);
 
   // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
   useEffect(() => {
@@ -4105,7 +4156,17 @@ const PurchaseEntry = () => {
         <div className="flex-1 min-w-[8px]" />
 
         <div className="entry-page-header-actions flex items-center gap-1">
-          {/* Navigation buttons */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetToNewBill}
+            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
+            title="New Bill"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>New</span>
+          </Button>
+          <div className="w-px h-6 bg-white/15 mx-1" />
           <Button variant="ghost" size="sm" onClick={handleLastBill}
             disabled={isLoadingNavBill || !allBillIds?.length}
             className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 w-8 p-0"
@@ -4124,43 +4185,6 @@ const PurchaseEntry = () => {
             title="Next">
             <ChevronRight className="h-4 w-4" />
            </Button>
-          <div className="w-px h-6 bg-white/15 mx-1" />
-          <Button variant="ghost" size="sm" onClick={() => {
-              setLineItems([]);
-              setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
-              setSoftwareBillNo("");
-              setBillDate(new Date());
-              setBillEntryAt(null);
-              setOtherCharges(0);
-              setRoundOff(0);
-              setEditingBillId(null);
-              setIsEditMode(false);
-              setOriginalLineItems([]);
-              setNavBillIndex(null);
-              setSavedBillId(null);
-              setSavedPurchaseItems([]);
-              setNewlyAddedItems([]);
-              setSearchQuery("");
-              setSearchResults([]);
-              setShowSearch(false);
-              setSelectedProduct(null);
-              setShowPrintDialog(false);
-              setBarcodeWarnings(new Map());
-              setDetectedPriceChanges([]);
-              setSelectedForPrint(new Set());
-              setIsDcPurchase(false);
-              deleteDraft();
-              clearEntrySession();
-              workRestoredRef.current = false;
-              loadedEditBillIdRef.current = null;
-              isInitializingEditRef.current = false;
-
-            }}
-            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1.5 px-2.5"
-            title="New Bill">
-            <Plus className="h-3.5 w-3.5" />
-            <span>New</span>
-          </Button>
         </div>
         </div>
 

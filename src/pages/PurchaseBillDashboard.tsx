@@ -376,7 +376,7 @@ const PurchaseBillDashboard = () => {
     {
       label: "New Purchase",
       icon: Plus,
-      onClick: () => navigate("/purchase-entry"),
+      onClick: () => navigate("/purchase-entry", { state: { newBill: true } }),
     },
     {
       label: "Add Supplier",
@@ -1777,7 +1777,7 @@ const PurchaseBillDashboard = () => {
           title="Purchase Bills"
           subtitle={`${summaryStats.totalBills} bills`}
           rightContent={
-            <button onClick={() => navigate("/purchase-entry")}
+            <button onClick={() => navigate("/purchase-entry", { state: { newBill: true } })}
               className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-sm active:scale-90 touch-manipulation">
               <Plus className="h-5 w-5 text-primary-foreground" />
             </button>
@@ -1950,7 +1950,7 @@ const PurchaseBillDashboard = () => {
               Fix Missing Data
             </Button>
             <Button
-              onClick={() => navigate("/purchase-entry")}
+              onClick={() => navigate("/purchase-entry", { state: { newBill: true } })}
               className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
             >
               <Plus className="h-4 w-4" />

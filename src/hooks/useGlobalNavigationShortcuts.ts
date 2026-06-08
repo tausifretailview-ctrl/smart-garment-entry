@@ -68,7 +68,12 @@ export function useGlobalNavigationShortcuts() {
           (ctrlShift && key === target.ctrlShiftKey);
         if (match) {
           e.preventDefault();
-          go(target.path, target.permission);
+          if (target.path === "purchase-entry") {
+            if (!canGo(target.permission)) return;
+            orgNavigate("/purchase-entry", { state: { newBill: true } });
+          } else {
+            go(target.path, target.permission);
+          }
           return;
         }
       }
@@ -113,6 +118,10 @@ export function useElectronNavigationBridge() {
       };
       const perm = permissionMap[clean];
       if (perm && permissions !== null && !hasMenuAccess(perm)) return;
+      if (clean === "purchase-entry") {
+        orgNavigate("/purchase-entry", { state: { newBill: true } });
+        return;
+      }
       orgNavigate(`/${clean}`);
     });
   }, [orgNavigate, permissionsLoading, hasMenuAccess, permissions, organizationRole]);

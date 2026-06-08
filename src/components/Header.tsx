@@ -151,6 +151,8 @@ export const Header = () => {
       setCustomerStatementOpen(true);
     } else if (action.path === "/pos-sales") {
       openPosSales();
+    } else if (action.path === "/purchase-entry") {
+      orgNavigate("/purchase-entry", { state: { newBill: true } });
     } else {
       orgNavigate(action.path);
     }
@@ -213,7 +215,7 @@ export const Header = () => {
                   </DropdownMenuItem>
                 )}
                 {can("purchase_bill") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/purchase-entry")} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })} className="cursor-pointer">
                     <Package className="h-3.5 w-3.5 mr-2 opacity-60" /> New Purchase
                   </DropdownMenuItem>
                 )}
@@ -626,7 +628,7 @@ export const Header = () => {
           <div className="flex items-center">
             <Button
               variant="ghost"
-              onClick={() => orgNavigate("/purchase-entry")}
+              onClick={() => orgNavigate("/purchase-entry", { state: { newBill: true } })}
               className={shortcutBtn("bg-emerald-600 hover:bg-emerald-700", "px-2.5")}
             >
               <ShoppingCart className="h-3.5 w-3.5" />
