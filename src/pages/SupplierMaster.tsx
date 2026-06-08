@@ -1,5 +1,6 @@
 import { useState, useMemo, type ReactNode } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -131,6 +132,16 @@ const SupplierMaster = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const searchTimerRef = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  useCreateFormDraftPersistence(
+    `${WINDOW_FILTER_IDS.suppliers}:create`,
+    currentOrganization?.id,
+    isDialogOpen,
+    formData,
+    setIsDialogOpen,
+    setFormData,
+    { enabled: !editingSupplier },
+  );
+
   useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.suppliers,
     currentOrganization?.id,
@@ -173,6 +184,7 @@ const SupplierMaster = () => {
       return count || 0;
     },
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 60000,
   });
 
@@ -185,8 +197,8 @@ const SupplierMaster = () => {
     queryKey: ["supplier-segments", currentOrganization?.id],
     queryFn: () => fetchSupplierSegmentIndex(currentOrganization!.id),
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
     retry: 2,
   });
 

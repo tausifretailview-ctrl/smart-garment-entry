@@ -870,8 +870,7 @@ export function CustomerLedger({
     enabled: !!organizationId,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    gcTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
 
@@ -2366,7 +2365,7 @@ export function CustomerLedger({
     enabled: !!selectedCustomer?.id,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    gcTime: 30 * 60 * 1000,
     placeholderData: (previousData, previousQuery) => {
       const prevCustomerId = previousQuery?.queryKey[1];
       if (prevCustomerId && prevCustomerId === selectedCustomer?.id) return previousData;

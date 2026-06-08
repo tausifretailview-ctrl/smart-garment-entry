@@ -237,8 +237,9 @@ export function CustomerPaymentTab({
     queryFn: () => fetchCustomerReceiptVouchers(organizationId),
     enabled: !!organizationId && !embedded,
     staleTime: 60 * 1000,
-    refetchOnMount: "always",
+    gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // Reassign dialog state

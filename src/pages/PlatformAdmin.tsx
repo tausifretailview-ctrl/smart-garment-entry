@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +50,8 @@ interface OrgMember {
   user_email?: string;
   org_name?: string;
 }
+
+const STICKY_TAB_CONTENT_CLASS = "space-y-4 outline-none data-[state=inactive]:hidden";
 
 const AVAILABLE_FEATURES = [
   "advanced_reports",
@@ -453,6 +457,27 @@ export default function PlatformAdmin() {
   const [userRole, setUserRole] = useState<"admin" | "manager" | "user">("user");
   const [allUsersOpen, setAllUsersOpen] = useState(false);
 
+  const createUserDraft = useMemo(
+    () => ({ userEmail, userPassword, userOrgId, userRole }),
+    [userEmail, userPassword, userOrgId, userRole],
+  );
+
+  useCreateFormDraftPersistence(
+    "platform-admin:create-user",
+    undefined,
+    createUserOpen,
+    createUserDraft,
+    setCreateUserOpen,
+    (draft) => {
+      if (typeof draft.userEmail === "string") setUserEmail(draft.userEmail);
+      if (typeof draft.userPassword === "string") setUserPassword(draft.userPassword);
+      if (typeof draft.userOrgId === "string") setUserOrgId(draft.userOrgId);
+      if (draft.userRole === "admin" || draft.userRole === "manager" || draft.userRole === "user") {
+        setUserRole(draft.userRole);
+      }
+    },
+  );
+
   const queryClient = useQueryClient();
 
   // Slug utility: mirrors the DB function logic
@@ -502,6 +527,7 @@ export default function PlatformAdmin() {
       if (error) throw error;
       return data as Organization[];
     },
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   // Fetch all organization members with user emails
@@ -531,6 +557,7 @@ export default function PlatformAdmin() {
       return membersWithDetails;
     },
     enabled: organizations.length > 0,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   // Create organization mutation
@@ -841,22 +868,22 @@ export default function PlatformAdmin() {
           </TabsList>
 
           {/* WhatsApp Tab */}
-          <TabsContent value="whatsapp" className="space-y-4">
+          <TabsContent value="whatsapp" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             <PlatformWhatsAppSettings />
           </TabsContent>
 
           {/* WhatsApp Logs Tab */}
-          <TabsContent value="whatsapp-logs" className="space-y-4">
+          <TabsContent value="whatsapp-logs" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             <PlatformWhatsAppLogs />
           </TabsContent>
 
           {/* Customer Ledger Health Tab */}
-          <TabsContent value="ledger-health" className="space-y-4">
+          <TabsContent value="ledger-health" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             <PlatformLedgerHealth />
           </TabsContent>
 
           {/* Organizations Tab */}
-          <TabsContent value="organizations" className="space-y-4">
+          <TabsContent value="organizations" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Organizations</h2>
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
@@ -1061,7 +1088,7 @@ export default function PlatformAdmin() {
           </TabsContent>
 
           {/* Users Tab */}
-          <TabsContent value="users" className="space-y-4">
+          <TabsContent value="users" forceMount className={STICKY_TAB_CONTENT_CLASS}>
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Users</h2>
               <Dialog open={createUserOpen} onOpenChange={setCreateUserOpen}>
@@ -1193,7 +1220,7 @@ export default function PlatformAdmin() {
           </TabsContent>
 
           {/* Settings Tab */}
-          <TabsContent value="settings" className="space-y-6">
+          <TabsContent value="settings" forceMount className={`${STICKY_TAB_CONTENT_CLASS} space-y-6`}>
             {/* Cloud Usage Widget */}
             <CloudUsageWidget />
 
