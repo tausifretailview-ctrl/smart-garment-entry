@@ -364,35 +364,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         try {
           const { data: { session: currentSession }, error } = await supabase.auth.getSession();
 
+          const applyResumedSession = (resumed: Session) => {
+            if (
+              resumed.user?.id !== sessionRef.current?.user?.id ||
+              resumed.access_token !== sessionRef.current?.access_token
+            ) {
+              setSession(resumed);
+              setUser(resumed.user);
+            } else {
+              sessionRef.current = resumed;
+            }
+          };
+
+          const tryRefreshWithRetries = async (): Promise<Session | null> => {
+            for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
+              const { data: refreshData, error: refreshError } =
+                await supabase.auth.refreshSession();
+              if (!refreshError && refreshData.session) {
+                return refreshData.session;
+              }
+              if (attempt < MAX_REFRESH_RETRIES) await delay(RETRY_DELAY);
+            }
+            const { data: stored } = await supabase.auth.getSession();
+            return stored.session ?? null;
+          };
+
           if (error || !currentSession) {
-            // Session gone — try refresh
             console.warn("Session lost after tab resume, attempting refresh...");
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError || !refreshData.session) {
-              console.warn("Refresh failed after tab resume — signing out");
+            const resumed = await tryRefreshWithRetries();
+            if (resumed) {
+              console.log("Session restored after tab resume");
+              applyResumedSession(resumed);
+            } else {
+              console.warn("No valid session after tab resume — signing out");
               toast.error("Session expired, please login again");
               await safeSignOut(setSession, setUser);
-            } else {
-              toast.success("Session restored");
-              if (refreshData.session.user?.id !== sessionRef.current?.user?.id || refreshData.session.access_token !== sessionRef.current?.access_token) {
-                setSession(refreshData.session);
-                setUser(refreshData.session.user);
-              } else {
-                sessionRef.current = refreshData.session;
-              }
             }
           } else if (isSessionNeedsRefresh(currentSession)) {
-            // Session exists but nearing expiry — proactive refresh
             console.log("Session near expiry after tab resume, refreshing...");
-            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-            if (!refreshError && refreshData.session) {
-              console.log("Session proactively refreshed — still valid, no user action needed.");
-              if (refreshData.session.user?.id !== sessionRef.current?.user?.id || refreshData.session.access_token !== sessionRef.current?.access_token) {
-                setSession(refreshData.session);
-                setUser(refreshData.session.user);
-              } else {
-                sessionRef.current = refreshData.session;
-              }
+            const resumed = await tryRefreshWithRetries();
+            if (resumed) {
+              applyResumedSession(resumed);
+            } else {
+              // Keep existing session — another tab may have refreshed; avoid false sign-out.
+              console.warn("Proactive refresh failed — keeping stored session");
+              applyResumedSession(currentSession);
             }
           }
           // else: session valid and fresh — do nothing

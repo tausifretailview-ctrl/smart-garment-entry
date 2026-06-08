@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isEntryTabPath } from "@/lib/entryPageLayout";
+import { isCacheableEntryTabPath, isEntryTabPath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
@@ -54,19 +54,24 @@ export const OrgLayout = () => {
   );
 
   const isEntryPage = isEntryTabPath(currentPath);
+  const isCacheableEntryActive = isCacheableEntryTabPath(currentPath);
+
+  const isCacheableTabPath = (path: string) =>
+    isTabCachePath(path) && (!isEntryTabPath(path) || isCacheableEntryTabPath(path));
 
   const tabPaths = useMemo(() => {
     const set = new Set<string>();
     openWindows.forEach((w) => {
-      if (isTabCachePath(w.path) && !isEntryTabPath(w.path)) set.add(w.path);
+      if (isCacheableTabPath(w.path)) set.add(w.path);
     });
-    if (isTabCachePath(currentPath) && !isEntryPage) set.add(currentPath);
+    if (isCacheableTabPath(currentPath)) set.add(currentPath);
     return [...set];
-  }, [openWindows, currentPath, isEntryPage]);
+  }, [openWindows, currentPath]);
 
   useEffect(() => {
-    return prefetchTabPagesIdle(tabPaths, isEntryPage ? "" : currentPath);
-  }, [tabPaths, currentPath, isEntryPage]);
+    const prefetchActive = isEntryPage && !isCacheableEntryActive ? "" : currentPath;
+    return prefetchTabPagesIdle(tabPaths, prefetchActive);
+  }, [tabPaths, currentPath, isEntryPage, isCacheableEntryActive]);
 
   // Warm bill-entry chunks after login. Electron: defer prefetch so login paint is not blocked.
   useEffect(() => {
@@ -98,9 +103,9 @@ export const OrgLayout = () => {
     return () => window.clearTimeout(t);
   }, [isOrgSynced, user, tabPaths]);
 
-  // Bill/POS entry uses <Outlet> + route FullScreenLayout (h-dvh). Tab cache broke footer layout on Windows.
+  // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
   const wantsTabCache =
-    !isEntryPage && isTabCachePath(currentPath) && tabPaths.length > 0;
+    isCacheableTabPath(currentPath) && tabPaths.length > 0;
   // Keep <Outlet> visible until the cached pane has mounted — avoids a blank screen
   // when the lazy chunk is still loading (reported after Phase 1/2 on purchase-bills).
   const renderViaTabCache = wantsTabCache && tabPaneReady;
@@ -251,8 +256,8 @@ export const OrgLayout = () => {
     >
       <GlobalShortcuts />
       <div className="flex min-h-0 flex-1 flex-col w-full">
-        {/* Hidden while on bill entry — otherwise flex-1 splits viewport and footer floats mid-screen */}
-        {tabPaths.length > 0 && !isEntryPage && (
+        {/* Hidden on non-cacheable entry routes — purchase-entry uses tab cache with FullScreenLayout */}
+        {tabPaths.length > 0 && (!isEntryPage || isCacheableEntryActive) && (
           <div
             className={
               wantsTabCache && !tabPaneReady

@@ -13,6 +13,14 @@ export function isEntryTabPath(pathSegment: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(`/${segment}/`);
 }
 
+/** Entry routes allowed in TabCachedPages (stay mounted on in-app tab switch). */
+export const CACHEABLE_ENTRY_PATHS = new Set(["purchase-entry"]);
+
+export function isCacheableEntryTabPath(pathSegment: string): boolean {
+  const segment = pathSegment.replace(/^\/+|\/+$/g, "");
+  return CACHEABLE_ENTRY_PATHS.has(segment);
+}
+
 /** Height reserved for the fixed desktop status bar (see .erp-status-bar in index.css). */
 export const ERP_STATUS_BAR_HEIGHT_CLASS = "lg:pb-[var(--erp-status-bar-height,1.75rem)]";
 

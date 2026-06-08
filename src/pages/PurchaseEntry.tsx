@@ -41,6 +41,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import {
+  getOrCreatePurchaseEntryTabInstanceId,
+  purchaseEntrySessionKey,
+} from "@/lib/purchaseEntryPersistence";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
@@ -202,10 +206,6 @@ const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant
   });
 };
 
-function purchaseEntrySessionKey(orgId: string, userId: string): string {
-  return `purchaseEntryState:${orgId}:${userId}`;
-}
-
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -261,6 +261,7 @@ const PurchaseEntry = () => {
   const isInitializingEditRef = useRef(false);
   const loadedEditBillIdRef = useRef<string | null>(null);
   const workRestoredRef = useRef(false);
+  const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
@@ -421,6 +422,23 @@ const PurchaseEntry = () => {
     updateCurrentData(null);
   }, [clearEntrySession, deleteDraft, updateCurrentData]);
 
+  const hasUnsavedPurchaseLines = useCallback(
+    () => lineItems.some((item) => item.qty > 0 && item.product_id),
+    [lineItems],
+  );
+
+  const confirmDiscardUnsavedPurchase = useCallback(() => {
+    if (!hasUnsavedPurchaseLines()) return true;
+    return window.confirm(
+      "You have an unsaved purchase bill. Start a new bill anyway? Your current draft will be removed.",
+    );
+  }, [hasUnsavedPurchaseLines]);
+
+  const requestNewBill = useCallback(() => {
+    if (!confirmDiscardUnsavedPurchase()) return;
+    resetToNewBill();
+  }, [confirmDiscardUnsavedPurchase, resetToNewBill]);
+
   const persistEntrySession = useCallback(
     (snapshot: Record<string, unknown> | null) => {
       const key = getEntrySessionKey();
@@ -439,6 +457,18 @@ const PurchaseEntry = () => {
     [getEntrySessionKey],
   );
 
+  const notifyWorkRestored = useCallback(
+    (data: { lineItems?: unknown[]; isEditMode?: boolean }) => {
+      const count = Array.isArray(data?.lineItems) ? data.lineItems.length : 0;
+      if (count === 0) return;
+      toast({
+        title: data.isEditMode ? "Unsaved edits restored" : "Unsaved draft restored",
+        description: `${count} line item(s) loaded from your last session.`,
+      });
+    },
+    [toast],
+  );
+
   const buildEntrySnapshot = useCallback(() => {
     if (lineItems.length === 0) return null;
     return {
@@ -454,6 +484,8 @@ const PurchaseEntry = () => {
       isEditMode,
       editingBillId,
       originalLineItems,
+      tabInstanceId: tabInstanceIdRef.current,
+      savedAt: Date.now(),
     };
   }, [
     billData,
@@ -557,14 +589,10 @@ const PurchaseEntry = () => {
           try {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed?.lineItems) && parsed.lineItems.length > 0) {
-              // Cached edit of a saved bill — start fresh; use Last / dashboard to reopen it.
-              if (parsed.isEditMode && parsed.editingBillId) {
-                sessionStorage.removeItem(sessionKey);
-              } else {
-                workRestoredRef.current = true;
-                await loadDraftData(parsed);
-                return;
-              }
+              workRestoredRef.current = true;
+              await loadDraftData(parsed);
+              notifyWorkRestored(parsed);
+              return;
             }
           } catch {
             sessionStorage.removeItem(sessionKey);
@@ -576,18 +604,16 @@ const PurchaseEntry = () => {
         if (hasDraft && draftData) {
           workRestoredRef.current = true;
           await loadDraftData(draftData);
+          notifyWorkRestored(draftData);
           await deleteDraft();
         }
         return;
       }
 
       if (hasDraft && draftData?.lineItems?.length > 0) {
-        if (draftData.isEditMode && draftData.editingBillId) {
-          await deleteDraft();
-        } else {
-          workRestoredRef.current = true;
-          await loadDraftData(draftData);
-        }
+        workRestoredRef.current = true;
+        await loadDraftData(draftData);
+        notifyWorkRestored(draftData);
       }
     };
 
@@ -603,6 +629,7 @@ const PurchaseEntry = () => {
     getEntrySessionKey,
     loadDraftData,
     deleteDraft,
+    notifyWorkRestored,
   ]);
 
   useEntryViewportSync();
@@ -646,16 +673,21 @@ const PurchaseEntry = () => {
     clearEntrySession();
   }, [updateCurrentData, persistEntrySession, clearEntrySession, saveDraft]);
 
-  // Save immediately when leaving the tab or minimizing the desktop app.
+  // Save immediately when leaving the tab, switching browser tabs, or closing the page.
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flushEntryPersistence();
       }
     };
+    const onPageHide = () => {
+      flushEntryPersistence();
+    };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onPageHide);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", onPageHide);
       flushEntryPersistence();
     };
   }, [flushEntryPersistence]);
@@ -1093,9 +1125,18 @@ const PurchaseEntry = () => {
   // Menu / Alt+B — open blank new bill (not the last edited bill).
   useEffect(() => {
     if (!location.state?.newBill) return;
+    if (!confirmDiscardUnsavedPurchase()) {
+      window.history.replaceState({}, "", location.pathname);
+      return;
+    }
     resetToNewBill();
     window.history.replaceState({}, "", location.pathname);
-  }, [location.state?.newBill, location.pathname, resetToNewBill]);
+  }, [
+    location.state?.newBill,
+    location.pathname,
+    resetToNewBill,
+    confirmDiscardUnsavedPurchase,
+  ]);
 
   // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
   useEffect(() => {
@@ -4166,9 +4207,9 @@ const PurchaseEntry = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={resetToNewBill}
-              className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5"
-              title="New Bill"
+            onClick={requestNewBill}
+            className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5"
+            title="New Bill"
             >
               <Plus className="h-3.5 w-3.5" />
               <span className="hidden xl:inline">New</span>

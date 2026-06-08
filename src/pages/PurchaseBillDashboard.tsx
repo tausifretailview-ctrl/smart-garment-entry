@@ -29,6 +29,8 @@ import { ColumnDef } from "@tanstack/react-table";
 import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { clearPurchaseEntrySession } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -146,6 +148,7 @@ const PurchaseBillDashboard = () => {
   const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const [itemsLoading, setItemsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -2009,6 +2012,9 @@ const PurchaseBillDashboard = () => {
                     size="sm"
                     onClick={() => {
                       deleteDraft();
+                      if (currentOrganization?.id && user?.id) {
+                        clearPurchaseEntrySession(currentOrganization.id, user.id);
+                      }
                       toast({
                         title: "Draft Discarded",
                         description: "The unsaved purchase bill has been removed",
