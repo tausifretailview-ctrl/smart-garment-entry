@@ -5,7 +5,6 @@ import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
-import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileAppHeader } from "@/components/mobile/MobileAppHeader";
@@ -102,7 +101,6 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             <WhatsAppMessageNotifier />
             <IdleMount>
               <div className="hidden lg:contents">
-                <FloatingWhatsAppInbox />
                 <FloatingChatButton />
               </div>
             </IdleMount>

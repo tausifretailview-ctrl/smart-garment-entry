@@ -263,6 +263,8 @@ const PurchaseEntry = () => {
   const workRestoredRef = useRef(false);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
+  /** Always-current ref so the newBill effect can call confirmDiscard without adding it to deps. */
+  const confirmDiscardRef = useRef<() => boolean>(() => true);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
@@ -433,6 +435,9 @@ const PurchaseEntry = () => {
       "You have an unsaved purchase bill. Start a new bill anyway? Your current draft will be removed.",
     );
   }, [hasUnsavedPurchaseLines]);
+
+  // Keep the ref current so stable effects (newBill) always call the latest version.
+  confirmDiscardRef.current = confirmDiscardUnsavedPurchase;
 
   const requestNewBill = useCallback(() => {
     if (!confirmDiscardUnsavedPurchase()) return;
@@ -1177,20 +1182,17 @@ const PurchaseEntry = () => {
   }, [nextSupplierInvNo, isEditMode]);
 
   // Menu / Alt+B — open blank new bill (not the last edited bill).
+  // confirmDiscardRef (not confirmDiscardUnsavedPurchase) used here so this effect doesn't
+  // re-fire on every lineItems change and accidentally show a second confirm dialog.
   useEffect(() => {
     if (!location.state?.newBill) return;
-    if (!confirmDiscardUnsavedPurchase()) {
+    if (!confirmDiscardRef.current()) {
       window.history.replaceState({}, "", location.pathname);
       return;
     }
     resetToNewBill();
     window.history.replaceState({}, "", location.pathname);
-  }, [
-    location.state?.newBill,
-    location.pathname,
-    resetToNewBill,
-    confirmDiscardUnsavedPurchase,
-  ]);
+  }, [location.state?.newBill, location.pathname, resetToNewBill]);
 
   // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
   useEffect(() => {
@@ -4518,7 +4520,6 @@ const PurchaseEntry = () => {
                     }}
                     placeholder="SEARCH BY NAME, BRAND, CATEGORY, STYLE OR BARCODE..."
                   />
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   {showSearch && searchResults.length > 0 && (
                     <div className="absolute top-full mt-1 w-full bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
                       {searchResults.map((result, idx) => (
