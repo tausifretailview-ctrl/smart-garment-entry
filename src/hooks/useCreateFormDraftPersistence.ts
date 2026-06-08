@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import {
   readDashboardFilters,
   writeDashboardFilters,
@@ -22,8 +22,8 @@ export function useCreateFormDraftPersistence<T extends Record<string, unknown>>
   orgId: string | undefined,
   isDialogOpen: boolean,
   formData: T,
-  setIsDialogOpen: (open: boolean) => void,
-  setFormData: (data: T) => void,
+  setIsDialogOpen: Dispatch<SetStateAction<boolean>> | ((open: boolean) => void),
+  setFormData: Dispatch<SetStateAction<T>> | ((data: T) => void),
   options?: { enabled?: boolean },
 ): void {
   const { enabled = true } = options ?? {};
@@ -41,10 +41,10 @@ export function useCreateFormDraftPersistence<T extends Record<string, unknown>>
 
     markDashboardFilterRestoring();
     if (typeof saved[DRAFT_OPEN_KEY] === "boolean") {
-      setIsDialogOpen(saved[DRAFT_OPEN_KEY]!);
+      (setIsDialogOpen as (open: boolean) => void)(saved[DRAFT_OPEN_KEY]!);
     }
     if (saved[DRAFT_FORM_KEY] && typeof saved[DRAFT_FORM_KEY] === "object") {
-      setFormData(saved[DRAFT_FORM_KEY] as T);
+      (setFormData as (data: T) => void)(saved[DRAFT_FORM_KEY] as T);
     }
   }, [enabled, orgId, storageId, setIsDialogOpen, setFormData]);
 
