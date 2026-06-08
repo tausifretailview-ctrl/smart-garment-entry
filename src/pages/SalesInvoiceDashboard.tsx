@@ -103,6 +103,13 @@ import { fetchInvoiceDashboardUnified } from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { ReceivingBankAccountPicker } from "@/components/accounts/ReceivingBankAccountPicker";
+import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts";
+import {
+  appendReceivingBankToDescription,
+  paymentMethodNeedsReceivingBank,
+  validateReceivingBankForSave,
+} from "@/utils/organizationBankAccounts";
 
 const safeErrorString = (val: any): string => {
   if (!val) return '';
@@ -177,6 +184,7 @@ export default function SalesInvoiceDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { user, session } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
+  const { accounts: bankAccounts } = useOrganizationBankAccounts(currentOrganization?.id ?? "");
   const { hasSpecialPermission } = useUserPermissions();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
@@ -353,6 +361,7 @@ export default function SalesInvoiceDashboard() {
   const [paidAmount, setPaidAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [paymentMode, setPaymentMode] = useState("cash");
+  const [receivingBankAccountId, setReceivingBankAccountId] = useState<string | null>(null);
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [advanceBalance, setAdvanceBalance] = useState<number>(0);
@@ -1702,6 +1711,7 @@ export default function SalesInvoiceDashboard() {
     setPaidAmount(Math.max(0, pendingAmount).toString());
     setPaymentDate(new Date());
     setPaymentMode("cash");
+    setReceivingBankAccountId(null);
     setPaymentNarration("");
     setAdvanceBalance(0);
     setAdvanceFromBookings(0);
@@ -1713,6 +1723,9 @@ export default function SalesInvoiceDashboard() {
 
   const handlePaymentModeChange = async (mode: string) => {
     setPaymentMode(mode);
+    if (!paymentMethodNeedsReceivingBank(mode)) {
+      setReceivingBankAccountId(null);
+    }
     if (mode === "advance" && selectedInvoiceForPayment?.customer_id) {
       setIsFetchingAdvance(true);
       try {
@@ -1812,6 +1825,21 @@ export default function SalesInvoiceDashboard() {
         return;
       }
     }
+
+    const bankValidation = validateReceivingBankForSave(
+      paymentMode,
+      bankAccounts,
+      receivingBankAccountId,
+    );
+    if (!bankValidation.ok) {
+      toast({
+        title: "Bank Account Required",
+        description: "message" in bankValidation ? bankValidation.message : "Select a bank account.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const resolvedReceivingBankAccountId = bankValidation.bankAccountId;
 
     if (paymentMode === "credit_note") {
       if (!selectedInvoiceForPayment.customer_id) {
@@ -1967,12 +1995,18 @@ export default function SalesInvoiceDashboard() {
       }
 
       const payYmd = format(paymentDate, "yyyy-MM-dd");
-      const voucherDescription =
+      const baseVoucherDescription =
         paymentMode === "advance"
           ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`
           : paymentMode === "credit_note"
             ? `Credit note adjusted against invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`
             : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`;
+      const receivingBankAccount = resolvedReceivingBankAccountId
+        ? bankAccounts.find((a) => a.id === resolvedReceivingBankAccountId) ?? null
+        : null;
+      const voucherDescription = receivingBankAccount
+        ? appendReceivingBankToDescription(baseVoucherDescription, receivingBankAccount)
+        : baseVoucherDescription;
 
       let voucherRowId: string | undefined;
       let receiptVoucherNumber = "";
@@ -2001,6 +2035,7 @@ export default function SalesInvoiceDashboard() {
           amount,
           paymentMethod: paymentMode,
           description: voucherDescription,
+          receivingBankAccountId: resolvedReceivingBankAccountId,
           voucherDate: payYmd,
           createdBy: user?.id ?? null,
         });
@@ -2803,7 +2838,7 @@ export default function SalesInvoiceDashboard() {
               </div>
               <div>
                 <Label>Payment Mode</Label>
-                <Select value={paymentMode} onValueChange={setPaymentMode}>
+                <Select value={paymentMode} onValueChange={handlePaymentModeChange}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-popover z-50">
                     <SelectItem value="cash">Cash</SelectItem>
@@ -2814,10 +2849,18 @@ export default function SalesInvoiceDashboard() {
                   </SelectContent>
                 </Select>
               </div>
+              {currentOrganization?.id && (
+                <ReceivingBankAccountPicker
+                  organizationId={currentOrganization.id}
+                  paymentMethod={paymentMode}
+                  value={receivingBankAccountId}
+                  onChange={setReceivingBankAccountId}
+                />
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
-              <Button onClick={() => {/* handled by existing handler */}} disabled={isRecordingPayment}>
+              <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
                 {isRecordingPayment ? "Recording..." : "Record Payment"}
               </Button>
             </DialogFooter>
@@ -4170,6 +4213,14 @@ export default function SalesInvoiceDashboard() {
                   </div>
                 )}
               </div>
+              {currentOrganization?.id && (
+                <ReceivingBankAccountPicker
+                  organizationId={currentOrganization.id}
+                  paymentMethod={paymentMode}
+                  value={receivingBankAccountId}
+                  onChange={setReceivingBankAccountId}
+                />
+              )}
               <div>
                 <Label>Narration</Label>
                 <Textarea
