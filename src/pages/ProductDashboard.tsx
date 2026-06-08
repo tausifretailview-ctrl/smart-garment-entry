@@ -675,11 +675,9 @@ const ProductDashboard = () => {
       return next;
     });
     if (shouldExpand && !variantCache[productId]) {
-      const variants = await fetchVariantsForProduct(productId);
-      // Update the product row with loaded variants
-      setProductRows(prev => prev.map(p => 
-        p.product_id === productId ? { ...p, variants } : p
-      ));
+      // Variants are cached via fetchVariantsForProduct -> variantCache;
+      // UI reads from variantCache directly so no row mutation is needed.
+      await fetchVariantsForProduct(productId);
     }
   };
 
