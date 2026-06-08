@@ -1,4 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { invalidateOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 
@@ -21,7 +22,9 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });
-  invalidateCustomerFinancialSnapshot(queryClient);
+  queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+  invalidateOrgLedgerReferenceData(queryClient, opts.organizationId);
+  invalidateCustomerFinancialSnapshot(queryClient, opts.organizationId);
   if (!opts.skipPosNotify) {
     notifyPosSalesChanged({ organizationId: opts.organizationId });
   }

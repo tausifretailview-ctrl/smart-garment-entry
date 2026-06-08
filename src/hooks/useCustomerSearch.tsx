@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState, useEffect } from "react";
+import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -171,26 +171,49 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
   };
 };
 
+type UseCustomerBalancesOptions = {
+  enabled?: boolean;
+  /** When set, snapshot RPC runs only for visible/search customers (not the full org). */
+  customerIds?: string[];
+};
+
+function stableIdKey(ids: string[]): string {
+  return [...new Set(ids.filter(Boolean))].sort().join(",");
+}
+
 /**
  * Hook to get customer balances and advance amounts for dropdown display.
- * Outstanding Dr uses client ledger math (matches Customer Ledger / useCustomerBalance).
- * Advance/CN from financial snapshot RPC.
+ * Pass `customerIds` from search results to avoid loading every customer on picker open.
  */
-export const useCustomerBalances = (options?: { enabled?: boolean }) => {
+export const useCustomerBalances = (options?: UseCustomerBalancesOptions) => {
   const { currentOrganization } = useOrganization();
   const queryEnabled = options?.enabled ?? true;
+  const scopedIds = options?.customerIds;
+  const scopedKey = useMemo(
+    () => (scopedIds && scopedIds.length > 0 ? stableIdKey(scopedIds) : "all"),
+    [scopedIds],
+  );
+  const scopedIdsRef = useRef(scopedIds);
+  scopedIdsRef.current = scopedIds;
 
   const {
     data: snapshotByCustomerId = {},
     isLoading: balancesLoading,
     isFetching: balancesFetching,
   } = useQuery({
-    queryKey: ["customer-balances-search", currentOrganization?.id],
+    queryKey: ["customer-balances-search", currentOrganization?.id, scopedKey],
     queryFn: async () => {
       if (!currentOrganization?.id) return {} as Record<string, CustomerFinancialSnapshot>;
 
-      const rows = await fetchAllCustomers(currentOrganization.id);
-      const ids = rows.map((c: { id: string }) => c.id).filter(Boolean);
+      const ids =
+        scopedIdsRef.current && scopedIdsRef.current.length > 0
+          ? [...new Set(scopedIdsRef.current.filter(Boolean))]
+          : (await fetchAllCustomers(currentOrganization.id))
+              .map((c: { id: string }) => c.id)
+              .filter(Boolean);
+
+      if (ids.length === 0) return {};
+
       const snapshotMap = await fetchCustomerFinancialSnapshotMap(currentOrganization.id, ids);
       const merged: Record<string, CustomerFinancialSnapshot> = {};
       for (const id of ids) {
@@ -204,7 +227,8 @@ export const useCustomerBalances = (options?: { enabled?: boolean }) => {
       return merged;
     },
     enabled: !!currentOrganization?.id && queryEnabled,
-    staleTime: 30 * 1000,
+    staleTime: 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 

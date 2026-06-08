@@ -39,7 +39,8 @@ import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdjustmentDialog";
 import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { fetchAllCustomers, fetchAllSalesSummary, fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import {
   deleteJournalEntryByReference,
   recordPurchaseJournalEntry,
@@ -500,26 +501,13 @@ export default function Accounts() {
     }
   };
 
-  // Fetch sales only when customer-payment or reconciliation tab is active
   const needsSales = selectedTab === "customer-payment" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
-  const { data: sales } = useQuery({
-    queryKey: ["sales-summary-accounts", currentOrganization?.id],
-    queryFn: async () => fetchAllSalesSummary(currentOrganization!.id),
-    enabled: !!currentOrganization?.id && needsSales,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
-
-  // Fetch customers only when tabs that need them are active
   const needsCustomers = selectedTab === "customer-payment" || selectedTab === "reconciliation" || selectedTab === "customer-ledger" || selectedTab === "outstanding";
-  const { data: customers } = useQuery({
-    queryKey: ["customers", currentOrganization?.id],
-    queryFn: async () => fetchAllCustomers(currentOrganization!.id),
-    enabled: !!currentOrganization?.id && needsCustomers,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
+
+  const { customers, salesSummary: sales } = useOrgLedgerReferenceData(currentOrganization?.id, {
+    enabled: !!currentOrganization?.id,
+    loadCustomers: needsCustomers,
+    loadSalesSummary: needsSales,
   });
 
   // Fetch suppliers only when supplier tab is active

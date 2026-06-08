@@ -7,7 +7,8 @@ import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tansta
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
-import { fetchAllCustomers, fetchAllSalesSummary, fetchItemsGrossBySaleId } from "@/utils/fetchAllRows";
+import { fetchItemsGrossBySaleId } from "@/utils/fetchAllRows";
+import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -312,6 +313,9 @@ export function CustomerLedger({
     { enabled: !!persistenceWindowId },
   );
   
+  const { fetchCustomers: fetchLedgerCustomers, fetchSalesSummary: fetchLedgerSalesSummary } =
+    useOrgLedgerReferenceFetcher();
+
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
@@ -410,7 +414,7 @@ export function CustomerLedger({
     ],
     queryFn: async () => {
       // Fetch ALL customers using range pagination (bypasses 1000-row limit)
-      const customersData = await fetchAllCustomers(organizationId);
+      const customersData = await fetchLedgerCustomers(organizationId);
 
       // For school orgs: one ledger row per student (fee data lives on students).
       // `student.customer_id` is often unset — do not require it to match a customer row.
@@ -650,7 +654,7 @@ export function CustomerLedger({
 
       // --- Business org logic ---
       // Fetch ALL sales using range pagination (bypasses 1000-row limit)
-      const salesData = await fetchAllSalesSummary(organizationId);
+      const salesData = await fetchLedgerSalesSummary(organizationId);
       const itemsGrossBySale = await fetchItemsGrossBySaleId(
         organizationId,
         salesData.map((s: { id: string }) => s.id),

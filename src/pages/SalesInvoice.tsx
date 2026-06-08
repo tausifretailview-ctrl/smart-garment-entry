@@ -602,8 +602,15 @@ export default function SalesInvoice() {
     refetch: refetchCustomers,
     hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerSearchInput);
+
+  const visibleCustomerIds = useMemo(
+    () => filteredCustomers.map((c: { id: string }) => c.id).filter(Boolean),
+    [filteredCustomers],
+  );
   
-  const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
+  const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances({
+    customerIds: visibleCustomerIds,
+  });
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();

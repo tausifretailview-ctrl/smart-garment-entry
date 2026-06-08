@@ -86,7 +86,15 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
     staleTime: 60 * 1000,
   });
 
-  const { getCustomerBalance, getCustomerAdvance, getCustomerCreditNote } = useCustomerBalances();
+  const statementCustomerIds = useMemo(
+    () => customers.map((c) => c.id).filter(Boolean),
+    [customers],
+  );
+
+  const { getCustomerBalance, getCustomerAdvance, getCustomerCreditNote } = useCustomerBalances({
+    enabled: open,
+    customerIds: statementCustomerIds,
+  });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

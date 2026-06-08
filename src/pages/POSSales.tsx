@@ -1575,8 +1575,7 @@ export default function POSSales() {
         });
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes — products rarely change mid-session
-    refetchInterval: posRefetchInterval,
+    staleTime: 10 * 60 * 1000, // Cache for 10 minutes — invalidated after sale/stock writes
     refetchOnWindowFocus: false,
   });
 
@@ -1589,6 +1588,11 @@ export default function POSSales() {
     refetch: refetchCustomers,
     hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerName, { enabled: !customerJustSelected.current });
+
+  const visibleCustomerIds = useMemo(
+    () => filteredCustomers.map((c: { id: string }) => c.id).filter(Boolean),
+    [filteredCustomers],
+  );
   
   const {
     getCustomerBalance,
@@ -1596,7 +1600,10 @@ export default function POSSales() {
     getCustomerCreditNote,
     balancesLoading,
     balancesFetching,
-  } = useCustomerBalances({ enabled: openCustomerSearch });
+  } = useCustomerBalances({
+    enabled: openCustomerSearch,
+    customerIds: visibleCustomerIds,
+  });
 
   useNavPerfQueryWatch("pos-products", PERF_PATH, {
     isLoading: productsLoading,

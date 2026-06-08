@@ -50,11 +50,14 @@ export const useDashboardInvalidation = () => {
     queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
   }, [queryClient]);
 
-  const invalidateCustomers = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
-    invalidateCustomerFinancialSnapshot(queryClient);
-  }, [queryClient]);
+  const invalidateCustomers = useCallback(
+    (organizationId?: string) => {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId);
+    },
+    [queryClient],
+  );
 
   const invalidateSuppliers = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
