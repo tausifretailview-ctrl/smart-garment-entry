@@ -3,6 +3,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { Switch } from "@/components/ui/switch";
 import { createPortal } from "react-dom";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -400,8 +401,8 @@ const CustomerMaster = () => {
       return { customers: (data || []) as Customer[], filteredCount: count || 0 };
     },
     enabled: !!currentOrganization?.id && (segmentFilter === "all" || !!segmentIndex),
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: STALE_LIVE,
-    refetchOnWindowFocus: false,
   });
 
   const customers = customersPage?.customers || [];

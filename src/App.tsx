@@ -297,8 +297,9 @@ const App = () => {
     defaultOptions: {
       queries: {
         staleTime: 30_000, // 30s — fresh enough for dashboards; stops refetch storms on tab switch
-        gcTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000, // 30 min — survive browser tab sleep / ERP window tab switches
         refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
         // refetchOnMount: true (default) — first page visit always fetches; tab return within staleTime skips
         retry: 1,
         // Tally/Vyapar feel: keep showing the previous data while a refetch runs

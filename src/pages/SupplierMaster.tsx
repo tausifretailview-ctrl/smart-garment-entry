@@ -4,6 +4,7 @@ import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilte
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -280,8 +281,8 @@ const SupplierMaster = () => {
       return { suppliers: (data || []) as Supplier[], filteredCount: count || 0 };
     },
     enabled: !!currentOrganization?.id && (segmentFilter === "all" || !!segmentIndex),
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: STALE_LIVE,
-    refetchOnWindowFocus: false,
   });
 
   const suppliers = suppliersPage?.suppliers || [];

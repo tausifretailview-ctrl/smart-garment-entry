@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { createPortal } from "react-dom";
@@ -597,8 +598,8 @@ const ProductDashboard = () => {
       return { rows, totalCount };
     },
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: STALE_REFERENCE,
-    placeholderData: keepPreviousData,
     retry: 1,
   });
 
@@ -621,8 +622,8 @@ const ProductDashboard = () => {
       };
     },
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: STALE_REFERENCE,
-    placeholderData: keepPreviousData,
   });
 
   const productRows = catalogData?.rows ?? [];

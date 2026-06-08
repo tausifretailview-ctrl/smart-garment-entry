@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,6 +43,8 @@ export const OrgLayout = () => {
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
   /** Tab-cache pane has mounted for the current path — keep Outlet as fallback until then. */
   const [tabPaneReady, setTabPaneReady] = useState(false);
+  /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
+  const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
   const location = useLocation();
   const { openWindows } = useWindowTabs();
 
@@ -104,7 +106,7 @@ export const OrgLayout = () => {
   const renderViaTabCache = wantsTabCache && tabPaneReady;
 
   useEffect(() => {
-    setTabPaneReady(false);
+    setTabPaneReady(tabPaneReadyPathsRef.current.has(currentPath));
   }, [currentPath]);
 
   useEffect(() => {
@@ -262,6 +264,7 @@ export const OrgLayout = () => {
               paths={tabPaths}
               activePath={wantsTabCache ? currentPath : ""}
               onActivePaneReady={(path) => {
+                tabPaneReadyPathsRef.current.add(path);
                 if (path === currentPath) setTabPaneReady(true);
               }}
             />
