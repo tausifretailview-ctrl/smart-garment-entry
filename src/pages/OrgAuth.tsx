@@ -860,9 +860,10 @@ export default function OrgAuth() {
                     setError("");
                     const result = await signInWithGoogleOAuth({ orgSlug });
                     if (!result.ok) {
-                      setError(result.message);
-                      if (result.message.includes("browser")) {
-                        toast.info(result.message);
+                      const msg = (result as { ok: false; message: string }).message;
+                      setError(msg);
+                      if (msg.includes("browser")) {
+                        toast.info(msg);
                       }
                     }
                     setLoading(false);

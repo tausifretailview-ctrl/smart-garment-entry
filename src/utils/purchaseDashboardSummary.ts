@@ -19,7 +19,7 @@ type FetchPurchaseSummaryParams = {
 };
 
 function applyPurchaseBillFilters(
-  query: ReturnType<typeof supabase.from>,
+  query: any,
   params: Omit<FetchPurchaseSummaryParams, "debouncedSearch">,
 ) {
   let q = query
@@ -136,7 +136,7 @@ export async function fetchPurchaseDashboardSummary(
     return fetchPurchaseSummaryWithSearch(params);
   }
 
-  const { data, error } = await supabase.rpc("get_purchase_bill_dashboard_stats", {
+  const { data, error } = await (supabase as any).rpc("get_purchase_bill_dashboard_stats", {
     p_org_id: params.organizationId,
     p_start_date: params.startDate || null,
     p_end_date: params.endDate || null,
