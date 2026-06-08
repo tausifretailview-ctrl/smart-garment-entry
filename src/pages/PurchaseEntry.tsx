@@ -55,6 +55,7 @@ import {
   normalizePurchaseUnitPrice,
   computePurchaseLineSubTotal,
   computePurchaseBillGst,
+  computePurchaseBillTotals,
   getPurchaseLineMultiplier,
   isPurchaseFreightOrChargeRow,
   extractChargeAmountFromRow,
@@ -1471,25 +1472,16 @@ const PurchaseEntry = () => {
 
 
   useEffect(() => {
-    const grossBeforeDiscount = lineItems.reduce(
-      (sum, r) => sum + computePurchaseLineSubTotal(r),
-      0
+    const totals = computePurchaseBillTotals(
+      lineItems,
+      discountAmount,
+      otherCharges,
+      isDcPurchase,
     );
-    const itemDiscount = lineItems.reduce((sum, r) => {
-      const sub = computePurchaseLineSubTotal(r);
-      return sum + roundMoney(sub * r.discount_percent / 100);
-    }, 0);
-    const grossAfterItemDiscount = grossBeforeDiscount - itemDiscount;
-    const grossAfterAllDiscount = grossAfterItemDiscount - discountAmount;
-    const gst = computePurchaseBillGst(lineItems, discountAmount, isDcPurchase);
-    const netBeforeRoundOff = grossAfterAllDiscount + gst + otherCharges;
-    // Auto round-off: calculate round-off so net amount is always a whole number
-    const autoRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
-    const roundedAutoRoundOff = parseFloat(autoRoundOff.toFixed(2));
-    setRoundOff(roundedAutoRoundOff);
-    setGrossAmount(grossBeforeDiscount);
-    setGstAmount(gst);
-    setNetAmount(Math.round(netBeforeRoundOff));
+    setRoundOff(totals.roundOff);
+    setGrossAmount(totals.grossBeforeDiscount);
+    setGstAmount(totals.gstAmount);
+    setNetAmount(totals.netAmount);
   }, [lineItems, discountAmount, otherCharges, isDcPurchase]);
 
   // When DC Purchase is toggled ON, zero out GST on all existing line items
@@ -2868,13 +2860,13 @@ const PurchaseEntry = () => {
           .limit(20);
 
         if (sameDayBills && sameDayBills.length > 0) {
-          const calcGross = lineItems.reduce((sum, r) => sum + (getMtrMultiplier(r) * r.pur_price), 0);
-          const calcItemDisc = lineItems.reduce((sum, r) => {
-            const sub = getMtrMultiplier(r) * r.pur_price;
-            return sum + (sub * r.discount_percent / 100);
-          }, 0);
-          const calcGst = computePurchaseBillGst(lineItems, discountAmount, isDcPurchase);
-          const calcNet = (calcGross - calcItemDisc - discountAmount) + (isDcPurchase ? 0 : calcGst) + otherCharges + roundOff;
+          const dupTotals = computePurchaseBillTotals(
+            lineItems,
+            discountAmount,
+            otherCharges,
+            isDcPurchase,
+          );
+          const calcNet = dupTotals.netAmount;
 
           const match = sameDayBills.find((b: any) => {
             const qtyMatch = b.total_qty != null && Math.abs(Number(b.total_qty) - filledQty) < 0.001;
@@ -2933,19 +2925,19 @@ const PurchaseEntry = () => {
     }
     
     try {
-      // Calculate totals directly from lineItems to avoid stale state issues
-      const calculatedGrossBeforeDiscount = lineItems.reduce(
-        (sum, r) => sum + computePurchaseLineSubTotal(r),
-        0
+      const billTotals = computePurchaseBillTotals(
+        lineItems,
+        discountAmount,
+        otherCharges,
+        isDcPurchase,
       );
-      const calculatedItemDiscount = lineItems.reduce((sum, r) => {
-        const sub = computePurchaseLineSubTotal(r);
-        return sum + roundMoney(sub * r.discount_percent / 100);
-      }, 0);
+      const calculatedGrossBeforeDiscount = billTotals.grossBeforeDiscount;
+      const calculatedItemDiscount = billTotals.itemDiscount;
       const calculatedTotalDiscount = calculatedItemDiscount + discountAmount;
-      const calculatedGrossAfterDiscount = calculatedGrossBeforeDiscount - calculatedTotalDiscount;
-      const calculatedGst = computePurchaseBillGst(lineItems, discountAmount, isDcPurchase);
-      const calculatedNet = calculatedGrossAfterDiscount + calculatedGst + otherCharges + roundOff;
+      const calculatedGrossAfterDiscount = billTotals.taxableAmount;
+      const calculatedGst = billTotals.gstAmount;
+      const calculatedNet = billTotals.netAmount;
+      const calculatedRoundOff = billTotals.roundOff;
 
       if (isEditMode && editingBillId) {
         // Update existing bill
@@ -2960,8 +2952,8 @@ const PurchaseEntry = () => {
               discount_amount: calculatedTotalDiscount,
               gst_amount: isDcPurchase ? 0 : calculatedGst,
               other_charges: otherCharges,
-              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet,
-              round_off: roundOff,
+              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + calculatedRoundOff) : calculatedNet,
+              round_off: calculatedRoundOff,
               is_dc_purchase: isDcPurchase,
             })
             .eq("id", editingBillId);
@@ -3254,8 +3246,8 @@ const PurchaseEntry = () => {
               discount_amount: calculatedTotalDiscount,
               gst_amount: isDcPurchase ? 0 : calculatedGst,
               other_charges: otherCharges,
-              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + roundOff) : calculatedNet,
-              round_off: roundOff,
+              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + calculatedRoundOff) : calculatedNet,
+              round_off: calculatedRoundOff,
               organization_id: currentOrganization.id,
               is_dc_purchase: isDcPurchase,
             },
@@ -3461,8 +3453,13 @@ const PurchaseEntry = () => {
     return sum + roundMoney(sub * r.discount_percent / 100);
   }, 0);
 
-  const grossAfterItemDiscount = lineItems.reduce((sum, r) => sum + r.line_total, 0);
-  const taxableAmount = roundMoney(grossAfterItemDiscount - discountAmount);
+  const billFooterTotals = computePurchaseBillTotals(
+    lineItems,
+    discountAmount,
+    otherCharges,
+    isDcPurchase,
+  );
+  const taxableAmount = billFooterTotals.taxableAmount;
 
   const totals = { 
     totalQty: lineItems.reduce((sum, item) => sum + item.qty, 0),
@@ -3827,9 +3824,10 @@ const PurchaseEntry = () => {
 
           // If using Excel's line_total, back-calculate pur_price to stay consistent
           const multiplier = getPurchaseLineMultiplier({ uom, size, qty });
+          // Keep 2dp rate from Excel line_total — integer snap causes gross vs GST drift on large bills.
           const effectivePurPrice =
             hasExcelLineTotal && multiplier > 0
-              ? normalizePurchaseUnitPrice(excelLineTotal / multiplier)
+              ? roundMoney(excelLineTotal / multiplier)
               : purPrice;
 
           newLineItems.push({
@@ -3878,11 +3876,20 @@ const PurchaseEntry = () => {
       (sum, item) => sum + roundMoney(item.line_total),
       0
     );
+    const importPreviewTotals = computePurchaseBillTotals(
+      newLineItems,
+      discountAmount,
+      Math.max(otherCharges, freightChargesFromExcel),
+      isDcPurchase,
+    );
 
     let description = `Added ${successCount} items · Lines ₹${importedLinesTotal.toLocaleString("en-IN")}`;
+    if (!isDcPurchase && importPreviewTotals.gstAmount > 0) {
+      description += ` · GST ₹${importPreviewTotals.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    description += ` · Net ₹${importPreviewTotals.netAmount.toLocaleString("en-IN")}`;
     if (freightChargesFromExcel > 0) {
       description += ` · Charges ₹${freightChargesFromExcel.toLocaleString("en-IN")}`;
-      description += ` · Bill ₹${(importedLinesTotal + freightChargesFromExcel).toLocaleString("en-IN")}`;
     }
     if (skippedCount > 0) description += ` · ${skippedCount} rows skipped`;
     if (errorCount > 0) description += ` · ${errorCount} errors`;

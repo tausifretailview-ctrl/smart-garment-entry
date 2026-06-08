@@ -58,6 +58,53 @@ export const computePurchaseBillGst = (
   }, 0);
 };
 
+export type PurchaseBillLineForTotals = {
+  line_total: number;
+  gst_per: number;
+  qty: number;
+  pur_price: number;
+  uom?: string;
+  size?: string;
+  discount_percent: number;
+};
+
+/** Single source of truth for purchase bill footer totals (import + manual entry). */
+export function computePurchaseBillTotals(
+  lineItems: PurchaseBillLineForTotals[],
+  billDiscountAmount: number,
+  otherCharges: number,
+  isDcPurchase: boolean,
+) {
+  const grossBeforeDiscount = lineItems.reduce(
+    (sum, r) => sum + computePurchaseLineSubTotal(r),
+    0,
+  );
+  const itemDiscount = lineItems.reduce((sum, r) => {
+    const sub = computePurchaseLineSubTotal(r);
+    return sum + roundMoney(sub * r.discount_percent / 100);
+  }, 0);
+  // Taxable base must match computePurchaseBillGst — use line_total (Excel / after line disc).
+  const grossAfterItemDiscount = lineItems.reduce(
+    (sum, r) => sum + roundMoney(r.line_total),
+    0,
+  );
+  const taxableAmount = roundMoney(grossAfterItemDiscount - billDiscountAmount);
+  const gstAmount = computePurchaseBillGst(lineItems, billDiscountAmount, isDcPurchase);
+  const netBeforeRoundOff = taxableAmount + gstAmount + otherCharges;
+  const netAmount = Math.round(netBeforeRoundOff);
+  const roundOff = roundMoney(netAmount - netBeforeRoundOff);
+  return {
+    grossBeforeDiscount,
+    itemDiscount,
+    grossAfterItemDiscount,
+    taxableAmount,
+    gstAmount,
+    netBeforeRoundOff,
+    netAmount,
+    roundOff,
+  };
+}
+
 const CHARGE_ROW_PATTERN =
   /courier|freight|convenience|conveince|transport\s*charge|shipping|carriage|delivery\s*charge|other\s*charge/i;
 
