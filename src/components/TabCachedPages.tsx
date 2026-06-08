@@ -103,9 +103,11 @@ const LIST_DASHBOARD_SHELL_PATHS = new Set([
   "products",
   "purchase-bill-dashboard",
   "purchase-bills",
+ cursor/inventory-shell-first-97d7
   "purchase-return-dashboard",
   "purchase-returns",
   "stock-adjustment",
+main
 ]);
 /** Time before showing the "Retry tab / Refresh app" card. Generous on web/PWA
  *  so slow shop Wi-Fi does not false-alarm while the chunk is still downloading. */
@@ -480,8 +482,11 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
     prefetchTabPage("product-dashboard");
     prefetchTabPage("purchase-bill-dashboard");
     prefetchTabPage("purchase-bills");
+ cursor/inventory-shell-first-97d7
     prefetchTabPage("purchase-return-dashboard");
     prefetchTabPage("purchase-returns");
+
+ main
     prefetchTabPage("purchase-entry");
     prefetchTabPage("product-entry");
     prefetchTabPage("barcode-printing");
