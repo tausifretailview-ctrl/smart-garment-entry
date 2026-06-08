@@ -2484,9 +2484,12 @@ Thank you for choosing us!`;
           hsn_code: item.hsnCode || null,
         }));
 
-        const { error: itemsError } = await supabase
-          .from('sale_items')
-          .insert(saleItems);
+        let itemsError: unknown = null;
+        try {
+          await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
+        } catch (err) {
+          itemsError = err;
+        }
 
         if (itemsError) {
           if (saleItemsSnapshot && saleItemsSnapshot.length > 0) {
