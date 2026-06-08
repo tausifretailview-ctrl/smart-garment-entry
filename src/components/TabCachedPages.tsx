@@ -480,11 +480,9 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
     prefetchTabPage("product-dashboard");
     prefetchTabPage("purchase-bill-dashboard");
     prefetchTabPage("purchase-bills");
- cursor/inventory-shell-first-97d7
     prefetchTabPage("purchase-return-dashboard");
     prefetchTabPage("purchase-returns");
 
- main
     prefetchTabPage("purchase-entry");
     prefetchTabPage("product-entry");
     prefetchTabPage("barcode-printing");
