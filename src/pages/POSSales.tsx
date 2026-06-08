@@ -2813,9 +2813,9 @@ export default function POSSales() {
     };
 
     // Use updateSale if editing existing sale, otherwise create new
-    const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, effectiveMethod)
-      : await saveSale(saleData, effectiveMethod);
+    const result = currentSaleId
+      ? await updateSale(currentSaleId, saleData, effectiveMethod, undefined, POS_DEFERRED_INVALIDATION_OPTS)
+      : await saveSale(saleData, effectiveMethod, undefined, "pos", POS_DEFERRED_INVALIDATION_OPTS);
     
     if (result) {
       // Save financer details if provided

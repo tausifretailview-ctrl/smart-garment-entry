@@ -18,6 +18,11 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import {
+  insertSaleItemsInChunks,
+  isStatementTimeoutError,
+  saleSaveTimeoutMessage,
+} from "@/utils/insertSaleItemsInChunks";
 
 interface CartItem {
   id: string;
@@ -728,11 +733,7 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await supabase
-        .from('sale_items')
-        .insert(saleItems);
-
-      if (itemsError) throw itemsError;
+      await insertSaleItemsInChunks(supabase, saleItems);
       insertedSaleIdForRollback = null;
 
       // Customer Account Statement — write double-entry ledger (fire-and-forget)
@@ -1027,9 +1028,11 @@ export const useSaveSale = () => {
                           error?.message?.includes('duplicate key');
       toast({
         title: isDuplicate ? "Bill number conflict" : "Error saving sale",
-        description: isDuplicate 
+        description: isDuplicate
           ? "Another user saved a bill at the same time. Please try again."
-          : error.message || "An error occurred while saving the sale",
+          : isStatementTimeoutError(error)
+            ? saleSaveTimeoutMessage()
+            : error.message || "An error occurred while saving the sale",
         variant: "destructive",
       });
       return null;
@@ -1266,11 +1269,7 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await supabase
-        .from('sale_items')
-        .insert(saleItems);
-
-      if (itemsError) throw itemsError;
+      await insertSaleItemsInChunks(supabase, saleItems);
 
       // Step 3: Update the sales record
       const { data: sale, error: saleError } = await supabase
@@ -1417,7 +1416,9 @@ export const useSaveSale = () => {
       console.error('Error updating sale:', error);
       toast({
         title: "Error updating sale",
-        description: error.message || "An error occurred while updating the sale",
+        description: isStatementTimeoutError(error)
+          ? saleSaveTimeoutMessage()
+          : error.message || "An error occurred while updating the sale",
         variant: "destructive",
       });
       return null;
@@ -1731,11 +1732,7 @@ export const useSaveSale = () => {
         };
       });
 
-      const { error: itemsError } = await supabase
-        .from('sale_items')
-        .insert(saleItems);
-
-      if (itemsError) throw itemsError;
+      await insertSaleItemsInChunks(supabase, saleItems);
 
       // Update the held sale: assign NEW POS number + current date + completed status
       const { data: sale, error: saleError } = await supabase
@@ -1817,7 +1814,9 @@ export const useSaveSale = () => {
       console.error('Error resuming held sale:', error);
       toast({
         title: "Error completing sale",
-        description: error.message || "An error occurred while completing the sale",
+        description: isStatementTimeoutError(error)
+          ? saleSaveTimeoutMessage()
+          : error.message || "An error occurred while completing the sale",
         variant: "destructive",
       });
       return null;
