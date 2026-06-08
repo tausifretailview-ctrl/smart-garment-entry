@@ -1,5 +1,18 @@
+import { format, subMonths } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
+
+/** When All Time has no dates, bound fetch to rolling 12 months (UI label unchanged). */
+function resolvePosDashboardDateRange(startDate: string, endDate: string) {
+  if (startDate || endDate) {
+    return { startDate, endDate };
+  }
+  const today = new Date();
+  return {
+    startDate: format(subMonths(today, 12), "yyyy-MM-dd"),
+    endDate: format(today, "yyyy-MM-dd"),
+  };
+}
 
 export type PosDashboardCreditNoteUsage = Record<
   string,
@@ -16,6 +29,7 @@ export async function fetchPosDashboardSales(
   startDate: string,
   endDate: string,
 ): Promise<PosDashboardSalesPayload> {
+  const bounded = resolvePosDashboardDateRange(startDate, endDate);
   const allSales: any[] = [];
   let offset = 0;
   const pageSize = 1000;
@@ -29,8 +43,8 @@ export async function fetchPosDashboardSales(
       .in("sale_type", ["pos", "delivery_challan"])
       .is("deleted_at", null);
 
-    const startIso = localDayStartUtcIso(startDate);
-    const endIso = localDayEndUtcIso(endDate);
+    const startIso = localDayStartUtcIso(bounded.startDate);
+    const endIso = localDayEndUtcIso(bounded.endDate);
     if (startIso) query = query.gte("sale_date", startIso);
     if (endIso) query = query.lte("sale_date", endIso);
 
