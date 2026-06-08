@@ -72,6 +72,11 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useStockValidation } from "@/hooks/useStockValidation";
+import {
+  insertSaleItemsInChunks,
+  isStatementTimeoutError,
+  saleSaveTimeoutMessage,
+} from "@/utils/insertSaleItemsInChunks";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
