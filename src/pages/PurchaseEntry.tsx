@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { isDecimalUOM } from "@/constants/uom";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -470,6 +470,55 @@ const PurchaseEntry = () => {
     originalLineItems,
   ]);
 
+  /** Persist immediately — used after Excel import before a window-tab switch can unmount. */
+  const persistEntrySnapshotNow = useCallback(
+    (overrides?: { lineItems?: LineItem[] }) => {
+      const items = overrides?.lineItems ?? lineItems;
+      if (items.length === 0) {
+        latestSnapshotRef.current = null;
+        updateCurrentData(null);
+        clearEntrySession();
+        return;
+      }
+      const snapshot = {
+        billData,
+        softwareBillNo,
+        billDate: billDate.toISOString(),
+        lineItems: items,
+        roundOff,
+        otherCharges,
+        discountAmount,
+        entryMode,
+        isDcPurchase,
+        isEditMode,
+        editingBillId,
+        originalLineItems,
+      };
+      latestSnapshotRef.current = snapshot;
+      updateCurrentData(snapshot);
+      persistEntrySession(snapshot);
+      void saveDraft(snapshot, false);
+    },
+    [
+      lineItems,
+      billData,
+      softwareBillNo,
+      billDate,
+      roundOff,
+      otherCharges,
+      discountAmount,
+      entryMode,
+      isDcPurchase,
+      isEditMode,
+      editingBillId,
+      originalLineItems,
+      updateCurrentData,
+      persistEntrySession,
+      clearEntrySession,
+      saveDraft,
+    ],
+  );
+
   // Handle product edit panel updates
   const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => {
     const touched = new Set<string>();
@@ -606,6 +655,11 @@ const PurchaseEntry = () => {
   ]);
 
   useEntryViewportSync();
+
+  // Keep flush-on-unmount in sync even if debounced save has not fired yet.
+  useLayoutEffect(() => {
+    latestSnapshotRef.current = buildEntrySnapshot();
+  }, [buildEntrySnapshot]);
 
   // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3870,7 +3924,9 @@ const PurchaseEntry = () => {
       }
     }
 
-    setLineItems(prev => [...prev, ...newLineItems]);
+    const mergedLineItems = [...lineItems, ...newLineItems];
+    setLineItems(mergedLineItems);
+    persistEntrySnapshotNow({ lineItems: mergedLineItems });
 
     const importedLinesTotal = newLineItems.reduce(
       (sum, item) => sum + roundMoney(item.line_total),

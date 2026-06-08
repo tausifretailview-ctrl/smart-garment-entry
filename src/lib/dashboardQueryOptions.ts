@@ -21,6 +21,7 @@ export const DASHBOARD_MANUAL_REFRESH_OPTIONS = {
 export const DASHBOARD_TAB_RETURN_QUERY_OPTIONS = {
   staleTime: STALE_DASHBOARD_TAB_RETURN,
   gcTime: 30 * 60 * 1000,
+  refetchOnMount: false,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
   placeholderData: keepPreviousData,
