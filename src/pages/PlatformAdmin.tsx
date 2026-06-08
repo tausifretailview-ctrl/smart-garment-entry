@@ -615,13 +615,38 @@ export default function PlatformAdmin() {
   // Create user and assign to organization
   const createUserMutation = useMutation({
     mutationFn: async () => {
+      // "pos" is a UI-only role type. Internally, the user is created as "user"
+      // and a restricted POS-only permissions preset is applied right after.
+      const isPos = userRole === "pos";
+      const effectiveRole = isPos ? "user" : userRole;
+
       // Create user via edge function to avoid replacing admin's session
       const { data, error } = await supabase.functions.invoke("create-user", {
-        body: { email: userEmail, password: userPassword, orgId: userOrgId, role: userRole },
+        body: { email: userEmail, password: userPassword, orgId: userOrgId, role: effectiveRole },
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+
+      if (isPos) {
+        const { POS_USER_PERMISSIONS_PRESET } = await import(
+          "@/constants/posUserPermissionsPreset"
+        );
+        const newUserId = (data as any)?.user?.id;
+        if (newUserId) {
+          const { error: permErr } = await (supabase as any)
+            .from("user_permissions")
+            .upsert(
+              {
+                user_id: newUserId,
+                organization_id: userOrgId,
+                permissions: POS_USER_PERMISSIONS_PRESET,
+              },
+              { onConflict: "user_id,organization_id" },
+            );
+          if (permErr) throw permErr;
+        }
+      }
 
       return data;
     },
