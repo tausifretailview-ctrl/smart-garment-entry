@@ -149,8 +149,11 @@ function buildFilteredSalesQuery(
     .select(select, options?.count ? { count: options.count, head: options.head ?? false } : undefined)
     .eq("organization_id", filters.organizationId)
     .eq("sale_type", "invoice")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .is("deleted_at", null);
+
+  if (!options?.head) {
+    query = query.order("created_at", { ascending: false });
+  }
 
   if (filters.deliveryFilter !== "all") {
     query = query.eq("delivery_status", filters.deliveryFilter);
@@ -213,13 +216,26 @@ async function applySearchToSalesQuery(
   return query.or(saleTextFilter);
 }
 
-/** Summary tiles via DB RPC — one pass, no full invoice list download (all-time / monthly safe). */
-export async function fetchInvoiceDashboardStatsRpc(
+function parseInvoiceDashboardStatsRow(data: unknown): InvoiceDashboardStats {
+  const row = (data || {}) as Record<string, unknown>;
+  return {
+    totalInvoices: Number(row.totalInvoices ?? 0),
+    totalAmount: Number(row.totalAmount ?? 0),
+    totalDiscount: Number(row.totalDiscount ?? 0),
+    totalQty: Number(row.totalQty ?? 0),
+    pendingAmount: Number(row.pendingAmount ?? 0),
+    deliveredCount: Number(row.deliveredCount ?? 0),
+    deliveredAmount: Number(row.deliveredAmount ?? 0),
+    undeliveredCount: Number(row.undeliveredCount ?? 0),
+    undeliveredAmount: Number(row.undeliveredAmount ?? 0),
+  };
+}
+
+/** Reconciled stats RPC (preferred when deployed). */
+async function fetchInvoiceDashboardStatsReconciledRpc(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
 ): Promise<InvoiceDashboardStats> {
-  if (!filters.organizationId) return { ...EMPTY_INVOICE_DASHBOARD_STATS };
-
   const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
     p_organization_id: filters.organizationId,
     p_date_from: filters.saleDateFilter.start,
@@ -235,19 +251,45 @@ export async function fetchInvoiceDashboardStatsRpc(
     },
   });
   if (error) throw error;
+  return parseInvoiceDashboardStatsRow(data);
+}
 
-  const row = (data || {}) as Record<string, unknown>;
-  return {
-    totalInvoices: Number(row.totalInvoices ?? 0),
-    totalAmount: Number(row.totalAmount ?? 0),
-    totalDiscount: Number(row.totalDiscount ?? 0),
-    totalQty: Number(row.totalQty ?? 0),
-    pendingAmount: Number(row.pendingAmount ?? 0),
-    deliveredCount: Number(row.deliveredCount ?? 0),
-    deliveredAmount: Number(row.deliveredAmount ?? 0),
-    undeliveredCount: Number(row.undeliveredCount ?? 0),
-    undeliveredAmount: Number(row.undeliveredAmount ?? 0),
-  };
+/** Legacy stats RPC — always available in production. */
+async function fetchInvoiceDashboardStatsLegacyRpc(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<InvoiceDashboardStats> {
+  const paymentStatus =
+    filters.paymentStatusFilter.length === 1 ? filters.paymentStatusFilter[0] : null;
+
+  const { data, error } = await client.rpc("get_sales_invoice_dashboard_stats", {
+    p_org_id: filters.organizationId,
+    p_search: filters.debouncedSearch.trim() || null,
+    p_date_start: filters.voucherDateFrom,
+    p_date_end: filters.voucherDateTo,
+    p_payment_status: paymentStatus,
+    p_delivery_status: filters.deliveryFilter === "all" ? null : filters.deliveryFilter,
+  });
+  if (error) throw error;
+  return parseInvoiceDashboardStatsRow(data);
+}
+
+/** Summary tiles — reconciled RPC when present, else legacy RPC (never blocks invoice list). */
+export async function fetchInvoiceDashboardStatsRpc(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<InvoiceDashboardStats> {
+  if (!filters.organizationId) return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+
+  try {
+    return await fetchInvoiceDashboardStatsReconciledRpc(client, filters);
+  } catch (reconciledErr) {
+    console.warn(
+      "[invoice-dashboard] get_invoice_dashboard_stats unavailable, using legacy stats RPC",
+      reconciledErr,
+    );
+    return fetchInvoiceDashboardStatsLegacyRpc(client, filters);
+  }
 }
 
 async function reconcileInvoicePageRows(
@@ -377,10 +419,16 @@ export async function fetchInvoiceDashboardUnified(
     return { invoices: [], stats: { ...EMPTY_INVOICE_DASHBOARD_STATS }, totalCount: 0 };
   }
 
-  const [stats, pageResult] = await Promise.all([
-    fetchInvoiceDashboardStatsRpc(client, filters),
-    fetchInvoiceDashboardPage(client, filters, page, pageSize),
-  ]);
+  // Load the visible page first — stats RPC must never block the invoice list.
+  const pageResult = await fetchInvoiceDashboardPage(client, filters, page, pageSize);
+
+  let stats: InvoiceDashboardStats = { ...EMPTY_INVOICE_DASHBOARD_STATS };
+  try {
+    stats = await fetchInvoiceDashboardStatsRpc(client, filters);
+  } catch (statsErr) {
+    console.warn("[invoice-dashboard] stats RPCs failed; using list count only", statsErr);
+    stats = { ...EMPTY_INVOICE_DASHBOARD_STATS, totalInvoices: pageResult.totalCount };
+  }
 
   return {
     invoices: pageResult.invoices,

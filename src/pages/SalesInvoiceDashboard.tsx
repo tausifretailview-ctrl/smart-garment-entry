@@ -32,6 +32,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, subDays } from "date-fns";
+import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -138,12 +139,12 @@ function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: s
   return query.in("payment_status", rest).eq("is_cancelled", false);
 }
 
-/** Inclusive calendar-day bounds for sale_date (avoids UTC midnight cutting off same-day invoices). */
+/** Inclusive calendar-day bounds for sale_date (IST/local → UTC ISO for timestamptz columns). */
 function salesDashboardSaleDateFilterBounds(startYmd: string | null, endYmd: string | null) {
   if (!startYmd && !endYmd) return { start: null as string | null, end: null as string | null };
   return {
-    start: startYmd ? `${startYmd}T00:00:00` : null,
-    end: endYmd ? `${endYmd}T23:59:59.999` : null,
+    start: startYmd ? localDayStartUtcIso(startYmd) : null,
+    end: endYmd ? localDayEndUtcIso(endYmd) : null,
   };
 }
 
@@ -717,6 +718,17 @@ export default function SalesInvoiceDashboard() {
 
   const isDashboardInitialLoad = isLoading && dashboardUnified === undefined;
   const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
+
+  useEffect(() => {
+    if (!invoicesError) return;
+    const message =
+      invoicesError instanceof Error ? invoicesError.message : "Failed to load sales invoices";
+    toast({
+      title: "Sales dashboard load failed",
+      description: message,
+      variant: "destructive",
+    });
+  }, [invoicesError, toast]);
 
   const reconciledStats = dashboardUnified?.stats;
   const totalCount = dashboardUnified?.totalCount ?? 0;
