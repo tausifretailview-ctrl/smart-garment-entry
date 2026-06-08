@@ -36,10 +36,23 @@ export async function generateOrgSaleNumber(
       if (startMatches) minSequence = parseInt(startMatches[1], 10);
     }
 
+    // If the format has no number placeholder (user only set "Series Start From"
+    // like "INV/26-27/7"), derive a real format by replacing the trailing digits
+    // with {###}. Without this the Postgres RPC would loop forever once that
+    // literal sale_number already exists, causing a statement_timeout on save.
+    let safeFormat = correctedFormat;
+    if (!/\{#+\}/.test(safeFormat)) {
+      if (/\d+$/.test(safeFormat)) {
+        safeFormat = safeFormat.replace(/\d+$/, "{###}");
+      } else {
+        safeFormat = `${safeFormat}{###}`;
+      }
+    }
+
     const rpcName = kind === "pos" ? "generate_custom_pos_number" : "generate_custom_sale_number";
     const { data, error } = await supabase.rpc(rpcName as any, {
       p_organization_id: organizationId,
-      p_format: correctedFormat,
+      p_format: safeFormat,
       p_year: year,
       p_month: month,
       p_min_sequence: minSequence,
