@@ -639,8 +639,7 @@ export default function SalesInvoiceDashboard() {
           end: format(today, 'yyyy-MM-dd'),
         };
       case 'monthly':
-        // Month-to-date (matches POS Dashboard "This Month" — faster than full calendar month)
-        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') };
+        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd') };
       case 'yearly':
         return { start: format(startOfYear(today), 'yyyy-MM-dd'), end: format(endOfYear(today), 'yyyy-MM-dd') };
       case 'all':
@@ -679,8 +678,6 @@ export default function SalesInvoiceDashboard() {
       userFilter,
       queryDateRange.start,
       queryDateRange.end,
-      currentPage,
-      itemsPerPage,
     ],
     queryFn: async () => {
       if (!currentOrganization?.id) {
@@ -700,22 +697,17 @@ export default function SalesInvoiceDashboard() {
           totalCount: 0,
         };
       }
-      return fetchInvoiceDashboardUnified(
-        supabase,
-        {
-          organizationId: currentOrganization.id,
-          debouncedSearch,
-          deliveryFilter,
-          paymentStatusFilter,
-          shopFilter,
-          userFilter,
-          saleDateFilter,
-          voucherDateFrom: queryDateRange.start,
-          voucherDateTo: queryDateRange.end,
-        },
-        currentPage,
-        itemsPerPage,
-      );
+      return fetchInvoiceDashboardUnified(supabase, {
+        organizationId: currentOrganization.id,
+        debouncedSearch,
+        deliveryFilter,
+        paymentStatusFilter,
+        shopFilter,
+        userFilter,
+        saleDateFilter,
+        voucherDateFrom: queryDateRange.start,
+        voucherDateTo: queryDateRange.end,
+      });
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
@@ -727,9 +719,24 @@ export default function SalesInvoiceDashboard() {
   const isDashboardInitialLoad = isLoading && dashboardUnified === undefined;
   const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
 
+  useEffect(() => {
+    if (!invoicesError) return;
+    const message =
+      invoicesError instanceof Error ? invoicesError.message : "Failed to load sales invoices";
+    toast({
+      title: "Sales dashboard load failed",
+      description: message,
+      variant: "destructive",
+    });
+  }, [invoicesError, toast]);
+
+  const allInvoicesData = dashboardUnified?.invoices || [];
   const reconciledStats = dashboardUnified?.stats;
-  const totalCount = dashboardUnified?.totalCount ?? 0;
-  const invoicesData = dashboardUnified?.invoices || [];
+  const totalCount = allInvoicesData.length;
+  const invoicesData = useMemo(() => {
+    const from = (currentPage - 1) * itemsPerPage;
+    return allInvoicesData.slice(from, from + itemsPerPage);
+  }, [allInvoicesData, currentPage, itemsPerPage]);
 
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
