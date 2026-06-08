@@ -454,7 +454,7 @@ export default function PlatformAdmin() {
   const [userPassword, setUserPassword] = useState("");
   const [showUserPassword, setShowUserPassword] = useState(false);
   const [userOrgId, setUserOrgId] = useState("");
-  const [userRole, setUserRole] = useState<"admin" | "manager" | "user">("user");
+  const [userRole, setUserRole] = useState<"admin" | "manager" | "user" | "pos">("user");
   const [allUsersOpen, setAllUsersOpen] = useState(false);
 
   const createUserDraft = useMemo(
@@ -472,7 +472,12 @@ export default function PlatformAdmin() {
       if (typeof draft.userEmail === "string") setUserEmail(draft.userEmail);
       if (typeof draft.userPassword === "string") setUserPassword(draft.userPassword);
       if (typeof draft.userOrgId === "string") setUserOrgId(draft.userOrgId);
-      if (draft.userRole === "admin" || draft.userRole === "manager" || draft.userRole === "user") {
+      if (
+        draft.userRole === "admin" ||
+        draft.userRole === "manager" ||
+        draft.userRole === "user" ||
+        draft.userRole === "pos"
+      ) {
         setUserRole(draft.userRole);
       }
     },
