@@ -421,27 +421,51 @@ const ProductDashboard = () => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
 
-  // Variant cache for lazy loading
+  // Variant cache for lazy loading (catalog RPC does not include variant rows)
   const [variantCache, setVariantCache] = useState<Record<string, ProductVariant[]>>({});
+  const [variantsLoading, setVariantsLoading] = useState<Set<string>>(new Set());
+  const variantCacheRef = useRef(variantCache);
+  variantCacheRef.current = variantCache;
 
   const fetchVariantsForProduct = useCallback(async (productId: string) => {
-    if (variantCache[productId]) return variantCache[productId];
+    if (variantCacheRef.current[productId]) return variantCacheRef.current[productId];
     if (!currentOrganization?.id) return [];
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select("id, size, color, barcode, pur_price, sale_price, mrp, stock_qty")
-      .eq("organization_id", currentOrganization.id)
-      .eq("product_id", productId)
-      .is("deleted_at", null)
-      .order("size");
-    if (error) { console.error("Variant fetch error:", error); return []; }
-    const variants: ProductVariant[] = (data || []).map((v: any) => ({
-      variant_id: v.id, size: v.size, color: v.color || "", barcode: v.barcode || "",
-      pur_price: v.pur_price, sale_price: v.sale_price, mrp: v.mrp || 0, stock_qty: v.stock_qty,
-    }));
-    setVariantCache(prev => ({ ...prev, [productId]: variants }));
-    return variants;
-  }, [variantCache, currentOrganization?.id]);
+
+    setVariantsLoading((prev) => new Set(prev).add(productId));
+    try {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select("id, size, color, barcode, pur_price, sale_price, mrp, stock_qty")
+        .eq("organization_id", currentOrganization.id)
+        .eq("product_id", productId)
+        .is("deleted_at", null)
+        .order("size");
+
+      const variants: ProductVariant[] = error
+        ? []
+        : (data || []).map((v: any) => ({
+            variant_id: v.id,
+            size: v.size,
+            color: v.color || "",
+            barcode: v.barcode || "",
+            pur_price: v.pur_price,
+            sale_price: v.sale_price,
+            mrp: v.mrp || 0,
+            stock_qty: v.stock_qty,
+          }));
+
+      if (error) console.error("Variant fetch error:", error);
+
+      setVariantCache((prev) => ({ ...prev, [productId]: variants }));
+      return variants;
+    } finally {
+      setVariantsLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+    }
+  }, [currentOrganization?.id]);
 
   const rpcFilterKey = useMemo(
     () => ({
@@ -568,7 +592,7 @@ const ProductDashboard = () => {
         default_pur_price: Number(p.default_pur_price) || 0,
         default_sale_price: Number(p.default_sale_price) || 0,
         status: p.status || "active",
-        variants: variantCache[p.product_id] || [],
+        variants: [],
         total_stock: Number(p.total_stock) || 0,
         variant_count: Number(p.variant_count) || 0,
       }));
@@ -627,6 +651,14 @@ const ProductDashboard = () => {
   });
 
   const productRows = catalogData?.rows ?? [];
+  const displayRows = useMemo(
+    () =>
+      productRows.map((row) => ({
+        ...row,
+        variants: variantCache[row.product_id] ?? row.variants,
+      })),
+    [productRows, variantCache],
+  );
   const totalCount = catalogData?.totalCount ?? 0;
   const loading = catalogLoading && productRows.length === 0;
   const isRefetching = catalogFetching && productRows.length > 0;
@@ -675,10 +707,8 @@ const ProductDashboard = () => {
       else next.add(productId);
       return next;
     });
-    if (shouldExpand && !variantCache[productId]) {
-      // Variants are cached via fetchVariantsForProduct -> variantCache;
-      // UI reads from variantCache directly so no row mutation is needed.
-      await fetchVariantsForProduct(productId);
+    if (shouldExpand && !(productId in variantCacheRef.current)) {
+      void fetchVariantsForProduct(productId);
     }
   };
 
@@ -1068,8 +1098,8 @@ const ProductDashboard = () => {
     maxPrice !== "" ||
     searchQuery !== "";
 
-  // Server-side handles all filtering now; just use productRows directly
-  const filteredRows = productRows;
+  // Server-side handles all filtering; merge lazy-loaded variants from cache for display
+  const filteredRows = displayRows;
 
   // Pagination is server-side; totalCount from RPC
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
@@ -1212,11 +1242,24 @@ const ProductDashboard = () => {
   }, [columnVisibility, selectedProducts, paginatedRows, startIndex, galleryRefreshKey, showMrp]);
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
-    if (row.variants.length === 0) {
+    const variantsLoaded = row.product_id in variantCache;
+    const isLoadingVariants =
+      variantsLoading.has(row.product_id) ||
+      (!variantsLoaded && (row.variant_count ?? 0) > 0);
+
+    if (isLoadingVariants) {
       return (
         <div className="p-4 flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span className="text-sm">Loading variants...</span>
+        </div>
+      );
+    }
+
+    if (row.variants.length === 0) {
+      return (
+        <div className="p-4 text-sm text-muted-foreground">
+          No variants found for this product.
         </div>
       );
     }
@@ -1272,7 +1315,7 @@ const ProductDashboard = () => {
         </div>
       </div>
     );
-  }, [showMrp, filteredRows]);
+  }, [showMrp, filteredRows, variantCache, variantsLoading]);
 
   // Use server-side stats from RPC
   const totalStockQty = dashboardStats.total_stock_qty;
