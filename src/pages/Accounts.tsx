@@ -13,6 +13,7 @@ import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown, Lock } from "luc
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -158,11 +159,8 @@ export default function Accounts() {
       return data as any;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_DASHBOARD_TAB_RETURN,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     refetchOnMount: true,
-    placeholderData: keepPreviousData,
   });
 
   const {

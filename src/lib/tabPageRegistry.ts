@@ -185,6 +185,26 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  "chart-of-accounts": {
+    loader: () => import("@/pages/accounts/ChartOfAccounts"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "journal-vouchers": {
+    loader: () => import("@/pages/accounts/JournalVouchers"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "manual-journal": {
+    loader: () => import("@/pages/accounts/ManualJournalEntry"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
+  "ledger-opening-balances": {
+    loader: () => import("@/pages/accounts/LedgerOpeningBalances"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "delivery-dashboard": { loader: () => import("@/pages/DeliveryDashboard"), layout: "layout" },
   "barcode-printing": { loader: () => import("@/pages/BarcodePrinting"), layout: "layout" },
   settings: { loader: () => import("@/pages/Settings"), layout: "layout", roles: ["admin"] },

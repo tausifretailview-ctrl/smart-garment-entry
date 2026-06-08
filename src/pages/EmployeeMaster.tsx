@@ -3,6 +3,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -133,8 +134,8 @@ const EmployeeMaster = () => {
       return allEmployees;
     },
     enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
   });
 
   const createEmployee = useMutation({

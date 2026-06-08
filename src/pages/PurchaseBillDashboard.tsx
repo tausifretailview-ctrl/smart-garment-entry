@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
-import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -143,10 +143,9 @@ const PERF_PATH = "purchase-bills";
 const PurchaseBillDashboard = () => {
   useNavPerfPage(PERF_PATH);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
-  const [bills, setBills] = useState<PurchaseBill[]>([]);
-  const [loading, setLoading] = useState(true);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -423,9 +422,35 @@ const PurchaseBillDashboard = () => {
     setCurrentPage(1);
   }, [startDate, endDate, itemsPerPage, paymentStatusFilter, dcFilter]);
 
+  const purchaseBillsQueryKey = [
+    "purchase-bills",
+    currentOrganization?.id,
+    debouncedSearch,
+    startDate,
+    endDate,
+    sortOrder,
+    currentPage,
+    itemsPerPage,
+    paymentStatusFilter,
+    dcFilter,
+  ] as const;
+
+  const patchPurchaseBillsCache = useCallback(
+    (patch: (bill: PurchaseBill) => PurchaseBill) => {
+      queryClient.setQueryData<{ bills: PurchaseBill[]; totalCount: number } | undefined>(
+        purchaseBillsQueryKey,
+        (prev) => {
+          if (!prev) return prev;
+          return { ...prev, bills: prev.bills.map(patch) };
+        },
+      );
+    },
+    [queryClient, purchaseBillsQueryKey],
+  );
+
   // Server-side paginated query for purchase bills
   const { data: billsQueryData, isLoading: billsQueryLoading, refetch: refetchBills } = useQuery({
-    queryKey: ["purchase-bills", currentOrganization?.id, debouncedSearch, startDate, endDate, sortOrder, currentPage, itemsPerPage, paymentStatusFilter, dcFilter],
+    queryKey: purchaseBillsQueryKey,
     queryFn: async () => {
       if (!currentOrganization?.id) return { bills: [], totalCount: 0 };
 
@@ -530,23 +555,11 @@ const PurchaseBillDashboard = () => {
       return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_DASHBOARD_TAB_RETURN,
-    refetchOnWindowFocus: false,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  // Sync query results to state for backward compatibility
-  useEffect(() => {
-    if (billsQueryData) {
-      setBills(billsQueryData.bills);
-      setLoading(false);
-    }
-  }, [billsQueryData]);
-
-  useEffect(() => {
-    if (billsQueryLoading && bills.length === 0) {
-      setLoading(true);
-    }
-  }, [billsQueryLoading]);
+  const bills = billsQueryData?.bills ?? [];
+  const loading = billsQueryLoading && bills.length === 0;
 
   const fetchBills = () => {
     refetchBills();
@@ -962,7 +975,9 @@ const PurchaseBillDashboard = () => {
         .update({ bill_image_url: imageUrl })
         .eq('id', billId);
       if (updateError) throw updateError;
-      setBills(prev => prev.map(b => b.id === billId ? { ...b, bill_image_url: imageUrl } : b));
+      patchPurchaseBillsCache((b) =>
+        b.id === billId ? { ...b, bill_image_url: imageUrl } : b,
+      );
       toast({ title: "Invoice image saved", description: "Supplier bill image uploaded successfully" });
     } catch (err: any) {
       toast({ title: "Upload failed", description: err.message, variant: "destructive" });
@@ -981,7 +996,9 @@ const PurchaseBillDashboard = () => {
         .update({ is_locked: newLocked })
         .eq('id', bill.id);
       if (error) throw error;
-      setBills(prev => prev.map(b => b.id === bill.id ? { ...b, is_locked: newLocked } : b));
+      patchPurchaseBillsCache((b) =>
+        b.id === bill.id ? { ...b, is_locked: newLocked } : b,
+      );
       toast({
         title: newLocked ? "Bill Locked" : "Bill Unlocked",
         description: newLocked
@@ -1217,7 +1234,7 @@ const PurchaseBillDashboard = () => {
       });
     },
     enabled: !!currentOrganization?.id,
-    staleTime: STALE_DASHBOARD_TAB_RETURN,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   useNavPerfQueryWatch("purchase-bills-list", PERF_PATH, {
