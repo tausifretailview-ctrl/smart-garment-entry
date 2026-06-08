@@ -19,7 +19,12 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
   cnPendingCount: 0,
 };
 
-const SNAPSHOT_BATCH_CHUNK = 50;
+/**
+ * Smaller chunks keep each RPC call under the Supabase statement_timeout (8s for
+ * authenticated). The per-customer reconcile_customer_balance is heavy on orgs
+ * with many vouchers/sales; 10 keeps us safe while still amortising round-trips.
+ */
+const SNAPSHOT_BATCH_CHUNK = 10;
 
 function normalizeRow(row: {
   outstanding_dr?: number | null;
@@ -71,21 +76,30 @@ export async function fetchCustomerFinancialSnapshotMap(
 
   for (let i = 0; i < unique.length; i += SNAPSHOT_BATCH_CHUNK) {
     const chunk = unique.slice(i, i + SNAPSHOT_BATCH_CHUNK);
-    const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_batch", {
-      p_organization_id: organizationId,
-      p_customer_ids: chunk,
-    });
-    if (error) throw error;
+    try {
+      const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_batch", {
+        p_organization_id: organizationId,
+        p_customer_ids: chunk,
+      });
+      if (error) throw error;
 
-    for (const row of (data || []) as Array<{
-      customer_id: string;
-      outstanding_dr?: number | null;
-      advance_available?: number | null;
-      cn_available_total?: number | null;
-      cn_pending_count?: number | null;
-    }>) {
-      if (!row?.customer_id) continue;
-      map.set(row.customer_id, normalizeRow(row));
+      for (const row of (data || []) as Array<{
+        customer_id: string;
+        outstanding_dr?: number | null;
+        advance_available?: number | null;
+        cn_available_total?: number | null;
+        cn_pending_count?: number | null;
+      }>) {
+        if (!row?.customer_id) continue;
+        map.set(row.customer_id, normalizeRow(row));
+      }
+    } catch (err) {
+      // Resilience: a heavy reconcile_customer_balance can hit statement_timeout
+      // on orgs with many vouchers. Treat the failing chunk as empty so the
+      // dashboard / customer picker keeps working — and, more importantly, so
+      // the failure does not surface as an "Error: canceling statement due to
+      // statement timeout" toast inside the bill-save flow on POS.
+      console.warn("customer financial snapshot chunk failed (treated as empty):", err);
     }
   }
 
