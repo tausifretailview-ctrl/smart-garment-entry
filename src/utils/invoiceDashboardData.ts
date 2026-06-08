@@ -142,18 +142,14 @@ function buildFilteredSalesQuery(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
   select: string,
-  options?: { count?: "exact" | "planned" | "estimated"; head?: boolean },
 ) {
   let query = client
     .from("sales")
-    .select(select, options?.count ? { count: options.count, head: options.head ?? false } : undefined)
+    .select(select)
     .eq("organization_id", filters.organizationId)
     .eq("sale_type", "invoice")
-    .is("deleted_at", null);
-
-  if (!options?.head) {
-    query = query.order("created_at", { ascending: false });
-  }
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
 
   if (filters.deliveryFilter !== "all") {
     query = query.eq("delivery_status", filters.deliveryFilter);
@@ -216,127 +212,82 @@ async function applySearchToSalesQuery(
   return query.or(saleTextFilter);
 }
 
-function parseInvoiceDashboardStatsRow(data: unknown): InvoiceDashboardStats {
-  const row = (data || {}) as Record<string, unknown>;
-  return {
-    totalInvoices: Number(row.totalInvoices ?? 0),
-    totalAmount: Number(row.totalAmount ?? 0),
-    totalDiscount: Number(row.totalDiscount ?? 0),
-    totalQty: Number(row.totalQty ?? 0),
-    pendingAmount: Number(row.pendingAmount ?? 0),
-    deliveredCount: Number(row.deliveredCount ?? 0),
-    deliveredAmount: Number(row.deliveredAmount ?? 0),
-    undeliveredCount: Number(row.undeliveredCount ?? 0),
-    undeliveredAmount: Number(row.undeliveredAmount ?? 0),
-  };
-}
-
-/** Reconciled stats RPC (preferred when deployed). */
-async function fetchInvoiceDashboardStatsReconciledRpc(
+/** One pass over filtered invoices: normalize rows + summary stats. */
+export async function fetchInvoiceDashboardUnified(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
-): Promise<InvoiceDashboardStats> {
-  const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
-    p_organization_id: filters.organizationId,
-    p_date_from: filters.saleDateFilter.start,
-    p_date_to: filters.saleDateFilter.end,
-    p_filters: {
-      search: filters.debouncedSearch,
-      deliveryFilter: filters.deliveryFilter,
-      shopFilter: filters.shopFilter,
-      userFilter: filters.userFilter,
-      voucherDateFrom: filters.voucherDateFrom,
-      voucherDateTo: filters.voucherDateTo,
-      paymentStatusFilter: filters.paymentStatusFilter,
-    },
-  });
-  if (error) throw error;
-  return parseInvoiceDashboardStatsRow(data);
-}
-
-/** Legacy stats RPC — always available in production. */
-async function fetchInvoiceDashboardStatsLegacyRpc(
-  client: SupabaseClient,
-  filters: InvoiceDashboardFilters,
-): Promise<InvoiceDashboardStats> {
-  const paymentStatus =
-    filters.paymentStatusFilter.length === 1 ? filters.paymentStatusFilter[0] : null;
-
-  const { data, error } = await client.rpc("get_sales_invoice_dashboard_stats", {
-    p_org_id: filters.organizationId,
-    p_search: filters.debouncedSearch.trim() || null,
-    p_date_start: filters.voucherDateFrom,
-    p_date_end: filters.voucherDateTo,
-    p_payment_status: paymentStatus,
-    p_delivery_status: filters.deliveryFilter === "all" ? null : filters.deliveryFilter,
-  });
-  if (error) throw error;
-  return parseInvoiceDashboardStatsRow(data);
-}
-
-/** Summary tiles — reconciled RPC when present, else legacy RPC (never blocks invoice list). */
-export async function fetchInvoiceDashboardStatsRpc(
-  client: SupabaseClient,
-  filters: InvoiceDashboardFilters,
-): Promise<InvoiceDashboardStats> {
-  if (!filters.organizationId) return { ...EMPTY_INVOICE_DASHBOARD_STATS };
-
-  try {
-    return await fetchInvoiceDashboardStatsReconciledRpc(client, filters);
-  } catch (reconciledErr) {
-    console.warn(
-      "[invoice-dashboard] get_invoice_dashboard_stats unavailable, using legacy stats RPC",
-      reconciledErr,
-    );
-    return fetchInvoiceDashboardStatsLegacyRpc(client, filters);
+): Promise<InvoiceDashboardUnifiedResult> {
+  if (!filters.organizationId) {
+    return { invoices: [], stats: { ...EMPTY_INVOICE_DASHBOARD_STATS }, totalCount: 0 };
   }
-}
 
-async function reconcileInvoicePageRows(
-  client: SupabaseClient,
-  filters: InvoiceDashboardFilters,
-  pageInvoices: any[],
-): Promise<any[]> {
-  if (pageInvoices.length === 0) return [];
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  const allInvoices: any[] = [];
+
+  while (true) {
+    let query: any = buildFilteredSalesQuery(
+      client,
+      filters,
+      INVOICE_DASHBOARD_SALES_SELECT,
+    ).range(offset, offset + PAGE_SIZE - 1);
+    query = await applySearchToSalesQuery(client, filters, query);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) break;
+    allInvoices.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  if (allInvoices.length === 0) {
+    return { invoices: [], stats: { ...EMPTY_INVOICE_DASHBOARD_STATS }, totalCount: 0 };
+  }
 
   const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
   const splitOpts = {
     voucherDateFrom: filters.voucherDateFrom,
     voucherDateTo: filters.voucherDateTo,
   };
-  const batchSplit = await fetchSaleReceiptSplitsForInvoices(
-    client,
-    filters.organizationId,
-    pageInvoices.map((inv: any) => ({
-      id: inv.id,
-      sale_number: inv.sale_number,
-      customer_id: inv.customer_id,
-    })),
-    splitOpts,
-  );
-  batchSplit.forEach((v, k) => splitBySale.set(k, v));
+  for (let i = 0; i < allInvoices.length; i += 200) {
+    const batch = allInvoices.slice(i, i + 200);
+    const batchSplit = await fetchSaleReceiptSplitsForInvoices(
+      client,
+      filters.organizationId,
+      batch.map((inv: any) => ({
+        id: inv.id,
+        sale_number: inv.sale_number,
+        customer_id: inv.customer_id,
+      })),
+      splitOpts,
+    );
+    batchSplit.forEach((v, k) => splitBySale.set(k, v));
+  }
 
-  const saleIds = pageInvoices.map((inv: any) => inv.id).filter(Boolean);
+  const allSaleIds = allInvoices.map((inv: any) => inv.id).filter(Boolean);
   const itemsGrossBySale = new Map<string, number>();
-  const { data: itemRows } = await client
-    .from("sale_items")
-    .select("sale_id, quantity, mrp")
-    .in("sale_id", saleIds)
-    .is("deleted_at", null);
-  (itemRows || []).forEach((it: any) => {
-    if (!it.sale_id) return;
-    const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
-    itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
-  });
+  for (let i = 0; i < allSaleIds.length; i += 200) {
+    const idBatch = allSaleIds.slice(i, i + 200);
+    const { data: itemRows } = await client
+      .from("sale_items")
+      .select("sale_id, quantity, mrp")
+      .in("sale_id", idBatch)
+      .is("deleted_at", null);
+    (itemRows || []).forEach((it: any) => {
+      if (!it.sale_id) return;
+      const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
+      itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
+    });
+  }
 
   const { data: linkedReturns } = await client
     .from("sale_returns")
     .select("linked_sale_id, return_date, return_number")
     .eq("organization_id", filters.organizationId)
-    .in("linked_sale_id", saleIds)
+    .in("linked_sale_id", allSaleIds)
     .is("deleted_at", null);
 
-  const normalized = pageInvoices.map((inv: any) => {
+  const normalized = allInvoices.map((inv: any) => {
     const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
     if (isInvCancelled) {
       return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
@@ -361,6 +312,25 @@ async function reconcileInvoicePageRows(
     };
   });
 
+  const filteredForTable =
+    filters.paymentStatusFilter.length > 0
+      ? normalized.filter((inv: any) =>
+          filters.paymentStatusFilter.includes(inv.payment_status),
+        )
+      : normalized;
+
+  const filteredForStats =
+    filters.paymentStatusFilter.length > 0
+      ? filteredForTable
+      : normalized.filter(
+          (inv: any) =>
+            !inv?.is_cancelled &&
+            inv?.payment_status !== "cancelled" &&
+            inv?.payment_status !== "hold",
+        );
+
+  const invoiceFaceNet = (inv: any) => Math.max(0, Number(inv.net_amount || 0));
+
   await syncStaleInvoicePaymentFields(
     client,
     filters.organizationId,
@@ -369,71 +339,46 @@ async function reconcileInvoicePageRows(
     itemsGrossBySale,
   );
 
-  if (filters.paymentStatusFilter.length === 0) return normalized;
-  return normalized.filter((inv: any) =>
-    filters.paymentStatusFilter.includes(inv.payment_status),
-  );
-}
-
-/** Server-side page of invoices — reconciles only the visible rows. */
-export async function fetchInvoiceDashboardPage(
-  client: SupabaseClient,
-  filters: InvoiceDashboardFilters,
-  page: number,
-  pageSize: number,
-): Promise<{ invoices: any[]; totalCount: number }> {
-  if (!filters.organizationId) return { invoices: [], totalCount: 0 };
-
-  let countQuery: any = buildFilteredSalesQuery(client, filters, "id", {
-    count: "exact",
-    head: true,
-  });
-  countQuery = await applySearchToSalesQuery(client, filters, countQuery);
-  const { count, error: countError } = await countQuery;
-  if (countError) throw countError;
-  const totalCount = count ?? 0;
-  if (totalCount === 0) return { invoices: [], totalCount: 0 };
-
-  const offset = (page - 1) * pageSize;
-  let listQuery: any = buildFilteredSalesQuery(
-    client,
-    filters,
-    INVOICE_DASHBOARD_SALES_SELECT,
-  ).range(offset, offset + pageSize - 1);
-  listQuery = await applySearchToSalesQuery(client, filters, listQuery);
-  const { data, error } = await listQuery;
-  if (error) throw error;
-
-  const invoices = await reconcileInvoicePageRows(client, filters, data || []);
-  return { invoices, totalCount };
-}
-
-/** Stats RPC + one paginated list fetch (no full-history download for all-time / monthly). */
-export async function fetchInvoiceDashboardUnified(
-  client: SupabaseClient,
-  filters: InvoiceDashboardFilters,
-  page = 1,
-  pageSize = 50,
-): Promise<InvoiceDashboardUnifiedResult> {
-  if (!filters.organizationId) {
-    return { invoices: [], stats: { ...EMPTY_INVOICE_DASHBOARD_STATS }, totalCount: 0 };
-  }
-
-  // Load the visible page first — stats RPC must never block the invoice list.
-  const pageResult = await fetchInvoiceDashboardPage(client, filters, page, pageSize);
-
-  let stats: InvoiceDashboardStats = { ...EMPTY_INVOICE_DASHBOARD_STATS };
-  try {
-    stats = await fetchInvoiceDashboardStatsRpc(client, filters);
-  } catch (statsErr) {
-    console.warn("[invoice-dashboard] stats RPCs failed; using list count only", statsErr);
-    stats = { ...EMPTY_INVOICE_DASHBOARD_STATS, totalInvoices: pageResult.totalCount };
-  }
+  const stats: InvoiceDashboardStats = {
+    totalInvoices: filteredForStats.length,
+    totalAmount: filteredForStats.reduce((s, inv) => s + invoiceFaceNet(inv), 0),
+    totalDiscount: filteredForStats.reduce(
+      (s, inv) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0),
+      0,
+    ),
+    totalQty: filteredForStats.reduce((s, inv) => s + Number(inv.total_qty || 0), 0),
+    pendingAmount: filteredForStats.reduce(
+      (s, inv) =>
+        s +
+        (inv.is_cancelled
+          ? 0
+          : Math.round(
+              Number(
+                inv.outstanding ??
+                  Math.max(
+                    0,
+                    (inv.net_amount || 0) -
+                      (inv.paid_amount || 0) -
+                      (inv.sale_return_adjust || 0),
+                  ),
+              ),
+            )),
+      0,
+    ),
+    deliveredCount: filteredForStats.filter((inv) => inv.delivery_status === "delivered").length,
+    deliveredAmount: filteredForStats
+      .filter((inv) => inv.delivery_status === "delivered")
+      .reduce((s, inv) => s + invoiceFaceNet(inv), 0),
+    undeliveredCount: filteredForStats.filter((inv) => inv.delivery_status === "undelivered").length,
+    undeliveredAmount: filteredForStats
+      .filter((inv) => inv.delivery_status === "undelivered")
+      .reduce((s, inv) => s + invoiceFaceNet(inv), 0),
+  };
 
   return {
-    invoices: pageResult.invoices,
+    invoices: filteredForTable,
     stats,
-    totalCount: pageResult.totalCount,
+    totalCount: filteredForTable.length,
   };
 }
 

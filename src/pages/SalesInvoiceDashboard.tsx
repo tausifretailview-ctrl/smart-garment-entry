@@ -32,7 +32,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, subDays } from "date-fns";
-import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -139,12 +138,12 @@ function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: s
   return query.in("payment_status", rest).eq("is_cancelled", false);
 }
 
-/** Inclusive calendar-day bounds for sale_date (IST/local → UTC ISO for timestamptz columns). */
+/** Inclusive calendar-day bounds for sale_date (avoids UTC midnight cutting off same-day invoices). */
 function salesDashboardSaleDateFilterBounds(startYmd: string | null, endYmd: string | null) {
   if (!startYmd && !endYmd) return { start: null as string | null, end: null as string | null };
   return {
-    start: startYmd ? localDayStartUtcIso(startYmd) : null,
-    end: endYmd ? localDayEndUtcIso(endYmd) : null,
+    start: startYmd ? `${startYmd}T00:00:00` : null,
+    end: endYmd ? `${endYmd}T23:59:59.999` : null,
   };
 }
 
@@ -631,8 +630,7 @@ export default function SalesInvoiceDashboard() {
           end: format(today, 'yyyy-MM-dd'),
         };
       case 'monthly':
-        // Month-to-date (matches POS Dashboard "This Month" — faster than full calendar month)
-        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') };
+        return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd') };
       case 'yearly':
         return { start: format(startOfYear(today), 'yyyy-MM-dd'), end: format(endOfYear(today), 'yyyy-MM-dd') };
       case 'all':
@@ -671,8 +669,6 @@ export default function SalesInvoiceDashboard() {
       userFilter,
       queryDateRange.start,
       queryDateRange.end,
-      currentPage,
-      itemsPerPage,
     ],
     queryFn: async () => {
       if (!currentOrganization?.id) {
@@ -692,22 +688,17 @@ export default function SalesInvoiceDashboard() {
           totalCount: 0,
         };
       }
-      return fetchInvoiceDashboardUnified(
-        supabase,
-        {
-          organizationId: currentOrganization.id,
-          debouncedSearch,
-          deliveryFilter,
-          paymentStatusFilter,
-          shopFilter,
-          userFilter,
-          saleDateFilter,
-          voucherDateFrom: queryDateRange.start,
-          voucherDateTo: queryDateRange.end,
-        },
-        currentPage,
-        itemsPerPage,
-      );
+      return fetchInvoiceDashboardUnified(supabase, {
+        organizationId: currentOrganization.id,
+        debouncedSearch,
+        deliveryFilter,
+        paymentStatusFilter,
+        shopFilter,
+        userFilter,
+        saleDateFilter,
+        voucherDateFrom: queryDateRange.start,
+        voucherDateTo: queryDateRange.end,
+      });
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
@@ -730,9 +721,13 @@ export default function SalesInvoiceDashboard() {
     });
   }, [invoicesError, toast]);
 
+  const allInvoicesData = dashboardUnified?.invoices || [];
   const reconciledStats = dashboardUnified?.stats;
-  const totalCount = dashboardUnified?.totalCount ?? 0;
-  const invoicesData = dashboardUnified?.invoices || [];
+  const totalCount = allInvoicesData.length;
+  const invoicesData = useMemo(() => {
+    const from = (currentPage - 1) * itemsPerPage;
+    return allInvoicesData.slice(from, from + itemsPerPage);
+  }, [allInvoicesData, currentPage, itemsPerPage]);
 
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
