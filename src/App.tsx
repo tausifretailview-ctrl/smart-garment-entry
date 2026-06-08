@@ -31,6 +31,7 @@ import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback"
 import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
 import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
 import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
+import { initCloudUsageDiagnostics } from "@/lib/cloudUsageDiagnostics";
 
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazyWithRetry(() => import("./pages/OrganizationManagement"));
@@ -291,6 +292,7 @@ const App = () => {
 
   useEffect(() => {
     initNavigationPerfDiagnostics();
+    initCloudUsageDiagnostics();
   }, []);
 
   const [queryClient] = useState(() => new QueryClient({

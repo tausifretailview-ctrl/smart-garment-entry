@@ -12,9 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown, Lock } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
-import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
+import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
+import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -75,12 +76,19 @@ import { AccountingPeriodLockCard } from "@/components/accounts/AccountingPeriod
 /** Keep sub-tab DOM mounted (hidden) so ledger/payment state survives tab switches. */
 const STICKY_TAB_CONTENT_CLASS = "mt-0 space-y-4 outline-none data-[state=inactive]:hidden";
 
+const PERF_PATH = "accounts";
+
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { summary: receivablesSummary } = useOrganizationReceivablesSummary(currentOrganization?.id);
   const queryClient = useQueryClient();
   const { isAdmin, isPlatformAdmin } = useUserRoles();
+  useNavPerfPage(PERF_PATH);
+  useEffect(() => {
+    setCloudUsageRoutePath(PERF_PATH);
+    return () => setCloudUsageRoutePath("");
+  }, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get("tab");
   const urlCustomerId = searchParams.get("customer");
@@ -150,7 +158,11 @@ export default function Accounts() {
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
 
-  const { data: dashboardStats } = useQuery({
+  const {
+    data: dashboardStats,
+    isLoading: dashboardStatsLoading,
+    isFetching: dashboardStatsFetching,
+  } = useQuery({
     queryKey: ["accounts-dashboard-metrics", currentOrganization?.id, monthStart, monthEnd],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_accounts_dashboard_metrics", {
@@ -163,6 +175,11 @@ export default function Accounts() {
     },
     enabled: !!currentOrganization?.id,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  useNavPerfQueryWatch("accounts-dashboard-metrics", PERF_PATH, {
+    isLoading: dashboardStatsLoading,
+    isFetching: dashboardStatsFetching,
   });
 
   const {
@@ -570,146 +587,31 @@ export default function Accounts() {
   const monthlySales = dashboardStats?.monthlySales || 0;
   const monthlyPurchases = dashboardStats?.monthlyPurchases || 0;
   const monthlyExpenses = dashboardStats?.monthlyExpenses || 0;
-  const { data: reconciledInvoiceStats } = useQuery({
-    queryKey: ["accounts-reconciled-invoice-stats", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return null;
-
-      const salesRows: Array<{ id: string; net_amount: number | null; paid_amount: number | null }> = [];
-      const voucherRows: Array<{ reference_id: string | null; total_amount: number | null }> = [];
-      const PAGE_SIZE = 1000;
-
-      let salesOffset = 0;
-      let hasMoreSales = true;
-      while (hasMoreSales) {
-        const { data, error } = await supabase
-          .from("sales")
-          .select("id, net_amount, paid_amount")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .eq("is_cancelled", false)
-          .not("payment_status", "in", '("cancelled","hold")')
-          .range(salesOffset, salesOffset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          salesRows.push(...(data as any));
-          salesOffset += PAGE_SIZE;
-          hasMoreSales = data.length === PAGE_SIZE;
-        } else {
-          hasMoreSales = false;
-        }
-      }
-
-      let voucherOffset = 0;
-      let hasMoreVouchers = true;
-      while (hasMoreVouchers) {
-        const { data, error } = await supabase
-          .from("voucher_entries")
-          .select("reference_id, total_amount")
-          .eq("organization_id", currentOrganization.id)
-          .eq("voucher_type", "receipt")
-          // Phase 1.2: include legacy mis-tagged receipts (reference_type='customer'
-          // pointing at a sale id). voucherPaidBySale is keyed by reference_id and
-          // joined to salesRows by sale.id, so true customer-keyed rows are ignored.
-          .in("reference_type", ["sale", "customer"])
-          .is("deleted_at", null)
-          .range(voucherOffset, voucherOffset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          voucherRows.push(...(data as any));
-          voucherOffset += PAGE_SIZE;
-          hasMoreVouchers = data.length === PAGE_SIZE;
-        } else {
-          hasMoreVouchers = false;
-        }
-      }
-
-      const voucherPaidBySale = new Map<string, number>();
-      voucherRows.forEach((v) => {
-        if (!v.reference_id) return;
-        voucherPaidBySale.set(v.reference_id, (voucherPaidBySale.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
-      });
-
-      let totalInvoices = 0;
-      let totalAmount = 0;
-      let paidAmount = 0;
-      let pendingCount = 0;
-      let pendingAmount = 0;
-      let partialCount = 0;
-      let partialAmount = 0;
-      let completedCount = 0;
-      let completedAmount = 0;
-      let totalReceivables = 0;
-
-      for (const sale of salesRows) {
-        const net = Math.max(0, Number(sale.net_amount) || 0);
-        if (net <= 0) continue;
-        totalInvoices += 1;
-        totalAmount += net;
-
-        const paidFromRow = Number(sale.paid_amount) || 0;
-        const paidFromVouchers = voucherPaidBySale.get(sale.id) || 0;
-        const effectivePaid = Math.min(net, Math.max(paidFromRow, paidFromVouchers));
-        const outstanding = Math.max(0, net - effectivePaid);
-
-        paidAmount += effectivePaid;
-        totalReceivables += outstanding;
-
-        if (outstanding <= 0.009) {
-          completedCount += 1;
-          completedAmount += net;
-        } else if (effectivePaid > 0.009) {
-          partialCount += 1;
-          partialAmount += outstanding;
-        } else {
-          pendingCount += 1;
-          pendingAmount += outstanding;
-        }
-      }
-
-      return {
-        totalInvoices,
-        totalAmount,
-        paidAmount,
-        pendingCount,
-        pendingAmount,
-        partialCount,
-        partialAmount,
-        completedCount,
-        completedAmount,
-        totalReceivables,
-      };
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false,
-  });
 
   const dashboardMetrics = useMemo(() => ({
-    // Receivables tile = true net customer AR (Master Reconciliation), shared with
-    // the Customer Ledger card / Balance Sheet. Fall back to the invoice rollup
-    // only if the reconcile RPC returned nothing.
+    // Receivables tile = Master Reconciliation RPC (canonical). RPC dashboard
+    // metrics are the lightweight fallback only — no lifetime client-side scan.
     totalReceivables:
       receivablesSummary.customerCount > 0
         ? receivablesSummary.netReceivable
-        : (reconciledInvoiceStats?.totalReceivables ?? dashboardStats?.totalReceivables ?? 0),
+        : (dashboardStats?.totalReceivables ?? 0),
     totalPayables: dashboardStats?.totalPayables || 0,
     monthlyExpenses,
     currentMonthPL: monthlySales - monthlyPurchases - monthlyExpenses,
-  }), [receivablesSummary, reconciledInvoiceStats, dashboardStats, monthlyExpenses, monthlySales, monthlyPurchases]);
+  }), [receivablesSummary, dashboardStats, monthlyExpenses, monthlySales, monthlyPurchases]);
 
+  // Header payment summary cards — from get_accounts_dashboard_metrics RPC (single server round-trip).
   const paymentStats = useMemo(() => ({
-    totalInvoices: reconciledInvoiceStats?.totalInvoices ?? (invoiceStats.total || 0),
-    totalAmount: reconciledInvoiceStats?.totalAmount ?? (invoiceStats.totalAmount || 0),
-    paidAmount: reconciledInvoiceStats?.paidAmount ?? (invoiceStats.paidAmount || 0),
-    pendingCount: reconciledInvoiceStats?.pendingCount ?? (invoiceStats.pending || 0),
-    pendingAmount: reconciledInvoiceStats?.pendingAmount ?? (invoiceStats.pendingAmount || 0),
-    partialCount: reconciledInvoiceStats?.partialCount ?? (invoiceStats.partial || 0),
-    partialAmount: reconciledInvoiceStats?.partialAmount ?? (invoiceStats.partialAmount || 0),
-    completedCount: reconciledInvoiceStats?.completedCount ?? (invoiceStats.paid || 0),
-    completedAmount: reconciledInvoiceStats?.completedAmount ?? (invoiceStats.paidAmount || 0),
-  }), [reconciledInvoiceStats, invoiceStats]);
+    totalInvoices: invoiceStats.total || 0,
+    totalAmount: invoiceStats.totalAmount || 0,
+    paidAmount: invoiceStats.paidAmount || 0,
+    pendingCount: invoiceStats.pending || 0,
+    pendingAmount: invoiceStats.pendingAmount || 0,
+    partialCount: invoiceStats.partial || 0,
+    partialAmount: invoiceStats.partialAmount || 0,
+    completedCount: invoiceStats.paid || 0,
+    completedAmount: invoiceStats.paidAmount || 0,
+  }), [invoiceStats]);
 
   const handleCardClick = (filter: string | null) => {
     setPaymentCardFilter(filter);

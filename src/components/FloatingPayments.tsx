@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -27,8 +27,9 @@ import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
-import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
+import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { fetchSupplierBalanceSnapshotsForOrg } from "@/utils/supplierBalanceUtils";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
@@ -81,6 +82,7 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
               {orgId && (
                 <CustomerPaymentForm
                   organizationId={orgId}
+                  dialogOpen={open}
                   onShowReceipt={(data) => { setReceiptData(data); setShowReceipt(true); }}
                 />
               )}
@@ -148,8 +150,21 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
 // ═══════════════════════════════════════════════════════════════
 // CUSTOMER PAYMENT FORM (Compact)
 // ═══════════════════════════════════════════════════════════════
-function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId: string; onShowReceipt: (data: any) => void }) {
+function CustomerPaymentForm({
+  organizationId,
+  dialogOpen,
+  onShowReceipt,
+}: {
+  organizationId: string;
+  dialogOpen: boolean;
+  onShowReceipt: (data: any) => void;
+}) {
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (dialogOpen) setCloudUsageRoutePath("pos-sales:quick-payments");
+    return () => setCloudUsageRoutePath("");
+  }, [dialogOpen]);
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
   const [referenceId, setReferenceId] = useState("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
@@ -162,60 +177,75 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [showSaved, setShowSaved] = useState(false);
 
-  // Customers with balance
+  // Shared with Accounts Customer Payment tab — RPC reconcile path, cached across screens.
   const { data: customersWithBalance } = useQuery({
-    queryKey: ["customers-with-balance", organizationId],
-    queryFn: async () => {
-      const allCustomers = await fetchAllCustomers(organizationId);
-      const allSales = await fetchAllSalesSummary(organizationId);
-      const { data: allVouchers } = await supabase.from('voucher_entries').select('reference_id, reference_type, total_amount, discount_amount').eq('organization_id', organizationId).eq('voucher_type', 'receipt').is('deleted_at', null);
-      const invoiceVoucherPayments = new Map<string, number>();
-      const customerOpeningBalancePayments = new Map<string, number>();
-      const saleIdSet = new Set(allSales.map((s: any) => s.id));
-      allVouchers?.forEach((v: any) => {
-        if (!v.reference_id) return;
-        const amt = Number(v.total_amount || 0) + Number(v.discount_amount || 0);
-        if (saleIdSet.has(v.reference_id)) invoiceVoucherPayments.set(v.reference_id, (invoiceVoucherPayments.get(v.reference_id) || 0) + amt);
-        else if (v.reference_type === 'customer') customerOpeningBalancePayments.set(v.reference_id, (customerOpeningBalancePayments.get(v.reference_id) || 0) + amt);
-      });
-      const customerBalances = calculateCustomerInvoiceBalances(allSales, invoiceVoucherPayments);
-      return allCustomers.filter((c: any) => {
-        const ob = c.opening_balance || 0;
-        const obp = customerOpeningBalancePayments.get(c.id) || 0;
-        const ib = customerBalances.get(c.id) || 0;
-        return Math.max(0, ob - obp) + ib > 0;
-      }).map((c: any) => ({
-        ...c,
-        outstandingBalance: Math.max(0, (c.opening_balance || 0) - (customerOpeningBalancePayments.get(c.id) || 0)) + (customerBalances.get(c.id) || 0),
-      }));
-    },
-    enabled: !!organizationId,
+    queryKey: ["customers-with-balance", organizationId, "payment-picker-v2"],
+    queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId),
+    enabled: !!organizationId && dialogOpen,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    staleTime: 2 * 60 * 1000,
+    retry: 2,
   });
 
   // Customer invoices
   const { data: customerInvoices } = useQuery({
-    queryKey: ["customer-invoices", referenceId],
+    queryKey: ["customer-invoices", organizationId, referenceId],
     queryFn: async () => {
-      const { data } = await supabase.from("sales").select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null).order("sale_date", { ascending: false });
+      const { data } = await supabase
+        .from("sales")
+        .select("id, sale_number, sale_date, net_amount, paid_amount, payment_status, customer_name, customer_phone, customer_address")
+        .eq("organization_id", organizationId)
+        .eq("customer_id", referenceId)
+        .in("payment_status", ["pending", "partial"])
+        .is("deleted_at", null)
+        .order("sale_date", { ascending: false });
       return data || [];
     },
-    enabled: !!referenceId,
+    enabled: !!organizationId && !!referenceId && dialogOpen,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    staleTime: 60 * 1000,
   });
 
-  // Customer balance
-  const { data: customerBalance } = useQuery({
-    queryKey: ["customer-balance", referenceId],
+  const pickerOutstanding = useMemo(
+    () => customersWithBalance?.find((c) => c.id === referenceId)?.outstandingBalance,
+    [customersWithBalance, referenceId],
+  );
+
+  // Fallback only when picker list has not loaded this customer yet.
+  const { data: customerBalanceFallback } = useQuery({
+    queryKey: ["customer-balance", organizationId, referenceId],
     queryFn: async () => {
-      const { data: cust } = await supabase.from("customers").select("opening_balance").eq("id", referenceId).maybeSingle();
+      const { data: cust } = await supabase
+        .from("customers")
+        .select("opening_balance")
+        .eq("organization_id", organizationId)
+        .eq("id", referenceId)
+        .maybeSingle();
       const ob = cust?.opening_balance || 0;
-      const { data: sales } = await supabase.from("sales").select("net_amount, paid_amount").eq("customer_id", referenceId).in("payment_status", ["pending", "partial"]).is("deleted_at", null);
+      const { data: sales } = await supabase
+        .from("sales")
+        .select("net_amount, paid_amount")
+        .eq("organization_id", organizationId)
+        .eq("customer_id", referenceId)
+        .in("payment_status", ["pending", "partial"])
+        .is("deleted_at", null);
       const invoiceOutstanding = sales?.reduce((sum, s) => sum + Math.max(0, (s.net_amount || 0) - (s.paid_amount || 0)), 0) || 0;
-      const { data: obPayments } = await supabase.from("voucher_entries").select("total_amount, discount_amount, reference_id").eq("organization_id", organizationId).eq("voucher_type", "receipt").eq("reference_type", "customer").is("deleted_at", null);
+      const { data: obPayments } = await supabase
+        .from("voucher_entries")
+        .select("total_amount, discount_amount, reference_id")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "receipt")
+        .eq("reference_type", "customer")
+        .is("deleted_at", null);
       const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (Number(p.total_amount) || 0) + (Number((p as { discount_amount?: number }).discount_amount) || 0), 0) || 0;
       return ob + invoiceOutstanding - obPaid;
     },
-    enabled: !!referenceId,
+    enabled: !!organizationId && !!referenceId && dialogOpen && pickerOutstanding === undefined,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    staleTime: 60 * 1000,
   });
+
+  const customerBalance = pickerOutstanding ?? customerBalanceFallback;
 
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
@@ -411,7 +441,7 @@ function CustomerPaymentForm({ organizationId, onShowReceipt }: { organizationId
         onShowReceipt({
           voucherNumber: data.voucherNumber, voucherDate: format(voucherDate, 'yyyy-MM-dd'),
           customerName: customer?.customer_name || 'Customer', customerPhone: customer?.phone || '',
-          customerAddress: customer?.address || '', invoiceNumber: 'Opening Balance',
+          customerAddress: '', invoiceNumber: 'Opening Balance',
           invoiceDate: format(voucherDate, 'yyyy-MM-dd'), invoiceAmount: customerBalance || 0,
           paidAmount: totalPaid, previousBalance: customerBalance || 0,
           currentBalance: (customerBalance || 0) - totalPaid, paymentMethod,
