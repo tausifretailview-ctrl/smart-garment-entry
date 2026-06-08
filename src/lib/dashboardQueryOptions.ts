@@ -1,3 +1,6 @@
+import { keepPreviousData } from "@tanstack/react-query";
+import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
+
 /**
  * Main desktop dashboard metrics/charts — no automatic Supabase reads.
  * Queries stay disabled until the user clicks Refresh (see Index.tsx).
@@ -9,6 +12,18 @@ export const DASHBOARD_MANUAL_REFRESH_OPTIONS = {
   refetchOnWindowFocus: false,
   refetchOnMount: false,
   refetchOnReconnect: false,
+} as const;
+
+/**
+ * List/dashboard queries on window-tabbed screens — keep data + scroll position
+ * when switching browser tabs or ERP window tabs (matches POS/Sales Dashboard).
+ */
+export const DASHBOARD_TAB_RETURN_QUERY_OPTIONS = {
+  staleTime: STALE_DASHBOARD_TAB_RETURN,
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  placeholderData: keepPreviousData,
 } as const;
 
 /** Gate dashboard RPC/chart queries — false until user clicks Refresh. */

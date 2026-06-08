@@ -33,6 +33,9 @@ const IDLE_UNMOUNT_MS = 600_000;
 const MIN_KEEP_TABS = 3;
 const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
 
+/** Heavy admin screens — only these may idle-evict when many tabs are open. */
+const IDLE_EVICT_ALLOWED_PATHS = new Set(["settings", "user-rights"]);
+
 /** Live working screens — never auto-unmount (cart, bill entry, unsaved-work proxy). */
 const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "pos-sales",
@@ -41,8 +44,22 @@ const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "products",
   "purchase-bill-dashboard",
   "purchase-bills",
+  "purchase-orders",
+  "purchase-return-dashboard",
+  "purchase-returns",
+  "barcode-printing",
+  "stock-settlement",
+  "bulk-product-update",
   "accounts",
+  "payments-dashboard",
+  "chart-of-accounts",
+  "journal-vouchers",
+  "manual-journal",
+  "ledger-opening-balances",
   "customers",
+  "suppliers",
+  "employees",
+  "salesman-commission",
   "pos-dashboard",
   "sales-invoice-dashboard",
 ]);
@@ -72,7 +89,9 @@ function writeScrollPositions(root: HTMLElement, positions: number[]) {
 }
 
 function isProtectedTabPath(path: string): boolean {
-  return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isEntryTabPath(path);
+  if (isEntryTabPath(path)) return true;
+  if (IDLE_EVICT_ALLOWED_PATHS.has(path)) return false;
+  return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isTabCachePath(path);
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
