@@ -26,6 +26,10 @@ import {
   recordRenderPath,
   recordTabCacheSnapshot,
 } from "@/lib/navigationPerfDiagnostics";
+import { cn } from "@/lib/utils";
+
+/** Sentinel — no cached pane is active while a bill-entry screen uses <Outlet>. */
+const TAB_CACHE_INACTIVE = "__none__";
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -104,6 +108,9 @@ export const OrgLayout = () => {
   // Keep <Outlet> visible until the cached pane has mounted — avoids a blank screen
   // when the lazy chunk is still loading (reported after Phase 1/2 on purchase-bills).
   const renderViaTabCache = wantsTabCache && tabPaneReady;
+  /** Keep dashboard panes mounted (hidden) during bill entry so inventory tabs don't remount. */
+  const tabCacheActivePath =
+    isEntryPage || !wantsTabCache ? TAB_CACHE_INACTIVE : currentPath;
 
   useEffect(() => {
     setTabPaneReady(tabPaneReadyPathsRef.current.has(currentPath));
@@ -251,18 +258,19 @@ export const OrgLayout = () => {
     >
       <GlobalShortcuts />
       <div className="flex min-h-0 flex-1 flex-col w-full">
-        {/* Hidden while on bill entry — otherwise flex-1 splits viewport and footer floats mid-screen */}
-        {tabPaths.length > 0 && !isEntryPage && (
+        {/* Hidden while on bill entry — keep mounted so inventory window tabs keep state/imports. */}
+        {tabPaths.length > 0 && (
           <div
-            className={
-              wantsTabCache && !tabPaneReady
+            className={cn(
+              "flex min-h-0 flex-col w-full",
+              isEntryPage || (wantsTabCache && !tabPaneReady)
                 ? "hidden"
-                : "flex min-h-0 flex-1 flex-col w-full"
-            }
+                : "flex-1",
+            )}
           >
             <TabCachedPages
               paths={tabPaths}
-              activePath={wantsTabCache ? currentPath : ""}
+              activePath={tabCacheActivePath}
               onActivePaneReady={(path) => {
                 tabPaneReadyPathsRef.current.add(path);
                 if (path === currentPath) setTabPaneReady(true);
