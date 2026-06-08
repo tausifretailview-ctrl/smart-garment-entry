@@ -1,8 +1,26 @@
-# App loading slowness — diagnostic report (read-only)
+# App loading slowness — diagnostic report
 
-Investigation date: 2026-06-03. No application behavior, queries, or schema were changed.
+Investigation date: 2026-06-03.  
+**Update 2026-06-08:** Phase 1 (shell + tab cache + connection) and Phase 2 (accounts RPC + shared ledger) are **implemented**. See [phase-1-shell-loading.md](./phase-1-shell-loading.md) and [phase-2-cloud-savings.md](./phase-2-cloud-savings.md). Sections below are the **original audit**; strikethrough items are mitigated without changing business formulas.
 
-## Executive summary
+## Mitigated since audit (no formula / RLS changes)
+
+| Original symptom | Mitigation | Doc |
+|------------------|------------|-----|
+| Tab switch refetch storm | `TabCachedPages` + `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` | phase-1 |
+| POS Dashboard refetch every tab return | `useQuery` + 30s stale (`POSDashboard.tsx`) | phase-1 |
+| Purchase / Product dashboard full-page load | Shell-first + table skeleton | phase-1 |
+| Purchase Entry blank screen + tab state loss | `OrgLayout` tab cache + session flush | phase-1 |
+| Org / connection hang | 4s org sync fail-open; 20s org fetch + cached orgs | phase-1 |
+| Accounts lifetime scans on load | `get_accounts_dashboard_metrics` RPC | phase-2 |
+| Quick Payments full ledger scan | `fetchCustomersWithBalanceForPaymentPicker` + shared cache | phase-2 |
+| Duplicate ledger fetches | `useOrgLedgerReferenceData` | phase-2 |
+
+**Cloud principle:** Fixes use **cache TTL**, **shared query keys**, and **UI shells** — not additional Supabase reads.
+
+---
+
+## Executive summary (original audit)
 
 | Symptom | Most likely cause | Highest-ROI fix (not implemented) |
 |---------|-------------------|-----------------------------------|
@@ -121,18 +139,19 @@ New save: stock check → number RPC → insert sale/items → financer → inva
 
 ## 3. Window / tab switch
 
-- **TabCachedPages:** visited tabs stay mounted (hidden); first visit loads lazy chunk.
-- **POS Dashboard:** `useEffect` runs `fetchSales()` whenever `routePathSegment === 'pos-dashboard'` (598–601) — **refetch every tab return**.
-- **Sales Dashboard:** mounted but hidden; `refetchOnWindowFocus: false` globally (`App.tsx` 292); no refetch on tab visibility alone.
-- **Global:** `refetchOnWindowFocus: false`, default `staleTime` 30s (`App.tsx` 287–296).
+- **TabCachedPages:** visited tabs stay mounted (hidden); first visit loads lazy chunk; inventory shell fallbacks.
+- **POS Dashboard:** ~~refetch every tab return via `fetchSales()`~~ → **`useQuery` + `STALE_DASHBOARD_TAB_RETURN` (30s)**.
+- **Purchase / Product / Return dashboards:** `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` on tab return.
+- **Sales Dashboard:** mounted but hidden; `refetchOnWindowFocus: false` globally; unified stats use tab-return stale.
+- **Global:** `refetchOnWindowFocus: false`, default `staleTime` 30s (`App.tsx`).
 
 ---
 
-## 4. Ranked fixes (for future work only)
+## 4. Ranked fixes (remaining — measure before changing)
 
 1. **Dashboard:** Single stats source for Sales tiles; scope receipt splits by date; add `organization_id` to `sale_items` search; POS skip bulk Phase 2 `sale_items`.
-2. **After-save:** Defer invalidations until after print; non-blocking SR consume on POS; debounce hidden POS `fetchSales`.
-3. **Tab switch:** POS fetch TTL; raise `staleTime` on `reconciled-stats` when filters unchanged.
+2. **After-save:** Defer invalidations until after print; non-blocking SR consume on POS.
+3. ~~**Tab switch:** POS fetch TTL~~ → **Done** (30s React Query stale). Sales reconciled stats partially improved via tab-return stale.
 
 ---
 

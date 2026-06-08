@@ -1,58 +1,87 @@
-# Cursor prompt — performance (cold load + dashboard)
+# Cursor prompt — performance handoff
 
-Paste this into Cursor when continuing perf work (P2–P4).
+**Phases 0–2 are done** for loading, connection resilience, inventory shell-first, and core cloud savings.  
+Continue work only on **P3/P4** below — **no business-logic or schema changes** without explicit approval.
 
-## Validated hotspots
+| Phase | Doc | Status |
+|-------|-----|--------|
+| 0 | `docs/phase-0-navigation-perf.md` | Measurement runbook |
+| 1 | `docs/phase-1-shell-loading.md` | **Done** |
+| 2 | `docs/phase-2-cloud-savings.md` | **Done** |
 
-| Issue | File | Notes |
+---
+
+## Completed hotspots (do not re-fix)
+
+| Issue | File | Status |
 |-------|------|--------|
-| Dashboard gated on manual load | `src/pages/Index.tsx` | **Fixed (P0):** removed `hasLoaded`; queries run when `currentOrganization?.id` is set |
-| Tab reload storm | `src/components/TabCachedPages.tsx` | **Fixed:** only active tab mounts on reload; `prefetchTabPagesIdle` in `src/lib/tabPageRegistry.ts` |
-| StatusBar due scan | `src/components/StatusBar.tsx` | **Fixed (P1):** `v_dashboard_receivables` + `v_dashboard_stock_summary`, one query key |
-| Org sync spinner | `src/components/OrgLayout.tsx` | **Fixed (P1):** 4s fail-open timeout |
-| Org fetch timeout | `src/contexts/OrganizationContext.tsx` | **Fixed (P1):** 6s timeout; refresh session only if JWT expires within 5 min |
-| Route lazy blank | `src/App.tsx` | **Fixed (P1):** `LazyFallback` uses `DashboardSkeleton` |
-| Floating chrome | `src/components/IdleMount.tsx` | **Fixed (P1):** PWA/chat/WhatsApp deferred in layouts |
+| Dashboard manual load gate | `Index.tsx` | **Done** |
+| Tab reload storm | `TabCachedPages.tsx`, `tabPageRegistry.ts` | **Done** |
+| Purchase Entry blank screen | `OrgLayout.tsx` | **Done** |
+| Inventory shell-first | `PurchaseBillDashboard`, `ProductDashboard`, `PurchaseReturnDashboard`, `StockAdjustment` | **Done** |
+| Purchase tab + Excel persistence | `PurchaseEntry.tsx`, PR #50 | **Done** |
+| StatusBar due scan | `StatusBar.tsx` | **Done** |
+| Org sync / fetch timeout | `OrgLayout.tsx`, `OrganizationContext.tsx` | **Done** |
+| Route lazy blank | `App.tsx` | **Done** |
+| Floating chrome defer | `IdleMount.tsx` | **Done** |
+| POS Dashboard tab return | `POSDashboard.tsx` → `useQuery` + 30s stale | **Done** |
+| Accounts header RPC | `Accounts.tsx` → `get_accounts_dashboard_metrics` | **Done** |
+| Shared ledger cache | `useOrgLedgerReferenceData.ts` | **Done** |
+| Quick Payments picker | `customerPaymentPickerList.ts`, `FloatingPayments.tsx` | **Done** |
+
+---
 
 ## React Query rules (must follow)
 
-From `.cursor/rules/react-query-cache.mdc`:
-
-- Global: `staleTime: 30_000`, `refetchOnWindowFocus: false` in `src/App.tsx`
+- Global: `staleTime: 30_000`, `refetchOnWindowFocus: false` in `App.tsx`
+- Tab return: `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` from `dashboardQueryOptions.ts`
 - **staleTime: 0** only for search/filter in `queryKey` or POS barcode keys
 - Paginated lists: `STALE_PAGINATED` (5s) unless search in key
-- Reference data: `useOrgQuery` + `STALE_REFERENCE` from `src/lib/queryStaleTimes.ts`
 - Settings: `useSettings()` / `STALE_SETTINGS`
 - Do **not** disable `refetchOnMount` globally
+
+---
 
 ## Do NOT change
 
 - `src/integrations/supabase/client.ts`, `types.ts`, `.env`
-- Do not hand-edit existing `supabase/migrations/*` (new timestamped migrations only; Lovable applies)
-- Payment/balance: use `computeCustomerOutstanding` in `customerBalanceUtils.ts` only; never invent balance formulas
+- Hand-edit existing `supabase/migrations/*`
+- Payment/balance: `computeCustomerOutstanding` only
 - Receipt `reference_type`: `CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES` only
 
-## P2 — Chunk hygiene (follow-up)
+---
 
-- [ ] Split heavy routes: `Accounts`, `Settings`, `BarcodePrinting`, school modules via `import()`
-- [ ] Audit `lazyWithRetry` eager prefetch on nav hover
-- [ ] Optional `PageSkeleton` for non-dashboard routes
+## P3 — Optional shell / chunk (low cloud impact)
 
-## P3 — Query consolidation (follow-up)
+- [ ] Bulk Product Update — shell while org loads (UI only)
+- [ ] Purchase Orders — table skeleton vs center spinner
+- [ ] Barcode Printing — static shell while settings load
+- [ ] Split heavy routes: `Accounts`, `Settings`, `BarcodePrinting` via `import()` (chunk only)
 
-- [ ] `MobileDashboard.tsx`: collapse duplicate `get_erp_dashboard_stats` (today + month) where safe
-- [ ] Migrate repeated org reference fetches to `useOrgQuery`
+---
 
-## P4 — DB (follow-up)
+## P4 — Query / DB (measure first)
 
-- [ ] `EXPLAIN ANALYZE` on `get_erp_dashboard_stats` for large orgs
-- [ ] Profile `v_dashboard_receivables` / `v_dashboard_stock_summary`
-- [ ] New migration only if index gap found (`idx_sales_org_date` may already exist)
+- [ ] `MobileDashboard.tsx`: duplicate `get_erp_dashboard_stats` where safe
+- [ ] Sales Dashboard: single stats source vs dual scan (`app-loading-slowness-diagnosis.md`)
+- [ ] `EXPLAIN ANALYZE` on heavy RPCs for large orgs — **new migration only if index gap**
 
-## Acceptance checklist
+---
 
-1. Main Dashboard shows metrics on first visit without **Load Data**
-2. Reload with many window tabs: only active tab mounts; others on first switch
-3. StatusBar **Due** aligns with dashboard receivables (same view source)
-4. `npm run build` exits 0
-5. Customer search + POS barcode still refetch on change (`staleTime: 0`)
+## Acceptance checklist (regression)
+
+1. Main Dashboard metrics on first visit without **Load Data**
+2. Purchase Bills ↔ Purchase Entry — no blank screen; form state kept
+3. Purchase Returns / Stock Adjustment — shell visible; no full-page blocker
+4. Window tab switch within 30s — previous rows visible; minimal Supabase
+5. `npm run build` exits 0
+6. Customer search + POS barcode still refetch on change (`staleTime: 0`)
+
+Verify with:
+
+```js
+localStorage.setItem('ezzy_nav_perf', '1');
+// optional:
+localStorage.setItem('ezzy_cloud_usage', '1');
+location.reload();
+```
