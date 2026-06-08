@@ -80,9 +80,15 @@ export const useUserPermissions = () => {
     return permissions.mainMenu?.[mainMenuId] === true;
   };
 
+  // Special rights that stay off until explicitly enabled in User Rights (even for org admins).
+  const OPT_IN_SPECIAL_PERMISSIONS = new Set(["system_health"]);
+
   // Helper to check special permissions
   const hasSpecialPermission = (permissionId: string): boolean => {
-    if (permissions === null) return true;
+    if (permissions === null) {
+      if (OPT_IN_SPECIAL_PERMISSIONS.has(permissionId)) return false;
+      return true;
+    }
     return permissions.special?.[permissionId] === true;
   };
 
