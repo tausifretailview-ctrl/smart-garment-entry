@@ -624,8 +624,10 @@ export default function SalesInvoiceDashboard() {
         return { start: format(today, 'yyyy-MM-dd'), end: format(today, 'yyyy-MM-dd') };
       case 'weekly':
         return {
-          start: format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-          end: format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          // Rolling last 7 days (including today) — avoids empty result on
+          // Monday mornings when ISO week has only the current day.
+          start: format(subDays(today, 6), 'yyyy-MM-dd'),
+          end: format(today, 'yyyy-MM-dd'),
         };
       case 'monthly':
         return { start: format(startOfMonth(today), 'yyyy-MM-dd'), end: format(endOfMonth(today), 'yyyy-MM-dd') };
@@ -3141,7 +3143,7 @@ export default function SalesInvoiceDashboard() {
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="weekly">This Week</SelectItem>
+                  <SelectItem value="weekly">Last 7 Days</SelectItem>
                   <SelectItem value="daily">Today</SelectItem>
                   <SelectItem value="monthly">This Month</SelectItem>
                   <SelectItem value="all">All Time</SelectItem>
