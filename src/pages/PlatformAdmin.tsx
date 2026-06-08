@@ -1192,6 +1192,7 @@ export default function PlatformAdmin() {
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="manager">Manager</SelectItem>
                           <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="pos">POS (POS-only access)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
