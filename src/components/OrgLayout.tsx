@@ -63,14 +63,30 @@ export const OrgLayout = () => {
   const isCacheableTabPath = (path: string) =>
     isTabCachePath(path) && (!isEntryTabPath(path) || isCacheableEntryTabPath(path));
 
+  /**
+   * Keep cacheable entry screens (purchase-entry) mounted after first visit even when
+   * the user navigates away via sidebar — otherwise lineItems state is lost and a
+   * 5000-row draft reload starts from scratch.
+   */
+  const [pinnedCacheableEntryPaths, setPinnedCacheableEntryPaths] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isCacheableEntryTabPath(currentPath)) return;
+    setPinnedCacheableEntryPaths((prev) =>
+      prev.includes(currentPath) ? prev : [...prev, currentPath],
+    );
+  }, [currentPath]);
+
   const tabPaths = useMemo(() => {
     const set = new Set<string>();
     openWindows.forEach((w) => {
       if (isCacheableTabPath(w.path)) set.add(w.path);
     });
+    pinnedCacheableEntryPaths.forEach((p) => {
+      if (isCacheableTabPath(p)) set.add(p);
+    });
     if (isCacheableTabPath(currentPath)) set.add(currentPath);
     return [...set];
-  }, [openWindows, currentPath]);
+  }, [openWindows, currentPath, pinnedCacheableEntryPaths]);
 
   useEffect(() => {
     const prefetchActive = isEntryPage && !isCacheableEntryActive ? "" : currentPath;
