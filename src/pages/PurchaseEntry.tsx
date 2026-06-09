@@ -265,6 +265,9 @@ const PurchaseEntry = () => {
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
   /** Always-current ref so the newBill effect can call confirmDiscard without adding it to deps. */
   const confirmDiscardRef = useRef<() => boolean>(() => true);
+  /** Skip duplicate snapshot rebuild right after Excel import / bulk restore. */
+  const skipSnapshotEffectRef = useRef(false);
+  const importJustAppliedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
@@ -534,7 +537,7 @@ const PurchaseEntry = () => {
       latestSnapshotRef.current = snapshot;
       updateCurrentData(snapshot);
       persistEntrySession(snapshot);
-      void saveDraft(snapshot, false);
+      return saveDraft(snapshot, false);
     },
     [
       lineItems,
@@ -599,20 +602,12 @@ const PurchaseEntry = () => {
     // Backfill uom from products table for any rows missing it (drafts saved before MTR fix)
     const enrichedItems = await enrichItemsWithUom(items);
 
-    if (enrichedItems.length > 500) {
-      // Large bill: show loading overlay, yield one frame so the UI paints,
-      // then set all items in a single React update (table is hidden by overlay).
-      setDraftLoading(true);
-      setDraftLoadProgress({ loaded: 0, total: enrichedItems.length });
-      setLineItems([]);
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
-      setLineItems(enrichedItems);
-      setDraftLoadProgress({ loaded: enrichedItems.length, total: enrichedItems.length });
-      setDraftLoading(false);
-      setVisibleItemCount(100);
-    } else {
-      setLineItems(enrichedItems);
-    }
+    // Single update — no chunked progress overlay (table windowing handles render cost).
+    skipSnapshotEffectRef.current = true;
+    importJustAppliedRef.current = true;
+    workRestoredRef.current = true;
+    setVisibleItemCount(Math.min(enrichedItems.length, 200));
+    setLineItems(enrichedItems);
     
     // Restore edit mode if draft was from an edit
     if (data.isEditMode && data.editingBillId) {
@@ -623,9 +618,13 @@ const PurchaseEntry = () => {
     }
   }, []);
 
-  // Restore in-progress work when returning to Purchase Entry (tab switch / app refocus).
+  // Restore in-progress work when returning to Purchase Entry (full remount only).
   useEffect(() => {
     if (workRestoredRef.current) return;
+    if (lineItems.length > 0) {
+      workRestoredRef.current = true;
+      return;
+    }
     if (location.state?.editBillId || location.state?.newBill) return;
     if (!currentOrganization?.id || !user?.id) return;
 
@@ -682,14 +681,41 @@ const PurchaseEntry = () => {
 
   useEntryViewportSync();
 
-  // Keep flush-on-unmount in sync even if debounced save has not fired yet.
+  // Keep flush-on-unmount in sync; defer on large bills to avoid blocking paint.
   useLayoutEffect(() => {
+    if (skipSnapshotEffectRef.current) {
+      skipSnapshotEffectRef.current = false;
+      return;
+    }
+    if (lineItems.length > 500) {
+      let cancelled = false;
+      const syncSnapshot = () => {
+        if (!cancelled) latestSnapshotRef.current = buildEntrySnapshot();
+      };
+      if (typeof requestIdleCallback !== "undefined") {
+        const idleId = requestIdleCallback(syncSnapshot);
+        return () => {
+          cancelled = true;
+          cancelIdleCallback(idleId);
+        };
+      }
+      const timerId = window.setTimeout(syncSnapshot, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timerId);
+      };
+    }
     latestSnapshotRef.current = buildEntrySnapshot();
-  }, [buildEntrySnapshot]);
+  }, [buildEntrySnapshot, lineItems.length]);
 
   // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (importJustAppliedRef.current) {
+      importJustAppliedRef.current = false;
+      return;
+    }
+
     const snapshot = buildEntrySnapshot();
     latestSnapshotRef.current = snapshot;
 
@@ -3968,8 +3994,12 @@ const PurchaseEntry = () => {
     }
 
     const mergedLineItems = [...lineItems, ...newLineItems];
+    importJustAppliedRef.current = true;
+    skipSnapshotEffectRef.current = true;
+    workRestoredRef.current = true;
+    setVisibleItemCount(Math.min(mergedLineItems.length, 200));
     setLineItems(mergedLineItems);
-    persistEntrySnapshotNow({ lineItems: mergedLineItems });
+    await persistEntrySnapshotNow({ lineItems: mergedLineItems });
 
     const importedLinesTotal = newLineItems.reduce(
       (sum, item) => sum + roundMoney(item.line_total),
