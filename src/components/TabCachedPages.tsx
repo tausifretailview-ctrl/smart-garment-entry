@@ -307,6 +307,8 @@ function CachedTabPane({
       };
       raf = requestAnimationFrame(restorePane);
       timer = window.setTimeout(restorePane, 80);
+      // Suspense onReady only fires on first mount — signal OrgLayout on every tab activation.
+      requestAnimationFrame(() => onActivePaneReady?.(path));
     }
 
     wasActiveRef.current = active;
