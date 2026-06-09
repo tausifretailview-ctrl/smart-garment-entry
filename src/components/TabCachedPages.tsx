@@ -90,6 +90,17 @@ function writeScrollPositions(root: HTMLElement, positions: number[]) {
   });
 }
 
+/** Hidden tabs use display:none — on return, force scroll containers to recalc overflow. */
+function nudgePaneScrollLayout(root: HTMLElement) {
+  collectTabScrollTargets(root).forEach((el) => {
+    const top = el.scrollTop;
+    el.style.overflowY = "hidden";
+    void el.offsetHeight;
+    el.style.overflowY = "";
+    el.scrollTop = top;
+  });
+}
+
 function isProtectedTabPath(path: string): boolean {
   if (isEntryTabPath(path)) return true;
   if (IDLE_EVICT_ALLOWED_PATHS.has(path)) return false;
@@ -279,22 +290,30 @@ function CachedTabPane({
 
   useEffect(() => {
     const pane = paneRef.current;
-    if (!pane) return;
 
-    if (wasActiveRef.current && !active) {
+    if (pane && wasActiveRef.current && !active) {
       tabScrollPositions.set(path, readScrollPositions(pane));
     }
 
+    let raf = 0;
+    let timer = 0;
     if (!wasActiveRef.current && active) {
       const saved = tabScrollPositions.get(path);
-      if (saved?.length) {
-        requestAnimationFrame(() => {
-          if (paneRef.current) writeScrollPositions(paneRef.current, saved);
-        });
-      }
+      const restorePane = () => {
+        const current = paneRef.current;
+        if (!current) return;
+        nudgePaneScrollLayout(current);
+        if (saved?.length) writeScrollPositions(current, saved);
+      };
+      raf = requestAnimationFrame(restorePane);
+      timer = window.setTimeout(restorePane, 80);
     }
 
     wasActiveRef.current = active;
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (timer) window.clearTimeout(timer);
+    };
   }, [active, path]);
 
   const retryTabLoad = useCallback(() => {

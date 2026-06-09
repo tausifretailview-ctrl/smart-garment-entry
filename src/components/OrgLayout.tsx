@@ -280,10 +280,15 @@ export const OrgLayout = () => {
     );
   }
 
+  // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.
+  // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
+  const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer;
+  const constrainViewportHeight = isEntryPage || hasVisibleTabCache;
+
   return (
     <div
       className={
-        isEntryPage
+        constrainViewportHeight
           ? "flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden"
           : "flex min-h-[100dvh] w-full flex-col"
       }
