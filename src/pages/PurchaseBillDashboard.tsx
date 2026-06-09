@@ -42,6 +42,7 @@ import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
@@ -144,6 +145,7 @@ const PERF_PATH = "purchase-bills";
 
 const PurchaseBillDashboard = () => {
   useNavPerfPage(PERF_PATH);
+  const inTabCache = useTabCacheLayout();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -1921,7 +1923,12 @@ const PurchaseBillDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
+    <div
+      className={cn(
+        "bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6",
+        inTabCache ? "h-full min-h-0 w-full" : "min-h-screen pb-24 lg:pb-6",
+      )}
+    >
       <div className="w-full min-w-0 max-w-none space-y-5">
         <div className="flex items-center justify-between mb-1">
           <div>
