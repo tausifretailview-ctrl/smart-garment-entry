@@ -1998,10 +1998,20 @@ const PurchaseBillDashboard = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-amber-800">
-                      {(draftData as any)?.editBillId ? "Unsaved Purchase Edit" : "Unsaved Purchase Draft"}
+                      {(draftData as any)?.editingBillId || (draftData as any)?.editBillId
+                        ? "Unsaved Purchase Edit"
+                        : "Unsaved Purchase Draft"}
                     </h3>
                     <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
-                      {(draftData as any)?.items?.length || 0} items
+                      {(() => {
+                        const lines =
+                          (draftData as any)?.lineItems ?? (draftData as any)?.items ?? [];
+                        const lineCount = Array.isArray(lines) ? lines.length : 0;
+                        const totalQty = Array.isArray(lines)
+                          ? lines.reduce((s: number, it: { qty?: number }) => s + (Number(it?.qty) || 0), 0)
+                          : 0;
+                        return `${lineCount} lines · ${totalQty} qty`;
+                      })()}
                       {lastSaved ? ` • Saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : " • Saved recently"}
                     </CardDescription>
                   </div>
