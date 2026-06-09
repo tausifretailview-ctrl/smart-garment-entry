@@ -599,21 +599,15 @@ const PurchaseEntry = () => {
     // Backfill uom from products table for any rows missing it (drafts saved before MTR fix)
     const enrichedItems = await enrichItemsWithUom(items);
 
-    if (enrichedItems.length > 200) {
-      // Load in chunks with progress for large bills
+    if (enrichedItems.length > 500) {
+      // Large bill: show loading overlay, yield one frame so the UI paints,
+      // then set all items in a single React update (table is hidden by overlay).
       setDraftLoading(true);
       setDraftLoadProgress({ loaded: 0, total: enrichedItems.length });
       setLineItems([]);
-      const CHUNK = 200;
-      for (let i = 0; i < enrichedItems.length; i += CHUNK) {
-        await new Promise<void>(resolve => {
-          setTimeout(() => {
-            setLineItems(prev => [...prev, ...enrichedItems.slice(i, i + CHUNK)]);
-            setDraftLoadProgress({ loaded: Math.min(i + CHUNK, enrichedItems.length), total: enrichedItems.length });
-            resolve();
-          }, 0);
-        });
-      }
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      setLineItems(enrichedItems);
+      setDraftLoadProgress({ loaded: enrichedItems.length, total: enrichedItems.length });
       setDraftLoading(false);
       setVisibleItemCount(100);
     } else {
@@ -3771,13 +3765,21 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const BATCH_SIZE = 20;
-    const newLineItems: LineItem[] = [];
     let successCount = 0;
     let errorCount = 0;
     let skippedCount = mappedData.length - validRows.length;
 
-    // Pre-fetch existing products (filter out deleted)
+    // Helper: stable product key for deduplication
+    const makeProductKey = (row: Record<string, any>) =>
+      [
+        row.product_name?.toString().trim() || '',
+        row.brand?.toString().trim() || '',
+        row.category?.toString().trim() || '',
+        row.color?.toString().trim() || '',
+        row.style?.toString().trim() || '',
+      ].join('|').toLowerCase();
+
+    // ── Phase 1: Pre-fetch existing products ───────────────────────────────
     const { data: existingProducts } = await supabase
       .from('products')
       .select('id, product_name, brand, category, color, style')
@@ -3786,185 +3788,183 @@ const PurchaseEntry = () => {
 
     const productMap = new Map<string, string>();
     (existingProducts || []).forEach(p => {
-      const key = [
-        p.product_name || '',
-        p.brand || '',
-        p.category || '',
-        p.color || '',
-        p.style || '',
-      ].join('|').toLowerCase();
-      productMap.set(key, p.id);
+      productMap.set(
+        [p.product_name || '', p.brand || '', p.category || '', p.color || '', p.style || '']
+          .join('|').toLowerCase(),
+        p.id,
+      );
     });
 
-    // Collect product IDs that appear in the Excel data
-    const excelProductKeys = new Set<string>();
-    for (const row of validRows) {
-      const productKey = [
-        row.product_name?.toString().trim() || '',
-        row.brand?.toString().trim() || '',
-        row.category?.toString().trim() || '',
-        row.color?.toString().trim() || '',
-        row.style?.toString().trim() || '',
-      ].join('|').toLowerCase();
-      excelProductKeys.add(productKey);
-    }
-    const relevantProductIds = Array.from(excelProductKeys)
-      .map(k => productMap.get(k))
-      .filter(Boolean) as string[];
-
-    // For import, we always create new variants per row — no variant reuse
-    const variantMap = new Map<string, { id: string; barcode: string }>();
-
-    // Pre-generate barcodes for ALL rows (every row gets a new unique barcode)
+    // ── Phase 2: Parallel barcode generation (50 concurrent calls vs sequential) ──
+    // Calling generate_next_barcode 3000+ times serially would take many minutes.
+    // Batching 50 at a time in parallel reduces this to ~ceil(N/50) round-trips.
+    const BARCODE_CONCURRENCY = 50;
     const barcodePool: string[] = [];
-    for (let b = 0; b < validRows.length; b++) {
-      try {
-        const { data } = await supabase.rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
-        if (data) barcodePool.push(data);
-        else barcodePool.push(`B${Date.now()}${b}`);
-      } catch (e) {
-        barcodePool.push(`B${Date.now()}${b}`);
+    onProgress?.({ current: 0, total: validRows.length, successCount: 0, errorCount: 0, skippedCount, isImporting: true });
+
+    for (let b = 0; b < validRows.length; b += BARCODE_CONCURRENCY) {
+      const count = Math.min(BARCODE_CONCURRENCY, validRows.length - b);
+      const calls = Array.from({ length: count }, (_, i) =>
+        supabase
+          .rpc('generate_next_barcode', { p_organization_id: currentOrganization.id })
+          .then(r => (r.data as string) || `B${Date.now()}${b + i}`)
+          .catch(() => `B${Date.now()}${b + i}`),
+      );
+      const barcodes = await Promise.all(calls);
+      barcodePool.push(...barcodes);
+      onProgress?.({
+        current: Math.min(b + BARCODE_CONCURRENCY, validRows.length),
+        total: validRows.length,
+        successCount: 0,
+        errorCount: 0,
+        skippedCount,
+        isImporting: true,
+      });
+    }
+
+    // ── Phase 3: Batch-create new products (one INSERT for all missing products) ──
+    const newProductsToInsert: { key: string; insertData: Record<string, unknown> }[] = [];
+    const seenNewProductKeys = new Set<string>();
+    for (const row of validRows) {
+      const key = makeProductKey(row);
+      if (!productMap.has(key) && !seenNewProductKeys.has(key)) {
+        seenNewProductKeys.add(key);
+        newProductsToInsert.push({
+          key,
+          insertData: {
+            organization_id: currentOrganization.id,
+            product_name: row.product_name?.toString().trim(),
+            category: row.category?.toString().trim() || null,
+            brand: row.brand?.toString().trim() || null,
+            style: row.style?.toString().trim() || null,
+            color: row.color?.toString().trim() || null,
+            hsn_code: row.hsn_code?.toString().trim() || null,
+            gst_per: parseLocalizedNumber(row.gst_per),
+            default_pur_price: parseLocalizedNumber(row.pur_price),
+            default_sale_price: parseLocalizedNumber(row.sale_price),
+            status: 'active',
+          },
+        });
       }
     }
-    let barcodePoolIndex = 0;
+    if (newProductsToInsert.length > 0) {
+      const { data: createdProducts } = await supabase
+        .from('products')
+        .insert(newProductsToInsert.map(p => p.insertData))
+        .select('id');
+      (createdProducts || []).forEach((product: { id: string }, idx: number) => {
+        if (newProductsToInsert[idx]) productMap.set(newProductsToInsert[idx].key, product.id);
+      });
+    }
 
-    // Process in batches
-    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
-      const batch = validRows.slice(i, i + BATCH_SIZE);
+    // ── Phase 4: Batch variant inserts (200 per call vs 1 per call) ───────
+    // Build the full variant payload array first, then insert in bulk chunks.
+    type VariantRow = { rowIndex: number; variantData: Record<string, unknown>; row: Record<string, any> };
+    const variantRowsToInsert: VariantRow[] = [];
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
+      const productId = productMap.get(makeProductKey(row));
+      if (!productId) { errorCount++; continue; }
+      variantRowsToInsert.push({
+        rowIndex: i,
+        variantData: {
+          organization_id: currentOrganization.id,
+          product_id: productId,
+          size: row.size?.toString().trim() || '',
+          color: row.color?.toString().trim() || null,
+          barcode: barcodePool[i] || `AUTO${Date.now()}${i}`,
+          pur_price: parseLocalizedNumber(row.pur_price),
+          sale_price: parseLocalizedNumber(row.sale_price),
+          stock_qty: 0,
+          active: true,
+        },
+        row,
+      });
+    }
 
-      for (const row of batch) {
-        try {
-          const productKey = [
-            row.product_name?.toString().trim() || '',
-            row.brand?.toString().trim() || '',
-            row.category?.toString().trim() || '',
-            row.color?.toString().trim() || '',
-            row.style?.toString().trim() || '',
-          ].join('|').toLowerCase();
+    const VARIANT_BATCH_SIZE = 200;
+    const insertedVariantMap = new Map<number, string>(); // rowIndex → sku_id
 
-          let productId = productMap.get(productKey);
+    for (let i = 0; i < variantRowsToInsert.length; i += VARIANT_BATCH_SIZE) {
+      const batchSlice = variantRowsToInsert.slice(i, i + VARIANT_BATCH_SIZE);
+      const { data: inserted, error: batchErr } = await supabase
+        .from('product_variants')
+        .insert(batchSlice.map(v => v.variantData))
+        .select('id');
 
-          // Create product if doesn't exist
-          if (!productId) {
-            const { data: newProduct, error: productError } = await supabase
-              .from('products')
-              .insert({
-                organization_id: currentOrganization.id,
-                product_name: row.product_name?.toString().trim(),
-                category: row.category?.toString().trim() || null,
-                brand: row.brand?.toString().trim() || null,
-                style: row.style?.toString().trim() || null,
-                color: row.color?.toString().trim() || null,
-                hsn_code: row.hsn_code?.toString().trim() || null,
-                gst_per: parseLocalizedNumber(row.gst_per),
-                default_pur_price: parseLocalizedNumber(row.pur_price),
-                default_sale_price: parseLocalizedNumber(row.sale_price),
-                status: 'active',
-              })
-              .select('id')
-              .single();
-
-            if (productError) {
-              errorCount++;
-              continue;
-            }
-            productId = newProduct.id;
-            productMap.set(productKey, productId);
+      if (!batchErr && inserted) {
+        inserted.forEach((v: { id: string }, j: number) => {
+          if (batchSlice[j]) insertedVariantMap.set(batchSlice[j].rowIndex, v.id);
+        });
+        successCount += inserted.length;
+      } else {
+        // Batch failed — fall back to one-by-one so partial success is still captured
+        for (const item of batchSlice) {
+          const { data: single, error: singleErr } = await supabase
+            .from('product_variants')
+            .insert(item.variantData)
+            .select('id')
+            .single();
+          if (!singleErr && single) {
+            insertedVariantMap.set(item.rowIndex, (single as { id: string }).id);
+            successCount++;
+          } else {
+            console.error('Variant insert error:', singleErr);
+            errorCount++;
           }
-
-          const size = row.size?.toString().trim() || '';
-          const color = row.color?.toString().trim() || '';
-          // Include color in variant key to match unique index (product_id, color, size)
-          const variantKey = `${productId}|${color.toLowerCase()}|${size.toLowerCase()}`;
-          let variantInfo = variantMap.get(variantKey);
-          let skuId: string;
-          let barcode: string;
-
-          // Always create a new variant with a new barcode for every import row
-          {
-            barcode = barcodePool[barcodePoolIndex++] || `AUTO${Date.now()}${Math.random()}`;
-
-            const { data: inserted, error: insertErr } = await supabase
-              .from('product_variants')
-              .insert({
-                organization_id: currentOrganization.id,
-                product_id: productId,
-                size: size || '',
-                color: color || null,
-                barcode: barcode,
-                pur_price: parseLocalizedNumber(row.pur_price),
-                sale_price: parseLocalizedNumber(row.sale_price),
-                stock_qty: 0,
-                active: true,
-              })
-              .select('id')
-              .single();
-
-            if (insertErr || !inserted) {
-              console.error('Variant insert error:', insertErr);
-              errorCount++;
-              continue;
-            }
-            skuId = inserted.id;
-          }
-
-          const qty = parseLocalizedNumber(row.qty) || 0;
-          const purPrice = normalizePurchaseUnitPrice(parseLocalizedNumber(row.pur_price) || 0);
-          const uom = row.uom?.toString().trim() || '';
-
-          // Use Excel's line_total if provided (avoids rounding differences)
-          const excelLineTotal = parseLocalizedNumber(row.line_total);
-          const hasExcelLineTotal = excelLineTotal > 0;
-          const lineTotal = hasExcelLineTotal
-            ? roundMoney(excelLineTotal)
-            : roundMoney(qty * purPrice);
-
-          // If using Excel's line_total, back-calculate pur_price to stay consistent
-          const multiplier = getPurchaseLineMultiplier({ uom, size, qty });
-          // Keep 2dp rate from Excel line_total — integer snap causes gross vs GST drift on large bills.
-          const effectivePurPrice =
-            hasExcelLineTotal && multiplier > 0
-              ? roundMoney(excelLineTotal / multiplier)
-              : purPrice;
-
-          newLineItems.push({
-            temp_id: `import_${Date.now()}_${Math.random()}`,
-            product_id: productId,
-            sku_id: skuId,
-            product_name: row.product_name?.toString().trim() || '',
-            size: size,
-            qty: qty,
-            pur_price: effectivePurPrice,
-            sale_price: parseLocalizedNumber(row.sale_price) || 0,
-            gst_per: parseLocalizedNumber(row.gst_per) || 0,
-            hsn_code: row.hsn_code?.toString().trim() || '',
-            barcode: barcode,
-            discount_percent: 0,
-            line_total: lineTotal,
-            brand: row.brand?.toString().trim(),
-            category: row.category?.toString().trim(),
-            color: row.color?.toString().trim(),
-            style: row.style?.toString().trim(),
-          });
-
-          successCount++;
-        } catch (err) {
-          console.error('Error processing row:', err);
-          errorCount++;
         }
       }
 
-      // Report progress
-      if (onProgress) {
-        onProgress({
-          current: Math.min(i + BATCH_SIZE, validRows.length),
-          total: validRows.length,
-          successCount,
-          errorCount,
-          skippedCount,
-          isImporting: true,
-        });
-      }
+      onProgress?.({
+        current: Math.min(i + VARIANT_BATCH_SIZE, variantRowsToInsert.length),
+        total: validRows.length,
+        successCount,
+        errorCount,
+        skippedCount,
+        isImporting: true,
+      });
+    }
+
+    // ── Phase 5: Build line items from inserted variant IDs ───────────────
+    const newLineItems: LineItem[] = [];
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
+      const skuId = insertedVariantMap.get(i);
+      if (!skuId) continue;
+
+      const productId = productMap.get(makeProductKey(row)) || '';
+      const barcode = barcodePool[i] || `AUTO${Date.now()}${i}`;
+      const size = row.size?.toString().trim() || '';
+      const qty = parseLocalizedNumber(row.qty) || 0;
+      const purPrice = normalizePurchaseUnitPrice(parseLocalizedNumber(row.pur_price) || 0);
+      const uom = row.uom?.toString().trim() || 'NOS';
+      const excelLineTotal = parseLocalizedNumber(row.line_total);
+      const hasExcelLineTotal = excelLineTotal > 0;
+      const lineTotal = hasExcelLineTotal ? roundMoney(excelLineTotal) : roundMoney(qty * purPrice);
+      const multiplier = getPurchaseLineMultiplier({ uom, size, qty });
+      const effectivePurPrice =
+        hasExcelLineTotal && multiplier > 0 ? roundMoney(excelLineTotal / multiplier) : purPrice;
+
+      newLineItems.push({
+        temp_id: `import_${Date.now()}_${i}`,
+        product_id: productId,
+        sku_id: skuId,
+        product_name: row.product_name?.toString().trim() || '',
+        size,
+        qty,
+        pur_price: effectivePurPrice,
+        sale_price: parseLocalizedNumber(row.sale_price) || 0,
+        gst_per: parseLocalizedNumber(row.gst_per) || 0,
+        hsn_code: row.hsn_code?.toString().trim() || '',
+        barcode,
+        discount_percent: 0,
+        line_total: lineTotal,
+        brand: row.brand?.toString().trim(),
+        category: row.category?.toString().trim(),
+        color: row.color?.toString().trim(),
+        style: row.style?.toString().trim(),
+        uom,
+      });
     }
 
     const mergedLineItems = [...lineItems, ...newLineItems];
