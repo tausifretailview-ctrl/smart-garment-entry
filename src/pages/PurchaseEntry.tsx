@@ -42,8 +42,16 @@ import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import {
+  clearPurchaseEntrySession,
   getOrCreatePurchaseEntryTabInstanceId,
-  purchaseEntrySessionKey,
+  markPurchaseEntryNavHandled,
+  markPurchaseEntryUnmountNavKey,
+  omitNewBillNavigationState,
+  readPurchaseEntrySnapshot,
+  wasPurchaseEntryNavHandled,
+  wasPurchaseEntryRemount,
+  writePurchaseEntrySnapshot,
+  type PurchaseEntrySnapshot,
 } from "@/lib/purchaseEntryPersistence";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
@@ -383,15 +391,10 @@ const PurchaseEntry = () => {
     stopAutoSave,
   } = useDraftSave('purchase');
 
-  const getEntrySessionKey = useCallback(() => {
-    if (!currentOrganization?.id || !user?.id) return null;
-    return purchaseEntrySessionKey(currentOrganization.id, user.id);
-  }, [currentOrganization?.id, user?.id]);
-
   const clearEntrySession = useCallback(() => {
-    const key = getEntrySessionKey();
-    if (key) sessionStorage.removeItem(key);
-  }, [getEntrySessionKey]);
+    if (!currentOrganization?.id || !user?.id) return;
+    clearPurchaseEntrySession(currentOrganization.id, user.id);
+  }, [currentOrganization?.id, user?.id]);
 
   const resetToNewBill = useCallback(() => {
     setLineItems([]);
@@ -448,21 +451,15 @@ const PurchaseEntry = () => {
   }, [confirmDiscardUnsavedPurchase, resetToNewBill]);
 
   const persistEntrySession = useCallback(
-    (snapshot: Record<string, unknown> | null) => {
-      const key = getEntrySessionKey();
-      if (!key) return;
-      const items = snapshot?.lineItems;
-      if (!Array.isArray(items) || items.length === 0) {
-        sessionStorage.removeItem(key);
+    (snapshot: PurchaseEntrySnapshot | null) => {
+      if (!currentOrganization?.id || !user?.id) return;
+      if (!snapshot?.lineItems?.length) {
+        clearPurchaseEntrySession(currentOrganization.id, user.id);
         return;
       }
-      try {
-        sessionStorage.setItem(key, JSON.stringify(snapshot));
-      } catch {
-        // sessionStorage full — DB draft remains the fallback
-      }
+      writePurchaseEntrySnapshot(currentOrganization.id, user.id, snapshot);
     },
-    [getEntrySessionKey],
+    [currentOrganization?.id, user?.id],
   );
 
   const notifyWorkRestored = useCallback(
@@ -618,6 +615,11 @@ const PurchaseEntry = () => {
     }
   }, []);
 
+ cursor/purchase-entry-persistence-97d7
+  const readPersistedSnapshot = useCallback(() => {
+    if (!currentOrganization?.id || !user?.id) return null;
+    return readPurchaseEntrySnapshot(currentOrganization.id, user.id);
+  }, [currentOrganization?.id, user?.id]);
   // Restore in-progress work when returning to Purchase Entry (full remount only).
   useEffect(() => {
     if (workRestoredRef.current) return;
@@ -627,24 +629,28 @@ const PurchaseEntry = () => {
     }
     if (location.state?.editBillId || location.state?.newBill) return;
     if (!currentOrganization?.id || !user?.id) return;
+ main
 
-    const restoreWork = async () => {
-      const sessionKey = getEntrySessionKey();
-      if (sessionKey) {
-        const raw = sessionStorage.getItem(sessionKey);
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed?.lineItems) && parsed.lineItems.length > 0) {
-              workRestoredRef.current = true;
-              await loadDraftData(parsed);
-              notifyWorkRestored(parsed);
-              return;
-            }
-          } catch {
-            sessionStorage.removeItem(sessionKey);
-          }
-        }
+  const shouldDeferRestoreForNewBill = useCallback(() => {
+    if (!location.state?.newBill) return false;
+    if (wasPurchaseEntryRemount(location.key)) return false;
+    if (wasPurchaseEntryNavHandled(location.key)) return false;
+    return true;
+  }, [location.key, location.state?.newBill]);
+
+  const restorePersistedWork = useCallback(
+    async (options?: { notify?: boolean }) => {
+      if (workRestoredRef.current) return false;
+      if (location.state?.editBillId) return false;
+      if (shouldDeferRestoreForNewBill()) return false;
+      if (!currentOrganization?.id || !user?.id) return false;
+
+      const persisted = readPersistedSnapshot();
+      if (persisted?.lineItems?.length) {
+        workRestoredRef.current = true;
+        await loadDraftData(persisted);
+        if (options?.notify !== false) notifyWorkRestored(persisted);
+        return true;
       }
 
       if (location.state?.loadDraft) {
@@ -653,31 +659,44 @@ const PurchaseEntry = () => {
           await loadDraftData(draftData);
           notifyWorkRestored(draftData);
           await deleteDraft();
+          return true;
         }
-        return;
+        return false;
       }
 
       if (hasDraft && draftData?.lineItems?.length > 0) {
         workRestoredRef.current = true;
         await loadDraftData(draftData);
         notifyWorkRestored(draftData);
+        return true;
       }
-    };
 
-    void restoreWork();
-  }, [
-    currentOrganization?.id,
-    user?.id,
-    hasDraft,
-    draftData,
-    location.state?.editBillId,
-    location.state?.newBill,
-    location.state?.loadDraft,
-    getEntrySessionKey,
-    loadDraftData,
-    deleteDraft,
-    notifyWorkRestored,
-  ]);
+      return false;
+    },
+    [
+      currentOrganization?.id,
+      user?.id,
+      hasDraft,
+      draftData,
+      location.state?.editBillId,
+      location.state?.loadDraft,
+      readPersistedSnapshot,
+      shouldDeferRestoreForNewBill,
+      loadDraftData,
+      deleteDraft,
+      notifyWorkRestored,
+    ],
+  );
+
+  // Restore before paint when remounting the same history entry (minimize / PWA resume).
+  useLayoutEffect(() => {
+    void restorePersistedWork();
+  }, [restorePersistedWork]);
+
+  // Also restore when draft metadata arrives after mount.
+  useEffect(() => {
+    void restorePersistedWork();
+  }, [restorePersistedWork]);
 
   useEntryViewportSync();
 
@@ -744,7 +763,7 @@ const PurchaseEntry = () => {
     const snapshot = latestSnapshotRef.current;
     if (snapshot?.lineItems && Array.isArray(snapshot.lineItems) && snapshot.lineItems.length > 0) {
       updateCurrentData(snapshot);
-      persistEntrySession(snapshot);
+      persistEntrySession(snapshot as PurchaseEntrySnapshot);
       void saveDraft(snapshot, false);
       return;
     }
@@ -752,11 +771,29 @@ const PurchaseEntry = () => {
     clearEntrySession();
   }, [updateCurrentData, persistEntrySession, clearEntrySession, saveDraft]);
 
+  const clearNewBillNavigation = useCallback(() => {
+    if (!location.state?.newBill) return;
+    markPurchaseEntryNavHandled(location.key);
+    navigate(location.pathname, {
+      replace: true,
+      state: omitNewBillNavigationState(location.state),
+    });
+  }, [location.key, location.pathname, location.state, navigate]);
+
+  const lineItemsCountRef = useRef(lineItems.length);
+  lineItemsCountRef.current = lineItems.length;
+  const locationKeyRef = useRef(location.key);
+  locationKeyRef.current = location.key;
+
   // Save immediately when leaving the tab, switching browser tabs, or closing the page.
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flushEntryPersistence();
+        return;
+      }
+      if (document.visibilityState === "visible" && lineItemsCountRef.current === 0) {
+        void restorePersistedWork({ notify: true });
       }
     };
     const onPageHide = () => {
@@ -767,9 +804,10 @@ const PurchaseEntry = () => {
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
+      markPurchaseEntryUnmountNavKey(locationKeyRef.current);
       flushEntryPersistence();
     };
-  }, [flushEntryPersistence]);
+  }, [flushEntryPersistence, restorePersistedWork]);
   
   // Memoize selectedForPrint as object for O(1) lookup without triggering re-renders
   const selectedForPrintObj = useMemo(
@@ -1206,13 +1244,37 @@ const PurchaseEntry = () => {
   // re-fire on every lineItems change and accidentally show a second confirm dialog.
   useEffect(() => {
     if (!location.state?.newBill) return;
+    if (wasPurchaseEntryNavHandled(location.key)) {
+      clearNewBillNavigation();
+      return;
+    }
+
+    // Remount/minimize recovery: restore persisted work instead of wiping on a stale newBill flag.
+    if (wasPurchaseEntryRemount(location.key)) {
+      void restorePersistedWork({ notify: true }).finally(() => {
+        clearNewBillNavigation();
+      });
+      return;
+    }
+
+    if (workRestoredRef.current) {
+      clearNewBillNavigation();
+      return;
+    }
+
     if (!confirmDiscardRef.current()) {
-      window.history.replaceState({}, "", location.pathname);
+      clearNewBillNavigation();
       return;
     }
     resetToNewBill();
-    window.history.replaceState({}, "", location.pathname);
-  }, [location.state?.newBill, location.pathname, resetToNewBill]);
+    clearNewBillNavigation();
+  }, [
+    location.state?.newBill,
+    location.key,
+    clearNewBillNavigation,
+    resetToNewBill,
+    restorePersistedWork,
+  ]);
 
   // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
   useEffect(() => {
