@@ -615,21 +615,10 @@ const PurchaseEntry = () => {
     }
   }, []);
 
- cursor/purchase-entry-persistence-97d7
   const readPersistedSnapshot = useCallback(() => {
     if (!currentOrganization?.id || !user?.id) return null;
     return readPurchaseEntrySnapshot(currentOrganization.id, user.id);
   }, [currentOrganization?.id, user?.id]);
-  // Restore in-progress work when returning to Purchase Entry (full remount only).
-  useEffect(() => {
-    if (workRestoredRef.current) return;
-    if (lineItems.length > 0) {
-      workRestoredRef.current = true;
-      return;
-    }
-    if (location.state?.editBillId || location.state?.newBill) return;
-    if (!currentOrganization?.id || !user?.id) return;
- main
 
   const shouldDeferRestoreForNewBill = useCallback(() => {
     if (!location.state?.newBill) return false;
