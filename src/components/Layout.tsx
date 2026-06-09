@@ -21,6 +21,8 @@ import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { cn } from "@/lib/utils";
 
 interface LayoutProps {
   children: ReactNode;
@@ -31,6 +33,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
+  const inTabCachePane = useTabCacheLayout();
 
   useEffect(() => {
     initUIScale();
@@ -43,13 +46,25 @@ export const Layout = ({ children }: LayoutProps) => {
           <SidebarProvider defaultOpen={false}>
             <OfflineIndicator />
 
-            <div className="flex min-h-screen w-full bg-background">
+            <div
+              className={cn(
+                "flex w-full bg-background",
+                inTabCachePane
+                  ? "h-full min-h-0 overflow-hidden"
+                  : "min-h-screen",
+              )}
+            >
               {showDesktopChrome && (
                 <div className="shrink-0">
                   <AppSidebar />
                 </div>
               )}
-              <SidebarInset className="flex flex-col flex-1 min-w-0">
+              <SidebarInset
+                className={cn(
+                  "flex flex-col flex-1 min-w-0",
+                  inTabCachePane && "!min-h-0 h-full overflow-hidden",
+                )}
+              >
                 {!isSalesInvoicePage && (
                   <>
                     {showDesktopChrome && (
@@ -69,7 +84,10 @@ export const Layout = ({ children }: LayoutProps) => {
                     isSalesInvoicePage
                       ? mobileFullscreenMainClass
                       : showDesktopChrome
-                        ? "flex-1 overflow-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 pb-14 animate-fade-in"
+                        ? cn(
+                            "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 pb-14 animate-fade-in",
+                            inTabCachePane && "data-tab-scroll",
+                          )
                         : mobileMainContentClass
                   }
                 >

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { TabCacheLayoutContext } from "@/contexts/TabCacheLayoutContext";
 import {
   isNavigationPerfEnabled,
   recordChunkLoadEnd,
@@ -338,7 +339,9 @@ function CachedTabPane({
       aria-hidden={!active}
       data-tab-cache-path={path}
     >
-      {withRole}
+      <TabCacheLayoutContext.Provider value>
+        {withRole}
+      </TabCacheLayoutContext.Provider>
     </div>
   );
 }
@@ -482,7 +485,6 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
     prefetchTabPage("purchase-bills");
     prefetchTabPage("purchase-return-dashboard");
     prefetchTabPage("purchase-returns");
-
     prefetchTabPage("purchase-entry");
     prefetchTabPage("product-entry");
     prefetchTabPage("barcode-printing");
