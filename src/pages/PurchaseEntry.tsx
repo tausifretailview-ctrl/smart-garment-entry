@@ -1,7 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { isDecimalUOM } from "@/constants/uom";
 import { createPortal } from "react-dom";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -217,6 +217,7 @@ const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
+  const routerNavigate = useNavigate();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
@@ -763,11 +764,12 @@ const PurchaseEntry = () => {
   const clearNewBillNavigation = useCallback(() => {
     if (!location.state?.newBill) return;
     markPurchaseEntryNavHandled(location.key);
-    navigate(location.pathname, {
+    // Use raw router navigate — orgNavigate would double-prefix /:orgSlug on location.pathname.
+    routerNavigate(location.pathname, {
       replace: true,
       state: omitNewBillNavigationState(location.state),
     });
-  }, [location.key, location.pathname, location.state, navigate]);
+  }, [location.key, location.pathname, location.state, routerNavigate]);
 
   const lineItemsCountRef = useRef(lineItems.length);
   lineItemsCountRef.current = lineItems.length;

@@ -48,6 +48,19 @@ export function useOrgNavigation() {
       return;
     }
 
+    // Path already includes org slug — do not prefix again (prevents /org/org/... 404s).
+    const orgPrefix = `/${effectiveOrgSlug}/`;
+    const orgRoot = `/${effectiveOrgSlug}`;
+    if (path === orgRoot || path.startsWith(orgPrefix)) {
+      navigate(path, options);
+      return;
+    }
+    const unprefixed = path.startsWith("/") ? path.slice(1) : path;
+    if (unprefixed === effectiveOrgSlug || unprefixed.startsWith(`${effectiveOrgSlug}/`)) {
+      navigate(`/${unprefixed}`, options);
+      return;
+    }
+
     // Handle root path
     if (path === "/" || path === "") {
       navigate(`/${effectiveOrgSlug}`, options);
@@ -76,6 +89,16 @@ export function useOrgNavigation() {
     }
     
     if (!effectiveOrgSlug) return path;
+
+    const orgPrefix = `/${effectiveOrgSlug}/`;
+    const orgRoot = `/${effectiveOrgSlug}`;
+    if (path === orgRoot || path.startsWith(orgPrefix)) {
+      return path;
+    }
+    const unprefixed = path.startsWith("/") ? path.slice(1) : path;
+    if (unprefixed === effectiveOrgSlug || unprefixed.startsWith(`${effectiveOrgSlug}/`)) {
+      return `/${unprefixed}`;
+    }
     
     if (path === "/" || path === "") {
       return `/${effectiveOrgSlug}`;
