@@ -1,8 +1,10 @@
 import { Navigate, useParams } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
@@ -19,6 +21,11 @@ export const RoleProtectedRoute = ({
 }: RoleProtectedRouteProps) => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { currentOrganization, loading: orgLoading } = useOrganization();
+  const inTabCachePane = useTabCacheLayout();
+  const loadingShellClass = cn(
+    "flex items-center justify-center",
+    inTabCachePane ? "h-full min-h-0 w-full" : "min-h-screen",
+  );
   
   // Check if this is a platform-admin-only route (no org context needed)
   const isPlatformAdminOnly = allowedRoles.length === 1 && allowedRoles[0] === "platform_admin";
@@ -32,7 +39,7 @@ export const RoleProtectedRoute = ({
   // For platform admin routes, don't wait for org context
   if (isWaiting && !error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={loadingShellClass}>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -41,7 +48,7 @@ export const RoleProtectedRoute = ({
   // If there was an error fetching roles, show error with in-place retry (no full reload)
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className={loadingShellClass}>
         <div className="text-center space-y-3">
           <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
           <p className="text-sm text-muted-foreground">Unable to verify permissions</p>

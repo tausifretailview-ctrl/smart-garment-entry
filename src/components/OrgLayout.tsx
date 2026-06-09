@@ -144,8 +144,10 @@ export const OrgLayout = () => {
     (isEntryPage && !isCacheableEntryActive) ||
     (wantsTabCache && !tabPaneReady && !isCacheableEntryActive);
 
+  // Reset on navigation — only set true when the cached pane confirms mount (onActivePaneReady).
+  // Eagerly restoring from tabPaneReadyPathsRef hid <Outlet> before the pane was actually ready → stuck spinner.
   useEffect(() => {
-    setTabPaneReady(tabPaneReadyPathsRef.current.has(currentPath));
+    setTabPaneReady(false);
   }, [currentPath]);
 
   useEffect(() => {
@@ -282,7 +284,7 @@ export const OrgLayout = () => {
 
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.
   // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
-  const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer;
+  const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && tabPaneReady;
   const constrainViewportHeight = isEntryPage || hasVisibleTabCache;
 
   return (
