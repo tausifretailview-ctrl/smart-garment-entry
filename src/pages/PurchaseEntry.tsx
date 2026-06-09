@@ -63,6 +63,7 @@ import {
   purchaseBillSampleData,
   parseExcelDate,
   parseLocalizedNumber,
+  normalizeImportBarcode,
   roundMoney,
   normalizePurchaseUnitPrice,
   computePurchaseLineSubTotal,
@@ -3940,7 +3941,7 @@ const PurchaseEntry = () => {
     const barcodePool: string[] = new Array(validRows.length);
     const rowsNeedingGeneratedBarcode: number[] = [];
     for (let i = 0; i < validRows.length; i++) {
-      const excelBarcode = validRows[i].barcode?.toString().trim();
+      const excelBarcode = normalizeImportBarcode(validRows[i].barcode);
       if (excelBarcode) {
         barcodePool[i] = excelBarcode;
       } else {

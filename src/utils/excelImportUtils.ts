@@ -19,6 +19,48 @@ export const normalizePurchaseUnitPrice = (value: number): number => {
   return rounded;
 };
 
+/**
+ * Preserve Excel barcode as-is: digits, letters, leading zeros.
+ * Never treat barcode as a number field — Excel often stores 000000191 as text or formatted display.
+ */
+export const normalizeImportBarcode = (value: unknown): string => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '';
+    if (Number.isInteger(value)) return String(value);
+    return String(value);
+  }
+  let s = String(value).trim();
+  if (!s) return '';
+  if (/^[\d.]+e[+\-]?\d+$/i.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) return String(Math.trunc(n));
+  }
+  if (/^\d+\.0+$/.test(s)) return s.replace(/\.0+$/, '');
+  return s;
+};
+
+function isBarcodeLikeHeader(header: string): boolean {
+  const n = header.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (
+    n.includes('barcode') ||
+    n.includes('bcodeno') ||
+    n === 'bcode' ||
+    n.startsWith('bcode') ||
+    n === 'ean' ||
+    n === 'upc' ||
+    (n.includes('code') && (n.includes('bar') || n.startsWith('b')))
+  );
+}
+
+function getWorksheetCellText(cell: XLSX.CellObject | undefined): string {
+  if (!cell) return '';
+  if (cell.w != null && String(cell.w).trim() !== '') {
+    return normalizeImportBarcode(cell.w);
+  }
+  return normalizeImportBarcode(cell.v);
+}
+
 export const getPurchaseLineMultiplier = (item: {
   uom?: string;
   size?: string;
@@ -299,6 +341,19 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
         
         // Find the actual header row
         const headerRowIdx = findHeaderRow(worksheet);
+        const sheetRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+
+        // Map normalized header label -> worksheet column index (for formatted barcode cells)
+        const normHeaderToColIdx = new Map<string, number>();
+        for (let colIdx = sheetRange.s.c; colIdx <= sheetRange.e.c; colIdx++) {
+          const cellRef = XLSX.utils.encode_cell({ r: headerRowIdx, c: colIdx });
+          const cell = worksheet[cellRef];
+          if (!cell || cell.v === undefined || cell.v === null || cell.v === '') continue;
+          const trimmed = String(cell.w ?? cell.v).trim().replace(/\s+/g, ' ');
+          if (trimmed && !trimmed.startsWith('__EMPTY') && !trimmed.match(/^_+$/)) {
+            normHeaderToColIdx.set(trimmed, colIdx);
+          }
+        }
         
         // Parse with raw:false to get string values, defval for blank cells
         const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { 
@@ -342,9 +397,11 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
           sampleValues[header] = firstNonEmpty ? String(firstNonEmpty[originalKey]).trim() : '';
         });
 
+        const barcodeColumnHeaders = validHeaders.filter(isBarcodeLikeHeader);
+
         // Clean up rows: normalize headers, trim string values, skip blank/empty rows
         const cleanedRows = jsonData
-          .map(row => {
+          .map((row, dataRowIdx) => {
             const cleanRow: Record<string, any> = {};
             for (const [originalKey, normalizedKey] of headerNormMap.entries()) {
               let val = row[originalKey];
@@ -352,6 +409,17 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
                 val = val.trim();
               }
               cleanRow[normalizedKey] = val;
+            }
+            // Barcode columns: read formatted cell text (preserves 000000191, alphanumeric codes)
+            for (const header of barcodeColumnHeaders) {
+              const colIdx = normHeaderToColIdx.get(header);
+              if (colIdx === undefined) continue;
+              const cellRef = XLSX.utils.encode_cell({
+                r: headerRowIdx + 1 + dataRowIdx,
+                c: colIdx,
+              });
+              const cellText = getWorksheetCellText(worksheet[cellRef]);
+              if (cellText) cleanRow[header] = cellText;
             }
             return cleanRow;
           })
@@ -393,7 +461,7 @@ const fieldAliases: Record<string, string[]> = {
   gst_per: ['gst', 'gstper', 'gstpercent', 'gstrate', 'tax', 'taxrate', 'taxper', 'taxpercentage', 'igst', 'cgst', 'sgst'],
   uom: ['uom', 'unit', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement', 'units'],
   size: ['size', 'sz', 'productsize', 'itemsize', 'dimension'],
-  barcode: ['barcode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'code', 'skucode'],
+  barcode: ['barcode', 'bcodeno', 'bcode', 'bcodeo', 'barcodeno', 'barcodenumber', 'eancode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'skucode'],
   pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate', 'purchasrprice', 'purchasepkr', 'purchasingprice', 'buyprice', 'purchasprice'],
   sale_price: ['saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
   mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice', 'price'],
@@ -511,7 +579,10 @@ export const applyMappings = (
     
     Object.entries(mappings).forEach(([excelCol, systemField]) => {
       if (systemField) {
-        mappedRow[systemField] = row[excelCol];
+        mappedRow[systemField] =
+          systemField === 'barcode'
+            ? normalizeImportBarcode(row[excelCol])
+            : row[excelCol];
       }
     });
     
