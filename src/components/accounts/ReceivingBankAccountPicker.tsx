@@ -11,8 +11,9 @@ import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts
 import {
   formatBankAccountLabel,
   paymentMethodNeedsReceivingBank,
-  pickDefaultBankAccountId,
 } from "@/utils/organizationBankAccounts";
+
+const NONE_BANK_VALUE = "__none__";
 
 type ReceivingBankAccountPickerProps = {
   organizationId: string;
@@ -31,21 +32,15 @@ export function ReceivingBankAccountPicker({
   const enabled = paymentMethodNeedsReceivingBank(paymentMethod);
 
   useEffect(() => {
-    if (!enabled) {
-      if (value) onChange(null);
-      return;
-    }
-    if (isLoading || accounts.length === 0) return;
-    if (value && accounts.some((a) => a.id === value)) return;
-    onChange(pickDefaultBankAccountId(accounts));
-  }, [enabled, isLoading, accounts, value, onChange]);
+    if (!enabled && value) onChange(null);
+  }, [enabled, value, onChange]);
 
   if (!enabled) return null;
 
   if (isLoading) {
     return (
       <div className="space-y-2">
-        <Label>Bank Account</Label>
+        <Label>Bank Account (optional)</Label>
         <p className="text-sm text-muted-foreground">Loading bank accounts…</p>
       </div>
     );
@@ -54,32 +49,27 @@ export function ReceivingBankAccountPicker({
   if (accounts.length === 0) {
     return (
       <div className="space-y-2">
-        <Label>Bank Account</Label>
+        <Label>Bank Account (optional)</Label>
         <p className="text-sm text-muted-foreground">
-          No bank accounts configured. Add receiving bank accounts in Settings → Company Profile.
+          Not configured — you can still collect UPI, card, or bank transfer. Add accounts in
+          Settings → Company Profile to track which bank received funds.
         </p>
-      </div>
-    );
-  }
-
-  if (accounts.length === 1) {
-    const account = accounts[0];
-    return (
-      <div className="space-y-2">
-        <Label>Bank Account</Label>
-        <p className="text-sm font-medium tabular-nums">{formatBankAccountLabel(account)}</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <Label>Bank Account</Label>
-      <Select value={value ?? ""} onValueChange={(id) => onChange(id || null)}>
+      <Label>Bank Account (optional)</Label>
+      <Select
+        value={value ?? NONE_BANK_VALUE}
+        onValueChange={(id) => onChange(id === NONE_BANK_VALUE ? null : id)}
+      >
         <SelectTrigger>
-          <SelectValue placeholder="Select bank account" />
+          <SelectValue placeholder="Not specified" />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value={NONE_BANK_VALUE}>Not specified</SelectItem>
           {accounts.map((account) => (
             <SelectItem key={account.id} value={account.id}>
               {formatBankAccountLabel(account)}

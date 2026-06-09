@@ -70,19 +70,13 @@ export function validateReceivingBankForSave(
   if (!paymentMethodNeedsReceivingBank(paymentMethod)) {
     return { ok: true, bankAccountId: null };
   }
-  if (accounts.length === 0) {
-    return {
-      ok: false,
-      message: "Add at least one receiving bank account in Settings → Company Profile.",
-    };
+  // Receiving bank is optional — for tracking which account got UPI/card/transfer only.
+  if (!selectedBankAccountId) {
+    return { ok: true, bankAccountId: null };
   }
-  const id = selectedBankAccountId || pickDefaultBankAccountId(accounts);
-  if (!id) {
-    return { ok: false, message: "Select the bank account that received this payment." };
-  }
-  const found = accounts.some((a) => a.id === id);
+  const found = accounts.some((a) => a.id === selectedBankAccountId);
   if (!found) {
-    return { ok: false, message: "Select a valid bank account." };
+    return { ok: false, message: "Select a valid bank account or leave unset." };
   }
-  return { ok: true, bankAccountId: id };
+  return { ok: true, bankAccountId: selectedBankAccountId };
 }
