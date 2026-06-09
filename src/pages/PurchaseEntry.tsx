@@ -3881,12 +3881,15 @@ const PurchaseEntry = () => {
 
     for (let b = 0; b < validRows.length; b += BARCODE_CONCURRENCY) {
       const count = Math.min(BARCODE_CONCURRENCY, validRows.length - b);
-      const calls = Array.from({ length: count }, (_, i) =>
-        supabase
-          .rpc('generate_next_barcode', { p_organization_id: currentOrganization.id })
-          .then(r => (r.data as string) || `B${Date.now()}${b + i}`)
-          .catch(() => `B${Date.now()}${b + i}`),
-      );
+      const calls = Array.from({ length: count }, async (_, i) => {
+        try {
+          const r = await supabase
+            .rpc('generate_next_barcode', { p_organization_id: currentOrganization.id });
+          return (r.data as string) || `B${Date.now()}${b + i}`;
+        } catch {
+          return `B${Date.now()}${b + i}`;
+        }
+      });
       const barcodes = await Promise.all(calls);
       barcodePool.push(...barcodes);
       onProgress?.({
@@ -3927,7 +3930,7 @@ const PurchaseEntry = () => {
     if (newProductsToInsert.length > 0) {
       const { data: createdProducts } = await supabase
         .from('products')
-        .insert(newProductsToInsert.map(p => p.insertData))
+        .insert(newProductsToInsert.map(p => p.insertData) as any)
         .select('id');
       (createdProducts || []).forEach((product: { id: string }, idx: number) => {
         if (newProductsToInsert[idx]) productMap.set(newProductsToInsert[idx].key, product.id);
@@ -3966,7 +3969,7 @@ const PurchaseEntry = () => {
       const batchSlice = variantRowsToInsert.slice(i, i + VARIANT_BATCH_SIZE);
       const { data: inserted, error: batchErr } = await supabase
         .from('product_variants')
-        .insert(batchSlice.map(v => v.variantData))
+        .insert(batchSlice.map(v => v.variantData) as any)
         .select('id');
 
       if (!batchErr && inserted) {
@@ -3979,7 +3982,7 @@ const PurchaseEntry = () => {
         for (const item of batchSlice) {
           const { data: single, error: singleErr } = await supabase
             .from('product_variants')
-            .insert(item.variantData)
+            .insert(item.variantData as any)
             .select('id')
             .single();
           if (!singleErr && single) {
