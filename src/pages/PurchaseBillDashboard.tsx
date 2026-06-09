@@ -30,7 +30,7 @@ import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { clearPurchaseEntrySession } from "@/lib/purchaseEntryPersistence";
+import { dispatchPurchaseDraftDiscarded } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -246,7 +246,12 @@ const PurchaseBillDashboard = () => {
   const [isCheckingDependencies, setIsCheckingDependencies] = useState(false);
   
   // Draft save hook
-  const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase');
+  const { hasDraft, draftData, deleteDraft, lastSaved, checkDraft } = useDraftSave('purchase');
+  const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
+
+  useEffect(() => {
+    if (hasDraft && draftData) setDraftBannerDismissed(false);
+  }, [hasDraft, draftData]);
 
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1995,7 +2000,7 @@ const PurchaseBillDashboard = () => {
           </div>
         </div>
 
-        {hasDraft && draftData && (
+        {hasDraft && draftData && !draftBannerDismissed && (
           <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
@@ -2027,10 +2032,20 @@ const PurchaseBillDashboard = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      deleteDraft();
-                      if (currentOrganization?.id && user?.id) {
-                        clearPurchaseEntrySession(currentOrganization.id, user.id);
+                    onClick={async () => {
+                      if (!currentOrganization?.id || !user?.id) return;
+                      setDraftBannerDismissed(true);
+                      dispatchPurchaseDraftDiscarded(currentOrganization.id, user.id);
+                      const removed = await deleteDraft();
+                      await checkDraft();
+                      if (!removed) {
+                        setDraftBannerDismissed(false);
+                        toast({
+                          title: "Could not discard draft",
+                          description: "Please try again or open Purchase Entry and save or clear the bill.",
+                          variant: "destructive",
+                        });
+                        return;
                       }
                       toast({
                         title: "Draft Discarded",

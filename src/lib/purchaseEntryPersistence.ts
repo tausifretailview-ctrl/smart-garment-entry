@@ -137,6 +137,24 @@ export function clearPurchaseEntrySession(orgId: string, userId: string): void {
   safeLocalRemove(purchaseEntryLocalKey(orgId, userId));
 }
 
+/** Fired when Purchase Bills dashboard discards a draft — Purchase Entry tab may still be mounted. */
+export const PURCHASE_DRAFT_DISCARDED_EVENT = "ezzy:purchase-draft-discarded";
+
+export type PurchaseDraftDiscardedDetail = {
+  orgId: string;
+  userId: string;
+};
+
+/** Clear local snapshots and tell any mounted Purchase Entry pane to drop in-memory work. */
+export function dispatchPurchaseDraftDiscarded(orgId: string, userId: string): void {
+  clearPurchaseEntrySession(orgId, userId);
+  window.dispatchEvent(
+    new CustomEvent(PURCHASE_DRAFT_DISCARDED_EVENT, {
+      detail: { orgId, userId },
+    }),
+  );
+}
+
 /** Stable id per browser tab — metadata on draft snapshots for last-write diagnostics. */
 export function getOrCreatePurchaseEntryTabInstanceId(): string {
   try {
