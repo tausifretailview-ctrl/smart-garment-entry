@@ -107,8 +107,8 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   }, [draftData, onDraftLoaded]);
 
   // Delete draft
-  const deleteDraft = useCallback(async () => {
-    if (!currentOrganization?.id || !user?.id) return;
+  const deleteDraft = useCallback(async (): Promise<boolean> => {
+    if (!currentOrganization?.id || !user?.id) return false;
 
     try {
       const { error } = await supabase
@@ -125,8 +125,10 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       setLastSaved(null);
       currentDataRef.current = null; // Clear current data
       draftClearedRef.current = true; // Mark as intentionally cleared
+      return true;
     } catch (error) {
       console.error('Error deleting draft:', error);
+      return false;
     }
   }, [currentOrganization?.id, user?.id, draftType]);
 

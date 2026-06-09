@@ -47,10 +47,12 @@ import {
   markPurchaseEntryNavHandled,
   markPurchaseEntryUnmountNavKey,
   omitNewBillNavigationState,
+  PURCHASE_DRAFT_DISCARDED_EVENT,
   readPurchaseEntrySnapshot,
   wasPurchaseEntryNavHandled,
   wasPurchaseEntryRemount,
   writePurchaseEntrySnapshot,
+  type PurchaseDraftDiscardedDetail,
   type PurchaseEntrySnapshot,
 } from "@/lib/purchaseEntryPersistence";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
@@ -271,6 +273,8 @@ const PurchaseEntry = () => {
   const isInitializingEditRef = useRef(false);
   const loadedEditBillIdRef = useRef<string | null>(null);
   const workRestoredRef = useRef(false);
+  const draftDiscardedExternallyRef = useRef(false);
+  const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
   /** Always-current ref so the newBill effect can call confirmDiscard without adding it to deps. */
@@ -399,6 +403,11 @@ const PurchaseEntry = () => {
   }, [currentOrganization?.id, user?.id]);
 
   const resetToNewBill = useCallback(() => {
+    if (autoSaveDebounceRef.current) {
+      clearTimeout(autoSaveDebounceRef.current);
+      autoSaveDebounceRef.current = null;
+    }
+    latestSnapshotRef.current = null;
     setLineItems([]);
     setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
     setSoftwareBillNo("");
@@ -424,13 +433,29 @@ const PurchaseEntry = () => {
     setSelectedForPrint(new Set());
     setIsDcPurchase(false);
     setIsBillLocked(false);
-    deleteDraft();
+    void deleteDraft();
     clearEntrySession();
     workRestoredRef.current = false;
     loadedEditBillIdRef.current = null;
     isInitializingEditRef.current = false;
     updateCurrentData(null);
   }, [clearEntrySession, deleteDraft, updateCurrentData]);
+
+  // Dashboard "Discard draft" — entry tab may stay mounted in window tabs and would re-save otherwise.
+  useEffect(() => {
+    const onDraftDiscarded = (event: Event) => {
+      const detail = (event as CustomEvent<PurchaseDraftDiscardedDetail>).detail;
+      if (!detail || detail.orgId !== currentOrganization?.id || detail.userId !== user?.id) return;
+      draftDiscardedExternallyRef.current = true;
+      resetToNewBill();
+    };
+    window.addEventListener(PURCHASE_DRAFT_DISCARDED_EVENT, onDraftDiscarded);
+    return () => window.removeEventListener(PURCHASE_DRAFT_DISCARDED_EVENT, onDraftDiscarded);
+  }, [currentOrganization?.id, user?.id, resetToNewBill]);
+
+  useEffect(() => {
+    if (lineItems.length > 0) draftDiscardedExternallyRef.current = false;
+  }, [lineItems.length]);
 
   const hasUnsavedPurchaseLines = useCallback(
     () => lineItems.some((item) => item.qty > 0 && item.product_id),
@@ -719,12 +744,12 @@ const PurchaseEntry = () => {
   }, [buildEntrySnapshot, lineItems.length]);
 
   // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
-  const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (importJustAppliedRef.current) {
       importJustAppliedRef.current = false;
       return;
     }
+    if (draftDiscardedExternallyRef.current) return;
 
     const snapshot = buildEntrySnapshot();
     latestSnapshotRef.current = snapshot;
@@ -751,6 +776,11 @@ const PurchaseEntry = () => {
   ]);
 
   const flushEntryPersistence = useCallback(() => {
+    if (draftDiscardedExternallyRef.current) {
+      updateCurrentData(null);
+      clearEntrySession();
+      return;
+    }
     const snapshot = latestSnapshotRef.current;
     if (snapshot?.lineItems && Array.isArray(snapshot.lineItems) && snapshot.lineItems.length > 0) {
       updateCurrentData(snapshot);
