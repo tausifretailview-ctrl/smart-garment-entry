@@ -49,6 +49,30 @@ export type InvoiceDashboardUnifiedResult = {
   totalCount: number;
 };
 
+export type InvoiceDashboardRpcFilters = {
+  search: string;
+  deliveryFilter: string;
+  shopFilter: string;
+  userFilter: string;
+  voucherDateFrom: string | null;
+  voucherDateTo: string | null;
+  paymentStatusFilter: string[];
+};
+
+export function buildInvoiceDashboardRpcFilters(
+  filters: InvoiceDashboardFilters,
+): InvoiceDashboardRpcFilters {
+  return {
+    search: filters.debouncedSearch.trim(),
+    deliveryFilter: filters.deliveryFilter,
+    shopFilter: filters.shopFilter,
+    userFilter: filters.userFilter,
+    voucherDateFrom: filters.voucherDateFrom,
+    voucherDateTo: filters.voucherDateTo,
+    paymentStatusFilter: filters.paymentStatusFilter,
+  };
+}
+
 const EMPTY_INVOICE_DASHBOARD_STATS: InvoiceDashboardStats = {
   totalInvoices: 0,
   totalAmount: 0,
@@ -212,7 +236,64 @@ async function applySearchToSalesQuery(
   return query.or(saleTextFilter);
 }
 
-/** One pass over filtered invoices: normalize rows + summary stats. */
+/** Server-side summary tiles (one RPC; avoids client reconcile over every row). */
+export async function fetchInvoiceDashboardStatsViaRpc(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<InvoiceDashboardStats> {
+  if (!filters.organizationId) {
+    return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+  }
+
+  const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
+    p_organization_id: filters.organizationId,
+    p_date_from: filters.saleDateFilter.start,
+    p_date_to: filters.saleDateFilter.end,
+    p_filters: buildInvoiceDashboardRpcFilters(filters),
+  });
+
+  if (error) throw error;
+
+  const row = (data || {}) as Partial<InvoiceDashboardStats>;
+  return {
+    totalInvoices: Number(row.totalInvoices ?? 0),
+    totalAmount: Number(row.totalAmount ?? 0),
+    totalDiscount: Number(row.totalDiscount ?? 0),
+    totalQty: Number(row.totalQty ?? 0),
+    pendingAmount: Number(row.pendingAmount ?? 0),
+    deliveredCount: Number(row.deliveredCount ?? 0),
+    deliveredAmount: Number(row.deliveredAmount ?? 0),
+    undeliveredCount: Number(row.undeliveredCount ?? 0),
+    undeliveredAmount: Number(row.undeliveredAmount ?? 0),
+  };
+}
+
+const SR_RECONCILE_TOLERANCE = 0.005;
+
+async function fetchItemsGrossForSales(
+  client: SupabaseClient,
+  saleIds: string[],
+): Promise<Map<string, number>> {
+  const itemsGrossBySale = new Map<string, number>();
+  if (saleIds.length === 0) return itemsGrossBySale;
+
+  for (let i = 0; i < saleIds.length; i += 200) {
+    const idBatch = saleIds.slice(i, i + 200);
+    const { data: itemRows } = await client
+      .from("sale_items")
+      .select("sale_id, quantity, mrp")
+      .in("sale_id", idBatch)
+      .is("deleted_at", null);
+    (itemRows || []).forEach((it: any) => {
+      if (!it.sale_id) return;
+      const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
+      itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
+    });
+  }
+  return itemsGrossBySale;
+}
+
+/** One pass over filtered invoices: normalize rows for the table (stats via RPC). */
 export async function fetchInvoiceDashboardUnified(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
@@ -264,28 +345,26 @@ export async function fetchInvoiceDashboardUnified(
     batchSplit.forEach((v, k) => splitBySale.set(k, v));
   }
 
-  const allSaleIds = allInvoices.map((inv: any) => inv.id).filter(Boolean);
-  const itemsGrossBySale = new Map<string, number>();
-  for (let i = 0; i < allSaleIds.length; i += 200) {
-    const idBatch = allSaleIds.slice(i, i + 200);
-    const { data: itemRows } = await client
-      .from("sale_items")
-      .select("sale_id, quantity, mrp")
-      .in("sale_id", idBatch)
-      .is("deleted_at", null);
-    (itemRows || []).forEach((it: any) => {
-      if (!it.sale_id) return;
-      const g = (Number(it.quantity) || 0) * (Number(it.mrp) || 0);
-      itemsGrossBySale.set(it.sale_id, (itemsGrossBySale.get(it.sale_id) || 0) + g);
-    });
-  }
+  const saleIdsNeedingItemsGross = allInvoices
+    .filter((inv: any) => Number(inv.sale_return_adjust || 0) > SR_RECONCILE_TOLERANCE)
+    .map((inv: any) => inv.id)
+    .filter(Boolean);
+  const itemsGrossBySale = await fetchItemsGrossForSales(client, saleIdsNeedingItemsGross);
 
-  const { data: linkedReturns } = await client
-    .from("sale_returns")
-    .select("linked_sale_id, return_date, return_number")
-    .eq("organization_id", filters.organizationId)
-    .in("linked_sale_id", allSaleIds)
-    .is("deleted_at", null);
+  let linkedReturns: Array<{
+    linked_sale_id: string | null;
+    return_date: string | null;
+    return_number: string | null;
+  }> = [];
+  if (saleIdsNeedingItemsGross.length > 0) {
+    const { data } = await client
+      .from("sale_returns")
+      .select("linked_sale_id, return_date, return_number")
+      .eq("organization_id", filters.organizationId)
+      .in("linked_sale_id", saleIdsNeedingItemsGross)
+      .is("deleted_at", null);
+    linkedReturns = data || [];
+  }
 
   const normalized = allInvoices.map((inv: any) => {
     const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
@@ -319,67 +398,50 @@ export async function fetchInvoiceDashboardUnified(
         )
       : normalized;
 
-  const filteredForStats =
-    filters.paymentStatusFilter.length > 0
-      ? filteredForTable
-      : normalized.filter(
-          (inv: any) =>
-            !inv?.is_cancelled &&
-            inv?.payment_status !== "cancelled" &&
-            inv?.payment_status !== "hold",
-        );
+  return {
+    invoices: filteredForTable,
+    stats: { ...EMPTY_INVOICE_DASHBOARD_STATS },
+    totalCount: filteredForTable.length,
+  };
+}
 
-  const invoiceFaceNet = (inv: any) => Math.max(0, Number(inv.net_amount || 0));
+/** Repair stale paid_amount / payment_status for the visible table page only (deferred). */
+export async function syncVisibleInvoiceStaleFields(
+  client: SupabaseClient,
+  organizationId: string,
+  visibleInvoices: any[],
+  voucherDateFrom: string | null,
+  voucherDateTo: string | null,
+): Promise<boolean> {
+  const pageInvoices = visibleInvoices.filter(
+    (inv: any) => inv?.id && !inv.is_cancelled && inv.payment_status !== "hold",
+  );
+  if (pageInvoices.length === 0) return false;
 
-  await syncStaleInvoicePaymentFields(
+  const splitBySale = await fetchSaleReceiptSplitsForInvoices(
     client,
-    filters.organizationId,
-    normalized.filter((inv: any) => !inv.is_cancelled && inv.payment_status !== "hold"),
+    organizationId,
+    pageInvoices.map((inv: any) => ({
+      id: inv.id,
+      sale_number: inv.sale_number,
+      customer_id: inv.customer_id,
+    })),
+    { voucherDateFrom, voucherDateTo },
+  );
+
+  const saleIdsNeedingItemsGross = pageInvoices
+    .filter((inv: any) => Number(inv.sale_return_adjust || 0) > SR_RECONCILE_TOLERANCE)
+    .map((inv: any) => inv.id)
+    .filter(Boolean);
+  const itemsGrossBySale = await fetchItemsGrossForSales(client, saleIdsNeedingItemsGross);
+
+  return syncStaleInvoicePaymentFields(
+    client,
+    organizationId,
+    pageInvoices,
     splitBySale,
     itemsGrossBySale,
   );
-
-  const stats: InvoiceDashboardStats = {
-    totalInvoices: filteredForStats.length,
-    totalAmount: filteredForStats.reduce((s, inv) => s + invoiceFaceNet(inv), 0),
-    totalDiscount: filteredForStats.reduce(
-      (s, inv) => s + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0),
-      0,
-    ),
-    totalQty: filteredForStats.reduce((s, inv) => s + Number(inv.total_qty || 0), 0),
-    pendingAmount: filteredForStats.reduce(
-      (s, inv) =>
-        s +
-        (inv.is_cancelled
-          ? 0
-          : Math.round(
-              Number(
-                inv.outstanding ??
-                  Math.max(
-                    0,
-                    (inv.net_amount || 0) -
-                      (inv.paid_amount || 0) -
-                      (inv.sale_return_adjust || 0),
-                  ),
-              ),
-            )),
-      0,
-    ),
-    deliveredCount: filteredForStats.filter((inv) => inv.delivery_status === "delivered").length,
-    deliveredAmount: filteredForStats
-      .filter((inv) => inv.delivery_status === "delivered")
-      .reduce((s, inv) => s + invoiceFaceNet(inv), 0),
-    undeliveredCount: filteredForStats.filter((inv) => inv.delivery_status === "undelivered").length,
-    undeliveredAmount: filteredForStats
-      .filter((inv) => inv.delivery_status === "undelivered")
-      .reduce((s, inv) => s + invoiceFaceNet(inv), 0),
-  };
-
-  return {
-    invoices: filteredForTable,
-    stats,
-    totalCount: filteredForTable.length,
-  };
 }
 
 /** Repair stale paid_amount / payment_status for visible page rows only (min writes). */
@@ -389,7 +451,7 @@ export async function syncStaleInvoicePaymentFields(
   pageInvoices: any[],
   splitBySale: Map<string, SaleReceiptVoucherSplit>,
   itemsGrossBySale: Map<string, number>,
-): Promise<void> {
+): Promise<boolean> {
   const staleUpdates = pageInvoices
     .filter((inv: any) => !inv.is_cancelled && inv.payment_status !== "hold")
     .map((inv: any) => {
@@ -420,7 +482,7 @@ export async function syncStaleInvoicePaymentFields(
         (inv.payment_status || "pending") !== normalizedStatus,
     );
 
-  if (staleUpdates.length === 0) return;
+  if (staleUpdates.length === 0) return false;
 
   await Promise.all(
     staleUpdates.map(({ inv, normalizedPaid, normalizedStatus }) =>
@@ -431,4 +493,5 @@ export async function syncStaleInvoicePaymentFields(
         .eq("organization_id", organizationId),
     ),
   );
+  return true;
 }
