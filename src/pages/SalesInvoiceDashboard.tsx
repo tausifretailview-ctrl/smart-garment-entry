@@ -906,14 +906,16 @@ export default function SalesInvoiceDashboard() {
 
   // Detect single filtered customer for bulk advance button
   const filteredCustomer = useMemo(() => {
-    if (!debouncedSearch || !invoicesData.length) return null;
-    const customerIds = new Set(invoicesData.map((inv: any) => inv.customer_id).filter(Boolean));
+    if (!debouncedSearch || !paginatedInvoices.length) return null;
+    const customerIds = new Set(
+      paginatedInvoices.map((inv: any) => inv.customer_id).filter(Boolean),
+    );
     if (customerIds.size === 1) {
-      const inv = invoicesData.find((i: any) => i.customer_id);
+      const inv = paginatedInvoices.find((i: any) => i.customer_id);
       return inv ? { id: inv.customer_id, name: inv.customer_name } : null;
     }
     return null;
-  }, [debouncedSearch, invoicesData]);
+  }, [debouncedSearch, paginatedInvoices]);
 
   // Fetch combined advance + credit balance for filtered customer
   useEffect(() => {
@@ -1164,7 +1166,7 @@ export default function SalesInvoiceDashboard() {
     });
   }, [currentOrganization?.id, fetchSaleItems]);
 
-  // Server-side handles all filtering — just use invoicesData directly
+  // Server-side handles all filtering — paginatedInvoices is the current page
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   // Page totals — balance column matches reconciled `outstanding` per row
@@ -3440,7 +3442,7 @@ export default function SalesInvoiceDashboard() {
                     <TableRow>
                       <TableHead className="w-10 px-1">
                         <Checkbox
-                          checked={selectedInvoices.size === (invoicesData?.length || 0) && invoicesData && invoicesData.length > 0}
+                          checked={selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
