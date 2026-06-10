@@ -448,18 +448,19 @@ export async function fetchPosDashboardPage(
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
 
-  let dataQuery: any = buildPosDashboardBaseQuery(
-    client,
-    filters,
-    POS_DASHBOARD_SALES_SELECT,
-  );
-  dataQuery = await applyPosSearchToQuery(client, filters, dataQuery);
-
   const [totalCount, dataResult] = await Promise.all([
     countFilteredPosSales(client, filters),
-    dataQuery.range(from, to),
+    (async () => {
+      let query: any = buildPosDashboardBaseQuery(
+        client,
+        filters,
+        POS_DASHBOARD_SALES_SELECT,
+      ).range(from, to);
+      query = await applyPosSearchToQuery(client, filters, query);
+      return query;
+    })(),
   ]);
-  const { data, error } = dataResult;
+  const { data, error } = await dataResult;
   if (error) throw error;
 
   const enriched = await enrichPosSalesWithCreditNotes(data || []);

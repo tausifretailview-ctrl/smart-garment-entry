@@ -424,18 +424,20 @@ export async function fetchInvoiceDashboardPage(
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
 
-  let dataQuery: any = buildFilteredSalesQuery(
-    client,
-    filters,
-    INVOICE_DASHBOARD_SALES_SELECT,
-  );
-  dataQuery = await applySearchToSalesQuery(client, filters, dataQuery);
-
+  // Match export/unified fetch: range before search filters, then await (not range after .or()).
   const [totalCount, dataResult] = await Promise.all([
     countFilteredInvoiceSales(client, filters),
-    dataQuery.range(from, to),
+    (async () => {
+      let query: any = buildFilteredSalesQuery(
+        client,
+        filters,
+        INVOICE_DASHBOARD_SALES_SELECT,
+      ).range(from, to);
+      query = await applySearchToSalesQuery(client, filters, query);
+      return query;
+    })(),
   ]);
-  const { data, error } = dataResult;
+  const { data, error } = await dataResult;
   if (error) throw error;
 
   const pageRows = data || [];
