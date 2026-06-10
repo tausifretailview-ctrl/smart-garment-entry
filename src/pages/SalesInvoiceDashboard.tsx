@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
-import { STALE_DASHBOARD_TAB_RETURN, STALE_SETTINGS } from "@/lib/queryStaleTimes";
+import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -99,7 +100,11 @@ import {
   type CnFifoVoucherChunk,
 } from "@/utils/saleSettlement";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
-import { fetchInvoiceDashboardUnified } from "@/utils/invoiceDashboardData";
+import {
+  fetchInvoiceDashboardStatsViaRpc,
+  fetchInvoiceDashboardUnified,
+  syncVisibleInvoiceStaleFields,
+} from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
@@ -659,7 +664,74 @@ export default function SalesInvoiceDashboard() {
     [queryDateRange.start, queryDateRange.end],
   );
 
-  // Single filtered fetch for table + summary tiles (avoids duplicate full-month sales scans).
+  const dashboardFilters = useMemo(
+    () => ({
+      organizationId: currentOrganization?.id ?? "",
+      debouncedSearch,
+      deliveryFilter,
+      paymentStatusFilter,
+      shopFilter,
+      userFilter,
+      saleDateFilter,
+      voucherDateFrom: queryDateRange.start,
+      voucherDateTo: queryDateRange.end,
+    }),
+    [
+      currentOrganization?.id,
+      debouncedSearch,
+      deliveryFilter,
+      paymentStatusFilter,
+      shopFilter,
+      userFilter,
+      saleDateFilter,
+      queryDateRange.start,
+      queryDateRange.end,
+    ],
+  );
+
+  const dashboardQueryEnabled =
+    !!currentOrganization?.id && userFilter !== "__pending__";
+
+  const dashboardQueryKey = [
+    "invoice-dashboard-unified",
+    currentOrganization?.id,
+    debouncedSearch,
+    deliveryFilter,
+    paymentStatusFilter,
+    shopFilter,
+    userFilter,
+    queryDateRange.start,
+    queryDateRange.end,
+  ] as const;
+
+  // Fast server-side summary tiles (parallel with table fetch).
+  const {
+    data: dashboardStats,
+    isLoading: isStatsLoading,
+    error: statsError,
+  } = useQuery({
+    queryKey: [...dashboardQueryKey, "stats"],
+    queryFn: async () => {
+      if (!currentOrganization?.id) {
+        return {
+          totalInvoices: 0,
+          totalAmount: 0,
+          totalDiscount: 0,
+          totalQty: 0,
+          pendingAmount: 0,
+          deliveredCount: 0,
+          deliveredAmount: 0,
+          undeliveredCount: 0,
+          undeliveredAmount: 0,
+        };
+      }
+      return fetchInvoiceDashboardStatsViaRpc(supabase, dashboardFilters);
+    },
+    enabled: dashboardQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  // Table rows: reconcile outstanding per invoice (stats come from RPC above).
   const {
     data: dashboardUnified,
     isLoading,
@@ -668,17 +740,7 @@ export default function SalesInvoiceDashboard() {
     error: invoicesError,
     dataUpdatedAt: invoicesUpdatedAt,
   } = useQuery({
-    queryKey: [
-      "invoice-dashboard-unified",
-      currentOrganization?.id,
-      debouncedSearch,
-      deliveryFilter,
-      paymentStatusFilter,
-      shopFilter,
-      userFilter,
-      queryDateRange.start,
-      queryDateRange.end,
-    ],
+    queryKey: dashboardQueryKey,
     queryFn: async () => {
       if (!currentOrganization?.id) {
         return {
@@ -697,46 +759,70 @@ export default function SalesInvoiceDashboard() {
           totalCount: 0,
         };
       }
-      return fetchInvoiceDashboardUnified(supabase, {
-        organizationId: currentOrganization.id,
-        debouncedSearch,
-        deliveryFilter,
-        paymentStatusFilter,
-        shopFilter,
-        userFilter,
-        saleDateFilter,
-        voucherDateFrom: queryDateRange.start,
-        voucherDateTo: queryDateRange.end,
-      });
+      return fetchInvoiceDashboardUnified(supabase, dashboardFilters);
     },
-    enabled: !!currentOrganization?.id,
-    staleTime: STALE_DASHBOARD_TAB_RETURN,
-    refetchOnWindowFocus: false,
-    refetchOnMount: true,
-    placeholderData: keepPreviousData,
+    enabled: dashboardQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   const isDashboardInitialLoad = isLoading && dashboardUnified === undefined;
   const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
 
   useEffect(() => {
-    if (!invoicesError) return;
+    const loadError = invoicesError ?? statsError;
+    if (!loadError) return;
     const message =
-      invoicesError instanceof Error ? invoicesError.message : "Failed to load sales invoices";
+      loadError instanceof Error ? loadError.message : "Failed to load sales invoices";
     toast({
       title: "Sales dashboard load failed",
       description: message,
       variant: "destructive",
     });
-  }, [invoicesError, toast]);
+  }, [invoicesError, statsError, toast]);
 
   const allInvoicesData = dashboardUnified?.invoices || [];
-  const reconciledStats = dashboardUnified?.stats;
+  const reconciledStats = dashboardStats ?? dashboardUnified?.stats;
   const totalCount = allInvoicesData.length;
   const invoicesData = useMemo(() => {
     const from = (currentPage - 1) * itemsPerPage;
     return allInvoicesData.slice(from, from + itemsPerPage);
   }, [allInvoicesData, currentPage, itemsPerPage]);
+
+  // Repair stale paid_amount / payment_status for visible rows only (not on every dashboard load).
+  const visiblePageSyncKey = useMemo(
+    () => invoicesData.map((inv: any) => inv.id).join(","),
+    [invoicesData],
+  );
+  useEffect(() => {
+    if (!currentOrganization?.id || !visiblePageSyncKey) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const didUpdate = await syncVisibleInvoiceStaleFields(
+          supabase,
+          currentOrganization.id,
+          invoicesData,
+          queryDateRange.start,
+          queryDateRange.end,
+        );
+        if (!cancelled && didUpdate) {
+          void refetch();
+        }
+      } catch {
+        // Non-blocking background repair; table already shows reconciled display values.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentOrganization?.id,
+    visiblePageSyncKey,
+    invoicesData,
+    queryDateRange.start,
+    queryDateRange.end,
+    refetch,
+  ]);
 
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1109,9 +1195,9 @@ export default function SalesInvoiceDashboard() {
     };
   }, [paginatedInvoices]);
 
-  // Fallback summary stats if reconciled query hasn't loaded yet
+  // Summary tiles prefer fast RPC stats; fall back while the first fetch is in flight.
   const baseStats = reconciledStats || {
-    totalInvoices: totalCount,
+    totalInvoices: isStatsLoading ? 0 : totalCount,
     totalAmount: 0,
     totalDiscount: 0,
     totalQty: 0,
