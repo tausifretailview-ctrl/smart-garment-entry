@@ -672,7 +672,10 @@ const PurchaseEntry = () => {
       return {
         ...item,
         gst_per: effectiveGst,
-        temp_id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        temp_id:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}_${Math.random().toString(36).slice(2, 11)}_${Math.random().toString(36).slice(2, 11)}`,
         line_total: lineTotal,
       };
     },
@@ -934,10 +937,18 @@ const PurchaseEntry = () => {
     [selectedForPrint]
   );
   
-  // Reset visible items when lineItems changes drastically
+  // Keep the visible row window in sync when lines are added (draft restore can leave
+  // visibleItemCount at 1 while lineItems grows — totals update but rows stay hidden).
   useEffect(() => {
-    setVisibleItemCount(100);
-  }, [lineItems.length > 0 ? Math.ceil(lineItems.length / 500) : 0]);
+    setVisibleItemCount((prev) => {
+      if (lineItems.length === 0) return 100;
+      if (lineItems.length <= 200) return Math.max(prev, lineItems.length);
+      if (prev < lineItems.length) {
+        return Math.min(prev + ITEMS_PER_PAGE, lineItems.length);
+      }
+      return prev;
+    });
+  }, [lineItems.length]);
 
   // Warm Add Product dialog chunk so first click does not cold-load on slow networks.
   useEffect(() => {
@@ -1678,6 +1689,9 @@ const PurchaseEntry = () => {
           mergedItems = [...prev, ...newRows];
           return mergedItems;
         });
+        setVisibleItemCount((prev) =>
+          Math.max(prev, mergedItems.length <= 200 ? mergedItems.length : prev + newRows.length),
+        );
         skipSnapshotEffectRef.current = true;
         importJustAppliedRef.current = true;
         await persistEntrySnapshotNow({ lineItems: mergedItems });
@@ -2512,7 +2526,13 @@ const PurchaseEntry = () => {
   };
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
-    setLineItems((prev) => [...prev, createLineItemRow(item)]);
+    setLineItems((prev) => {
+      const next = [...prev, createLineItemRow(item)];
+      setVisibleItemCount((vc) =>
+        Math.max(vc, next.length <= 200 ? next.length : vc + 1),
+      );
+      return next;
+    });
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
