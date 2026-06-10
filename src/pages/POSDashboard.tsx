@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
-import { STALE_DASHBOARD_TAB_RETURN } from "@/lib/queryStaleTimes";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
-import { fetchPosDashboardSales } from "@/utils/posDashboardSales";
+import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import {
+  fetchPosDashboardExportRows,
+  fetchPosDashboardPage,
+  fetchPosDashboardSummary,
+  type PosDashboardSummaryStats,
+} from "@/utils/posDashboardSales";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
@@ -72,7 +77,6 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
-import { localDayEndUtcIso, localDayStartUtcIso, saleRowCalendarYmd } from "@/lib/localDayBounds";
 import { POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
 import {
   getEffectivePaidAmountForPosDashboard,
@@ -199,6 +203,7 @@ const POSDashboard = () => {
   const mobileERP = useMobileERP();
   const showFinancerOnExpand = mobileERP.enabled && mobileERP.financer_billing;
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   // Default to today's date
   const today = format(new Date(), 'yyyy-MM-dd');
   const [startDate, setStartDate] = useState(today);
@@ -264,6 +269,13 @@ const POSDashboard = () => {
   const [isBulkCancelling, setIsBulkCancelling] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const posFilterSnapshot = useMemo(
     () => ({
@@ -472,6 +484,98 @@ const POSDashboard = () => {
     [effectivePosBillFormat, posThermalPaper],
   );
 
+  const posDashboardFilters = useMemo(
+    () => ({
+      organizationId: currentOrganization?.id ?? "",
+      search: debouncedSearch,
+      startDate,
+      endDate,
+      paymentMethodFilter,
+      paymentStatusFilter,
+      saleTypeFilter,
+      refundFilter,
+      creditNoteFilter,
+      userFilter,
+      cancelFilter,
+    }),
+    [
+      currentOrganization?.id,
+      debouncedSearch,
+      startDate,
+      endDate,
+      paymentMethodFilter,
+      paymentStatusFilter,
+      saleTypeFilter,
+      refundFilter,
+      creditNoteFilter,
+      userFilter,
+      cancelFilter,
+    ],
+  );
+
+  const posQueryEnabled =
+    !!currentOrganization?.id &&
+    routePathSegment === "pos-dashboard" &&
+    userFilter !== "__pending__";
+
+  const posDashboardQueryKey = [
+    "pos-dashboard-sales",
+    currentOrganization?.id,
+    debouncedSearch,
+    startDate,
+    endDate,
+    paymentMethodFilter,
+    paymentStatusFilter,
+    saleTypeFilter,
+    refundFilter,
+    creditNoteFilter,
+    userFilter,
+    cancelFilter,
+    currentPage,
+    itemsPerPage,
+  ] as const;
+
+  const {
+    data: posSummaryStats,
+    isLoading: summaryQueryLoading,
+    error: summaryQueryError,
+  } = useQuery({
+    queryKey: [...posDashboardQueryKey, "summary"],
+    queryFn: async () => {
+      if (!currentOrganization?.id) {
+        return {
+          totalBills: 0,
+          totalQty: 0,
+          totalAmount: 0,
+          totalDiscount: 0,
+          netSale: 0,
+          completedCount: 0,
+          completedAmount: 0,
+          pendingCount: 0,
+          pendingAmount: 0,
+          holdCount: 0,
+          holdAmount: 0,
+          refundCount: 0,
+          refundAmount: 0,
+          creditNoteCount: 0,
+          creditNoteAmount: 0,
+          totalCash: 0,
+          totalCard: 0,
+          totalUpi: 0,
+          totalBalance: 0,
+          totalSaleReturnAdjust: 0,
+          totalRoundOff: 0,
+          cashBillCount: 0,
+          cardBillCount: 0,
+          upiBillCount: 0,
+        } satisfies PosDashboardSummaryStats;
+      }
+      return fetchPosDashboardSummary(supabase, posDashboardFilters);
+    },
+    enabled: posQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
   const {
     data: salesPayload,
     isLoading: salesQueryLoading,
@@ -479,22 +583,30 @@ const POSDashboard = () => {
     error: salesQueryError,
     refetch: refetchSales,
   } = useQuery({
-    queryKey: ["pos-dashboard-sales", currentOrganization?.id, startDate, endDate],
+    queryKey: posDashboardQueryKey,
     queryFn: async () => {
       if (!currentOrganization?.id) {
-        return { sales: [] as Sale[], creditNoteUsage: {} as Record<string, { credit_amount: number; used_amount: number; status: string }> };
+        return {
+          sales: [] as Sale[],
+          creditNoteUsage: {} as Record<string, { credit_amount: number; used_amount: number; status: string }>,
+          totalCount: 0,
+        };
       }
-      return fetchPosDashboardSales(currentOrganization.id, startDate, endDate);
+      return fetchPosDashboardPage(supabase, posDashboardFilters, {
+        page: currentPage,
+        pageSize: itemsPerPage,
+      });
     },
-    enabled: !!currentOrganization?.id && routePathSegment === "pos-dashboard",
-    staleTime: STALE_DASHBOARD_TAB_RETURN,
-    refetchOnWindowFocus: false,
+    enabled: posQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const sales = salesPayload?.sales ?? [];
+  const paginatedSales = salesPayload?.sales ?? [];
   const creditNoteUsage = salesPayload?.creditNoteUsage ?? {};
-  const loading = salesQueryLoading && sales.length === 0;
-  const isRefreshing = salesQueryFetching && sales.length > 0;
+  const totalCount = salesPayload?.totalCount ?? 0;
+  const sales = paginatedSales;
+  const loading = salesQueryLoading && paginatedSales.length === 0;
+  const isRefreshing = salesQueryFetching && paginatedSales.length > 0;
 
   useNavPerfQueryWatch("pos-sales-list", PERF_PATH, {
     isLoading: salesQueryLoading,
@@ -504,15 +616,16 @@ const POSDashboard = () => {
   });
 
   useEffect(() => {
-    if (!salesQueryError) return;
+    const loadError = salesQueryError ?? summaryQueryError;
+    if (!loadError) return;
     const message =
-      salesQueryError instanceof Error ? salesQueryError.message : "Failed to load sales";
+      loadError instanceof Error ? loadError.message : "Failed to load sales";
     toast({
       title: "Error",
       description: message,
       variant: "destructive",
     });
-  }, [salesQueryError, toast]);
+  }, [salesQueryError, summaryQueryError, toast]);
 
   useEffect(() => {
     const onPosSalesChanged = (ev: Event) => {
@@ -1462,170 +1575,90 @@ const POSDashboard = () => {
     sendWhatsApp(receiptData.customerPhone, message);
   };
 
-  // Memoize filtered sales to avoid recomputing on every render
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      const searchLower = searchQuery.toLowerCase();
-      
-      // Check basic sale fields
-      const matchesBasicSearch =
-        sale.sale_number.toLowerCase().includes(searchLower) ||
-        sale.customer_name.toLowerCase().includes(searchLower) ||
-        (sale.customer_phone && sale.customer_phone.includes(searchLower));
-      
-      // Check barcode in sale items
-      const items = saleItems[sale.id] || [];
-      const matchesBarcodeSearch = items.some(item => 
-        item.barcode?.toLowerCase().includes(searchLower) ||
-        item.product_name?.toLowerCase().includes(searchLower)
-      );
-      
-      const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
+  const summaryStats = posSummaryStats ?? {
+    totalBills: 0,
+    totalQty: 0,
+    totalAmount: 0,
+    totalDiscount: 0,
+    netSale: 0,
+    completedCount: 0,
+    completedAmount: 0,
+    pendingCount: 0,
+    pendingAmount: 0,
+    holdCount: 0,
+    holdAmount: 0,
+    refundCount: 0,
+    refundAmount: 0,
+    creditNoteCount: 0,
+    creditNoteAmount: 0,
+    totalCash: 0,
+    totalCard: 0,
+    totalUpi: 0,
+    totalBalance: 0,
+    totalSaleReturnAdjust: 0,
+    totalRoundOff: 0,
+    cashBillCount: 0,
+    cardBillCount: 0,
+    upiBillCount: 0,
+  };
 
-      // When user is actively searching, bypass date range filter
-      const hasSearchQuery = searchLower.length > 0;
-      
-      // Compare using the same calendar-day rules as the server-side range (see localDayStartUtcIso).
-      const saleDateStr = saleRowCalendarYmd(sale);
-      const startDateStr = startDate ? startDate : null;
-      const endDateStr = endDate ? endDate : null;
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / itemsPerPage)),
+    [totalCount, itemsPerPage],
+  );
 
-      const matchesDateRange = hasSearchQuery ? true :
-        ((!startDateStr || saleDateStr >= startDateStr) &&
-        (!endDateStr || saleDateStr <= endDateStr));
-
-      const matchesPaymentMethod =
-        paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
-
-      const matchesPaymentStatus =
-        paymentStatusFilter.length === 0 || paymentStatusFilter.includes(sale.payment_status);
-
-      const matchesSaleType =
-        saleTypeFilter === "all" ||
-        (saleTypeFilter === "dc" && sale.sale_type === "delivery_challan") ||
-        (saleTypeFilter === "pos" && sale.sale_type !== "delivery_challan") ||
-        (saleTypeFilter === "cn" && (!!sale.credit_note_id || (sale.credit_amount || 0) > 0));
-
-      const matchesRefund =
-        refundFilter === "all" ||
-        (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
-        (refundFilter === "without_refund" && (sale.refund_amount || 0) === 0);
-
-      const matchesCreditNote =
-        creditNoteFilter === "all" ||
-        (creditNoteFilter === "with_credit_note" && (sale.credit_note_id || (sale.credit_amount || 0) > 0)) ||
-        (creditNoteFilter === "without_credit_note" && !sale.credit_note_id && (sale.credit_amount || 0) <= 0);
-
-      const matchesUser =
-        userFilter === "all" ||
-        userFilter === "__pending__" ||
-        !sale.created_by ||
-        sale.created_by === userFilter;
-
-      const isCancelled = !!sale.is_cancelled;
-      const matchesCancel =
-        cancelFilter === "all" ||
-        (cancelFilter === "active" && !isCancelled) ||
-        (cancelFilter === "cancelled" && isCancelled);
-
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote && matchesSaleType && matchesUser && matchesCancel;
-    });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter, saleTypeFilter, userFilter, cancelFilter]);
-
-  // Memoize summary statistics to avoid recalculating on every render
-  const summaryStats = useMemo(() => {
-    // Hold invoices are draft-like POS states; exclude them from sales KPIs.
-    const nonHoldSales = filteredSales.filter((sale) => !isHoldLikeSale(sale));
-    const holdSales = filteredSales.filter((sale) => isHoldLikeSale(sale));
-    return {
-      totalBills: filteredSales.length,
-      totalQty: nonHoldSales.reduce((sum, sale) => {
-        const items = saleItems[sale.id];
-        if (items?.length) {
-          return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
-        }
-        return sum + Number((sale as { total_qty?: number }).total_qty || 0);
-      }, 0),
-      totalAmount: nonHoldSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
-      totalDiscount: nonHoldSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
-      netSale: nonHoldSales.reduce((sum, sale) => sum + (sale.net_amount || 0), 0),
-      completedCount: nonHoldSales.filter((sale) => isPaidCompletedForDashboard(sale)).length,
-      completedAmount: nonHoldSales
-        .filter((sale) => isPaidCompletedForDashboard(sale))
-        .reduce((sum, sale) => sum + sale.net_amount, 0),
-      pendingCount: nonHoldSales.filter((sale) => !isPaidCompletedForDashboard(sale) && !isHoldLikeSale(sale)).length,
-      pendingAmount: nonHoldSales
-        .filter((sale) => !isPaidCompletedForDashboard(sale))
-        .reduce((sum, sale) => sum + getPosSaleOutstandingBalance(sale), 0),
-      holdCount: holdSales.length,
-      holdAmount: holdSales.reduce((sum, sale) => sum + sale.net_amount, 0),
-      refundCount: nonHoldSales.filter(sale => (sale.refund_amount || 0) > 0).length,
-      refundAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
-      creditNoteCount: nonHoldSales.filter(sale => sale.credit_note_id || (sale.credit_amount || 0) > 0).length,
-      creditNoteAmount: nonHoldSales.reduce((sum, sale) => sum + (sale.credit_note_amount || sale.credit_amount || 0), 0),
-      // Payment method totals
-      totalCash: nonHoldSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
-      totalCard: nonHoldSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
-      totalUpi: nonHoldSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
-      totalBalance: nonHoldSales.reduce(
-        (sum, sale) => sum + getPosSaleOutstandingBalance(sale),
-        0,
-      ),
-      totalSaleReturnAdjust: nonHoldSales.reduce((sum, sale) => sum + (sale.sale_return_adjust || 0), 0),
-      totalRoundOff: nonHoldSales.reduce((sum, sale) => sum + (sale.round_off || 0), 0),
-      // Bill counts by payment method
-      cashBillCount: nonHoldSales.filter(sale => (sale.cash_amount || 0) > 0).length,
-      cardBillCount: nonHoldSales.filter(sale => (sale.card_amount || 0) > 0).length,
-      upiBillCount: nonHoldSales.filter(sale => (sale.upi_amount || 0) > 0).length,
-    };
-  }, [filteredSales, saleItems]);
-
-  // Memoize pagination calculations
-  const totalPages = useMemo(() => Math.ceil(filteredSales.length / itemsPerPage), [filteredSales.length, itemsPerPage]);
-  const paginatedSales = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredSales.slice(startIndex, endIndex);
-  }, [filteredSales, currentPage, itemsPerPage]);
-
-  const handleExportExcel = useCallback((e: React.MouseEvent) => {
+  const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const exportData = filteredSales.map((sale: Sale) => ({
-      'Bill No': sale.sale_number || '',
-      'Date': sale.sale_date ? format(new Date(sale.sale_date), 'dd/MM/yyyy') : '',
-      'Customer': sale.customer_name || '',
-      'Phone': sale.customer_phone || '',
-      'Qty': (saleItems[sale.id] || []).reduce((s, i) => s + i.quantity, 0),
-      'Gross Amount': sale.gross_amount || 0,
-      'Discount': (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
-      'Net Amount': sale.net_amount || 0,
-      'Paid Amount': getEffectivePaidAmountForDashboard(sale),
-      'Balance':
-        sale.net_amount -
-        getEffectivePaidAmountForDashboard(sale) -
-        (sale.sale_return_adjust || 0),
-      'Cash': sale.cash_amount || 0,
-      'Card': sale.card_amount || 0,
-      'UPI': sale.upi_amount || 0,
-      'Payment Status': sale.payment_status || '',
-      'Payment Method': sale.payment_method || '',
-      'Salesman': sale.salesman || '',
-    }));
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'POS Sales');
-    XLSX.writeFile(wb, `POS_Sales_All_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
-    toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
-  }, [filteredSales, saleItems, toast]);
+    if (!currentOrganization?.id) return;
+    try {
+      toast({ title: "Exporting...", description: "Fetching all matching records" });
+      const { sales: exportSales } = await fetchPosDashboardExportRows(
+        supabase,
+        posDashboardFilters,
+      );
+      const exportData = exportSales.map((sale: Sale) => ({
+        'Bill No': sale.sale_number || '',
+        'Date': sale.sale_date ? format(new Date(sale.sale_date), 'dd/MM/yyyy') : '',
+        'Customer': sale.customer_name || '',
+        'Phone': sale.customer_phone || '',
+        'Qty': Number((sale as { total_qty?: number }).total_qty || 0),
+        'Gross Amount': sale.gross_amount || 0,
+        'Discount': (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
+        'Net Amount': sale.net_amount || 0,
+        'Paid Amount': getEffectivePaidAmountForDashboard(sale),
+        'Balance':
+          sale.net_amount -
+          getEffectivePaidAmountForDashboard(sale) -
+          (sale.sale_return_adjust || 0),
+        'Cash': sale.cash_amount || 0,
+        'Card': sale.card_amount || 0,
+        'UPI': sale.upi_amount || 0,
+        'Payment Status': sale.payment_status || '',
+        'Payment Method': sale.payment_method || '',
+        'Salesman': sale.salesman || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'POS Sales');
+      XLSX.writeFile(wb, `POS_Sales_All_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+      toast({ title: "Exported", description: `${exportData.length} records exported to Excel` });
+    } catch (err: any) {
+      toast({
+        title: "Export failed",
+        description: err?.message || "Could not export POS sales",
+        variant: "destructive",
+      });
+    }
+  }, [currentOrganization?.id, posDashboardFilters, toast]);
 
   // Memoized event handlers (defined after filteredSales/paginatedSales)
   const toggleSelectAll = useCallback(() => {
-    if (selectedSales.size === filteredSales.length && filteredSales.length > 0) {
+    if (selectedSales.size === paginatedSales.length && paginatedSales.length > 0) {
       setSelectedSales(new Set());
     } else {
-      setSelectedSales(new Set(filteredSales.map(s => s.id)));
+      setSelectedSales(new Set(paginatedSales.map(s => s.id)));
     }
-  }, [selectedSales.size, filteredSales]);
+  }, [selectedSales.size, paginatedSales]);
 
   const toggleSelectSale = useCallback((saleId: string) => {
     setSelectedSales(prev => {
@@ -1842,7 +1875,19 @@ const POSDashboard = () => {
   useEffect(() => {
     if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter]);
+  }, [
+    debouncedSearch,
+    startDate,
+    endDate,
+    itemsPerPage,
+    paymentMethodFilter,
+    paymentStatusFilter,
+    refundFilter,
+    creditNoteFilter,
+    saleTypeFilter,
+    userFilter,
+    cancelFilter,
+  ]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -2100,7 +2145,7 @@ const POSDashboard = () => {
             )}
           </div>
 
-          {filteredSales.length > itemsPerPage && (
+          {totalCount > itemsPerPage && (
             <div className="flex items-center justify-between px-4 pb-4 gap-2">
               <Button variant="outline" size="sm" onClick={handlePreviousPage} disabled={currentPage === 1}>
                 Prev
@@ -2573,7 +2618,7 @@ const POSDashboard = () => {
                     <TableRow>
                       <TableHead className="w-10 px-1">
                         <Checkbox
-                          checked={selectedSales.size === filteredSales.length && filteredSales.length > 0}
+                          checked={selectedSales.size === paginatedSales.length && paginatedSales.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
@@ -3240,11 +3285,11 @@ const POSDashboard = () => {
               </div>
             )}
 
-            {filteredSales.length > 0 && (
+            {totalCount > 0 && (
               <div className="flex items-center justify-between shrink-0 border-t border-slate-100 px-3 py-2 bg-white">
                 <div className="flex items-center gap-3">
                   <div className="text-xs text-muted-foreground">
-                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredSales.length)} of {filteredSales.length} sales
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} sales
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Show:</span>

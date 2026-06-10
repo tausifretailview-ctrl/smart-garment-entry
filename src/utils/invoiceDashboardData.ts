@@ -166,10 +166,11 @@ function buildFilteredSalesQuery(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
   select: string,
+  withCount = false,
 ) {
   let query = client
     .from("sales")
-    .select(select)
+    .select(select, withCount ? { count: "exact" } : undefined)
     .eq("organization_id", filters.organizationId)
     .eq("sale_type", "invoice")
     .is("deleted_at", null)
@@ -270,6 +271,82 @@ export async function fetchInvoiceDashboardStatsViaRpc(
 
 const SR_RECONCILE_TOLERANCE = 0.005;
 
+export type InvoiceDashboardPageOptions = {
+  page: number;
+  pageSize: number;
+};
+
+async function reconcileInvoiceDashboardRows(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+  invoices: any[],
+): Promise<any[]> {
+  if (invoices.length === 0) return [];
+
+  const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
+  const splitOpts = {
+    voucherDateFrom: filters.voucherDateFrom,
+    voucherDateTo: filters.voucherDateTo,
+  };
+  const batchSplit = await fetchSaleReceiptSplitsForInvoices(
+    client,
+    filters.organizationId,
+    invoices.map((inv: any) => ({
+      id: inv.id,
+      sale_number: inv.sale_number,
+      customer_id: inv.customer_id,
+    })),
+    splitOpts,
+  );
+  batchSplit.forEach((v, k) => splitBySale.set(k, v));
+
+  const saleIdsNeedingItemsGross = invoices
+    .filter((inv: any) => Number(inv.sale_return_adjust || 0) > SR_RECONCILE_TOLERANCE)
+    .map((inv: any) => inv.id)
+    .filter(Boolean);
+  const itemsGrossBySale = await fetchItemsGrossForSales(client, saleIdsNeedingItemsGross);
+
+  let linkedReturns: Array<{
+    linked_sale_id: string | null;
+    return_date: string | null;
+    return_number: string | null;
+  }> = [];
+  if (saleIdsNeedingItemsGross.length > 0) {
+    const { data } = await client
+      .from("sale_returns")
+      .select("linked_sale_id, return_date, return_number")
+      .eq("organization_id", filters.organizationId)
+      .in("linked_sale_id", saleIdsNeedingItemsGross)
+      .is("deleted_at", null);
+    linkedReturns = data || [];
+  }
+
+  return invoices.map((inv: any) => {
+    const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
+    if (isInvCancelled) {
+      return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
+    }
+    if (inv.payment_status === "hold") {
+      return { ...inv };
+    }
+    const rec = reconcileSaleInvoiceWithSplit(
+      { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
+      splitBySale.get(inv.id) ?? null,
+    );
+    const cnAdjustYmd =
+      Number(inv.sale_return_adjust || 0) > 0.005
+        ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])
+        : null;
+    return {
+      ...inv,
+      paid_amount: rec.paid_amount,
+      payment_status: rec.payment_status,
+      outstanding: rec.outstanding,
+      cn_adjust_date: cnAdjustYmd,
+    };
+  });
+}
+
 async function fetchItemsGrossForSales(
   client: SupabaseClient,
   saleIds: string[],
@@ -293,7 +370,46 @@ async function fetchItemsGrossForSales(
   return itemsGrossBySale;
 }
 
-/** One pass over filtered invoices: normalize rows for the table (stats via RPC). */
+/** Server-side paginated invoice rows with per-page reconcile (stats via RPC). */
+export async function fetchInvoiceDashboardPage(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+  options: InvoiceDashboardPageOptions,
+): Promise<{ invoices: any[]; totalCount: number }> {
+  if (!filters.organizationId) {
+    return { invoices: [], totalCount: 0 };
+  }
+
+  const from = (options.page - 1) * options.pageSize;
+  const to = from + options.pageSize - 1;
+
+  let query: any = buildFilteredSalesQuery(
+    client,
+    filters,
+    INVOICE_DASHBOARD_SALES_SELECT,
+    true,
+  );
+  query = await applySearchToSalesQuery(client, filters, query);
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+
+  const pageRows = data || [];
+  if (pageRows.length === 0) {
+    return { invoices: [], totalCount: count ?? 0 };
+  }
+
+  const normalized = await reconcileInvoiceDashboardRows(client, filters, pageRows);
+  const invoices =
+    filters.paymentStatusFilter.length > 0
+      ? normalized.filter((inv: any) =>
+          filters.paymentStatusFilter.includes(inv.payment_status),
+        )
+      : normalized;
+
+  return { invoices, totalCount: count ?? 0 };
+}
+
+/** Full filtered fetch for export paths (not used by paginated table). */
 export async function fetchInvoiceDashboardUnified(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
@@ -325,72 +441,7 @@ export async function fetchInvoiceDashboardUnified(
     return { invoices: [], stats: { ...EMPTY_INVOICE_DASHBOARD_STATS }, totalCount: 0 };
   }
 
-  const splitBySale = new Map<string, SaleReceiptVoucherSplit>();
-  const splitOpts = {
-    voucherDateFrom: filters.voucherDateFrom,
-    voucherDateTo: filters.voucherDateTo,
-  };
-  for (let i = 0; i < allInvoices.length; i += 200) {
-    const batch = allInvoices.slice(i, i + 200);
-    const batchSplit = await fetchSaleReceiptSplitsForInvoices(
-      client,
-      filters.organizationId,
-      batch.map((inv: any) => ({
-        id: inv.id,
-        sale_number: inv.sale_number,
-        customer_id: inv.customer_id,
-      })),
-      splitOpts,
-    );
-    batchSplit.forEach((v, k) => splitBySale.set(k, v));
-  }
-
-  const saleIdsNeedingItemsGross = allInvoices
-    .filter((inv: any) => Number(inv.sale_return_adjust || 0) > SR_RECONCILE_TOLERANCE)
-    .map((inv: any) => inv.id)
-    .filter(Boolean);
-  const itemsGrossBySale = await fetchItemsGrossForSales(client, saleIdsNeedingItemsGross);
-
-  let linkedReturns: Array<{
-    linked_sale_id: string | null;
-    return_date: string | null;
-    return_number: string | null;
-  }> = [];
-  if (saleIdsNeedingItemsGross.length > 0) {
-    const { data } = await client
-      .from("sale_returns")
-      .select("linked_sale_id, return_date, return_number")
-      .eq("organization_id", filters.organizationId)
-      .in("linked_sale_id", saleIdsNeedingItemsGross)
-      .is("deleted_at", null);
-    linkedReturns = data || [];
-  }
-
-  const normalized = allInvoices.map((inv: any) => {
-    const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
-    if (isInvCancelled) {
-      return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
-    }
-    if (inv.payment_status === "hold") {
-      return { ...inv };
-    }
-    const rec = reconcileSaleInvoiceWithSplit(
-      { ...inv, items_gross: itemsGrossBySale.get(inv.id) ?? null },
-      splitBySale.get(inv.id) ?? null,
-    );
-    const cnAdjustYmd =
-      Number(inv.sale_return_adjust || 0) > 0.005
-        ? resolveCnAdjustDateForSale(inv.id, [], linkedReturns || [])
-        : null;
-    return {
-      ...inv,
-      paid_amount: rec.paid_amount,
-      payment_status: rec.payment_status,
-      outstanding: rec.outstanding,
-      cn_adjust_date: cnAdjustYmd,
-    };
-  });
-
+  const normalized = await reconcileInvoiceDashboardRows(client, filters, allInvoices);
   const filteredForTable =
     filters.paymentStatusFilter.length > 0
       ? normalized.filter((inv: any) =>

@@ -1,6 +1,14 @@
 import { format, subMonths } from "date-fns";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
+import {
+  getEffectivePaidAmountForPosDashboard,
+  getPosSaleOutstandingBalance,
+  isHoldLikePosSale,
+  isPosSalePaidCompleted,
+  type PosDashboardSaleLike,
+} from "@/utils/posDashboardSettlement";
 
 /** When All Time has no dates, bound fetch to rolling 12 months (UI label unchanged). */
 function resolvePosDashboardDateRange(startDate: string, endDate: string) {
@@ -24,94 +32,497 @@ export type PosDashboardSalesPayload = {
   creditNoteUsage: PosDashboardCreditNoteUsage;
 };
 
+export type PosDashboardFilters = {
+  organizationId: string;
+  search: string;
+  startDate: string;
+  endDate: string;
+  paymentMethodFilter: string;
+  paymentStatusFilter: string[];
+  saleTypeFilter: string;
+  refundFilter: string;
+  creditNoteFilter: string;
+  userFilter: string;
+  cancelFilter: string;
+};
+
+export type PosDashboardPageOptions = {
+  page: number;
+  pageSize: number;
+};
+
+export type PosDashboardSummaryStats = {
+  totalBills: number;
+  totalQty: number;
+  totalAmount: number;
+  totalDiscount: number;
+  netSale: number;
+  completedCount: number;
+  completedAmount: number;
+  pendingCount: number;
+  pendingAmount: number;
+  holdCount: number;
+  holdAmount: number;
+  refundCount: number;
+  refundAmount: number;
+  creditNoteCount: number;
+  creditNoteAmount: number;
+  totalCash: number;
+  totalCard: number;
+  totalUpi: number;
+  totalBalance: number;
+  totalSaleReturnAdjust: number;
+  totalRoundOff: number;
+  cashBillCount: number;
+  cardBillCount: number;
+  upiBillCount: number;
+};
+
+const EMPTY_POS_SUMMARY: PosDashboardSummaryStats = {
+  totalBills: 0,
+  totalQty: 0,
+  totalAmount: 0,
+  totalDiscount: 0,
+  netSale: 0,
+  completedCount: 0,
+  completedAmount: 0,
+  pendingCount: 0,
+  pendingAmount: 0,
+  holdCount: 0,
+  holdAmount: 0,
+  refundCount: 0,
+  refundAmount: 0,
+  creditNoteCount: 0,
+  creditNoteAmount: 0,
+  totalCash: 0,
+  totalCard: 0,
+  totalUpi: 0,
+  totalBalance: 0,
+  totalSaleReturnAdjust: 0,
+  totalRoundOff: 0,
+  cashBillCount: 0,
+  cardBillCount: 0,
+  upiBillCount: 0,
+};
+
+export const POS_DASHBOARD_SALES_SELECT =
+  "*, customers:customer_id (gst_number)";
+
+const POS_DASHBOARD_SUMMARY_SELECT =
+  "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_amount, credit_note_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
+
+function posSearchBypassesDateFilter(search: string): boolean {
+  return search.trim().length > 0;
+}
+
+function shouldUnionSaleItemsForPosSearch(searchStr: string): boolean {
+  const t = searchStr.trim();
+  if (!t) return false;
+  if (/^\d+$/.test(t)) return t.length >= 4;
+  return /[A-Za-z]/.test(t) && t.length >= 3;
+}
+
+function buildPosDashboardBaseQuery(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  select: string,
+  withCount = false,
+) {
+  let query = client
+    .from("sales")
+    .select(select, withCount ? { count: "exact" } : undefined)
+    .eq("organization_id", filters.organizationId)
+    .in("sale_type", ["pos", "delivery_challan"])
+    .is("deleted_at", null)
+    .order("sale_date", { ascending: false })
+    .order("id", { ascending: false });
+
+  if (filters.cancelFilter === "active") {
+    query = query.or("is_cancelled.is.null,is_cancelled.eq.false");
+  } else if (filters.cancelFilter === "cancelled") {
+    query = query.eq("is_cancelled", true);
+  }
+
+  if (filters.userFilter !== "all" && filters.userFilter !== "__pending__") {
+    query = query.eq("created_by", filters.userFilter);
+  }
+
+  if (filters.paymentMethodFilter !== "all") {
+    query = query.eq("payment_method", filters.paymentMethodFilter);
+  }
+
+  if (filters.paymentStatusFilter.length > 0) {
+    query = query.in("payment_status", filters.paymentStatusFilter);
+  }
+
+  if (filters.saleTypeFilter === "dc") {
+    query = query.eq("sale_type", "delivery_challan");
+  } else if (filters.saleTypeFilter === "pos") {
+    query = query.eq("sale_type", "pos");
+  } else if (filters.saleTypeFilter === "cn") {
+    query = query.or("credit_note_id.not.is.null,credit_amount.gt.0");
+  }
+
+  if (filters.refundFilter === "with_refund") {
+    query = query.gt("refund_amount", 0);
+  } else if (filters.refundFilter === "without_refund") {
+    query = query.or("refund_amount.is.null,refund_amount.eq.0");
+  }
+
+  if (filters.creditNoteFilter === "with_credit_note") {
+    query = query.or("credit_note_id.not.is.null,credit_amount.gt.0");
+  } else if (filters.creditNoteFilter === "without_credit_note") {
+    query = query.is("credit_note_id", null).or("credit_amount.is.null,credit_amount.eq.0");
+  }
+
+  if (!posSearchBypassesDateFilter(filters.search)) {
+    const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
+    const startIso = localDayStartUtcIso(bounded.startDate);
+    const endIso = localDayEndUtcIso(bounded.endDate);
+    if (startIso) query = query.gte("sale_date", startIso);
+    if (endIso) query = query.lte("sale_date", endIso);
+  }
+
+  return query;
+}
+
+async function fetchPosSaleIdsMatchingLineItems(
+  client: SupabaseClient,
+  organizationId: string,
+  filters: PosDashboardFilters,
+  searchStr: string,
+  itemLimit: number,
+): Promise<string[]> {
+  const saleIdsInRange: string[] = [];
+  const PAGE = 1000;
+  let offset = 0;
+  while (true) {
+    let q = client
+      .from("sales")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .in("sale_type", ["pos", "delivery_challan"])
+      .is("deleted_at", null);
+    if (!posSearchBypassesDateFilter(searchStr)) {
+      const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
+      const startIso = localDayStartUtcIso(bounded.startDate);
+      const endIso = localDayEndUtcIso(bounded.endDate);
+      if (startIso) q = q.gte("sale_date", startIso);
+      if (endIso) q = q.lte("sale_date", endIso);
+    }
+    const { data, error } = await q.range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    saleIdsInRange.push(...data.map((r) => r.id).filter(Boolean));
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  if (saleIdsInRange.length === 0) return [];
+
+  const orFilter =
+    `barcode.ilike.%${searchStr}%,` +
+    `product_name.ilike.%${searchStr}%,` +
+    `size.ilike.%${searchStr}%,` +
+    `color.ilike.%${searchStr}%`;
+
+  const matched = new Set<string>();
+  for (let i = 0; i < saleIdsInRange.length; i += 200) {
+    const batch = saleIdsInRange.slice(i, i + 200);
+    const { data: matchingItems, error } = await client
+      .from("sale_items")
+      .select("sale_id")
+      .in("sale_id", batch)
+      .is("deleted_at", null)
+      .or(orFilter)
+      .limit(itemLimit);
+    if (error) throw error;
+    (matchingItems || []).forEach((row) => {
+      if (row.sale_id) matched.add(row.sale_id);
+    });
+    if (matched.size >= itemLimit) break;
+  }
+  return [...matched];
+}
+
+async function applyPosSearchToQuery(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  query: any,
+): Promise<any> {
+  const searchStr = filters.search.trim();
+  if (!searchStr) return query;
+
+  const saleTextFilter =
+    `sale_number.ilike.%${searchStr}%,` +
+    `customer_name.ilike.%${searchStr}%,` +
+    `customer_phone.ilike.%${searchStr}%`;
+
+  let matchingSaleIds: string[] = [];
+  if (shouldUnionSaleItemsForPosSearch(searchStr)) {
+    matchingSaleIds = await fetchPosSaleIdsMatchingLineItems(
+      client,
+      filters.organizationId,
+      filters,
+      searchStr,
+      1000,
+    );
+  }
+
+  if (matchingSaleIds.length > 0) {
+    const { data: textMatches } = await client
+      .from("sales")
+      .select("id")
+      .eq("organization_id", filters.organizationId)
+      .in("sale_type", ["pos", "delivery_challan"])
+      .is("deleted_at", null)
+      .or(saleTextFilter);
+    const textMatchIds = (textMatches || []).map((s: any) => s.id);
+    const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
+    return query.in("id", allMatchIds);
+  }
+  return query.or(saleTextFilter);
+}
+
+async function enrichPosSalesWithCreditNotes(
+  sales: any[],
+): Promise<{ sales: any[]; creditNoteUsage: PosDashboardCreditNoteUsage }> {
+  const creditNoteUsage: PosDashboardCreditNoteUsage = {};
+  if (sales.length === 0) {
+    return { sales, creditNoteUsage };
+  }
+
+  const saleIdsForCN = sales.map((s: { id: string }) => s.id);
+  const cnBySaleId: Record<string, any> = {};
+  for (let i = 0; i < saleIdsForCN.length; i += 500) {
+    const batch = saleIdsForCN.slice(i, i + 500);
+    if (batch.length === 0) continue;
+    const { data: cnData } = await supabase
+      .from("credit_notes")
+      .select("id, sale_id, credit_amount, used_amount, status")
+      .in("sale_id", batch)
+      .is("deleted_at", null);
+    cnData?.forEach((c: any) => {
+      if (c.sale_id) cnBySaleId[c.sale_id] = c;
+    });
+  }
+
+  const enriched = sales.map((s: any) => {
+    const cn = cnBySaleId[s.id];
+    if (!cn) return s;
+    return {
+      ...s,
+      credit_note_id: s.credit_note_id || cn.id,
+      credit_note_amount: s.credit_note_amount || cn.credit_amount || 0,
+    };
+  });
+
+  enriched.forEach((s: any) => {
+    const cn = cnBySaleId[s.id];
+    if (cn) {
+      creditNoteUsage[cn.id] = {
+        credit_amount: cn.credit_amount || 0,
+        used_amount: cn.used_amount || 0,
+        status: cn.status,
+      };
+    }
+  });
+
+  const directCnIds = enriched
+    .map((s: any) => s.credit_note_id)
+    .filter((id: string | null) => id && !creditNoteUsage[id]);
+  if (directCnIds.length > 0) {
+    const { data: directCN } = await supabase
+      .from("credit_notes")
+      .select("id, credit_amount, used_amount, status")
+      .in("id", directCnIds);
+    directCN?.forEach((c: any) => {
+      creditNoteUsage[c.id] = {
+        credit_amount: c.credit_amount || 0,
+        used_amount: c.used_amount || 0,
+        status: c.status,
+      };
+    });
+  }
+
+  return { sales: enriched, creditNoteUsage };
+}
+
+export function computePosDashboardSummaryStats(
+  rows: PosDashboardSaleLike[],
+): PosDashboardSummaryStats {
+  if (rows.length === 0) return { ...EMPTY_POS_SUMMARY };
+
+  const nonHoldSales = rows.filter((sale) => !isHoldLikePosSale(sale));
+  const holdSales = rows.filter((sale) => isHoldLikePosSale(sale));
+
+  return {
+    totalBills: rows.length,
+    totalQty: nonHoldSales.reduce(
+      (sum, sale) => sum + Number((sale as { total_qty?: number }).total_qty || 0),
+      0,
+    ),
+    totalAmount: nonHoldSales.reduce((sum, sale) => sum + Number(sale.gross_amount || 0), 0),
+    totalDiscount: nonHoldSales.reduce(
+      (sum, sale) =>
+        sum +
+        Number(sale.discount_amount || 0) +
+        Number(sale.flat_discount_amount || 0) +
+        Number((sale as { points_redeemed_amount?: number }).points_redeemed_amount || 0),
+      0,
+    ),
+    netSale: nonHoldSales.reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
+    completedCount: nonHoldSales.filter((sale) => isPosSalePaidCompleted(sale)).length,
+    completedAmount: nonHoldSales
+      .filter((sale) => isPosSalePaidCompleted(sale))
+      .reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
+    pendingCount: nonHoldSales.filter(
+      (sale) => !isPosSalePaidCompleted(sale) && !isHoldLikePosSale(sale),
+    ).length,
+    pendingAmount: nonHoldSales
+      .filter((sale) => !isPosSalePaidCompleted(sale))
+      .reduce((sum, sale) => sum + getPosSaleOutstandingBalance(sale), 0),
+    holdCount: holdSales.length,
+    holdAmount: holdSales.reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
+    refundCount: nonHoldSales.filter((sale) => Number(sale.refund_amount || 0) > 0).length,
+    refundAmount: nonHoldSales.reduce(
+      (sum, sale) => sum + Number(sale.refund_amount || 0),
+      0,
+    ),
+    creditNoteCount: nonHoldSales.filter(
+      (sale) =>
+        !!(sale as { credit_note_id?: string | null }).credit_note_id ||
+        Number((sale as { credit_amount?: number }).credit_amount || 0) > 0,
+    ).length,
+    creditNoteAmount: nonHoldSales.reduce(
+      (sum, sale) =>
+        sum +
+        Number(
+          (sale as { credit_note_amount?: number }).credit_note_amount ||
+            (sale as { credit_amount?: number }).credit_amount ||
+            0,
+        ),
+      0,
+    ),
+    totalCash: nonHoldSales.reduce((sum, sale) => sum + Number(sale.cash_amount || 0), 0),
+    totalCard: nonHoldSales.reduce((sum, sale) => sum + Number(sale.card_amount || 0), 0),
+    totalUpi: nonHoldSales.reduce((sum, sale) => sum + Number(sale.upi_amount || 0), 0),
+    totalBalance: nonHoldSales.reduce(
+      (sum, sale) => sum + getPosSaleOutstandingBalance(sale),
+      0,
+    ),
+    totalSaleReturnAdjust: nonHoldSales.reduce(
+      (sum, sale) => sum + Number(sale.sale_return_adjust || 0),
+      0,
+    ),
+    totalRoundOff: nonHoldSales.reduce((sum, sale) => sum + Number(sale.round_off || 0), 0),
+    cashBillCount: nonHoldSales.filter((sale) => Number(sale.cash_amount || 0) > 0).length,
+    cardBillCount: nonHoldSales.filter((sale) => Number(sale.card_amount || 0) > 0).length,
+    upiBillCount: nonHoldSales.filter((sale) => Number(sale.upi_amount || 0) > 0).length,
+  };
+}
+
+export async function fetchPosDashboardPage(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  options: PosDashboardPageOptions,
+): Promise<PosDashboardSalesPayload & { totalCount: number }> {
+  if (!filters.organizationId) {
+    return { sales: [], creditNoteUsage: {}, totalCount: 0 };
+  }
+
+  const from = (options.page - 1) * options.pageSize;
+  const to = from + options.pageSize - 1;
+
+  let query: any = buildPosDashboardBaseQuery(
+    client,
+    filters,
+    POS_DASHBOARD_SALES_SELECT,
+    true,
+  );
+  query = await applyPosSearchToQuery(client, filters, query);
+  const { data, error, count } = await query.range(from, to);
+  if (error) throw error;
+
+  const enriched = await enrichPosSalesWithCreditNotes(data || []);
+  return { ...enriched, totalCount: count ?? 0 };
+}
+
+export async function fetchPosDashboardSummary(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+): Promise<PosDashboardSummaryStats> {
+  if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
+
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  const allRows: PosDashboardSaleLike[] = [];
+
+  while (true) {
+    let query: any = buildPosDashboardBaseQuery(
+      client,
+      filters,
+      POS_DASHBOARD_SUMMARY_SELECT,
+    );
+    query = await applyPosSearchToQuery(client, filters, query);
+    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    allRows.push(...(data as PosDashboardSaleLike[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return computePosDashboardSummaryStats(allRows);
+}
+
+/** Full filtered fetch for export (not used by paginated table). */
+export async function fetchPosDashboardExportRows(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+): Promise<PosDashboardSalesPayload> {
+  if (!filters.organizationId) {
+    return { sales: [], creditNoteUsage: {} };
+  }
+
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  const allSales: any[] = [];
+
+  while (true) {
+    let query: any = buildPosDashboardBaseQuery(
+      client,
+      filters,
+      POS_DASHBOARD_SALES_SELECT,
+    );
+    query = await applyPosSearchToQuery(client, filters, query);
+    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    allSales.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return enrichPosSalesWithCreditNotes(allSales);
+}
+
+/** @deprecated Use fetchPosDashboardPage for the dashboard table. */
 export async function fetchPosDashboardSales(
   organizationId: string,
   startDate: string,
   endDate: string,
 ): Promise<PosDashboardSalesPayload> {
-  const bounded = resolvePosDashboardDateRange(startDate, endDate);
-  const allSales: any[] = [];
-  let offset = 0;
-  const pageSize = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .from("sales")
-      .select("*, customers:customer_id (gst_number)")
-      .eq("organization_id", organizationId)
-      .in("sale_type", ["pos", "delivery_challan"])
-      .is("deleted_at", null);
-
-    const startIso = localDayStartUtcIso(bounded.startDate);
-    const endIso = localDayEndUtcIso(bounded.endDate);
-    if (startIso) query = query.gte("sale_date", startIso);
-    if (endIso) query = query.lte("sale_date", endIso);
-
-    const { data, error } = await query
-      .order("sale_date", { ascending: false })
-      .order("id")
-      .range(offset, offset + pageSize - 1);
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      allSales.push(...data);
-      offset += pageSize;
-      hasMore = data.length === pageSize;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  const creditNoteUsage: PosDashboardCreditNoteUsage = {};
-  const saleIdsForCN = allSales.map((s: { id: string }) => s.id);
-  if (saleIdsForCN.length > 0) {
-    const cnBatchSize = 500;
-    const cnBySaleId: Record<string, any> = {};
-    for (let i = 0; i < saleIdsForCN.length; i += cnBatchSize) {
-      const batch = saleIdsForCN.slice(i, i + cnBatchSize);
-      if (batch.length === 0) continue;
-      const { data: cnData } = await supabase
-        .from("credit_notes")
-        .select("id, sale_id, credit_amount, used_amount, status")
-        .in("sale_id", batch)
-        .is("deleted_at", null);
-      cnData?.forEach((c: any) => {
-        if (c.sale_id) cnBySaleId[c.sale_id] = c;
-      });
-    }
-
-    allSales.forEach((s: any) => {
-      const cn = cnBySaleId[s.id];
-      if (cn) {
-        s.credit_note_id = s.credit_note_id || cn.id;
-        s.credit_note_amount = s.credit_note_amount || cn.credit_amount || 0;
-        creditNoteUsage[cn.id] = {
-          credit_amount: cn.credit_amount || 0,
-          used_amount: cn.used_amount || 0,
-          status: cn.status,
-        };
-      }
-    });
-
-    const directCnIds = allSales
-      .map((s: any) => s.credit_note_id)
-      .filter((id: string | null) => id && !creditNoteUsage[id]);
-    if (directCnIds.length > 0) {
-      const { data: directCN } = await supabase
-        .from("credit_notes")
-        .select("id, credit_amount, used_amount, status")
-        .in("id", directCnIds);
-      directCN?.forEach((c: any) => {
-        creditNoteUsage[c.id] = {
-          credit_amount: c.credit_amount || 0,
-          used_amount: c.used_amount || 0,
-          status: c.status,
-        };
-      });
-    }
-  }
-
-  return { sales: allSales, creditNoteUsage };
+  return fetchPosDashboardExportRows(supabase, {
+    organizationId,
+    search: "",
+    startDate,
+    endDate,
+    paymentMethodFilter: "all",
+    paymentStatusFilter: [],
+    saleTypeFilter: "all",
+    refundFilter: "all",
+    creditNoteFilter: "all",
+    userFilter: "all",
+    cancelFilter: "active",
+  });
 }
