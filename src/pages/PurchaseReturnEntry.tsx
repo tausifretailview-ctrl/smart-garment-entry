@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { Loader2, CalendarIcon, Trash2, Plus, Search, Barcode } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
+import { getUOMLabel, isDecimalUOM } from "@/constants/uom";
 import { entryPageContentClass, entryPageShellClass } from "@/lib/entryPageLayout";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -36,6 +37,25 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
+function parseReturnQty(uom: string | undefined, raw: string): number {
+  if (isDecimalUOM(uom)) {
+    const n = parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 1000 : 0.001;
+  }
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function nextReturnQty(current: number, uom: string | undefined): number {
+  const step = isDecimalUOM(uom) ? 0.001 : 1;
+  const next = current + step;
+  return isDecimalUOM(uom) ? Math.round(next * 1000) / 1000 : next;
+}
+
+function defaultReturnQty(_uom: string | undefined): number {
+  return 1;
+}
+
 interface ProductVariant {
   id: string;
   product_id: string;
@@ -51,6 +71,7 @@ interface ProductVariant {
   hsn_code: string;
   stock_qty: number;
   mrp?: number;
+  uom?: string;
 }
 
 interface LineItem {
@@ -60,6 +81,7 @@ interface LineItem {
   product_name: string;
   size: string;
   color?: string;
+  uom?: string;
   qty: number;
   pur_price: number;
   gst_per: number;
@@ -337,7 +359,7 @@ const PurchaseReturnEntry = () => {
           ] as string[];
 
           const [productsData, variantMap] = await Promise.all([
-            fetchProductsByIds(productIds, "id, product_name, brand"),
+            fetchProductsByIds(productIds, "id, product_name, brand, uom"),
             fetchVariantColorsByIds(skuIds),
           ]);
 
@@ -353,7 +375,8 @@ const PurchaseReturnEntry = () => {
               product_name: product?.product_name || "Unknown",
               size: item.size,
               color: item.color || variant?.color || "",
-              qty: item.qty,
+              uom: product?.uom || "NOS",
+              qty: Number(item.qty) || 0,
               pur_price: item.pur_price,
               gst_per: item.gst_per,
               hsn_code: item.hsn_code || "",
@@ -504,6 +527,7 @@ const PurchaseReturnEntry = () => {
       hsn_code,
       gst_per,
       purchase_gst_percent,
+      uom,
       organization_id,
       deleted_at
     )
@@ -526,6 +550,7 @@ const PurchaseReturnEntry = () => {
       hsn_code: String(products.hsn_code || ""),
       stock_qty: Number(v.stock_qty || 0),
       mrp: Number(v.mrp ?? 0),
+      uom: String(products.uom || "NOS"),
     };
   }, [currentOrganization?.id]);
 
@@ -637,7 +662,8 @@ const PurchaseReturnEntry = () => {
       const existingItem = currentItems.find((item) => item.sku_id === variant.id);
 
       if (existingItem) {
-        const nextQty = existingItem.qty + 1;
+        const lineUom = existingItem.uom || variant.uom || "NOS";
+        const nextQty = nextReturnQty(existingItem.qty, lineUom);
         if (nextQty > (variant.stock_qty || 0)) {
           toast({
             title: "Stock Warning",
@@ -672,6 +698,8 @@ const PurchaseReturnEntry = () => {
 
       const fetchedPrice = await getPriceFromBill(variant.id, originalBillId || undefined);
       const unitPrice = fetchedPrice ?? variant.pur_price;
+      const lineUom = variant.uom || "NOS";
+      const initialQty = defaultReturnQty(lineUom);
       const newItem: LineItem = {
         temp_id: `${Date.now()}-${Math.random()}`,
         product_id: variant.product_id,
@@ -679,12 +707,13 @@ const PurchaseReturnEntry = () => {
         product_name: variant.product_name,
         size: variant.size,
         color: variant.color,
-        qty: 1,
+        uom: lineUom,
+        qty: initialQty,
         pur_price: unitPrice,
         gst_per: variant.gst_per || (typeof defaultTaxRate === "number" ? defaultTaxRate : Number(defaultTaxRate) || 0),
         hsn_code: variant.hsn_code,
         barcode: variant.barcode,
-        line_total: unitPrice,
+        line_total: unitPrice * initialQty,
         brand: variant.brand,
         discount_percent: 0,
         discount_amount: 0,
@@ -862,6 +891,14 @@ const PurchaseReturnEntry = () => {
 
       const rawItems: any[] = (bill as any).purchase_items || [];
       const skuIds = [...new Set(rawItems.map((i) => i.sku_id).filter(Boolean))] as string[];
+      const productIds = [...new Set(rawItems.map((i) => i.product_id).filter(Boolean))] as string[];
+      const uomByProductId = new Map<string, string>();
+      if (productIds.length > 0) {
+        const productsData = await fetchProductsByIds(productIds, "id, uom");
+        productsData.forEach((p: { id: string; uom?: string | null }) => {
+          uomByProductId.set(p.id, p.uom || "NOS");
+        });
+      }
       const stockBySku = new Map<string, number>();
       if (skuIds.length > 0) {
         const { data: variantsData, error: varErr } = await supabase
@@ -909,6 +946,7 @@ const PurchaseReturnEntry = () => {
           product_name: item.product_name || '',
           size: item.size || '',
           color: item.color || '',
+          uom: uomByProductId.get(item.product_id) || "NOS",
           qty: returnQty,
           pur_price,
           gst_per: isBillDC ? 0 : (Number(item.gst_per) || 0),
@@ -1766,16 +1804,28 @@ const PurchaseReturnEntry = () => {
                       <TableCell>{item.size}</TableCell>
                       <TableCell>{item.barcode}</TableCell>
                       <TableCell>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.qty}
-                          onChange={(e) =>
-                            updateLineItem(item.temp_id, "qty", parseInt(e.target.value) || 1)
-                          }
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20"
-                        />
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            value={item.qty}
+                            onChange={(e) =>
+                              updateLineItem(
+                                item.temp_id,
+                                "qty",
+                                parseReturnQty(item.uom, e.target.value),
+                              )
+                            }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-20"
+                          />
+                          {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {getUOMLabel(item.uom)}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       {showMrp && (
                         <TableCell>
