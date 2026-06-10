@@ -48,6 +48,7 @@ import {
   markPurchaseEntryUnmountNavKey,
   omitNewBillNavigationState,
   PURCHASE_DRAFT_DISCARDED_EVENT,
+  dispatchPurchaseDraftSaved,
   readPurchaseEntrySnapshotAsync,
   wasPurchaseEntryNavHandled,
   wasPurchaseEntryRemount,
@@ -319,6 +320,8 @@ const PurchaseEntry = () => {
   const loadedEditBillIdRef = useRef<string | null>(null);
   const workRestoredRef = useRef(false);
   const draftDiscardedExternallyRef = useRef(false);
+  /** Blocks debounced draft writes after a successful bill save (pending timeout race). */
+  const purchaseSaveFinalizedRef = useRef(false);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
@@ -502,7 +505,10 @@ const PurchaseEntry = () => {
   }, [currentOrganization?.id, user?.id, resetToNewBill]);
 
   useEffect(() => {
-    if (lineItems.length > 0) draftDiscardedExternallyRef.current = false;
+    if (lineItems.length > 0) {
+      draftDiscardedExternallyRef.current = false;
+      purchaseSaveFinalizedRef.current = false;
+    }
   }, [lineItems.length]);
 
   const hasUnsavedPurchaseLines = useCallback(
@@ -629,6 +635,47 @@ const PurchaseEntry = () => {
       clearEntrySession,
       saveDraft,
     ],
+  );
+
+  const finalizeSuccessfulPurchaseSave = useCallback(async () => {
+    purchaseSaveFinalizedRef.current = true;
+    if (autoSaveDebounceRef.current) {
+      clearTimeout(autoSaveDebounceRef.current);
+      autoSaveDebounceRef.current = null;
+    }
+    latestSnapshotRef.current = null;
+    skipSnapshotEffectRef.current = true;
+    importJustAppliedRef.current = false;
+    await deleteDraft();
+    updateCurrentData(null);
+    clearEntrySession();
+    if (currentOrganization?.id && user?.id) {
+      dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
+    }
+    invalidatePurchases();
+  }, [
+    clearEntrySession,
+    currentOrganization?.id,
+    deleteDraft,
+    invalidatePurchases,
+    updateCurrentData,
+    user?.id,
+  ]);
+
+  const createLineItemRow = useCallback(
+    (item: Omit<LineItem, "temp_id" | "line_total">): LineItem => {
+      const effectiveGst = isDcPurchase ? 0 : item.gst_per;
+      const subTotal = computePurchaseLineSubTotal(item);
+      const discountAmt = roundMoney(subTotal * (item.discount_percent / 100));
+      const lineTotal = roundMoney(subTotal - discountAmt);
+      return {
+        ...item,
+        gst_per: effectiveGst,
+        temp_id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+        line_total: lineTotal,
+      };
+    },
+    [isDcPurchase],
   );
 
   // Handle product edit panel updates
@@ -797,13 +844,14 @@ const PurchaseEntry = () => {
       importJustAppliedRef.current = false;
       return;
     }
-    if (draftDiscardedExternallyRef.current) return;
+    if (draftDiscardedExternallyRef.current || purchaseSaveFinalizedRef.current) return;
 
     const snapshot = buildEntrySnapshot();
     latestSnapshotRef.current = snapshot;
 
     if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
     autoSaveDebounceRef.current = setTimeout(() => {
+      if (purchaseSaveFinalizedRef.current || draftDiscardedExternallyRef.current) return;
       if (snapshot) {
         updateCurrentData(snapshot);
         persistEntrySession(snapshot);
@@ -824,7 +872,7 @@ const PurchaseEntry = () => {
   ]);
 
   const flushEntryPersistence = useCallback(() => {
-    if (draftDiscardedExternallyRef.current) {
+    if (draftDiscardedExternallyRef.current || purchaseSaveFinalizedRef.current) {
       updateCurrentData(null);
       clearEntrySession();
       return;
@@ -1585,17 +1633,15 @@ const PurchaseEntry = () => {
       const variantsWithQty = product.variants.filter((v: any) => (v.purchase_qty || 0) > 0);
 
       if (variantsWithQty.length > 0) {
-        // Auto-add all sizes with qty directly to bill
-        let addedCount = 0;
-        for (const variant of variantsWithQty) {
-          const discountPercent = (() => {
-            const pdt = product.purchase_discount_type;
-            const pdv = product.purchase_discount_value || 0;
-            if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
-            return 0;
-          })();
+        const discountPercent = (() => {
+          const pdt = product.purchase_discount_type;
+          const pdv = product.purchase_discount_value || 0;
+          if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+          return 0;
+        })();
 
-          addItemRow({
+        const newRows = variantsWithQty.map((variant: any) =>
+          createLineItemRow({
             product_name: product.product_name,
             product_id: product.id,
             sku_id: variant.id,
@@ -1613,12 +1659,18 @@ const PurchaseEntry = () => {
             color: variant.color || product.color || "",
             style: product.style || "",
             uom: product.uom || 'NOS',
-          });
-          addedCount++;
-        }
+          }),
+        );
 
-        const totalQty = variantsWithQty.reduce((s: number, v: any) => s + (v.purchase_qty || 0), 0);
-        // Silent add - no toast to avoid disturbing user
+        let mergedItems: LineItem[] = [];
+        setLineItems((prev) => {
+          mergedItems = [...prev, ...newRows];
+          return mergedItems;
+        });
+        skipSnapshotEffectRef.current = true;
+        importJustAppliedRef.current = true;
+        await persistEntrySnapshotNow({ lineItems: mergedItems });
+        invalidatePurchases();
 
         // Blur so "1" shortcut works immediately
         (document.activeElement as HTMLElement)?.blur();
@@ -2449,19 +2501,7 @@ const PurchaseEntry = () => {
   };
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
-    const effectiveGst = isDcPurchase ? 0 : item.gst_per;
-    const subTotal = computePurchaseLineSubTotal(item);
-    const discountAmount = roundMoney(subTotal * (item.discount_percent / 100));
-    const lineTotal = roundMoney(subTotal - discountAmount);
-    setLineItems((prev) => [
-      ...prev,
-      {
-        ...item,
-        gst_per: effectiveGst,
-        temp_id: Date.now().toString() + Math.random(),
-        line_total: lineTotal,
-      },
-    ]);
+    setLineItems((prev) => [...prev, createLineItemRow(item)]);
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
@@ -3428,10 +3468,7 @@ const PurchaseEntry = () => {
           }
         }
 
-        // Clear draft after successful save
-        await deleteDraft();
-        updateCurrentData(null);
-        clearEntrySession();
+        await finalizeSuccessfulPurchaseSave();
 
         // Reset edit mode state - Critical fix for duplicate bill prevention
         setIsEditMode(false);
@@ -3616,10 +3653,7 @@ const PurchaseEntry = () => {
 
         // Silent operation - no toast for purchase bill save
 
-        // Invalidate dashboard queries for immediate UI refresh
-        invalidatePurchases();
         queryClient.invalidateQueries({ queryKey: ["next-supplier-inv-no"] });
-        queryClient.invalidateQueries({ queryKey: ['pos-products'] });
         // Batch-fetch product details instead of N individual queries
         const uniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
         const productDetailsMap = new Map<string, { brand: string; color: string; style: string }>();
@@ -3647,10 +3681,7 @@ const PurchaseEntry = () => {
           }
         }
 
-        // Clear draft after successful save and prevent re-save on cleanup
-        await deleteDraft();
-        updateCurrentData(null);
-        clearEntrySession();
+        await finalizeSuccessfulPurchaseSave();
 
         // Reset edit mode if we were editing
         if (isEditMode) {
