@@ -149,6 +149,10 @@ export const POS_DASHBOARD_SALES_SELECT =
 const POS_DASHBOARD_SUMMARY_SELECT =
   "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_amount, credit_note_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
 
+/** Safer column list when full summary select fails (e.g. migration not yet applied). */
+const POS_DASHBOARD_SUMMARY_FALLBACK_SELECT =
+  "id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
+
 function posSearchBypassesDateFilter(search: string): boolean {
   return search.trim().length > 0;
 }
@@ -158,6 +162,10 @@ function shouldUnionSaleItemsForPosSearch(searchStr: string): boolean {
   if (!t) return false;
   if (/^\d+$/.test(t)) return t.length >= 4;
   return /[A-Za-z]/.test(t) && t.length >= 3;
+}
+
+function shouldApplyPosUserFilter(userFilter: string): boolean {
+  return Boolean(userFilter) && userFilter !== "all" && userFilter !== "__pending__";
 }
 
 function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
@@ -172,7 +180,7 @@ function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
     q = q.eq("is_cancelled", true);
   }
 
-  if (filters.userFilter !== "all" && filters.userFilter !== "__pending__") {
+  if (shouldApplyPosUserFilter(filters.userFilter)) {
     q = q.eq("created_by", filters.userFilter);
   }
 
@@ -505,22 +513,20 @@ export async function fetchPosDashboardPage(
   return { ...enriched, totalCount };
 }
 
-export async function fetchPosDashboardSummary(
+async function scanPosDashboardSummaryRows(
   client: SupabaseClient,
   filters: PosDashboardFilters,
-): Promise<PosDashboardSummaryStats> {
-  if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
-
+  select: string,
+): Promise<PosDashboardSaleLike[]> {
   const PAGE_SIZE = 1000;
   let offset = 0;
   const allRows: PosDashboardSaleLike[] = [];
 
   while (true) {
-    let query: any = buildPosDashboardBaseQuery(
-      client,
-      filters,
-      POS_DASHBOARD_SUMMARY_SELECT,
-    ).range(offset, offset + PAGE_SIZE - 1);
+    let query: any = buildPosDashboardBaseQuery(client, filters, select).range(
+      offset,
+      offset + PAGE_SIZE - 1,
+    );
     query = await applyPosSearchToQuery(client, filters, query);
     const { data, error } = await query;
     if (error) throw error;
@@ -530,7 +536,37 @@ export async function fetchPosDashboardSummary(
     offset += PAGE_SIZE;
   }
 
-  return computePosDashboardSummaryStats(allRows);
+  return allRows;
+}
+
+export async function fetchPosDashboardSummary(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+): Promise<PosDashboardSummaryStats> {
+  if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
+
+  const selectAttempts = [
+    POS_DASHBOARD_SUMMARY_SELECT,
+    POS_DASHBOARD_SUMMARY_FALLBACK_SELECT,
+  ];
+  let lastError: unknown;
+
+  for (const select of selectAttempts) {
+    try {
+      const allRows = await scanPosDashboardSummaryRows(client, filters, select);
+      const stats = computePosDashboardSummaryStats(allRows);
+      if (stats.totalBills > 0) return stats;
+
+      const count = await countFilteredPosSales(client, filters);
+      if (count === 0) return stats;
+    } catch (err) {
+      lastError = err;
+      console.warn("POS dashboard summary scan failed:", err);
+    }
+  }
+
+  if (lastError) throw lastError;
+  return { ...EMPTY_POS_SUMMARY };
 }
 
 /** Full filtered fetch for export (not used by paginated table). */
