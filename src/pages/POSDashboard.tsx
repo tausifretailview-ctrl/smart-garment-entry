@@ -616,16 +616,21 @@ const POSDashboard = () => {
   });
 
   useEffect(() => {
-    const loadError = salesQueryError ?? summaryQueryError;
-    if (!loadError) return;
+    if (!salesQueryError) return;
     const message =
-      loadError instanceof Error ? loadError.message : "Failed to load sales";
+      salesQueryError instanceof Error
+        ? salesQueryError.message
+        : typeof salesQueryError === "object" &&
+            salesQueryError !== null &&
+            "message" in salesQueryError
+          ? String((salesQueryError as { message?: string }).message)
+          : "Failed to load sales";
     toast({
       title: "Error",
-      description: message,
+      description: message || "Failed to load sales",
       variant: "destructive",
     });
-  }, [salesQueryError, summaryQueryError, toast]);
+  }, [salesQueryError, toast]);
 
   useEffect(() => {
     const onPosSalesChanged = (ev: Event) => {
