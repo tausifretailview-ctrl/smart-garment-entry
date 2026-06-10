@@ -603,9 +603,9 @@ export const ExcelImportDialog = ({
                 {importProgress && (
                   <div className="border border-primary/50 bg-primary/10 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-primary">Importing...</span>
-                      <span className="text-sm text-muted-foreground">
-                        {importProgress.current} / {importProgress.total}
+                      <span className="font-medium text-primary">Loading items...</span>
+                      <span className="text-sm text-muted-foreground font-mono tabular-nums">
+                        {importProgress.current.toLocaleString("en-IN")} / {importProgress.total.toLocaleString("en-IN")} items
                       </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-3 overflow-hidden">

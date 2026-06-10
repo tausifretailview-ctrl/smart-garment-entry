@@ -180,6 +180,50 @@ const formatProductDescription = (item: {
   return parts.join('-');
 };
 
+type ExcelImportLoadingState = {
+  current: number;
+  total: number;
+  label: string;
+};
+
+function ExcelImportLoadingOverlay({ progress }: { progress: ExcelImportLoadingState }) {
+  const pct =
+    progress.total > 0
+      ? Math.min(100, Math.round((progress.current / progress.total) * 100))
+      : 0;
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-background/85 backdrop-blur-sm flex items-center justify-center">
+      <div className="bg-card border rounded-xl shadow-xl p-6 w-[min(92vw,22rem)] space-y-4">
+        <div className="flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+          <div>
+            <p className="font-semibold text-sm">Importing Excel items...</p>
+            <p className="text-xs text-muted-foreground">{progress.label}</p>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Items loaded</span>
+            <span className="font-mono tabular-nums">
+              {progress.current.toLocaleString("en-IN")} / {progress.total.toLocaleString("en-IN")}
+            </span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+            <div
+              className="bg-primary h-2.5 rounded-full transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground pt-1">
+            Please wait — do not save the bill until import completes.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant[] => {
   const grouped = new Map<string, SizeGridVariant>();
 
@@ -309,6 +353,9 @@ const PurchaseEntry = () => {
   // Draft loading state
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftLoadProgress, setDraftLoadProgress] = useState({ loaded: 0, total: 0 });
+
+  // Excel import progress overlay (large files)
+  const [excelImportLoading, setExcelImportLoading] = useState<ExcelImportLoadingState | null>(null);
   
   // State for tracking newly added items for smart barcode printing
   const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
@@ -2915,7 +2962,13 @@ const PurchaseEntry = () => {
   const handleSave = async () => {
     // Synchronous double-click guard. `loading` alone is async — set both immediately
     // so the button disables before validation/duplicate checks finish.
-    if (savingRef.current || loading) {
+    if (savingRef.current || loading || excelImportLoading) {
+      if (excelImportLoading) {
+        toast({
+          title: "Import in progress",
+          description: `Loading ${excelImportLoading.current.toLocaleString("en-IN")} of ${excelImportLoading.total.toLocaleString("en-IN")} items. Please wait before saving.`,
+        });
+      }
       return;
     }
 
@@ -3773,7 +3826,26 @@ const PurchaseEntry = () => {
     onProgress?: (progress: ImportProgress) => void
   ) => {
     if (!currentOrganization) return;
-    
+
+    let skippedCount = 0;
+    const reportImportProgress = (
+      current: number,
+      total: number,
+      label: string,
+      counts?: { successCount?: number; errorCount?: number; skippedCount?: number },
+    ) => {
+      setExcelImportLoading({ current, total, label });
+      onProgress?.({
+        current,
+        total,
+        successCount: counts?.successCount ?? current,
+        errorCount: counts?.errorCount ?? 0,
+        skippedCount: counts?.skippedCount ?? skippedCount,
+        isImporting: true,
+      });
+    };
+
+    try {
     // Extract bill-level data from first row if present
     const firstRow = mappedData[0];
     if (firstRow) {
@@ -3886,7 +3958,9 @@ const PurchaseEntry = () => {
 
     let successCount = 0;
     let errorCount = 0;
-    let skippedCount = mappedData.length - validRows.length;
+    skippedCount = mappedData.length - validRows.length;
+
+    reportImportProgress(0, validRows.length, "Starting Excel import...");
 
     // Helper: stable product key for deduplication
     const makeProductKey = (row: Record<string, any>) =>
@@ -3939,6 +4013,7 @@ const PurchaseEntry = () => {
     };
 
     // ── Phase 1: Load ALL org products (Supabase default cap is 1000 rows/page) ──
+    reportImportProgress(0, validRows.length, "Loading product catalog...");
     const productMap = new Map<string, string>();
     const PRODUCT_PAGE = 1000;
     let productOffset = 0;
@@ -3965,7 +4040,7 @@ const PurchaseEntry = () => {
       productOffset += PRODUCT_PAGE;
     }
 
-    onProgress?.({ current: 0, total: validRows.length, successCount: 0, errorCount: 0, skippedCount, isImporting: true });
+    reportImportProgress(0, validRows.length, "Preparing barcodes...", { skippedCount });
 
     // ── Phase 2: Barcodes — prefer Excel column; generate only when blank ──
     const barcodePool: string[] = new Array(validRows.length);
@@ -3987,14 +4062,14 @@ const PurchaseEntry = () => {
         (generated as string) ||
         `IMP${Date.now()}${rowIndex}${Math.random().toString(36).slice(2, 7)}`;
       if (g % 100 === 0 || g === rowsNeedingGeneratedBarcode.length - 1) {
-        onProgress?.({
-          current: Math.min(g + 1, validRows.length),
-          total: validRows.length,
-          successCount: 0,
-          errorCount: 0,
-          skippedCount,
-          isImporting: true,
-        });
+        reportImportProgress(
+          Math.min(g + 1, validRows.length),
+          validRows.length,
+          rowsNeedingGeneratedBarcode.length > 0
+            ? `Generating barcodes (${g + 1} / ${rowsNeedingGeneratedBarcode.length})...`
+            : "Preparing items...",
+          { skippedCount },
+        );
       }
     }
 
@@ -4042,6 +4117,14 @@ const PurchaseEntry = () => {
 
     const PRODUCT_BATCH_SIZE = 200;
     for (let i = 0; i < newProductsToInsert.length; i += PRODUCT_BATCH_SIZE) {
+      reportImportProgress(
+        Math.min(i + PRODUCT_BATCH_SIZE, newProductsToInsert.length),
+        validRows.length,
+        newProductsToInsert.length > 0
+          ? `Creating products (${Math.min(i + PRODUCT_BATCH_SIZE, newProductsToInsert.length)} / ${newProductsToInsert.length})...`
+          : "Preparing line items...",
+        { skippedCount },
+      );
       const batch = newProductsToInsert.slice(i, i + PRODUCT_BATCH_SIZE);
       const { data: createdProducts, error: productBatchErr } = await supabase
         .from('products')
@@ -4180,14 +4263,12 @@ const PurchaseEntry = () => {
       workRestoredRef.current = true;
       await persistEntrySnapshotNow({ lineItems: [...lineItems, ...checkpointItems] });
 
-      onProgress?.({
-        current: insertedVariantMap.size,
-        total: validRows.length,
-        successCount: insertedVariantMap.size,
-        errorCount,
-        skippedCount,
-        isImporting: true,
-      });
+      reportImportProgress(
+        insertedVariantMap.size,
+        validRows.length,
+        `Loading items into bill (${insertedVariantMap.size.toLocaleString("en-IN")} / ${validRows.length.toLocaleString("en-IN")})...`,
+        { successCount: insertedVariantMap.size, errorCount, skippedCount },
+      );
     }
 
     const newLineItems = buildLineItemsFromMap();
@@ -4197,6 +4278,12 @@ const PurchaseEntry = () => {
     importJustAppliedRef.current = true;
     skipSnapshotEffectRef.current = true;
     workRestoredRef.current = true;
+    reportImportProgress(
+      validRows.length,
+      validRows.length,
+      "Finishing import...",
+      { successCount, errorCount, skippedCount },
+    );
     setVisibleItemCount(Math.min(mergedLineItems.length, 200));
     setLineItems(mergedLineItems);
     await persistEntrySnapshotNow({ lineItems: mergedLineItems });
@@ -4231,6 +4318,9 @@ const PurchaseEntry = () => {
         : description,
       variant: isPartial ? "destructive" : undefined,
     });
+    } finally {
+      setExcelImportLoading(null);
+    }
   };
 
   const isMobile = useIsMobile();
@@ -4240,6 +4330,7 @@ const PurchaseEntry = () => {
     const totalQty = filledItems.reduce((s, i) => s + (i.qty || 0), 0);
     return (
       <div className="flex flex-col min-h-screen bg-muted/30">
+        {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
         <MobilePageHeader
           title={isEditMode ? "Edit Purchase" : "Purchase Entry"}
           subtitle={softwareBillNo || "NEW"}
@@ -4391,11 +4482,15 @@ const PurchaseEntry = () => {
         <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 z-30" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
           <button
             onClick={handleSave}
-            disabled={loading || lineItems.length === 0}
+            disabled={loading || excelImportLoading !== null || lineItems.length === 0}
             className="w-full bg-primary text-primary-foreground rounded-xl h-12 font-semibold text-sm flex items-center justify-center gap-2 active:scale-95 touch-manipulation shadow-sm disabled:opacity-50"
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {loading ? "Saving…" : `Save Bill${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
+            {excelImportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {excelImportLoading
+              ? `Importing ${excelImportLoading.current.toLocaleString("en-IN")} / ${excelImportLoading.total.toLocaleString("en-IN")}...`
+              : loading
+                ? "Saving…"
+                : `Save Bill${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
           </button>
         </div>
 
@@ -4445,6 +4540,7 @@ const PurchaseEntry = () => {
 
   return (
     <div className={cn(entryPageShellClass, "bg-slate-50")} data-entry-form>
+      {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
@@ -4824,6 +4920,7 @@ const PurchaseEntry = () => {
                   variant="outline"
                   size="sm"
                   className="h-10 gap-2 border-slate-300"
+                  disabled={excelImportLoading !== null}
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Import Excel
@@ -5343,10 +5440,12 @@ const PurchaseEntry = () => {
             <Button
               size="sm"
               onClick={handleSave}
-              disabled={loading || lineItems.length === 0 || isBillLocked}
+              disabled={loading || excelImportLoading !== null || lineItems.length === 0 || isBillLocked}
               className="h-9 px-5 text-[14px] bg-green-600 text-white hover:bg-green-500 font-extrabold gap-1.5 shadow-[0_0_15px_rgba(34,197,94,0.4)]"
             >
-              {loading ? (
+              {excelImportLoading ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Importing {excelImportLoading.current.toLocaleString("en-IN")}/{excelImportLoading.total.toLocaleString("en-IN")}...</>
+              ) : loading ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
               ) : (
                 <><Check className="h-3 w-3" /> <span className="kbd-hint">✓ Save Bill <kbd>Ctrl+S</kbd></span></>
