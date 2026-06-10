@@ -244,7 +244,8 @@ const POSDashboard = () => {
 
   // Default userFilter: admins see all users; non-admins default to themselves
   useEffect(() => {
-    if (userFilter !== "__pending__") return;
+    const pending = !userFilter || userFilter === "__pending__";
+    if (!pending) return;
     if (orgUsers.length > 0 && user?.id) {
       if (orgUsers.length === 1 || organizationRole === "admin" || organizationRole === "manager") {
         setUserFilter("all");
@@ -502,7 +503,7 @@ const POSDashboard = () => {
       saleTypeFilter,
       refundFilter,
       creditNoteFilter,
-      userFilter,
+      userFilter: userFilter && userFilter !== "__pending__" ? userFilter : "all",
       cancelFilter,
     }),
     [
@@ -535,7 +536,7 @@ const POSDashboard = () => {
     saleTypeFilter,
     refundFilter,
     creditNoteFilter,
-    userFilter,
+    userFilter && userFilter !== "__pending__" ? userFilter : "all",
     cancelFilter,
     currentPage,
     itemsPerPage,
@@ -576,7 +577,37 @@ const POSDashboard = () => {
           upiBillCount: 0,
         } satisfies PosDashboardSummaryStats;
       }
-      return fetchPosDashboardSummary(supabase, posDashboardFilters);
+      try {
+        return await fetchPosDashboardSummary(supabase, posDashboardFilters);
+      } catch (err) {
+        console.warn("POS dashboard summary query failed:", err);
+        return {
+          totalBills: 0,
+          totalQty: 0,
+          totalAmount: 0,
+          totalDiscount: 0,
+          netSale: 0,
+          completedCount: 0,
+          completedAmount: 0,
+          pendingCount: 0,
+          pendingAmount: 0,
+          holdCount: 0,
+          holdAmount: 0,
+          refundCount: 0,
+          refundAmount: 0,
+          creditNoteCount: 0,
+          creditNoteAmount: 0,
+          totalCash: 0,
+          totalCard: 0,
+          totalUpi: 0,
+          totalBalance: 0,
+          totalSaleReturnAdjust: 0,
+          totalRoundOff: 0,
+          cashBillCount: 0,
+          cardBillCount: 0,
+          upiBillCount: 0,
+        } satisfies PosDashboardSummaryStats;
+      }
     },
     enabled: posQueryEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
@@ -1586,7 +1617,7 @@ const POSDashboard = () => {
     sendWhatsApp(receiptData.customerPhone, message);
   };
 
-  const summaryStats = posSummaryStats ?? {
+  const emptySummaryStats: PosDashboardSummaryStats = {
     totalBills: 0,
     totalQty: 0,
     totalAmount: 0,
@@ -1612,6 +1643,18 @@ const POSDashboard = () => {
     cardBillCount: 0,
     upiBillCount: 0,
   };
+
+  const statsLookValid =
+    posSummaryStats &&
+    !summaryQueryLoading &&
+    (posSummaryStats.totalBills > 0 || totalCount === 0);
+
+  const summaryStats = statsLookValid
+    ? posSummaryStats
+    : {
+        ...emptySummaryStats,
+        totalBills: summaryQueryLoading ? 0 : totalCount,
+      };
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(totalCount / itemsPerPage)),
