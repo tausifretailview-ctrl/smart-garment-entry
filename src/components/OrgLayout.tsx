@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +28,7 @@ import {
   recordTabCacheSnapshot,
 } from "@/lib/navigationPerfDiagnostics";
 import { cn } from "@/lib/utils";
+import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
 
 /** Sentinel — no cached pane is active while a bill-entry screen uses <Outlet>. */
 const TAB_CACHE_INACTIVE = "__none__";
@@ -42,6 +44,7 @@ export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { user, loading: authLoading } = useAuth();
   const { currentOrganization, organizations, loading: orgLoading, switchOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [isOrgSynced, setIsOrgSynced] = useState(false);
   const [syncTimeout, setSyncTimeout] = useState(false);
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
@@ -124,6 +127,27 @@ export const OrgLayout = () => {
     const t = window.setTimeout(run, 1_500);
     return () => window.clearTimeout(t);
   }, [isOrgSynced, user, tabPaths]);
+
+  // Warm Sales Invoice Dashboard first page (weekly default) after login — data ready before user opens tab.
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!isOrgSynced || !user || !orgId) return;
+
+    const warm = () => {
+      const opts = invoiceDashboardPrefetchQueryOptions(supabase, orgId);
+      void queryClient.prefetchQuery({
+        ...opts,
+        staleTime: 30_000,
+      });
+    };
+
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(warm, { timeout: 5_000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(warm, 2_000);
+    return () => window.clearTimeout(t);
+  }, [isOrgSynced, user, currentOrganization?.id, queryClient]);
 
   // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
   const wantsTabCache =

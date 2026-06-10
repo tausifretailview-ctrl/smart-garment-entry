@@ -13,6 +13,10 @@ import {
 export const INVOICE_DASHBOARD_SALES_SELECT =
   "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
 
+/** Lighter select for paginated dashboard table (faster first paint). */
+export const INVOICE_DASHBOARD_LIST_SELECT =
+  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, total_qty, sale_return_adjust, is_cancelled, shop_name, sale_type, customers:customer_id (gst_number)";
+
 export type InvoiceDashboardSaleDateFilter = {
   start: string | null;
   end: string | null;
@@ -90,6 +94,27 @@ export function shouldUnionSaleItemsForInvoiceSearch(searchStr: string): boolean
   if (!t) return false;
   if (/^\d+$/.test(t)) return t.length >= 8;
   return /[A-Za-z]/.test(t) && t.length >= 4;
+}
+
+function shouldApplyInvoiceUserFilter(userFilter: string): boolean {
+  return Boolean(userFilter) && userFilter !== "all" && userFilter !== "__pending__";
+}
+
+function applyQuickInvoiceDisplayFields(inv: any): any {
+  const isInvCancelled = inv.is_cancelled === true || inv.payment_status === "cancelled";
+  if (isInvCancelled) {
+    return { ...inv, payment_status: "cancelled" as const, outstanding: 0 };
+  }
+  if (inv.payment_status === "hold") {
+    return { ...inv };
+  }
+  const outstanding = Math.max(
+    0,
+    Number(inv.net_amount || 0) -
+      Number(inv.paid_amount || 0) -
+      Number(inv.sale_return_adjust || 0),
+  );
+  return { ...inv, outstanding };
 }
 
 function applyPaymentStatusFilterToSalesQuery(query: any, paymentStatusFilter: string[]) {
@@ -177,7 +202,7 @@ function applyInvoiceDashboardFilters(query: any, filters: InvoiceDashboardFilte
   if (filters.shopFilter !== "all") {
     q = q.eq("shop_name", filters.shopFilter);
   }
-  if (filters.userFilter !== "all" && filters.userFilter !== "__pending__") {
+  if (shouldApplyInvoiceUserFilter(filters.userFilter)) {
     q = q.eq("created_by", filters.userFilter);
   }
   if (filters.saleDateFilter.start) {
@@ -297,7 +322,7 @@ function computeInvoiceDashboardStats(rows: any[]): InvoiceDashboardStats {
   };
 }
 
-/** Client aggregation when RPC is missing or fails (same filters + reconcile as table). */
+/** Fast client aggregation when RPC is missing (no receipt reconcile — cards only). */
 async function fetchInvoiceDashboardStatsClient(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
@@ -329,11 +354,11 @@ async function fetchInvoiceDashboardStatsClient(
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
 
-  const reconciled = await reconcileInvoiceDashboardRows(client, filters, allRows);
+  const displayRows = allRows.map(applyQuickInvoiceDisplayFields);
   const statsRows =
     filters.paymentStatusFilter.length > 0
-      ? reconciled.filter((inv) => filters.paymentStatusFilter.includes(inv.payment_status))
-      : reconciled.filter(
+      ? displayRows.filter((inv) => filters.paymentStatusFilter.includes(inv.payment_status))
+      : displayRows.filter(
           (inv) =>
             inv.is_cancelled !== true &&
             inv.payment_status !== "cancelled" &&
@@ -400,9 +425,18 @@ const SR_RECONCILE_TOLERANCE = 0.005;
 export type InvoiceDashboardPageOptions = {
   page: number;
   pageSize: number;
+  /** When false, skip receipt reconcile for faster first paint (use sourceRows + reconcile query). */
+  reconcile?: boolean;
 };
 
-async function reconcileInvoiceDashboardRows(
+export type InvoiceDashboardPageResult = {
+  invoices: any[];
+  totalCount: number;
+  /** Raw DB rows for background reconcile (omitted when reconcile: true). */
+  sourceRows?: any[];
+};
+
+export async function reconcileInvoiceDashboardRows(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
   invoices: any[],
@@ -501,23 +535,21 @@ export async function fetchInvoiceDashboardPage(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
   options: InvoiceDashboardPageOptions,
-): Promise<{ invoices: any[]; totalCount: number }> {
+): Promise<InvoiceDashboardPageResult> {
   if (!filters.organizationId) {
     return { invoices: [], totalCount: 0 };
   }
 
+  const reconcile = options.reconcile !== false;
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
+  const select = reconcile ? INVOICE_DASHBOARD_SALES_SELECT : INVOICE_DASHBOARD_LIST_SELECT;
 
   // Match export/unified fetch: range before search filters, then await (not range after .or()).
   const [totalCount, dataResult] = await Promise.all([
     countFilteredInvoiceSales(client, filters),
     (async () => {
-      let query: any = buildFilteredSalesQuery(
-        client,
-        filters,
-        INVOICE_DASHBOARD_SALES_SELECT,
-      ).range(from, to);
+      let query: any = buildFilteredSalesQuery(client, filters, select).range(from, to);
       query = await applySearchToSalesQuery(client, filters, query);
       return query;
     })(),
@@ -530,6 +562,17 @@ export async function fetchInvoiceDashboardPage(
     return { invoices: [], totalCount };
   }
 
+  if (!reconcile) {
+    const quickDisplay = pageRows.map(applyQuickInvoiceDisplayFields);
+    const invoices =
+      filters.paymentStatusFilter.length > 0
+        ? quickDisplay.filter((inv: any) =>
+            filters.paymentStatusFilter.includes(inv.payment_status),
+          )
+        : quickDisplay;
+    return { invoices, totalCount, sourceRows: pageRows };
+  }
+
   const normalized = await reconcileInvoiceDashboardRows(client, filters, pageRows);
   const invoices =
     filters.paymentStatusFilter.length > 0
@@ -539,6 +582,67 @@ export async function fetchInvoiceDashboardPage(
       : normalized;
 
   return { invoices, totalCount };
+}
+
+/** Default weekly range — matches SalesInvoiceDashboard initial periodFilter. */
+export function buildDefaultWeeklyInvoiceDashboardFilters(
+  organizationId: string,
+): InvoiceDashboardFilters {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - 6);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const startYmd = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+  const endYmd = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+  return {
+    organizationId,
+    debouncedSearch: "",
+    deliveryFilter: "all",
+    paymentStatusFilter: [],
+    shopFilter: "all",
+    userFilter: "all",
+    saleDateFilter: {
+      start: `${startYmd}T00:00:00`,
+      end: `${endYmd}T23:59:59.999`,
+    },
+    voucherDateFrom: startYmd,
+    voucherDateTo: endYmd,
+  };
+}
+
+export const INVOICE_DASHBOARD_DEFAULT_PAGE_SIZE = 50;
+
+/** React Query prefetch bundle for post-login warm (weekly default filters). */
+export function invoiceDashboardPrefetchQueryOptions(
+  client: SupabaseClient,
+  organizationId: string,
+  pageSize: number = INVOICE_DASHBOARD_DEFAULT_PAGE_SIZE,
+) {
+  const filters = buildDefaultWeeklyInvoiceDashboardFilters(organizationId);
+  const queryKey = [
+    "invoice-dashboard-unified",
+    organizationId,
+    "",
+    "all",
+    [] as string[],
+    "all",
+    "all",
+    filters.voucherDateFrom,
+    filters.voucherDateTo,
+    1,
+    pageSize,
+  ] as const;
+
+  return {
+    queryKey,
+    queryFn: () =>
+      fetchInvoiceDashboardPage(client, filters, {
+        page: 1,
+        pageSize,
+        reconcile: false,
+      }),
+  };
 }
 
 /** Full filtered fetch for export paths (not used by paginated table). */
