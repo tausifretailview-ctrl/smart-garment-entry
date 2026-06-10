@@ -101,8 +101,8 @@ import {
 } from "@/utils/saleSettlement";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
+  fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStatsViaRpc,
-  fetchInvoiceDashboardUnified,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
@@ -702,6 +702,8 @@ export default function SalesInvoiceDashboard() {
     userFilter,
     queryDateRange.start,
     queryDateRange.end,
+    currentPage,
+    itemsPerPage,
   ] as const;
 
   // Fast server-side summary tiles (parallel with table fetch).
@@ -731,9 +733,9 @@ export default function SalesInvoiceDashboard() {
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  // Table rows: reconcile outstanding per invoice (stats come from RPC above).
+  // Table rows: server-side page + per-page reconcile (stats come from RPC above).
   const {
-    data: dashboardUnified,
+    data: dashboardPage,
     isLoading,
     isFetching,
     refetch,
@@ -743,29 +745,18 @@ export default function SalesInvoiceDashboard() {
     queryKey: dashboardQueryKey,
     queryFn: async () => {
       if (!currentOrganization?.id) {
-        return {
-          invoices: [] as any[],
-          stats: {
-            totalInvoices: 0,
-            totalAmount: 0,
-            totalDiscount: 0,
-            totalQty: 0,
-            pendingAmount: 0,
-            deliveredCount: 0,
-            deliveredAmount: 0,
-            undeliveredCount: 0,
-            undeliveredAmount: 0,
-          },
-          totalCount: 0,
-        };
+        return { invoices: [] as any[], totalCount: 0 };
       }
-      return fetchInvoiceDashboardUnified(supabase, dashboardFilters);
+      return fetchInvoiceDashboardPage(supabase, dashboardFilters, {
+        page: currentPage,
+        pageSize: itemsPerPage,
+      });
     },
     enabled: dashboardQueryEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const isDashboardInitialLoad = isLoading && dashboardUnified === undefined;
+  const isDashboardInitialLoad = isLoading && dashboardPage === undefined;
   const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
 
   useEffect(() => {
@@ -780,18 +771,17 @@ export default function SalesInvoiceDashboard() {
     });
   }, [invoicesError, statsError, toast]);
 
-  const allInvoicesData = dashboardUnified?.invoices || [];
-  const reconciledStats = dashboardStats ?? dashboardUnified?.stats;
-  const totalCount = allInvoicesData.length;
-  const invoicesData = useMemo(() => {
-    const from = (currentPage - 1) * itemsPerPage;
-    return allInvoicesData.slice(from, from + itemsPerPage);
-  }, [allInvoicesData, currentPage, itemsPerPage]);
+  const paginatedInvoices = dashboardPage?.invoices || [];
+  const reconciledStats = dashboardStats;
+  const totalCount =
+    paymentStatusFilter.length > 0 && dashboardStats
+      ? dashboardStats.totalInvoices
+      : (dashboardPage?.totalCount ?? 0);
 
   // Repair stale paid_amount / payment_status for visible rows only (not on every dashboard load).
   const visiblePageSyncKey = useMemo(
-    () => invoicesData.map((inv: any) => inv.id).join(","),
-    [invoicesData],
+    () => paginatedInvoices.map((inv: any) => inv.id).join(","),
+    [paginatedInvoices],
   );
   useEffect(() => {
     if (!currentOrganization?.id || !visiblePageSyncKey) return;
@@ -801,7 +791,7 @@ export default function SalesInvoiceDashboard() {
         const didUpdate = await syncVisibleInvoiceStaleFields(
           supabase,
           currentOrganization.id,
-          invoicesData,
+          paginatedInvoices,
           queryDateRange.start,
           queryDateRange.end,
         );
@@ -818,7 +808,7 @@ export default function SalesInvoiceDashboard() {
   }, [
     currentOrganization?.id,
     visiblePageSyncKey,
-    invoicesData,
+    paginatedInvoices,
     queryDateRange.start,
     queryDateRange.end,
     refetch,
@@ -834,7 +824,7 @@ export default function SalesInvoiceDashboard() {
     if (!downloadPdfId || isDashboardInitialLoad || downloadTriggeredRef.current === downloadPdfId) return;
     downloadTriggeredRef.current = downloadPdfId;
     // Find the invoice in loaded data or fetch it directly
-    const found = invoicesData.find((inv: any) => inv.id === downloadPdfId);
+    const found = paginatedInvoices.find((inv: any) => inv.id === downloadPdfId);
     if (found) {
       handleDownloadPDF(found);
     } else {
@@ -851,7 +841,7 @@ export default function SalesInvoiceDashboard() {
     // Clean up the URL param
     searchParams.delete('downloadPdf');
     setSearchParams(searchParams, { replace: true });
-  }, [downloadPdfId, isDashboardInitialLoad, invoicesData]);
+  }, [downloadPdfId, isDashboardInitialLoad, paginatedInvoices]);
 
   // Fetch distinct shop names for filter
   const { data: shopNames = [] } = useQuery({
@@ -1169,8 +1159,7 @@ export default function SalesInvoiceDashboard() {
   }, [currentOrganization?.id, fetchSaleItems]);
 
   // Server-side handles all filtering — just use invoicesData directly
-  const paginatedInvoices = invoicesData;
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   // Page totals — balance column matches reconciled `outstanding` per row
   const pageTotals = useMemo(() => {
