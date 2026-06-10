@@ -47,14 +47,18 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   // Reset loading state when dialog opens or format changes.
   // IMPORTANT: invoice templates may fetch async settings and initially render "Loading...".
   // We keep the dialog "Loading" until real content is present to avoid printing a blank/Loading page.
+  // Do NOT depend on renderInvoice identity — callers often pass inline lambdas that change every parent render.
   useEffect(() => {
     if (!open) return;
 
     setIsLoading(true);
 
     const startedAt = Date.now();
-    const MAX_WAIT_MS = 4000;
-    const POLL_MS = 100;
+    const MAX_WAIT_MS = 6000;
+    const POLL_MS = 150;
+    let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    let observer: MutationObserver | undefined;
 
     const isContentReady = () => {
       const el = printRef.current;
@@ -80,24 +84,52 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       return true;
     };
 
+    const stopWaiting = () => {
+      if (cancelled) return true;
+      cancelled = true;
+      observer?.disconnect();
+      if (timerId !== undefined) window.clearTimeout(timerId);
+      setIsLoading(false);
+      return true;
+    };
+
+    const checkReady = () => {
+      if (cancelled) return true;
+      if (isContentReady()) return stopWaiting();
+      if (Date.now() - startedAt >= MAX_WAIT_MS) return stopWaiting();
+      return false;
+    };
+
     const tick = () => {
-      if (isContentReady()) {
-        setIsLoading(false);
-        return;
-      }
-      if (Date.now() - startedAt >= MAX_WAIT_MS) {
-        // Fallback: unblock UI even if content readiness cannot be detected.
-        setIsLoading(false);
-        return;
-      }
+      if (checkReady()) return;
       timerId = window.setTimeout(tick, POLL_MS);
     };
 
-    let timerId = window.setTimeout(tick, POLL_MS);
-    return () => {
-      window.clearTimeout(timerId);
+    const attachObserver = () => {
+      const el = printRef.current;
+      if (!el || cancelled) return;
+      observer = new MutationObserver(() => {
+        checkReady();
+      });
+      observer.observe(el, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-invoice-loading'],
+      });
     };
-  }, [open, selectedFormat, renderInvoice]);
+
+    timerId = window.setTimeout(() => {
+      attachObserver();
+      tick();
+    }, POLL_MS);
+
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      if (timerId !== undefined) window.clearTimeout(timerId);
+    };
+  }, [open, selectedFormat]);
 
   const getPageSize = () => {
     switch (selectedFormat) {
@@ -318,7 +350,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           </div>
 
           {/* Preview Container */}
-          <div className="flex justify-center">
+          <div className="relative flex justify-center min-h-[240px]">
             {/* Loading overlay */}
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10 rounded-md">
