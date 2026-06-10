@@ -516,7 +516,13 @@ const PurchaseBillDashboard = () => {
   );
 
   // Server-side paginated query for purchase bills
-  const { data: billsQueryData, isLoading: billsQueryLoading, refetch: refetchBills } = useQuery({
+  const {
+    data: billsQueryData,
+    isLoading: billsQueryLoading,
+    isError: billsQueryError,
+    error: billsQueryErrorDetail,
+    refetch: refetchBills,
+  } = useQuery({
     queryKey: purchaseBillsQueryKey,
     queryFn: async () => {
       if (!currentOrganization?.id) return { bills: [], totalCount: 0 };
@@ -626,7 +632,7 @@ const PurchaseBillDashboard = () => {
   });
 
   const bills = billsQueryData?.bills ?? [];
-  const loading = billsQueryLoading && bills.length === 0;
+  const loading = billsQueryLoading && bills.length === 0 && !billsQueryError;
 
   const fetchBills = () => {
     refetchBills();
@@ -2258,7 +2264,21 @@ const PurchaseBillDashboard = () => {
               <div id="erp-toolbar-portal-purchase" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
 
-            {filteredBills.length === 0 ? (
+            {billsQueryError ? (
+              <div className="text-center py-12 bg-white border border-destructive/20 rounded-lg mx-2">
+                <Receipt className="h-12 w-12 mx-auto mb-4 text-destructive/60" />
+                <p className="text-lg font-medium text-foreground">Could not load purchase bills</p>
+                <p className="text-sm text-muted-foreground mt-1 mb-4 max-w-md mx-auto">
+                  {(billsQueryErrorDetail as Error)?.message?.includes("Failed to fetch")
+                    ? "Connection problem — check your internet and try again."
+                    : "Please check your connection and try again."}
+                </p>
+                <Button variant="outline" onClick={() => refetchBills()} className="gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  Retry
+                </Button>
+              </div>
+            ) : filteredBills.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground bg-white">
                 <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No purchase bills found</p>

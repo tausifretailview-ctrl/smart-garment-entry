@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
-import { shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { TabCacheLayoutContext } from "@/contexts/TabCacheLayoutContext";
 import {
   isNavigationPerfEnabled,
@@ -31,8 +31,11 @@ import {
 
 /** Hidden tab panes idle longer than this may be unmounted (read-only dashboards only). */
 const IDLE_UNMOUNT_MS = 600_000;
+/** Windows desktop: evict idle dashboards sooner to avoid renderer OOM / sudden app close. */
+const ELECTRON_IDLE_UNMOUNT_MS = 180_000;
 /** Avoid churn when few tabs are open — never auto-unmount at or below this count. */
 const MIN_KEEP_TABS = 3;
+const ELECTRON_MIN_KEEP_TABS = 2;
 const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
 
 /** Heavy admin screens — only these may idle-evict when many tabs are open. */
@@ -101,10 +104,36 @@ function nudgePaneScrollLayout(root: HTMLElement) {
   });
 }
 
+/** Screens with live carts / unsaved bill work — never idle-evict. */
+const LIVE_WORK_TAB_PATHS = new Set([
+  "pos-sales",
+  "sales-invoice",
+  "purchase-entry",
+  "sale-return-entry",
+  "purchase-return-entry",
+  "product-entry",
+  "quotation-entry",
+  "sale-order-entry",
+]);
+
 function isProtectedTabPath(path: string): boolean {
   if (isEntryTabPath(path)) return true;
+  if (LIVE_WORK_TAB_PATHS.has(path)) return true;
   if (IDLE_EVICT_ALLOWED_PATHS.has(path)) return false;
-  return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isTabCachePath(path);
+  // Browser/PWA: keep dashboards mounted for instant tab switch.
+  if (!isElectronShell()) {
+    return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isTabCachePath(path);
+  }
+  // Electron: evict idle list dashboards — keeping every tab mounted causes OOM crashes.
+  return false;
+}
+
+function getIdleUnmountMs(): number {
+  return isElectronShell() ? ELECTRON_IDLE_UNMOUNT_MS : IDLE_UNMOUNT_MS;
+}
+
+function getMinKeepTabs(): number {
+  return isElectronShell() ? ELECTRON_MIN_KEEP_TABS : MIN_KEEP_TABS;
 }
 
 const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
@@ -286,7 +315,13 @@ function CachedTabPane({
 }) {
   const paneRef = useRef<HTMLDivElement>(null);
   const wasActiveRef = useRef(active);
+  const hasPaneMountedRef = useRef(false);
   const [loadKey, setLoadKey] = useState(0);
+
+  const handlePaneReady = useCallback(() => {
+    hasPaneMountedRef.current = true;
+    onActivePaneReady?.(path);
+  }, [onActivePaneReady, path]);
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -307,8 +342,10 @@ function CachedTabPane({
       };
       raf = requestAnimationFrame(restorePane);
       timer = window.setTimeout(restorePane, 80);
-      // Suspense onReady only fires on first mount — signal OrgLayout on every tab activation.
-      requestAnimationFrame(() => onActivePaneReady?.(path));
+      // Only signal ready when chunk already mounted — premature ready hid <Outlet> before Suspense resolved.
+      if (hasPaneMountedRef.current) {
+        requestAnimationFrame(() => onActivePaneReady?.(path));
+      }
     }
 
     wasActiveRef.current = active;
@@ -316,9 +353,10 @@ function CachedTabPane({
       if (raf) cancelAnimationFrame(raf);
       if (timer) window.clearTimeout(timer);
     };
-  }, [active, path]);
+  }, [active, path, onActivePaneReady]);
 
   const retryTabLoad = useCallback(() => {
+    hasPaneMountedRef.current = false;
     resetTabPageChunk(path);
     prefetchTabPage(path);
     setLoadKey((k) => k + 1);
@@ -336,7 +374,7 @@ function CachedTabPane({
         <TabPageWithPerf
           path={path}
           LazyPage={LazyPage}
-          onReady={active ? () => onActivePaneReady?.(path) : undefined}
+          onReady={active ? handlePaneReady : undefined}
         />
       </Suspense>
     </TabPaneErrorBoundary>
@@ -405,8 +443,11 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
   const evictIdleMountedTabs = useCallback(() => {
     if (electronSingleTab) return;
 
+    const minKeepTabs = getMinKeepTabs();
+    const idleUnmountMs = getIdleUnmountMs();
+
     setMountedPaths((prev) => {
-      if (prev.size <= MIN_KEEP_TABS) return prev;
+      if (prev.size <= minKeepTabs) return prev;
 
       const now = Date.now();
       const idleCandidates: string[] = [];
@@ -415,7 +456,7 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
         if (path === activePath) continue;
         if (isProtectedTabPath(path)) continue;
         const lastActive = lastActiveAtRef.current.get(path) ?? 0;
-        if (now - lastActive > IDLE_UNMOUNT_MS) {
+        if (now - lastActive > idleUnmountMs) {
           idleCandidates.push(path);
         }
       }
@@ -424,7 +465,7 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
 
       const next = new Set(prev);
       for (const path of idleCandidates) {
-        if (next.size <= MIN_KEEP_TABS) break;
+        if (next.size <= minKeepTabs) break;
         next.delete(path);
       }
 
