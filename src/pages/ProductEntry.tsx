@@ -20,7 +20,15 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
-import { resolveGarmentGstForLine, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
+import {
+  resolveGarmentGstForLine,
+  isGarmentGstAutoBumped,
+  getGarmentGstThreshold,
+  hasConfiguredDefaultTaxRate,
+  normalizeGstPercent,
+  readConfiguredDefaultTaxRate,
+  type GarmentGstRuleSettings,
+} from "@/utils/gstRules";
 import {
   Dialog,
   DialogContent,
@@ -403,22 +411,23 @@ const ProductEntry = () => {
         };
         setGarmentGstSettings(loadedGarmentGstSettings);
         if (!editingProductId) {
-          setFormData(prev => {
-            const purchaseGst =
-              purchaseSettings.default_tax_rate !== undefined
-                ? purchaseSettings.default_tax_rate
-                : prev.purchase_gst_percent;
+          setFormData((prev) => {
+            const prevPurchaseGst = normalizeGstPercent(prev.purchase_gst_percent, 18);
+            const prevSaleGst = normalizeGstPercent(prev.sale_gst_percent, 18);
+            const purchaseGst = hasConfiguredDefaultTaxRate(purchaseSettings)
+              ? readConfiguredDefaultTaxRate(purchaseSettings, prevPurchaseGst)
+              : prevPurchaseGst;
             const saleGst = resolveGarmentGstForLine(
               prev.default_sale_price ?? 0,
               purchaseGst,
-              purchaseSettings.default_tax_rate !== undefined
-                ? purchaseSettings.default_tax_rate
-                : prev.sale_gst_percent,
+              hasConfiguredDefaultTaxRate(purchaseSettings)
+                ? readConfiguredDefaultTaxRate(purchaseSettings, prevSaleGst)
+                : prevSaleGst,
               loadedGarmentGstSettings,
             );
             return {
               ...prev,
-              ...(purchaseSettings.default_tax_rate !== undefined
+              ...(hasConfiguredDefaultTaxRate(purchaseSettings)
                 ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
                 : {}),
               sale_gst_percent: saleGst,
@@ -2237,7 +2246,7 @@ const ProductEntry = () => {
               <div className="space-y-2">
                 <Label htmlFor="purchase_gst" className="text-blue-600 dark:text-blue-400">Purchase GST %</Label>
                 <Select
-                  value={formData.purchase_gst_percent.toString()}
+                  value={String(normalizeGstPercent(formData.purchase_gst_percent, 18))}
                   onValueChange={(value) => {
                     const val = parseInt(value);
                     setFormData(prev => ({
@@ -2279,7 +2288,7 @@ const ProductEntry = () => {
                   </span>
                 )}
                 <Select
-                  value={formData.sale_gst_percent.toString()}
+                  value={String(normalizeGstPercent(formData.sale_gst_percent, 18))}
                   onValueChange={(value) => {
                     setFormData(prev => ({
                       ...prev,

@@ -20,6 +20,30 @@ export interface GarmentGstRuleSettings {
 export const DEFAULT_GARMENT_GST_THRESHOLD = 2625;
 export const GARMENT_BUMPED_GST = 18;
 
+/** Coerce GST % from settings/DB — null, undefined, NaN become fallback. */
+export function normalizeGstPercent(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** Whether purchase_settings.default_tax_rate was stored with a usable numeric value. */
+export function hasConfiguredDefaultTaxRate(
+  settings: { default_tax_rate?: unknown } | null | undefined,
+): boolean {
+  if (!settings || !("default_tax_rate" in settings)) return false;
+  const raw = settings.default_tax_rate;
+  if (raw === null || raw === undefined || raw === "") return false;
+  return Number.isFinite(Number(raw));
+}
+
+export function readConfiguredDefaultTaxRate(
+  settings: { default_tax_rate?: unknown } | null | undefined,
+  fallback: number,
+): number {
+  if (!hasConfiguredDefaultTaxRate(settings)) return fallback;
+  return normalizeGstPercent(settings!.default_tax_rate, fallback);
+}
+
 export function isGarmentGstRuleEnabled(
   settings?: GarmentGstRuleSettings | null
 ): boolean {

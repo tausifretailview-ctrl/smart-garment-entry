@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
 import { Label } from "@/components/ui/label";
-import { resolveGarmentGstForLine, isGarmentGstAutoBumped, getGarmentGstThreshold, type GarmentGstRuleSettings } from "@/utils/gstRules";
+import {
+  resolveGarmentGstForLine,
+  isGarmentGstAutoBumped,
+  getGarmentGstThreshold,
+  hasConfiguredDefaultTaxRate,
+  normalizeGstPercent,
+  readConfiguredDefaultTaxRate,
+  type GarmentGstRuleSettings,
+} from "@/utils/gstRules";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -465,9 +473,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       colors: [],
       size_group_id: lastProduct.size_group_id || "",
       hsn_code: lastProduct.hsn_code || "",
-      gst_per: lastProduct.gst_per ?? 18,
-      purchase_gst_percent: lastProduct.purchase_gst_percent ?? lastProduct.gst_per ?? 18,
-      sale_gst_percent: lastProduct.sale_gst_percent ?? lastProduct.gst_per ?? 18,
+      gst_per: normalizeGstPercent(lastProduct.gst_per, 18),
+      purchase_gst_percent: normalizeGstPercent(
+        lastProduct.purchase_gst_percent ?? lastProduct.gst_per,
+        18,
+      ),
+      sale_gst_percent: normalizeGstPercent(
+        lastProduct.sale_gst_percent ?? lastProduct.gst_per,
+        18,
+      ),
       uom: lastProduct.uom || DEFAULT_UOM,
       default_pur_price: lastProduct.default_pur_price,
       default_sale_price: lastProduct.default_sale_price,
@@ -680,22 +694,23 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           garment_gst_threshold: purchaseSettings.garment_gst_threshold,
         };
         setGarmentGstSettings(loadedGarmentGstSettings);
-        setFormData(prev => {
-          const purchaseGst =
-            purchaseSettings.default_tax_rate !== undefined
-              ? purchaseSettings.default_tax_rate
-              : prev.purchase_gst_percent;
+        setFormData((prev) => {
+          const prevPurchaseGst = normalizeGstPercent(prev.purchase_gst_percent, 18);
+          const prevSaleGst = normalizeGstPercent(prev.sale_gst_percent, 18);
+          const purchaseGst = hasConfiguredDefaultTaxRate(purchaseSettings)
+            ? readConfiguredDefaultTaxRate(purchaseSettings, prevPurchaseGst)
+            : prevPurchaseGst;
           const saleGst = resolveGarmentGstForLine(
             prev.default_sale_price ?? 0,
             purchaseGst,
-            purchaseSettings.default_tax_rate !== undefined
-              ? purchaseSettings.default_tax_rate
-              : prev.sale_gst_percent,
+            hasConfiguredDefaultTaxRate(purchaseSettings)
+              ? readConfiguredDefaultTaxRate(purchaseSettings, prevSaleGst)
+              : prevSaleGst,
             loadedGarmentGstSettings,
           );
           return {
             ...prev,
-            ...(purchaseSettings.default_tax_rate !== undefined
+            ...(hasConfiguredDefaultTaxRate(purchaseSettings)
               ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
               : {}),
             sale_gst_percent: saleGst,
@@ -1597,7 +1612,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                 <div className="space-y-2">
                   <Label htmlFor="purchase_gst" className="text-blue-600 dark:text-blue-400">Purchase GST %</Label>
                   <Select
-                    value={formData.purchase_gst_percent.toString()}
+                    value={String(normalizeGstPercent(formData.purchase_gst_percent, 18))}
                     onValueChange={(value) => {
                       const val = parseInt(value);
                       setFormData(prev => ({
@@ -1645,7 +1660,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
                     </span>
                   )}
                   <Select
-                    value={formData.sale_gst_percent.toString()}
+                    value={String(normalizeGstPercent(formData.sale_gst_percent, 18))}
                     onValueChange={(value) => {
                       setFormData(prev => ({
                         ...prev,
