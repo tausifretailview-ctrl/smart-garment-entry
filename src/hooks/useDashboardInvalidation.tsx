@@ -48,6 +48,13 @@ export const useDashboardInvalidation = () => {
   const invalidatePurchases = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
+    queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+    queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
+    queryClient.invalidateQueries({ queryKey: ["last-purchase-bill"] });
+    queryClient.invalidateQueries({ queryKey: ["all-purchase-bill-ids"] });
+    queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+    queryClient.invalidateQueries({ queryKey: ["product-dashboard"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
   }, [queryClient]);
 
   const invalidateCustomers = useCallback(

@@ -317,20 +317,41 @@ export function clearPurchaseEntrySession(orgId: string, userId: string): void {
 
 /** Fired when Purchase Bills dashboard discards a draft — Purchase Entry tab may still be mounted. */
 export const PURCHASE_DRAFT_DISCARDED_EVENT = "ezzy:purchase-draft-discarded";
+/** Fired after a purchase bill is saved — dashboard draft banner + lists should refresh. */
+export const PURCHASE_DRAFT_SAVED_EVENT = "ezzy:purchase-draft-saved";
 
-export type PurchaseDraftDiscardedDetail = {
+export type PurchaseDraftEventDetail = {
   orgId: string;
   userId: string;
 };
 
-/** Clear local snapshots and tell any mounted Purchase Entry pane to drop in-memory work. */
-export function dispatchPurchaseDraftDiscarded(orgId: string, userId: string): void {
-  clearPurchaseEntrySession(orgId, userId);
+/** @deprecated Use PurchaseDraftEventDetail */
+export type PurchaseDraftDiscardedDetail = PurchaseDraftEventDetail;
+
+function dispatchPurchaseDraftEvent(
+  eventName: string,
+  orgId: string,
+  userId: string,
+  clearSnapshots: boolean,
+): void {
+  if (clearSnapshots) {
+    clearPurchaseEntrySession(orgId, userId);
+  }
   window.dispatchEvent(
-    new CustomEvent(PURCHASE_DRAFT_DISCARDED_EVENT, {
+    new CustomEvent<PurchaseDraftEventDetail>(eventName, {
       detail: { orgId, userId },
     }),
   );
+}
+
+/** Clear local snapshots and tell any mounted Purchase Entry pane to drop in-memory work. */
+export function dispatchPurchaseDraftDiscarded(orgId: string, userId: string): void {
+  dispatchPurchaseDraftEvent(PURCHASE_DRAFT_DISCARDED_EVENT, orgId, userId, true);
+}
+
+/** Notify all tabs that the purchase draft was committed — clear banner and refresh lists. */
+export function dispatchPurchaseDraftSaved(orgId: string, userId: string): void {
+  dispatchPurchaseDraftEvent(PURCHASE_DRAFT_SAVED_EVENT, orgId, userId, true);
 }
 
 /** Stable id per browser tab — metadata on draft snapshots for last-write diagnostics. */

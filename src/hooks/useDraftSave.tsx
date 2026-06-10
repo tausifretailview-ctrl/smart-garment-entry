@@ -3,7 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { countPurchaseDraftQty } from '@/lib/purchaseEntryPersistence';
+import {
+  countPurchaseDraftQty,
+  PURCHASE_DRAFT_DISCARDED_EVENT,
+  PURCHASE_DRAFT_SAVED_EVENT,
+  type PurchaseDraftEventDetail,
+} from '@/lib/purchaseEntryPersistence';
 
 export type DraftType = 'purchase' | 'quotation' | 'sale_order' | 'sale_invoice' | 'purchase_order' | 'salesman_sale_order' | 'purchase_return';
 
@@ -86,6 +91,28 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   useEffect(() => {
     checkDraft();
   }, [checkDraft]);
+
+  // Purchase Entry may save/delete draft in another tab — keep dashboard banner in sync.
+  useEffect(() => {
+    if (draftType !== 'purchase') return;
+
+    const onPurchaseDraftCleared = (event: Event) => {
+      const detail = (event as CustomEvent<PurchaseDraftEventDetail>).detail;
+      if (!detail || detail.orgId !== currentOrganization?.id || detail.userId !== user?.id) return;
+      setHasDraft(false);
+      setDraftData(null);
+      setLastSaved(null);
+      currentDataRef.current = null;
+      draftClearedRef.current = true;
+    };
+
+    window.addEventListener(PURCHASE_DRAFT_SAVED_EVENT, onPurchaseDraftCleared);
+    window.addEventListener(PURCHASE_DRAFT_DISCARDED_EVENT, onPurchaseDraftCleared);
+    return () => {
+      window.removeEventListener(PURCHASE_DRAFT_SAVED_EVENT, onPurchaseDraftCleared);
+      window.removeEventListener(PURCHASE_DRAFT_DISCARDED_EVENT, onPurchaseDraftCleared);
+    };
+  }, [currentOrganization?.id, user?.id, draftType]);
 
   // Save draft
   const saveDraft = useCallback(async (data: any, showToast = false) => {
