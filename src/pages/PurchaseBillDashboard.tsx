@@ -40,6 +40,7 @@ import {
 } from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
@@ -637,22 +638,11 @@ const PurchaseBillDashboard = () => {
     }
 
     try {
-      let query = supabase
-        .from("purchase_items")
-        .select("id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
-        .eq("bill_id", billId)
-        .order("created_at");
-
-      // Cancelled bills keep soft-deleted items; include them only for display in expanded view.
-      if (!isCancelled) {
-        query = query.is("deleted_at", null);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      const fetchedItems = (data || []) as PurchaseItem[];
+      const fetchedItems = (await fetchPurchaseItemsByBillId(
+        billId,
+        "id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total",
+        { includeDeleted: isCancelled },
+      )) as PurchaseItem[];
       const missingStyleProductIds = Array.from(
         new Set(
           fetchedItems
@@ -664,12 +654,8 @@ const PurchaseBillDashboard = () => {
       let itemsWithStyleFallback = fetchedItems;
 
       if (missingStyleProductIds.length > 0) {
-        const { data: products, error: productsError } = await supabase
-          .from("products")
-          .select("id, style")
-          .in("id", missingStyleProductIds);
-
-        if (!productsError && products) {
+        const products = await fetchProductsByIds(missingStyleProductIds, "id, style");
+        if (products.length > 0) {
           const styleByProductId = new Map(
             products
               .filter((product) => hasDisplayValue(product.style))
@@ -1218,12 +1204,7 @@ const PurchaseBillDashboard = () => {
         supplierCode = supplierData?.supplier_code || "";
       }
 
-      const { data: items, error } = await supabase
-        .from("purchase_items")
-        .select("*")
-        .eq("bill_id", billId);
-
-      if (error) throw error;
+      const items = await fetchPurchaseItemsByBillId(billId);
 
       if (!items || items.length === 0) {
         toast({

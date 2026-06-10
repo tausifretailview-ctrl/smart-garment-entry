@@ -577,6 +577,51 @@ export async function fetchPurchaseReturnItemsByIds(
 }
 
 /**
+ * Fetch all purchase items for one bill — bypasses PostgREST 1000-row default cap.
+ */
+export async function fetchPurchaseItemsByBillId(
+  billId: string,
+  selectFields: string = "*",
+  options?: { includeDeleted?: boolean },
+) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("purchase_items")
+      .select(selectFields)
+      .eq("bill_id", billId)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (!options?.includeDeleted) {
+      query = query.is("deleted_at", null);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching purchase items for bill:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      offset += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  return allRows;
+}
+
+/**
  * Fetch purchase items by bill IDs using batched queries.
  */
 export async function fetchPurchaseItemsByBillIds(
@@ -584,22 +629,11 @@ export async function fetchPurchaseItemsByBillIds(
   selectFields: string = "bill_id, gst_per, line_total"
 ) {
   if (billIds.length === 0) return [];
-  
-  const allRows: any[] = [];
-  const batchSize = 500;
 
-  for (let i = 0; i < billIds.length; i += batchSize) {
-    const batchIds = billIds.slice(i, i + batchSize);
-    const { data, error } = await supabase
-      .from("purchase_items")
-      .select(selectFields)
-      .in("bill_id", batchIds);
-    
-    if (error) {
-      console.error("Error fetching purchase items by bill IDs:", error);
-      throw error;
-    }
-    if (data) allRows.push(...data);
+  const allRows: any[] = [];
+  for (const billId of billIds) {
+    const items = await fetchPurchaseItemsByBillId(billId, selectFields);
+    allRows.push(...items);
   }
 
   return allRows;

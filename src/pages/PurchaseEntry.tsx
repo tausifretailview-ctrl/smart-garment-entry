@@ -92,6 +92,7 @@ import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError, extractErrorInfo } from "@/lib/errorLogger";
+import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -1256,30 +1257,24 @@ const PurchaseEntry = () => {
       setIsDcPurchase(existingBill.is_dc_purchase === true);
       setIsBillLocked(existingBill.is_locked === true);
 
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('purchase_items')
-        .select('*')
-        .eq('bill_id', billId);
-      if (itemsError) throw itemsError;
+      const itemsData = await fetchPurchaseItemsByBillId(billId);
 
       const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
       const productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string; uom: string }>();
       if (productIds.length > 0) {
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('id, brand, category, style, color, uom')
-          .in('id', productIds);
-        if (productsData) {
-          productsData.forEach((p: any) => {
-            productDetailsMap.set(p.id, {
-              brand: p.brand || '',
-              category: p.category || '',
-              style: p.style || '',
-              color: p.color || '',
-              uom: p.uom || 'NOS',
-            });
+        const productsData = await fetchProductsByIds(
+          productIds,
+          'id, brand, category, style, color, uom',
+        );
+        productsData.forEach((p: any) => {
+          productDetailsMap.set(p.id, {
+            brand: p.brand || '',
+            category: p.category || '',
+            style: p.style || '',
+            color: p.color || '',
+            uom: p.uom || 'NOS',
           });
-        }
+        });
       }
 
       const loadedItems: LineItem[] = itemsData.map((item: any) => {
@@ -1314,10 +1309,26 @@ const PurchaseEntry = () => {
 
       setLineItems(loadedItems);
       setOriginalLineItems(loadedItems);
+      setVisibleItemCount(Math.min(loadedItems.length, 200));
       setIsEditMode(true);
       setEditingBillId(billId);
       setSavedBillId(billId);
       window.history.replaceState({}, '', location.pathname);
+
+      const loadedQty = loadedItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      const headerQty = Number((existingBill as { total_qty?: number }).total_qty) || 0;
+      if (headerQty > 0 && Math.abs(loadedQty - headerQty) > 0.5) {
+        toast({
+          title: "Bill lines may be incomplete",
+          description: `Loaded ${loadedQty.toLocaleString("en-IN")} qty from ${loadedItems.length.toLocaleString("en-IN")} lines but the bill header shows ${headerQty.toLocaleString("en-IN")} qty. Totals may not match until all lines are present.`,
+          variant: "destructive",
+        });
+      } else if (loadedItems.length > 1000) {
+        toast({
+          title: "Large bill loaded",
+          description: `${loadedItems.length.toLocaleString("en-IN")} line items · scroll the table to view all rows.`,
+        });
+      }
     } catch (err: any) {
       loadedEditBillIdRef.current = null;
       console.error('Failed to load bill:', err);
@@ -3883,6 +3894,8 @@ const PurchaseEntry = () => {
     };
 
     try {
+    const baseLineItems = lineItems;
+
     // Extract bill-level data from first row if present
     const firstRow = mappedData[0];
     if (firstRow) {
@@ -4298,7 +4311,7 @@ const PurchaseEntry = () => {
       skipSnapshotEffectRef.current = true;
       importJustAppliedRef.current = true;
       workRestoredRef.current = true;
-      await persistEntrySnapshotNow({ lineItems: [...lineItems, ...checkpointItems] });
+      await persistEntrySnapshotNow({ lineItems: [...baseLineItems, ...checkpointItems] });
 
       reportImportProgress(
         insertedVariantMap.size,
@@ -4311,7 +4324,7 @@ const PurchaseEntry = () => {
     const newLineItems = buildLineItemsFromMap();
     successCount = insertedVariantMap.size;
 
-    const mergedLineItems = [...lineItems, ...newLineItems];
+    const mergedLineItems = [...baseLineItems, ...newLineItems];
     importJustAppliedRef.current = true;
     skipSnapshotEffectRef.current = true;
     workRestoredRef.current = true;
