@@ -114,7 +114,7 @@ function parseSnapshot(raw: string | null): PurchaseEntrySnapshot | null {
 }
 
 export function countPurchaseDraftQty(lineItems: unknown[]): number {
-  return lineItems.reduce(
+  return lineItems.reduce<number>(
     (sum, item) => sum + (Number((item as { qty?: number })?.qty) || 0),
     0,
   );
