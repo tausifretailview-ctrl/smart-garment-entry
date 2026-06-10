@@ -710,7 +710,6 @@ export default function SalesInvoiceDashboard() {
   const {
     data: dashboardStats,
     isLoading: isStatsLoading,
-    error: statsError,
   } = useQuery({
     queryKey: [...dashboardQueryKey, "stats"],
     queryFn: async () => {
@@ -760,21 +759,28 @@ export default function SalesInvoiceDashboard() {
   const isDashboardBackgroundRefresh = isFetching && !isDashboardInitialLoad;
 
   useEffect(() => {
-    const loadError = invoicesError ?? statsError;
-    if (!loadError) return;
+    if (!invoicesError) return;
     const message =
-      loadError instanceof Error ? loadError.message : "Failed to load sales invoices";
+      invoicesError instanceof Error
+        ? invoicesError.message
+        : typeof invoicesError === "object" &&
+            invoicesError !== null &&
+            "message" in invoicesError
+          ? String((invoicesError as { message?: string }).message)
+          : "Failed to load sales invoices";
     toast({
       title: "Sales dashboard load failed",
-      description: message,
+      description: message || "Failed to load sales invoices",
       variant: "destructive",
     });
-  }, [invoicesError, statsError, toast]);
+  }, [invoicesError, toast]);
 
   const paginatedInvoices = dashboardPage?.invoices || [];
   const reconciledStats = dashboardStats;
   const totalCount =
-    paymentStatusFilter.length > 0 && dashboardStats
+    paymentStatusFilter.length > 0 &&
+    dashboardStats &&
+    dashboardStats.totalInvoices > 0
       ? dashboardStats.totalInvoices
       : (dashboardPage?.totalCount ?? 0);
 
@@ -900,14 +906,16 @@ export default function SalesInvoiceDashboard() {
 
   // Detect single filtered customer for bulk advance button
   const filteredCustomer = useMemo(() => {
-    if (!debouncedSearch || !invoicesData.length) return null;
-    const customerIds = new Set(invoicesData.map((inv: any) => inv.customer_id).filter(Boolean));
+    if (!debouncedSearch || !paginatedInvoices.length) return null;
+    const customerIds = new Set(
+      paginatedInvoices.map((inv: any) => inv.customer_id).filter(Boolean),
+    );
     if (customerIds.size === 1) {
-      const inv = invoicesData.find((i: any) => i.customer_id);
+      const inv = paginatedInvoices.find((i: any) => i.customer_id);
       return inv ? { id: inv.customer_id, name: inv.customer_name } : null;
     }
     return null;
-  }, [debouncedSearch, invoicesData]);
+  }, [debouncedSearch, paginatedInvoices]);
 
   // Fetch combined advance + credit balance for filtered customer
   useEffect(() => {
@@ -1158,7 +1166,7 @@ export default function SalesInvoiceDashboard() {
     });
   }, [currentOrganization?.id, fetchSaleItems]);
 
-  // Server-side handles all filtering — just use invoicesData directly
+  // Server-side handles all filtering — paginatedInvoices is the current page
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   // Page totals — balance column matches reconciled `outstanding` per row
@@ -2780,6 +2788,15 @@ export default function SalesInvoiceDashboard() {
             Array.from({length: 5}).map((_,i) => (
               <div key={i} className="h-20 bg-card rounded-2xl animate-pulse" />
             ))
+          ) : invoicesError ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+              <AlertTriangle className="h-12 w-12 text-destructive/70" />
+              <p className="text-sm font-medium text-foreground">Could not load invoices</p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
           ) : paginatedInvoices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <FileText className="h-12 w-12 mb-3 opacity-30" />
@@ -3425,7 +3442,7 @@ export default function SalesInvoiceDashboard() {
                     <TableRow>
                       <TableHead className="w-10 px-1">
                         <Checkbox
-                          checked={selectedInvoices.size === (invoicesData?.length || 0) && invoicesData && invoicesData.length > 0}
+                          checked={selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
@@ -3457,6 +3474,21 @@ export default function SalesInvoiceDashboard() {
                           </TableCell>
                         </TableRow>
                       ))
+                    ) : invoicesError ? (
+                      <TableRow>
+                        <TableCell colSpan={invoiceTableColumnCount} className="text-center py-10">
+                          <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                            <AlertTriangle className="h-8 w-8 text-destructive/70" />
+                            <p className="text-base font-medium text-foreground">
+                              Could not load invoices
+                            </p>
+                            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Retry
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     ) : paginatedInvoices.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={invoiceTableColumnCount} className="text-center py-8 text-muted-foreground text-base">
