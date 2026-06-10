@@ -103,6 +103,7 @@ import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
+  reconcileInvoiceDashboardRows,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
@@ -207,7 +208,7 @@ export default function SalesInvoiceDashboard() {
   const [userFilter, setUserFilter] = useState<string>("__pending__");
 
   // Fetch org users for billing user filter
-  const { data: orgUsers = [] } = useQuery({
+  const { data: orgUsers = [], isFetched: orgUsersFetched } = useQuery({
     queryKey: ["org-users-filter", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -233,17 +234,19 @@ export default function SalesInvoiceDashboard() {
 
   // Default userFilter: admins (and mobile) see all users; non-admins default to themselves
   useEffect(() => {
-    if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
+    const pending = !userFilter || userFilter === "__pending__";
+    if (!pending) return;
+    if (orgUsers.length > 0 && user?.id) {
       if (orgUsers.length === 1 || isMobile || organizationRole === "admin") {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
         setUserFilter(isOrgMember ? user.id : "all");
       }
-    } else if (userFilter === "__pending__" && orgUsers.length > 0) {
+    } else if (orgUsersFetched) {
       setUserFilter("all");
     }
-  }, [orgUsers, user?.id, isMobile, organizationRole]);
+  }, [userFilter, orgUsers, orgUsersFetched, user?.id, isMobile, organizationRole]);
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -671,7 +674,7 @@ export default function SalesInvoiceDashboard() {
       deliveryFilter,
       paymentStatusFilter,
       shopFilter,
-      userFilter,
+      userFilter: userFilter && userFilter !== "__pending__" ? userFilter : "all",
       saleDateFilter,
       voucherDateFrom: queryDateRange.start,
       voucherDateTo: queryDateRange.end,
@@ -698,7 +701,7 @@ export default function SalesInvoiceDashboard() {
     deliveryFilter,
     paymentStatusFilter,
     shopFilter,
-    userFilter,
+    userFilter && userFilter !== "__pending__" ? userFilter : "all",
     queryDateRange.start,
     queryDateRange.end,
     currentPage,
@@ -748,9 +751,35 @@ export default function SalesInvoiceDashboard() {
       return fetchInvoiceDashboardPage(supabase, dashboardFilters, {
         page: currentPage,
         pageSize: itemsPerPage,
+        reconcile: false,
       });
     },
     enabled: dashboardQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  const reconcileSourceKey = useMemo(
+    () => dashboardPage?.sourceRows?.map((row: any) => row.id).join(",") ?? "",
+    [dashboardPage?.sourceRows],
+  );
+
+  const { data: reconciledPageInvoices } = useQuery({
+    queryKey: [...dashboardQueryKey, "reconcile", reconcileSourceKey],
+    queryFn: async () => {
+      const sourceRows = dashboardPage?.sourceRows;
+      if (!sourceRows?.length || !currentOrganization?.id) return [];
+      const normalized = await reconcileInvoiceDashboardRows(
+        supabase,
+        dashboardFilters,
+        sourceRows,
+      );
+      return dashboardFilters.paymentStatusFilter.length > 0
+        ? normalized.filter((inv: any) =>
+            dashboardFilters.paymentStatusFilter.includes(inv.payment_status),
+          )
+        : normalized;
+    },
+    enabled: dashboardQueryEnabled && reconcileSourceKey.length > 0,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -774,7 +803,8 @@ export default function SalesInvoiceDashboard() {
     });
   }, [invoicesError, toast]);
 
-  const paginatedInvoices = dashboardPage?.invoices || [];
+  const paginatedInvoices =
+    reconciledPageInvoices ?? dashboardPage?.invoices ?? [];
   const reconciledStats = dashboardStats;
   const totalCount =
     paymentStatusFilter.length > 0 &&
@@ -789,30 +819,34 @@ export default function SalesInvoiceDashboard() {
     [paginatedInvoices],
   );
   useEffect(() => {
-    if (!currentOrganization?.id || !visiblePageSyncKey) return;
+    if (!currentOrganization?.id || !visiblePageSyncKey || !reconciledPageInvoices) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const didUpdate = await syncVisibleInvoiceStaleFields(
-          supabase,
-          currentOrganization.id,
-          paginatedInvoices,
-          queryDateRange.start,
-          queryDateRange.end,
-        );
-        if (!cancelled && didUpdate) {
-          void refetch();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const didUpdate = await syncVisibleInvoiceStaleFields(
+            supabase,
+            currentOrganization.id,
+            paginatedInvoices,
+            queryDateRange.start,
+            queryDateRange.end,
+          );
+          if (!cancelled && didUpdate) {
+            void refetch();
+          }
+        } catch {
+          // Non-blocking background repair; table already shows reconciled display values.
         }
-      } catch {
-        // Non-blocking background repair; table already shows reconciled display values.
-      }
-    })();
+      })();
+    }, 2500);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [
     currentOrganization?.id,
     visiblePageSyncKey,
+    reconciledPageInvoices,
     paginatedInvoices,
     queryDateRange.start,
     queryDateRange.end,
