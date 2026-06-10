@@ -77,7 +77,8 @@ import {
 } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
-import { ProductEntryDialog } from "@/components/ProductEntryDialog";
+import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
+import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
@@ -889,6 +890,11 @@ const PurchaseEntry = () => {
     setVisibleItemCount(100);
   }, [lineItems.length > 0 ? Math.ceil(lineItems.length / 500) : 0]);
 
+  // Warm Add Product dialog chunk so first click does not cold-load on slow networks.
+  useEffect(() => {
+    prefetchProductEntryDialog();
+  }, []);
+
   // Start auto-save once on mount. The useDraftSave hook itself persists the
   // latest currentDataRef on unmount and respects draftClearedRef, so we must
   // NOT re-save here on every dep change — doing so used to fire the cleanup
@@ -1553,7 +1559,7 @@ const PurchaseEntry = () => {
   };
 
   const handleAddNewProductFromInline = () => {
-    // Open the floating product entry dialog instead of navigating
+    prefetchProductEntryDialog();
     setShowProductDialog(true);
   };
 
@@ -4506,7 +4512,7 @@ const PurchaseEntry = () => {
           </DialogContent>
         </Dialog>
         <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
-        <ProductEntryDialog open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} mobileERPMode={mobileERPSettings || undefined} />
+        <ProductEntryDialogGate open={showProductDialog} onOpenChange={setShowProductDialog} onProductCreated={handleProductCreated} hideOpeningQty isDcPurchase={isDcPurchase} isAutoBarcode={isAutoBarcode} mobileERPMode={mobileERPSettings || undefined} />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
         <DuplicatePurchaseBillDialog
@@ -4927,6 +4933,8 @@ const PurchaseEntry = () => {
                 </Button>
                 <Button
                   onClick={() => setShowProductDialog(true)}
+                  onMouseEnter={prefetchProductEntryDialog}
+                  onFocus={prefetchProductEntryDialog}
                   variant="outline"
                   size="sm"
                   className="h-10 gap-2 border-slate-300"
@@ -5685,7 +5693,7 @@ const PurchaseEntry = () => {
 
 
         {/* Product Entry Dialog */}
-        <ProductEntryDialog
+        <ProductEntryDialogGate
           open={showProductDialog}
           onOpenChange={setShowProductDialog}
           onProductCreated={handleProductCreated}

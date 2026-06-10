@@ -44,14 +44,25 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.hasError) return this.props.children;
 
+    const chunkError = this.state.error && isChunkLoadError(this.state.error);
+
     return (
       <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center p-6">
         <div className="text-center space-y-3 max-w-sm">
           <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
-          <p className="text-sm font-medium">This tab failed to load</p>
-          <p className="text-xs text-muted-foreground">
-            The page module could not be loaded. Try again or refresh the app.
+          <p className="text-sm font-medium">
+            {chunkError ? "This tab failed to load" : "Something went wrong on this tab"}
           </p>
+          <p className="text-xs text-muted-foreground">
+            {chunkError
+              ? "The page module could not be loaded. Try again or refresh the app."
+              : "An unexpected error occurred. Try again or refresh the app. Other tabs are unaffected."}
+          </p>
+          {this.state.error?.message && (
+            <p className="text-[11px] text-muted-foreground break-words font-mono">
+              {this.state.error.message}
+            </p>
+          )}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Button size="sm" onClick={this.handleRetry}>
               Retry tab

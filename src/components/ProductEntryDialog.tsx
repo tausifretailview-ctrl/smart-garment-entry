@@ -284,7 +284,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       const group = resolveSizeGroup(formData.size_group_id);
       if (group) {
         if (selectedSizes.length === 0) {
-          setSelectedSizes([...group.sizes]);
+          setSelectedSizes([...(group.sizes ?? [])]);
         }
         // In purchase context: auto-generate variants for qty entry
         if (hideOpeningQty) {
@@ -320,7 +320,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
               }
             });
             const newVariants: ProductVariant[] = [];
-            const allSizesForGroup = [...group.sizes, ...customSizes];
+            const allSizesForGroup = [...(group.sizes ?? []), ...customSizes];
             for (const color of colorsToUse) {
               for (const size of allSizesForGroup) {
                 const key = `${color}||${size}`;
@@ -404,7 +404,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
       .from("products")
       .select("category, brand, hsn_code, style")
       .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .limit(2000);
 
     if (!error && data) {
       const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
@@ -422,7 +423,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     const { data: variantsData, error: variantsError } = await supabase
       .from("product_variants")
       .select("color")
-      .eq("organization_id", currentOrganization.id);
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null)
+      .not("color", "is", null)
+      .limit(1000);
 
     if (!variantsError && variantsData) {
       const uniqueColors = [...new Set(variantsData.map((v: any) => v.color).filter(Boolean) as string[])].sort();
