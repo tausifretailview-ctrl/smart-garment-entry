@@ -102,7 +102,7 @@ import {
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
   fetchInvoiceDashboardPage,
-  fetchInvoiceDashboardStatsViaRpc,
+  fetchInvoiceDashboardStats,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
@@ -689,8 +689,7 @@ export default function SalesInvoiceDashboard() {
     ],
   );
 
-  const dashboardQueryEnabled =
-    !!currentOrganization?.id && userFilter !== "__pending__";
+  const dashboardQueryEnabled = !!currentOrganization?.id;
 
   const dashboardQueryKey = [
     "invoice-dashboard-unified",
@@ -726,7 +725,7 @@ export default function SalesInvoiceDashboard() {
           undeliveredAmount: 0,
         };
       }
-      return fetchInvoiceDashboardStatsViaRpc(supabase, dashboardFilters);
+      return fetchInvoiceDashboardStats(supabase, dashboardFilters);
     },
     enabled: dashboardQueryEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
@@ -1192,18 +1191,24 @@ export default function SalesInvoiceDashboard() {
     };
   }, [paginatedInvoices]);
 
-  // Summary tiles prefer fast RPC stats; fall back while the first fetch is in flight.
-  const baseStats = reconciledStats || {
-    totalInvoices: isStatsLoading ? 0 : totalCount,
-    totalAmount: 0,
-    totalDiscount: 0,
-    totalQty: 0,
-    pendingAmount: 0,
-    deliveredCount: 0,
-    deliveredAmount: 0,
-    undeliveredCount: 0,
-    undeliveredAmount: 0,
-  };
+  // Summary tiles prefer RPC stats (client fallback when RPC missing); ignore empty RPC while table has rows.
+  const statsLookValid =
+    reconciledStats &&
+    !isStatsLoading &&
+    (reconciledStats.totalInvoices > 0 || totalCount === 0);
+  const baseStats = statsLookValid
+    ? reconciledStats
+    : {
+        totalInvoices: isStatsLoading ? 0 : totalCount,
+        totalAmount: 0,
+        totalDiscount: 0,
+        totalQty: 0,
+        pendingAmount: 0,
+        deliveredCount: 0,
+        deliveredAmount: 0,
+        undeliveredCount: 0,
+        undeliveredAmount: 0,
+      };
 
   const effectiveStats = baseStats;
 

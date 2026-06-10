@@ -264,8 +264,101 @@ function invoiceDashboardRpcErrorMessage(error: unknown): string {
   return String(error);
 }
 
-/** Server-side summary tiles (one RPC; table still loads if RPC is missing or slow). */
-export async function fetchInvoiceDashboardStatsViaRpc(
+const INVOICE_DASHBOARD_STATS_SELECT =
+  "id, sale_number, customer_id, net_amount, discount_amount, flat_discount_amount, total_qty, delivery_status, payment_status, is_cancelled, paid_amount, sale_return_adjust";
+
+function computeInvoiceDashboardStats(rows: any[]): InvoiceDashboardStats {
+  return {
+    totalInvoices: rows.length,
+    totalAmount: rows.reduce(
+      (sum, inv) => sum + Math.max(0, Number(inv.net_amount || 0)),
+      0,
+    ),
+    totalDiscount: rows.reduce(
+      (sum, inv) =>
+        sum + Number(inv.discount_amount || 0) + Number(inv.flat_discount_amount || 0),
+      0,
+    ),
+    totalQty: rows.reduce((sum, inv) => sum + Number(inv.total_qty || 0), 0),
+    pendingAmount: rows.reduce((sum, inv) => {
+      if (inv.is_cancelled === true || inv.payment_status === "cancelled") return sum;
+      return sum + Math.max(0, Number(inv.outstanding ?? 0));
+    }, 0),
+    deliveredCount: rows.filter((inv) => inv.delivery_status === "delivered").length,
+    deliveredAmount: rows
+      .filter((inv) => inv.delivery_status === "delivered")
+      .reduce((sum, inv) => sum + Math.max(0, Number(inv.net_amount || 0)), 0),
+    undeliveredCount: rows.filter(
+      (inv) => (inv.delivery_status || "undelivered") !== "delivered",
+    ).length,
+    undeliveredAmount: rows
+      .filter((inv) => (inv.delivery_status || "undelivered") !== "delivered")
+      .reduce((sum, inv) => sum + Math.max(0, Number(inv.net_amount || 0)), 0),
+  };
+}
+
+/** Client aggregation when RPC is missing or fails (same filters + reconcile as table). */
+async function fetchInvoiceDashboardStatsClient(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<InvoiceDashboardStats> {
+  if (!filters.organizationId) {
+    return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+  }
+
+  const PAGE_SIZE = 1000;
+  let offset = 0;
+  const allRows: any[] = [];
+
+  while (true) {
+    let query: any = buildFilteredSalesQuery(
+      client,
+      filters,
+      INVOICE_DASHBOARD_STATS_SELECT,
+    ).range(offset, offset + PAGE_SIZE - 1);
+    query = await applySearchToSalesQuery(client, filters, query);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) break;
+    allRows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  if (allRows.length === 0) {
+    return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+  }
+
+  const reconciled = await reconcileInvoiceDashboardRows(client, filters, allRows);
+  const statsRows =
+    filters.paymentStatusFilter.length > 0
+      ? reconciled.filter((inv) => filters.paymentStatusFilter.includes(inv.payment_status))
+      : reconciled.filter(
+          (inv) =>
+            inv.is_cancelled !== true &&
+            inv.payment_status !== "cancelled" &&
+            inv.payment_status !== "hold",
+        );
+
+  return computeInvoiceDashboardStats(statsRows);
+}
+
+function parseInvoiceDashboardStatsRow(row: Partial<InvoiceDashboardStats>): InvoiceDashboardStats {
+  return {
+    totalInvoices: Number(row.totalInvoices ?? 0),
+    totalAmount: Number(row.totalAmount ?? 0),
+    totalDiscount: Number(row.totalDiscount ?? 0),
+    totalQty: Number(row.totalQty ?? 0),
+    pendingAmount: Number(row.pendingAmount ?? 0),
+    deliveredCount: Number(row.deliveredCount ?? 0),
+    deliveredAmount: Number(row.deliveredAmount ?? 0),
+    undeliveredCount: Number(row.undeliveredCount ?? 0),
+    undeliveredAmount: Number(row.undeliveredAmount ?? 0),
+  };
+}
+
+/** Server-side summary tiles; falls back to client scan when RPC is unavailable. */
+export async function fetchInvoiceDashboardStats(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
 ): Promise<InvoiceDashboardStats> {
@@ -283,32 +376,24 @@ export async function fetchInvoiceDashboardStatsViaRpc(
 
     if (error) {
       console.warn(
-        "get_invoice_dashboard_stats RPC failed:",
+        "get_invoice_dashboard_stats RPC failed, using client fallback:",
         invoiceDashboardRpcErrorMessage(error),
       );
-      return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+      return fetchInvoiceDashboardStatsClient(client, filters);
     }
 
-    const row = (data || {}) as Partial<InvoiceDashboardStats>;
-    return {
-      totalInvoices: Number(row.totalInvoices ?? 0),
-      totalAmount: Number(row.totalAmount ?? 0),
-      totalDiscount: Number(row.totalDiscount ?? 0),
-      totalQty: Number(row.totalQty ?? 0),
-      pendingAmount: Number(row.pendingAmount ?? 0),
-      deliveredCount: Number(row.deliveredCount ?? 0),
-      deliveredAmount: Number(row.deliveredAmount ?? 0),
-      undeliveredCount: Number(row.undeliveredCount ?? 0),
-      undeliveredAmount: Number(row.undeliveredAmount ?? 0),
-    };
+    return parseInvoiceDashboardStatsRow((data || {}) as Partial<InvoiceDashboardStats>);
   } catch (err) {
     console.warn(
-      "get_invoice_dashboard_stats RPC failed:",
+      "get_invoice_dashboard_stats RPC failed, using client fallback:",
       invoiceDashboardRpcErrorMessage(err),
     );
-    return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+    return fetchInvoiceDashboardStatsClient(client, filters);
   }
 }
+
+/** @deprecated Use fetchInvoiceDashboardStats */
+export const fetchInvoiceDashboardStatsViaRpc = fetchInvoiceDashboardStats;
 
 const SR_RECONCILE_TOLERANCE = 0.005;
 
