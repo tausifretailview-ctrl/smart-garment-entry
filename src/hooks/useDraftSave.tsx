@@ -3,8 +3,41 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { countPurchaseDraftQty } from '@/lib/purchaseEntryPersistence';
 
 export type DraftType = 'purchase' | 'quotation' | 'sale_order' | 'sale_invoice' | 'purchase_order' | 'salesman_sale_order' | 'purchase_return';
+
+const PURCHASE_DRAFT_BROWSER_ONLY_KEY = '_purchaseDraftInBrowser';
+/** Supabase JSONB upserts can fail for multi-MB Excel imports — store a stub in DB, full bill in browser. */
+const MAX_PURCHASE_DB_DRAFT_BYTES = 1_500_000;
+
+function prepareDraftPayload(data: any, draftType: DraftType): any {
+  if (!data) return data;
+  const serialized = JSON.stringify(data);
+  if (draftType !== 'purchase' || serialized.length <= MAX_PURCHASE_DB_DRAFT_BYTES) {
+    return data;
+  }
+
+  const lines = Array.isArray(data.lineItems) ? data.lineItems : [];
+  return {
+    [PURCHASE_DRAFT_BROWSER_ONLY_KEY]: true,
+    lineItems: [],
+    lineCount: lines.length,
+    totalQty: countPurchaseDraftQty(lines),
+    billData: data.billData,
+    softwareBillNo: data.softwareBillNo,
+    billDate: data.billDate,
+    roundOff: data.roundOff,
+    otherCharges: data.otherCharges,
+    discountAmount: data.discountAmount,
+    entryMode: data.entryMode,
+    isDcPurchase: data.isDcPurchase,
+    isEditMode: data.isEditMode,
+    editingBillId: data.editingBillId,
+    originalLineItems: [],
+    savedAt: Date.now(),
+  };
+}
 
 interface UseDraftSaveOptions {
   autoSaveInterval?: number; // in milliseconds, default 30000 (30 seconds)
@@ -65,13 +98,14 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
 
     setIsSaving(true);
     try {
+      const draftPayload = prepareDraftPayload(data, draftType);
       const { error } = await supabase
         .from('drafts')
         .upsert({
           organization_id: currentOrganization.id,
           draft_type: draftType,
           created_by: user.id,
-          draft_data: data,
+          draft_data: draftPayload,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'organization_id,draft_type,created_by'
@@ -80,6 +114,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       if (error) throw error;
 
       setHasDraft(true);
+      setDraftData(draftPayload);
       setLastSaved(new Date());
       
       if (showToast) {

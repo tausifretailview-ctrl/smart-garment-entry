@@ -30,7 +30,14 @@ import * as XLSX from "xlsx";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { dispatchPurchaseDraftDiscarded } from "@/lib/purchaseEntryPersistence";
+import {
+  dispatchPurchaseDraftDiscarded,
+  readPurchaseEntryDraftMeta,
+  countPurchaseDraftQty,
+  readPurchaseEntrySnapshot,
+  summarizePurchaseDraft,
+  type PurchaseEntryDraftMeta,
+} from "@/lib/purchaseEntryPersistence";
 import { useSettings } from "@/hooks/useSettings";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -248,10 +255,59 @@ const PurchaseBillDashboard = () => {
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved, checkDraft } = useDraftSave('purchase');
   const [draftBannerDismissed, setDraftBannerDismissed] = useState(false);
+  const [browserDraftMeta, setBrowserDraftMeta] = useState<PurchaseEntryDraftMeta | null>(null);
+
+  const refreshBrowserDraftMeta = useCallback(() => {
+    if (!currentOrganization?.id || !user?.id) {
+      setBrowserDraftMeta(null);
+      return;
+    }
+    const meta = readPurchaseEntryDraftMeta(currentOrganization.id, user.id);
+    if (meta) {
+      setBrowserDraftMeta(meta);
+      return;
+    }
+    const inline = readPurchaseEntrySnapshot(currentOrganization.id, user.id);
+    if (inline?.lineItems?.length) {
+      setBrowserDraftMeta({
+        lineCount: inline.lineItems.length,
+        totalQty: countPurchaseDraftQty(inline.lineItems),
+        savedAt: inline.savedAt ?? Date.now(),
+        billData: inline.billData,
+        softwareBillNo: inline.softwareBillNo,
+        billDate: inline.billDate,
+        isEditMode: inline.isEditMode,
+        editingBillId: inline.editingBillId,
+        fullDataInIdb: false,
+      });
+      return;
+    }
+    setBrowserDraftMeta(null);
+  }, [currentOrganization?.id, user?.id]);
 
   useEffect(() => {
-    if (hasDraft && draftData) setDraftBannerDismissed(false);
-  }, [hasDraft, draftData]);
+    refreshBrowserDraftMeta();
+  }, [refreshBrowserDraftMeta, hasDraft, draftData, lastSaved]);
+
+  const draftSummary = useMemo(() => {
+    const fromDb = draftData ? summarizePurchaseDraft(draftData) : null;
+    if (fromDb) return fromDb;
+    if (browserDraftMeta) {
+      return {
+        lineCount: browserDraftMeta.lineCount,
+        totalQty: browserDraftMeta.totalQty,
+        isEdit: Boolean(browserDraftMeta.isEditMode && browserDraftMeta.editingBillId),
+        savedAt: browserDraftMeta.savedAt,
+      };
+    }
+    return null;
+  }, [draftData, browserDraftMeta]);
+
+  const showDraftBanner = Boolean(draftSummary) && !draftBannerDismissed;
+
+  useEffect(() => {
+    if (draftSummary) setDraftBannerDismissed(false);
+  }, [draftSummary?.lineCount, draftSummary?.savedAt]);
 
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -2000,7 +2056,7 @@ const PurchaseBillDashboard = () => {
           </div>
         </div>
 
-        {hasDraft && draftData && !draftBannerDismissed && (
+        {showDraftBanner && draftSummary && (
           <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
@@ -2010,21 +2066,17 @@ const PurchaseBillDashboard = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-amber-800">
-                      {(draftData as any)?.editingBillId || (draftData as any)?.editBillId
+                      {draftSummary.isEdit
                         ? "Unsaved Purchase Edit"
                         : "Unsaved Purchase Draft"}
                     </h3>
                     <CardDescription className="text-sm text-amber-700 font-medium mt-0.5">
-                      {(() => {
-                        const lines =
-                          (draftData as any)?.lineItems ?? (draftData as any)?.items ?? [];
-                        const lineCount = Array.isArray(lines) ? lines.length : 0;
-                        const totalQty = Array.isArray(lines)
-                          ? lines.reduce((s: number, it: { qty?: number }) => s + (Number(it?.qty) || 0), 0)
-                          : 0;
-                        return `${lineCount} lines · ${totalQty} qty`;
-                      })()}
-                      {lastSaved ? ` • Saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : " • Saved recently"}
+                      {`${draftSummary.lineCount} lines · ${Math.round(draftSummary.totalQty)} qty`}
+                      {lastSaved
+                        ? ` • Saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}`
+                        : draftSummary.savedAt
+                          ? ` • Saved ${formatDistanceToNow(new Date(draftSummary.savedAt), { addSuffix: true })}`
+                          : " • Saved recently"}
                     </CardDescription>
                   </div>
                 </div>
@@ -2037,6 +2089,7 @@ const PurchaseBillDashboard = () => {
                       setDraftBannerDismissed(true);
                       dispatchPurchaseDraftDiscarded(currentOrganization.id, user.id);
                       const removed = await deleteDraft();
+                      refreshBrowserDraftMeta();
                       await checkDraft();
                       if (!removed) {
                         setDraftBannerDismissed(false);

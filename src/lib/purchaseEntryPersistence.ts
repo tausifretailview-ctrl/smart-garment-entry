@@ -1,5 +1,9 @@
 const PURCHASE_ENTRY_SESSION_PREFIX = "purchaseEntryState";
 const PURCHASE_ENTRY_LOCAL_PREFIX = "purchaseEntryStateLocal";
+const PURCHASE_ENTRY_META_PREFIX = "purchaseEntryDraftMeta";
+const PURCHASE_ENTRY_IDB_NAME = "ezzy-purchase-entry";
+const PURCHASE_ENTRY_IDB_STORE = "snapshots";
+const LARGE_DRAFT_LINE_THRESHOLD = 150;
 const TAB_INSTANCE_KEY = "purchaseEntryTabInstanceId";
 const HANDLED_NAV_KEY = "purchaseEntryHandledNavKey";
 const LAST_UNMOUNT_NAV_KEY = "purchaseEntryLastUnmountNavKey";
@@ -22,12 +26,32 @@ export type PurchaseEntrySnapshot = {
   savedAt?: number;
 };
 
+export type PurchaseEntryDraftMeta = {
+  lineCount: number;
+  totalQty: number;
+  savedAt: number;
+  billData?: unknown;
+  softwareBillNo?: string;
+  billDate?: string;
+  isEditMode?: boolean;
+  editingBillId?: string | null;
+  fullDataInIdb: boolean;
+};
+
 export function purchaseEntrySessionKey(orgId: string, userId: string): string {
   return `${PURCHASE_ENTRY_SESSION_PREFIX}:${orgId}:${userId}`;
 }
 
 function purchaseEntryLocalKey(orgId: string, userId: string): string {
   return `${PURCHASE_ENTRY_LOCAL_PREFIX}:${orgId}:${userId}`;
+}
+
+function purchaseEntryMetaKey(orgId: string, userId: string): string {
+  return `${PURCHASE_ENTRY_META_PREFIX}:${orgId}:${userId}`;
+}
+
+function purchaseEntryIdbKey(orgId: string, userId: string): string {
+  return `${PURCHASE_ENTRY_SESSION_PREFIX}:${orgId}:${userId}`;
 }
 
 function safeSessionGet(key: string): string | null {
@@ -89,7 +113,128 @@ function parseSnapshot(raw: string | null): PurchaseEntrySnapshot | null {
   }
 }
 
-/** Read in-progress purchase entry — session first, then localStorage (survives some PWA/Electron kills). */
+export function countPurchaseDraftQty(lineItems: unknown[]): number {
+  return lineItems.reduce(
+    (sum, item) => sum + (Number((item as { qty?: number })?.qty) || 0),
+    0,
+  );
+}
+
+function buildDraftMeta(
+  snapshot: PurchaseEntrySnapshot,
+  fullDataInIdb: boolean,
+): PurchaseEntryDraftMeta {
+  const lineItems = snapshot.lineItems ?? [];
+  return {
+    lineCount: lineItems.length,
+    totalQty: countPurchaseDraftQty(lineItems),
+    savedAt: snapshot.savedAt ?? Date.now(),
+    billData: snapshot.billData,
+    softwareBillNo: snapshot.softwareBillNo,
+    billDate: snapshot.billDate,
+    isEditMode: snapshot.isEditMode,
+    editingBillId: snapshot.editingBillId,
+    fullDataInIdb,
+  };
+}
+
+function writeDraftMeta(
+  orgId: string,
+  userId: string,
+  snapshot: PurchaseEntrySnapshot,
+  fullDataInIdb: boolean,
+): void {
+  safeSessionSet(
+    purchaseEntryMetaKey(orgId, userId),
+    JSON.stringify(buildDraftMeta(snapshot, fullDataInIdb)),
+  );
+}
+
+function parseDraftMeta(raw: string | null): PurchaseEntryDraftMeta | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PurchaseEntryDraftMeta;
+    if (!parsed?.lineCount || parsed.lineCount <= 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/** Lightweight draft summary for dashboard banner (sync, survives large bills). */
+export function readPurchaseEntryDraftMeta(
+  orgId: string,
+  userId: string,
+): PurchaseEntryDraftMeta | null {
+  return parseDraftMeta(safeSessionGet(purchaseEntryMetaKey(orgId, userId)));
+}
+
+let idbOpenPromise: Promise<IDBDatabase | null> | null = null;
+
+function openPurchaseEntryIdb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === "undefined") return Promise.resolve(null);
+  if (!idbOpenPromise) {
+    idbOpenPromise = new Promise((resolve) => {
+      try {
+        const request = indexedDB.open(PURCHASE_ENTRY_IDB_NAME, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(PURCHASE_ENTRY_IDB_STORE)) {
+            db.createObjectStore(PURCHASE_ENTRY_IDB_STORE);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+  return idbOpenPromise;
+}
+
+async function writeIdbSnapshot(key: string, serialized: string): Promise<boolean> {
+  const db = await openPurchaseEntryIdb();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(PURCHASE_ENTRY_IDB_STORE, "readwrite");
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.objectStore(PURCHASE_ENTRY_IDB_STORE).put(serialized, key);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function readIdbSnapshot(key: string): Promise<string | null> {
+  const db = await openPurchaseEntryIdb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(PURCHASE_ENTRY_IDB_STORE, "readonly");
+      const request = tx.objectStore(PURCHASE_ENTRY_IDB_STORE).get(key);
+      request.onsuccess = () => resolve((request.result as string | undefined) ?? null);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function removeIdbSnapshot(key: string): Promise<void> {
+  const db = await openPurchaseEntryIdb();
+  if (!db) return;
+  try {
+    const tx = db.transaction(PURCHASE_ENTRY_IDB_STORE, "readwrite");
+    tx.objectStore(PURCHASE_ENTRY_IDB_STORE).delete(key);
+  } catch {
+    // ignore
+  }
+}
+
+/** Read in-progress purchase entry — session first, then localStorage (small bills only). */
 export function readPurchaseEntrySnapshot(
   orgId: string,
   userId: string,
@@ -101,7 +246,6 @@ export function readPurchaseEntrySnapshot(
   const localKey = purchaseEntryLocalKey(orgId, userId);
   const fromLocal = parseSnapshot(safeLocalGet(localKey));
   if (fromLocal) {
-    // Rehydrate session when local survived but session was cleared on remount.
     const serialized = JSON.stringify(fromLocal);
     safeSessionSet(sessionKey, serialized);
     return fromLocal;
@@ -110,7 +254,22 @@ export function readPurchaseEntrySnapshot(
   return null;
 }
 
-/** Persist in-progress purchase entry to session + localStorage. */
+/** Read full snapshot including IndexedDB backup for large Excel imports. */
+export async function readPurchaseEntrySnapshotAsync(
+  orgId: string,
+  userId: string,
+): Promise<PurchaseEntrySnapshot | null> {
+  const inline = readPurchaseEntrySnapshot(orgId, userId);
+  if (inline) return inline;
+
+  const meta = readPurchaseEntryDraftMeta(orgId, userId);
+  if (!meta?.fullDataInIdb) return null;
+
+  const idbRaw = await readIdbSnapshot(purchaseEntryIdbKey(orgId, userId));
+  return parseSnapshot(idbRaw);
+}
+
+/** Persist in-progress purchase entry to session, localStorage, and IndexedDB for large bills. */
 export function writePurchaseEntrySnapshot(
   orgId: string,
   userId: string,
@@ -126,15 +285,34 @@ export function writePurchaseEntrySnapshot(
     savedAt: snapshot.savedAt ?? Date.now(),
   };
   const serialized = JSON.stringify(withMeta);
-  safeSessionSet(purchaseEntrySessionKey(orgId, userId), serialized);
-  safeLocalSet(purchaseEntryLocalKey(orgId, userId), serialized);
+  const lineCount = withMeta.lineItems!.length;
+  const useIdb =
+    lineCount >= LARGE_DRAFT_LINE_THRESHOLD || serialized.length > 900_000;
+
+  const sessionKey = purchaseEntrySessionKey(orgId, userId);
+  const localKey = purchaseEntryLocalKey(orgId, userId);
+
+  if (useIdb) {
+    writeDraftMeta(orgId, userId, withMeta, true);
+    void writeIdbSnapshot(purchaseEntryIdbKey(orgId, userId), serialized);
+    safeSessionSet(sessionKey, serialized);
+    safeLocalSet(localKey, serialized);
+  } else {
+    writeDraftMeta(orgId, userId, withMeta, false);
+    safeSessionSet(sessionKey, serialized);
+    safeLocalSet(localKey, serialized);
+    void removeIdbSnapshot(purchaseEntryIdbKey(orgId, userId));
+  }
+
   markPurchaseEntryFlushAt(withMeta.savedAt!);
 }
 
-/** Clear in-tab session snapshot (e.g. dashboard Discard draft). */
+/** Clear browser snapshots (session, localStorage, IndexedDB metadata). */
 export function clearPurchaseEntrySession(orgId: string, userId: string): void {
   safeSessionRemove(purchaseEntrySessionKey(orgId, userId));
   safeLocalRemove(purchaseEntryLocalKey(orgId, userId));
+  safeSessionRemove(purchaseEntryMetaKey(orgId, userId));
+  void removeIdbSnapshot(purchaseEntryIdbKey(orgId, userId));
 }
 
 /** Fired when Purchase Bills dashboard discards a draft — Purchase Entry tab may still be mounted. */
@@ -211,4 +389,35 @@ export function getPurchaseEntryFlushAt(): number {
   if (!raw) return 0;
   const n = Number(raw);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Summarize draft for dashboard display (DB stub or full payload). */
+export function summarizePurchaseDraft(data: unknown): {
+  lineCount: number;
+  totalQty: number;
+  isEdit: boolean;
+  savedAt?: number;
+} | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const lines = (d.lineItems ?? d.items) as unknown[] | undefined;
+  const lineCount =
+    typeof d.lineCount === "number"
+      ? d.lineCount
+      : Array.isArray(lines)
+        ? lines.length
+        : 0;
+  if (lineCount <= 0) return null;
+  const totalQty =
+    typeof d.totalQty === "number"
+      ? d.totalQty
+      : Array.isArray(lines)
+        ? countPurchaseDraftQty(lines)
+        : 0;
+  return {
+    lineCount,
+    totalQty,
+    isEdit: Boolean(d.isEditMode && (d.editingBillId || d.editBillId)),
+    savedAt: typeof d.savedAt === "number" ? d.savedAt : undefined,
+  };
 }

@@ -48,7 +48,7 @@ import {
   markPurchaseEntryUnmountNavKey,
   omitNewBillNavigationState,
   PURCHASE_DRAFT_DISCARDED_EVENT,
-  readPurchaseEntrySnapshot,
+  readPurchaseEntrySnapshotAsync,
   wasPurchaseEntryNavHandled,
   wasPurchaseEntryRemount,
   writePurchaseEntrySnapshot,
@@ -642,9 +642,9 @@ const PurchaseEntry = () => {
     }
   }, []);
 
-  const readPersistedSnapshot = useCallback(() => {
+  const readPersistedSnapshot = useCallback(async () => {
     if (!currentOrganization?.id || !user?.id) return null;
-    return readPurchaseEntrySnapshot(currentOrganization.id, user.id);
+    return readPurchaseEntrySnapshotAsync(currentOrganization.id, user.id);
   }, [currentOrganization?.id, user?.id]);
 
   const shouldDeferRestoreForNewBill = useCallback(() => {
@@ -661,7 +661,7 @@ const PurchaseEntry = () => {
       if (shouldDeferRestoreForNewBill()) return false;
       if (!currentOrganization?.id || !user?.id) return false;
 
-      const persisted = readPersistedSnapshot();
+      const persisted = await readPersistedSnapshot();
       if (persisted?.lineItems?.length) {
         workRestoredRef.current = true;
         await loadDraftData(persisted);
