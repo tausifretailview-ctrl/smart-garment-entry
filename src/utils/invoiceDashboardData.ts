@@ -162,39 +162,56 @@ async function fetchSaleIdsMatchingLineItems(
   return [...matched];
 }
 
+function applyInvoiceDashboardFilters(query: any, filters: InvoiceDashboardFilters) {
+  let q = query
+    .eq("organization_id", filters.organizationId)
+    .eq("sale_type", "invoice")
+    .is("deleted_at", null);
+
+  if (filters.deliveryFilter !== "all") {
+    q = q.eq("delivery_status", filters.deliveryFilter);
+  }
+  if (filters.paymentStatusFilter.length > 0) {
+    q = applyPaymentStatusFilterToSalesQuery(q, filters.paymentStatusFilter);
+  }
+  if (filters.shopFilter !== "all") {
+    q = q.eq("shop_name", filters.shopFilter);
+  }
+  if (filters.userFilter !== "all" && filters.userFilter !== "__pending__") {
+    q = q.eq("created_by", filters.userFilter);
+  }
+  if (filters.saleDateFilter.start) {
+    q = q.gte("sale_date", filters.saleDateFilter.start);
+  }
+  if (filters.saleDateFilter.end) {
+    q = q.lte("sale_date", filters.saleDateFilter.end);
+  }
+  return q;
+}
+
 function buildFilteredSalesQuery(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
   select: string,
-  withCount = false,
 ) {
-  let query = client
-    .from("sales")
-    .select(select, withCount ? { count: "exact" } : undefined)
-    .eq("organization_id", filters.organizationId)
-    .eq("sale_type", "invoice")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+  return applyInvoiceDashboardFilters(client.from("sales").select(select), filters).order(
+    "created_at",
+    { ascending: false },
+  );
+}
 
-  if (filters.deliveryFilter !== "all") {
-    query = query.eq("delivery_status", filters.deliveryFilter);
-  }
-  if (filters.paymentStatusFilter.length > 0) {
-    query = applyPaymentStatusFilterToSalesQuery(query, filters.paymentStatusFilter);
-  }
-  if (filters.shopFilter !== "all") {
-    query = query.eq("shop_name", filters.shopFilter);
-  }
-  if (filters.userFilter !== "all" && filters.userFilter !== "__pending__") {
-    query = query.eq("created_by", filters.userFilter);
-  }
-  if (filters.saleDateFilter.start) {
-    query = query.gte("sale_date", filters.saleDateFilter.start);
-  }
-  if (filters.saleDateFilter.end) {
-    query = query.lte("sale_date", filters.saleDateFilter.end);
-  }
-  return query;
+async function countFilteredInvoiceSales(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<number> {
+  let query: any = applyInvoiceDashboardFilters(
+    client.from("sales").select("id", { count: "exact", head: true }),
+    filters,
+  );
+  query = await applySearchToSalesQuery(client, filters, query);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
 }
 
 async function applySearchToSalesQuery(
@@ -237,7 +254,17 @@ async function applySearchToSalesQuery(
   return query.or(saleTextFilter);
 }
 
-/** Server-side summary tiles (one RPC; avoids client reconcile over every row). */
+function invoiceDashboardRpcErrorMessage(error: unknown): string {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    const e = error as { message?: string; details?: string; hint?: string };
+    return e.message || e.details || e.hint || JSON.stringify(error);
+  }
+  return String(error);
+}
+
+/** Server-side summary tiles (one RPC; table still loads if RPC is missing or slow). */
 export async function fetchInvoiceDashboardStatsViaRpc(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
@@ -246,27 +273,41 @@ export async function fetchInvoiceDashboardStatsViaRpc(
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
   }
 
-  const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
-    p_organization_id: filters.organizationId,
-    p_date_from: filters.saleDateFilter.start,
-    p_date_to: filters.saleDateFilter.end,
-    p_filters: buildInvoiceDashboardRpcFilters(filters),
-  });
+  try {
+    const { data, error } = await client.rpc("get_invoice_dashboard_stats", {
+      p_organization_id: filters.organizationId,
+      p_date_from: filters.saleDateFilter.start,
+      p_date_to: filters.saleDateFilter.end,
+      p_filters: buildInvoiceDashboardRpcFilters(filters),
+    });
 
-  if (error) throw error;
+    if (error) {
+      console.warn(
+        "get_invoice_dashboard_stats RPC failed:",
+        invoiceDashboardRpcErrorMessage(error),
+      );
+      return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+    }
 
-  const row = (data || {}) as Partial<InvoiceDashboardStats>;
-  return {
-    totalInvoices: Number(row.totalInvoices ?? 0),
-    totalAmount: Number(row.totalAmount ?? 0),
-    totalDiscount: Number(row.totalDiscount ?? 0),
-    totalQty: Number(row.totalQty ?? 0),
-    pendingAmount: Number(row.pendingAmount ?? 0),
-    deliveredCount: Number(row.deliveredCount ?? 0),
-    deliveredAmount: Number(row.deliveredAmount ?? 0),
-    undeliveredCount: Number(row.undeliveredCount ?? 0),
-    undeliveredAmount: Number(row.undeliveredAmount ?? 0),
-  };
+    const row = (data || {}) as Partial<InvoiceDashboardStats>;
+    return {
+      totalInvoices: Number(row.totalInvoices ?? 0),
+      totalAmount: Number(row.totalAmount ?? 0),
+      totalDiscount: Number(row.totalDiscount ?? 0),
+      totalQty: Number(row.totalQty ?? 0),
+      pendingAmount: Number(row.pendingAmount ?? 0),
+      deliveredCount: Number(row.deliveredCount ?? 0),
+      deliveredAmount: Number(row.deliveredAmount ?? 0),
+      undeliveredCount: Number(row.undeliveredCount ?? 0),
+      undeliveredAmount: Number(row.undeliveredAmount ?? 0),
+    };
+  } catch (err) {
+    console.warn(
+      "get_invoice_dashboard_stats RPC failed:",
+      invoiceDashboardRpcErrorMessage(err),
+    );
+    return { ...EMPTY_INVOICE_DASHBOARD_STATS };
+  }
 }
 
 const SR_RECONCILE_TOLERANCE = 0.005;
@@ -383,19 +424,23 @@ export async function fetchInvoiceDashboardPage(
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
 
-  let query: any = buildFilteredSalesQuery(
+  let dataQuery: any = buildFilteredSalesQuery(
     client,
     filters,
     INVOICE_DASHBOARD_SALES_SELECT,
-    true,
   );
-  query = await applySearchToSalesQuery(client, filters, query);
-  const { data, error, count } = await query.range(from, to);
+  dataQuery = await applySearchToSalesQuery(client, filters, dataQuery);
+
+  const [totalCount, dataResult] = await Promise.all([
+    countFilteredInvoiceSales(client, filters),
+    dataQuery.range(from, to),
+  ]);
+  const { data, error } = dataResult;
   if (error) throw error;
 
   const pageRows = data || [];
   if (pageRows.length === 0) {
-    return { invoices: [], totalCount: count ?? 0 };
+    return { invoices: [], totalCount };
   }
 
   const normalized = await reconcileInvoiceDashboardRows(client, filters, pageRows);
@@ -406,7 +451,7 @@ export async function fetchInvoiceDashboardPage(
         )
       : normalized;
 
-  return { invoices, totalCount: count ?? 0 };
+  return { invoices, totalCount };
 }
 
 /** Full filtered fetch for export paths (not used by paginated table). */

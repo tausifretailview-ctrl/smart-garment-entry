@@ -122,68 +122,83 @@ function shouldUnionSaleItemsForPosSearch(searchStr: string): boolean {
   return /[A-Za-z]/.test(t) && t.length >= 3;
 }
 
-function buildPosDashboardBaseQuery(
-  client: SupabaseClient,
-  filters: PosDashboardFilters,
-  select: string,
-  withCount = false,
-) {
-  let query = client
-    .from("sales")
-    .select(select, withCount ? { count: "exact" } : undefined)
+function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
+  let q = query
     .eq("organization_id", filters.organizationId)
     .in("sale_type", ["pos", "delivery_challan"])
-    .is("deleted_at", null)
-    .order("sale_date", { ascending: false })
-    .order("id", { ascending: false });
+    .is("deleted_at", null);
 
   if (filters.cancelFilter === "active") {
-    query = query.or("is_cancelled.is.null,is_cancelled.eq.false");
+    q = q.or("is_cancelled.is.null,is_cancelled.eq.false");
   } else if (filters.cancelFilter === "cancelled") {
-    query = query.eq("is_cancelled", true);
+    q = q.eq("is_cancelled", true);
   }
 
   if (filters.userFilter !== "all" && filters.userFilter !== "__pending__") {
-    query = query.eq("created_by", filters.userFilter);
+    q = q.eq("created_by", filters.userFilter);
   }
 
   if (filters.paymentMethodFilter !== "all") {
-    query = query.eq("payment_method", filters.paymentMethodFilter);
+    q = q.eq("payment_method", filters.paymentMethodFilter);
   }
 
   if (filters.paymentStatusFilter.length > 0) {
-    query = query.in("payment_status", filters.paymentStatusFilter);
+    q = q.in("payment_status", filters.paymentStatusFilter);
   }
 
   if (filters.saleTypeFilter === "dc") {
-    query = query.eq("sale_type", "delivery_challan");
+    q = q.eq("sale_type", "delivery_challan");
   } else if (filters.saleTypeFilter === "pos") {
-    query = query.eq("sale_type", "pos");
+    q = q.eq("sale_type", "pos");
   } else if (filters.saleTypeFilter === "cn") {
-    query = query.or("credit_note_id.not.is.null,credit_amount.gt.0");
+    q = q.or("credit_note_id.not.is.null,credit_amount.gt.0");
   }
 
   if (filters.refundFilter === "with_refund") {
-    query = query.gt("refund_amount", 0);
+    q = q.gt("refund_amount", 0);
   } else if (filters.refundFilter === "without_refund") {
-    query = query.or("refund_amount.is.null,refund_amount.eq.0");
+    q = q.or("refund_amount.is.null,refund_amount.eq.0");
   }
 
   if (filters.creditNoteFilter === "with_credit_note") {
-    query = query.or("credit_note_id.not.is.null,credit_amount.gt.0");
+    q = q.or("credit_note_id.not.is.null,credit_amount.gt.0");
   } else if (filters.creditNoteFilter === "without_credit_note") {
-    query = query.is("credit_note_id", null).or("credit_amount.is.null,credit_amount.eq.0");
+    q = q.is("credit_note_id", null).or("credit_amount.is.null,credit_amount.eq.0");
   }
 
   if (!posSearchBypassesDateFilter(filters.search)) {
     const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
     const startIso = localDayStartUtcIso(bounded.startDate);
     const endIso = localDayEndUtcIso(bounded.endDate);
-    if (startIso) query = query.gte("sale_date", startIso);
-    if (endIso) query = query.lte("sale_date", endIso);
+    if (startIso) q = q.gte("sale_date", startIso);
+    if (endIso) q = q.lte("sale_date", endIso);
   }
 
-  return query;
+  return q;
+}
+
+function buildPosDashboardBaseQuery(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  select: string,
+) {
+  return applyPosDashboardFilters(client.from("sales").select(select), filters)
+    .order("sale_date", { ascending: false })
+    .order("id", { ascending: false });
+}
+
+async function countFilteredPosSales(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+): Promise<number> {
+  let query: any = applyPosDashboardFilters(
+    client.from("sales").select("id", { count: "exact", head: true }),
+    filters,
+  );
+  query = await applyPosSearchToQuery(client, filters, query);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
 }
 
 async function fetchPosSaleIdsMatchingLineItems(
@@ -433,18 +448,22 @@ export async function fetchPosDashboardPage(
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
 
-  let query: any = buildPosDashboardBaseQuery(
+  let dataQuery: any = buildPosDashboardBaseQuery(
     client,
     filters,
     POS_DASHBOARD_SALES_SELECT,
-    true,
   );
-  query = await applyPosSearchToQuery(client, filters, query);
-  const { data, error, count } = await query.range(from, to);
+  dataQuery = await applyPosSearchToQuery(client, filters, dataQuery);
+
+  const [totalCount, dataResult] = await Promise.all([
+    countFilteredPosSales(client, filters),
+    dataQuery.range(from, to),
+  ]);
+  const { data, error } = dataResult;
   if (error) throw error;
 
   const enriched = await enrichPosSalesWithCreditNotes(data || []);
-  return { ...enriched, totalCount: count ?? 0 };
+  return { ...enriched, totalCount };
 }
 
 export async function fetchPosDashboardSummary(
