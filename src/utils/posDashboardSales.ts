@@ -482,9 +482,9 @@ export async function fetchPosDashboardSummary(
       client,
       filters,
       POS_DASHBOARD_SUMMARY_SELECT,
-    );
+    ).range(offset, offset + PAGE_SIZE - 1);
     query = await applyPosSearchToQuery(client, filters, query);
-    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    const { data, error } = await query;
     if (error) throw error;
     if (!data?.length) break;
     allRows.push(...(data as PosDashboardSaleLike[]));
@@ -513,9 +513,9 @@ export async function fetchPosDashboardExportRows(
       client,
       filters,
       POS_DASHBOARD_SALES_SELECT,
-    );
+    ).range(offset, offset + PAGE_SIZE - 1);
     query = await applyPosSearchToQuery(client, filters, query);
-    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    const { data, error } = await query;
     if (error) throw error;
     if (!data?.length) break;
     allSales.push(...data);
