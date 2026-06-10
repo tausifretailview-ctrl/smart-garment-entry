@@ -47,6 +47,8 @@ export const OrgLayout = () => {
   const [accessDeniedForSlug, setAccessDeniedForSlug] = useState<string | null>(null);
   /** Tab-cache pane has mounted for the current path — keep Outlet as fallback until then. */
   const [tabPaneReady, setTabPaneReady] = useState(false);
+  /** If tab cache never becomes ready, fall back to <Outlet> so the screen is not blank. */
+  const [forceOutletFallback, setForceOutletFallback] = useState(false);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
   const location = useLocation();
@@ -129,7 +131,7 @@ export const OrgLayout = () => {
   // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
   // Dashboards: keep <Outlet> visible until the cached pane has mounted (chunk still loading).
   const renderViaTabCache =
-    wantsTabCache && (isCacheableEntryActive || tabPaneReady);
+    wantsTabCache && (isCacheableEntryActive || tabPaneReady) && !forceOutletFallback;
   /**
    * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
    * panes stay mounted (hidden). Cacheable entry must use currentPath — otherwise
@@ -148,7 +150,19 @@ export const OrgLayout = () => {
   // Eagerly restoring from tabPaneReadyPathsRef hid <Outlet> before the pane was actually ready → stuck spinner.
   useEffect(() => {
     setTabPaneReady(false);
+    setForceOutletFallback(false);
   }, [currentPath]);
+
+  // Safety net: if the cached pane never signals ready (slow network / chunk failure), keep Outlet visible.
+  useEffect(() => {
+    if (!wantsTabCache || isCacheableEntryActive || tabPaneReady) return;
+    const timeoutMs = isElectronShell() ? 12_000 : 18_000;
+    const timer = window.setTimeout(() => {
+      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
+      setForceOutletFallback(true);
+    }, timeoutMs);
+    return () => window.clearTimeout(timer);
+  }, [wantsTabCache, isCacheableEntryActive, tabPaneReady, currentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
