@@ -10,6 +10,44 @@ import {
   type PosDashboardSaleLike,
 } from "@/utils/posDashboardSettlement";
 
+/** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
+export function resolvePosDashboardQueryDates(
+  periodFilter: string,
+  startDate: string,
+  endDate: string,
+): { startDate: string; endDate: string } {
+  const today = format(new Date(), "yyyy-MM-dd");
+  switch (periodFilter) {
+    case "daily": {
+      const day = startDate || endDate || today;
+      return { startDate: day, endDate: day };
+    }
+    case "monthly": {
+      const anchor = endDate || startDate || today;
+      const [y, mo, da] = anchor.split("-").map(Number);
+      const d = new Date(y, mo - 1, da);
+      return {
+        startDate: format(new Date(d.getFullYear(), d.getMonth(), 1), "yyyy-MM-dd"),
+        endDate: anchor,
+      };
+    }
+    case "quarterly": {
+      const anchor = endDate || startDate || today;
+      const [y, mo, da] = anchor.split("-").map(Number);
+      const d = new Date(y, mo - 1, da);
+      const quarterMonth = Math.floor(d.getMonth() / 3) * 3;
+      return {
+        startDate: format(new Date(d.getFullYear(), quarterMonth, 1), "yyyy-MM-dd"),
+        endDate: anchor,
+      };
+    }
+    case "all":
+      return { startDate: "", endDate: "" };
+    default:
+      return { startDate, endDate };
+  }
+}
+
 /** When All Time has no dates, bound fetch to rolling 12 months (UI label unchanged). */
 function resolvePosDashboardDateRange(startDate: string, endDate: string) {
   if (startDate || endDate) {

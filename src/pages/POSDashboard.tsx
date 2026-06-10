@@ -7,6 +7,7 @@ import {
   fetchPosDashboardExportRows,
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
+  resolvePosDashboardQueryDates,
   type PosDashboardSummaryStats,
 } from "@/utils/posDashboardSales";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -218,7 +219,7 @@ const POSDashboard = () => {
   // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
   const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
 
-  const { data: orgUsers = [] } = useQuery({
+  const { data: orgUsers = [], isFetched: orgUsersFetched } = useQuery({
     queryKey: ["org-users-filter", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -243,17 +244,18 @@ const POSDashboard = () => {
 
   // Default userFilter: admins see all users; non-admins default to themselves
   useEffect(() => {
-    if (userFilter === "__pending__" && orgUsers.length > 0 && user?.id) {
+    if (userFilter !== "__pending__") return;
+    if (orgUsers.length > 0 && user?.id) {
       if (orgUsers.length === 1 || organizationRole === "admin" || organizationRole === "manager") {
         setUserFilter("all");
       } else {
         const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
         setUserFilter(isOrgMember ? user.id : "all");
       }
-    } else if (userFilter === "__pending__" && orgUsers.length > 0) {
+    } else if (orgUsersFetched) {
       setUserFilter("all");
     }
-  }, [orgUsers, user?.id, organizationRole]);
+  }, [userFilter, orgUsers, orgUsersFetched, user?.id, organizationRole]);
 
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
@@ -484,12 +486,17 @@ const POSDashboard = () => {
     [effectivePosBillFormat, posThermalPaper],
   );
 
+  const queryDateRange = useMemo(
+    () => resolvePosDashboardQueryDates(periodFilter, startDate, endDate),
+    [periodFilter, startDate, endDate],
+  );
+
   const posDashboardFilters = useMemo(
     () => ({
       organizationId: currentOrganization?.id ?? "",
       search: debouncedSearch,
-      startDate,
-      endDate,
+      startDate: queryDateRange.startDate,
+      endDate: queryDateRange.endDate,
       paymentMethodFilter,
       paymentStatusFilter,
       saleTypeFilter,
@@ -501,8 +508,8 @@ const POSDashboard = () => {
     [
       currentOrganization?.id,
       debouncedSearch,
-      startDate,
-      endDate,
+      queryDateRange.startDate,
+      queryDateRange.endDate,
       paymentMethodFilter,
       paymentStatusFilter,
       saleTypeFilter,
@@ -514,16 +521,15 @@ const POSDashboard = () => {
   );
 
   const posQueryEnabled =
-    !!currentOrganization?.id &&
-    routePathSegment === "pos-dashboard" &&
-    userFilter !== "__pending__";
+    !!currentOrganization?.id && routePathSegment === "pos-dashboard";
 
   const posDashboardQueryKey = [
     "pos-dashboard-sales",
     currentOrganization?.id,
     debouncedSearch,
-    startDate,
-    endDate,
+    periodFilter,
+    queryDateRange.startDate,
+    queryDateRange.endDate,
     paymentMethodFilter,
     paymentStatusFilter,
     saleTypeFilter,
