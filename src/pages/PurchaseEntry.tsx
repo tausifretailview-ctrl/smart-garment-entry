@@ -4443,7 +4443,7 @@ const PurchaseEntry = () => {
     toast({
       title: isPartial ? "Import Partially Completed" : "Import Completed",
       description: isPartial
-        ? `${description} · ${successCount} of ${validRows.length} rows imported — check errors and retry remaining rows.`
+        ? `${description} · Imported ${successCount} of ${validRows.length} rows. ${failedExcelRows.length > 0 ? `${failedExcelRows.length} failed rows logged to browser console (Excel row numbers) — re-import those rows.` : 'Check console for details.'}`
         : description,
       variant: isPartial ? "destructive" : undefined,
     });
