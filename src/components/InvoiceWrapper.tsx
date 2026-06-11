@@ -20,6 +20,7 @@ import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
 import { ModernThermalReceipt80mm } from './ModernThermalReceipt80mm';
+import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
 import QRCode from 'qrcode';
 import {
   calculateGSTBreakup,
@@ -134,6 +135,7 @@ interface InvoiceWrapperProps {
   /** Freight / alteration / other charges added on top of line items (sale invoice). */
   otherCharges?: number;
   isDcInvoice?: boolean;
+  documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   financerDetails?: {
     financer_name: string;
     loan_number?: string;
@@ -211,6 +213,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     // A5-only templates must not be routed through the thermal receipt path.
     if (templateForFormat === 'retail-tax-ezzy' || templateForFormat === 'wholesale-a5') {
       format = 'a5-vertical';
+    }
+    // Kids 80mm is thermal-only — always use roll receipt layout.
+    if (templateForFormat === 'kids-80mm') {
+      format = 'thermal';
     }
     
     // Get display settings - use prop overrides if provided for live preview
@@ -419,6 +425,39 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const renderTemplate = () => {
       // Use thermal format (handles both 'thermal' and 'thermal-receipt')
       if (format === 'thermal-receipt' || format === 'thermal') {
+        if (templateForFormat === 'kids-80mm') {
+          return (
+            <KidsThermalReceipt80mm
+              billNo={props.billNo}
+              date={props.date}
+              customerName={props.customerName}
+              customerPhone={props.customerMobile}
+              items={props.items.map((item, idx) => ({
+                sr: idx + 1,
+                particulars: item.particulars,
+                size: item.size,
+                mrp: item.mrp ?? item.sp,
+                qty: item.qty,
+                rate: item.rate,
+                total: item.total,
+              }))}
+              subTotal={props.subTotal}
+              discount={props.discount}
+              saleReturnAdjust={props.saleReturnAdjust}
+              roundOff={props.roundOff}
+              grandTotal={props.grandTotal}
+              paymentMethod={props.paymentMethod}
+              cashPaid={props.cashPaid || props.cashAmount}
+              upiPaid={props.upiPaid || props.upiAmount}
+              cardPaid={props.cardAmount}
+              creditPaid={props.creditAmount}
+              paidAmount={props.paidAmount}
+              refundCash={props.refundCash}
+              documentType={props.documentType || 'pos'}
+              salesman={props.salesman}
+            />
+          );
+        }
         const thermalStyle = (settings?.sale_settings as any)?.thermal_receipt_style || 'classic';
         const ThermalComponent = thermalStyle === 'modern' ? ModernThermalReceipt80mm : thermalStyle === 'compact' ? ThermalReceiptCompact : ThermalPrint80mm;
         // Compute rate-wise GST breakdown for thermal receipt

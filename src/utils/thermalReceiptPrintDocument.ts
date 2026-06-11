@@ -44,7 +44,9 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
     body .thermal-receipt-container,
     body .thermal-receipt-container *,
     body .modern-thermal-receipt,
-    body .modern-thermal-receipt * {
+    body .modern-thermal-receipt *,
+    body .kids-thermal-receipt-80mm,
+    body .kids-thermal-receipt-80mm * {
       visibility: visible !important;
       opacity: 1 !important;
     }
@@ -57,17 +59,19 @@ export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = INVOICE_PRINT_VISIB
 /** Override global index.css / InvoicePrint.css page-break rules on thermal receipts. */
 export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
   @media print {
-    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt),
-    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt) *,
+    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm),
+    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm) *,
     .print-thermal,
     .thermal-print-80mm,
     .thermal-receipt-container,
     .invoice-format-thermal-receipt,
     .invoice-print.invoice-format-thermal-receipt,
     .modern-thermal-receipt,
+    .kids-thermal-receipt-80mm,
     .thermal-print-80mm *,
     .thermal-receipt-container *,
     .modern-thermal-receipt *,
+    .kids-thermal-receipt-80mm *,
     .invoice-print.invoice-format-thermal-receipt * {
       page-break-inside: auto !important;
       break-inside: auto !important;

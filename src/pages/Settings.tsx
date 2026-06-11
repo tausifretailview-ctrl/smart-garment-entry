@@ -183,7 +183,7 @@ interface SaleSettings {
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -397,6 +397,7 @@ export default function Settings() {
         barcode: '10001001',
         hsn: '62051000',
         sp: 599,
+        mrp: 599,
         qty: 2,
         rate: 450,
         total: 900,
@@ -411,6 +412,7 @@ export default function Settings() {
         barcode: '10001002',
         hsn: '62051000',
         sp: 599,
+        mrp: 599,
         qty: 3,
         rate: 450,
         total: 1350,
@@ -3008,7 +3010,14 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'tally-tax-invoice' | 'a4-electronic' | 'retail' | 'retail-erp' | 'retail-tax-ezzy' | 'wholesale-a5' | 'kids-80mm',
+                            ...(value === 'kids-80mm'
+                              ? {
+                                  invoice_paper_format: 'thermal' as const,
+                                  sales_bill_format: 'thermal' as const,
+                                  pos_bill_format: 'thermal' as const,
+                                }
+                              : {}),
                           },
                         })
                       }
@@ -3096,10 +3105,18 @@ export default function Settings() {
                             Wholesale A5 — Laser print estimate
                           </span>
                         </SelectItem>
+                        <SelectItem value="kids-80mm">
+                          <span className="flex items-center gap-2">
+                            <span className="text-amber-600 font-bold text-xs w-5">KID</span>
+                            Kids 80mm — Compact thermal receipt
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)
+                      {settings.sale_settings?.invoice_template === 'kids-80mm'
+                        ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
+                        : 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)'}
                     </p>
                   </div>
 
@@ -4303,7 +4320,8 @@ export default function Settings() {
                       className="flex justify-center origin-top"
                       style={{
                         transform:
-                          settings.sale_settings?.invoice_paper_format === 'thermal'
+                          settings.sale_settings?.invoice_paper_format === 'thermal' ||
+                          settings.sale_settings?.invoice_template === 'kids-80mm'
                             ? 'scale(0.9)'
                             : settings.sale_settings?.invoice_paper_format === 'a4'
                             ? 'scale(0.6)'
@@ -4329,9 +4347,16 @@ export default function Settings() {
                         upiPaid={sampleInvoiceData.upiPaid}
                         paymentMethod="cash"
                         template={settings.sale_settings?.invoice_template}
+                        documentType={
+                          settings.sale_settings?.invoice_template === 'kids-80mm' ? 'pos' : undefined
+                        }
+                        salesman={
+                          settings.sale_settings?.invoice_template === 'kids-80mm' ? 'SAMPLE SALES' : undefined
+                        }
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
                         format={
-                          settings.sale_settings?.invoice_paper_format === 'thermal'
+                          settings.sale_settings?.invoice_paper_format === 'thermal' ||
+                          settings.sale_settings?.invoice_template === 'kids-80mm'
                             ? 'thermal'
                             : (settings.sale_settings?.invoice_paper_format
                                || (settings.sale_settings?.sales_bill_format === 'a5' ? 'a5-vertical' : undefined)
