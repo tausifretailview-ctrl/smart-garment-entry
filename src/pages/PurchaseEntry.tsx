@@ -465,6 +465,7 @@ const PurchaseEntry = () => {
       autoSaveDebounceRef.current = null;
     }
     latestSnapshotRef.current = null;
+    pendingImportRef.current = null;
     setLineItems([]);
     setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
     setSoftwareBillNo("");
@@ -654,6 +655,7 @@ const PurchaseEntry = () => {
     latestSnapshotRef.current = null;
     skipSnapshotEffectRef.current = true;
     importJustAppliedRef.current = false;
+    pendingImportRef.current = null;
     await deleteDraft();
     updateCurrentData(null);
     clearEntrySession();
