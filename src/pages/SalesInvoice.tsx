@@ -219,6 +219,16 @@ export default function SalesInvoice() {
     disc_amount: isColumnVisible('sales_invoice', 'disc_amount'),
     gst: isColumnVisible('sales_invoice', 'gst'),
   };
+  /** Total-row colSpans must match visible header columns (table-layout: fixed breaks when wrong). */
+  const saleLineLeadColSpan =
+    3 + (showCol.color ? 1 : 0) + 1 + (showCol.hsn ? 1 : 0);
+  const saleLineMidColSpan =
+    (showCol.box ? 1 : 0) +
+    (showCol.mrp ? 1 : 0) +
+    1 +
+    (showCol.disc_percent ? 1 : 0) +
+    (showCol.disc_amount ? 1 : 0) +
+    (showCol.gst ? 1 : 0);
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -3830,7 +3840,7 @@ Thank you for choosing us!`;
           ref={tableContainerRef}
           className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-slate-200 shadow-sm bg-slate-100"
         >
-         <div className="bg-white min-h-full pb-4 w-full min-w-0">
+         <div className="bg-white min-h-full pb-4 w-full min-w-full">
           <table className="w-full min-w-full table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-800 border-b-2 border-blue-600">
@@ -3912,7 +3922,7 @@ Thank you for choosing us!`;
                           </span>
                         ) : <span className="text-slate-300">—</span>}
                       </td>
-                      {showCol.color && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5 hidden lg:table-cell">
+                      {showCol.color && <td className="text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5">
                         {item.color || <span className="text-slate-300">—</span>}
                       </td>}
                       <td className="text-center px-3 py-2">
@@ -4022,11 +4032,11 @@ Thank you for choosing us!`;
               {/* Total Row */}
               {lineItems.some(item => item.productId) && (
                 <tr className="bg-muted/50 font-medium">
-                  <td className="px-3 py-2" colSpan={3 + (showCol.color ? 1 : 0) + 1 + (showCol.hsn ? 1 : 0)} />
+                  <td className="px-3 py-2" colSpan={saleLineLeadColSpan} />
                   <td className="text-center font-bold text-primary text-sm tabular-nums px-3 py-2">
                     {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                   </td>
-                  <td className="px-3 py-2" colSpan={(showCol.box ? 1 : 0) + 2 + (showCol.disc_percent ? 1 : 0) + (showCol.disc_amount ? 1 : 0) + (showCol.gst ? 1 : 0)} />
+                  <td className="px-3 py-2" colSpan={saleLineMidColSpan} />
                   <td className="text-right font-bold text-sm tabular-nums px-3 py-2">₹{grossAmount.toFixed(2)}</td>
                   <td className="px-1 py-2" />
                 </tr>
