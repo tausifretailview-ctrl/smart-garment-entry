@@ -969,7 +969,10 @@ const PurchaseReturnDashboard = () => {
                               className="h-7 w-7"
                               onClick={() =>
                                 navigate(`/purchase-return-entry?edit=${returnRecord.id}`, {
-                                  state: { editReturnId: returnRecord.id },
+                                  state: {
+                                    editReturnId: returnRecord.id,
+                                    returnPreview: returnRecord,
+                                  },
                                 })
                               }
                               title="Edit"

@@ -30,7 +30,6 @@ import {
   buildPurchaseReturnItemPayload,
   calculatePurchaseReturnTotals,
 } from "@/utils/purchaseReturnDc";
-import { fetchProductsByIds } from "@/utils/fetchAllRows";
 import {
   deleteJournalEntryByReference,
   recordPurchaseReturnJournalEntry,
@@ -98,21 +97,76 @@ interface LineItem {
 type PurchaseReturnRefundSettlement = "ap_adjustment" | "immediate_refund";
 type PurchaseReturnRefundPm = "cash" | "upi" | "card" | "bank_transfer";
 
+type PurchaseReturnRouteState = {
+  editReturnId?: string;
+  loadDraft?: boolean;
+  returnPreview?: {
+    id?: string;
+    return_number?: string;
+    return_date?: string;
+    supplier_id?: string;
+    supplier_name?: string;
+    original_bill_number?: string;
+    notes?: string;
+    gross_amount?: number;
+    gst_amount?: number;
+    net_amount?: number;
+    discount_percent?: number;
+    discount_amount?: number;
+    linked_bill_id?: string | null;
+    is_dc?: boolean | null;
+    payment_method?: string | null;
+  };
+};
+
+type PurchaseReturnProductLookup = {
+  id: string;
+  product_name?: string | null;
+  brand?: string | null;
+  uom?: string | null;
+};
+
+async function fetchPurchaseReturnProductsByIds(
+  organizationId: string,
+  productIds: string[],
+  selectFields = "id, product_name, brand, uom",
+): Promise<PurchaseReturnProductLookup[]> {
+  if (!organizationId || productIds.length === 0) return [];
+
+  const allRows: PurchaseReturnProductLookup[] = [];
+  const batchSize = 500;
+  for (let i = 0; i < productIds.length; i += batchSize) {
+    const batchIds = productIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("products")
+      .select(selectFields)
+      .eq("organization_id", organizationId)
+      .in("id", batchIds);
+    if (error) throw error;
+    if (data) allRows.push(...(data as PurchaseReturnProductLookup[]));
+  }
+  return allRows;
+}
+
 const PurchaseReturnEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization, loading: orgLoading } = useOrganization();
   const [searchParams] = useSearchParams();
   const location = useLocation();
+  const routeState = location.state as PurchaseReturnRouteState | null;
   const editId =
     searchParams.get("edit") ||
-    (location.state as { editReturnId?: string } | null)?.editReturnId ||
+    routeState?.editReturnId ||
     null;
+  const returnPreview = routeState?.returnPreview;
   const isEditMode = !!editId;
   
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
   const [loadingReturn, setLoadingReturn] = useState(() => !!editId);
+  const [returnLoadError, setReturnLoadError] = useState<string | null>(null);
+  const [returnLoadRetryKey, setReturnLoadRetryKey] = useState(0);
   const loadReturnGenRef = useRef(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -162,6 +216,41 @@ const PurchaseReturnEntry = () => {
 
   const [refundSettlement, setRefundSettlement] = useState<PurchaseReturnRefundSettlement>("ap_adjustment");
   const [refundPaymentMethod, setRefundPaymentMethod] = useState<PurchaseReturnRefundPm>("cash");
+
+  const hydrateReturnHeader = useCallback((typedReturn: PurchaseReturnRouteState["returnPreview"]) => {
+    if (!typedReturn) return;
+
+    setReturnNumber(typedReturn.return_number || "");
+    setReturnDate(typedReturn.return_date ? new Date(typedReturn.return_date) : new Date());
+
+    const inferredDcMode =
+      typedReturn.is_dc === true ||
+      (typedReturn.is_dc == null && Number(typedReturn.gst_amount || 0) === 0);
+    setTaxType(inferredDcMode ? "dc" : "exclusive");
+
+    setDiscountPercent(Number(typedReturn.discount_percent || 0));
+    setDiscountAmount(Number(typedReturn.discount_amount || 0));
+    setGrossAmount(Number(typedReturn.gross_amount || 0));
+    setGstAmount(Number(typedReturn.gst_amount || 0));
+    setNetAmount(Number(typedReturn.net_amount || 0));
+    setOriginalBillId(typedReturn.linked_bill_id || "");
+
+    setReturnData({
+      supplier_id: typedReturn.supplier_id || "",
+      supplier_name: typedReturn.supplier_name || "",
+      original_bill_number: typedReturn.original_bill_number || "",
+      notes: typedReturn.notes || "",
+    });
+
+    const pm = typedReturn.payment_method;
+    if (pm === "cash" || pm === "upi" || pm === "card" || pm === "bank_transfer") {
+      setRefundSettlement("immediate_refund");
+      setRefundPaymentMethod(pm);
+    } else {
+      setRefundSettlement("ap_adjustment");
+      setRefundPaymentMethod("cash");
+    }
+  }, []);
 
   // Draft save hook
   const {
@@ -251,16 +340,19 @@ const PurchaseReturnEntry = () => {
   useEffect(() => {
     if (!editId) {
       setLoadingReturn(false);
+      setReturnLoadError(null);
       return;
     }
 
     if (orgLoading) {
       setLoadingReturn(true);
+      setReturnLoadError(null);
       return;
     }
 
     if (!currentOrganization?.id) {
       setLoadingReturn(false);
+      setReturnLoadError("Organization not loaded. Please refresh and try again.");
       toast({
         title: "Error",
         description: "Organization not loaded. Please refresh and try again.",
@@ -273,8 +365,13 @@ const PurchaseReturnEntry = () => {
     const loadGen = ++loadReturnGenRef.current;
     let cancelled = false;
 
+    if (returnPreview?.id === editId) {
+      hydrateReturnHeader(returnPreview);
+    }
+
     const loadReturnData = async () => {
       setLoadingReturn(true);
+      setReturnLoadError(null);
       const loadTimeoutMs = 30_000;
 
       try {
@@ -287,6 +384,7 @@ const PurchaseReturnEntry = () => {
             const { data, error } = await supabase
               .from("product_variants")
               .select("id, color")
+              .eq("organization_id", orgId)
               .in("id", batch);
             if (error) throw error;
             (data || []).forEach((v: { id: string; color?: string | null }) => {
@@ -309,39 +407,7 @@ const PurchaseReturnEntry = () => {
           if (!returnRecord) throw new Error("Return not found");
 
           const typedReturn = returnRecord as any;
-
-          setReturnNumber(typedReturn.return_number || "");
-          setReturnDate(
-            typedReturn.return_date ? new Date(typedReturn.return_date) : new Date()
-          );
-
-          const inferredDcMode =
-            typedReturn.is_dc === true ||
-            (typedReturn.is_dc == null && Number(typedReturn.gst_amount || 0) === 0);
-          setTaxType(inferredDcMode ? "dc" : "exclusive");
-
-          setDiscountPercent(Number(typedReturn.discount_percent || 0));
-          setDiscountAmount(Number(typedReturn.discount_amount || 0));
-          setGrossAmount(Number(typedReturn.gross_amount || 0));
-          setGstAmount(Number(typedReturn.gst_amount || 0));
-          setNetAmount(Number(typedReturn.net_amount || 0));
-          setOriginalBillId(typedReturn.linked_bill_id || "");
-
-          setReturnData({
-            supplier_id: typedReturn.supplier_id || "",
-            supplier_name: typedReturn.supplier_name || "",
-            original_bill_number: typedReturn.original_bill_number || "",
-            notes: typedReturn.notes || "",
-          });
-
-          const pm = typedReturn.payment_method as string | null | undefined;
-          if (pm === "cash" || pm === "upi" || pm === "card" || pm === "bank_transfer") {
-            setRefundSettlement("immediate_refund");
-            setRefundPaymentMethod(pm);
-          } else {
-            setRefundSettlement("ap_adjustment");
-            setRefundPaymentMethod("cash");
-          }
+          hydrateReturnHeader(typedReturn);
 
           const { data: items, error: itemsError } = await supabase
             .from("purchase_return_items" as any)
@@ -359,11 +425,11 @@ const PurchaseReturnEntry = () => {
           ] as string[];
 
           const [productsData, variantMap] = await Promise.all([
-            fetchProductsByIds(productIds, "id, product_name, brand, uom"),
+            fetchPurchaseReturnProductsByIds(orgId, productIds, "id, product_name, brand, uom"),
             fetchVariantColorsByIds(skuIds),
           ]);
 
-          const productMap = new Map(productsData.map((p: any) => [p.id, p]));
+          const productMap = new Map(productsData.map((p) => [p.id, p]));
 
           const loadedItems: LineItem[] = (items || []).map((item: any) => {
             const product = productMap.get(item.product_id);
@@ -404,13 +470,14 @@ const PurchaseReturnEntry = () => {
       } catch (error) {
         if (cancelled || loadGen !== loadReturnGenRef.current) return;
         console.error("Error loading return:", error);
+        const message =
+          error instanceof Error ? error.message : "Failed to load purchase return";
+        setReturnLoadError(message);
         toast({
           title: "Error",
-          description:
-            error instanceof Error ? error.message : "Failed to load purchase return",
+          description: message,
           variant: "destructive",
         });
-        navigate("/purchase-returns");
       } finally {
         if (!cancelled && loadGen === loadReturnGenRef.current) {
           setLoadingReturn(false);
@@ -423,7 +490,15 @@ const PurchaseReturnEntry = () => {
     return () => {
       cancelled = true;
     };
-  }, [editId, currentOrganization?.id, orgLoading, navigate, toast]);
+  }, [
+    editId,
+    currentOrganization?.id,
+    orgLoading,
+    returnPreview,
+    returnLoadRetryKey,
+    hydrateReturnHeader,
+    toast,
+  ]);
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -894,7 +969,11 @@ const PurchaseReturnEntry = () => {
       const productIds = [...new Set(rawItems.map((i) => i.product_id).filter(Boolean))] as string[];
       const uomByProductId = new Map<string, string>();
       if (productIds.length > 0) {
-        const productsData = await fetchProductsByIds(productIds, "id, uom");
+        const productsData = await fetchPurchaseReturnProductsByIds(
+          currentOrganization.id,
+          productIds,
+          "id, uom",
+        );
         productsData.forEach((p: { id: string; uom?: string | null }) => {
           uomByProductId.set(p.id, p.uom || "NOS");
         });
@@ -1396,23 +1475,60 @@ const PurchaseReturnEntry = () => {
     }
   };
 
-  if (loadingReturn) {
-    return (
-      <div className="w-full px-6 py-6 flex items-center justify-center min-h-[400px]">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading purchase return...</span>
-        </div>
-      </div>
-    );
-  }
-
   const displayNetAmount = isDC ? grossAmount - discountAmount : netAmount;
+  const isReturnHydrating = isEditMode && loadingReturn;
+  const isReturnEditBlocked = isReturnHydrating || !!returnLoadError;
 
   return (
     <>
-    <div className={entryPageShellClass} data-entry-form>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+    <div
+      className={cn(entryPageShellClass, "relative")}
+      data-entry-form
+      aria-busy={isReturnHydrating}
+    >
+      {(isReturnHydrating || returnLoadError) && (
+        <div className="absolute inset-0 z-30 flex items-start justify-center bg-background/70 px-4 pt-16 backdrop-blur-[1px]">
+          <Card className="w-full max-w-md border-primary/20 shadow-lg">
+            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
+              {returnLoadError ? (
+                <>
+                  <p className="text-sm font-semibold text-destructive">Could not load purchase return</p>
+                  <p className="text-xs text-muted-foreground">{returnLoadError}</p>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      onClick={() => setReturnLoadRetryKey((key) => key + 1)}
+                    >
+                      Retry
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/purchase-returns")}
+                    >
+                      Back to Returns
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <p className="text-sm font-medium">Loading purchase return details...</p>
+                  <p className="text-xs text-muted-foreground">
+                    The window is ready. Item rows will appear here shortly.
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      <div
+        className={cn(
+          "flex-1 min-h-0 overflow-y-auto",
+          isReturnEditBlocked && "pointer-events-none opacity-60",
+        )}
+      >
         <div className={cn(entryPageContentClass, "space-y-4 sm:space-y-6")}>
       <div className="flex items-center justify-between">
         <div>
@@ -1936,7 +2052,7 @@ const PurchaseReturnEntry = () => {
           <Button variant="outline" onClick={() => navigate("/purchase-returns")}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSave} disabled={loading || isReturnEditBlocked}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEditMode ? "Update Return" : "Save Return"}
           </Button>
