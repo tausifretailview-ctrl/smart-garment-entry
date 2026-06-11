@@ -24,6 +24,10 @@ export type PurchaseEntrySnapshot = {
   originalLineItems?: unknown[];
   tabInstanceId?: string;
   savedAt?: number;
+  /** Set while an Excel import is running; cleared only when the import finishes.
+   *  If present on a restored draft, the import was interrupted mid-way and the
+   *  draft is incomplete — saving must be blocked until re-imported. */
+  pendingImport?: { expectedRows: number; expectedQty: number } | null;
 };
 
 export type PurchaseEntryDraftMeta = {
