@@ -5,16 +5,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   fetchConversationsWithActualUnread,
+  isCustomerReplyMessage,
   markConversationAsRead,
   sortConversationsUnreadFirst,
+  WHATSAPP_INBOUND_REPLY_TYPES,
 } from "@/utils/whatsappInboxUnread";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -24,13 +24,10 @@ import {
   User, 
   Phone, 
   Clock, 
-  CheckCheck, 
-  Check,
   RefreshCw,
   Search,
   ArrowLeft,
   Users,
-  AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -130,6 +127,8 @@ const WhatsAppInbox = () => {
         .from('whatsapp_messages')
         .select('*')
         .eq('conversation_id', selectedConversation.id)
+        .eq('direction', 'inbound')
+        .in('message_type', [...WHATSAPP_INBOUND_REPLY_TYPES])
         .order('sent_at', { ascending: true });
       
       if (error) throw error;
@@ -265,10 +264,22 @@ const WhatsAppInbox = () => {
           table: 'whatsapp_messages',
           filter: `organization_id=eq.${currentOrganization.id}`,
         },
-        () => {
+        (payload) => {
+          const msg = payload.new as {
+            direction?: string;
+            message_type?: string | null;
+          };
+          if (
+            payload.eventType === 'INSERT' &&
+            !isCustomerReplyMessage(msg.direction, msg.message_type)
+          ) {
+            return;
+          }
           queryClient.invalidateQueries({ queryKey: ['whatsapp-messages'] });
           queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
-          queryClient.invalidateQueries({ queryKey: ['whatsapp-unread-count', currentOrganization.id] });
+          queryClient.invalidateQueries({
+            queryKey: ['whatsapp-unread-count', currentOrganization.id],
+          });
         }
       )
       .on(
@@ -306,13 +317,6 @@ const WhatsAppInbox = () => {
     ),
   );
 
-  const getStatusIcon = (message: Message) => {
-    if (message.direction === 'inbound') return null;
-    if (message.read_at) return <CheckCheck className="h-3 w-3 text-blue-500" />;
-    if (message.delivered_at) return <CheckCheck className="h-3 w-3 text-muted-foreground" />;
-    return <Check className="h-3 w-3 text-muted-foreground" />;
-  };
-
   const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
 
   return (
@@ -343,7 +347,9 @@ const WhatsAppInbox = () => {
             )}
           </div>
           <p className="text-sm text-muted-foreground hidden sm:block">
-            {totalUnread > 0 ? `${totalUnread} unread message${totalUnread > 1 ? 's' : ''}` : 'All caught up!'}
+            {totalUnread > 0
+              ? `${totalUnread} unread repl${totalUnread > 1 ? 'ies' : 'y'}`
+              : 'Customer replies only — see WhatsApp Logs for sent messages'}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchConversations()}>
@@ -377,7 +383,7 @@ const WhatsAppInbox = () => {
               <div className="p-4 text-center text-muted-foreground">Loading...</div>
             ) : filteredConversations.length === 0 ? (
               <div className="p-4 text-center text-muted-foreground">
-                No conversations yet
+                No customer replies yet
               </div>
             ) : (
               filteredConversations.map((conv) => (
@@ -457,34 +463,17 @@ const WhatsAppInbox = () => {
                 {loadingMessages ? (
                   <div className="text-center text-muted-foreground">Loading messages...</div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center text-muted-foreground">No messages yet</div>
+                  <div className="text-center text-muted-foreground">No customer replies in this chat</div>
                 ) : (
                   <div className="space-y-3">
                     {messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          "flex",
-                          message.direction === 'outbound' ? "justify-end" : "justify-start"
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "max-w-[70%] rounded-lg px-3 py-2",
-                            message.direction === 'outbound'
-                              ? "bg-green-600 text-white"
-                              : "bg-muted"
-                          )}
-                        >
+                      <div key={message.id} className="flex justify-start">
+                        <div className="max-w-[70%] rounded-lg px-3 py-2 bg-muted">
                           <p className="text-sm whitespace-pre-wrap">{message.message_text}</p>
-                          <div className={cn(
-                            "flex items-center justify-end gap-1 mt-1",
-                            message.direction === 'outbound' ? "text-green-100" : "text-muted-foreground"
-                          )}>
+                          <div className="flex items-center justify-end gap-1 mt-1 text-muted-foreground">
                             <span className="text-xs">
                               {format(new Date(message.sent_at), 'h:mm a')}
                             </span>
-                            {getStatusIcon(message)}
                           </div>
                         </div>
                       </div>

@@ -9,7 +9,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
-import { fetchActualUnreadMessageCount } from "@/utils/whatsappInboxUnread";
+import {
+  fetchActualUnreadMessageCount,
+  isCustomerReplyMessage,
+} from "@/utils/whatsappInboxUnread";
 
 export const FloatingWhatsAppInbox = () => {
   const navigate = useNavigate();
@@ -66,7 +69,12 @@ export const FloatingWhatsAppInbox = () => {
           table: "whatsapp_messages",
           filter: `organization_id=eq.${currentOrganization.id}`,
         },
-        () => {
+        (payload) => {
+          const msg = payload.new as {
+            direction?: string;
+            message_type?: string | null;
+          };
+          if (!isCustomerReplyMessage(msg.direction, msg.message_type)) return;
           queryClient.invalidateQueries({
             queryKey: ["whatsapp-unread-count", currentOrganization.id],
           });

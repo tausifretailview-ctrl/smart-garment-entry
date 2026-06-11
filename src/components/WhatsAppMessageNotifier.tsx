@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { isCustomerReplyMessage } from "@/utils/whatsappInboxUnread";
 
 function canAccessWhatsAppInbox(
   hasMenuAccess: (menuId: string) => boolean,
@@ -53,11 +54,12 @@ export function WhatsAppMessageNotifier() {
           const msg = payload.new as {
             id: string;
             direction?: string;
+            message_type?: string | null;
             message_text?: string | null;
             conversation_id?: string;
           };
 
-          if (msg.direction !== "inbound") return;
+          if (!isCustomerReplyMessage(msg.direction, msg.message_type)) return;
           if (notifiedIdsRef.current.has(msg.id)) return;
           notifiedIdsRef.current.add(msg.id);
           if (notifiedIdsRef.current.size > 200) {

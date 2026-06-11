@@ -1,12 +1,58 @@
 import { supabase } from '@/integrations/supabase/client';
 
-/** Count inbound messages not yet marked read (source of truth for badge). */
+/** Customer reply types from WhatsApp webhook — excludes outbound/sent rows in inbox. */
+export const WHATSAPP_INBOUND_REPLY_TYPES = [
+  'text',
+  'button',
+  'interactive',
+  'image',
+  'document',
+  'audio',
+  'video',
+] as const;
+
+/** Conversation IDs that have at least one customer reply (inbound). */
+export async function fetchConversationIdsWithCustomerReplies(
+  organizationId: string,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('whatsapp_messages')
+    .select('conversation_id')
+    .eq('organization_id', organizationId)
+    .eq('direction', 'inbound')
+    .in('message_type', [...WHATSAPP_INBOUND_REPLY_TYPES]);
+
+  if (error) {
+    console.error('Error fetching reply conversation ids:', error);
+    return new Set();
+  }
+
+  const ids = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.conversation_id) ids.add(row.conversation_id);
+  }
+  return ids;
+}
+
+export function isCustomerReplyMessage(
+  direction: string | null | undefined,
+  messageType: string | null | undefined,
+): boolean {
+  return (
+    direction === 'inbound' &&
+    !!messageType &&
+    (WHATSAPP_INBOUND_REPLY_TYPES as readonly string[]).includes(messageType)
+  );
+}
+
+/** Count unread customer replies only (source of truth for FAB badge). */
 export async function fetchActualUnreadMessageCount(organizationId: string): Promise<number> {
   const { count, error } = await supabase
     .from('whatsapp_messages')
     .select('id', { count: 'exact', head: true })
     .eq('organization_id', organizationId)
     .eq('direction', 'inbound')
+    .in('message_type', [...WHATSAPP_INBOUND_REPLY_TYPES])
     .is('read_at', null);
 
   if (error) {
@@ -25,6 +71,7 @@ export async function fetchUnreadCountByConversation(
     .select('conversation_id')
     .eq('organization_id', organizationId)
     .eq('direction', 'inbound')
+    .in('message_type', [...WHATSAPP_INBOUND_REPLY_TYPES])
     .is('read_at', null);
 
   if (error) {
@@ -49,22 +96,25 @@ export interface WhatsAppConversationRow {
   status: string;
 }
 
-/** Conversations with unread_count synced to actual inbound unread messages. */
+/** Conversations with unread_count synced to actual inbound unread replies. */
 export async function fetchConversationsWithActualUnread(
   organizationId: string,
 ): Promise<WhatsAppConversationRow[]> {
-  const [{ data: conversations, error: convError }, unreadByConv] = await Promise.all([
+  const [{ data: conversations, error: convError }, unreadByConv, replyConvIds] = await Promise.all([
     supabase
       .from('whatsapp_conversations')
       .select('*')
       .eq('organization_id', organizationId)
       .order('last_message_at', { ascending: false }),
     fetchUnreadCountByConversation(organizationId),
+    fetchConversationIdsWithCustomerReplies(organizationId),
   ]);
 
   if (convError) throw convError;
 
-  const rows = (conversations ?? []).map((conv) => ({
+  const rows = (conversations ?? [])
+    .filter((conv) => replyConvIds.has(conv.id))
+    .map((conv) => ({
     ...(conv as WhatsAppConversationRow),
     unread_count: unreadByConv[conv.id] ?? 0,
   }));
@@ -111,6 +161,7 @@ export async function markConversationAsRead(
     .eq('organization_id', organizationId)
     .eq('conversation_id', conversationId)
     .eq('direction', 'inbound')
+    .in('message_type', [...WHATSAPP_INBOUND_REPLY_TYPES])
     .is('read_at', null);
 
   if (msgError) {
