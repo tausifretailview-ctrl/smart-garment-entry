@@ -732,6 +732,31 @@ const PurchaseEntry = () => {
     // Backfill uom from products table for any rows missing it (drafts saved before MTR fix)
     const enrichedItems = await enrichItemsWithUom(items);
 
+    // Restore interrupted-import marker — keeps the doSave hard-block active across sessions.
+    const pendingImport = (data as { pendingImport?: { expectedRows: number; expectedQty: number } | null })
+      .pendingImport;
+    pendingImportRef.current =
+      pendingImport && Number(pendingImport.expectedQty) > 0
+        ? { expectedRows: Number(pendingImport.expectedRows) || 0, expectedQty: Number(pendingImport.expectedQty) }
+        : null;
+    if (pendingImportRef.current) {
+      const loadedQty = enrichedItems.reduce(
+        (sum: number, item: any) => sum + (Number(item?.qty) || 0),
+        0,
+      );
+      if (loadedQty + 0.5 < pendingImportRef.current.expectedQty) {
+        toast({
+          title: "Excel import was interrupted",
+          description: `This draft has only ${loadedQty.toLocaleString("en-IN")} qty of the ${pendingImportRef.current.expectedQty.toLocaleString("en-IN")} qty in the Excel file. Saving is blocked — discard this draft and re-import the Excel file.`,
+          variant: "destructive",
+          duration: 15000,
+        });
+      } else {
+        // Draft actually has everything (e.g. interrupted after last checkpoint) — clear marker.
+        pendingImportRef.current = null;
+      }
+    }
+
     // Single update — no chunked progress overlay (table windowing handles render cost).
     skipSnapshotEffectRef.current = true;
     importJustAppliedRef.current = true;
