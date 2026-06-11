@@ -25,6 +25,8 @@ export function useEntryViewportSync(): void {
         const root = document.documentElement;
         root.classList.add("entry-viewport-synced");
         root.style.setProperty("--entry-vw", `${window.innerWidth}px`);
+        root.style.setProperty("--entry-vh", `${window.innerHeight}px`);
+        root.style.setProperty("--ezzy-viewport-h", `${window.innerHeight}px`);
         if (root.style.zoom && root.style.zoom !== "1") {
           root.style.zoom = "1";
         }

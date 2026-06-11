@@ -32,8 +32,10 @@ if (!gotTheLock) {
   app.on('second-instance', () => {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
+      ensureMainWindowMaximized();
       if (!mainWindow.isVisible()) mainWindow.show();
       mainWindow.focus();
+      notifyRendererLayoutSync();
     }
   });
 
@@ -190,6 +192,24 @@ function recoverSupabaseOAuthJsonErrorPage() {
     .catch(() => {});
 }
 
+/** Bill/POS footers need full viewport height — open maximized by default. */
+function ensureMainWindowMaximized() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindow.isMaximized()) {
+    mainWindow.maximize();
+  }
+}
+
+/** Mimics the manual maximize/restore resize that fixes clipped footers in the WebView. */
+function notifyRendererLayoutSync() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents
+    .executeJavaScript(
+      'window.dispatchEvent(new Event("resize")); if (document.visibilityState === "visible") document.dispatchEvent(new Event("visibilitychange"));',
+    )
+    .catch(() => {});
+}
+
 function createWindow() {
   const icon = resolveIcon();
 
@@ -198,6 +218,7 @@ function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
+    maximized: true,
     title: 'EzzyERP — Smart Inventory & Billing',
     ...(icon ? { icon: icon.image } : {}),
 
@@ -327,7 +348,8 @@ function createWindow() {
        fixed ERP status bar so Save Invoice / Save Bill is never covered. */
     [data-entry-form] {
       height: auto !important;
-      min-height: 100vh;
+      min-height: calc(100dvh - var(--ezzy-hint-bar-height, 22px));
+      max-height: calc(100dvh - var(--ezzy-hint-bar-height, 22px));
       overflow-y: auto !important;
       padding-bottom: var(--erp-status-bar-height, 1.75rem) !important;
     }
@@ -377,8 +399,19 @@ function createWindow() {
     }
     #ezzy-hint-bar .spacer { flex: 1; }
     #ezzy-hint-bar .meta { color: #64748b; font-size: 10px; }
-    /* Push main content above the hint strip too */
-    html.desktop-shell body { padding-bottom: 22px; }
+    /* Reserve space for the fixed hint strip — h-screen/100dvh alone clips POS & bill footers */
+    html.desktop-shell {
+      --ezzy-hint-bar-height: 22px;
+    }
+    html.desktop-shell .h-screen {
+      height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
+      max-height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
+    }
+    html.desktop-shell body.entry-bill-screen,
+    html.desktop-shell body.entry-bill-screen #root {
+      height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
+      max-height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
+    }
 
     /* ── Step 5: Multi-document tab strip (Vyapar / browser-style) ─────
        Pins WindowTabsBar to the top of the layout, repaints the tabs as
@@ -506,11 +539,23 @@ function createWindow() {
   // Show maximized by default so bill entry footers and fields fit without manual resize
   mainWindow.once('ready-to-show', () => {
     try { closeSplash(); } catch {}
-    if (!mainWindow.isMaximized()) {
-      mainWindow.maximize();
-    }
+    ensureMainWindowMaximized();
     mainWindow.show();
     mainWindow.focus();
+    setTimeout(() => {
+      ensureMainWindowMaximized();
+      notifyRendererLayoutSync();
+    }, 80);
+    setTimeout(notifyRendererLayoutSync, 400);
+  });
+
+  mainWindow.on('show', () => {
+    ensureMainWindowMaximized();
+    setTimeout(notifyRendererLayoutSync, 50);
+  });
+
+  mainWindow.on('maximize', () => {
+    setTimeout(notifyRendererLayoutSync, 50);
   });
 
   // Open external links (target=_blank / window.open) in the default browser
@@ -617,8 +662,10 @@ function createTray() {
       label: 'Open EzzyERP',
       click: () => {
         if (mainWindow) {
+          ensureMainWindowMaximized();
           mainWindow.show();
           mainWindow.focus();
+          notifyRendererLayoutSync();
         }
       },
     },
@@ -640,8 +687,10 @@ function createTray() {
   tray.setContextMenu(contextMenu);
   tray.on('double-click', () => {
     if (mainWindow) {
+      ensureMainWindowMaximized();
       mainWindow.show();
       mainWindow.focus();
+      notifyRendererLayoutSync();
     }
   });
 }

@@ -16,6 +16,7 @@ import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
@@ -298,6 +299,7 @@ const PERF_PATH = "pos-sales";
 
 export default function POSSales() {
   useNavPerfPage(PERF_PATH);
+  useEntryViewportSync();
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
