@@ -1691,30 +1691,30 @@ const PurchaseBillDashboard = () => {
         </div>
         <div className="border rounded-lg overflow-hidden">
           <Table>
-            <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-0">
-              <TableRow className="bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-50 border-muted">
-                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+            <TableHeader className="bg-slate-800 text-white [&_tr]:border-slate-700">
+              <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-white">
                   Product
                 </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-white">
                   SKU / Barcode
                 </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-white">
                   Size / Color
                 </TableHead>
-                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-white">
                   Qty
                 </TableHead>
-                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-white">
                   Rate
                 </TableHead>
-                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-white">
                   GST %
                 </TableHead>
-                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-right text-xs font-bold uppercase tracking-wide text-white">
                   Amount
                 </TableHead>
-                <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
+                <TableHead className="text-xs font-bold uppercase tracking-wide text-white">
                   Status
                 </TableHead>
               </TableRow>
