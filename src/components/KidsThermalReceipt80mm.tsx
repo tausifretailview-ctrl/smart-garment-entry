@@ -147,6 +147,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       textAlign: 'left',
     };
     const left: React.CSSProperties = { textAlign: 'left', width: '100%' };
+    const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
     const dotted: React.CSSProperties = { borderTop: '1px dotted #000', margin: '2px 0' };
     const solid: React.CSSProperties = { borderTop: '1px solid #000', margin: '2px 0' };
     const rowBetween: React.CSSProperties = {
@@ -205,8 +206,8 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container kids-thermal-receipt-80mm" style={base}>
-        {/* Header */}
-        <div style={{ ...left, marginBottom: '2px' }}>
+        {/* Header — shop name & address centered */}
+        <div style={{ ...center, marginBottom: '2px' }}>
           <div style={{ fontWeight: 900, fontSize: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {businessName}
           </div>
@@ -222,7 +223,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ ...left, fontWeight: 900, fontSize: '13px', letterSpacing: '0.5px', margin: '2px 0' }}>
+        <div style={{ ...center, fontWeight: 900, fontSize: '13px', letterSpacing: '0.5px', margin: '2px 0' }}>
           {docTitle}
         </div>
 
@@ -304,7 +305,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         {/* Fixed footer — KIDS ZONE style */}
         <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35', marginTop: '2px' }}>
-          <div>** FIXED RATE **</div>
+          <div style={center}>** FIXED RATE **</div>
           <div style={{ margin: '2px 0' }}>
             ** NO GUARANTEE FOR COLORS FANCY DRESS MATERIAL AND KIDS WEAR **
           </div>
