@@ -331,6 +331,11 @@ const PurchaseEntry = () => {
   /** Skip duplicate snapshot rebuild right after Excel import / bulk restore. */
   const skipSnapshotEffectRef = useRef(false);
   const importJustAppliedRef = useRef(false);
+  /** Non-null while an Excel import is in flight (set at import start, cleared at
+   *  completion). Persisted into every draft snapshot/checkpoint so an interrupted
+   *  import (refresh/tab close) leaves a marker — doSave hard-blocks saving such a
+   *  partial draft, which previously silently truncated bills. */
+  const pendingImportRef = useRef<{ expectedRows: number; expectedQty: number } | null>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
