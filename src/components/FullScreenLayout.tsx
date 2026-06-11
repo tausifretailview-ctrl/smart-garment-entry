@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
+import { SidebarExpandStrip } from "@/components/SidebarExpandStrip";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ChatProvider } from "@/contexts/ChatContext";
@@ -57,6 +58,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               }
             >
               {showDesktopChrome && <AppSidebar />}
+              {showDesktopChrome && <SidebarExpandStrip />}
               <SidebarInset
                 className={
                   isEntryFullscreenPage

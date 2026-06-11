@@ -1,6 +1,7 @@
 import { ReactNode, useEffect } from "react";
 import { Header } from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
+import { SidebarExpandStrip } from "@/components/SidebarExpandStrip";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
@@ -56,6 +57,7 @@ export const Layout = ({ children }: LayoutProps) => {
               )}
             >
               {showDesktopChrome && <AppSidebar />}
+              {showDesktopChrome && <SidebarExpandStrip />}
               <SidebarInset
                 className={cn(
                   "flex flex-col flex-1 min-w-0",

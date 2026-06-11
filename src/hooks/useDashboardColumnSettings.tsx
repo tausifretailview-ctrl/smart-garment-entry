@@ -8,7 +8,8 @@ type DashboardType =
   | "sales_invoice_dashboard"
   | "purchase_bill_dashboard"
   | "payments_dashboard"
-  | "product_dashboard";
+  | "product_dashboard"
+  | "sale_return_dashboard";
 
 export function useDashboardColumnSettings(
   dashboardType: DashboardType,

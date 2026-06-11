@@ -22,7 +22,10 @@ import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package } from "lucide-react";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package, Settings2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { TableSkeleton } from "@/components/ui/skeletons";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
@@ -123,6 +126,15 @@ const formatCreditStatusLabel = (ret: SaleReturn) => {
  * 2. Otherwise, if the return is linked to a sale, use remaining_cn_amt.
  * 3. Otherwise (pending, no CN yet), fall back to net_amount.
  */
+/** Hidden by default — enable via Columns filter. */
+const DEFAULT_SALE_RETURN_COLUMNS = {
+  phone: false,
+  originalSale: false,
+  gross: false,
+  gst: false,
+  adjInvoice: false,
+};
+
 const getAvailableCN = (ret: SaleReturn): number => {
   if (ret.credit_note_id && ret.cn_live_remaining != null) {
     return Number(ret.cn_live_remaining);
@@ -138,6 +150,19 @@ export default function SaleReturnDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+
+  const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
+    "sale_return_dashboard",
+    DEFAULT_SALE_RETURN_COLUMNS,
+  );
+
+  const optionalColumnCount =
+    (columnSettings.phone ? 1 : 0) +
+    (columnSettings.originalSale ? 1 : 0) +
+    (columnSettings.gross ? 1 : 0) +
+    (columnSettings.gst ? 1 : 0) +
+    (columnSettings.adjInvoice ? 1 : 0);
+  const tableColSpan = 11 + optionalColumnCount;
 
   const [loading, setLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -1259,6 +1284,65 @@ export default function SaleReturnDashboard() {
                 <Printer className="h-4 w-4" />
                 Print
               </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 border-slate-200 bg-slate-50 hover:bg-white"
+                    title="Column Settings"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 bg-popover z-50" align="end">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Show/Hide Columns</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="sr-col-phone" className="text-sm">Phone</Label>
+                        <Checkbox
+                          id="sr-col-phone"
+                          checked={columnSettings.phone}
+                          onCheckedChange={(checked) => updateColumnSetting("phone", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="sr-col-original-sale" className="text-sm">Original Sale</Label>
+                        <Checkbox
+                          id="sr-col-original-sale"
+                          checked={columnSettings.originalSale}
+                          onCheckedChange={(checked) => updateColumnSetting("originalSale", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="sr-col-gross" className="text-sm">Gross</Label>
+                        <Checkbox
+                          id="sr-col-gross"
+                          checked={columnSettings.gross}
+                          onCheckedChange={(checked) => updateColumnSetting("gross", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="sr-col-gst" className="text-sm">GST</Label>
+                        <Checkbox
+                          id="sr-col-gst"
+                          checked={columnSettings.gst}
+                          onCheckedChange={(checked) => updateColumnSetting("gst", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="sr-col-adj-invoice" className="text-sm">Adj. Invoice</Label>
+                        <Checkbox
+                          id="sr-col-adj-invoice"
+                          checked={columnSettings.adjInvoice}
+                          onCheckedChange={(checked) => updateColumnSetting("adjInvoice", !!checked)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain px-4 pb-4">
@@ -1270,25 +1354,35 @@ export default function SaleReturnDashboard() {
                 ) : returns.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground text-base">No returns found</div>
                 ) : (
-                  <Table className="w-full min-w-[1100px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                  <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
                     <TableHeader className="!static">
                       <TableRow>
                         <TableHead className="w-10 px-1 print:hidden" />
-                        <TableHead className="font-semibold min-w-[7rem]">Return No</TableHead>
-                        <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
-                        <TableHead className="font-semibold min-w-[8rem]">Customer</TableHead>
-                        <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>
-                        <TableHead className="font-semibold min-w-[7rem]">Original Sale</TableHead>
-                        <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
-                        <TableHead className="text-right font-semibold w-[4rem]">Gross</TableHead>
-                        <TableHead className="text-right font-semibold w-[4rem]">GST</TableHead>
-                        <TableHead className="text-right font-semibold w-[5rem]">Net Amt</TableHead>
-                        <TableHead className="font-semibold min-w-[5.5rem] px-1">Status</TableHead>
-                        <TableHead className="font-semibold min-w-[5rem]">Credit Note</TableHead>
-                        <TableHead className="font-semibold min-w-[6rem]">Adj. Invoice</TableHead>
+                        <TableHead className="font-semibold w-[7.5rem]">Return No</TableHead>
+                        <TableHead className="font-semibold w-[4.5rem]">Date</TableHead>
+                        <TableHead className="font-semibold min-w-[6rem]">Customer</TableHead>
+                        {columnSettings.phone && (
+                          <TableHead className="font-semibold w-[5rem]">Phone</TableHead>
+                        )}
+                        {columnSettings.originalSale && (
+                          <TableHead className="font-semibold w-[6.5rem]">Original Sale</TableHead>
+                        )}
+                        <TableHead className="text-center font-semibold w-[2.5rem] px-1">Qty</TableHead>
+                        {columnSettings.gross && (
+                          <TableHead className="text-right font-semibold w-[4rem]">Gross</TableHead>
+                        )}
+                        {columnSettings.gst && (
+                          <TableHead className="text-right font-semibold w-[3.5rem]">GST</TableHead>
+                        )}
+                        <TableHead className="text-right font-semibold w-[4.5rem]">Net Amt</TableHead>
+                        <TableHead className="font-semibold min-w-[5rem] px-1">Status</TableHead>
+                        <TableHead className="font-semibold w-[5.5rem]">Credit Note</TableHead>
+                        {columnSettings.adjInvoice && (
+                          <TableHead className="font-semibold w-[6rem]">Adj. Invoice</TableHead>
+                        )}
                         <TableHead className="text-right font-semibold w-[4.5rem]">Adj. Amt</TableHead>
-                        <TableHead className="font-semibold min-w-[5rem]">Settlement</TableHead>
-                        <TableHead className="text-right font-semibold w-[8.5rem] print:hidden px-1">Actions</TableHead>
+                        <TableHead className="font-semibold w-[5.5rem]">Settlement</TableHead>
+                        <TableHead className="text-right font-semibold w-[8rem] print:hidden px-1">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1325,23 +1419,31 @@ export default function SaleReturnDashboard() {
                             >
                               {ret.customer_name?.toUpperCase()}
                             </TableCell>
-                            <TableCell onClick={() => toggleRow(ret.id)}>{ret.customer_phone || "-"}</TableCell>
-                            <TableCell onClick={() => toggleRow(ret.id)}>
-                              {ret.original_sale_number ? (
-                                <span className="text-sm text-foreground/80">{ret.original_sale_number}</span>
-                              ) : (
-                                "-"
-                              )}
-                            </TableCell>
+                            {columnSettings.phone && (
+                              <TableCell onClick={() => toggleRow(ret.id)}>{ret.customer_phone || "-"}</TableCell>
+                            )}
+                            {columnSettings.originalSale && (
+                              <TableCell onClick={() => toggleRow(ret.id)}>
+                                {ret.original_sale_number ? (
+                                  <span className="text-sm text-foreground/80">{ret.original_sale_number}</span>
+                                ) : (
+                                  "-"
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className="text-center" onClick={() => toggleRow(ret.id)}>
                               {ret.total_qty || 0}
                             </TableCell>
-                            <TableCell className="text-right" onClick={() => toggleRow(ret.id)}>
-                              ₹{Math.round(ret.gross_amount).toLocaleString("en-IN")}
-                            </TableCell>
-                            <TableCell className="text-right" onClick={() => toggleRow(ret.id)}>
-                              ₹{Math.round(ret.gst_amount).toLocaleString("en-IN")}
-                            </TableCell>
+                            {columnSettings.gross && (
+                              <TableCell className="text-right" onClick={() => toggleRow(ret.id)}>
+                                ₹{Math.round(ret.gross_amount).toLocaleString("en-IN")}
+                              </TableCell>
+                            )}
+                            {columnSettings.gst && (
+                              <TableCell className="text-right" onClick={() => toggleRow(ret.id)}>
+                                ₹{Math.round(ret.gst_amount).toLocaleString("en-IN")}
+                              </TableCell>
+                            )}
                             <TableCell className="text-right font-medium" onClick={() => toggleRow(ret.id)}>
                               ₹{Math.round(ret.net_amount).toLocaleString("en-IN")}
                             </TableCell>
@@ -1382,16 +1484,18 @@ export default function SaleReturnDashboard() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                            <TableCell onClick={() => toggleRow(ret.id)}>
-                              {ret.adjusted_sale_number ? (
-                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs px-2 py-0.5 font-normal">
-                                  {ret.adjusted_sale_number}
-                                  {ret.adjusted_sale_type === "pos" ? " (S/R)" : ""}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
+                            {columnSettings.adjInvoice && (
+                              <TableCell onClick={() => toggleRow(ret.id)}>
+                                {ret.adjusted_sale_number ? (
+                                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs px-2 py-0.5 font-normal">
+                                    {ret.adjusted_sale_number}
+                                    {ret.adjusted_sale_type === "pos" ? " (S/R)" : ""}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className="text-right font-medium" onClick={() => toggleRow(ret.id)}>
                               ₹{Math.round(ret.actual_adjusted_amt ?? ret.net_amount).toLocaleString("en-IN")}
                               {(ret.remaining_cn_amt ?? 0) > 0 && (
@@ -1504,7 +1608,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && loadedItems[ret.id] && (
                         <TableRow>
-                          <TableCell colSpan={16} className="bg-muted/50">
+                          <TableCell colSpan={tableColSpan} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
