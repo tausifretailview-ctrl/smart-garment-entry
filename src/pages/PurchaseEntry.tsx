@@ -4074,6 +4074,22 @@ const PurchaseEntry = () => {
     let errorCount = 0;
     skippedCount = mappedData.length - validRows.length;
 
+    // Mark import as in-flight BEFORE any async work. This marker rides on every
+    // draft checkpoint — if the import is interrupted (refresh / tab close / crash),
+    // the restored draft is flagged incomplete and saving is hard-blocked.
+    const baseQtyBeforeImport = baseLineItems.reduce(
+      (sum, item) => sum + (Number(item.qty) || 0),
+      0,
+    );
+    const excelExpectedQty = validRows.reduce(
+      (sum, row) => sum + (parseLocalizedNumber(row.qty) || 0),
+      0,
+    );
+    pendingImportRef.current = {
+      expectedRows: baseLineItems.length + validRows.length,
+      expectedQty: baseQtyBeforeImport + excelExpectedQty,
+    };
+
     reportImportProgress(0, validRows.length, "Starting Excel import...");
 
     // Helper: stable product key for deduplication
