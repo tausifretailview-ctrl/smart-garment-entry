@@ -61,6 +61,10 @@ import {
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
+import {
+  fetchPurchaseBillIdsMatchingLineItems,
+  purchaseBillTextSearchFilter,
+} from "@/utils/purchaseBillDashboardSearch";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
@@ -536,37 +540,23 @@ const PurchaseBillDashboard = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
-      // Server-side search — also search product details in purchase_items
+      const isBarcodeLikeSearch = debouncedSearch && /^\d{4,}$/.test(debouncedSearch.trim());
+
+      // Server-side search — also search product details in purchase_items (org-scoped)
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
 
-        // Step 1: find bill_ids from purchase_items matching barcode/product
-        const { data: matchingItems } = await (supabase as any)
-          .from("purchase_items")
-          .select("bill_id")
-          .is("deleted_at", null)
-          .or(
-            `product_name.ilike.%${searchStr}%,` +
-            `brand.ilike.%${searchStr}%,` +
-            `barcode.ilike.%${searchStr}%,` +
-            `style.ilike.%${searchStr}%,` +
-            `category.ilike.%${searchStr}%,` +
-            `color.ilike.%${searchStr}%`
-          )
-          .limit(300);
+        const matchingBillIds = await fetchPurchaseBillIdsMatchingLineItems(
+          currentOrganization.id,
+          searchStr,
+          {
+            startDate: isBarcodeLikeSearch ? undefined : startDate,
+            endDate: isBarcodeLikeSearch ? undefined : endDate,
+            skipDate: Boolean(isBarcodeLikeSearch),
+          },
+        );
 
-        const matchingBillIds = [
-          ...new Set(
-            (matchingItems || [])
-              .map((i: any) => i.bill_id)
-              .filter(Boolean)
-          )
-        ] as string[];
-
-        const billTextFilter =
-          `supplier_name.ilike.%${searchStr}%,` +
-          `supplier_invoice_no.ilike.%${searchStr}%,` +
-          `software_bill_no.ilike.%${searchStr}%`;
+        const billTextFilter = purchaseBillTextSearchFilter(searchStr);
 
         if (matchingBillIds.length > 0) {
           // Get bill IDs matching text search
@@ -586,7 +576,6 @@ const PurchaseBillDashboard = () => {
       }
 
       // Server-side date filtering — skip when searching by barcode/numeric to find bills across all dates
-      const isBarcodeLikeSearch = debouncedSearch && /^\d{4,}$/.test(debouncedSearch.trim());
       if (startDate && !isBarcodeLikeSearch) {
         query = query.gte("bill_date", startDate);
       }
@@ -1299,14 +1288,33 @@ const PurchaseBillDashboard = () => {
     isFetching: purchaseSummaryFetching,
   });
 
-  const summaryStats = useMemo(() => ({
-    totalBills: purchaseSummaryData?.total_count ?? (billsQueryData?.totalCount || 0),
-    totalAmount: purchaseSummaryData?.total_amount ?? 0,
-    totalQty: filteredBills.reduce((sum, bill) => sum + (bill.total_qty || 0), 0),
-    paidAmount: purchaseSummaryData?.paid_amount ?? 0,
-    unpaidAmount: purchaseSummaryData?.unpaid_amount ?? 0,
-    partialAmount: purchaseSummaryData?.partial_amount ?? 0,
-  }), [purchaseSummaryData, billsQueryData, filteredBills]);
+  const billTotalCount = billsQueryData?.totalCount ?? 0;
+  const summaryLooksValid =
+    purchaseSummaryData &&
+    !purchaseSummaryLoading &&
+    (purchaseSummaryData.total_count > 0 || billTotalCount === 0);
+
+  const summaryStats = useMemo(() => {
+    const base = summaryLooksValid
+      ? purchaseSummaryData!
+      : {
+          total_count: billTotalCount,
+          total_amount: 0,
+          paid_amount: 0,
+          unpaid_amount: 0,
+          partial_amount: 0,
+        };
+    return {
+      totalBills: base.total_count,
+      totalAmount: base.total_amount,
+      totalQty: summaryLooksValid
+        ? filteredBills.reduce((sum, bill) => sum + (bill.total_qty || 0), 0)
+        : 0,
+      paidAmount: base.paid_amount,
+      unpaidAmount: base.unpaid_amount,
+      partialAmount: base.partial_amount,
+    };
+  }, [summaryLooksValid, purchaseSummaryData, billTotalCount, filteredBills]);
 
   // Server-side pagination — bills already represent current page
   const totalPages = useMemo(() => Math.ceil((billsQueryData?.totalCount || filteredBills.length) / itemsPerPage), [billsQueryData, filteredBills.length, itemsPerPage]);
