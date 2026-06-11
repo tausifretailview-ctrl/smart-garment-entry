@@ -4464,6 +4464,10 @@ const PurchaseEntry = () => {
     successCount = insertedVariantMap.size;
 
     const mergedLineItems = [...baseLineItems, ...newLineItems];
+    // Import reached completion — clear the in-flight marker. Partial successes are
+    // reported explicitly via the destructive toast below, so the user has been told;
+    // the hard save-block is only for imports that never reached this point.
+    pendingImportRef.current = null;
     importJustAppliedRef.current = true;
     skipSnapshotEffectRef.current = true;
     workRestoredRef.current = true;
