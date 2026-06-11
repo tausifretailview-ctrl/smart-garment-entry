@@ -439,6 +439,24 @@ export function hasPurchaseEntryDraftInBrowser(orgId: string, userId: string): b
   return Boolean(inline?.lineItems?.length);
 }
 
+/**
+ * Whether restore should run when work was already restored once but in-memory lines
+ * were lost (window switch / remount) while browser storage still has a draft.
+ */
+export function shouldAllowPurchaseEntryReRestore(
+  workAlreadyRestored: boolean,
+  lineCount: number,
+  orgId: string | undefined,
+  userId: string | undefined,
+  options?: { force?: boolean },
+): boolean {
+  if (!workAlreadyRestored) return true;
+  if (lineCount > 0) return false;
+  if (options?.force) return true;
+  if (!orgId || !userId) return false;
+  return hasPurchaseEntryDraftInBrowser(orgId, userId);
+}
+
 /** Summarize draft for dashboard display (DB stub or full payload). */
 export function summarizePurchaseDraft(data: unknown): {
   lineCount: number;

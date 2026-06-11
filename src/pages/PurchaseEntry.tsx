@@ -46,6 +46,7 @@ import {
   getOrCreatePurchaseEntryTabInstanceId,
   hasPurchaseEntryDraftInBrowser,
   isDocumentReload,
+  shouldAllowPurchaseEntryReRestore,
   markPurchaseEntryNavHandled,
   markPurchaseEntryUnmountNavKey,
   omitNewBillNavigationState,
@@ -302,6 +303,8 @@ const PurchaseEntry = () => {
   const [sizeQty, setSizeQty] = useState<{ [size: string]: number }>({});
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const lineItemsCountRef = useRef(lineItems.length);
+  lineItemsCountRef.current = lineItems.length;
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [billDate, setBillDate] = useState<Date>(new Date());
   const [billDateOpen, setBillDateOpen] = useState(false);
@@ -804,13 +807,25 @@ const PurchaseEntry = () => {
   }, [location.key, location.state?.newBill, currentOrganization?.id, user?.id]);
 
   const restorePersistedWork = useCallback(
-    async (options?: { notify?: boolean }) => {
-      if (workRestoredRef.current) return false;
-      if (location.state?.editBillId) return false;
-      if (shouldDeferRestoreForNewBill()) return false;
-
+    async (options?: { notify?: boolean; force?: boolean }) => {
       const orgId = currentOrganization?.id;
       const userId = user?.id;
+      const lineCount = lineItemsCountRef.current;
+
+      if (
+        !shouldAllowPurchaseEntryReRestore(workRestoredRef.current, lineCount, orgId, userId, {
+          force: options?.force,
+        })
+      ) {
+        return false;
+      }
+
+      if (options?.force && workRestoredRef.current && lineCount === 0) {
+        workRestoredRef.current = false;
+      }
+
+      if (location.state?.editBillId) return false;
+      if (shouldDeferRestoreForNewBill()) return false;
       const mightHaveBrowserDraft = Boolean(
         orgId && userId && hasPurchaseEntryDraftInBrowser(orgId, userId),
       );
@@ -905,24 +920,6 @@ const PurchaseEntry = () => {
       skipSnapshotEffectRef.current = false;
       return;
     }
-    if (lineItems.length > 500) {
-      let cancelled = false;
-      const syncSnapshot = () => {
-        if (!cancelled) latestSnapshotRef.current = buildEntrySnapshot();
-      };
-      if (typeof requestIdleCallback !== "undefined") {
-        const idleId = requestIdleCallback(syncSnapshot);
-        return () => {
-          cancelled = true;
-          cancelIdleCallback(idleId);
-        };
-      }
-      const timerId = window.setTimeout(syncSnapshot, 0);
-      return () => {
-        cancelled = true;
-        window.clearTimeout(timerId);
-      };
-    }
     latestSnapshotRef.current = buildEntrySnapshot();
   }, [buildEntrySnapshot, lineItems.length]);
 
@@ -987,8 +984,6 @@ const PurchaseEntry = () => {
     });
   }, [location.key, location.pathname, location.state, routerNavigate]);
 
-  const lineItemsCountRef = useRef(lineItems.length);
-  lineItemsCountRef.current = lineItems.length;
   const locationKeyRef = useRef(location.key);
   locationKeyRef.current = location.key;
 
@@ -1000,7 +995,15 @@ const PurchaseEntry = () => {
         return;
       }
       if (document.visibilityState === "visible" && lineItemsCountRef.current === 0) {
-        void restorePersistedWork({ notify: true });
+        const orgId = currentOrganization?.id;
+        const userId = user?.id;
+        const hasBrowserDraft = Boolean(
+          orgId && userId && hasPurchaseEntryDraftInBrowser(orgId, userId),
+        );
+        void restorePersistedWork({
+          notify: !hasBrowserDraft,
+          force: hasBrowserDraft,
+        });
       }
     };
     const onPageHide = () => {
@@ -1016,7 +1019,7 @@ const PurchaseEntry = () => {
       markPurchaseEntryUnmountNavKey(locationKeyRef.current);
       flushEntryPersistence();
     };
-  }, [flushEntryPersistence, restorePersistedWork]);
+  }, [flushEntryPersistence, restorePersistedWork, currentOrganization?.id, user?.id]);
   
   // Memoize selectedForPrint as object for O(1) lookup without triggering re-renders
   const selectedForPrintObj = useMemo(
@@ -1474,13 +1477,14 @@ const PurchaseEntry = () => {
 
     const orgId = currentOrganization?.id;
     const userId = user?.id;
+
     if (
-      isDocumentReload() &&
       orgId &&
       userId &&
-      hasPurchaseEntryDraftInBrowser(orgId, userId)
+      hasPurchaseEntryDraftInBrowser(orgId, userId) &&
+      lineItemsCountRef.current === 0
     ) {
-      void restorePersistedWork({ notify: true }).finally(() => {
+      void restorePersistedWork({ notify: true, force: true }).finally(() => {
         clearNewBillNavigation();
       });
       return;
@@ -1488,7 +1492,7 @@ const PurchaseEntry = () => {
 
     // Remount/minimize recovery: restore persisted work instead of wiping on a stale newBill flag.
     if (wasPurchaseEntryRemount(location.key)) {
-      void restorePersistedWork({ notify: true }).finally(() => {
+      void restorePersistedWork({ notify: true, force: true }).finally(() => {
         clearNewBillNavigation();
       });
       return;

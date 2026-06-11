@@ -3,6 +3,7 @@ import {
   hasPurchaseEntryDraftInBrowser,
   isDocumentReload,
   purchaseEntrySessionKey,
+  shouldAllowPurchaseEntryReRestore,
   writePurchaseEntrySnapshot,
 } from "./purchaseEntryPersistence";
 
@@ -79,5 +80,41 @@ describe("hasPurchaseEntryDraftInBrowser", () => {
   it("returns false when no draft is stored", () => {
     expect(hasPurchaseEntryDraftInBrowser(ORG, USER)).toBe(false);
     expect(sessionStorage.getItem(purchaseEntrySessionKey(ORG, USER))).toBeNull();
+  });
+});
+
+describe("shouldAllowPurchaseEntryReRestore", () => {
+  beforeEach(() => {
+    vi.stubGlobal("sessionStorage", createStorageMock());
+    vi.stubGlobal("localStorage", createStorageMock());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("allows first restore when work not yet restored", () => {
+    expect(shouldAllowPurchaseEntryReRestore(false, 0, ORG, USER)).toBe(true);
+    expect(shouldAllowPurchaseEntryReRestore(false, 5, ORG, USER)).toBe(true);
+  });
+
+  it("blocks when work restored and lines still in memory", () => {
+    expect(shouldAllowPurchaseEntryReRestore(true, 3, ORG, USER)).toBe(false);
+  });
+
+  it("allows re-restore when lines empty and browser draft exists", () => {
+    writePurchaseEntrySnapshot(ORG, USER, {
+      lineItems: [{ qty: 1, product_id: "p1" }],
+      billData: { supplier_id: "", supplier_name: "", supplier_invoice_no: "" },
+    });
+    expect(shouldAllowPurchaseEntryReRestore(true, 0, ORG, USER)).toBe(true);
+  });
+
+  it("allows forced re-restore when lines empty even without browser draft meta", () => {
+    expect(shouldAllowPurchaseEntryReRestore(true, 0, ORG, USER, { force: true })).toBe(true);
+  });
+
+  it("blocks re-restore when lines empty and no draft in browser", () => {
+    expect(shouldAllowPurchaseEntryReRestore(true, 0, ORG, USER)).toBe(false);
   });
 });
