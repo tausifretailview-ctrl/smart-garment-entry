@@ -44,11 +44,14 @@ import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/li
 import {
   clearPurchaseEntrySession,
   getOrCreatePurchaseEntryTabInstanceId,
+  hasPurchaseEntryDraftInBrowser,
+  isDocumentReload,
   markPurchaseEntryNavHandled,
   markPurchaseEntryUnmountNavKey,
   omitNewBillNavigationState,
   PURCHASE_DRAFT_DISCARDED_EVENT,
   dispatchPurchaseDraftSaved,
+  readPurchaseEntryDraftMeta,
   readPurchaseEntrySnapshotAsync,
   wasPurchaseEntryNavHandled,
   wasPurchaseEntryRemount,
@@ -367,6 +370,7 @@ const PurchaseEntry = () => {
   // Draft loading state
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftLoadProgress, setDraftLoadProgress] = useState({ loaded: 0, total: 0 });
+  const [isRestoringDraft, setIsRestoringDraft] = useState(false);
 
   // Excel import progress overlay (large files)
   const [excelImportLoading, setExcelImportLoading] = useState<ExcelImportLoadingState | null>(null);
@@ -788,43 +792,74 @@ const PurchaseEntry = () => {
     if (!location.state?.newBill) return false;
     if (wasPurchaseEntryRemount(location.key)) return false;
     if (wasPurchaseEntryNavHandled(location.key)) return false;
+    if (
+      isDocumentReload() &&
+      currentOrganization?.id &&
+      user?.id &&
+      hasPurchaseEntryDraftInBrowser(currentOrganization.id, user.id)
+    ) {
+      return false;
+    }
     return true;
-  }, [location.key, location.state?.newBill]);
+  }, [location.key, location.state?.newBill, currentOrganization?.id, user?.id]);
 
   const restorePersistedWork = useCallback(
     async (options?: { notify?: boolean }) => {
       if (workRestoredRef.current) return false;
       if (location.state?.editBillId) return false;
       if (shouldDeferRestoreForNewBill()) return false;
-      if (!currentOrganization?.id || !user?.id) return false;
 
-      const persisted = await readPersistedSnapshot();
-      if (persisted?.lineItems?.length) {
-        workRestoredRef.current = true;
-        await loadDraftData(persisted);
-        if (options?.notify !== false) notifyWorkRestored(persisted);
-        return true;
-      }
+      const orgId = currentOrganization?.id;
+      const userId = user?.id;
+      const mightHaveBrowserDraft = Boolean(
+        orgId && userId && hasPurchaseEntryDraftInBrowser(orgId, userId),
+      );
+      const mightHaveDbDraft =
+        Boolean(location.state?.loadDraft && hasDraft && draftData) ||
+        Boolean(hasDraft && draftData?.lineItems?.length > 0);
 
-      if (location.state?.loadDraft) {
-        if (hasDraft && draftData) {
-          workRestoredRef.current = true;
-          await loadDraftData(draftData);
-          notifyWorkRestored(draftData);
-          await deleteDraft();
-          return true;
+      if (!orgId || !userId) {
+        if (mightHaveBrowserDraft || mightHaveDbDraft) {
+          setIsRestoringDraft(true);
         }
         return false;
       }
 
-      if (hasDraft && draftData?.lineItems?.length > 0) {
-        workRestoredRef.current = true;
-        await loadDraftData(draftData);
-        notifyWorkRestored(draftData);
-        return true;
+      if (mightHaveBrowserDraft || mightHaveDbDraft) {
+        setIsRestoringDraft(true);
       }
 
-      return false;
+      try {
+        const persisted = await readPersistedSnapshot();
+        if (persisted?.lineItems?.length) {
+          workRestoredRef.current = true;
+          await loadDraftData(persisted);
+          if (options?.notify !== false) notifyWorkRestored(persisted);
+          return true;
+        }
+
+        if (location.state?.loadDraft) {
+          if (hasDraft && draftData) {
+            workRestoredRef.current = true;
+            await loadDraftData(draftData);
+            notifyWorkRestored(draftData);
+            await deleteDraft();
+            return true;
+          }
+          return false;
+        }
+
+        if (hasDraft && draftData?.lineItems?.length > 0) {
+          workRestoredRef.current = true;
+          await loadDraftData(draftData);
+          notifyWorkRestored(draftData);
+          return true;
+        }
+
+        return false;
+      } finally {
+        setIsRestoringDraft(false);
+      }
     },
     [
       currentOrganization?.id,
@@ -840,6 +875,17 @@ const PurchaseEntry = () => {
       notifyWorkRestored,
     ],
   );
+
+  // Show restoring hint on F5 before async IDB read completes.
+  useLayoutEffect(() => {
+    if (lineItems.length > 0 || workRestoredRef.current) return;
+    const orgId = currentOrganization?.id;
+    const userId = user?.id;
+    if (!orgId || !userId) return;
+    if (hasPurchaseEntryDraftInBrowser(orgId, userId) || readPurchaseEntryDraftMeta(orgId, userId)) {
+      setIsRestoringDraft(true);
+    }
+  }, [currentOrganization?.id, user?.id, lineItems.length]);
 
   // Restore before paint when remounting the same history entry (minimize / PWA resume).
   useLayoutEffect(() => {
@@ -901,7 +947,7 @@ const PurchaseEntry = () => {
         updateCurrentData(null);
         clearEntrySession();
       }
-    }, lineItems.length > 200 ? 3000 : 1000);
+    }, lineItems.length > 200 ? 1500 : 400);
     return () => {
       if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
     };
@@ -919,16 +965,17 @@ const PurchaseEntry = () => {
       clearEntrySession();
       return;
     }
-    const snapshot = latestSnapshotRef.current;
+    const snapshot = (latestSnapshotRef.current ?? buildEntrySnapshot()) as PurchaseEntrySnapshot | null;
     if (snapshot?.lineItems && Array.isArray(snapshot.lineItems) && snapshot.lineItems.length > 0) {
+      latestSnapshotRef.current = snapshot;
       updateCurrentData(snapshot);
-      persistEntrySession(snapshot as PurchaseEntrySnapshot);
+      persistEntrySession(snapshot);
       void saveDraft(snapshot, false);
       return;
     }
     updateCurrentData(null);
     clearEntrySession();
-  }, [updateCurrentData, persistEntrySession, clearEntrySession, saveDraft]);
+  }, [buildEntrySnapshot, updateCurrentData, persistEntrySession, clearEntrySession, saveDraft]);
 
   const clearNewBillNavigation = useCallback(() => {
     if (!location.state?.newBill) return;
@@ -961,9 +1008,11 @@ const PurchaseEntry = () => {
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onPageHide);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onPageHide);
       markPurchaseEntryUnmountNavKey(locationKeyRef.current);
       flushEntryPersistence();
     };
@@ -1423,6 +1472,20 @@ const PurchaseEntry = () => {
       return;
     }
 
+    const orgId = currentOrganization?.id;
+    const userId = user?.id;
+    if (
+      isDocumentReload() &&
+      orgId &&
+      userId &&
+      hasPurchaseEntryDraftInBrowser(orgId, userId)
+    ) {
+      void restorePersistedWork({ notify: true }).finally(() => {
+        clearNewBillNavigation();
+      });
+      return;
+    }
+
     // Remount/minimize recovery: restore persisted work instead of wiping on a stale newBill flag.
     if (wasPurchaseEntryRemount(location.key)) {
       void restorePersistedWork({ notify: true }).finally(() => {
@@ -1448,6 +1511,8 @@ const PurchaseEntry = () => {
     clearNewBillNavigation,
     resetToNewBill,
     restorePersistedWork,
+    currentOrganization?.id,
+    user?.id,
   ]);
 
   // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
@@ -4842,6 +4907,12 @@ const PurchaseEntry = () => {
                 <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.supplier_invoice_no}</span>
               </>
             )}
+          </div>
+        )}
+        {isRestoringDraft && lineItems.length === 0 && (
+          <div className={cn("h-[34px] bg-amber-500/20 border-t border-amber-400/40 flex items-center gap-2 text-[12px]", entryPageSectionX)}>
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-200 shrink-0" />
+            <span className="text-amber-100 font-medium">Restoring your bill…</span>
           </div>
         )}
       </header>

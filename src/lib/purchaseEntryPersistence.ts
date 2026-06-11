@@ -416,6 +416,29 @@ export function getPurchaseEntryFlushAt(): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** True when the current page load was a full reload (F5 / Ctrl+R). */
+export function isDocumentReload(): boolean {
+  try {
+    const nav = performance.getEntriesByType("navigation")[0] as
+      | PerformanceNavigationTiming
+      | undefined;
+    if (nav?.type === "reload") return true;
+    // Legacy API (older WebViews)
+    const legacy = (performance as Performance & { navigation?: { type?: number } }).navigation;
+    if (legacy?.type === 1) return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+/** Fast sync check — session/local meta or inline snapshot (no IndexedDB read). */
+export function hasPurchaseEntryDraftInBrowser(orgId: string, userId: string): boolean {
+  if (readPurchaseEntryDraftMeta(orgId, userId)) return true;
+  const inline = readPurchaseEntrySnapshot(orgId, userId);
+  return Boolean(inline?.lineItems?.length);
+}
+
 /** Summarize draft for dashboard display (DB stub or full payload). */
 export function summarizePurchaseDraft(data: unknown): {
   lineCount: number;
