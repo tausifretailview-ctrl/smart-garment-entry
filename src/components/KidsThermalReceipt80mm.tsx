@@ -47,29 +47,20 @@ const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const fmtDec = (n: number): string => n.toFixed(2);
 const fmtMrp = (n: number): string => n.toFixed(3);
 
-/** One-line particulars: name ( size ) | MRP@xxx — matches KIDS ZONE reference, no wrap. */
+const KIDS_MAX_NAME_LEN = 16; // 15–18 chars for product name on thermal roll
+
+/** One-line: short name - size - MRP (no box, no wrap). */
 function formatKidsParticularsLine(item: KidsThermalItem): string {
   let name = item.particulars.trim();
-  const size = item.size?.trim();
+  if (name.length > KIDS_MAX_NAME_LEN) {
+    name = `${name.slice(0, KIDS_MAX_NAME_LEN - 2)}..`;
+  }
+  const size = item.size?.trim() || '';
   const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
-  const mrpPart = mrpVal > 0 ? ` | MRP@${fmtMrp(mrpVal)}` : '';
-
-  let sizePart = '';
-  if (size) {
-    const sizeInName = new RegExp(`\\(\\s*${size.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\)`, 'i').test(name);
-    if (!sizeInName) {
-      sizePart = ` ( ${size} )`;
-    }
-  }
-
-  // Keep entire line on one row — trim long ERP-style names, always keep size + MRP.
-  const reserved = sizePart.length + mrpPart.length;
-  const maxNameLen = Math.max(10, 38 - reserved);
-  if (name.length > maxNameLen) {
-    name = `${name.slice(0, maxNameLen - 2)}..`;
-  }
-
-  return `${name}${sizePart}${mrpPart}`;
+  const parts = [name];
+  if (size) parts.push(size);
+  if (mrpVal > 0) parts.push(fmtMrp(mrpVal));
+  return parts.join(' - ');
 }
 
 export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsThermalReceipt80mmProps>(
@@ -138,60 +129,62 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     })();
 
     const base: React.CSSProperties = {
-      width: '72mm',
-      maxWidth: '72mm',
-      padding: '1mm 1.5mm',
+      width: '66mm',
+      maxWidth: '66mm',
+      margin: '0 auto',
+      padding: '1mm 4mm',
       backgroundColor: 'white',
-      fontFamily: "'Arial', 'Helvetica Neue', sans-serif",
+      fontFamily: "'Arial Black', 'Arial', sans-serif",
       fontSize: '12px',
-      lineHeight: '1.25',
+      lineHeight: '1.2',
       color: '#000',
-      fontWeight: 700,
+      fontWeight: 900,
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact',
       overflowX: 'hidden',
       overflowY: 'visible',
+      textAlign: 'center',
     };
     const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
     const dotted: React.CSSProperties = { borderTop: '1px dotted #000', margin: '2px 0' };
     const solid: React.CSSProperties = { borderTop: '1px solid #000', margin: '2px 0' };
     const rowBetween: React.CSSProperties = {
       display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '3mm',
+      width: '100%',
+      flexWrap: 'wrap',
+      fontWeight: 900,
+    };
+    const itemRow: React.CSSProperties = {
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
       gap: '2mm',
       width: '100%',
-    };
-    const cellBorder: React.CSSProperties = {
-      border: '1px solid #000',
-      padding: '1px 1px',
-      verticalAlign: 'middle',
-    };
-    const itemParticularsCell: React.CSSProperties = {
-      ...cellBorder,
-      textAlign: 'center',
+      fontSize: '11px',
+      fontWeight: 900,
+      lineHeight: '1.15',
+      padding: '1px 0',
       whiteSpace: 'nowrap',
+    };
+    const colParticulars: React.CSSProperties = {
+      flex: '1 1 52%',
+      textAlign: 'center',
       overflow: 'hidden',
-      fontSize: '10px',
-      lineHeight: '1.1',
-      fontWeight: 800,
+      fontWeight: 900,
     };
-    const itemQtyCell: React.CSSProperties = {
-      ...cellBorder,
+    const colQty: React.CSSProperties = {
+      flex: '0 0 14%',
       textAlign: 'center',
-      whiteSpace: 'nowrap',
-      fontSize: '10px',
-      lineHeight: '1.1',
-      verticalAlign: 'middle',
+      fontWeight: 900,
     };
-    const itemAmtCell: React.CSSProperties = {
-      ...cellBorder,
+    const colAmt: React.CSSProperties = {
+      flex: '0 0 24%',
       textAlign: 'center',
-      whiteSpace: 'nowrap',
-      fontSize: '10px',
-      lineHeight: '1.1',
-      verticalAlign: 'middle',
+      fontWeight: 900,
     };
 
     if (!settings) {
@@ -219,7 +212,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
             <div style={{ fontSize: '10px', fontWeight: 700, lineHeight: '1.2', marginTop: '1px' }}>{address}</div>
           )}
         </div>
-        <div style={{ fontSize: '11px', fontWeight: 800, lineHeight: '1.3' }}>
+        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.3' }}>
           {gstNumber && <div>GST NO: {gstNumber}</div>}
           {mobile && <div>Mobile: {mobile}</div>}
           <div>Website: {website}</div>
@@ -233,7 +226,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ fontSize: '11px', fontWeight: 800, lineHeight: '1.35' }}>
+        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
           <div style={rowBetween}>
             <span>Inv.No.: {billNo}</span>
             <span style={{ whiteSpace: 'nowrap' }}>
@@ -246,39 +239,30 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={solid} />
 
-        {/* Items table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', fontWeight: 800, tableLayout: 'fixed' }}>
-          <thead>
-            <tr>
-              <th style={{ ...cellBorder, textAlign: 'center', width: '62%', fontWeight: 900, fontSize: '10px' }}>Particulars</th>
-              <th style={{ ...cellBorder, textAlign: 'center', width: '12%', fontWeight: 900, fontSize: '10px' }}>Qty</th>
-              <th style={{ ...cellBorder, textAlign: 'center', width: '26%', fontWeight: 900, fontSize: '10px' }}>N.Amt.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, i) => {
-              const line = formatKidsParticularsLine(item);
-              const lineFont =
-                line.length > 44 ? '8px' : line.length > 36 ? '9px' : '10px';
-              return (
-                <tr key={i}>
-                  <td style={{ ...itemParticularsCell, fontSize: lineFont }}>{line}</td>
-                  <td style={itemQtyCell}>{item.qty}</td>
-                  <td style={itemAmtCell}>₹{fmtAmt(item.total)}</td>
-                </tr>
-              );
-            })}
-            <tr>
-              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900, fontSize: '10px' }}>Sub-Total</td>
-              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900, fontSize: '10px' }}>{totalQty}</td>
-              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900, fontSize: '10px' }}>₹{fmtAmt(saleAmount)}</td>
-            </tr>
-          </tbody>
-        </table>
+        {/* Items — no box borders, centered columns */}
+        <div style={{ width: '100%', fontWeight: 900 }}>
+          <div style={{ ...itemRow, fontSize: '11px', borderBottom: '1px solid #000', paddingBottom: '2px' }}>
+            <span style={colParticulars}>Particulars</span>
+            <span style={colQty}>Qty</span>
+            <span style={colAmt}>N.Amt.</span>
+          </div>
+          {items.map((item, i) => (
+            <div key={i} style={itemRow}>
+              <span style={colParticulars}>{formatKidsParticularsLine(item)}</span>
+              <span style={colQty}>{item.qty}</span>
+              <span style={colAmt}>₹{fmtAmt(item.total)}</span>
+            </div>
+          ))}
+          <div style={{ ...itemRow, borderTop: '1px dotted #000', marginTop: '2px', paddingTop: '2px' }}>
+            <span style={colParticulars}>Sub-Total</span>
+            <span style={colQty}>{totalQty}</span>
+            <span style={colAmt}>₹{fmtAmt(saleAmount)}</span>
+          </div>
+        </div>
 
         <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
 
-        <div style={{ fontSize: '11px', fontWeight: 800, lineHeight: '1.35' }}>
+        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
           <div style={rowBetween}>
             <span>
               S-Qty: {fmtDec(totalQty)} S-Amt: ₹{fmtDec(saleAmount)}
@@ -326,8 +310,8 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ fontSize: '10px', fontWeight: 800, lineHeight: '1.35' }}>
-          <div style={{ ...center, fontWeight: 900, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
+        <div style={{ ...center, fontSize: '10px', fontWeight: 900, lineHeight: '1.35' }}>
+          <div style={{ fontWeight: 900, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
           {KIDS_DEFAULT_TERMS.map((term, idx) => (
             <div key={idx}>{term}</div>
           ))}
