@@ -7,6 +7,7 @@ import {
   fetchPosDashboardExportRows,
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
+  invalidatePosDashboardQueries,
   posDashboardSummaryLooksValid,
   resolvePosDashboardQueryDates,
   type PosDashboardSummaryStats,
@@ -189,6 +190,9 @@ const POSDashboard = () => {
   const location = useLocation();
   const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
+  const refreshPosDashboard = useCallback(() => {
+    invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
+  }, [queryClient, currentOrganization?.id]);
 
   const routePathSegment = useMemo(() => {
     const fullPath = location.pathname;
@@ -825,7 +829,7 @@ const POSDashboard = () => {
         description: `Sale ${saleToDelete.sale_number} moved to recycle bin`,
       });
 
-      await refetchSales();
+      refreshPosDashboard();
     } catch (error: any) {
       console.error("Error deleting sale:", error);
       toast({
@@ -863,7 +867,7 @@ const POSDashboard = () => {
 
       setSelectedSales(new Set());
       setShowBulkDeleteDialog(false);
-      await refetchSales();
+      refreshPosDashboard();
     } catch (error: any) {
       console.error("Error deleting sales:", error);
       toast({
@@ -909,7 +913,7 @@ const POSDashboard = () => {
       setSelectedSales(new Set());
       setShowBulkCancelDialog(false);
       setBulkCancelReason('');
-      await refetchSales();
+      refreshPosDashboard();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to cancel sales', variant: 'destructive' });
     } finally {
@@ -1528,7 +1532,7 @@ const POSDashboard = () => {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      await refetchSales();
+      refreshPosDashboard();
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
       if (insertedVoucherId && currentOrganization?.id) {
@@ -1759,7 +1763,7 @@ const POSDashboard = () => {
       if (!result) throw new Error("No response received from e-Invoice service");
       if (result.success) {
         toast({ title: "✅ E-Invoice Generated Successfully!", description: `IRN: ${result.irn?.substring(0, 30)}...${result.ackNo ? ` | Ack No: ${result.ackNo}` : ''}` });
-        void refetchSales();
+        refreshPosDashboard();
       } else {
         const errorMsg = safeErrorString(result.error || result.message) || "E-Invoice generation failed";
         toast({ title: "E-Invoice Failed", description: errorMsg, variant: "destructive" });
@@ -1818,14 +1822,14 @@ const POSDashboard = () => {
       if (!result) throw new Error("No response from cancel service");
       if (result.success) {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
-        void refetchSales();
+        refreshPosDashboard();
       } else {
         const errorMsg = safeErrorString(result.error) || "Cancellation failed";
         // If PeriOne says "not active" or already cancelled, sync local status
         if (errorMsg.toLowerCase().includes('not active') || errorMsg.toLowerCase().includes('already cancelled')) {
           await supabase.from('sales').update({ einvoice_status: 'cancelled' }).eq('id', sale.id);
           toast({ title: "IRN Already Cancelled", description: "This IRN was already cancelled. Status has been updated.", variant: "destructive" });
-          void refetchSales();
+          refreshPosDashboard();
         } else {
           toast({ title: "Cancellation Failed", description: errorMsg, variant: "destructive" });
         }

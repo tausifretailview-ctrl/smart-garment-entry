@@ -103,9 +103,11 @@ import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
+  invalidateInvoiceDashboardQueries,
   reconcileInvoiceDashboardRows,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
+import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
@@ -196,6 +198,9 @@ export default function SalesInvoiceDashboard() {
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const queryClient = useQueryClient();
+  const refreshInvoiceDashboard = useCallback(() => {
+    invalidateInvoiceDashboardQueries(queryClient, currentOrganization?.id);
+  }, [queryClient, currentOrganization?.id]);
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -552,7 +557,7 @@ export default function SalesInvoiceDashboard() {
     {
       label: "Refresh List",
       icon: RefreshCw,
-      onClick: () => refetch(),
+      onClick: () => refreshInvoiceDashboard(),
     },
   ];
 
@@ -832,7 +837,7 @@ export default function SalesInvoiceDashboard() {
             queryDateRange.end,
           );
           if (!cancelled && didUpdate) {
-            void refetch();
+            refreshInvoiceDashboard();
           }
         } catch {
           // Non-blocking background repair; table already shows reconciled display values.
@@ -850,7 +855,7 @@ export default function SalesInvoiceDashboard() {
     paginatedInvoices,
     queryDateRange.start,
     queryDateRange.end,
-    refetch,
+    refreshInvoiceDashboard,
   ]);
 
   // Auto-download PDF when navigated from mobile with downloadPdf param
@@ -1002,7 +1007,7 @@ export default function SalesInvoiceDashboard() {
         description: `Invoice ${invoiceToDelete.sale_number} moved to recycle bin`,
       });
 
-      refetch();
+      refreshInvoiceDashboard();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -1030,7 +1035,7 @@ export default function SalesInvoiceDashboard() {
 
       setSelectedInvoices(new Set());
       setShowBulkDeleteDialog(false);
-      refetch();
+      refreshInvoiceDashboard();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -2355,7 +2360,7 @@ export default function SalesInvoiceDashboard() {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      refetch();
+      invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {
       toast({
@@ -2460,7 +2465,7 @@ export default function SalesInvoiceDashboard() {
       });
 
       setShowStatusDialog(false);
-      refetch();
+      refreshInvoiceDashboard();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -2589,7 +2594,7 @@ export default function SalesInvoiceDashboard() {
           title: "E-Invoice Generated",
           description: `IRN: ${result.irn?.substring(0, 30)}...`,
         });
-        refetch();
+        refreshInvoiceDashboard();
       } else {
         const errorDetail = safeErrorString(result.error || result.message) || "Failed to generate e-Invoice";
         toast({
@@ -2659,7 +2664,7 @@ export default function SalesInvoiceDashboard() {
       if (!result) throw new Error("No response from cancel service");
       if (result.success) {
         toast({ title: "IRN Cancelled", description: "The e-Invoice IRN has been cancelled successfully." });
-        refetch();
+        refreshInvoiceDashboard();
       } else {
         toast({ title: "Cancellation Failed", description: safeErrorString(result.error) || "Cancellation failed", variant: "destructive" });
       }
@@ -2831,7 +2836,7 @@ export default function SalesInvoiceDashboard() {
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <AlertTriangle className="h-12 w-12 text-destructive/70" />
               <p className="text-sm font-medium text-foreground">Could not load invoices</p>
-              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+              <Button variant="outline" size="sm" onClick={() => refreshInvoiceDashboard()}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Retry
               </Button>
@@ -3521,7 +3526,7 @@ export default function SalesInvoiceDashboard() {
                             <p className="text-base font-medium text-foreground">
                               Could not load invoices
                             </p>
-                            <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                            <Button variant="outline" size="sm" onClick={() => refreshInvoiceDashboard()}>
                               <RefreshCw className="h-4 w-4 mr-2" />
                               Retry
                             </Button>
@@ -4659,7 +4664,7 @@ export default function SalesInvoiceDashboard() {
             organizationId={currentOrganization?.id || ""}
             userId={user?.id}
             onComplete={() => {
-              refetch();
+              invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
               // Re-fetch advance balance
               if (filteredCustomer?.id) {
                 getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
@@ -4676,7 +4681,7 @@ export default function SalesInvoiceDashboard() {
           organizationId={currentOrganization?.id || ""}
           onSuccess={() => {
             setShowSettleDialog(false);
-            refetch();
+            invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
             queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
           }}
         />
