@@ -545,20 +545,23 @@ export async function fetchPosDashboardSummary(
 ): Promise<PosDashboardSummaryStats> {
   if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
 
+  const totalCount = await countFilteredPosSales(client, filters);
+  if (totalCount === 0) return { ...EMPTY_POS_SUMMARY };
+
+  // "*" first — matches the working paginated table fetch; explicit lists can fail if a column is missing in prod.
   const selectAttempts = [
-    POS_DASHBOARD_SUMMARY_SELECT,
+    "*",
     POS_DASHBOARD_SUMMARY_FALLBACK_SELECT,
+    POS_DASHBOARD_SUMMARY_SELECT,
   ];
   let lastError: unknown;
 
   for (const select of selectAttempts) {
     try {
       const allRows = await scanPosDashboardSummaryRows(client, filters, select);
-      const stats = computePosDashboardSummaryStats(allRows);
-      if (stats.totalBills > 0) return stats;
-
-      const count = await countFilteredPosSales(client, filters);
-      if (count === 0) return stats;
+      if (allRows.length > 0) {
+        return computePosDashboardSummaryStats(allRows);
+      }
     } catch (err) {
       lastError = err;
       console.warn("POS dashboard summary scan failed:", err);
@@ -566,7 +569,29 @@ export async function fetchPosDashboardSummary(
   }
 
   if (lastError) throw lastError;
-  return { ...EMPTY_POS_SUMMARY };
+  throw new Error(
+    `POS dashboard summary: count is ${totalCount} but no rows were returned from scan`,
+  );
+}
+
+/** True when summary tiles have real money/count signal (not an empty RPC/shell object). */
+export function posDashboardSummaryLooksValid(
+  stats: PosDashboardSummaryStats,
+  totalCount: number,
+): boolean {
+  if (totalCount === 0) return stats.totalBills === 0;
+  if (stats.totalBills <= 0) return false;
+  return (
+    stats.totalBills === totalCount ||
+    stats.netSale > 0 ||
+    stats.totalAmount > 0 ||
+    stats.totalCash > 0 ||
+    stats.totalCard > 0 ||
+    stats.totalUpi > 0 ||
+    stats.completedCount > 0 ||
+    stats.pendingCount > 0 ||
+    stats.holdCount > 0
+  );
 }
 
 /** Full filtered fetch for export (not used by paginated table). */

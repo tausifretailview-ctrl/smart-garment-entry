@@ -7,6 +7,7 @@ import {
   fetchPosDashboardExportRows,
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
+  posDashboardSummaryLooksValid,
   resolvePosDashboardQueryDates,
   type PosDashboardSummaryStats,
 } from "@/utils/posDashboardSales";
@@ -602,40 +603,10 @@ const POSDashboard = () => {
           upiBillCount: 0,
         } satisfies PosDashboardSummaryStats;
       }
-      try {
-        return await fetchPosDashboardSummary(supabase, posDashboardFilters);
-      } catch (err) {
-        console.warn("POS dashboard summary query failed:", err);
-        return {
-          totalBills: 0,
-          totalQty: 0,
-          totalAmount: 0,
-          totalDiscount: 0,
-          netSale: 0,
-          completedCount: 0,
-          completedAmount: 0,
-          pendingCount: 0,
-          pendingAmount: 0,
-          holdCount: 0,
-          holdAmount: 0,
-          refundCount: 0,
-          refundAmount: 0,
-          creditNoteCount: 0,
-          creditNoteAmount: 0,
-          totalCash: 0,
-          totalCard: 0,
-          totalUpi: 0,
-          totalBalance: 0,
-          totalSaleReturnAdjust: 0,
-          totalRoundOff: 0,
-          cashBillCount: 0,
-          cardBillCount: 0,
-          upiBillCount: 0,
-        } satisfies PosDashboardSummaryStats;
-      }
+      return fetchPosDashboardSummary(supabase, posDashboardFilters);
     },
-    // Table first — full summary scan runs after first page paints (less contention).
-    enabled: posQueryEnabled && salesPayload !== undefined,
+    enabled: posQueryEnabled,
+    retry: 2,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -1648,7 +1619,8 @@ const POSDashboard = () => {
   const statsLookValid =
     posSummaryStats &&
     !summaryQueryLoading &&
-    (posSummaryStats.totalBills > 0 || totalCount === 0);
+    !summaryQueryError &&
+    posDashboardSummaryLooksValid(posSummaryStats, totalCount);
 
   const summaryStats = statsLookValid
     ? posSummaryStats
