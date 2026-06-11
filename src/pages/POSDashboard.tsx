@@ -543,6 +543,31 @@ const POSDashboard = () => {
   ] as const;
 
   const {
+    data: salesPayload,
+    isLoading: salesQueryLoading,
+    isFetching: salesQueryFetching,
+    error: salesQueryError,
+    refetch: refetchSales,
+  } = useQuery({
+    queryKey: posDashboardQueryKey,
+    queryFn: async () => {
+      if (!currentOrganization?.id) {
+        return {
+          sales: [] as Sale[],
+          creditNoteUsage: {} as Record<string, { credit_amount: number; used_amount: number; status: string }>,
+          totalCount: 0,
+        };
+      }
+      return fetchPosDashboardPage(supabase, posDashboardFilters, {
+        page: currentPage,
+        pageSize: itemsPerPage,
+      });
+    },
+    enabled: posQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  const {
     data: posSummaryStats,
     isLoading: summaryQueryLoading,
     error: summaryQueryError,
@@ -609,32 +634,8 @@ const POSDashboard = () => {
         } satisfies PosDashboardSummaryStats;
       }
     },
-    enabled: posQueryEnabled,
-    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
-  });
-
-  const {
-    data: salesPayload,
-    isLoading: salesQueryLoading,
-    isFetching: salesQueryFetching,
-    error: salesQueryError,
-    refetch: refetchSales,
-  } = useQuery({
-    queryKey: posDashboardQueryKey,
-    queryFn: async () => {
-      if (!currentOrganization?.id) {
-        return {
-          sales: [] as Sale[],
-          creditNoteUsage: {} as Record<string, { credit_amount: number; used_amount: number; status: string }>,
-          totalCount: 0,
-        };
-      }
-      return fetchPosDashboardPage(supabase, posDashboardFilters, {
-        page: currentPage,
-        pageSize: itemsPerPage,
-      });
-    },
-    enabled: posQueryEnabled,
+    // Table first — full summary scan runs after first page paints (less contention).
+    enabled: posQueryEnabled && salesPayload !== undefined,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 

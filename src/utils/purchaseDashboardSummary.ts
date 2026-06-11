@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { derivePurchaseBillDisplayStatus } from "@/utils/purchaseBillSettlement";
+import {
+  fetchPurchaseBillIdsMatchingLineItems,
+  purchaseBillTextSearchFilter,
+} from "@/utils/purchaseBillDashboardSearch";
 
 export type PurchaseDashboardSummary = {
   total_count: number;
@@ -64,19 +68,12 @@ async function fetchPurchaseSummaryWithSearch(
     params,
   );
 
-  const { data: matchingItems } = await (supabase as any)
-    .from("purchase_items")
-    .select("bill_id")
-    .is("deleted_at", null)
-    .or(
-      `product_name.ilike.%${searchStr}%,brand.ilike.%${searchStr}%,barcode.ilike.%${searchStr}%,style.ilike.%${searchStr}%,category.ilike.%${searchStr}%,color.ilike.%${searchStr}%`,
-    )
-    .limit(300);
-
-  const matchingBillIds = [
-    ...new Set((matchingItems || []).map((i: { bill_id: string }) => i.bill_id).filter(Boolean)),
-  ] as string[];
-  const billTextFilter = `supplier_name.ilike.%${searchStr}%,supplier_invoice_no.ilike.%${searchStr}%,software_bill_no.ilike.%${searchStr}%`;
+  const matchingBillIds = await fetchPurchaseBillIdsMatchingLineItems(
+    params.organizationId,
+    searchStr,
+    { startDate: params.startDate, endDate: params.endDate },
+  );
+  const billTextFilter = purchaseBillTextSearchFilter(searchStr);
 
   if (matchingBillIds.length > 0) {
     const { data: textMatches } = await supabase

@@ -434,24 +434,47 @@ export default function SaleReturnDashboard() {
     queryFn: async () => {
       if (!currentOrganization?.id) return { totalReturns: 0, totalValue: 0, totalQty: 0 };
 
-      let query = supabase
-        .from("sale_returns")
-        .select("id, net_amount", { count: "exact" })
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+      const applySummaryFilters = (base: ReturnType<typeof supabase.from>) => {
+        let q = base
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+        if (fromDate) q = q.gte("return_date", fromDate);
+        if (toDate) q = q.lte("return_date", toDate);
+        if (statusFilter && statusFilter !== "all") q = q.eq("credit_status", statusFilter);
+        return q;
+      };
 
-      if (fromDate) query = query.gte("return_date", fromDate);
-      if (toDate) query = query.lte("return_date", toDate);
-      if (statusFilter && statusFilter !== "all") query = query.eq("credit_status", statusFilter);
-
+      let searchOrClause: string | null = null;
       if (debouncedSearch) {
         const searchStr = debouncedSearch.trim();
-        const { data: matchingItems } = await supabase
-          .from("sale_return_items")
-          .select("return_id")
-          .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
-          .limit(200);
-        const matchingReturnIds = [...new Set((matchingItems || []).map((i: any) => i.return_id).filter(Boolean))];
+        const returnIdsInScope: string[] = [];
+        const PAGE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data, error } = await applySummaryFilters(
+            supabase.from("sale_returns").select("id"),
+          ).range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          if (!data?.length) break;
+          returnIdsInScope.push(...data.map((r) => r.id).filter(Boolean));
+          if (data.length < PAGE) break;
+          offset += PAGE;
+        }
+
+        const matchedReturnIds = new Set<string>();
+        for (let i = 0; i < returnIdsInScope.length; i += 200) {
+          const batch = returnIdsInScope.slice(i, i + 200);
+          if (batch.length === 0) continue;
+          const { data: matchingItems } = await supabase
+            .from("sale_return_items")
+            .select("return_id")
+            .in("return_id", batch)
+            .or(`barcode.ilike.%${searchStr}%,product_name.ilike.%${searchStr}%`)
+            .limit(200);
+          (matchingItems || []).forEach((row) => {
+            if (row.return_id) matchedReturnIds.add(row.return_id);
+          });
+        }
 
         const { data: matchingCustomers } = await supabase
           .from("customers")
@@ -466,25 +489,51 @@ export default function SaleReturnDashboard() {
           `customer_name.ilike.%${searchStr}%`,
           `original_sale_number.ilike.%${searchStr}%`,
         ];
-        if (matchingReturnIds.length > 0) clauses.push(`id.in.(${matchingReturnIds.join(",")})`);
+        if (matchedReturnIds.size > 0) clauses.push(`id.in.(${[...matchedReturnIds].join(",")})`);
         if (matchingCustomerIds.length > 0) clauses.push(`customer_id.in.(${matchingCustomerIds.join(",")})`);
-
-        query = query.or(clauses.join(","));
+        searchOrClause = clauses.join(",");
       }
 
-      const { data, count, error } = await query;
-      if (error) throw error;
-      const rows = data || [];
-      const totalValue = rows.reduce((sum: number, row: any) => sum + Number(row.net_amount || 0), 0);
+      const withSearch = (base: ReturnType<typeof supabase.from>) => {
+        let q = applySummaryFilters(base);
+        if (searchOrClause) q = q.or(searchOrClause);
+        return q;
+      };
+
+      const { count, error: countError } = await withSearch(
+        supabase.from("sale_returns").select("id", { count: "exact", head: true }),
+      );
+      if (countError) throw countError;
+
+      let totalValue = 0;
+      const allReturnIds: string[] = [];
+      const PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        const { data: pageRows, error: pageError } = await withSearch(
+          supabase.from("sale_returns").select("id, net_amount"),
+        ).range(offset, offset + PAGE - 1);
+        if (pageError) throw pageError;
+        if (!pageRows?.length) break;
+        for (const row of pageRows) {
+          totalValue += Number(row.net_amount || 0);
+          if (row.id) allReturnIds.push(row.id);
+        }
+        if (pageRows.length < PAGE) break;
+        offset += PAGE;
+      }
 
       let totalQty = 0;
-      const returnIds = rows.map((r: any) => r.id).filter(Boolean);
-      if (returnIds.length > 0) {
+      for (let i = 0; i < allReturnIds.length; i += 200) {
+        const batch = allReturnIds.slice(i, i + 200);
         const { data: items } = await supabase
           .from("sale_return_items")
           .select("quantity")
-          .in("return_id", returnIds);
-        totalQty = (items || []).reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+          .in("return_id", batch);
+        totalQty += (items || []).reduce(
+          (sum: number, item: any) => sum + Number(item.quantity || 0),
+          0,
+        );
       }
 
       return { totalReturns: count || 0, totalValue, totalQty };

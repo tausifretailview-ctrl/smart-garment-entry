@@ -636,7 +636,10 @@ const ProductDashboard = () => {
     queryFn: async () => {
       if (!currentOrganization?.id) return EMPTY_DASHBOARD_STATS;
       const { data, error } = await supabase.rpc("get_product_dashboard_stats", buildRpcParams());
-      if (error) throw error;
+      if (error) {
+        console.warn("get_product_dashboard_stats RPC failed:", error.message);
+        return EMPTY_DASHBOARD_STATS;
+      }
       const s = (data || {}) as Record<string, number>;
       return {
         total_items: s.total_items || 0,
