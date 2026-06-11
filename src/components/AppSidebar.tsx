@@ -46,7 +46,7 @@ import {
   LayoutList,
   Scale,
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -67,49 +67,26 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { readSidebarLockedOpen, SIDEBAR_LOCKED_KEY } from "@/lib/sidebarPreference";
 
 export function AppSidebar() {
   const { open, setOpen } = useSidebar();
-  const [isLocked, setIsLocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem("sidebar_locked") === "true";
-    } catch {
-      return false;
-    }
-  });
-  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isLocked, setIsLocked] = useState<boolean>(() => readSidebarLockedOpen());
 
   useEffect(() => {
-    const locked = localStorage.getItem("sidebar_locked") === "true";
-    if (locked) {
-      setOpen(true);
-    } else {
-      setOpen(false);
-    }
-  }, []);
-
-  const handleMouseEnter = () => {
-    if (isLocked) return;
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    setOpen(true);
-  };
-
-  const handleMouseLeave = () => {
-    if (isLocked) return;
-    hoverTimeoutRef.current = setTimeout(() => {
-      setOpen(false);
-    }, 120);
-  };
+    setOpen(readSidebarLockedOpen());
+  }, [setOpen]);
 
   const handleToggleLock = () => {
     const newLocked = !isLocked;
     setIsLocked(newLocked);
     setOpen(newLocked);
     try {
-      localStorage.setItem("sidebar_locked", String(newLocked));
+      localStorage.setItem(SIDEBAR_LOCKED_KEY, String(newLocked));
     } catch {}
   };
   const location = useLocation();
@@ -164,12 +141,11 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      collapsible="icon"
+      collapsible="offcanvas"
       className="border-r border-sidebar-border bg-sidebar pt-0"
-      style={{ transition: 'width 0.22s ease' }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      style={{ transition: "width 0.22s ease" }}
     >
+      <SidebarRail />
       <SidebarContent className="font-sans text-base font-semibold text-sidebar-foreground pt-0 mt-0 space-y-0.5">
         {/* Organization Context Badge */}
         {currentOrganization && (

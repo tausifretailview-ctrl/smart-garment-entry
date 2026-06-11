@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { CustomerStatementFloatingDialog } from "@/components/CustomerStatementFloatingDialog";
@@ -41,6 +42,7 @@ const shortcutBtn = (colorClass: string, extra?: string) =>
 
 export const Header = () => {
   const { user, signOut } = useAuth();
+  const { open: sidebarOpen } = useSidebar();
   const { currentOrganization, organizationRole } = useOrganization();
   const navigate = useNavigate();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
@@ -162,6 +164,11 @@ export const Header = () => {
     <>
       {/* ROW 1: Title bar */}
       <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-white border-t border-white border-b border-[#1b3a97] shadow-sm">
+        {/* Desktop sidebar toggle — shown when menu is collapsed for full-width content */}
+        {!sidebarOpen && (
+          <SidebarTrigger className="hidden lg:flex h-7 w-7 text-white hover:text-white hover:bg-white/10 shrink-0" />
+        )}
+
         {/* Mobile menu trigger */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">

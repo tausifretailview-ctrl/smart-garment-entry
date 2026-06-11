@@ -23,6 +23,7 @@ import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
+import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 
 interface LayoutProps {
   children: ReactNode;
@@ -43,7 +44,7 @@ export const Layout = ({ children }: LayoutProps) => {
     <ChatProvider>
       <DashboardToolbarProvider>
         <MobileScanProvider>
-          <SidebarProvider defaultOpen={false}>
+          <SidebarProvider defaultOpen={readSidebarLockedOpen()}>
             <OfflineIndicator />
 
             <div
@@ -54,11 +55,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   : "min-h-screen",
               )}
             >
-              {showDesktopChrome && (
-                <div className="shrink-0">
-                  <AppSidebar />
-                </div>
-              )}
+              {showDesktopChrome && <AppSidebar />}
               <SidebarInset
                 className={cn(
                   "flex flex-col flex-1 min-w-0",

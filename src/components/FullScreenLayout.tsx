@@ -20,6 +20,7 @@ import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { entryPageLayoutMainClass, isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
+import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -39,7 +40,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
       <DashboardToolbarProvider>
         <MobileScanProvider>
           <SidebarProvider
-            defaultOpen={false}
+            defaultOpen={readSidebarLockedOpen()}
             className={
               isEntryFullscreenPage
                 ? "min-h-0 h-full max-h-full overflow-hidden"
@@ -55,11 +56,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                   : "flex min-h-screen w-full bg-background"
               }
             >
-              {showDesktopChrome && (
-                <div className="shrink-0">
-                  <AppSidebar />
-                </div>
-              )}
+              {showDesktopChrome && <AppSidebar />}
               <SidebarInset
                 className={
                   isEntryFullscreenPage
