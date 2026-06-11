@@ -578,6 +578,7 @@ const PurchaseEntry = () => {
       originalLineItems,
       tabInstanceId: tabInstanceIdRef.current,
       savedAt: Date.now(),
+      pendingImport: pendingImportRef.current,
     };
   }, [
     billData,
@@ -617,6 +618,7 @@ const PurchaseEntry = () => {
         isEditMode,
         editingBillId,
         originalLineItems,
+        pendingImport: pendingImportRef.current,
       };
       latestSnapshotRef.current = snapshot;
       updateCurrentData(snapshot);
