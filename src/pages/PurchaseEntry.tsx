@@ -4683,7 +4683,8 @@ const PurchaseEntry = () => {
           )}
         </div>
 
-        {/* Fixed save bar */}
+        {/* Fixed save bar — hidden while Edit Product panel is open */}
+        {!showEditPanel && (
         <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 z-30" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
           <button
             onClick={handleSave}
@@ -4698,6 +4699,7 @@ const PurchaseEntry = () => {
                 : `Save Bill${filledItems.length > 0 ? ` · ₹${Math.round(totals.netAmount || 0).toLocaleString("en-IN")}` : ""}`}
           </button>
         </div>
+        )}
 
         {/* All existing dialogs */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
@@ -5557,7 +5559,10 @@ const PurchaseEntry = () => {
 
       </main>
 
-      <footer className="entry-page-footer shrink-0 relative z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
+      <footer className={cn(
+        "entry-page-footer shrink-0 relative z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]",
+        showEditPanel && "hidden",
+      )}>
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 text-white overflow-x-auto border-t-2 border-green-600">
           <div className="flex items-center px-4 py-3 gap-0 min-w-max">
             <span className="text-[15px] font-extrabold uppercase tracking-wider text-slate-200 mr-2 whitespace-nowrap">Gross Amt</span>

@@ -393,7 +393,7 @@ const ProductEditPanel = ({
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col max-h-[100dvh] h-auto">
+      <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col h-[100dvh] max-h-[100dvh] z-[60]">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-card border-b px-4 py-2 space-y-1.5">
           <div className="flex items-center justify-between">
@@ -435,7 +435,7 @@ const ProductEditPanel = ({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2">
           {loading ? (
             <div className="flex items-center justify-center h-40 text-muted-foreground">Loading...</div>
           ) : (
@@ -702,8 +702,11 @@ const ProductEditPanel = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-card border-t px-4 py-2 flex items-center justify-between gap-2">
+        {/* Footer — panel actions (bill Save hidden while this sheet is open) */}
+        <div
+          className="shrink-0 bg-card border-t px-4 py-3 flex items-center justify-between gap-2"
+          style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))" }}
+        >
           <Button variant="ghost" size="sm" onClick={handleReset} disabled={modifiedFields.size === 0} className="text-xs gap-1">
             <RotateCcw className="h-3 w-3" /> Reset
           </Button>
