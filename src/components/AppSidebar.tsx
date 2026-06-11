@@ -71,7 +71,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { readSidebarLockedOpen, SIDEBAR_LOCKED_KEY } from "@/lib/sidebarPreference";
+import { readSidebarLockedOpen, writeSidebarLockedOpen, SIDEBAR_PREFERENCE_SYNC_EVENT } from "@/lib/sidebarPreference";
 
 export function AppSidebar() {
   const { open, setOpen } = useSidebar();
@@ -79,15 +79,20 @@ export function AppSidebar() {
 
   useEffect(() => {
     setOpen(readSidebarLockedOpen());
-  }, [setOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- init once from saved preference
+  }, []);
+
+  useEffect(() => {
+    const syncLockState = () => setIsLocked(readSidebarLockedOpen());
+    window.addEventListener(SIDEBAR_PREFERENCE_SYNC_EVENT, syncLockState);
+    return () => window.removeEventListener(SIDEBAR_PREFERENCE_SYNC_EVENT, syncLockState);
+  }, []);
 
   const handleToggleLock = () => {
     const newLocked = !isLocked;
     setIsLocked(newLocked);
     setOpen(newLocked);
-    try {
-      localStorage.setItem(SIDEBAR_LOCKED_KEY, String(newLocked));
-    } catch {}
+    writeSidebarLockedOpen(newLocked);
   };
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
