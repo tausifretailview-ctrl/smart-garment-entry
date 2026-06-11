@@ -4302,42 +4302,101 @@ const PurchaseEntry = () => {
       return null;
     };
 
+    // Track Excel row numbers (header is row 1) that fail to import, so the user can retry just those rows.
+    const failedExcelRows: number[] = [];
+    const totalBatches = Math.ceil(variantRowsToInsert.length / VARIANT_BATCH_SIZE);
     for (let i = 0; i < variantRowsToInsert.length; i += VARIANT_BATCH_SIZE) {
+      const batchIndex = Math.floor(i / VARIANT_BATCH_SIZE) + 1;
       const batchSlice = variantRowsToInsert.slice(i, i + VARIANT_BATCH_SIZE);
-      const { data: inserted, error: batchErr } = await supabase
-        .from('product_variants')
-        .insert(batchSlice.map((v) => v.variantData) as any)
-        .select('id');
 
-      if (!batchErr && inserted) {
-        inserted.forEach((v: { id: string }, j: number) => {
-          if (batchSlice[j]) insertedVariantMap.set(batchSlice[j].rowIndex, v.id);
-        });
-        successCount += inserted.length;
-      } else {
+      // Per-batch try/catch so a single batch error (timeout, network blip, RLS hiccup)
+      // can never short-circuit the remaining batches and silently truncate the import.
+      try {
+        const { data: inserted, error: batchErr } = await supabase
+          .from('product_variants')
+          .insert(batchSlice.map((v) => v.variantData) as any)
+          .select('id');
+
+        if (!batchErr && inserted && inserted.length === batchSlice.length) {
+          inserted.forEach((v: { id: string }, j: number) => {
+            if (batchSlice[j]) insertedVariantMap.set(batchSlice[j].rowIndex, v.id);
+          });
+          successCount += inserted.length;
+        } else {
+          // Either an error, or a partial response — fall back to per-row resolution for the entire batch
+          // to make sure every row is accounted for (mapped to an existing variant or recorded as failed).
+          if (batchErr) {
+            console.warn(`[ExcelImport] Batch ${batchIndex}/${totalBatches} insert failed, falling back to per-row:`, batchErr);
+          }
+          for (const item of batchSlice) {
+            if (insertedVariantMap.has(item.rowIndex)) continue;
+            try {
+              const skuId = await resolveVariantId(item.variantData, item.rowIndex);
+              if (skuId) {
+                insertedVariantMap.set(item.rowIndex, skuId);
+                successCount++;
+              } else {
+                errorCount++;
+                failedExcelRows.push(item.rowIndex + 2);
+              }
+            } catch (rowErr) {
+              console.error(`[ExcelImport] Row ${item.rowIndex + 2} resolve failed:`, rowErr);
+              errorCount++;
+              failedExcelRows.push(item.rowIndex + 2);
+            }
+          }
+        }
+      } catch (batchThrown) {
+        // Network error / unhandled rejection from the supabase call itself.
+        console.error(`[ExcelImport] Batch ${batchIndex}/${totalBatches} threw — attempting per-row recovery:`, batchThrown);
         for (const item of batchSlice) {
-          const skuId = await resolveVariantId(item.variantData, item.rowIndex);
-          if (skuId) {
-            insertedVariantMap.set(item.rowIndex, skuId);
-            successCount++;
-          } else {
+          if (insertedVariantMap.has(item.rowIndex)) continue;
+          try {
+            const skuId = await resolveVariantId(item.variantData, item.rowIndex);
+            if (skuId) {
+              insertedVariantMap.set(item.rowIndex, skuId);
+              successCount++;
+            } else {
+              errorCount++;
+              failedExcelRows.push(item.rowIndex + 2);
+            }
+          } catch (rowErr) {
+            console.error(`[ExcelImport] Row ${item.rowIndex + 2} resolve failed:`, rowErr);
             errorCount++;
+            failedExcelRows.push(item.rowIndex + 2);
           }
         }
       }
 
-      // Checkpoint draft every batch so tab switch does not lose progress
-      const checkpointItems = buildLineItemsFromMap();
-      skipSnapshotEffectRef.current = true;
-      importJustAppliedRef.current = true;
-      workRestoredRef.current = true;
-      await persistEntrySnapshotNow({ lineItems: [...baseLineItems, ...checkpointItems] });
+      console.info(
+        `[ExcelImport] Batch ${batchIndex}/${totalBatches} done — inserted ${insertedVariantMap.size}/${variantRowsToInsert.length}, errors ${errorCount}`,
+      );
+
+      // Checkpoint draft every batch so tab switch does not lose progress.
+      // Wrapped in try/catch — a checkpoint failure (sessionStorage quota, draft upsert error)
+      // must never abort the remaining import batches.
+      try {
+        const checkpointItems = buildLineItemsFromMap();
+        skipSnapshotEffectRef.current = true;
+        importJustAppliedRef.current = true;
+        workRestoredRef.current = true;
+        await persistEntrySnapshotNow({ lineItems: [...baseLineItems, ...checkpointItems] });
+      } catch (snapshotErr) {
+        console.warn(`[ExcelImport] Checkpoint after batch ${batchIndex} failed (continuing import):`, snapshotErr);
+      }
 
       reportImportProgress(
         insertedVariantMap.size,
         validRows.length,
         `Loading items into bill (${insertedVariantMap.size.toLocaleString("en-IN")} / ${validRows.length.toLocaleString("en-IN")})...`,
         { successCount: insertedVariantMap.size, errorCount, skippedCount },
+      );
+    }
+
+    if (failedExcelRows.length > 0) {
+      console.warn(
+        `[ExcelImport] ${failedExcelRows.length} rows failed to import. Excel row numbers:`,
+        failedExcelRows,
       );
     }
 
