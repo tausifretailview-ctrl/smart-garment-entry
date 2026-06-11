@@ -1,3 +1,4 @@
+import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 import {
@@ -612,6 +613,20 @@ export function buildDefaultWeeklyInvoiceDashboardFilters(
 }
 
 export const INVOICE_DASHBOARD_DEFAULT_PAGE_SIZE = 50;
+
+export const INVOICE_DASHBOARD_QUERY_KEY = "invoice-dashboard-unified" as const;
+
+/** Invalidate page, stats, and reconcile queries after a dashboard mutation. */
+export function invalidateInvoiceDashboardQueries(
+  queryClient: QueryClient,
+  organizationId?: string,
+) {
+  queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? [INVOICE_DASHBOARD_QUERY_KEY, organizationId]
+      : [INVOICE_DASHBOARD_QUERY_KEY],
+  });
+}
 
 /** React Query prefetch bundle for post-login warm (weekly default filters). */
 export function invoiceDashboardPrefetchQueryOptions(

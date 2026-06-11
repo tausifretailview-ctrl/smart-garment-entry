@@ -1,4 +1,5 @@
 import { format, subMonths } from "date-fns";
+import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
@@ -623,6 +624,20 @@ export async function fetchPosDashboardExportRows(
   }
 
   return enrichPosSalesWithCreditNotes(allSales);
+}
+
+export const POS_DASHBOARD_QUERY_KEY = "pos-dashboard-sales" as const;
+
+/** Invalidate table page and summary tiles after a POS dashboard mutation. */
+export function invalidatePosDashboardQueries(
+  queryClient: QueryClient,
+  organizationId?: string,
+) {
+  queryClient.invalidateQueries({
+    queryKey: organizationId
+      ? [POS_DASHBOARD_QUERY_KEY, organizationId]
+      : [POS_DASHBOARD_QUERY_KEY],
+  });
 }
 
 /** @deprecated Use fetchPosDashboardPage for the dashboard table. */
