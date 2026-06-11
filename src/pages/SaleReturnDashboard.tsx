@@ -434,7 +434,7 @@ export default function SaleReturnDashboard() {
     queryFn: async () => {
       if (!currentOrganization?.id) return { totalReturns: 0, totalValue: 0, totalQty: 0 };
 
-      const applySummaryFilters = (base: ReturnType<typeof supabase.from>) => {
+      const applySummaryFilters = (base: any) => {
         let q = base
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null);
@@ -494,7 +494,7 @@ export default function SaleReturnDashboard() {
         searchOrClause = clauses.join(",");
       }
 
-      const withSearch = (base: ReturnType<typeof supabase.from>) => {
+      const withSearch = (base: any) => {
         let q = applySummaryFilters(base);
         if (searchOrClause) q = q.or(searchOrClause);
         return q;

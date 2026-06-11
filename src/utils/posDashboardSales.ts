@@ -444,9 +444,9 @@ export function computePosDashboardSummaryStats(
       .reduce((sum, sale) => sum + getPosSaleOutstandingBalance(sale), 0),
     holdCount: holdSales.length,
     holdAmount: holdSales.reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
-    refundCount: nonHoldSales.filter((sale) => Number(sale.refund_amount || 0) > 0).length,
+    refundCount: nonHoldSales.filter((sale) => Number((sale as { refund_amount?: number }).refund_amount || 0) > 0).length,
     refundAmount: nonHoldSales.reduce(
-      (sum, sale) => sum + Number(sale.refund_amount || 0),
+      (sum, sale) => sum + Number((sale as { refund_amount?: number }).refund_amount || 0),
       0,
     ),
     creditNoteCount: nonHoldSales.filter(
