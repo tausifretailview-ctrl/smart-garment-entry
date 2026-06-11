@@ -132,7 +132,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       width: '66mm',
       maxWidth: '66mm',
       margin: '0 auto',
-      padding: '1mm 4mm',
+      padding: '1mm 2mm 1mm 3mm',
       backgroundColor: 'white',
       fontFamily: "'Arial Black', 'Arial', sans-serif",
       fontSize: '12px',
@@ -144,23 +144,24 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       printColorAdjust: 'exact',
       overflowX: 'hidden',
       overflowY: 'visible',
-      textAlign: 'center',
+      textAlign: 'left',
     };
-    const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
+    const left: React.CSSProperties = { textAlign: 'left', width: '100%' };
     const dotted: React.CSSProperties = { borderTop: '1px dotted #000', margin: '2px 0' };
     const solid: React.CSSProperties = { borderTop: '1px solid #000', margin: '2px 0' };
     const rowBetween: React.CSSProperties = {
       display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: '3mm',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: '2mm',
       width: '100%',
       flexWrap: 'wrap',
       fontWeight: 900,
+      textAlign: 'left',
     };
     const itemRow: React.CSSProperties = {
       display: 'flex',
-      justifyContent: 'center',
+      justifyContent: 'flex-start',
       alignItems: 'center',
       gap: '2mm',
       width: '100%',
@@ -169,21 +170,22 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       lineHeight: '1.15',
       padding: '1px 0',
       whiteSpace: 'nowrap',
+      textAlign: 'left',
     };
     const colParticulars: React.CSSProperties = {
       flex: '1 1 52%',
-      textAlign: 'center',
+      textAlign: 'left',
       overflow: 'hidden',
       fontWeight: 900,
     };
     const colQty: React.CSSProperties = {
       flex: '0 0 14%',
-      textAlign: 'center',
+      textAlign: 'left',
       fontWeight: 900,
     };
     const colAmt: React.CSSProperties = {
       flex: '0 0 24%',
-      textAlign: 'center',
+      textAlign: 'left',
       fontWeight: 900,
     };
 
@@ -204,7 +206,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     return (
       <div ref={ref} className="thermal-print-80mm thermal-receipt-container kids-thermal-receipt-80mm" style={base}>
         {/* Header */}
-        <div style={{ ...center, marginBottom: '2px' }}>
+        <div style={{ ...left, marginBottom: '2px' }}>
           <div style={{ fontWeight: 900, fontSize: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {businessName}
           </div>
@@ -212,7 +214,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
             <div style={{ fontSize: '10px', fontWeight: 700, lineHeight: '1.2', marginTop: '1px' }}>{address}</div>
           )}
         </div>
-        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.3' }}>
+        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.3' }}>
           {gstNumber && <div>GST NO: {gstNumber}</div>}
           {mobile && <div>Mobile: {mobile}</div>}
           <div>Website: {website}</div>
@@ -220,13 +222,13 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ ...center, fontWeight: 900, fontSize: '13px', letterSpacing: '0.5px', margin: '2px 0' }}>
+        <div style={{ ...left, fontWeight: 900, fontSize: '13px', letterSpacing: '0.5px', margin: '2px 0' }}>
           {docTitle}
         </div>
 
         <div style={dotted} />
 
-        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
+        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
           <div style={rowBetween}>
             <span>Inv.No.: {billNo}</span>
             <span style={{ whiteSpace: 'nowrap' }}>
@@ -239,7 +241,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={solid} />
 
-        {/* Items — no box borders, centered columns */}
+        {/* Items — no box borders, left-aligned columns */}
         <div style={{ width: '100%', fontWeight: 900 }}>
           <div style={{ ...itemRow, fontSize: '11px', borderBottom: '1px solid #000', paddingBottom: '2px' }}>
             <span style={colParticulars}>Particulars</span>
@@ -262,7 +264,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
 
-        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
+        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
           <div style={rowBetween}>
             <span>
               S-Qty: {fmtDec(totalQty)} S-Amt: ₹{fmtDec(saleAmount)}
@@ -271,14 +273,14 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
           </div>
           <div style={rowBetween}>
             <span>R-Qty: R-Amt: ₹</span>
-            <span style={{ fontSize: '18px', fontWeight: 900, textDecoration: 'underline' }}>
+            <span style={{ fontSize: '18px', fontWeight: 900, textDecoration: 'underline', textAlign: 'right' }}>
               ₹{fmtAmt(grandTotal)}
             </span>
           </div>
           <div style={rowBetween}>
             <span>Mode: {modeLabel}</span>
             {savedAmount > 0 && (
-              <span style={{ fontStyle: 'italic', fontWeight: 900 }}>Saved ₹{fmtAmt(savedAmount)}</span>
+              <span style={{ fontStyle: 'italic', fontWeight: 900, textAlign: 'right' }}>Saved ₹{fmtAmt(savedAmount)}</span>
             )}
           </div>
         </div>
@@ -301,7 +303,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         <div style={solid} />
 
         {/* Fixed footer — KIDS ZONE style */}
-        <div style={{ ...center, fontSize: '11px', fontWeight: 900, lineHeight: '1.35', marginTop: '2px' }}>
+        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35', marginTop: '2px' }}>
           <div>** FIXED RATE **</div>
           <div style={{ margin: '2px 0' }}>
             ** NO GUARANTEE FOR COLORS FANCY DRESS MATERIAL AND KIDS WEAR **
@@ -310,7 +312,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ ...center, fontSize: '10px', fontWeight: 900, lineHeight: '1.35' }}>
+        <div style={{ ...left, fontSize: '10px', fontWeight: 900, lineHeight: '1.35' }}>
           <div style={{ fontWeight: 900, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
           {KIDS_DEFAULT_TERMS.map((term, idx) => (
             <div key={idx}>{term}</div>
@@ -319,7 +321,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ ...center, fontSize: '11px', fontWeight: 900, margin: '3px 0 1px' }}>
+        <div style={{ ...left, fontSize: '11px', fontWeight: 900, margin: '3px 0 1px' }}>
           ** THANK YOU FOR SHOPPING WITH US **
         </div>
       </div>
