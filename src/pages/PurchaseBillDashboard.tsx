@@ -1542,7 +1542,9 @@ const PurchaseBillDashboard = () => {
       accessorKey: "net_amount",
       header: "Net Amt",
       cell: ({ row }) => (
-        <span className="text-right block font-bold text-primary tabular-nums">₹{row.original.net_amount.toFixed(2)}</span>
+        <span className="text-right block text-base font-extrabold text-primary tabular-nums font-mono">
+          ₹{row.original.net_amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
       ),
       size: 100,
       minSize: 80,
