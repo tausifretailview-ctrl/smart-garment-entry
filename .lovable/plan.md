@@ -1,51 +1,62 @@
-## Root Cause
+## Diagnosis
 
-The bill **PUR/26-27/1** in "kids-zone" has **3,490 purchase items** (and 3,490 matching `batch_stock` rows). When the user clicks **Delete Selected**, the frontend calls the database function `soft_delete_purchase_bill`, which today processes every item inside a **row-by-row PL/pgSQL loop**, executing:
+**Excel file (`file 4d.xlsx`)** has **1136 valid product rows** with **1798 total qty** and **all unique barcodes**.
 
-- `SELECT stock_qty` (pre-check, per item)
-- `UPDATE product_variants` (per item)
-- `UPDATE batch_stock` (per item)
-- `DELETE FROM batch_stock` (per item)
-- `INSERT INTO stock_movements` (per item)
+**Database (bill `PUR/26-27/16` in Kids Zone)** contains only **600 line items, 917 qty**.
 
-For this bill that is ~17,000+ statements in one transaction. The RPC exceeds the PostgREST/edge timeout, the client receives an error, `softDelete` returns `false`, and the bulk handler shows the toast **"0 purchase bill(s) moved to recycle bin"** — exactly what the user sees.
+I dumped the imported barcodes and compared to the Excel:
 
-Stock check is fine (verified: 0 items would go negative), so the delete is logically valid — it's purely a performance/timeout problem on very large bills (typical of opening-stock entries).
+```text
+Imported rows: Excel rows 2 – 601   (exactly first 600)
+Dropped rows : Excel rows 602 – 1142 (last 536)
+```
+
+The cutoff is exactly **3 × `VARIANT_BATCH_SIZE` (200) = 600**, which matches the variant‑insert batch loop in `src/pages/PurchaseEntry.tsx` (`handleExcelImport`). After the 3rd batch the loop stopped contributing to `insertedVariantMap`, so `buildLineItemsFromMap()` produced 600 line items and `setLineItems` saved a 600‑row bill.
+
+Root cause hypothesis: somewhere between batch 3 and batch 4 the loop received either
+- an unhandled rejection from `persistEntrySnapshotNow()` (called every batch with a growing snapshot — by batch 3 the JSON is ~2 MB and writes to sessionStorage/localStorage/IndexedDB/DB stub), or
+- a network/timeout error from `supabase.from('product_variants').insert(...).select('id')` whose `batchErr` path didn't propagate cleanly.
+
+Either way, the loop has **no try/catch around individual batches**, so a single thrown error skips every remaining batch *silently* and the bill is saved truncated.
+
+The screenshot's "Showing 400 rows – scroll to load more / Large bill: 600 items" is normal virtualization (`visibleItemCount=200/400`) — that part is *not* a bug.
 
 ## Fix
 
-Rewrite `public.soft_delete_purchase_bill(p_bill_id, p_user_id)` to use **set-based SQL** instead of a per-row loop. Same behaviour, same safety checks, same stock movement audit rows — just executed as a handful of bulk statements:
+### 1. Harden `handleExcelImport` in `src/pages/PurchaseEntry.tsx`
 
-1. **Pre-check (single query)** — abort if any item would push stock negative:
-   ```sql
-   SELECT pi.product_name, pi.size, pv.stock_qty, SUM(pi.qty) AS need
-   FROM purchase_items pi JOIN product_variants pv ON pv.id = pi.sku_id
-   WHERE pi.bill_id = p_bill_id AND pi.deleted_at IS NULL AND pi.sku_id IS NOT NULL
-   GROUP BY pi.sku_id, pi.product_name, pi.size, pv.stock_qty
-   HAVING pv.stock_qty < SUM(pi.qty)
-   LIMIT 1;
-   ```
-   If found, RAISE the same friendly exception as today.
+- Wrap each variant‑insert batch (line 4305 loop) in `try/catch` so a thrown error never short‑circuits the remaining batches.
+- Wrap the per‑batch `await persistEntrySnapshotNow(...)` in `try/catch`; checkpointing must never abort the import.
+- After every batch, log `console.info` with `{ batchIndex, batchSize, insertedSoFar, errorsSoFar }`.
+- Collect failed row indices into a `failedRows: number[]` array; show them in the completion toast and `console.warn` the full list so the user can re‑import only the missing rows.
+- Replace the "Import Partially Completed" toast with an explicit count: `Imported X of Y — Z rows failed (see console for row numbers)`.
 
-2. **Reverse `product_variants.stock_qty`** in one statement using an aggregated subquery (sums quantities per `sku_id` so duplicate SKUs in one bill are handled correctly).
+### 2. Backfill the affected bill (`PUR/26-27/16`)
 
-3. **Update `batch_stock`** in one statement scoped to `purchase_bill_id = p_bill_id` (subtract qty, clamp at 0).
+Re‑run the import for only the missing 536 rows (Excel rows 602–1142) into the existing bill `81ba1cd0-2c30-4b1c-8faa-62b7082a7c2a`:
 
-4. **Delete zero-quantity `batch_stock`** rows in one statement.
+- Create products / variants for the missing barcodes (all unique, none in DB).
+- Insert the corresponding `purchase_items` linked to that bill.
+- Update `purchase_bills.total_qty`, `gross_amount`, `net_amount` to reflect the new totals.
 
-5. **Insert `stock_movements`** audit rows via `INSERT … SELECT` from `purchase_items` (one statement creating N rows).
+Run as a one‑off Node script inside the project using the same logic from `handleExcelImport`, so the result is consistent with a fresh import. I'll generate the script, dry‑run it, then execute.
 
-6. Soft-delete `purchase_items`, `voucher_entries`, and the `purchase_bills` row (unchanged — already set-based).
+### 3. SR No / "product loading" issue in Edit mode
 
-This will reduce ~17,000 round-trips to ~7 SQL statements, completing well within the timeout for even 10,000-item bills.
+The Edit screen shows "Showing 400 rows – scroll to load more" with SR numbers 328…336 visible. SR No is purely a render‑time index of `lineItems`; it isn't stored. The number sequence is correct (328…336 means rows 328+ in the virtualized window). The "loading" perception on first paint is due to lazy product enrichment after `fetchPurchaseItemsByBillId`. I'll add:
 
-## Deliverable
+- a stable, persistent SR No column (`index + 1` over the full `lineItems` array, not over the visible window) so SR No is always continuous from 1, including for rows added during edit.
+- a lightweight per‑row skeleton placeholder so half‑loaded rows show "Loading product…" instead of an empty cell.
 
-- **New migration** that `CREATE OR REPLACE FUNCTION public.soft_delete_purchase_bill(...)` with the set-based implementation above. No frontend or other backend changes needed.
+### Technical details
 
-## Verification
+- File: `src/pages/PurchaseEntry.tsx`
+  - `handleExcelImport` lines ~4305–4345: add `try/catch` around each batch and around `persistEntrySnapshotNow`; collect `failedRows`.
+  - Toast/console message updated.
+  - Edit‑mode SR No: ensure the table renders `lineItems.indexOf(row) + 1` not the windowed index.
+- Backfill: standalone script `scripts/backfill-kidszone-pur-26-27-16.mjs` that reads `/mnt/user-uploads/file_4d.xlsx`, computes the 536 missing rows, and inserts products/variants/purchase_items + updates bill totals. Run once via `psql`‑equivalent migration `insert` calls (or service‑role edge run).
+- No schema migration required.
 
-After applying:
-- User selects PUR/26-27/1 → Delete Selected → expect toast "1 purchase bill(s) moved to recycle bin" within ~1s.
-- Stock reversal correctness: `product_variants.stock_qty` decreases by the bill's totals; corresponding `batch_stock` rows clear; matching `stock_movements` rows (type `soft_delete_purchase`) are written.
-- Negative-stock guard still trips when a bill has items whose qty exceeds current stock.
+### Out of scope
+
+- Re‑architecting the variant insert pipeline. The hardening above is enough to surface and recover from the failure; we can revisit batching strategy if the new diagnostics reveal a systematic cause.
