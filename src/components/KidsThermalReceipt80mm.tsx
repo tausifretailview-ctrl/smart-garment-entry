@@ -47,6 +47,31 @@ const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const fmtDec = (n: number): string => n.toFixed(2);
 const fmtMrp = (n: number): string => n.toFixed(3);
 
+/** One-line particulars: name ( size ) | MRP@xxx — matches KIDS ZONE reference, no wrap. */
+function formatKidsParticularsLine(item: KidsThermalItem): string {
+  let name = item.particulars.trim();
+  const size = item.size?.trim();
+  const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
+  const mrpPart = mrpVal > 0 ? ` | MRP@${fmtMrp(mrpVal)}` : '';
+
+  let sizePart = '';
+  if (size) {
+    const sizeInName = new RegExp(`\\(\\s*${size.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\)`, 'i').test(name);
+    if (!sizeInName) {
+      sizePart = ` ( ${size} )`;
+    }
+  }
+
+  // Keep entire line on one row — trim long ERP-style names, always keep size + MRP.
+  const reserved = sizePart.length + mrpPart.length;
+  const maxNameLen = Math.max(10, 38 - reserved);
+  if (name.length > maxNameLen) {
+    name = `${name.slice(0, maxNameLen - 2)}..`;
+  }
+
+  return `${name}${sizePart}${mrpPart}`;
+}
+
 export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsThermalReceipt80mmProps>(
   (props, ref) => {
     const {
@@ -140,8 +165,33 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     };
     const cellBorder: React.CSSProperties = {
       border: '1px solid #000',
-      padding: '1px 2px',
-      verticalAlign: 'top',
+      padding: '1px 1px',
+      verticalAlign: 'middle',
+    };
+    const itemParticularsCell: React.CSSProperties = {
+      ...cellBorder,
+      textAlign: 'center',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      fontSize: '10px',
+      lineHeight: '1.1',
+      fontWeight: 800,
+    };
+    const itemQtyCell: React.CSSProperties = {
+      ...cellBorder,
+      textAlign: 'center',
+      whiteSpace: 'nowrap',
+      fontSize: '10px',
+      lineHeight: '1.1',
+      verticalAlign: 'middle',
+    };
+    const itemAmtCell: React.CSSProperties = {
+      ...cellBorder,
+      textAlign: 'center',
+      whiteSpace: 'nowrap',
+      fontSize: '10px',
+      lineHeight: '1.1',
+      verticalAlign: 'middle',
     };
 
     if (!settings) {
@@ -197,36 +247,31 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         <div style={solid} />
 
         {/* Items table */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', fontWeight: 800, tableLayout: 'fixed' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', fontWeight: 800, tableLayout: 'fixed' }}>
           <thead>
             <tr>
-              <th style={{ ...cellBorder, textAlign: 'left', width: '58%', fontWeight: 900, fontSize: '11px' }}>Particulars</th>
-              <th style={{ ...cellBorder, textAlign: 'center', width: '14%', fontWeight: 900, fontSize: '11px' }}>Qty</th>
-              <th style={{ ...cellBorder, textAlign: 'right', width: '28%', fontWeight: 900, fontSize: '11px' }}>N.Amt.</th>
+              <th style={{ ...cellBorder, textAlign: 'center', width: '62%', fontWeight: 900, fontSize: '10px' }}>Particulars</th>
+              <th style={{ ...cellBorder, textAlign: 'center', width: '12%', fontWeight: 900, fontSize: '10px' }}>Qty</th>
+              <th style={{ ...cellBorder, textAlign: 'center', width: '26%', fontWeight: 900, fontSize: '10px' }}>N.Amt.</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, i) => {
-              const sizePart = item.size?.trim() ? ` ( ${item.size.trim()} )` : '';
-              const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
+              const line = formatKidsParticularsLine(item);
+              const lineFont =
+                line.length > 44 ? '8px' : line.length > 36 ? '9px' : '10px';
               return (
                 <tr key={i}>
-                  <td style={{ ...cellBorder, wordBreak: 'break-word', lineHeight: '1.2' }}>
-                    {item.particulars}
-                    {sizePart}
-                    {mrpVal > 0 && (
-                      <span style={{ whiteSpace: 'nowrap' }}> | MRP@{fmtMrp(mrpVal)}</span>
-                    )}
-                  </td>
-                  <td style={{ ...cellBorder, textAlign: 'center' }}>{item.qty}</td>
-                  <td style={{ ...cellBorder, textAlign: 'right' }}>₹{fmtAmt(item.total)}</td>
+                  <td style={{ ...itemParticularsCell, fontSize: lineFont }}>{line}</td>
+                  <td style={itemQtyCell}>{item.qty}</td>
+                  <td style={itemAmtCell}>₹{fmtAmt(item.total)}</td>
                 </tr>
               );
             })}
             <tr>
-              <td style={{ ...cellBorder, fontWeight: 900 }}>Sub-Total</td>
-              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900 }}>{totalQty}</td>
-              <td style={{ ...cellBorder, textAlign: 'right', fontWeight: 900 }}>₹{fmtAmt(saleAmount)}</td>
+              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900, fontSize: '10px' }}>Sub-Total</td>
+              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900, fontSize: '10px' }}>{totalQty}</td>
+              <td style={{ ...cellBorder, textAlign: 'center', fontWeight: 900, fontSize: '10px' }}>₹{fmtAmt(saleAmount)}</td>
             </tr>
           </tbody>
         </table>
