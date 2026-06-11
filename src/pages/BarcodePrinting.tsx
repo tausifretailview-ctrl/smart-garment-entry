@@ -75,6 +75,23 @@ import { LabelCalibrationUI } from "@/components/precision-barcode/LabelCalibrat
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
+import {
+  isKidszonePresetName,
+  resolveKidszoneLabelConfig,
+  KIDSZONE_50X40_DIMENSIONS,
+} from "@/constants/kidszoneLabelTemplate";
+
+const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
+
+const resolvePresetLabelConfig = (
+  presetName: string,
+  stored?: Partial<LabelDesignConfig> | null,
+): LabelDesignConfig => {
+  if (isKidszonePresetName(presetName)) {
+    return resolveKidszoneLabelConfig();
+  }
+  return ensureCompleteFieldOrder(stored || {});
+};
 
 // Utility function to sort items by size, barcode, name, price, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
@@ -117,39 +134,45 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
   });
 };
 
+const mergeLabelField = (
+  partial: Partial<LabelFieldConfig> | undefined,
+  fallback: LabelFieldConfig,
+): LabelFieldConfig => (partial ? { ...fallback, ...partial } : { ...fallback });
+
 // Helper function to ensure all fields are in fieldOrder (for migrating old configs)
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
   const allFields: FieldKey[] = [
     'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty',
     'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'
   ];
-  
+
   const existingOrder = config.fieldOrder || [];
   const missingFields = allFields.filter(f => !existingOrder.includes(f));
-  
+  const base = DEFAULT_PRECISION_CONFIG;
+
   return {
-    brand: config.brand || { show: true, fontSize: 9, bold: true },
-    businessName: config.businessName || { show: false, fontSize: 8, bold: true },
-    productName: config.productName || { show: true, fontSize: 9, bold: true },
-    category: config.category || { show: false, fontSize: 8, bold: false },
-    color: config.color || { show: false, fontSize: 8, bold: false },
-    style: config.style || { show: false, fontSize: 8, bold: false },
-    size: config.size || { show: true, fontSize: 9, bold: false },
-    price: config.price || { show: true, fontSize: 9, bold: true },
-    mrp: config.mrp || { show: false, fontSize: 9, bold: false },
-    qty: config.qty || { show: false, fontSize: 7, bold: false },
-    customText: config.customText || { show: false, fontSize: 8, bold: false },
-    barcode: config.barcode || { show: true, fontSize: 9, bold: false },
-    barcodeText: config.barcodeText || { show: true, fontSize: 7, bold: false },
-    billNumber: config.billNumber || { show: true, fontSize: 7, bold: false },
-    supplierCode: config.supplierCode || { show: true, fontSize: 7, bold: false },
-    purchaseCode: config.purchaseCode || { show: false, fontSize: 7, bold: false },
-    supplierInvoiceNo: config.supplierInvoiceNo || { show: false, fontSize: 7, bold: false },
+    brand: mergeLabelField(config.brand, base.brand),
+    businessName: mergeLabelField(config.businessName, base.businessName),
+    productName: mergeLabelField(config.productName, base.productName),
+    category: mergeLabelField(config.category, base.category),
+    color: mergeLabelField(config.color, base.color),
+    style: mergeLabelField(config.style, base.style),
+    size: mergeLabelField(config.size, base.size),
+    price: mergeLabelField(config.price, base.price),
+    mrp: mergeLabelField(config.mrp, base.mrp),
+    qty: mergeLabelField(config.qty, base.qty),
+    customText: mergeLabelField(config.customText, base.customText),
+    barcode: mergeLabelField(config.barcode, base.barcode),
+    barcodeText: mergeLabelField(config.barcodeText, base.barcodeText),
+    billNumber: mergeLabelField(config.billNumber, base.billNumber),
+    supplierCode: mergeLabelField(config.supplierCode, base.supplierCode),
+    purchaseCode: mergeLabelField(config.purchaseCode, base.purchaseCode),
+    supplierInvoiceNo: mergeLabelField(config.supplierInvoiceNo, base.supplierInvoiceNo!),
     fieldOrder: [...existingOrder, ...missingFields] as FieldKey[],
-    barcodeHeight: config.barcodeHeight,
-    barcodeWidth: config.barcodeWidth,
-    customTextValue: config.customTextValue || '',
-    lines: config.lines || [],
+    barcodeHeight: config.barcodeHeight ?? base.barcodeHeight,
+    barcodeWidth: config.barcodeWidth ?? base.barcodeWidth,
+    customTextValue: config.customTextValue ?? base.customTextValue ?? '',
+    lines: config.lines ?? base.lines ?? [],
   };
 };
 
@@ -1129,6 +1152,7 @@ export default function BarcodePrinting() {
     return null;
   }, [location.state]);
   const { orgNavigate } = useOrgNavigation();
+  const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -1310,16 +1334,44 @@ export default function BarcodePrinting() {
   const [settingsDefaultBarTab, setSettingsDefaultBarTab] = useState<"standard" | "precision" | "auto">("auto");
   /** From bill_barcode_settings — not overwritten when user toggles tabs */
   const [precisionProEnabledFromSettings, setPrecisionProEnabledFromSettings] = useState(false);
-  const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(() => {
-    try { return localStorage.getItem('precision_active_preset') || null; } catch { return null; }
-  });
-  const setActivePrecisionTemplateName = (name: string | null) => {
+  const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(null);
+  const setActivePrecisionTemplateName = useCallback((name: string | null) => {
     setActivePrecisionTemplateNameRaw(name);
+    if (!currentOrganization?.id) return;
     try {
-      if (name) localStorage.setItem('precision_active_preset', name);
-      else localStorage.removeItem('precision_active_preset');
+      const key = precisionPresetStorageKey(currentOrganization.id);
+      if (name) localStorage.setItem(key, name);
+      else localStorage.removeItem(key);
+      localStorage.removeItem("precision_active_preset");
     } catch {}
-  };
+  }, [currentOrganization?.id]);
+
+  const activePrecisionTemplateBaseName = activePrecisionTemplateName?.replace(/^preset:/, "") ?? null;
+
+  /** Kids Zone uses a hard-coded layout so every PC/login renders the same design. */
+  const effectivePrecisionLabelConfig = useMemo((): LabelDesignConfig => {
+    if (isKidszonePresetName(activePrecisionTemplateBaseName)) {
+      return resolveKidszoneLabelConfig();
+    }
+    return precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
+  }, [activePrecisionTemplateBaseName, precisionSettings.labelConfig]);
+
+  const effectivePrecisionLabelWidth = useMemo(
+    () =>
+      isKidszonePresetName(activePrecisionTemplateBaseName)
+        ? KIDSZONE_50X40_DIMENSIONS.width
+        : precisionSettings.labelWidth,
+    [activePrecisionTemplateBaseName, precisionSettings.labelWidth],
+  );
+
+  const effectivePrecisionLabelHeight = useMemo(
+    () =>
+      isKidszonePresetName(activePrecisionTemplateBaseName)
+        ? KIDSZONE_50X40_DIMENSIONS.height
+        : precisionSettings.labelHeight,
+    [activePrecisionTemplateBaseName, precisionSettings.labelHeight],
+  );
+
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks whether we've resolved the initial default tab for the current org.
   // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
@@ -1374,10 +1426,14 @@ export default function BarcodePrinting() {
 
   // Auto-save precision label config changes to active template/preset (debounced)
   const autoSavePrecisionConfig = useCallback(async (targetName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
-    const configToSave = { ...labelConfig };
+    const configToSave = isKidszonePresetName(targetName)
+      ? resolveKidszoneLabelConfig()
+      : { ...labelConfig };
     const cleanName = targetName.startsWith("preset:")
       ? targetName.replace("preset:", "")
       : targetName;
+    const saveWidth = isKidszonePresetName(targetName) ? KIDSZONE_50X40_DIMENSIONS.width : labelWidth;
+    const saveHeight = isKidszonePresetName(targetName) ? KIDSZONE_50X40_DIMENSIONS.height : labelHeight;
 
     try {
       if (targetName.startsWith("preset:")) {
@@ -1385,41 +1441,31 @@ export default function BarcodePrinting() {
           .from("printer_presets")
           .update({
             label_config: configToSave as any,
-            label_width: labelWidth,
-            label_height: labelHeight,
+            label_width: saveWidth,
+            label_height: saveHeight,
           })
           .eq("organization_id", orgId)
           .eq("name", cleanName);
 
         if (error) throw error;
-
-        setDbPresets(prev => prev.map(p =>
-          p.name === cleanName
-            ? { ...p, labelConfig: configToSave, width: labelWidth, height: labelHeight }
-            : p
-        ));
-
-        return true;
       }
 
       const updatedTemplate: LabelTemplate = {
         name: cleanName,
         config: configToSave,
-        labelWidth,
-        labelHeight,
+        labelWidth: saveWidth,
+        labelHeight: saveHeight,
       };
+      const templateSaved = await saveTemplateToDb(updatedTemplate);
+      if (!templateSaved) throw new Error("Failed to sync label template");
 
-      const success = await saveTemplateToDb(updatedTemplate);
+      setDbPresets(prev => prev.map(p =>
+        p.name === cleanName
+          ? { ...p, labelConfig: configToSave, width: saveWidth, height: saveHeight }
+          : p
+      ));
 
-      if (success) {
-        setDbPresets(prev => prev.map(p =>
-          p.name === cleanName
-            ? { ...p, labelConfig: configToSave, width: labelWidth, height: labelHeight }
-            : p
-        ));
-      }
-
-      return success;
+      return true;
     } catch (error) {
       console.error("Failed to auto-save precision design:", error);
       return false;
@@ -1454,16 +1500,32 @@ export default function BarcodePrinting() {
       const templateName = activePrecisionTemplateName.startsWith("preset:")
         ? activePrecisionTemplateName.replace("preset:", "")
         : activePrecisionTemplateName;
-      const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
-      if (freshTemplate?.config) {
+      if (isKidszonePresetName(templateName)) {
         hasLoadedPrecisionConfigRef.current = true;
-        const migratedConfig = ensureCompleteFieldOrder(freshTemplate.config);
-        const templateDims = resolveTemplateLabelDimensions(freshTemplate);
         setPrecisionSettings(prev => ({
           ...prev,
-          labelConfig: migratedConfig,
-          ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
+          labelConfig: resolveKidszoneLabelConfig(),
+          labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
+          labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
         }));
+      } else {
+        const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
+        const freshPreset = dbPresets.find((p) => p.name === templateName);
+        const storedConfig = freshTemplate?.config ?? freshPreset?.labelConfig;
+        if (storedConfig) {
+          hasLoadedPrecisionConfigRef.current = true;
+          const migratedConfig = resolvePresetLabelConfig(templateName, storedConfig);
+          const templateDims = freshTemplate
+            ? resolveTemplateLabelDimensions(freshTemplate)
+            : freshPreset
+              ? { width: freshPreset.width, height: freshPreset.height }
+              : null;
+          setPrecisionSettings(prev => ({
+            ...prev,
+            labelConfig: migratedConfig,
+            ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
+          }));
+        }
       }
     }
     
@@ -1484,7 +1546,7 @@ export default function BarcodePrinting() {
         
         if (template) {
           // Load template config with field order migration
-          const migratedConfig = ensureCompleteFieldOrder(template.config);
+          const migratedConfig = resolvePresetLabelConfig(template.name, template.config);
           const configWithBarcode = {
             ...migratedConfig,
             barcode: { ...migratedConfig.barcode, show: true },
@@ -1596,9 +1658,6 @@ export default function BarcodePrinting() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, activePrecisionTemplateName, dbPresets]);
 
-  // Get organization context
-  const { currentOrganization } = useOrganization();
-
   // Reset defaults ref when organization changes so defaults reload for new org
   useEffect(() => {
     hasLoadedDefaultsRef.current = false;
@@ -1608,6 +1667,12 @@ export default function BarcodePrinting() {
     settingsFullyLoadedRef.current = false;
     settingsOrgLoadedRef.current = null;
     setSettingsLoading(true);
+    setActivePrecisionTemplateNameRaw(null);
+    if (!currentOrganization?.id) return;
+    try {
+      const saved = localStorage.getItem(precisionPresetStorageKey(currentOrganization.id));
+      if (saved) setActivePrecisionTemplateNameRaw(saved);
+    } catch {}
   }, [currentOrganization?.id]);
 
   // Resolve barcode-printing tab from Settings (same rules as web app).
@@ -1656,10 +1721,24 @@ export default function BarcodePrinting() {
     purchaseNavKey,
   ]);
 
+  // Push canonical Kids Zone layout to DB whenever that preset is active (repairs stale rows).
+  useEffect(() => {
+    if (!activePrecisionTemplateName || !currentOrganization?.id) return;
+    if (!isKidszonePresetName(activePrecisionTemplateBaseName)) return;
+    void autoSavePrecisionConfig(
+      activePrecisionTemplateName,
+      resolveKidszoneLabelConfig(),
+      KIDSZONE_50X40_DIMENSIONS.width,
+      KIDSZONE_50X40_DIMENSIONS.height,
+      currentOrganization.id,
+    );
+  }, [activePrecisionTemplateName, activePrecisionTemplateBaseName, currentOrganization?.id, autoSavePrecisionConfig]);
+
   // Debounced auto-save for precision designer changes
   useEffect(() => {
     if (!activePrecisionTemplateName || !precisionSettings.labelConfig || !currentOrganization?.id) return;
-    
+    if (isKidszonePresetName(activePrecisionTemplateBaseName)) return;
+
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     
     autoSaveTimerRef.current = setTimeout(() => {
@@ -1809,17 +1888,21 @@ export default function BarcodePrinting() {
             : mapped.find((p: any) => p.isDefault);
           
           if (presetToLoad) {
+            const kidszone = isKidszonePresetName(presetToLoad.name);
+            const resolvedConfig = kidszone || presetToLoad.labelConfig
+              ? resolvePresetLabelConfig(presetToLoad.name, presetToLoad.labelConfig)
+              : undefined;
             setPrecisionSettings((prev) => ({
               ...prev,
               xOffset: presetToLoad.xOffset,
               yOffset: presetToLoad.yOffset,
               vGap: presetToLoad.vGap,
-              labelWidth: presetToLoad.width,
-              labelHeight: presetToLoad.height,
+              labelWidth: kidszone ? KIDSZONE_50X40_DIMENSIONS.width : presetToLoad.width,
+              labelHeight: kidszone ? KIDSZONE_50X40_DIMENSIONS.height : presetToLoad.height,
               ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
               ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
               printMode: presetToLoad.printMode || (presetToLoad.a4Cols && presetToLoad.a4Rows ? 'a4' : (presetToLoad.thermalCols && presetToLoad.thermalCols > 1) ? 'thermal2up' : 'thermal'),
-              ...(presetToLoad.labelConfig ? { labelConfig: presetToLoad.labelConfig } : {}),
+              ...(resolvedConfig ? { labelConfig: resolvedConfig } : {}),
               thermalCols: presetToLoad.thermalCols || 1,
               enabled: true,
             }));
@@ -1861,7 +1944,12 @@ export default function BarcodePrinting() {
     if (error) { toast.error("Failed to set default"); return; }
     toast.success(`"${presetName}" set as default preset`);
     setDbPresets(prev => prev.map(p => ({ ...p, isDefault: p.id === presetId })));
-    try { localStorage.removeItem('precision_active_preset'); } catch {}
+    try {
+      localStorage.removeItem("precision_active_preset");
+      if (currentOrganization?.id) {
+        localStorage.removeItem(precisionPresetStorageKey(currentOrganization.id));
+      }
+    } catch {}
   };
 
   // Set a label template as default by saving it as a printer_preset with is_default
@@ -2935,7 +3023,7 @@ export default function BarcodePrinting() {
     const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
     if (template) {
       // Ensure the loaded config has all required properties with field order migration
-      const mergedConfig = ensureCompleteFieldOrder(template.config);
+      const mergedConfig = resolvePresetLabelConfig(template.name, template.config);
       setLabelConfig(mergedConfig);
       setNewLabelTemplateName(template.name);
       setIsEditingLabelTemplate(true);
@@ -2948,7 +3036,7 @@ export default function BarcodePrinting() {
     const template = savedLabelTemplates.find(t => t.name === templateName);
     if (template) {
       // Ensure the loaded config has all required properties with field order migration
-      const mergedConfig = ensureCompleteFieldOrder(template.config);
+      const mergedConfig = resolvePresetLabelConfig(templateName, template.config);
       setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(templateName);
       const templateDims = resolveTemplateLabelDimensions(template);
@@ -3676,12 +3764,12 @@ export default function BarcodePrinting() {
         ? Math.max(2, precisionSettings.thermalCols || 2)
         : precisionSettings.thermalCols || 1;
     const horizontalGap = cols > 1 ? getThermal2UpGap() : 0;
-    const w = precisionSettings.labelWidth * cols + horizontalGap * Math.max(0, cols - 1);
+    const w = effectivePrecisionLabelWidth * cols + horizontalGap * Math.max(0, cols - 1);
     const isA4 = precisionSettings.printMode === "a4";
     // Thermal: page size must match physical sticker (50×38 etc.). vGap is A4 row gap only.
     const h = isA4
       ? 297
-      : precisionSettings.labelHeight;
+      : effectivePrecisionLabelHeight;
 
     const htmlDoc = buildPrecisionLabelDocument(labelHTML, {
       contentWidthMm: w,
@@ -4658,7 +4746,7 @@ export default function BarcodePrinting() {
           if (v === "precision" && selectedLabelTemplate) {
             const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
             if (template && !precisionSettings.labelConfig) {
-              const migratedConfig = ensureCompleteFieldOrder(template.config);
+              const migratedConfig = resolvePresetLabelConfig(template.name, template.config);
               const templateDims = resolveTemplateLabelDimensions(template);
               setPrecisionSettings(prev => ({
                 ...prev,
@@ -5615,9 +5703,17 @@ export default function BarcodePrinting() {
                 onSetTemplateDefault={handleSetTemplateDefault}
                 defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
                 onLoadPreset={(preset) => {
-                  if (preset.labelConfig) {
-                    setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
-                  }
+                  const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
+                  setPrecisionSettings((prev) => ({
+                    ...prev,
+                    labelConfig: migratedConfig,
+                    ...(isKidszonePresetName(preset.name)
+                      ? {
+                          labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
+                          labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
+                        }
+                      : {}),
+                  }));
                   if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                   if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
                   setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
@@ -5626,7 +5722,7 @@ export default function BarcodePrinting() {
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                   setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
                 }}
-                labelConfig={precisionSettings.labelConfig || undefined}
+                labelConfig={effectivePrecisionLabelConfig}
                 savedTemplates={savedLabelTemplates}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
                 activePresetValue={activePrecisionTemplateName}
@@ -5758,9 +5854,17 @@ export default function BarcodePrinting() {
               onSetTemplateDefault={handleSetTemplateDefault}
               defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
               onLoadPreset={(preset) => {
-                if (preset.labelConfig) {
-                  setPrecisionSettings((prev) => ({ ...prev, labelConfig: preset.labelConfig }));
-                }
+                const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
+                setPrecisionSettings((prev) => ({
+                  ...prev,
+                  labelConfig: migratedConfig,
+                  ...(isKidszonePresetName(preset.name)
+                    ? {
+                        labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
+                        labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
+                      }
+                    : {}),
+                }));
                 if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
                 if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
                 setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
@@ -5771,7 +5875,7 @@ export default function BarcodePrinting() {
                   const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
                   setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
               }}
-              labelConfig={precisionSettings.labelConfig || undefined}
+              labelConfig={effectivePrecisionLabelConfig}
               savedTemplates={savedLabelTemplates}
               printMode={precisionSettings.printMode}
               a4Cols={precisionSettings.a4Cols}
@@ -5834,13 +5938,14 @@ export default function BarcodePrinting() {
                     if (name.startsWith("preset:")) {
                       const presetName = name.replace("preset:", "");
                       const preset = dbPresets.find(p => p.name === presetName);
-                      if (preset && preset.labelConfig) {
-                        const migratedConfig = ensureCompleteFieldOrder(preset.labelConfig);
+                      const kidszone = isKidszonePresetName(presetName);
+                      if (preset || kidszone) {
+                        const migratedConfig = resolvePresetLabelConfig(presetName, preset?.labelConfig);
                         setPrecisionSettings((prev) => ({
                           ...prev,
                           labelConfig: migratedConfig,
-                          labelWidth: preset.width,
-                          labelHeight: preset.height,
+                          labelWidth: kidszone ? KIDSZONE_50X40_DIMENSIONS.width : (preset?.width ?? prev.labelWidth),
+                          labelHeight: kidszone ? KIDSZONE_50X40_DIMENSIONS.height : (preset?.height ?? prev.labelHeight),
                         }));
                         setActivePrecisionTemplateName(name);
                         toast.success(`Preset "${presetName}" loaded`);
@@ -5850,7 +5955,7 @@ export default function BarcodePrinting() {
                     // Handle label templates (from barcode_label_settings table)
                     const template = savedLabelTemplates.find(t => t.name === name);
                     if (template) {
-                      const migratedConfig = ensureCompleteFieldOrder(template.config);
+                      const migratedConfig = resolvePresetLabelConfig(name, template.config);
                       const templateDims = resolveTemplateLabelDimensions(template);
                       setPrecisionSettings((prev) => ({ 
                         ...prev, 
@@ -5866,8 +5971,12 @@ export default function BarcodePrinting() {
                     <SelectValue placeholder="Select a template to edit..." />
                   </SelectTrigger>
                   <SelectContent>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📌 Built-in</div>
+                    <SelectItem value="preset:kidszone" className="text-xs">
+                      kidszone (50×40mm) — fixed layout
+                    </SelectItem>
                     {savedLabelTemplates.length === 0 && dbPresets.filter(p => p.labelConfig).length === 0 ? (
-                      <div className="px-2 py-2 text-xs text-muted-foreground">No saved templates. Save one first.</div>
+                      <div className="px-2 py-2 text-xs text-muted-foreground">No other saved templates yet.</div>
                     ) : (
                       <>
                         {savedLabelTemplates.length > 0 && (
@@ -5905,7 +6014,11 @@ export default function BarcodePrinting() {
                   <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-medium text-xs">
                     ✏️ Editing: {activePrecisionTemplateName.replace("preset:", "")}
                   </span>
-                  <span className="text-muted-foreground text-[10px]">(changes auto-save)</span>
+                  <span className="text-muted-foreground text-[10px]">
+                    {isKidszonePresetName(activePrecisionTemplateBaseName)
+                      ? "(fixed layout — same on all PCs)"
+                      : "(changes auto-save)"}
+                  </span>
                   <Button 
                     variant="ghost" 
                     size="xs" 
@@ -5929,9 +6042,9 @@ export default function BarcodePrinting() {
               Configure exact field positions (in mm) for pixel-perfect label printing. Drag fields to reposition them on the live preview.
             </p>
             <PrecisionLabelDesigner
-              labelWidth={precisionSettings.labelWidth}
-              labelHeight={precisionSettings.labelHeight}
-              config={precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG}
+              labelWidth={effectivePrecisionLabelWidth}
+              labelHeight={effectivePrecisionLabelHeight}
+              config={effectivePrecisionLabelConfig}
               onConfigChange={(cfg) =>
                 setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
               }
@@ -5940,7 +6053,16 @@ export default function BarcodePrinting() {
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {
-                  const configToSave = precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG;
+                  const templateName = activePrecisionTemplateBaseName || "";
+                  const configToSave = isKidszonePresetName(templateName)
+                    ? resolveKidszoneLabelConfig()
+                    : (precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG);
+                  const saveWidth = isKidszonePresetName(templateName)
+                    ? KIDSZONE_50X40_DIMENSIONS.width
+                    : precisionSettings.labelWidth;
+                  const saveHeight = isKidszonePresetName(templateName)
+                    ? KIDSZONE_50X40_DIMENSIONS.height
+                    : precisionSettings.labelHeight;
                   await savePrecisionConfigToSettings(configToSave, currentOrganization.id);
 
                   // Also save to active template if one is loaded
@@ -5948,8 +6070,8 @@ export default function BarcodePrinting() {
                     const success = await autoSavePrecisionConfig(
                       activePrecisionTemplateName,
                       configToSave,
-                      precisionSettings.labelWidth,
-                      precisionSettings.labelHeight,
+                      saveWidth,
+                      saveHeight,
                       currentOrganization.id
                     );
 
@@ -6008,9 +6130,9 @@ export default function BarcodePrinting() {
                           <div key={`${idx}-${qi}`} className="border border-dashed border-border">
                             <PrecisionLabelPreview
                               item={{ ...item, businessName }}
-                              width={precisionSettings.labelWidth}
-                              height={precisionSettings.labelHeight}
-                              config={precisionSettings.labelConfig || undefined}
+                              width={effectivePrecisionLabelWidth}
+                              height={effectivePrecisionLabelHeight}
+                              config={effectivePrecisionLabelConfig}
                               scaleFactor={2}
                             />
                           </div>
@@ -6020,14 +6142,14 @@ export default function BarcodePrinting() {
                   ) : (
                     <PrecisionA4SheetPrint
                       items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
-                      labelWidth={precisionSettings.labelWidth}
-                      labelHeight={precisionSettings.labelHeight}
+                      labelWidth={effectivePrecisionLabelWidth}
+                      labelHeight={effectivePrecisionLabelHeight}
                       cols={precisionSettings.a4Cols}
                       rows={precisionSettings.a4Rows}
                       xOffset={precisionSettings.xOffset}
                       yOffset={precisionSettings.yOffset}
                       vGap={precisionSettings.vGap}
-                      config={precisionSettings.labelConfig || undefined}
+                      config={effectivePrecisionLabelConfig}
                       startPosition={startPosition}
                     />
                   )}
@@ -6172,12 +6294,12 @@ export default function BarcodePrinting() {
             <PrecisionThermalPrint
               ref={precisionPrintRef}
               items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
-              labelWidth={precisionSettings.labelWidth}
-              labelHeight={precisionSettings.labelHeight}
+              labelWidth={effectivePrecisionLabelWidth}
+              labelHeight={effectivePrecisionLabelHeight}
               xOffset={precisionSettings.xOffset}
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
-              config={precisionSettings.labelConfig || undefined}
+              config={effectivePrecisionLabelConfig}
               thermalCols={precisionSettings.printMode === 'thermal2up' ? Math.max(2, precisionSettings.thermalCols || 2) : (precisionSettings.thermalCols || 1)}
               horizontalGap={getThermal2UpGap()}
               active={printPageActive}
@@ -6186,14 +6308,14 @@ export default function BarcodePrinting() {
             <PrecisionA4SheetPrint
               ref={precisionPrintRef}
               items={labelItems.filter(i => (i.qty || 0) > 0).map(i => ({ ...i, businessName }))}
-              labelWidth={precisionSettings.labelWidth}
-              labelHeight={precisionSettings.labelHeight}
+              labelWidth={effectivePrecisionLabelWidth}
+              labelHeight={effectivePrecisionLabelHeight}
               cols={precisionSettings.a4Cols}
               rows={precisionSettings.a4Rows}
               xOffset={precisionSettings.xOffset}
               yOffset={precisionSettings.yOffset}
               vGap={precisionSettings.vGap}
-              config={precisionSettings.labelConfig || undefined}
+              config={effectivePrecisionLabelConfig}
               startPosition={startPosition}
               active={printPageActive}
             />
