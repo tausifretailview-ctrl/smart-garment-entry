@@ -331,6 +331,11 @@ const PurchaseEntry = () => {
   /** Skip duplicate snapshot rebuild right after Excel import / bulk restore. */
   const skipSnapshotEffectRef = useRef(false);
   const importJustAppliedRef = useRef(false);
+  /** Non-null while an Excel import is in flight (set at import start, cleared at
+   *  completion). Persisted into every draft snapshot/checkpoint so an interrupted
+   *  import (refresh/tab close) leaves a marker — doSave hard-blocks saving such a
+   *  partial draft, which previously silently truncated bills. */
+  const pendingImportRef = useRef<{ expectedRows: number; expectedQty: number } | null>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
@@ -460,6 +465,7 @@ const PurchaseEntry = () => {
       autoSaveDebounceRef.current = null;
     }
     latestSnapshotRef.current = null;
+    pendingImportRef.current = null;
     setLineItems([]);
     setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
     setSoftwareBillNo("");
@@ -573,6 +579,7 @@ const PurchaseEntry = () => {
       originalLineItems,
       tabInstanceId: tabInstanceIdRef.current,
       savedAt: Date.now(),
+      pendingImport: pendingImportRef.current,
     };
   }, [
     billData,
@@ -612,6 +619,7 @@ const PurchaseEntry = () => {
         isEditMode,
         editingBillId,
         originalLineItems,
+        pendingImport: pendingImportRef.current,
       };
       latestSnapshotRef.current = snapshot;
       updateCurrentData(snapshot);
@@ -647,6 +655,7 @@ const PurchaseEntry = () => {
     latestSnapshotRef.current = null;
     skipSnapshotEffectRef.current = true;
     importJustAppliedRef.current = false;
+    pendingImportRef.current = null;
     await deleteDraft();
     updateCurrentData(null);
     clearEntrySession();
@@ -724,6 +733,31 @@ const PurchaseEntry = () => {
     
     // Backfill uom from products table for any rows missing it (drafts saved before MTR fix)
     const enrichedItems = await enrichItemsWithUom(items);
+
+    // Restore interrupted-import marker — keeps the doSave hard-block active across sessions.
+    const pendingImport = (data as { pendingImport?: { expectedRows: number; expectedQty: number } | null })
+      .pendingImport;
+    pendingImportRef.current =
+      pendingImport && Number(pendingImport.expectedQty) > 0
+        ? { expectedRows: Number(pendingImport.expectedRows) || 0, expectedQty: Number(pendingImport.expectedQty) }
+        : null;
+    if (pendingImportRef.current) {
+      const loadedQty = enrichedItems.reduce(
+        (sum: number, item: any) => sum + (Number(item?.qty) || 0),
+        0,
+      );
+      if (loadedQty + 0.5 < pendingImportRef.current.expectedQty) {
+        toast({
+          title: "Excel import was interrupted",
+          description: `This draft has only ${loadedQty.toLocaleString("en-IN")} qty of the ${pendingImportRef.current.expectedQty.toLocaleString("en-IN")} qty in the Excel file. Saving is blocked — discard this draft and re-import the Excel file.`,
+          variant: "destructive",
+          duration: 15000,
+        });
+      } else {
+        // Draft actually has everything (e.g. interrupted after last checkpoint) — clear marker.
+        pendingImportRef.current = null;
+      }
+    }
 
     // Single update — no chunked progress overlay (table windowing handles render cost).
     skipSnapshotEffectRef.current = true;
@@ -3117,6 +3151,24 @@ const PurchaseEntry = () => {
       return;
     }
 
+    // HARD GUARD: never save a bill from an interrupted Excel import. The marker is
+    // set when an import starts and cleared only when it completes — if it is still
+    // present, the line items are a truncated subset of the Excel file.
+    if (pendingImportRef.current) {
+      const currentQty = lineItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      const { expectedQty } = pendingImportRef.current;
+      if (currentQty + 0.5 < expectedQty) {
+        toast({
+          title: "Cannot save — Excel import incomplete",
+          description: `The bill has ${currentQty.toLocaleString("en-IN")} qty but the imported Excel file had ${expectedQty.toLocaleString("en-IN")} qty. The import was interrupted before finishing. Discard this draft and re-import the Excel file, then save.`,
+          variant: "destructive",
+          duration: 15000,
+        });
+        return;
+      }
+      pendingImportRef.current = null;
+    }
+
     // UNIQUENESS CHECK: Supplier Invoice No must be unique per supplier among active bills.
     // Cancelled bills are voided — same number may be reused (same as permanent delete).
     // When the user accepted the auto-generated serial (it collides because the global
@@ -4040,6 +4092,22 @@ const PurchaseEntry = () => {
     let errorCount = 0;
     skippedCount = mappedData.length - validRows.length;
 
+    // Mark import as in-flight BEFORE any async work. This marker rides on every
+    // draft checkpoint — if the import is interrupted (refresh / tab close / crash),
+    // the restored draft is flagged incomplete and saving is hard-blocked.
+    const baseQtyBeforeImport = baseLineItems.reduce(
+      (sum, item) => sum + (Number(item.qty) || 0),
+      0,
+    );
+    const excelExpectedQty = validRows.reduce(
+      (sum, row) => sum + (parseLocalizedNumber(row.qty) || 0),
+      0,
+    );
+    pendingImportRef.current = {
+      expectedRows: baseLineItems.length + validRows.length,
+      expectedQty: baseQtyBeforeImport + excelExpectedQty,
+    };
+
     reportImportProgress(0, validRows.length, "Starting Excel import...");
 
     // Helper: stable product key for deduplication
@@ -4414,6 +4482,10 @@ const PurchaseEntry = () => {
     successCount = insertedVariantMap.size;
 
     const mergedLineItems = [...baseLineItems, ...newLineItems];
+    // Import reached completion — clear the in-flight marker. Partial successes are
+    // reported explicitly via the destructive toast below, so the user has been told;
+    // the hard save-block is only for imports that never reached this point.
+    pendingImportRef.current = null;
     importJustAppliedRef.current = true;
     skipSnapshotEffectRef.current = true;
     workRestoredRef.current = true;
