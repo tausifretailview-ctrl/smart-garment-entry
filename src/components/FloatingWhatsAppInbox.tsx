@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
+import { fetchActualUnreadMessageCount } from "@/utils/whatsappInboxUnread";
 
 export const FloatingWhatsAppInbox = () => {
   const navigate = useNavigate();
@@ -25,24 +26,12 @@ export const FloatingWhatsAppInbox = () => {
     hasSpecialPermission("whatsapp_api") ||
     hasSpecialPermission("whatsapp_send");
 
-  // Query unread message count
+  // Badge = actual inbound messages not yet read (not cached conversation counter).
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['whatsapp-unread-count', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return 0;
-      
-      const { data, error } = await supabase
-        .from('whatsapp_conversations')
-        .select('unread_count')
-        .eq('organization_id', currentOrganization.id)
-        .gt('unread_count', 0);
-      
-      if (error) {
-        console.error('Error fetching unread count:', error);
-        return 0;
-      }
-      
-      return data?.reduce((sum, conv) => sum + (conv.unread_count || 0), 0) || 0;
+      return fetchActualUnreadMessageCount(currentOrganization.id);
     },
     enabled: !!currentOrganization?.id && canAccess,
     staleTime: 30_000,
@@ -97,7 +86,7 @@ export const FloatingWhatsAppInbox = () => {
   }
 
   const handleClick = () => {
-    navigate(`/${currentOrganization.slug}/whatsapp-inbox`);
+    navigate(`/${currentOrganization.slug}/whatsapp-inbox`, { state: { openUnread: true } });
   };
 
   return (

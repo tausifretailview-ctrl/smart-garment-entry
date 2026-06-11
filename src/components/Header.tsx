@@ -366,7 +366,7 @@ export const Header = () => {
                 {can("whatsapp_inbox") && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => orgNavigate("/whatsapp-inbox")} className="cursor-pointer">
+                    <DropdownMenuItem onClick={() => orgNavigate("/whatsapp-inbox", { state: { openUnread: true } })} className="cursor-pointer">
                       WhatsApp Inbox
                     </DropdownMenuItem>
                   </>

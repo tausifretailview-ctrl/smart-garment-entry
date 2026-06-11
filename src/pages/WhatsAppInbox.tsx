@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import {
+  fetchConversationsWithActualUnread,
+  markConversationAsRead,
+  sortConversationsUnreadFirst,
+} from "@/utils/whatsappInboxUnread";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,11 +56,16 @@ interface Message {
 
 const WhatsAppInbox = () => {
   const { currentOrganization } = useOrganization();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const navState = (location.state as { openUnread?: boolean; conversationId?: string } | null) ?? null;
+  const openUnreadFromNav = Boolean(navState?.openUnread);
+  const conversationIdFromNav = navState?.conversationId;
   const [newMessage, setNewMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const markedReadRef = useRef<Set<string>>(new Set());
   
   // Tier-based polling - free tier uses manual refresh only
   const { getRefreshInterval } = useTierBasedRefresh();
@@ -97,20 +108,12 @@ const WhatsAppInbox = () => {
 
   const isUsingSharedNumber = whatsappSettings?.use_default_api || sharedNumberInfo?.isShared;
 
-  // Fetch conversations
+  // Fetch conversations — unread_count synced from inbound messages with read_at IS NULL
   const { data: conversations = [], isLoading: loadingConversations, refetch: refetchConversations } = useQuery({
     queryKey: ['whatsapp-conversations', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('whatsapp_conversations')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .order('last_message_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as Conversation[];
+      return fetchConversationsWithActualUnread(currentOrganization.id);
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30000, // 30 seconds stale time
@@ -201,18 +204,47 @@ const WhatsAppInbox = () => {
     },
   });
 
-  // Mark messages as read when conversation is selected
+  // Open target conversation from notification / FAB (specific chat or first unread)
   useEffect(() => {
-    if (selectedConversation?.id && selectedConversation.unread_count > 0) {
-      supabase
-        .from('whatsapp_conversations')
-        .update({ unread_count: 0 })
-        .eq('id', selectedConversation.id)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
-        });
+    if (selectedConversation || conversations.length === 0) return;
+    if (!openUnreadFromNav && !conversationIdFromNav) return;
+
+    if (conversationIdFromNav) {
+      const target = conversations.find((c) => c.id === conversationIdFromNav);
+      if (target) {
+        setSelectedConversation(target);
+        return;
+      }
     }
-  }, [selectedConversation?.id]);
+
+    if (openUnreadFromNav) {
+      const firstUnread = conversations.find((c) => (c.unread_count ?? 0) > 0);
+      if (firstUnread) {
+        setSelectedConversation(firstUnread);
+      }
+    }
+  }, [openUnreadFromNav, conversationIdFromNav, conversations, selectedConversation]);
+
+  // Mark inbound messages as read when conversation is opened
+  useEffect(() => {
+    if (!selectedConversation?.id || !currentOrganization?.id) return;
+    if ((selectedConversation.unread_count ?? 0) <= 0) return;
+    if (markedReadRef.current.has(selectedConversation.id)) return;
+
+    markedReadRef.current.add(selectedConversation.id);
+    markConversationAsRead(currentOrganization.id, selectedConversation.id)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations', currentOrganization.id] });
+        queryClient.invalidateQueries({ queryKey: ['whatsapp-unread-count', currentOrganization.id] });
+        setSelectedConversation((prev) =>
+          prev?.id === selectedConversation.id ? { ...prev, unread_count: 0 } : prev,
+        );
+      })
+      .catch(() => {
+        markedReadRef.current.delete(selectedConversation.id);
+        toast.error('Could not mark messages as read');
+      });
+  }, [selectedConversation?.id, selectedConversation?.unread_count, currentOrganization?.id, queryClient]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -236,6 +268,7 @@ const WhatsAppInbox = () => {
         () => {
           queryClient.invalidateQueries({ queryKey: ['whatsapp-messages'] });
           queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-unread-count', currentOrganization.id] });
         }
       )
       .on(
@@ -248,6 +281,7 @@ const WhatsAppInbox = () => {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-unread-count', currentOrganization.id] });
         }
       )
       .subscribe();
@@ -264,9 +298,12 @@ const WhatsAppInbox = () => {
     }
   };
 
-  const filteredConversations = conversations.filter(conv => 
-    conv.customer_phone.includes(searchQuery) ||
-    conv.customer_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredConversations = sortConversationsUnreadFirst(
+    conversations.filter(
+      (conv) =>
+        conv.customer_phone.includes(searchQuery) ||
+        conv.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()),
+    ),
   );
 
   const getStatusIcon = (message: Message) => {
@@ -349,7 +386,8 @@ const WhatsAppInbox = () => {
                   onClick={() => setSelectedConversation(conv)}
                   className={cn(
                     "p-3 border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                    selectedConversation?.id === conv.id && "bg-muted"
+                    selectedConversation?.id === conv.id && "bg-muted",
+                    (conv.unread_count ?? 0) > 0 && selectedConversation?.id !== conv.id && "bg-green-50/60 dark:bg-green-950/20",
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -361,7 +399,7 @@ const WhatsAppInbox = () => {
                         <span className="font-medium truncate">
                           {conv.customer_name || conv.customer_phone}
                         </span>
-                        {conv.unread_count > 0 && (
+                        {(conv.unread_count ?? 0) > 0 && (
                           <Badge variant="default" className="bg-green-600 shrink-0">
                             {conv.unread_count}
                           </Badge>

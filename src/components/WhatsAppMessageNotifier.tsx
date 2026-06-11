@@ -95,7 +95,10 @@ export function WhatsAppMessageNotifier() {
               icon: <MessageSquare className="h-4 w-4 text-green-600" />,
               action: {
                 label: "Open Inbox",
-                onClick: () => orgNavigate("/whatsapp-inbox"),
+                onClick: () =>
+                  orgNavigate("/whatsapp-inbox", {
+                    state: { openUnread: true, conversationId: msg.conversation_id },
+                  }),
               },
             });
           }
@@ -113,7 +116,9 @@ export function WhatsAppMessageNotifier() {
               });
               notification.onclick = () => {
                 window.focus();
-                orgNavigate("/whatsapp-inbox");
+                orgNavigate("/whatsapp-inbox", {
+                  state: { openUnread: true, conversationId: msg.conversation_id },
+                });
                 notification.close();
               };
             } catch {

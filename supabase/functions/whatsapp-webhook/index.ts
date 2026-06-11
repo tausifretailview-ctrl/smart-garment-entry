@@ -1088,7 +1088,7 @@ Deno.serve(async (req) => {
                     .from('whatsapp_conversations')
                     .update({
                       last_message_at: timestamp,
-                      unread_count: conversation.unread_count + 1,
+                      unread_count: (conversation.unread_count ?? 0) + 1,
                       customer_name: contactName || conversation.customer_name,
                     })
                     .eq('id', conversation.id);
