@@ -341,7 +341,7 @@ function createWindow() {
        inputs are no longer clipped. The variable drives both the toolbar
        height and the items-body offset, so they stay in sync. */
     .pos-sales-main {
-      --pos-toolbar-h: 136px !important;
+      --pos-toolbar-h: 112px !important;
     }
 
     /* Sales Invoice / Purchase Entry: scroll when tall; keep room above the

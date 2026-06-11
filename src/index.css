@@ -1348,7 +1348,7 @@ body.pos-large-ui .pos-desktop-readable table td {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  --pos-toolbar-h: 100px;
+  --pos-toolbar-h: 108px;
   --pos-footer-h: 10.75rem;
 }
 .pos-sales-toolbar {

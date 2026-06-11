@@ -1354,35 +1354,53 @@ export default function SaleReturnDashboard() {
                 ) : returns.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground text-base">No returns found</div>
                 ) : (
-                  <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                  <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-snug">
+                    <colgroup>
+                      <col className="w-10 print:hidden" />
+                      <col className="w-[7.5rem]" />
+                      <col className="w-[5.75rem]" />
+                      <col className="w-[9rem]" />
+                      {columnSettings.phone && <col className="w-[5.5rem]" />}
+                      {columnSettings.originalSale && <col className="w-[6.5rem]" />}
+                      <col className="w-[2.75rem]" />
+                      {columnSettings.gross && <col className="w-[4.25rem]" />}
+                      {columnSettings.gst && <col className="w-[3.75rem]" />}
+                      <col className="w-[4.75rem]" />
+                      <col className="w-[7.5rem]" />
+                      <col className="w-[5.75rem]" />
+                      {columnSettings.adjInvoice && <col className="w-[6rem]" />}
+                      <col className="w-[4.75rem]" />
+                      <col className="w-[5.75rem]" />
+                      <col className="w-[8rem]" />
+                    </colgroup>
                     <TableHeader className="!static">
                       <TableRow>
                         <TableHead className="w-10 px-1 print:hidden" />
-                        <TableHead className="font-semibold w-[7.5rem]">Return No</TableHead>
-                        <TableHead className="font-semibold w-[4.5rem]">Date</TableHead>
-                        <TableHead className="font-semibold min-w-[6rem]">Customer</TableHead>
+                        <TableHead className="font-semibold text-left">Return No</TableHead>
+                        <TableHead className="font-semibold text-left whitespace-nowrap">Date</TableHead>
+                        <TableHead className="font-semibold text-left">Customer</TableHead>
                         {columnSettings.phone && (
-                          <TableHead className="font-semibold w-[5rem]">Phone</TableHead>
+                          <TableHead className="font-semibold text-left whitespace-nowrap">Phone</TableHead>
                         )}
                         {columnSettings.originalSale && (
-                          <TableHead className="font-semibold w-[6.5rem]">Original Sale</TableHead>
+                          <TableHead className="font-semibold text-left whitespace-nowrap">Original Sale</TableHead>
                         )}
-                        <TableHead className="text-center font-semibold w-[2.5rem] px-1">Qty</TableHead>
+                        <TableHead className="text-center font-semibold px-1">Qty</TableHead>
                         {columnSettings.gross && (
-                          <TableHead className="text-right font-semibold w-[4rem]">Gross</TableHead>
+                          <TableHead className="text-right font-semibold whitespace-nowrap">Gross</TableHead>
                         )}
                         {columnSettings.gst && (
-                          <TableHead className="text-right font-semibold w-[3.5rem]">GST</TableHead>
+                          <TableHead className="text-right font-semibold whitespace-nowrap">GST</TableHead>
                         )}
-                        <TableHead className="text-right font-semibold w-[4.5rem]">Net Amt</TableHead>
-                        <TableHead className="font-semibold min-w-[5rem] px-1">Status</TableHead>
-                        <TableHead className="font-semibold w-[5.5rem]">Credit Note</TableHead>
+                        <TableHead className="text-right font-semibold whitespace-nowrap">Net Amt</TableHead>
+                        <TableHead className="font-semibold text-left px-1">Status</TableHead>
+                        <TableHead className="font-semibold text-left whitespace-nowrap">Credit Note</TableHead>
                         {columnSettings.adjInvoice && (
-                          <TableHead className="font-semibold w-[6rem]">Adj. Invoice</TableHead>
+                          <TableHead className="font-semibold text-left whitespace-nowrap">Adj. Invoice</TableHead>
                         )}
-                        <TableHead className="text-right font-semibold w-[4.5rem]">Adj. Amt</TableHead>
-                        <TableHead className="font-semibold w-[5.5rem]">Settlement</TableHead>
-                        <TableHead className="text-right font-semibold w-[8rem] print:hidden px-1">Actions</TableHead>
+                        <TableHead className="text-right font-semibold whitespace-nowrap">Adj. Amt</TableHead>
+                        <TableHead className="font-semibold text-left whitespace-nowrap">Settlement</TableHead>
+                        <TableHead className="text-right font-semibold print:hidden px-1">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1398,19 +1416,20 @@ export default function SaleReturnDashboard() {
                                 )}
                               </Button>
                             </TableCell>
-                            <TableCell className="font-medium align-top">
+                            <TableCell className="font-medium align-middle whitespace-nowrap">
                               <span
-                                className="text-primary cursor-pointer hover:underline break-words"
+                                className="text-primary cursor-pointer hover:underline"
                                 onClick={() => toggleRow(ret.id)}
                               >
                                 {ret.return_number || "-"}
                               </span>
                             </TableCell>
-                            <TableCell onClick={() => toggleRow(ret.id)}>
+                            <TableCell className="whitespace-nowrap align-middle" onClick={() => toggleRow(ret.id)}>
                               {format(new Date(ret.return_date), "dd/MM/yyyy")}
                             </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-600 hover:underline align-top break-words"
+                              className="cursor-pointer text-blue-600 hover:underline align-middle max-w-[9rem] truncate"
+                              title={ret.customer_name?.toUpperCase()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedCustomerForHistory({ id: ret.customer_id, name: ret.customer_name });
