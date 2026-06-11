@@ -3151,6 +3151,24 @@ const PurchaseEntry = () => {
       return;
     }
 
+    // HARD GUARD: never save a bill from an interrupted Excel import. The marker is
+    // set when an import starts and cleared only when it completes — if it is still
+    // present, the line items are a truncated subset of the Excel file.
+    if (pendingImportRef.current) {
+      const currentQty = lineItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      const { expectedQty } = pendingImportRef.current;
+      if (currentQty + 0.5 < expectedQty) {
+        toast({
+          title: "Cannot save — Excel import incomplete",
+          description: `The bill has ${currentQty.toLocaleString("en-IN")} qty but the imported Excel file had ${expectedQty.toLocaleString("en-IN")} qty. The import was interrupted before finishing. Discard this draft and re-import the Excel file, then save.`,
+          variant: "destructive",
+          duration: 15000,
+        });
+        return;
+      }
+      pendingImportRef.current = null;
+    }
+
     // UNIQUENESS CHECK: Supplier Invoice No must be unique per supplier among active bills.
     // Cancelled bills are voided — same number may be reused (same as permanent delete).
     // When the user accepted the auto-generated serial (it collides because the global
