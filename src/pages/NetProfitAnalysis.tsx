@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Loader2, Download, Printer, TrendingUp,
   Users, Package, Search, Calendar, ArrowLeft, Building2, Clock
@@ -598,7 +597,7 @@ export default function NetProfitAnalysis() {
   );
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full min-h-0 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur">
         <div className="flex items-center gap-3">
@@ -691,8 +690,8 @@ export default function NetProfitAnalysis() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-hidden p-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+      <div className="flex-1 min-h-0 overflow-hidden p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full min-h-0 flex flex-col">
           <TabsList className="grid w-full max-w-md grid-cols-2 mb-4 print:hidden">
             <TabsTrigger value="supplier-wise" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
@@ -705,7 +704,7 @@ export default function NetProfitAnalysis() {
           </TabsList>
 
           {/* Supplier-wise Tab */}
-          <TabsContent value="supplier-wise" className="flex-1 flex flex-col mt-0">
+          <TabsContent value="supplier-wise" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
             <div className="flex items-center gap-2 mb-3 print:hidden">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
@@ -731,9 +730,9 @@ export default function NetProfitAnalysis() {
                 <p>Click Generate to load supplier-wise profit data</p>
               </div>
             ) : (
-              <ScrollArea className="flex-1 border rounded-lg">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border rounded-lg">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur">
+                  <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
                     <TableRow>
                       <TableHead className="w-[200px] text-foreground font-semibold">Supplier</TableHead>
                       <TableHead className="text-right text-foreground font-semibold">Items Sold</TableHead>
@@ -814,12 +813,12 @@ export default function NetProfitAnalysis() {
                     </TableFooter>
                   )}
                 </Table>
-              </ScrollArea>
+              </div>
             )}
           </TabsContent>
 
           {/* Product-wise Tab */}
-          <TabsContent value="product-wise" className="flex-1 flex flex-col mt-0">
+          <TabsContent value="product-wise" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
             <div className="flex items-center gap-2 mb-3 print:hidden">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
@@ -845,9 +844,9 @@ export default function NetProfitAnalysis() {
                 <p>Click Generate to load product-wise profit data</p>
               </div>
             ) : (
-              <ScrollArea className="flex-1 border rounded-lg">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto border rounded-lg">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur">
+                  <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
                     <TableRow>
                       <TableHead className="w-[200px] text-foreground font-semibold">Product</TableHead>
                       <TableHead className="text-foreground font-semibold">Brand</TableHead>
@@ -937,7 +936,7 @@ export default function NetProfitAnalysis() {
                     </TableFooter>
                   )}
                 </Table>
-              </ScrollArea>
+              </div>
             )}
           </TabsContent>
         </Tabs>
