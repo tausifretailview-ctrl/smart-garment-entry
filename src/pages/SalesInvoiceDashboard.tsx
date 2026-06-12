@@ -1792,60 +1792,6 @@ export default function SalesInvoiceDashboard() {
     copyInvoiceLink(invoiceUrl);
   };
 
-  const handlePaymentReminder = async (invoice: any) => {
-    if (!invoice.customer_phone) {
-      toast({
-        title: "No Phone Number",
-        description: "Customer phone number is required to send payment reminder",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Build invoice URL for the reminder
-    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
-    const organizationName = currentOrganization?.name || '';
-
-    // Fetch customer balance for outstanding amount
-    let customerBalance = 0;
-    if (invoice.customer_id) {
-      try {
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('opening_balance')
-          .eq('id', invoice.customer_id)
-          .single();
-        const openingBalance = customer?.opening_balance || 0;
-        const { data: sales } = await supabase
-          .from('sales')
-          .select('net_amount, paid_amount, sale_return_adjust')
-          .eq('customer_id', invoice.customer_id)
-          .eq('organization_id', currentOrganization?.id);
-        const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-        const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0) + (s.sale_return_adjust || 0), 0) || 0;
-        customerBalance = openingBalance + totalSales - totalPaid;
-      } catch (e) {
-        customerBalance = Math.max(0, invoice.net_amount - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0));
-      }
-    } else {
-      customerBalance = Math.max(0, invoice.net_amount - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0));
-    }
-
-    const reminderMessage = formatMessage('payment_reminder', {
-      sale_number: invoice.sale_number,
-      customer_name: invoice.customer_name,
-      customer_phone: invoice.customer_phone,
-      sale_date: invoice.sale_date,
-      net_amount: invoice.net_amount,
-      payment_status: invoice.payment_status,
-      paid_amount: invoice.paid_amount || 0,
-      due_date: invoice.due_date,
-    }, undefined, customerBalance, { invoiceLink: invoiceUrl, organizationName });
-
-    sendWhatsApp(invoice.customer_phone, reminderMessage);
-  };
-
   const openPaymentDialog = (invoice: any) => {
     setSelectedInvoiceForPayment(invoice);
     const pendingAmount = Math.round(invoice.net_amount - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0));
@@ -3447,6 +3393,100 @@ export default function SalesInvoiceDashboard() {
                   ))}
                 </SelectContent>
               </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 border-slate-200 bg-slate-50 hover:bg-white"
+                    title="Column Settings"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 bg-popover z-50 max-h-[min(70vh,28rem)] overflow-y-auto" align="end">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Show/Hide Columns</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-phone" className="text-sm">Phone</Label>
+                        <Checkbox
+                          id="inv-col-phone"
+                          checked={columnSettings.phone}
+                          onCheckedChange={(checked) => updateColumnSetting("phone", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-status" className="text-sm">Status / Balance</Label>
+                        <Checkbox
+                          id="inv-col-status"
+                          checked={columnSettings.status}
+                          onCheckedChange={(checked) => updateColumnSetting("status", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-delivery" className="text-sm">Delivery</Label>
+                        <Checkbox
+                          id="inv-col-delivery"
+                          checked={columnSettings.delivery}
+                          onCheckedChange={(checked) => updateColumnSetting("delivery", !!checked)}
+                        />
+                      </div>
+                    </div>
+                    <div className="border-t pt-2 space-y-2">
+                      <h4 className="font-medium text-sm">Show/Hide Actions</h4>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-whatsapp" className="text-sm">WhatsApp</Label>
+                        <Checkbox
+                          id="inv-col-whatsapp"
+                          checked={columnSettings.whatsapp}
+                          onCheckedChange={(checked) => updateColumnSetting("whatsapp", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-copy-link" className="text-sm">Copy Link</Label>
+                        <Checkbox
+                          id="inv-col-copy-link"
+                          checked={columnSettings.copyLink}
+                          onCheckedChange={(checked) => updateColumnSetting("copyLink", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-print" className="text-sm">Print</Label>
+                        <Checkbox
+                          id="inv-col-print"
+                          checked={columnSettings.print}
+                          onCheckedChange={(checked) => updateColumnSetting("print", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-download" className="text-sm">Download</Label>
+                        <Checkbox
+                          id="inv-col-download"
+                          checked={columnSettings.download}
+                          onCheckedChange={(checked) => updateColumnSetting("download", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-modify" className="text-sm">Edit</Label>
+                        <Checkbox
+                          id="inv-col-modify"
+                          checked={columnSettings.modify}
+                          onCheckedChange={(checked) => updateColumnSetting("modify", !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="inv-col-delete" className="text-sm">Delete</Label>
+                        <Checkbox
+                          id="inv-col-delete"
+                          checked={columnSettings.delete}
+                          onCheckedChange={(checked) => updateColumnSetting("delete", !!checked)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
               {filteredCustomer && (
                 <>
                   <Button
@@ -3481,27 +3521,42 @@ export default function SalesInvoiceDashboard() {
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
                 <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain min-h-[320px] tab-scroll-stable">
-                <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-top [&_tbody_td]:leading-snug">
+                  <colgroup>
+                    <col className="w-10" />
+                    <col className="w-10" />
+                    <col className="w-[7.5rem]" />
+                    <col className="w-[9rem]" />
+                    {columnSettings.phone && <col className="w-[5rem]" />}
+                    <col className="w-[4.25rem]" />
+                    <col className="w-[2rem]" />
+                    <col className="w-[5rem]" />
+                    <col className="w-[4.5rem]" />
+                    {columnSettings.status && <col className="w-[4.5rem]" />}
+                    {columnSettings.status && <col className="w-[4rem]" />}
+                    {columnSettings.delivery && <col className="w-[4.5rem]" />}
+                    <col className="w-[7rem]" />
+                  </colgroup>
                   <TableHeader className="!static">
                     <TableRow>
-                      <TableHead className="w-10 px-1">
+                      <TableHead className="px-1">
                         <Checkbox
                           checked={selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead className="w-10 px-1"></TableHead>
-                      <TableHead className="font-semibold w-[12%] min-w-[7rem] max-w-[11rem]">Invoice No</TableHead>
-                      <TableHead className="font-semibold w-[18%] min-w-[8.5rem] max-w-[15rem]">Customer</TableHead>
-                      {columnSettings.phone && <TableHead className="font-semibold w-[5.5rem]">Phone</TableHead>}
-                      <TableHead className="font-semibold w-[4.25rem]">Date</TableHead>
-                      <TableHead className="text-center font-semibold w-[2.75rem] px-1">Qty</TableHead>
-                      <TableHead className="text-right font-semibold min-w-[8.5rem] w-[10%] px-1">DIS</TableHead>
-                      <TableHead className="font-semibold w-[4.75rem] text-right">Amount</TableHead>
-                      {columnSettings.status && <TableHead className="font-semibold w-[5.25rem] px-1">Status</TableHead>}
-                      {columnSettings.status && <TableHead className="text-right font-semibold w-[4.25rem] px-1">Balance</TableHead>}
-                      {columnSettings.delivery && <TableHead className="font-semibold w-[5rem] px-1">Delivery</TableHead>}
-                      <TableHead className="text-right font-semibold w-[8.5rem] lg:w-[9.5rem] px-1">Actions</TableHead>
+                      <TableHead className="px-1"></TableHead>
+                      <TableHead className="font-semibold">Invoice No</TableHead>
+                      <TableHead className="font-semibold">Customer</TableHead>
+                      {columnSettings.phone && <TableHead className="font-semibold">Phone</TableHead>}
+                      <TableHead className="font-semibold">Date</TableHead>
+                      <TableHead className="text-center font-semibold px-0.5">Qty</TableHead>
+                      <TableHead className="text-right font-semibold px-1">DIS</TableHead>
+                      <TableHead className="font-semibold text-right">Amount</TableHead>
+                      {columnSettings.status && <TableHead className="font-semibold px-1">Status</TableHead>}
+                      {columnSettings.status && <TableHead className="text-right font-semibold px-1">Balance</TableHead>}
+                      {columnSettings.delivery && <TableHead className="font-semibold px-1">Delivery</TableHead>}
+                      <TableHead className="text-right font-semibold px-1">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -3561,7 +3616,7 @@ export default function SalesInvoiceDashboard() {
                               )}
                             </TableCell>
                             <TableCell
-                              className="font-medium w-[12%] min-w-[7rem] max-w-[11rem] align-top"
+                              className="font-medium align-top"
                               onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}
                             >
                               <div className="flex flex-col gap-0.5 min-w-0 max-w-full">
@@ -3593,7 +3648,8 @@ export default function SalesInvoiceDashboard() {
                               </div>
                             </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-600 hover:underline w-[18%] min-w-[8.5rem] max-w-[15rem] align-top break-words hyphens-auto"
+                              className="cursor-pointer text-blue-600 hover:underline align-top truncate max-w-0"
+                              title={invoice.customer_name?.toUpperCase()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedCustomerForHistory({
@@ -3613,10 +3669,10 @@ export default function SalesInvoiceDashboard() {
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
                             </TableCell>
-                            <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                            <TableCell className="text-center px-0.5 tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.total_qty || 0}
                             </TableCell>
-                            <TableCell className="text-right min-w-[8.5rem]" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                            <TableCell className="text-right px-1" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               <div className="flex flex-col items-end gap-0.5">
                                 <span className="tabular-nums">
                                   ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString("en-IN")}
@@ -3674,7 +3730,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               {/* Desktop: all buttons inline */}
-                              <div className="hidden lg:flex justify-end gap-2">
+                              <div className="hidden lg:flex justify-end gap-1 flex-wrap">
                                 {isEInvoiceEnabled && invoice.customers?.gst_number && (
                                   <>
                                     <Button variant="ghost" size="icon" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id} className={invoice.irn ? "text-green-600" : "text-orange-600"}>
@@ -3705,11 +3761,6 @@ export default function SalesInvoiceDashboard() {
                                 {whatsAppAPISettings?.is_active && (
                                   <Button variant="ghost" size="icon" onClick={() => handleResendWhatsAppAPI(invoice)} title="Resend via WhatsApp API" disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
                                     <Send className="h-4 w-4 text-teal-600" />
-                                  </Button>
-                                )}
-                                {invoice.payment_status !== 'completed' && (
-                                  <Button variant="ghost" size="icon" onClick={() => handlePaymentReminder(invoice)} title="Send Payment Reminder" disabled={!invoice.customer_phone}>
-                                    <MessageCircle className="h-4 w-4 text-orange-600" />
                                   </Button>
                                 )}
                                 {columnSettings.print && (
@@ -3778,11 +3829,6 @@ export default function SalesInvoiceDashboard() {
                                     {whatsAppAPISettings?.is_active && (
                                       <DropdownMenuItem onClick={() => handleResendWhatsAppAPI(invoice)} disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
                                         <Send className="h-4 w-4 mr-2 text-teal-600" /> Resend WhatsApp API
-                                      </DropdownMenuItem>
-                                    )}
-                                    {invoice.payment_status !== 'completed' && (
-                                      <DropdownMenuItem onClick={() => handlePaymentReminder(invoice)} disabled={!invoice.customer_phone}>
-                                        <MessageCircle className="h-4 w-4 mr-2 text-orange-600" /> Payment Reminder
                                       </DropdownMenuItem>
                                     )}
                                     {columnSettings.copyLink && (

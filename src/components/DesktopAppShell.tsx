@@ -25,11 +25,11 @@ interface DesktopAppShellProps {
 
 /**
  * Single sticky desktop chrome: left menu + header + window tabs.
- * POS / Sale Bill / Purchase Bill hide the left menu for full-width entry.
+ * POS / Sale Bill / Purchase Bill: no sidebar, no global menu/shortcut bar, no tab strip.
  */
 export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
   const location = useLocation();
-  const hideSidebar = isNoSidebarEntryPath(location.pathname);
+  const billingFullScreen = isNoSidebarEntryPath(location.pathname);
 
   return (
     <ChatProvider>
@@ -39,11 +39,15 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
             <OfflineIndicator />
 
             <div className={cn("flex h-full min-h-0 w-full flex-1 bg-background overflow-hidden", className)}>
-              {!hideSidebar && <AppSidebar />}
-              {!hideSidebar && <SidebarExpandStrip />}
+              {!billingFullScreen && <AppSidebar />}
+              {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
-                <Header />
-                <WindowTabsBar />
+                {!billingFullScreen && (
+                  <>
+                    <Header />
+                    <WindowTabsBar />
+                  </>
+                )}
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
               </SidebarInset>
             </div>
