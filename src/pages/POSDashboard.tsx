@@ -84,6 +84,7 @@ import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT, type PosSalesChangedDetail } from "@/utils/posSalesRefresh";
+import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import {
   getEffectivePaidAmountForPosDashboard,
@@ -911,7 +912,19 @@ const POSDashboard = () => {
     if (selectedSales.size === 0 || !hasSpecialPermission('cancel_invoice')) return;
     setIsBulkCancelling(true);
     try {
-      const ids = Array.from(selectedSales);
+      const ids = Array.from(selectedSales).filter((id) => {
+        const s: any = sales.find((x: any) => x.id === id);
+        return s && !isSaleInvoiceCancelled(s);
+      });
+      const skipped = selectedSales.size - ids.length;
+      if (ids.length === 0) {
+        toast({
+          title: "Nothing to cancel",
+          description: "All selected sales are already cancelled.",
+          variant: "destructive",
+        });
+        return;
+      }
       let successCount = 0;
       let failCount = 0;
       for (const id of ids) {
@@ -921,21 +934,34 @@ const POSDashboard = () => {
             p_sale_id: id,
             p_reason: bulkCancelReason.trim() || null,
           });
-          if (error) { failCount++; continue; }
+          if (error) {
+            failCount++;
+            continue;
+          }
           const result = data as any;
-          if (result && (result.success === true || result === true)) {
+          if (result?.success === true) {
             successCount++;
             if (s?.sale_number && currentOrganization?.id) {
               await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: s.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
             }
-          } else failCount++;
+          } else if (result?.success === false && result?.error) {
+            failCount++;
+            console.error('Cancel invoice rejected:', id, result.error);
+          } else if (result && (result === true)) {
+            successCount++;
+            if (s?.sale_number && currentOrganization?.id) {
+              await deleteLedgerEntries({ organizationId: currentOrganization.id, voucherNo: s.sale_number, voucherTypes: ['SALE', 'RECEIPT'] });
+            }
+          } else {
+            failCount++;
+          }
         } catch {
           failCount++;
         }
       }
       toast({
         title: 'Invoices Cancelled',
-        description: `${successCount} sale(s) cancelled${failCount > 0 ? `, ${failCount} failed` : ''}. Stock restored.`,
+        description: `${successCount} sale(s) cancelled${failCount > 0 ? `, ${failCount} failed` : ''}${skipped > 0 ? `, ${skipped} already cancelled (skipped)` : ''}. Stock restored.`,
       });
       setSelectedSales(new Set());
       setShowBulkCancelDialog(false);
@@ -1702,15 +1728,22 @@ const POSDashboard = () => {
   }, [currentOrganization?.id, posDashboardFilters, toast]);
 
   // Memoized event handlers (defined after filteredSales/paginatedSales)
+  const selectableSales = useMemo(
+    () => paginatedSales.filter((sale) => !isSaleInvoiceCancelled(sale)),
+    [paginatedSales],
+  );
+
   const toggleSelectAll = useCallback(() => {
-    if (selectedSales.size === paginatedSales.length && paginatedSales.length > 0) {
+    if (selectableSales.length > 0 && selectedSales.size === selectableSales.length) {
       setSelectedSales(new Set());
     } else {
-      setSelectedSales(new Set(paginatedSales.map(s => s.id)));
+      setSelectedSales(new Set(selectableSales.map((s) => s.id)));
     }
-  }, [selectedSales.size, paginatedSales]);
+  }, [selectedSales.size, selectableSales]);
 
   const toggleSelectSale = useCallback((saleId: string) => {
+    const sale = paginatedSales.find((s) => s.id === saleId);
+    if (sale && isSaleInvoiceCancelled(sale)) return;
     setSelectedSales(prev => {
       const newSelected = new Set(prev);
       if (newSelected.has(saleId)) {
@@ -1720,7 +1753,7 @@ const POSDashboard = () => {
       }
       return newSelected;
     });
-  }, []);
+  }, [paginatedSales]);
 
   const handleEditSale = useCallback((saleId: string, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -2166,8 +2199,8 @@ const POSDashboard = () => {
                 return (
                   <MobileListCard
                     key={sale.id}
-                    muted={!!sale.is_cancelled}
-                    onClick={() => !sale.is_cancelled && navigate(`/pos-sales?saleId=${sale.id}`)}
+                    muted={isSaleInvoiceCancelled(sale)}
+                    onClick={() => !isSaleInvoiceCancelled(sale) && navigate(`/pos-sales?saleId=${sale.id}`)}
                     title={sale.sale_number}
                     subtitle={sale.customer_name || "Walk-in"}
                     badge={
@@ -2677,8 +2710,12 @@ const POSDashboard = () => {
                     <TableRow>
                       <TableHead className="w-10 px-1">
                         <Checkbox
-                          checked={selectedSales.size === paginatedSales.length && paginatedSales.length > 0}
+                          checked={
+                            selectableSales.length > 0 &&
+                            selectedSales.size === selectableSales.length
+                          }
                           onCheckedChange={toggleSelectAll}
+                          disabled={selectableSales.length === 0}
                         />
                       </TableHead>
                       <TableHead className="w-10 px-1"></TableHead>
@@ -2720,6 +2757,7 @@ const POSDashboard = () => {
                               <Checkbox
                                 checked={selectedSales.has(sale.id)}
                                 onCheckedChange={() => toggleSelectSale(sale.id)}
+                                disabled={isSaleInvoiceCancelled(sale)}
                               />
                             </TableCell>
                             <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>

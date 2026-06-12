@@ -28,6 +28,7 @@ import {
   resolveSaleReturnUnitPrice,
   type SaleItemPriceFields,
 } from "@/utils/saleReturnPricing";
+import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { entryPageContentClass, entryPageShellClass } from "@/lib/entryPageLayout";
 import { cn } from "@/lib/utils";
 
@@ -595,7 +596,7 @@ export default function SaleReturnEntry() {
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .select(
-          'id, customer_id, flat_discount_amount, round_off, sale_items(id, product_id, variant_id, product_name, size, color, barcode, unit_price, gst_percent, hsn_code, quantity, line_total, per_qty_net_amount, net_after_discount, discount_percent)',
+          'id, customer_id, flat_discount_amount, round_off, is_cancelled, payment_status, sale_number, sale_items(id, product_id, variant_id, product_name, size, color, barcode, unit_price, gst_percent, hsn_code, quantity, line_total, per_qty_net_amount, net_after_discount, discount_percent)',
         )
         .eq('organization_id', currentOrganization.id)
         .eq('sale_number', originalSaleNumber.trim())
@@ -604,6 +605,16 @@ export default function SaleReturnEntry() {
 
       if (saleError || !sale) {
         toast({ title: 'Not Found', description: `No sale found with number "${originalSaleNumber.trim()}"`, variant: 'destructive' });
+        setSaleLoading(false);
+        return;
+      }
+
+      if (isSaleInvoiceCancelled(sale)) {
+        toast({
+          title: 'Invoice Cancelled',
+          description: `Invoice ${sale.sale_number} is cancelled. Sale return is not allowed against cancelled bills.`,
+          variant: 'destructive',
+        });
         setSaleLoading(false);
         return;
       }
@@ -766,9 +777,28 @@ export default function SaleReturnEntry() {
       return;
     }
 
+
     setSaving(true);
 
     try {
+      if (originalSaleNumber.trim() && currentOrganization?.id) {
+        const { data: linkedSale } = await supabase
+          .from("sales")
+          .select("id, sale_number, is_cancelled, payment_status")
+          .eq("organization_id", currentOrganization.id)
+          .eq("sale_number", originalSaleNumber.trim())
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (linkedSale && isSaleInvoiceCancelled(linkedSale)) {
+          toast({
+            title: "Invoice Cancelled",
+            description: `Invoice ${linkedSale.sale_number} is cancelled. Sale return is not allowed.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Stock ceiling validation — ensure stock won't exceed total purchased
       const { validateBatchStockCeiling } = await import("@/utils/stockCeilingValidation");
       const ceilingItems = returnItems
