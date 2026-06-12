@@ -211,7 +211,7 @@ const PurchaseBillDashboard = () => {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { filtersReady: purchaseFiltersReady } = useDashboardFilterPersistence(
     "purchase-bill-dashboard",
     currentOrganization?.id,
     purchaseFilterSnapshot,
@@ -232,6 +232,8 @@ const PurchaseBillDashboard = () => {
       });
     },
   );
+
+  const purchaseQueriesEnabled = !!currentOrganization?.id && purchaseFiltersReady;
 
   // Image upload and lock states
   const [uploadingImageForBill, setUploadingImageForBill] = useState<string | null>(null);
@@ -617,7 +619,7 @@ const PurchaseBillDashboard = () => {
 
       return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: purchaseQueriesEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -1275,12 +1277,15 @@ const PurchaseBillDashboard = () => {
         debouncedSearch,
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: purchaseQueriesEnabled,
+    retry: false,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const isDashboardInitialLoad = billsQueryLoading && billsQueryData === undefined;
-  const isDashboardBackgroundRefresh = billsQueryFetching && !isDashboardInitialLoad;
+  const isDashboardInitialLoad =
+    purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
+  const isDashboardBackgroundRefresh =
+    (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
   const loading = isDashboardInitialLoad && !billsQueryError;
 
   useNavPerfQueryWatch("purchase-bills-list", PERF_PATH, {
@@ -1840,7 +1845,12 @@ const PurchaseBillDashboard = () => {
   if (isMobile) {
     const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
     return (
-      <div className="flex flex-col min-h-screen bg-slate-50 pb-24">
+      <div
+        className={cn(
+          "flex flex-col bg-slate-50 pb-24",
+          inTabCache ? "h-full min-h-0 w-full overflow-hidden" : "min-h-screen",
+        )}
+      >
         <MobilePageHeader
           title="Purchase Bills"
           subtitle={`${summaryStats.totalBills} bills`}

@@ -45,6 +45,8 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = [
   "pos-sales",
   "pos-dashboard",
   "sales-invoice-dashboard",
+  "purchase-bills",
+  "purchase-bill-dashboard",
   "stock-report",
 ] as const;
 

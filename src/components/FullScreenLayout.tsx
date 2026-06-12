@@ -47,10 +47,16 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
       <main
         className={cn(
           isEntryFullscreenPage
-            ? `${entryPageLayoutMainClass} animate-fade-in`
+            ? `${entryPageLayoutMainClass}${inTabCachePane ? "" : " animate-fade-in"}`
             : isFillHeightWorkspace
-              ? "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in"
-              : "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14 animate-fade-in",
+              ? cn(
+                  "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden",
+                  !inTabCachePane && "animate-fade-in",
+                )
+              : cn(
+                  "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14",
+                  !inTabCachePane && "animate-fade-in",
+                ),
           inTabCachePane && "data-tab-scroll",
         )}
       >
@@ -109,8 +115,11 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                     isEntryFullscreenPage
                       ? `${entryPageLayoutMainClass} animate-fade-in`
                       : isFillHeightWorkspace
-                        ? "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in"
-                        : `${mobileMainContentClass} animate-fade-in`
+                        ? cn(
+                            "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden",
+                            !inTabCachePane && "animate-fade-in",
+                          )
+                        : cn(`${mobileMainContentClass}`, !inTabCachePane && "animate-fade-in")
                   }
                 >
                   {children}

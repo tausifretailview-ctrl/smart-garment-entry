@@ -1010,23 +1010,22 @@ const PurchaseEntry = () => {
   const locationKeyRef = useRef(location.key);
   locationKeyRef.current = location.key;
 
-  // Save immediately when leaving the tab, switching browser tabs, or closing the page.
+  const flushEntryPersistenceRef = useRef(flushEntryPersistence);
+  flushEntryPersistenceRef.current = flushEntryPersistence;
+
+  // Real unmount only — do not mark unmount on visibility effect cleanup (matches Sales Invoice).
+  useEffect(() => {
+    return () => {
+      markPurchaseEntryUnmountNavKey(locationKeyRef.current);
+      flushEntryPersistenceRef.current();
+    };
+  }, []);
+
+  // Save when switching browser tabs or closing — do not restore on visible (avoids reload flash).
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flushEntryPersistence();
-        return;
-      }
-      if (document.visibilityState === "visible" && lineItemsCountRef.current === 0) {
-        const orgId = currentOrganization?.id;
-        const userId = user?.id;
-        const hasBrowserDraft = Boolean(
-          orgId && userId && hasPurchaseEntryDraftInBrowser(orgId, userId),
-        );
-        void restorePersistedWork({
-          notify: !hasBrowserDraft,
-          force: hasBrowserDraft,
-        });
       }
     };
     const onPageHide = () => {
@@ -1039,10 +1038,8 @@ const PurchaseEntry = () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("beforeunload", onPageHide);
-      markPurchaseEntryUnmountNavKey(locationKeyRef.current);
-      flushEntryPersistence();
     };
-  }, [flushEntryPersistence, restorePersistedWork, currentOrganization?.id, user?.id]);
+  }, [flushEntryPersistence]);
   
   // Memoize selectedForPrint as object for O(1) lookup without triggering re-renders
   const selectedForPrintObj = useMemo(
@@ -1298,7 +1295,7 @@ const PurchaseEntry = () => {
       return data;
     },
     enabled: !!currentOrganization?.id && !isEditMode,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     staleTime: 15000,
   });
 
@@ -1318,7 +1315,7 @@ const PurchaseEntry = () => {
       return data ?? [];
     },
     enabled: !!currentOrganization?.id && !isEditMode,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     staleTime: 15000,
   });
 
