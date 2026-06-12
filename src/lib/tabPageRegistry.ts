@@ -42,7 +42,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
   },
   "purchase-bill-dashboard": {
     loader: () => import("@/pages/PurchaseBillDashboard"),
-    layout: "layout",
+    layout: "fullscreen",
     roles: ["admin", "manager"],
   },
   "purchase-return-entry": {

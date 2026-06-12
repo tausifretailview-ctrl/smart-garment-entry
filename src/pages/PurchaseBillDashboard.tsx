@@ -1842,7 +1842,12 @@ const PurchaseBillDashboard = () => {
   if (isMobile) {
     const fmt = (n: number) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
     return (
-      <div className="flex flex-col min-h-screen bg-slate-50 pb-24">
+      <div
+        className={cn(
+          "flex flex-col bg-slate-50 pb-24",
+          inTabCache ? "h-full min-h-0 w-full overflow-hidden" : "min-h-screen",
+        )}
+      >
         <MobilePageHeader
           title="Purchase Bills"
           subtitle={`${summaryStats.totalBills} bills`}
