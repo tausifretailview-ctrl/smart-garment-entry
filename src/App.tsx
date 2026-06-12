@@ -466,9 +466,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                        <Layout>
+                        <FullScreenLayout>
                           <PurchaseBillDashboard />
-                        </Layout>
+                        </FullScreenLayout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
