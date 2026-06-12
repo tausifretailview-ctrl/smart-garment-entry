@@ -80,7 +80,7 @@ import {
   isPurchaseFreightOrChargeRow,
   extractChargeAmountFromRow,
 } from "@/utils/excelImportUtils";
-import { validatePurchaseBill } from "@/lib/validations";
+import { validatePurchaseBill, validatePurchaseLineItem } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
 import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
@@ -346,6 +346,8 @@ const PurchaseEntry = () => {
    *  import (refresh/tab close) leaves a marker — doSave hard-blocks saving such a
    *  partial draft, which previously silently truncated bills. */
   const pendingImportRef = useRef<{ expectedRows: number; expectedQty: number } | null>(null);
+  /** Blocks session flush/clear while async restore, edit load, or Excel import is in flight. */
+  const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
@@ -853,6 +855,7 @@ const PurchaseEntry = () => {
         setIsRestoringDraft(true);
       }
 
+      entryPersistenceBlockedRef.current = true;
       try {
         const persisted = await readPersistedSnapshot();
         if (persisted?.lineItems?.length) {
@@ -882,6 +885,7 @@ const PurchaseEntry = () => {
 
         return false;
       } finally {
+        entryPersistenceBlockedRef.current = false;
         setIsRestoringDraft(false);
       }
     },
@@ -969,6 +973,16 @@ const PurchaseEntry = () => {
     if (draftDiscardedExternallyRef.current || purchaseSaveFinalizedRef.current) {
       updateCurrentData(null);
       clearEntrySession();
+      return;
+    }
+    // Never wipe browser draft while line items are being loaded/restored — tab switch
+    // during async restore used to clear the good snapshot and leave orphan variants.
+    if (entryPersistenceBlockedRef.current || isInitializingEditRef.current) {
+      const snapshot = (latestSnapshotRef.current ?? buildEntrySnapshot()) as PurchaseEntrySnapshot | null;
+      if (snapshot?.lineItems?.length) {
+        latestSnapshotRef.current = snapshot;
+        persistEntrySession(snapshot);
+      }
       return;
     }
     const snapshot = (latestSnapshotRef.current ?? buildEntrySnapshot()) as PurchaseEntrySnapshot | null;
@@ -1343,6 +1357,7 @@ const PurchaseEntry = () => {
     if (loadedEditBillIdRef.current === billId) return;
 
     isInitializingEditRef.current = true;
+    entryPersistenceBlockedRef.current = true;
     loadedEditBillIdRef.current = billId;
     if (options?.usePageLoader) {
       setLoading(true);
@@ -1464,6 +1479,7 @@ const PurchaseEntry = () => {
       }
     } finally {
       isInitializingEditRef.current = false;
+      entryPersistenceBlockedRef.current = false;
       if (options?.usePageLoader) {
         setLoading(false);
       } else {
@@ -3445,6 +3461,43 @@ const PurchaseEntry = () => {
       return;
     }
 
+    const activeLines = lineItems.filter((item) => item.product_id || item.product_name?.trim());
+    for (let index = 0; index < activeLines.length; index++) {
+      const item = activeLines[index];
+      const lineValidation = validatePurchaseLineItem({
+        product_id: item.product_id,
+        sku_id: item.sku_id,
+        product_name: item.product_name,
+        size: item.size,
+        qty: Number(item.qty),
+        pur_price: Number(item.pur_price),
+        sale_price: Number(item.sale_price),
+        gst_per: Number(item.gst_per) || 0,
+        hsn_code: item.hsn_code || undefined,
+        barcode: item.barcode || undefined,
+        discount_percent: Number(item.discount_percent) || 0,
+      });
+      if (!lineValidation.success) {
+        toast({
+          title: "Line Item Invalid",
+          description: `Row ${index + 1} (${item.product_name || "Product"}): ${lineValidation.error}. Stock cannot update without a valid size/SKU and quantity.`,
+          variant: "destructive",
+          duration: 10000,
+        });
+        return;
+      }
+    }
+
+    const expectedSaveQty = activeLines.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+    if (expectedSaveQty <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Total purchase quantity must be greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Force-save draft before attempting bill save (safety net against data loss)
     try {
       await saveDraft({
@@ -3465,7 +3518,8 @@ const PurchaseEntry = () => {
     } catch (draftErr) {
       console.error('[PurchaseEntry] Draft safety-save failed:', draftErr);
     }
-    
+
+    let createdBillIdForRollback: string | null = null;
     try {
       const billTotals = computePurchaseBillTotals(
         lineItems,
@@ -3798,6 +3852,8 @@ const PurchaseEntry = () => {
 
         if (billError) throw billError;
 
+        createdBillIdForRollback = billDataResult.id;
+
         setBillEntryAt(
           getPurchaseBillEntryAt(billDataResult as { bill_entry_at?: string | null; created_at?: string }),
         );
@@ -3836,6 +3892,8 @@ const PurchaseEntry = () => {
           const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
           if (itemsError) throw itemsError;
         }
+
+        createdBillIdForRollback = null;
 
         // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
         if (accountingEngineOn) {
@@ -3951,6 +4009,15 @@ const PurchaseEntry = () => {
         setIsDcPurchase(false);
       }
     } catch (error: any) {
+      if (createdBillIdForRollback && currentOrganization?.id) {
+        try {
+          await supabase.from("purchase_items").delete().eq("bill_id", createdBillIdForRollback);
+          await supabase.from("purchase_bills").delete().eq("id", createdBillIdForRollback);
+          console.warn("[PurchaseEntry] Rolled back orphan bill after item save failure:", createdBillIdForRollback);
+        } catch (rollbackErr) {
+          console.error("[PurchaseEntry] Orphan bill rollback failed:", rollbackErr);
+        }
+      }
       logError(
         {
           operation: 'purchase_bill_save',
@@ -4128,6 +4195,7 @@ const PurchaseEntry = () => {
     };
 
     try {
+    entryPersistenceBlockedRef.current = true;
     const baseLineItems = lineItems;
 
     // Extract bill-level data from first row if present
@@ -4634,10 +4702,11 @@ const PurchaseEntry = () => {
     successCount = insertedVariantMap.size;
 
     const mergedLineItems = [...baseLineItems, ...newLineItems];
-    // Import reached completion — clear the in-flight marker. Partial successes are
-    // reported explicitly via the destructive toast below, so the user has been told;
-    // the hard save-block is only for imports that never reached this point.
-    pendingImportRef.current = null;
+    const isPartial = successCount < validRows.length;
+    // Keep save-block active when import did not finish all rows.
+    if (!isPartial) {
+      pendingImportRef.current = null;
+    }
     importJustAppliedRef.current = true;
     skipSnapshotEffectRef.current = true;
     workRestoredRef.current = true;
@@ -4673,7 +4742,6 @@ const PurchaseEntry = () => {
     if (skippedCount > 0) description += ` · ${skippedCount} rows skipped`;
     if (errorCount > 0) description += ` · ${errorCount} errors`;
 
-    const isPartial = successCount < validRows.length;
     toast({
       title: isPartial ? "Import Partially Completed" : "Import Completed",
       description: isPartial
@@ -4682,6 +4750,7 @@ const PurchaseEntry = () => {
       variant: isPartial ? "destructive" : undefined,
     });
     } finally {
+      entryPersistenceBlockedRef.current = false;
       setExcelImportLoading(null);
     }
   };
