@@ -523,6 +523,7 @@ const PurchaseBillDashboard = () => {
   const {
     data: billsQueryData,
     isLoading: billsQueryLoading,
+    isFetching: billsQueryFetching,
     isError: billsQueryError,
     error: billsQueryErrorDetail,
     refetch: refetchBills,
@@ -621,7 +622,6 @@ const PurchaseBillDashboard = () => {
   });
 
   const bills = billsQueryData?.bills ?? [];
-  const loading = billsQueryLoading && bills.length === 0 && !billsQueryError;
 
   const fetchBills = () => {
     refetchBills();
@@ -1279,9 +1279,15 @@ const PurchaseBillDashboard = () => {
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
+  const isDashboardInitialLoad = billsQueryLoading && billsQueryData === undefined;
+  const isDashboardBackgroundRefresh = billsQueryFetching && !isDashboardInitialLoad;
+  const loading = isDashboardInitialLoad && !billsQueryError;
+
   useNavPerfQueryWatch("purchase-bills-list", PERF_PATH, {
     isLoading: billsQueryLoading,
+    isFetching: billsQueryFetching,
     rowCount: bills.length,
+    blockedUi: loading,
   });
   useNavPerfQueryWatch("purchase-summary", PERF_PATH, {
     isLoading: purchaseSummaryLoading,
@@ -1290,8 +1296,7 @@ const PurchaseBillDashboard = () => {
 
   const billTotalCount = billsQueryData?.totalCount ?? 0;
   const summaryLooksValid =
-    purchaseSummaryData &&
-    !purchaseSummaryLoading &&
+    purchaseSummaryData != null &&
     (purchaseSummaryData.total_count > 0 || billTotalCount === 0);
 
   const summaryStats = useMemo(() => {
@@ -1864,7 +1869,7 @@ const PurchaseBillDashboard = () => {
         ]} />
 
         <div className="flex-1 px-4 space-y-2.5 pb-4">
-          {billsQueryLoading ? (
+          {isDashboardInitialLoad ? (
             Array.from({length: 5}).map((_,i) => (
               <Skeleton key={i} className="h-20 rounded-2xl" />
             ))
@@ -1996,6 +2001,14 @@ const PurchaseBillDashboard = () => {
               Purchase Bills
             </h1>
             <p className="text-slate-400 text-base mt-0.5">Manage supplier invoices & payments</p>
+            <p className="text-xs text-muted-foreground mt-1 h-4 flex items-center gap-1">
+              {isDashboardBackgroundRefresh && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Updating…
+                </>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <Button
@@ -2290,7 +2303,7 @@ const PurchaseBillDashboard = () => {
                   Retry
                 </Button>
               </div>
-            ) : filteredBills.length === 0 ? (
+            ) : filteredBills.length === 0 && !isDashboardInitialLoad ? (
               <div className="text-center py-12 text-muted-foreground bg-white">
                 <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No purchase bills found</p>
