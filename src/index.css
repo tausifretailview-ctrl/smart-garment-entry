@@ -1343,43 +1343,31 @@ body.pos-large-ui .pos-desktop-readable table td {
 }
 .pos-sales-main {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1 1 0%;
   min-height: 0;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  --pos-toolbar-h: 108px;
-  --pos-footer-h: 10.75rem;
 }
 .pos-sales-toolbar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 20;
-  height: var(--pos-toolbar-h);
-  min-height: var(--pos-toolbar-h);
-  max-height: var(--pos-toolbar-h);
+  position: relative;
   flex-shrink: 0;
+  z-index: 20;
 }
 .pos-sales-body {
-  position: absolute;
-  top: var(--pos-toolbar-h);
-  left: 0;
-  right: 0;
-  bottom: var(--pos-footer-h);
+  position: relative;
+  flex: 1 1 0%;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 .pos-sales-footer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
+  position: relative;
   flex-shrink: 0;
+  z-index: 40;
 }
 .pos-sales-notes {
   flex-shrink: 0;
@@ -1460,6 +1448,14 @@ main:has(.dashboard-workspace) {
   }
   .pos-desktop-readable table td {
     font-size: 13px !important;
+  }
+  /* Compact toolbar — no reserved height gap above the line-items grid */
+  .pos-sales-toolbar {
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+  }
+  .pos-sales-toolbar .flex.flex-nowrap {
+    align-items: flex-end;
   }
 }
 

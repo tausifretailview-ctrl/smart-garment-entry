@@ -337,11 +337,10 @@ function createWindow() {
        room and let tall pages scroll, so nothing is hidden. Desktop-only
        (injected by the Electron shell); the website is unaffected. */
 
-    /* POS Sales: enlarge the top field toolbar so the field labels above the
-       inputs are no longer clipped. The variable drives both the toolbar
-       height and the items-body offset, so they stay in sync. */
-    .pos-sales-main {
-      --pos-toolbar-h: 112px !important;
+    /* POS Sales: flex toolbar — height follows content (no gap above items grid) */
+    html.desktop-shell .pos-sales-toolbar {
+      padding-top: 0.25rem !important;
+      padding-bottom: 0.25rem !important;
     }
 
     /* Sales Invoice / Purchase Entry: scroll when tall; keep room above the

@@ -4962,9 +4962,8 @@ export default function POSSales() {
       {/* Main column — toolbar/body/footer absolutely positioned (same pattern as Sales Invoice) */}
       <div className="pos-sales-main flex-1 min-h-0 h-full w-0 overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="pos-sales-toolbar z-20 bg-background border-b border-border/60 shadow-sm px-3 md:px-4 py-2">
-          <div className="w-full pl-2">
-            <div className="flex flex-nowrap items-start gap-3 overflow-x-auto overflow-y-hidden">
+        <div className="pos-sales-toolbar z-20 bg-background border-b border-border/60 shadow-sm px-2 md:px-3 py-1.5">
+          <div className="flex flex-nowrap items-end gap-2 md:gap-3 overflow-x-auto overflow-y-hidden">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <div className="relative w-60 shrink-0">
@@ -5494,7 +5493,6 @@ export default function POSSales() {
                 </TooltipProvider>
               </div>
             </div>
-          </div>
         </div>
 
         {/* Items table — only this region scrolls; footer stays viewport-bottom */}
