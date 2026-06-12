@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   markDashboardFilterRestoring,
   readDashboardFilters,
@@ -16,9 +16,8 @@ type UseDashboardFilterPersistenceOptions = {
  * Persists list/dashboard filter state in sessionStorage (per org + window route id).
  * Restores on remount so filters survive Electron single-tab unmount and tab switches.
  *
- * Entity fields (selectedCustomerId, selectedSupplierId, customerId) are plain strings
- * in the snapshot — use restoreDashboardFilters `entityIds` for those setters.
- * Skip entity restore when URL has ?customer= / ?customerId= (apply URL first).
+ * Returns `filtersReady` — false until saved filters are applied so queries do not
+ * fetch with default keys and then refetch after restore (avoids loading flash).
  */
 export function useDashboardFilterPersistence(
   dashboardId: string,
@@ -26,24 +25,37 @@ export function useDashboardFilterPersistence(
   filters: Record<string, unknown>,
   onRestore: (saved: Record<string, unknown>) => void,
   options?: UseDashboardFilterPersistenceOptions,
-): void {
+): { filtersReady: boolean } {
   const { enabled = true } = options ?? {};
-  const restoredRef = useRef(false);
+  const restoreKeyRef = useRef<string | null>(null);
   const skipPersistRef = useRef(true);
   const onRestoreRef = useRef(onRestore);
   onRestoreRef.current = onRestore;
 
-  const serialized = useMemo(() => serializeDashboardFilters(filters), [filters]);
+  const [filtersReady, setFiltersReady] = useState(() => {
+    if (!enabled || !orgId || !dashboardId) return true;
+    return readDashboardFilters(orgId, dashboardId) == null;
+  });
 
-  useEffect(() => {
-    if (!enabled || !orgId || !dashboardId || restoredRef.current) return;
-    restoredRef.current = true;
+  useLayoutEffect(() => {
+    if (!enabled || !orgId || !dashboardId) {
+      setFiltersReady(true);
+      return;
+    }
+
+    const restoreKey = `${orgId}:${dashboardId}`;
+    if (restoreKeyRef.current === restoreKey) return;
+    restoreKeyRef.current = restoreKey;
+
     const saved = readDashboardFilters(orgId, dashboardId);
     if (saved) {
       markDashboardFilterRestoring();
       onRestoreRef.current(saved);
     }
+    setFiltersReady(true);
   }, [enabled, orgId, dashboardId]);
+
+  const serialized = useMemo(() => serializeDashboardFilters(filters), [filters]);
 
   useEffect(() => {
     if (!enabled || !orgId || !dashboardId) return;
@@ -56,4 +68,6 @@ export function useDashboardFilterPersistence(
     }, 300);
     return () => window.clearTimeout(timer);
   }, [enabled, orgId, dashboardId, serialized]);
+
+  return { filtersReady };
 }

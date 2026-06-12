@@ -30,6 +30,7 @@ import {
 } from "@/lib/navigationPerfDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
+import { prefetchPurchaseDashboardQueries } from "@/utils/purchaseDashboardPrefetch";
 import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
@@ -133,17 +134,18 @@ export const OrgLayout = () => {
     return () => window.clearTimeout(t);
   }, [isOrgSynced, user, tabPaths]);
 
-  // Warm Sales Invoice Dashboard first page (weekly default) after login — data ready before user opens tab.
+  // Warm Sales + Purchase dashboard first page after login — data ready before user opens tab.
   useEffect(() => {
     const orgId = currentOrganization?.id;
     if (!isOrgSynced || !user || !orgId) return;
 
     const warm = () => {
-      const opts = invoiceDashboardPrefetchQueryOptions(supabase, orgId);
+      const salesOpts = invoiceDashboardPrefetchQueryOptions(supabase, orgId);
       void queryClient.prefetchQuery({
-        ...opts,
+        ...salesOpts,
         staleTime: 30_000,
       });
+      prefetchPurchaseDashboardQueries(queryClient, supabase, orgId);
     };
 
     if (typeof requestIdleCallback !== "undefined") {
@@ -176,12 +178,19 @@ export const OrgLayout = () => {
     (wantsTabCache && !tabPaneReady && !isCacheableEntryActive) ||
     !isCacheableTabPath(currentPath);
 
-  // Reset on navigation — only set true when the cached pane confirms mount (onActivePaneReady).
-  // Eagerly restoring from tabPaneReadyPathsRef hid <Outlet> before the pane was actually ready → stuck spinner.
+  // Reset on navigation — restore immediately when this path was already mounted in tab cache.
   useEffect(() => {
-    setTabPaneReady(false);
     setForceOutletFallback(false);
-  }, [currentPath]);
+    if (
+      isCacheableTabPath(currentPath) &&
+      tabPaths.length > 0 &&
+      tabPaneReadyPathsRef.current.has(currentPath)
+    ) {
+      setTabPaneReady(true);
+    } else {
+      setTabPaneReady(false);
+    }
+  }, [currentPath, tabPaths.length]);
 
   // Safety net: if the cached pane never signals ready (slow network / chunk failure), keep Outlet visible.
   useEffect(() => {
