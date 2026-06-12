@@ -1,62 +1,55 @@
-## Diagnosis
+## Goal
 
-**Excel file (`file 4d.xlsx`)** has **1136 valid product rows** with **1798 total qty** and **all unique barcodes**.
+When you minimize the window, switch to another browser tab, or click another ERP tab and come back to an Inventory page (Stock Report, Item-wise Stock, Stock Ageing, Stock Adjustment, Product Tracking, Item-wise Sales, etc.), the page should stay stable — no skeleton flash, no refetch — exactly like POS Dashboard and Sales Invoice Dashboard.
 
-**Database (bill `PUR/26-27/16` in Kids Zone)** contains only **600 line items, 917 qty**.
+## Why it happens today
 
-I dumped the imported barcodes and compared to the Excel:
+I traced the difference between the screens that are stable (POS / Sales / Sale Returns / Purchase Bill Dashboard / Product Dashboard / Purchase Return Dashboard) and the screens that flash a skeleton (the rest of the Inventory module):
 
-```text
-Imported rows: Excel rows 2 – 601   (exactly first 600)
-Dropped rows : Excel rows 602 – 1142 (last 536)
-```
+1. **Stable screens** all spread `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` (`src/lib/dashboardQueryOptions.ts`) onto every `useQuery`. That preset sets:
+   - `refetchOnWindowFocus: false`
+   - `refetchOnMount: false`
+   - `refetchOnReconnect: false`
+   - `staleTime: STALE_DASHBOARD_TAB_RETURN`
+   - `placeholderData: keepPreviousData`
 
-The cutoff is exactly **3 × `VARIANT_BATCH_SIZE` (200) = 600**, which matches the variant‑insert batch loop in `src/pages/PurchaseEntry.tsx` (`handleExcelImport`). After the 3rd batch the loop stopped contributing to `insertedVariantMap`, so `buildLineItemsFromMap()` produced 600 line items and `setLineItems` saved a 600‑row bill.
+2. **Inventory report screens that flash** only set a short `staleTime` (30–60 s) and rely on React Query defaults. Defaults are `refetchOnWindowFocus: true` + `refetchOnMount: true`, so:
+   - On tab/window return, AuthContext's `visibilitychange` handler revalidates the session and calls `setSession(...)` whenever the access_token rotates. That re-renders all consumers, which re-runs effects, which re-evaluates queries. Anything past `staleTime` refetches → `isLoading`/`isFetching` flips true → skeleton flashes for 1–3 s.
+   - Same thing happens when the OS suspends the tab for a while.
 
-Root cause hypothesis: somewhere between batch 3 and batch 4 the loop received either
-- an unhandled rejection from `persistEntrySnapshotNow()` (called every batch with a growing snapshot — by batch 3 the JSON is ~2 MB and writes to sessionStorage/localStorage/IndexedDB/DB stub), or
-- a network/timeout error from `supabase.from('product_variants').insert(...).select('id')` whose `batchErr` path didn't propagate cleanly.
+3. POS / Sales feel stable because their dashboards already opt out of all three refetch triggers via the shared preset.
 
-Either way, the loop has **no try/catch around individual batches**, so a single thrown error skips every remaining batch *silently* and the bill is saved truncated.
+## Files to fix
 
-The screenshot's "Showing 400 rows – scroll to load more / Large bill: 600 items" is normal virtualization (`visibleItemCount=200/400`) — that part is *not* a bug.
+Apply `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` to every `useQuery` in these files, and switch any `loading = isLoading` flags to `loading = isLoading && data.length === 0` (so the skeleton only ever appears on the first cold load, not while a background refetch is in flight):
 
-## Fix
+- `src/pages/StockReport.tsx` (2 queries — global totals, filter options + the main list)
+- `src/pages/ItemWiseStockReport.tsx` (filter options, stockData, supplierMap)
+- `src/pages/StockAgeingReport.tsx` (rawData)
+- `src/pages/StockAdjustment.tsx` (rawVariants)
+- `src/pages/ProductTrackingReport.tsx` (filter options, queryResult)
+- `src/pages/ItemWiseSalesReport.tsx` (filterOptionsData, saleItems, rpcSummary — REPORT_CACHE already covers two, normalize the rest)
+- `src/pages/PriceHistoryReport.tsx` (audit all `useQuery` calls)
+- `src/pages/BarcodePrinting.tsx` (audit `useQuery` calls)
 
-### 1. Harden `handleExcelImport` in `src/pages/PurchaseEntry.tsx`
+For each query: keep its own `staleTime` if it is intentionally short, but force `refetchOnWindowFocus: false`, `refetchOnMount: false`, `refetchOnReconnect: false`, and `placeholderData: keepPreviousData` so previous rows stay visible during any background refetch.
 
-- Wrap each variant‑insert batch (line 4305 loop) in `try/catch` so a thrown error never short‑circuits the remaining batches.
-- Wrap the per‑batch `await persistEntrySnapshotNow(...)` in `try/catch`; checkpointing must never abort the import.
-- After every batch, log `console.info` with `{ batchIndex, batchSize, insertedSoFar, errorsSoFar }`.
-- Collect failed row indices into a `failedRows: number[]` array; show them in the completion toast and `console.warn` the full list so the user can re‑import only the missing rows.
-- Replace the "Import Partially Completed" toast with an explicit count: `Imported X of Y — Z rows failed (see console for row numbers)`.
+## Auth tab-resume polish (root-cause guard)
 
-### 2. Backfill the affected bill (`PUR/26-27/16`)
+In `src/contexts/AuthContext.tsx` `handleVisibilityChange` (around line 356):
 
-Re‑run the import for only the missing 536 rows (Excel rows 602–1142) into the existing bill `81ba1cd0-2c30-4b1c-8faa-62b7082a7c2a`:
+- Today `applyResumedSession` calls `setSession` whenever `access_token` changes, even though `user.id` is the same. Every silent token rotation therefore re-renders every consumer of `useAuth`.
+- Change it so that when `user.id` is unchanged we only update `sessionRef.current` (which is what the Supabase client and refresh logic actually need) and do **not** call `setSession` / `setUser`. We still call `setSession` when the user identity changes or when we recover from a lost session.
+- Net effect: silent token rotations on tab resume stop cascading re-renders into OrgLayout → all dashboards (Inventory included) no longer get a fresh effect/query pass on every tab return.
 
-- Create products / variants for the missing barcodes (all unique, none in DB).
-- Insert the corresponding `purchase_items` linked to that bill.
-- Update `purchase_bills.total_qty`, `gross_amount`, `net_amount` to reflect the new totals.
+## TabCachedPages cross-check (no code change required)
 
-Run as a one‑off Node script inside the project using the same logic from `handleExcelImport`, so the result is consistent with a fresh import. I'll generate the script, dry‑run it, then execute.
+`src/components/TabCachedPages.tsx` already keeps `purchase-bill-dashboard`, `purchase-bills`, `purchase-orders`, `purchase-return-dashboard`, `purchase-returns`, `product-dashboard`, `products`, `barcode-printing`, `stock-settlement`, `bulk-product-update` mounted on web. After the query-options fix above, the remaining stock/ageing/tracking report pages (which mount via `<Outlet>`) will also stop flashing because their queries no longer refetch on focus/mount.
 
-### 3. SR No / "product loading" issue in Edit mode
+## Acceptance checks
 
-The Edit screen shows "Showing 400 rows – scroll to load more" with SR numbers 328…336 visible. SR No is purely a render‑time index of `lineItems`; it isn't stored. The number sequence is correct (328…336 means rows 328+ in the virtualized window). The "loading" perception on first paint is due to lazy product enrichment after `fetchPurchaseItemsByBillId`. I'll add:
-
-- a stable, persistent SR No column (`index + 1` over the full `lineItems` array, not over the visible window) so SR No is always continuous from 1, including for rows added during edit.
-- a lightweight per‑row skeleton placeholder so half‑loaded rows show "Loading product…" instead of an empty cell.
-
-### Technical details
-
-- File: `src/pages/PurchaseEntry.tsx`
-  - `handleExcelImport` lines ~4305–4345: add `try/catch` around each batch and around `persistEntrySnapshotNow`; collect `failedRows`.
-  - Toast/console message updated.
-  - Edit‑mode SR No: ensure the table renders `lineItems.indexOf(row) + 1` not the windowed index.
-- Backfill: standalone script `scripts/backfill-kidszone-pur-26-27-16.mjs` that reads `/mnt/user-uploads/file_4d.xlsx`, computes the 536 missing rows, and inserts products/variants/purchase_items + updates bill totals. Run once via `psql`‑equivalent migration `insert` calls (or service‑role edge run).
-- No schema migration required.
-
-### Out of scope
-
-- Re‑architecting the variant insert pipeline. The hardening above is enough to surface and recover from the failure; we can revisit batching strategy if the new diagnostics reveal a systematic cause.
+1. Open Stock Report, switch to another browser tab for 30 s, return → table stays populated, no skeleton, no loading spinner.
+2. Open Item-wise Stock Report, click another ERP window tab, click back → table is instant, no flash.
+3. Open Purchase Bill Dashboard with data loaded, minimize the window for 2 min, restore → list is unchanged, no skeleton.
+4. POS Dashboard / Sales Invoice Dashboard behavior is unchanged (still stable).
+5. After saving a new purchase bill, clicking Refresh in the dashboard still pulls fresh data (manual refetch path untouched).
