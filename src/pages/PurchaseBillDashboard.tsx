@@ -211,7 +211,7 @@ const PurchaseBillDashboard = () => {
     ],
   );
 
-  useDashboardFilterPersistence(
+  const { filtersReady: purchaseFiltersReady } = useDashboardFilterPersistence(
     "purchase-bill-dashboard",
     currentOrganization?.id,
     purchaseFilterSnapshot,
@@ -232,6 +232,8 @@ const PurchaseBillDashboard = () => {
       });
     },
   );
+
+  const purchaseQueriesEnabled = !!currentOrganization?.id && purchaseFiltersReady;
 
   // Image upload and lock states
   const [uploadingImageForBill, setUploadingImageForBill] = useState<string | null>(null);
@@ -617,7 +619,7 @@ const PurchaseBillDashboard = () => {
 
       return { bills: (data || []) as PurchaseBill[], totalCount: count || 0 };
     },
-    enabled: !!currentOrganization?.id,
+    enabled: purchaseQueriesEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -1275,12 +1277,13 @@ const PurchaseBillDashboard = () => {
         debouncedSearch,
       });
     },
-    enabled: !!currentOrganization?.id,
+    enabled: purchaseQueriesEnabled,
     retry: false,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const isDashboardInitialLoad = billsQueryLoading && billsQueryData === undefined;
+  const isDashboardInitialLoad =
+    purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
   const isDashboardBackgroundRefresh =
     (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
   const loading = isDashboardInitialLoad && !billsQueryError;
