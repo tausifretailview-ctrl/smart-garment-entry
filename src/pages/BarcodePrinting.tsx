@@ -71,7 +71,7 @@ import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
-import { LabelCalibrationUI } from "@/components/precision-barcode/LabelCalibrationUI";
+import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
 import { PrecisionLabelDesigner, DEFAULT_PRECISION_CONFIG } from "@/components/precision-barcode/PrecisionLabelDesigner";
@@ -1312,7 +1312,7 @@ export default function BarcodePrinting() {
     labelConfig: null as any,
     thermalCols: 1,
   });
-  const [dbPresets, setDbPresets] = useState<import("@/components/precision-barcode/LabelCalibrationUI").CalibrationPreset[]>([]);
+  const [dbPresets, setDbPresets] = useState<CalibrationPreset[]>([]);
   const [precisionConfigReady, setPrecisionConfigReady] = useState(false);
   const precisionPrintRef = useRef<HTMLDivElement>(null);
   const testPrintRef = useRef<HTMLDivElement>(null);
@@ -1994,6 +1994,49 @@ export default function BarcodePrinting() {
       })));
     }
   };
+
+  /** Load a precision preset/template and keep Label Designer + Standard tabs in sync. */
+  const handlePrecisionPresetLoad = useCallback((preset: CalibrationPreset) => {
+    const kidszone = isKidszonePresetName(preset.name);
+    const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
+    const mode =
+      preset.printMode ||
+      (preset.a4Cols && preset.a4Rows
+        ? "a4"
+        : preset.thermalCols && preset.thermalCols > 1
+          ? "thermal2up"
+          : "thermal");
+
+    setPrecisionSettings((prev) => ({
+      ...prev,
+      labelConfig: migratedConfig,
+      ...(kidszone
+        ? {
+            labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
+            labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
+          }
+        : {
+            labelWidth: preset.width ?? prev.labelWidth,
+            labelHeight: preset.height ?? prev.labelHeight,
+          }),
+      xOffset: preset.xOffset ?? prev.xOffset,
+      yOffset: preset.yOffset ?? prev.yOffset,
+      vGap: preset.vGap ?? prev.vGap,
+      ...(preset.a4Cols ? { a4Cols: preset.a4Cols } : {}),
+      ...(preset.a4Rows ? { a4Rows: preset.a4Rows } : {}),
+      thermalCols: preset.thermalCols || 1,
+      printMode: mode,
+    }));
+
+    const isLabelTemplate = savedLabelTemplates.some((t) => t.name === preset.name);
+    setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
+
+    const template = savedLabelTemplates.find((t) => t.name === preset.name);
+    if (template) {
+      setSelectedLabelTemplate(preset.name);
+      setLabelConfig(migratedConfig);
+    }
+  }, [savedLabelTemplates, setActivePrecisionTemplateName]);
 
   // Recalculate purchase codes when alphabet changes (handles timing issues)
   useEffect(() => {
@@ -3033,13 +3076,22 @@ export default function BarcodePrinting() {
   };
 
   const handleLoadLabelTemplate = (templateName: string) => {
-    const template = savedLabelTemplates.find(t => t.name === templateName);
+    const template = savedLabelTemplates.find((t) => t.name === templateName);
     if (template) {
-      // Ensure the loaded config has all required properties with field order migration
-      const mergedConfig = resolvePresetLabelConfig(templateName, template.config);
-      setLabelConfig(mergedConfig);
-      setSelectedLabelTemplate(templateName);
       const templateDims = resolveTemplateLabelDimensions(template);
+      handlePrecisionPresetLoad({
+        name: template.name,
+        xOffset: precisionSettings.xOffset,
+        yOffset: precisionSettings.yOffset,
+        vGap: precisionSettings.vGap,
+        width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
+        height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
+        labelConfig: template.config,
+        printMode: precisionSettings.printMode,
+        thermalCols: precisionSettings.thermalCols,
+        a4Cols: precisionSettings.a4Cols,
+        a4Rows: precisionSettings.a4Rows,
+      });
       if (templateDims) {
         applyStandardSheetForTemplateDims(templateDims.width, templateDims.height);
       }
@@ -4741,20 +4793,32 @@ export default function BarcodePrinting() {
         value={activeBarTab} 
         onValueChange={(v) => {
           setActiveBarTab(v);
-          setPrecisionSettings(prev => ({ ...prev, enabled: v === "precision" }));
-          // Bridge Label Designer template to Precision Pro on tab switch
-          if (v === "precision" && selectedLabelTemplate) {
-            const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
-            if (template && !precisionSettings.labelConfig) {
-              const migratedConfig = resolvePresetLabelConfig(template.name, template.config);
+          setPrecisionSettings((prev) => ({
+            ...prev,
+            enabled: v === "precision" || v === "designer",
+          }));
+
+          // Bridge Standard / Label Designer selection into Precision Pro + Designer
+          if ((v === "precision" || v === "designer") && selectedLabelTemplate) {
+            const template = savedLabelTemplates.find((t) => t.name === selectedLabelTemplate);
+            if (template && activePrecisionTemplateBaseName !== selectedLabelTemplate) {
               const templateDims = resolveTemplateLabelDimensions(template);
-              setPrecisionSettings(prev => ({
-                ...prev,
-                labelConfig: migratedConfig,
-                ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
-              }));
-              setActivePrecisionTemplateName(template.name);
-              toast.info(`Loaded template "${template.name}" into Precision Pro`);
+              handlePrecisionPresetLoad({
+                name: template.name,
+                xOffset: precisionSettings.xOffset,
+                yOffset: precisionSettings.yOffset,
+                vGap: precisionSettings.vGap,
+                width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
+                height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
+                labelConfig: template.config,
+                printMode: precisionSettings.printMode,
+                thermalCols: precisionSettings.thermalCols,
+                a4Cols: precisionSettings.a4Cols,
+                a4Rows: precisionSettings.a4Rows,
+              });
+              if (v === "precision") {
+                toast.info(`Loaded template "${template.name}" into Precision Pro`);
+              }
             }
           }
         }}
@@ -5702,26 +5766,7 @@ export default function BarcodePrinting() {
                 onSetDefault={handleSetDefaultPreset}
                 onSetTemplateDefault={handleSetTemplateDefault}
                 defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
-                onLoadPreset={(preset) => {
-                  const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
-                  setPrecisionSettings((prev) => ({
-                    ...prev,
-                    labelConfig: migratedConfig,
-                    ...(isKidszonePresetName(preset.name)
-                      ? {
-                          labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
-                          labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
-                        }
-                      : {}),
-                  }));
-                  if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
-                  if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
-                  setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
-                  const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
-                  setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
-                  const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
-                  setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
-                }}
+                onLoadPreset={handlePrecisionPresetLoad}
                 labelConfig={effectivePrecisionLabelConfig}
                 savedTemplates={savedLabelTemplates}
                 sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
@@ -5853,28 +5898,7 @@ export default function BarcodePrinting() {
               onSetDefault={handleSetDefaultPreset}
               onSetTemplateDefault={handleSetTemplateDefault}
               defaultTemplateName={dbPresets.find(p => p.isDefault)?.name || null}
-              onLoadPreset={(preset) => {
-                const migratedConfig = resolvePresetLabelConfig(preset.name, preset.labelConfig);
-                setPrecisionSettings((prev) => ({
-                  ...prev,
-                  labelConfig: migratedConfig,
-                  ...(isKidszonePresetName(preset.name)
-                    ? {
-                        labelWidth: KIDSZONE_50X40_DIMENSIONS.width,
-                        labelHeight: KIDSZONE_50X40_DIMENSIONS.height,
-                      }
-                    : {}),
-                }));
-                if (preset.a4Cols) setPrecisionSettings((prev) => ({ ...prev, a4Cols: preset.a4Cols! }));
-                if (preset.a4Rows) setPrecisionSettings((prev) => ({ ...prev, a4Rows: preset.a4Rows! }));
-                setPrecisionSettings((prev) => ({ ...prev, thermalCols: preset.thermalCols || 1 }));
-                // Auto-detect print mode from preset
-                const mode = preset.printMode || (preset.a4Cols && preset.a4Rows ? 'a4' : (preset.thermalCols && preset.thermalCols > 1) ? 'thermal2up' : 'thermal');
-                setPrecisionSettings((prev) => ({ ...prev, printMode: mode }));
-                // Track active template for auto-save (only for saved label templates, not built-in presets)
-                  const isLabelTemplate = savedLabelTemplates.some(t => t.name === preset.name);
-                  setActivePrecisionTemplateName(isLabelTemplate ? preset.name : `preset:${preset.name}`);
-              }}
+              onLoadPreset={handlePrecisionPresetLoad}
               labelConfig={effectivePrecisionLabelConfig}
               savedTemplates={savedLabelTemplates}
               printMode={precisionSettings.printMode}
@@ -5934,35 +5958,50 @@ export default function BarcodePrinting() {
                 <Select 
                   value={activePrecisionTemplateName || ""} 
                   onValueChange={(name) => {
-                    // Handle printer presets (from printer_presets table)
                     if (name.startsWith("preset:")) {
                       const presetName = name.replace("preset:", "");
-                      const preset = dbPresets.find(p => p.name === presetName);
+                      const preset = dbPresets.find((p) => p.name === presetName);
                       const kidszone = isKidszonePresetName(presetName);
                       if (preset || kidszone) {
-                        const migratedConfig = resolvePresetLabelConfig(presetName, preset?.labelConfig);
-                        setPrecisionSettings((prev) => ({
-                          ...prev,
-                          labelConfig: migratedConfig,
-                          labelWidth: kidszone ? KIDSZONE_50X40_DIMENSIONS.width : (preset?.width ?? prev.labelWidth),
-                          labelHeight: kidszone ? KIDSZONE_50X40_DIMENSIONS.height : (preset?.height ?? prev.labelHeight),
-                        }));
-                        setActivePrecisionTemplateName(name);
+                        handlePrecisionPresetLoad({
+                          name: presetName,
+                          xOffset: preset?.xOffset ?? precisionSettings.xOffset,
+                          yOffset: preset?.yOffset ?? precisionSettings.yOffset,
+                          vGap: preset?.vGap ?? precisionSettings.vGap,
+                          width: kidszone
+                            ? KIDSZONE_50X40_DIMENSIONS.width
+                            : (preset?.width ?? precisionSettings.labelWidth),
+                          height: kidszone
+                            ? KIDSZONE_50X40_DIMENSIONS.height
+                            : (preset?.height ?? precisionSettings.labelHeight),
+                          labelConfig: kidszone
+                            ? resolveKidszoneLabelConfig()
+                            : preset?.labelConfig,
+                          printMode: preset?.printMode,
+                          thermalCols: preset?.thermalCols,
+                          a4Cols: preset?.a4Cols,
+                          a4Rows: preset?.a4Rows,
+                        });
                         toast.success(`Preset "${presetName}" loaded`);
                       }
                       return;
                     }
-                    // Handle label templates (from barcode_label_settings table)
-                    const template = savedLabelTemplates.find(t => t.name === name);
+                    const template = savedLabelTemplates.find((t) => t.name === name);
                     if (template) {
-                      const migratedConfig = resolvePresetLabelConfig(name, template.config);
                       const templateDims = resolveTemplateLabelDimensions(template);
-                      setPrecisionSettings((prev) => ({ 
-                        ...prev, 
-                        labelConfig: migratedConfig,
-                        ...(templateDims ? { labelWidth: templateDims.width, labelHeight: templateDims.height } : {}),
-                      }));
-                      setActivePrecisionTemplateName(name);
+                      handlePrecisionPresetLoad({
+                        name: template.name,
+                        xOffset: precisionSettings.xOffset,
+                        yOffset: precisionSettings.yOffset,
+                        vGap: precisionSettings.vGap,
+                        width: templateDims?.width ?? template.labelWidth ?? precisionSettings.labelWidth,
+                        height: templateDims?.height ?? template.labelHeight ?? precisionSettings.labelHeight,
+                        labelConfig: template.config,
+                        printMode: precisionSettings.printMode,
+                        thermalCols: precisionSettings.thermalCols,
+                        a4Cols: precisionSettings.a4Cols,
+                        a4Rows: precisionSettings.a4Rows,
+                      });
                       toast.success(`Template "${name}" loaded`);
                     }
                   }}

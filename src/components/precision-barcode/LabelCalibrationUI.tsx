@@ -228,12 +228,12 @@ export function LabelCalibrationUI({
   const isUserPreset = effectivePresetName ? presets.some((p) => p.name === effectivePresetName) : false;
   const isActiveTemplate = !isUserPreset && effectivePresetName ? savedTemplates.some((t) => t.name === effectivePresetName) : false;
 
-  // Compute the Select value: templates use "template_" prefix, presets use direct name
+  // Presets win when a name exists in both printer_presets and label templates (mirrored saves).
   const selectValue = (() => {
     const name = effectivePresetName;
     if (!name) return undefined;
-    if (savedTemplates.some(t => t.name === name)) return `template_${name}`;
-    if (allPresets.some(p => p.name === name)) return name;
+    if (allPresets.some((p) => p.name === name)) return name;
+    if (savedTemplates.some((t) => t.name === name)) return `template_${name}`;
     return undefined;
   })();
 
@@ -357,6 +357,24 @@ export function LabelCalibrationUI({
               <SelectValue placeholder="Select a preset..." />
             </SelectTrigger>
             <SelectContent>
+              {savedTemplates
+                .filter((t) => !presets.some((p) => p.name === t.name))
+                .map((t) => (
+                  <SelectItem key={`template-${t.name}`} value={`template_${t.name}`} className="text-xs">
+                    📐 {t.name}
+                    {t.labelWidth && t.labelHeight && (
+                      <span className="ml-1 text-muted-foreground">
+                        ({t.labelWidth}×{t.labelHeight})
+                      </span>
+                    )}
+                  </SelectItem>
+                ))}
+              {savedTemplates.some((t) => !presets.some((p) => p.name === t.name)) &&
+                presets.length > 0 && (
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">
+                    🖨️ Printer Presets
+                  </div>
+                )}
               {allPresets.map((p) => (
                 <SelectItem key={p.name} value={p.name} className="text-xs">
                   {p.isDefault && <Star className="h-3 w-3 inline mr-1 text-amber-500 fill-amber-500" />}
