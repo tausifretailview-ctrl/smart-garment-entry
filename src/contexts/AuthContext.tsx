@@ -365,10 +365,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const { data: { session: currentSession }, error } = await supabase.auth.getSession();
 
           const applyResumedSession = (resumed: Session) => {
-            if (
-              resumed.user?.id !== sessionRef.current?.user?.id ||
-              resumed.access_token !== sessionRef.current?.access_token
-            ) {
+            // Only trigger React re-render when the USER identity changes. Silent
+            // access_token rotations on tab resume must NOT cascade through every
+            // consumer of useAuth — that was forcing inventory dashboards to re-run
+            // effects/queries and flash a skeleton on every tab return.
+            // The Supabase JS client manages the active token internally, so we just
+            // refresh sessionRef for any code that reads it directly.
+            if (resumed.user?.id !== sessionRef.current?.user?.id) {
               setSession(resumed);
               setUser(resumed.user);
             } else {
