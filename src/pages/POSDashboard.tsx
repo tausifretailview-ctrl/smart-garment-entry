@@ -156,6 +156,7 @@ interface Sale {
   sale_type?: string;
   status?: string | null;
   is_cancelled?: boolean | null;
+  total_qty?: number | null;
   // E-Invoice fields
   irn?: string | null;
   ack_no?: string | null;
@@ -170,6 +171,19 @@ const isHoldLikeSale = isHoldLikePosSale;
 const getSettlementNetAmount = getPosSettlementNetAmount;
 const getEffectivePaidAmountForDashboard = getEffectivePaidAmountForPosDashboard;
 const isPaidCompletedForDashboard = isPosSalePaidCompleted;
+
+function getSaleRowQty(
+  sale: Sale,
+  loadedItems?: SaleItem[],
+): number | null {
+  if (loadedItems?.length) {
+    return loadedItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  }
+  if (sale.total_qty != null && Number.isFinite(Number(sale.total_qty))) {
+    return Number(sale.total_qty);
+  }
+  return null;
+}
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
 const DEFAULT_POS_COLUMNS = {
@@ -1648,7 +1662,7 @@ const POSDashboard = () => {
         'Date': sale.sale_date ? format(new Date(sale.sale_date), 'dd/MM/yyyy') : '',
         'Customer': sale.customer_name || '',
         'Phone': sale.customer_phone || '',
-        'Qty': Number((sale as { total_qty?: number }).total_qty || 0),
+        'Qty': getSaleRowQty(sale, saleItems[sale.id]) ?? 0,
         'Gross Amount': sale.gross_amount || 0,
         'Discount': (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
         'Net Amount': sale.net_amount || 0,
@@ -2746,7 +2760,10 @@ const POSDashboard = () => {
                               {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : '-'}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
+                              {(() => {
+                                const qty = getSaleRowQty(sale, saleItems[sale.id]);
+                                return qty != null ? qty : '-';
+                              })()}
                             </TableCell>
                             <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
