@@ -6,7 +6,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { ArrowDownLeft, ArrowUpRight, BookOpen, AlertCircle, Receipt, FileText as FileTextIcon2 } from "lucide-react";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Plus, Coins, Loader2, BookMarked, Trash2, ChevronDown, Lock } from "lucide-react";
@@ -733,7 +732,6 @@ export default function Accounts() {
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-24 lg:pb-4 overflow-hidden">
-      <BackToDashboard label="Back to Payments" to="/payments-dashboard" />
 
       <div className="flex items-center justify-between shrink-0 mb-1">
         <div>

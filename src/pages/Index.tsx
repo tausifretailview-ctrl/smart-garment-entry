@@ -730,7 +730,7 @@ const DesktopDashboard = () => {
     <>
     <TooltipProvider>
     <div 
-      className="dashboard-workspace w-full flex flex-col bg-background -mx-3 sm:-mx-4 -mt-3 sm:-mt-4 px-3 sm:px-4 pt-2 pb-2 min-h-0"
+      className="dashboard-workspace w-full flex flex-col bg-background -mx-3 sm:-mx-4 -mt-3 sm:-mt-4 pl-3 sm:pl-4 pr-0 pt-2 pb-2 min-h-0"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -808,7 +808,8 @@ const DesktopDashboard = () => {
       )}
 
       {/* Main Content — fixed shell; skeletons while first RPC loads */}
-      <div className="dashboard-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden space-y-3 pr-0.5">
+      <div className="dashboard-body flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+        <div className="space-y-3 pr-3 sm:pr-4 pb-2">
         <div className="space-y-3 dashboard-metrics-panel">
           {/* Row 1 - Sales Metrics */}
           <div className="dashboard-metric-grid grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
@@ -1173,6 +1174,7 @@ const DesktopDashboard = () => {
             <NewUpdatesPanel />
           </div>
         </details>
+        </div>
       </div>
     </div>
     </TooltipProvider>

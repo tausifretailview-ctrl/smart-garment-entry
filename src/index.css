@@ -1397,6 +1397,23 @@ body.pos-large-ui .pos-desktop-readable table td {
   max-height: calc(100dvh - 9.5rem);
   overflow: hidden;
 }
+/* Single inner scroll — no outer main gutter gap beside the cards */
+main:has(.dashboard-workspace) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+@media (min-width: 1024px) {
+  main:has(.dashboard-workspace) {
+    display: flex;
+    flex-direction: column;
+  }
+  main:has(.dashboard-workspace) .dashboard-workspace {
+    flex: 1 1 0%;
+    height: auto;
+    max-height: 100%;
+    min-height: 0;
+  }
+}
 .dashboard-toolbar {
   flex-shrink: 0;
   min-height: 36px;
