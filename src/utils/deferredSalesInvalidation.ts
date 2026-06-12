@@ -23,6 +23,11 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });
+  queryClient.invalidateQueries({
+    queryKey: opts.organizationId
+      ? ["pos-dashboard-sales", opts.organizationId]
+      : ["pos-dashboard-sales"],
+  });
   invalidateOrgLedgerReferenceData(queryClient, opts.organizationId);
   invalidateCustomerFinancialSnapshot(queryClient, opts.organizationId);
   if (!opts.skipPosNotify) {
@@ -44,7 +49,9 @@ export function scheduleDeferredSalesInvalidation(
     deferTimer = null;
     const snapshot = pending;
     pending = null;
-    if (snapshot) runSalesInvalidation(queryClient, snapshot);
+    if (snapshot) {
+      runSalesInvalidation(queryClient, { ...snapshot, skipPosNotify: false });
+    }
   }, SALES_INVALIDATION_DEFER_MS);
 }
 

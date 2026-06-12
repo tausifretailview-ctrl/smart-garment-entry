@@ -23,6 +23,7 @@ import {
   isStatementTimeoutError,
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
+import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 
 interface CartItem {
   id: string;
@@ -75,7 +76,14 @@ export const useSaveSale = () => {
   const applyPostSaleInvalidation = (
     organizationId: string | undefined,
     runtimeOptions?: SaveSaleRuntimeOptions,
+    saleMeta?: { saleDate?: string; saleNumber?: string },
   ) => {
+    // Always notify POS dashboard immediately — do not wait for print dialog or 8s defer timer.
+    notifyPosSalesChanged({
+      organizationId,
+      saleDate: saleMeta?.saleDate,
+      saleNumber: saleMeta?.saleNumber,
+    });
     if (runtimeOptions?.deferDashboardInvalidation) {
       scheduleInvalidateSales(organizationId, { skipPosNotify: true });
     } else {
@@ -1000,7 +1008,10 @@ export const useSaveSale = () => {
         // Fire and forget - don't await
       }
 
-      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions);
+      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
+        saleDate: sale.sale_date,
+        saleNumber: sale.sale_number,
+      });
 
       // Auto-generate E-Invoice for B2B sales (fire and forget)
       if (currentOrganization?.id && saleData.customerId) {
@@ -1164,10 +1175,11 @@ export const useSaveSale = () => {
       // Fetch current paid_amount to preserve partial payments during edit
       const { data: existingSale } = await supabase
         .from('sales')
-        .select('paid_amount, payment_status, sale_return_adjust, sale_number')
+        .select('paid_amount, payment_status, sale_return_adjust, sale_number, sale_date')
         .eq('id', saleId)
         .single();
       const existingPaidAmount = existingSale?.paid_amount || 0;
+      const priorStatus = existingSale?.payment_status;
 
       // Guard: if sale_return_adjust is being reduced, restore the linked SR(s)
       const oldSRA = Number(existingSale?.sale_return_adjust || 0);
@@ -1258,6 +1270,15 @@ export const useSaveSale = () => {
         isUpdate: true,
       });
 
+      // Completing a hold/pending bill must use today's date (resumeHeldSale does this too; safety net here).
+      const completingOpenBill =
+        (priorStatus === "hold" || priorStatus === "pending") &&
+        payStatus !== "hold" &&
+        payStatus !== "pending";
+      const saleDatePatch = completingOpenBill
+        ? { sale_date: new Date().toISOString() }
+        : {};
+
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
       const { error: deleteError } = await supabase
         .from('sale_items')
@@ -1327,6 +1348,7 @@ export const useSaveSale = () => {
           notes: saleData.notes || null,
           tax_type: saleData.taxType || "inclusive",
           updated_at: new Date().toISOString(),
+          ...saleDatePatch,
         })
         .eq('id', saleId)
         .select()
@@ -1439,7 +1461,10 @@ export const useSaveSale = () => {
         description: `Sale ${sale.sale_number} has been updated`,
       });
 
-      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions);
+      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
+        saleDate: sale.sale_date,
+        saleNumber: sale.sale_number,
+      });
 
       return sale;
     } catch (error: any) {
@@ -1837,7 +1862,10 @@ export const useSaveSale = () => {
         description: `Sale ${sale.sale_number} has been completed`,
       });
 
-      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions);
+      applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
+        saleDate: sale.sale_date,
+        saleNumber: sale.sale_number,
+      });
 
       return sale;
     } catch (error: any) {

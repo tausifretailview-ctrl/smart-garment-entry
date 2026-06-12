@@ -83,7 +83,7 @@ import { cn } from "@/lib/utils";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
-import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
+import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT, type PosSalesChangedDetail } from "@/utils/posSalesRefresh";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import {
   getEffectivePaidAmountForPosDashboard,
@@ -665,15 +665,24 @@ const POSDashboard = () => {
 
   useEffect(() => {
     const onPosSalesChanged = (ev: Event) => {
-      const detail = (ev as CustomEvent<{ organizationId?: string }>).detail;
+      const detail = (ev as CustomEvent<PosSalesChangedDetail>).detail;
       if (detail?.organizationId && detail.organizationId !== currentOrganization?.id) return;
+
+      if (detail?.saleDate && periodFilter === "daily") {
+        const saleDay = format(new Date(detail.saleDate), "yyyy-MM-dd");
+        if (saleDay !== startDate || saleDay !== endDate) {
+          setStartDate(saleDay);
+          setEndDate(saleDay);
+        }
+      }
+
       void queryClient.invalidateQueries({
         queryKey: ["pos-dashboard-sales", currentOrganization?.id],
       });
     };
     window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
     return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
-  }, [currentOrganization?.id, queryClient]);
+  }, [currentOrganization?.id, queryClient, periodFilter, startDate, endDate]);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
