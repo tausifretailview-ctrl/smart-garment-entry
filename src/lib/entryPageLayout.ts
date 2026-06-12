@@ -21,6 +21,18 @@ export function isFillHeightWorkspacePath(pathname: string): boolean {
   return FILL_HEIGHT_WORKSPACE_PATH.test(pathname);
 }
 
+/** List dashboards with fixed header/cards and an internal scrolling table. */
+export const FILL_HEIGHT_DASHBOARD_PATH =
+  /\/(pos-dashboard|sales-invoice-dashboard)(\/|$)/;
+
+export function isFillHeightDashboardPath(pathname: string): boolean {
+  return FILL_HEIGHT_DASHBOARD_PATH.test(pathname);
+}
+
+export function isFillHeightShellPath(pathname: string): boolean {
+  return isFillHeightWorkspacePath(pathname) || isFillHeightDashboardPath(pathname);
+}
+
 export function isNoSidebarEntrySegment(pathSegment: string): boolean {
   const segment = pathSegment.replace(/^\/+|\/+$/g, "");
   return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry";

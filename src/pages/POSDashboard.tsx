@@ -80,6 +80,8 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import {
@@ -1919,6 +1921,7 @@ const POSDashboard = () => {
   };
 
   const isMobile = useIsMobile();
+  const inTabCache = useTabCacheLayout();
   const fmtAmt = (n: number) =>
     n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
 
@@ -2184,7 +2187,12 @@ const POSDashboard = () => {
           )}
         </div>
       ) : (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 min-h-0 overflow-hidden">
+    <div
+      className={cn(
+        "flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 min-h-0 overflow-hidden",
+        inTabCache ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
+      )}
+    >
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3">
         <div className="flex items-center justify-between shrink-0">
           <div>
@@ -2633,9 +2641,11 @@ const POSDashboard = () => {
                 </div>
               </div>
             ) : (
-              <div 
+              <div
                 ref={tableContainerRef}
-                className="flex-1 min-h-[320px] overflow-auto border-t tab-scroll-stable"
+                data-tab-scroll
+                onWheel={onWheelScrollContainer}
+                className="flex-1 min-h-0 overflow-auto border-t tab-scroll-stable"
               >
                 <Table className="w-full min-w-[1000px] table-auto border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-2 [&_thead_th]:text-sm [&_tbody_td]:text-sm [&_tbody_td]:align-top">
                   <TableHeader className="!static">
