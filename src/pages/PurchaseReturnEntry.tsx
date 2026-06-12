@@ -143,7 +143,7 @@ async function fetchPurchaseReturnProductsByIds(
       .eq("organization_id", organizationId)
       .in("id", batchIds);
     if (error) throw error;
-    if (data) allRows.push(...(data as PurchaseReturnProductLookup[]));
+    if (data) allRows.push(...(data as unknown as PurchaseReturnProductLookup[]));
   }
   return allRows;
 }
