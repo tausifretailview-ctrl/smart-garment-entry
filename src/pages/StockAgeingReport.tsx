@@ -118,7 +118,11 @@ export default function StockAgeingReport() {
       return allRows;
     },
     enabled: isReady,
-    staleTime: 30000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false as const,
+    refetchOnMount: false as const,
+    refetchOnReconnect: false as const,
   });
 
   const today = new Date();

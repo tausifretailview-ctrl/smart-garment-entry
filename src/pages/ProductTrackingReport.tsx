@@ -23,6 +23,15 @@ import { format, subDays } from "date-fns";
 import { ColumnDef } from "@tanstack/react-table";
 import { ERPTable } from "@/components/erp-table";
 
+// Tab-return stable: keep cached data, never auto-refetch on focus/mount/reconnect.
+const STABLE_TAB_OPTIONS = {
+  staleTime: 5 * 60 * 1000,
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false as const,
+  refetchOnMount: false as const,
+  refetchOnReconnect: false as const,
+};
+
 interface MovementRecord {
   id: string;
   created_at: string;
@@ -218,7 +227,7 @@ const ProductTrackingReport = () => {
       return { categories, brands };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60000,
+    ...STABLE_TAB_OPTIONS,
   });
 
   // Server-side paginated query
@@ -326,6 +335,7 @@ const ProductTrackingReport = () => {
       return { data: movements, totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id && !dateRangeError,
+    ...STABLE_TAB_OPTIONS,
   });
 
   const movements = queryResult?.data || [];

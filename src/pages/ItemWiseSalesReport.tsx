@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useProductFieldLabels } from "@/hooks/useSettings";
@@ -91,7 +91,16 @@ export default function ItemWiseSalesReport() {
     users: [],
   });
 
-  const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
+  // Tab-return stable: never refetch on focus/mount/reconnect; keep previous rows while any
+  // background refetch is in flight so switching browser/ERP tabs never flashes a skeleton.
+  const REPORT_CACHE = {
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false as const,
+    refetchOnMount: false as const,
+    refetchOnReconnect: false as const,
+    placeholderData: keepPreviousData,
+  };
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
