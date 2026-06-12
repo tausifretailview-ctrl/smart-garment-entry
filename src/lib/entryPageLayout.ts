@@ -14,6 +14,13 @@ export function isNoSidebarEntryPath(pathname: string): boolean {
   return NO_SIDEBAR_ENTRY_PATH.test(pathname);
 }
 
+/** Full-height workspace pages (inbox, chat) — fill shell viewport, no outer page scroll. */
+export const FILL_HEIGHT_WORKSPACE_PATH = /\/(whatsapp-inbox)(\/|$)/;
+
+export function isFillHeightWorkspacePath(pathname: string): boolean {
+  return FILL_HEIGHT_WORKSPACE_PATH.test(pathname);
+}
+
 export function isNoSidebarEntrySegment(pathSegment: string): boolean {
   const segment = pathSegment.replace(/^\/+|\/+$/g, "");
   return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry";

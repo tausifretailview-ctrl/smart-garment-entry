@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isCacheableEntryTabPath, isEntryTabPath } from "@/lib/entryPageLayout";
+import { isCacheableEntryTabPath, isEntryTabPath, isFillHeightWorkspacePath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
@@ -172,7 +172,8 @@ export const OrgLayout = () => {
   /** Hide tab-cache container while Outlet shows the first-load fallback (dashboards only). */
   const hideTabCacheContainer =
     (isEntryPage && !isCacheableEntryActive) ||
-    (wantsTabCache && !tabPaneReady && !isCacheableEntryActive);
+    (wantsTabCache && !tabPaneReady && !isCacheableEntryActive) ||
+    !isCacheableTabPath(currentPath);
 
   // Reset on navigation — only set true when the cached pane confirms mount (onActivePaneReady).
   // Eagerly restoring from tabPaneReadyPathsRef hid <Outlet> before the pane was actually ready → stuck spinner.
@@ -327,10 +328,11 @@ export const OrgLayout = () => {
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.
   // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
   const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && tabPaneReady;
-  const constrainViewportHeight = isEntryPage || hasVisibleTabCache;
+  const isFillHeightPage = isFillHeightWorkspacePath(location.pathname);
+  const constrainViewportHeight = isEntryPage || hasVisibleTabCache || isFillHeightPage;
 
   const workspaceBody = (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden w-full">
       {tabPaths.length > 0 && (
         <div
           className={cn(
@@ -351,7 +353,7 @@ export const OrgLayout = () => {
       {!renderViaTabCache && (
         <div
           className={
-            isEntryPage
+            isEntryPage || isFillHeightPage
               ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
               : showDesktopChrome
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
@@ -361,7 +363,7 @@ export const OrgLayout = () => {
           <Outlet />
         </div>
       )}
-    </>
+    </div>
   );
 
   return (

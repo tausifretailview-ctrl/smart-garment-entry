@@ -19,7 +19,7 @@ import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileS
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
-import { entryPageLayoutMainClass, isEntryFullscreenPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
+import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightWorkspacePath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
@@ -33,7 +33,7 @@ interface FullScreenLayoutProps {
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
   const isEntryFullscreenPage = isEntryFullscreenPath(location.pathname);
-  const isFillHeightWorkspace = /\/whatsapp-inbox(\/|$)/.test(location.pathname);
+  const isFillHeightWorkspace = isFillHeightWorkspacePath(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
   const sharedShell = useSharedAppShell();
   const inTabCachePane = useTabCacheLayout();

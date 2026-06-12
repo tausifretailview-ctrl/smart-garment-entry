@@ -14,7 +14,6 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -245,9 +244,10 @@ const WhatsAppInbox = () => {
       });
   }, [selectedConversation?.id, selectedConversation?.unread_count, currentOrganization?.id, queryClient]);
 
-  // Scroll to bottom when messages change
+  // Scroll to latest message when conversation has replies
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length === 0) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages]);
 
   // Subscribe to realtime updates
@@ -334,23 +334,25 @@ const WhatsAppInbox = () => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
-        <div className="flex items-center gap-3">
-          <MessageSquare className="h-6 w-6 text-green-600" />
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">WhatsApp Inbox</h1>
-            {isUsingSharedNumber && (
-              <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
-                <Users className="h-3 w-3 mr-1" />
-                Shared
-              </Badge>
-            )}
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <MessageSquare className="h-5 w-5 text-green-600 shrink-0" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg font-bold leading-tight">WhatsApp Inbox</h1>
+              {isUsingSharedNumber && (
+                <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                  <Users className="h-3 w-3 mr-1" />
+                  Shared
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">
+              {totalUnread > 0
+                ? `${totalUnread} unread repl${totalUnread > 1 ? 'ies' : 'y'}`
+                : 'Customer replies only — see WhatsApp Logs for sent messages'}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground hidden sm:block">
-            {totalUnread > 0
-              ? `${totalUnread} unread repl${totalUnread > 1 ? 'ies' : 'y'}`
-              : 'Customer replies only — see WhatsApp Logs for sent messages'}
-          </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchConversations()}>
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -378,7 +380,7 @@ const WhatsAppInbox = () => {
           </div>
 
           {/* Conversations */}
-          <ScrollArea className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {loadingConversations ? (
               <div className="p-4 text-center text-muted-foreground">Loading...</div>
             ) : filteredConversations.length === 0 ? (
@@ -424,7 +426,7 @@ const WhatsAppInbox = () => {
                 </div>
               ))
             )}
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Chat Area */}
@@ -459,7 +461,7 @@ const WhatsAppInbox = () => {
               </div>
 
               {/* Messages */}
-              <ScrollArea className="flex-1 min-h-0 p-4">
+              <div className="flex-1 min-h-0 overflow-y-auto p-4">
                 {loadingMessages ? (
                   <div className="text-center text-muted-foreground">Loading messages...</div>
                 ) : messages.length === 0 ? (
@@ -481,7 +483,7 @@ const WhatsAppInbox = () => {
                     <div ref={messagesEndRef} />
                   </div>
                 )}
-              </ScrollArea>
+              </div>
 
               {/* Message Input */}
               <form onSubmit={handleSendMessage} className="p-3 border-t flex gap-2 shrink-0">
