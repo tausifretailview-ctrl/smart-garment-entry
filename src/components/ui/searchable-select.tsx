@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
@@ -66,7 +67,10 @@ export function SearchableSelect({
             />
           </div>
         </div>
-        <div className="max-h-[240px] overflow-y-auto p-1">
+        <div
+          className="max-h-[240px] overflow-y-auto overscroll-contain p-1"
+          onWheel={onWheelScrollContainer}
+        >
           <button
             className={cn(
               "flex items-center gap-2 w-full rounded-sm px-2 py-1.5 text-sm cursor-pointer hover:bg-accent",

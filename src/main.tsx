@@ -8,6 +8,7 @@ import { initBootSplashWatchdog } from "@/lib/appBootSplash";
 import { recoverElectronOAuthErrorPage } from "@/lib/electronOAuthRecovery";
 import { initElectronViewportSync } from "@/lib/electronViewportSync";
 import { ensurePosAppSession } from "@/lib/posCartPersistence";
+import { initScrollWheelFix } from "@/lib/scrollWheel";
 import "./index.css";
 
 recoverElectronOAuthErrorPage();
@@ -16,6 +17,7 @@ initForceDesktopViewPreference();
 initUIScale();
 initElectronViewportSync();
 ensurePosAppSession();
+initScrollWheelFix();
 void initNativeShell();
 initBootSplashWatchdog();
 

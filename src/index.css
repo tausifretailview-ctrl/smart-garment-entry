@@ -1955,4 +1955,12 @@ main.overflow-auto,
 [data-tab-scroll],
 .tab-scroll-stable {
   scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+/* Nested scroll regions — wheel should stay on the hovered pane (Electron / Accounts tabs). */
+[cmdk-list],
+[data-radix-scroll-area-viewport],
+[data-radix-select-viewport] {
+  overscroll-behavior: contain;
 }

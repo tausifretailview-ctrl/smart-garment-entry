@@ -1737,7 +1737,8 @@ export default function StockReport() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
+                  <div className="max-h-[min(70vh,900px)] overflow-auto overscroll-contain">
+                  <div className="overflow-x-auto min-w-0">
                       <Table>
                       <TableHeader>
                         <TableRow>
@@ -1938,6 +1939,7 @@ export default function StockReport() {
                       </div>
                     </div>
                   )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

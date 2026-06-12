@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
 
 const Select = SelectPrimitive.Root;
 
@@ -77,10 +78,11 @@ const SelectContent = React.forwardRef<
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(
-          "p-1",
+          "p-1 max-h-[min(var(--radix-select-content-available-height,300px),300px)] overflow-y-auto overscroll-contain",
           position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            "w-full min-w-[var(--radix-select-trigger-width)]",
         )}
+        onWheel={onWheelScrollContainer}
       >
         {children}
       </SelectPrimitive.Viewport>

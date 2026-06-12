@@ -2,6 +2,7 @@ import * as React from "react";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 import { cn } from "@/lib/utils";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
 
 interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
   showScrollbar?: boolean;
@@ -12,7 +13,12 @@ const ScrollArea = React.forwardRef<
   ScrollAreaProps
 >(({ className, children, showScrollbar = false, ...props }, ref) => (
   <ScrollAreaPrimitive.Root ref={ref} className={cn("relative overflow-hidden", className)} {...props}>
-    <ScrollAreaPrimitive.Viewport className="h-full w-full rounded-[inherit]">{children}</ScrollAreaPrimitive.Viewport>
+    <ScrollAreaPrimitive.Viewport
+      className="h-full w-full rounded-[inherit] overscroll-contain"
+      onWheel={onWheelScrollContainer}
+    >
+      {children}
+    </ScrollAreaPrimitive.Viewport>
     <ScrollBar forceMount className={showScrollbar ? "opacity-100" : ""} />
     <ScrollAreaPrimitive.Corner />
   </ScrollAreaPrimitive.Root>
