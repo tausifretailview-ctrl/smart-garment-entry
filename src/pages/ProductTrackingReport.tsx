@@ -335,6 +335,7 @@ const ProductTrackingReport = () => {
       return { data: movements, totalCount: count || 0 };
     },
     enabled: !!currentOrganization?.id && !dateRangeError,
+    ...STABLE_TAB_OPTIONS,
   });
 
   const movements = queryResult?.data || [];
