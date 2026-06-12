@@ -57,7 +57,6 @@ import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
@@ -1505,9 +1504,10 @@ export default function SaleOrderEntry() {
       {/* Section D: Line Items Table */}
       <div className="bg-card rounded-lg border shadow-sm p-3 flex flex-1 flex-col min-h-0">
         <div className="erp-invoice-section-label">LINE ITEMS</div>
-        <div className="border rounded-md overflow-hidden relative flex flex-1 flex-col min-h-0">
-          <Table>
-            <TableHeader className="erp-invoice-table-header">
+        <div className="border rounded-md overflow-hidden relative flex flex-1 flex-col min-h-[220px]">
+          <div className="flex-1 min-h-[220px] overflow-x-auto overflow-y-auto isolate">
+            <Table className="w-full min-w-[1100px]">
+            <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead className="min-w-[180px] max-w-[280px]">Product</TableHead>
@@ -1530,9 +1530,6 @@ export default function SaleOrderEntry() {
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
-          </Table>
-          <ScrollArea className="flex-1 min-h-[160px] isolate" showScrollbar>
-            <Table>
             <TableBody>
               {lineItems.map((item, index) => {
                 const stockInfo = getStockDifference(item);
@@ -1750,7 +1747,7 @@ export default function SaleOrderEntry() {
             </TableBody>
             </Table>
             <div ref={tableEndRef} />
-          </ScrollArea>
+          </div>
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
           Total Items: {lineItems.filter(item => item.productId).length}
