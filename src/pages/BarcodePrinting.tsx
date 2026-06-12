@@ -44,6 +44,11 @@ import {
 import { isElectron } from "@/utils/appPrint";
 import { resolveBarcodePrintTab, type ResolveBarcodePrintTabInput } from "@/utils/resolveBarcodePrintTab";
 import {
+  persistBarcodePurchaseBillContext,
+  readBarcodePurchaseBillContext,
+  resolvePurchaseBillIdForBarcodeReturn,
+} from "@/utils/barcodePurchaseBillContext";
+import {
   DndContext,
   closestCenter,
   KeyboardSensor,
@@ -1168,6 +1173,13 @@ export default function BarcodePrinting() {
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("barcode_asc");
   const [billNumber, setBillNumber] = useState("");
+  const [sourcePurchaseBillId, setSourcePurchaseBillId] = useState<string | null>(null);
+  const sourcePurchaseBillIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    sourcePurchaseBillIdRef.current = sourcePurchaseBillId;
+  }, [sourcePurchaseBillId]);
+  const [fromPurchaseBill, setFromPurchaseBill] = useState(false);
+  const [isNavigatingToPurchaseBill, setIsNavigatingToPurchaseBill] = useState(false);
   const [recentBills, setRecentBills] = useState<RecentBill[]>([]);
   const [sheetType, setSheetType] = useState<SheetType>("novajet48");
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
@@ -2052,19 +2064,34 @@ export default function BarcodePrinting() {
     }
   }, [purchaseCodeAlphabet, purchaseCodeIncludeGst]);
 
-  // Fetch recent bills
+  // Restore purchase-bill context (survives tab switch when router state is cleared)
   useEffect(() => {
+    if (!currentOrganization?.id) return;
+    const ctx = readBarcodePurchaseBillContext(currentOrganization.id);
+    if (ctx?.billId) {
+      sourcePurchaseBillIdRef.current = ctx.billId;
+      setSourcePurchaseBillId(ctx.billId);
+      setFromPurchaseBill(true);
+    }
+  }, [currentOrganization?.id]);
+
+  // Fetch recent bills for this organization
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+
     const fetchRecentBills = async () => {
       try {
         const { data, error } = await supabase
           .from("purchase_bills")
           .select("id, software_bill_no, supplier_name, bill_date")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .order("bill_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(20);
 
         if (error) throw error;
-        
+
         if (data) {
           setRecentBills(data);
         }
@@ -2073,8 +2100,8 @@ export default function BarcodePrinting() {
       }
     };
 
-    fetchRecentBills();
-  }, []);
+    void fetchRecentBills();
+  }, [currentOrganization?.id]);
 
   // Pre-fill items from purchase entry if passed via navigation state
   useEffect(() => {
@@ -2157,8 +2184,23 @@ export default function BarcodePrinting() {
       }
       
       toast.success(`Loaded ${items.length} items from purchase bill`);
+
+      const navState = location.state as { billId?: string } | null;
+      const billId = navState?.billId;
+      const billNumber = items.find((item) => item.bill_number?.trim())?.bill_number;
+      if (currentOrganization?.id && billId) {
+        persistBarcodePurchaseBillContext(currentOrganization.id, {
+          billId,
+          billNumber,
+        });
+        sourcePurchaseBillIdRef.current = billId;
+        setSourcePurchaseBillId(billId);
+        setFromPurchaseBill(true);
+      } else if (currentOrganization?.id && billNumber) {
+        setFromPurchaseBill(true);
+      }
     }
-  }, [location.state, purchaseCodeAlphabet, isLoadingSettings]);
+  }, [location.state, purchaseCodeAlphabet, isLoadingSettings, currentOrganization?.id]);
 
   // Re-sort items when size sort order changes
   useEffect(() => {
@@ -2391,31 +2433,27 @@ export default function BarcodePrinting() {
   };
 
   const fillLastPurchaseQuantities = async (items: LabelItem[]) => {
+    if (!currentOrganization?.id) return;
+
     try {
-      // Get the latest purchase bill
-      const { data: latestBill, error: billError } = await supabase
-        .from("purchase_bills")
-        .select("id, bill_date")
-        .order("bill_date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const billNumber = items.find((item) => item.bill_number?.trim())?.bill_number;
+      const targetBillId = await resolvePurchaseBillIdForBarcodeReturn(
+        currentOrganization.id,
+        {
+          billId: sourcePurchaseBillIdRef.current,
+          billNumber,
+        },
+      );
 
-      if (billError) {
-        console.error("Error fetching latest bill:", billError);
-        return;
-      }
-
-      if (!latestBill) {
+      if (!targetBillId) {
         toast.info("No purchase bills found");
         return;
       }
 
-      // Get items from the latest bill
       const { data: purchaseData } = await supabase
         .from("purchase_items")
         .select("barcode, qty, sku_id")
-        .eq("bill_id", latestBill.id);
+        .eq("bill_id", targetBillId);
 
       if (purchaseData) {
         const quantityMap = new Map<string, number>();
@@ -2449,12 +2487,16 @@ export default function BarcodePrinting() {
 
     try {
       // Search by software_bill_no or supplier_invoice_no
-      const { data: billData, error: billError } = await supabase
+      let billQuery = supabase
         .from("purchase_bills")
         .select("id")
         .or(`supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
-        .limit(1)
-        .maybeSingle();
+        .is("deleted_at", null)
+        .limit(1);
+      if (currentOrganization?.id) {
+        billQuery = billQuery.eq("organization_id", currentOrganization.id);
+      }
+      const { data: billData, error: billError } = await billQuery.maybeSingle();
 
       if (billError || !billData) {
         console.error("Bill not found:", billError);
@@ -4519,35 +4561,67 @@ export default function BarcodePrinting() {
     }
   };
 
+  const showPurchaseBillNav = useMemo(
+    () =>
+      fromPurchaseBill
+      || Boolean((location.state as { purchaseItems?: unknown[] } | null)?.purchaseItems?.length)
+      || labelItems.some((item) => Boolean(item.bill_number?.trim())),
+    [fromPurchaseBill, location.state, labelItems],
+  );
+
+  const handleBackToPurchaseBill = useCallback(async () => {
+    if (!currentOrganization?.id) return;
+    setIsNavigatingToPurchaseBill(true);
+    try {
+      const navState = location.state as { billId?: string } | null;
+      const billNumber = labelItems.find((item) => item.bill_number?.trim())?.bill_number;
+      const billId = await resolvePurchaseBillIdForBarcodeReturn(currentOrganization.id, {
+        billId: sourcePurchaseBillId ?? navState?.billId ?? null,
+        billNumber,
+      });
+      if (!billId) {
+        toast.error("Could not find the purchase bill to open");
+        return;
+      }
+      persistBarcodePurchaseBillContext(currentOrganization.id, {
+        billId,
+        billNumber,
+      });
+      orgNavigate("/purchase-entry", { state: { editBillId: billId } });
+    } finally {
+      setIsNavigatingToPurchaseBill(false);
+    }
+  }, [currentOrganization?.id, labelItems, location.state, orgNavigate, sourcePurchaseBillId]);
+
   return (
     <div className="w-full px-6 py-6 space-y-6">
-      {location.state?.purchaseItems ? (
+      {showPurchaseBillNav ? (
         <div className="flex items-center gap-2 flex-wrap">
           <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
-          {location.state?.billId && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mb-4"
-                onClick={() => orgNavigate('/purchase-entry', { state: { editBillId: location.state.billId } })}
-              >
-                <Home className="h-4 w-4 mr-2" />
-                Back to Purchase Bill
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                className="gap-2 ml-auto"
-                onClick={() => {
-                  orgNavigate('/purchase-entry', { state: { editBillId: location.state.billId } });
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Continue Adding Products
-              </Button>
-            </>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mb-4"
+            disabled={isNavigatingToPurchaseBill}
+            onClick={() => void handleBackToPurchaseBill()}
+          >
+            <Home className="h-4 w-4 mr-2" />
+            Back to Purchase Bill
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-2 ml-auto"
+            disabled={isNavigatingToPurchaseBill}
+            onClick={() => void handleBackToPurchaseBill()}
+          >
+            {isNavigatingToPurchaseBill ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Continue Adding Products
+          </Button>
         </div>
       ) : (
         <BackToDashboard />
