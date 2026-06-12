@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import JsBarcode from "jsbarcode";
 import { LabelDesignConfig, LabelFieldConfig, FieldKey, LabelItem } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
+import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
 
 interface DraggableLabelCanvasProps {
   item: LabelItem;
@@ -11,11 +12,15 @@ interface DraggableLabelCanvasProps {
   zoom: number;
   activeField: FieldKey | null;
   activeLineIndex: number | null;
+  activeCustomTextIndex: number | null;
   onFieldSelect: (key: FieldKey | null) => void;
   onFieldDrag: (key: FieldKey, x: number, y: number) => void;
   onLineSelect: (index: number | null) => void;
   onLineDrag: (index: number, x: number, y: number) => void;
   onLineDelete?: (index: number) => void;
+  onCustomTextSelect: (index: number | null) => void;
+  onCustomTextDrag: (index: number, x: number, y: number) => void;
+  onCustomTextDelete?: (index: number) => void;
 }
 
 const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: string): string => {
@@ -50,15 +55,28 @@ export function DraggableLabelCanvas({
   zoom,
   activeField,
   activeLineIndex,
+  activeCustomTextIndex,
   onFieldSelect,
   onFieldDrag,
   onLineSelect,
   onLineDrag,
   onLineDelete,
+  onCustomTextSelect,
+  onCustomTextDrag,
+  onCustomTextDelete,
 }: DraggableLabelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const barcodeRef = useRef<SVGSVGElement>(null);
-  const [dragging, setDragging] = useState<{ type: 'field' | 'line'; key?: FieldKey; lineIndex?: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const [dragging, setDragging] = useState<{
+    type: "field" | "line" | "customText";
+    key?: FieldKey;
+    lineIndex?: number;
+    customTextIndex?: number;
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+  } | null>(null);
 
   const barcodeHeight = config.barcodeHeight ?? 30;
   const barcodeLineWidth = config.barcodeWidth ?? 1.5;
@@ -87,6 +105,7 @@ export function DraggableLabelCanvas({
     e.preventDefault();
     onFieldSelect(key);
     onLineSelect(null);
+    onCustomTextSelect(null);
     const field = config[key] as LabelFieldConfig;
     if (!field) return;
     setDragging({
@@ -104,6 +123,7 @@ export function DraggableLabelCanvas({
     e.preventDefault();
     onLineSelect(index);
     onFieldSelect(null);
+    onCustomTextSelect(null);
     const line = config.lines?.[index];
     if (!line) return;
     setDragging({
@@ -114,7 +134,25 @@ export function DraggableLabelCanvas({
       origX: line.x ?? 0,
       origY: line.y ?? 0,
     });
-  }, [config.lines, onLineSelect, onFieldSelect]);
+  }, [config.lines, onLineSelect, onFieldSelect, onCustomTextSelect]);
+
+  const handleCustomTextMouseDown = useCallback((e: React.MouseEvent, index: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onCustomTextSelect(index);
+    onFieldSelect(null);
+    onLineSelect(null);
+    const slot = getCustomTextFields(config)[index];
+    if (!slot) return;
+    setDragging({
+      type: "customText",
+      customTextIndex: index,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: slot.x ?? 0,
+      origY: slot.y ?? 0,
+    });
+  }, [config, onCustomTextSelect, onFieldSelect, onLineSelect]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!dragging) return;
@@ -125,10 +163,12 @@ export function DraggableLabelCanvas({
 
     if (dragging.type === 'field' && dragging.key) {
       onFieldDrag(dragging.key, newX, newY);
-    } else if (dragging.type === 'line' && dragging.lineIndex !== undefined) {
+    } else if (dragging.type === "line" && dragging.lineIndex !== undefined) {
       onLineDrag(dragging.lineIndex, newX, newY);
+    } else if (dragging.type === "customText" && dragging.customTextIndex !== undefined) {
+      onCustomTextDrag(dragging.customTextIndex, newX, newY);
     }
-  }, [dragging, zoom, width, height, onFieldDrag, onLineDrag]);
+  }, [dragging, zoom, width, height, onFieldDrag, onLineDrag, onCustomTextDrag]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
@@ -140,11 +180,18 @@ export function DraggableLabelCanvas({
         e.preventDefault();
         onLineDelete(activeLineIndex);
       }
+      if (activeCustomTextIndex !== null && onCustomTextDelete) {
+        e.preventDefault();
+        onCustomTextDelete(activeCustomTextIndex);
+      }
     }
-  }, [activeLineIndex, onLineDelete]);
+  }, [activeLineIndex, activeCustomTextIndex, onLineDelete, onCustomTextDelete]);
+
+  const customTextSlots = getCustomTextFields(config);
+  const skipLegacyCustomText = usesCustomTextFields(config);
 
   const fieldKeys: FieldKey[] = (config.fieldOrder || []).filter(
-    (k) => k !== "barcode" && config[k]?.show
+    (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
   );
   const barcodeConfig = config.barcode;
   const showBarcode = barcodeConfig?.show && item.barcode;
@@ -165,6 +212,7 @@ export function DraggableLabelCanvas({
           if (!dragging) {
             onFieldSelect(null);
             onLineSelect(null);
+            onCustomTextSelect(null);
           }
         }}
         style={{
@@ -289,6 +337,44 @@ export function DraggableLabelCanvas({
                 height: isHorizontal ? (line.thickness ?? 0.3) * MM_TO_PX * zoom : "100%",
                 backgroundColor: "#000000",
               }} />
+            </div>
+          );
+        })}
+
+        {customTextSlots.map((slot, idx) => {
+          if (!slot.show) return null;
+          const isSelected = activeCustomTextIndex === idx;
+          const display = slot.value.trim() || `Custom ${idx + 1}`;
+
+          return (
+            <div
+              key={slot.id}
+              onMouseDown={(e) => handleCustomTextMouseDown(e, idx)}
+              style={{
+                position: "absolute",
+                top: (slot.y ?? 0) * MM_TO_PX * zoom,
+                left: (slot.x ?? 0) * MM_TO_PX * zoom,
+                width: slot.width ? slot.width * MM_TO_PX * zoom : "auto",
+                fontSize: slot.fontSize * zoom,
+                fontWeight: slot.bold ? 700 : 400,
+                textAlign: (slot.textAlign as "left" | "center" | "right") || "left",
+                lineHeight: 1.15,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                cursor: "grab",
+                outline: isSelected ? "2px solid hsl(var(--primary))" : "1px dashed transparent",
+                outlineOffset: 1,
+                borderRadius: 2,
+                backgroundColor: isSelected ? "hsl(var(--primary) / 0.08)" : "transparent",
+                fontFamily: "Arial, Helvetica, sans-serif",
+                color: slot.value.trim() ? "#000000" : "hsl(var(--muted-foreground))",
+                fontStyle: slot.value.trim() ? "normal" : "italic",
+                userSelect: "none",
+              }}
+              title={`Custom text ${idx + 1}: drag to reposition`}
+            >
+              {display}
             </div>
           );
         })}

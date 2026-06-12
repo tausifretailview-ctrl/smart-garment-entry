@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import { LabelItem, LabelDesignConfig, FieldKey } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
+import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
 
 interface PrecisionLabelPreviewProps {
   item: LabelItem;
@@ -115,9 +116,12 @@ export function PrecisionLabelPreview({
     );
   }
 
+  const customTextSlots = getCustomTextFields(config);
+  const skipLegacyCustomText = usesCustomTextFields(config);
+
   // Config-driven rendering
   const fieldKeys: FieldKey[] = (config.fieldOrder || []).filter(
-    (k) => k !== "barcode" && config[k]?.show
+    (k) => k !== "barcode" && config[k]?.show && !(k === "customText" && skipLegacyCustomText),
   );
 
   const barcodeConfig = config.barcode;
@@ -186,6 +190,50 @@ export function PrecisionLabelPreview({
                  transform: "translateY(-50%)",
                 pointerEvents: "none",
               }} />
+            )}
+          </div>
+        );
+      })}
+
+      {customTextSlots.map((slot) => {
+        if (!slot.show || !slot.value.trim()) return null;
+        const fieldX = slot.x ?? 0;
+        const maxFieldW = Math.max(0.5, width - fieldX);
+        const fieldW = slot.width ? Math.min(slot.width, maxFieldW) : maxFieldW;
+
+        return (
+          <div
+            key={slot.id}
+            style={{
+              position: "absolute",
+              top: u(slot.y ?? 0),
+              left: u(slot.x ?? 0),
+              width: u(fieldW),
+              fontSize: fs(slot.fontSize),
+              fontWeight: slot.bold ? 900 : 600,
+              textAlign: (slot.textAlign as "left" | "center" | "right") || "left",
+              lineHeight: 1.2,
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+              textOverflow: "ellipsis",
+              color: "#000000",
+              letterSpacing: "0.2px",
+            }}
+          >
+            {slot.value}
+            {slot.strikethrough && (
+              <span
+                style={{
+                  position: "absolute",
+                  left: `${(100 - (slot.strikethroughWidth ?? 100)) / 2}%`,
+                  width: `${slot.strikethroughWidth ?? 100}%`,
+                  top: `calc(50% + ${slot.strikethroughOffsetY ?? 0}%)`,
+                  height: `${slot.strikethroughThickness ?? 1}px`,
+                  backgroundColor: "#000",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                }}
+              />
             )}
           </div>
         );

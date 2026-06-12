@@ -71,6 +71,7 @@ import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
 import { PrecisionLabelPreview } from "@/components/precision-barcode/PrecisionLabelPreview";
+import { migrateCustomTextFields } from "@/utils/labelCustomText";
 import { LabelCalibrationUI, type CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { TestLabelPrint } from "@/components/precision-barcode/TestLabelPrint";
 import { PrecisionPrintCSS } from "@/components/precision-barcode/PrecisionPrintCSS";
@@ -172,6 +173,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     barcodeHeight: config.barcodeHeight ?? base.barcodeHeight,
     barcodeWidth: config.barcodeWidth ?? base.barcodeWidth,
     customTextValue: config.customTextValue ?? base.customTextValue ?? '',
+    customTextFields: migrateCustomTextFields(config),
     lines: config.lines ?? base.lines ?? [],
   };
 };

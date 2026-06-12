@@ -29,6 +29,23 @@ export interface LabelLineConfig {
   orientation: 'horizontal' | 'vertical';
 }
 
+/** Independent custom text slot — multiple allowed per precision label. */
+export interface CustomTextSlot {
+  id: string;
+  value: string;
+  show: boolean;
+  fontSize: number;
+  bold: boolean;
+  strikethrough?: boolean;
+  strikethroughWidth?: number;
+  strikethroughThickness?: number;
+  strikethroughOffsetY?: number;
+  textAlign?: 'left' | 'center' | 'right';
+  x: number;
+  y: number;
+  width: number;
+}
+
 export interface LabelDesignConfig {
   brand: LabelFieldConfig;
   businessName: LabelFieldConfig;
@@ -47,10 +64,12 @@ export interface LabelDesignConfig {
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
   supplierInvoiceNo?: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>>;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'customTextFields' | 'lines'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
+  /** @deprecated Use customTextFields — kept for legacy templates */
   customTextValue?: string;
+  customTextFields?: CustomTextSlot[];
   lines?: LabelLineConfig[];
 }
 
@@ -84,4 +103,4 @@ export interface LabelTemplate {
   labelHeight?: number; // Used for auto-scaling when loading on different sizes
 }
 
-export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'lines'>;
+export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue' | 'customTextFields' | 'lines'>;

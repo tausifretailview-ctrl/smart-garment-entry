@@ -8,9 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Save, RotateCcw, ZoomIn, ZoomOut, Move, Plus, Trash2, Minus } from "lucide-react";
-import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem } from "@/types/labelTypes";
+import { LabelDesignConfig, LabelFieldConfig, LabelLineConfig, FieldKey, LabelItem, CustomTextSlot } from "@/types/labelTypes";
 import { DraggableLabelCanvas } from "./DraggableLabelCanvas";
 import { getUOMLabel, getUOMFullLabel } from "@/constants/uom";
+import {
+  createCustomTextSlot,
+  getCustomTextFields,
+  migrateCustomTextFields,
+  usesCustomTextFields,
+} from "@/utils/labelCustomText";
 
 interface PrecisionLabelDesignerProps {
   labelWidth: number;
@@ -64,6 +70,7 @@ const DEFAULT_PRECISION_CONFIG: LabelDesignConfig = {
   barcodeHeight: 30,
   barcodeWidth: 1.5,
   customTextValue: "",
+  customTextFields: [],
   lines: [],
 };
 
@@ -97,7 +104,22 @@ export function PrecisionLabelDesigner({
 }: PrecisionLabelDesignerProps) {
   const [activeField, setActiveField] = useState<FieldKey | null>(null);
   const [activeLineIndex, setActiveLineIndex] = useState<number | null>(null);
+  const [activeCustomTextIndex, setActiveCustomTextIndex] = useState<number | null>(null);
   const [zoom, setZoom] = useState(3);
+
+  const customTextFields = getCustomTextFields(config);
+  const hideLegacyCustomTextField = usesCustomTextFields(config);
+
+  const setCustomTextFields = useCallback(
+    (slots: CustomTextSlot[]) => {
+      onConfigChange({
+        ...config,
+        customTextFields: slots,
+        customText: { ...config.customText, show: false },
+      });
+    },
+    [config, onConfigChange],
+  );
 
   const updateField = useCallback(
     (key: FieldKey, updates: Partial<LabelFieldConfig>) => {
@@ -146,7 +168,9 @@ export function PrecisionLabelDesigner({
     });
   };
 
-  const allFieldKeys: FieldKey[] = config.fieldOrder || Object.keys(FIELD_LABELS).filter(k => k !== "fieldOrder") as FieldKey[];
+  const allFieldKeys: FieldKey[] = (config.fieldOrder || Object.keys(FIELD_LABELS).filter((k) => k !== "fieldOrder") as FieldKey[]).filter(
+    (key) => !(key === "customText" && hideLegacyCustomTextField),
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -168,15 +192,180 @@ export function PrecisionLabelDesigner({
           </div>
         </div>
 
-        {/* Custom Text Value */}
-        <div className="space-y-1">
-          <Label className="text-xs">Custom Text Value</Label>
-          <Input
-            value={config.customTextValue || ""}
-            onChange={(e) => onConfigChange({ ...config, customTextValue: e.target.value })}
-            placeholder="e.g. Non-Returnable"
-            className="h-8 text-xs"
-          />
+        {/* Custom text slots — multiple per label */}
+        <div className="space-y-2 rounded-lg border border-border/60 p-2.5 bg-muted/20">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs font-semibold">Custom Text Fields</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                const slots =
+                  config.customTextFields !== undefined
+                    ? [...customTextFields]
+                    : migrateCustomTextFields(config);
+                slots.push(createCustomTextSlot(slots, labelWidth, labelHeight));
+                setCustomTextFields(slots);
+              }}
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add Custom Text
+            </Button>
+          </div>
+          {customTextFields.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground">
+              Add lines like &quot;Non-Returnable&quot;, &quot;Kids Zone&quot;, warranty notes — each with its own position.
+            </p>
+          ) : (
+            customTextFields.map((slot, idx) => (
+              <Card
+                key={slot.id}
+                className={`transition-colors ${activeCustomTextIndex === idx ? "border-primary" : "border-border"}`}
+                onClick={() => {
+                  setActiveCustomTextIndex(activeCustomTextIndex === idx ? null : idx);
+                  setActiveField(null);
+                  setActiveLineIndex(null);
+                }}
+              >
+                <CardContent className="p-2 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Switch
+                        checked={slot.show}
+                        onCheckedChange={(v) => {
+                          const slots = [...customTextFields];
+                          slots[idx] = { ...slots[idx], show: v };
+                          setCustomTextFields(slots);
+                        }}
+                        className="scale-75"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <span className="text-xs font-medium truncate">Custom Text {idx + 1}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:text-destructive shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const slots = customTextFields.filter((_, i) => i !== idx);
+                        setCustomTextFields(slots);
+                        setActiveCustomTextIndex(null);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <Input
+                    value={slot.value}
+                    onChange={(e) => {
+                      const slots = [...customTextFields];
+                      slots[idx] = { ...slots[idx], value: e.target.value, show: true };
+                      setCustomTextFields(slots);
+                    }}
+                    placeholder="e.g. Non-Returnable"
+                    className="h-8 text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {activeCustomTextIndex === idx && slot.show && (
+                    <div className="grid grid-cols-4 gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="space-y-0.5">
+                        <Label className="text-[10px]">X (mm)</Label>
+                        <Input
+                          type="number"
+                          step={0.5}
+                          value={slot.x}
+                          onChange={(e) => {
+                            const slots = [...customTextFields];
+                            slots[idx] = { ...slots[idx], x: parseFloat(e.target.value) || 0 };
+                            setCustomTextFields(slots);
+                          }}
+                          className="h-7 text-xs px-1.5"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <Label className="text-[10px]">Y (mm)</Label>
+                        <Input
+                          type="number"
+                          step={0.5}
+                          value={slot.y}
+                          onChange={(e) => {
+                            const slots = [...customTextFields];
+                            slots[idx] = { ...slots[idx], y: parseFloat(e.target.value) || 0 };
+                            setCustomTextFields(slots);
+                          }}
+                          className="h-7 text-xs px-1.5"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <Label className="text-[10px]">Size (pt)</Label>
+                        <Input
+                          type="number"
+                          min={4}
+                          max={24}
+                          value={slot.fontSize}
+                          onChange={(e) => {
+                            const slots = [...customTextFields];
+                            slots[idx] = { ...slots[idx], fontSize: parseInt(e.target.value, 10) || 7 };
+                            setCustomTextFields(slots);
+                          }}
+                          className="h-7 text-xs px-1.5"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <Label className="text-[10px]">W (mm)</Label>
+                        <Input
+                          type="number"
+                          step={1}
+                          value={slot.width}
+                          onChange={(e) => {
+                            const slots = [...customTextFields];
+                            slots[idx] = { ...slots[idx], width: parseFloat(e.target.value) || 20 };
+                            setCustomTextFields(slots);
+                          }}
+                          className="h-7 text-xs px-1.5"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Switch
+                          checked={slot.bold}
+                          onCheckedChange={(v) => {
+                            const slots = [...customTextFields];
+                            slots[idx] = { ...slots[idx], bold: v };
+                            setCustomTextFields(slots);
+                          }}
+                          className="scale-75"
+                        />
+                        <Label className="text-[10px]">Bold</Label>
+                      </div>
+                      <div className="col-span-2">
+                        <Select
+                          value={slot.textAlign || "center"}
+                          onValueChange={(v) => {
+                            const slots = [...customTextFields];
+                            slots[idx] = { ...slots[idx], textAlign: v as "left" | "center" | "right" };
+                            setCustomTextFields(slots);
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="left">Left</SelectItem>
+                            <SelectItem value="center">Center</SelectItem>
+                            <SelectItem value="right">Right</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Barcode settings */}
@@ -217,7 +406,11 @@ export function PrecisionLabelDesigner({
                 <Card
                   key={key}
                   className={`cursor-pointer transition-colors ${isActive ? "border-primary" : "border-border"}`}
-                  onClick={() => setActiveField(isActive ? null : key)}
+                  onClick={() => {
+                    setActiveField(isActive ? null : key);
+                    setActiveLineIndex(null);
+                    setActiveCustomTextIndex(null);
+                  }}
                 >
                   <CardContent className="p-2.5 space-y-2">
                     <div className="flex items-center justify-between">
@@ -518,11 +711,23 @@ export function PrecisionLabelDesigner({
           zoom={zoom}
           activeField={activeField}
           activeLineIndex={activeLineIndex}
+          activeCustomTextIndex={activeCustomTextIndex}
           onFieldSelect={setActiveField}
           onFieldDrag={handleFieldDrag}
           onLineSelect={setActiveLineIndex}
           onLineDrag={handleLineDrag}
           onLineDelete={handleLineDelete}
+          onCustomTextSelect={setActiveCustomTextIndex}
+          onCustomTextDrag={(index, x, y) => {
+            const slots = [...customTextFields];
+            slots[index] = { ...slots[index], x: Math.round(x * 2) / 2, y: Math.round(y * 2) / 2 };
+            setCustomTextFields(slots);
+          }}
+          onCustomTextDelete={(index) => {
+            const slots = customTextFields.filter((_, i) => i !== index);
+            setCustomTextFields(slots);
+            setActiveCustomTextIndex(null);
+          }}
         />
 
         <div className="text-xs text-muted-foreground text-center">
