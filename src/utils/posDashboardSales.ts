@@ -4,6 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import {
+  fetchSaleReceiptSplitsForInvoices,
+  reconcileSaleInvoiceWithSplit,
+} from "@/utils/customerBalanceUtils";
+import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
   isHoldLikePosSale,
@@ -409,6 +413,38 @@ async function enrichPosSalesWithCreditNotes(
   return { sales: enriched, creditNoteUsage };
 }
 
+/** Ledger-consistent paid / status / balance (matches Customer Payment + invoice dashboard). */
+async function enrichPosSalesWithReceiptSettlement(
+  client: SupabaseClient,
+  organizationId: string,
+  sales: any[],
+): Promise<any[]> {
+  if (!organizationId || sales.length === 0) return sales;
+
+  const splitBySale = await fetchSaleReceiptSplitsForInvoices(
+    client,
+    organizationId,
+    sales.map((sale) => ({
+      id: sale.id,
+      sale_number: sale.sale_number,
+      customer_id: sale.customer_id,
+    })),
+  );
+
+  return sales.map((sale) => {
+    if (sale.is_cancelled || sale.payment_status === "cancelled" || sale.payment_status === "hold") {
+      return sale;
+    }
+    const rec = reconcileSaleInvoiceWithSplit(sale, splitBySale.get(sale.id) ?? null);
+    return {
+      ...sale,
+      paid_amount: rec.paid_amount,
+      payment_status: rec.payment_status,
+      pos_outstanding: rec.outstanding,
+    };
+  });
+}
+
 export function computePosDashboardSummaryStats(
   rows: PosDashboardSaleLike[],
 ): PosDashboardSummaryStats {
@@ -511,7 +547,12 @@ export async function fetchPosDashboardPage(
   if (error) throw error;
 
   const enriched = await enrichPosSalesWithCreditNotes(data || []);
-  return { ...enriched, totalCount };
+  const settled = await enrichPosSalesWithReceiptSettlement(
+    client,
+    filters.organizationId,
+    enriched.sales,
+  );
+  return { sales: settled, creditNoteUsage: enriched.creditNoteUsage, totalCount };
 }
 
 async function scanPosDashboardSummaryRows(
@@ -537,7 +578,12 @@ async function scanPosDashboardSummaryRows(
     offset += PAGE_SIZE;
   }
 
-  return allRows;
+  const settled = await enrichPosSalesWithReceiptSettlement(
+    client,
+    filters.organizationId,
+    allRows,
+  );
+  return settled;
 }
 
 export async function fetchPosDashboardSummary(

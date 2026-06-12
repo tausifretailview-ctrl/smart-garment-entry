@@ -59,6 +59,8 @@ import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
+import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
@@ -71,6 +73,7 @@ import {
   reconcileSaleInvoiceWithSplit,
   resolveReceiptReprintBalances,
   splitSaleLinkedReceiptRows,
+  syncSalePaymentFromVouchers,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 // Sentinel ID used to represent the customer's remaining Opening Balance
@@ -113,44 +116,6 @@ function resolvePaymentBreakdown(
   }
   const cash = roundToRupee(Math.max(0, settlement - discount));
   return { settlement, discount, cash, discountPercent: pct };
-}
-
-/** Ledger-consistent paid_amount / status from receipt vouchers (avoids double-counting with paid_amount). */
-async function syncSalePaymentFromVouchers(
-  invoiceId: string,
-  organizationId: string,
-  voucherDateYmd: string,
-  client: typeof supabase,
-) {
-  const { data: freshSale, error: saleErr } = await client
-    .from("sales")
-    .select("net_amount, paid_amount, sale_return_adjust, customer_id, sale_number")
-    .eq("id", invoiceId)
-    .eq("organization_id", organizationId)
-    .single();
-  if (saleErr) throw saleErr;
-
-  const splitMap = await fetchSaleReceiptSplitsForInvoices(client, organizationId, [
-    {
-      id: invoiceId,
-      sale_number: freshSale.sale_number,
-      customer_id: freshSale.customer_id,
-    },
-  ]);
-  const split = splitMap.get(invoiceId) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
-  const rec = reconcileSaleInvoiceWithSplit(freshSale, split);
-
-  const { error: updErr } = await client
-    .from("sales")
-    .update({
-      paid_amount: rec.paid_amount,
-      payment_status: rec.payment_status,
-      payment_date: voucherDateYmd,
-    })
-    .eq("id", invoiceId)
-    .eq("organization_id", organizationId);
-  if (updErr) throw updErr;
-  return rec;
 }
 
 async function rollbackCustomerReceiptVouchers(
@@ -1064,6 +1029,8 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      invalidatePosDashboardQueries(queryClient, organizationId);
+      notifyPosSalesChanged({ organizationId });
       invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
 
       const totalPaid = data.paidAmount ?? roundToRupee(amount);

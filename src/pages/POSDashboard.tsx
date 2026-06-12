@@ -80,7 +80,8 @@ import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
-import { POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
+import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
+import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
@@ -1430,10 +1431,7 @@ const POSDashboard = () => {
 
     setIsRecordingPayment(true);
 
-    const prevPaid = currentPaid;
-    const prevStatus = selectedSaleForPayment.payment_status;
-    const prevPaymentDate = (selectedSaleForPayment as Sale & { payment_date?: string | null }).payment_date ?? null;
-    const prevPaymentMethod = selectedSaleForPayment.payment_method;
+    const voucherDateYmd = format(paymentDate, "yyyy-MM-dd");
 
     const { data: acctSettingsGl } = await supabase
       .from("settings")
@@ -1444,31 +1442,12 @@ const POSDashboard = () => {
       acctSettingsGl as { accounting_engine_enabled?: boolean } | null
     );
 
-    let saleUpdated = false;
     let insertedVoucherId: string | null = null;
 
     try {
-      const newPaidAmount = currentPaid + amount;
-      const newStatus = (newPaidAmount + currentCNAdjust) >= selectedSaleForPayment.net_amount - 1
-        ? 'completed'
-        : newPaidAmount > 0 || currentCNAdjust > 0 ? 'partial' : 'pending';
-
-      const { error: updateError } = await supabase
-        .from('sales')
-        .update({
-          paid_amount: newPaidAmount,
-          payment_status: newStatus,
-          payment_date: format(paymentDate, 'yyyy-MM-dd'),
-          payment_method: paymentMode,
-        })
-        .eq('id', selectedSaleForPayment.id);
-
-      if (updateError) throw updateError;
-      saleUpdated = true;
-
       const { data: voucherData, error: voucherError } = await supabase.rpc(
         'generate_voucher_number',
-        { p_type: 'receipt', p_date: format(paymentDate, 'yyyy-MM-dd') }
+        { p_type: 'receipt', p_date: voucherDateYmd }
       );
 
       if (voucherError) throw voucherError;
@@ -1481,7 +1460,7 @@ const POSDashboard = () => {
           organization_id: currentOrganization?.id,
           voucher_number: voucherData,
           voucher_type: 'receipt',
-          voucher_date: format(paymentDate, 'yyyy-MM-dd'),
+          voucher_date: voucherDateYmd,
           reference_type: 'sale',
           reference_id: selectedSaleForPayment.id,
           total_amount: amount,
@@ -1494,6 +1473,20 @@ const POSDashboard = () => {
       if (voucherEntryError) throw voucherEntryError;
       if (!vrow?.id) throw new Error("Receipt voucher insert failed");
       insertedVoucherId = vrow.id as string;
+
+      const rec = await syncSalePaymentFromVouchers(
+        selectedSaleForPayment.id,
+        currentOrganization!.id,
+        voucherDateYmd,
+        supabase,
+      );
+
+      const { error: paymentMethodError } = await supabase
+        .from("sales")
+        .update({ payment_method: paymentMode })
+        .eq("id", selectedSaleForPayment.id)
+        .eq("organization_id", currentOrganization!.id);
+      if (paymentMethodError) throw paymentMethodError;
 
       if (postLedger) {
         await recordCustomerReceiptJournalEntry(
@@ -1524,7 +1517,7 @@ const POSDashboard = () => {
         invoiceAmount: selectedSaleForPayment.net_amount,
         paidAmount: amount,
         previousBalance: Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust),
-        currentBalance: Math.round(selectedSaleForPayment.net_amount - newPaidAmount - currentCNAdjust),
+        currentBalance: Math.round(rec.outstanding),
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
@@ -1533,6 +1526,7 @@ const POSDashboard = () => {
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
       refreshPosDashboard();
+      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
       if (insertedVoucherId && currentOrganization?.id) {
@@ -1543,17 +1537,16 @@ const POSDashboard = () => {
           supabase
         );
         await supabase.from("voucher_entries").delete().eq("id", insertedVoucherId);
-      }
-      if (saleUpdated) {
-        await supabase
-          .from("sales")
-          .update({
-            paid_amount: prevPaid,
-            payment_status: prevStatus,
-            payment_date: prevPaymentDate,
-            payment_method: prevPaymentMethod,
-          })
-          .eq("id", selectedSaleForPayment.id);
+        try {
+          await syncSalePaymentFromVouchers(
+            selectedSaleForPayment.id,
+            currentOrganization.id,
+            voucherDateYmd,
+            supabase,
+          );
+        } catch {
+          // Best-effort restore sale row from remaining vouchers.
+        }
       }
       toast({
         title: "Error",

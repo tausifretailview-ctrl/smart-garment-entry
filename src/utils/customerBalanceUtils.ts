@@ -681,7 +681,8 @@ export function reconcileSaleInvoiceDisplay(params: {
     discount: 0,
   };
   const advCn = adv + cn;
-  let effectiveCash = Math.max(salePaid - advCn, cash);
+  // At-sale tender (POS cash/card/UPI columns) plus follow-up receipt vouchers — not max().
+  let effectiveCash = Math.max(0, salePaid - advCn) + cash + discount;
 
   if (sr > INVOICE_RECON_TOL && Math.abs(salePaid - sr) <= DUPLICATE_CN_PAID_MATCH_TOL) {
     effectiveCash = Math.max(0, cash);
@@ -795,6 +796,9 @@ export function reconcileSaleInvoiceWithSplit(
     net_amount?: number | null;
     sale_return_adjust?: number | null;
     paid_amount?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
     /** Optional Σ(mrp × qty); enables the pre-return S/R subtraction guard. */
     items_gross?: number | null;
   },
@@ -802,7 +806,9 @@ export function reconcileSaleInvoiceWithSplit(
 ) {
   const s = split ?? emptySplit();
   const voucherBucketSum = s.cash + s.adv + s.cn;
-  const paidForReconcile = Math.max(0, Number(sale.paid_amount || 0) - voucherBucketSum);
+  const atSaleTender = salePaidAtSaleTender(sale);
+  const storedPaid = Number(sale.paid_amount || 0);
+  const paidForReconcile = Math.max(atSaleTender, Math.max(0, storedPaid - voucherBucketSum));
   return reconcileSaleInvoiceDisplay({
     net_amount: Number(sale.net_amount || 0),
     sale_return_adjust: Number(sale.sale_return_adjust || 0),
@@ -810,6 +816,46 @@ export function reconcileSaleInvoiceWithSplit(
     split: s,
     items_gross: sale.items_gross != null ? Number(sale.items_gross) : null,
   });
+}
+
+/** Ledger-consistent paid_amount / status from receipt vouchers (canonical sale row writer). */
+export async function syncSalePaymentFromVouchers(
+  invoiceId: string,
+  organizationId: string,
+  voucherDateYmd: string,
+  client: SupabaseClient,
+) {
+  const { data: freshSale, error: saleErr } = await client
+    .from("sales")
+    .select(
+      "net_amount, paid_amount, sale_return_adjust, customer_id, sale_number, cash_amount, card_amount, upi_amount",
+    )
+    .eq("id", invoiceId)
+    .eq("organization_id", organizationId)
+    .single();
+  if (saleErr) throw saleErr;
+
+  const splitMap = await fetchSaleReceiptSplitsForInvoices(client, organizationId, [
+    {
+      id: invoiceId,
+      sale_number: freshSale.sale_number,
+      customer_id: freshSale.customer_id,
+    },
+  ]);
+  const split = splitMap.get(invoiceId) ?? emptySplit();
+  const rec = reconcileSaleInvoiceWithSplit(freshSale, split);
+
+  const { error: updErr } = await client
+    .from("sales")
+    .update({
+      paid_amount: rec.paid_amount,
+      payment_status: rec.payment_status,
+      payment_date: voucherDateYmd,
+    })
+    .eq("id", invoiceId)
+    .eq("organization_id", organizationId);
+  if (updErr) throw updErr;
+  return rec;
 }
 
 /**
