@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { formatPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { ColumnDef } from "@tanstack/react-table";
@@ -1930,14 +1930,14 @@ const PurchaseBillDashboard = () => {
         )}
 
         {/* Dialogs — payment dialog shared */}
-        <AlertDialog open={showPaymentDialog} onOpenChange={() => setShowPaymentDialog(false)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Record Payment</AlertDialogTitle>
-              <AlertDialogDescription>
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Record Payment</DialogTitle>
+              <DialogDescription>
                 {selectedBillForPayment && `Record payment for ${selectedBillForPayment.software_bill_no} — ₹${Math.max(0, selectedBillForPayment.net_amount - (selectedBillForPayment.paid_amount||0)).toFixed(2)} pending`}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
+              </DialogDescription>
+            </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-2">
                 <Label>Payment Amount</Label>
@@ -1947,7 +1947,7 @@ const PurchaseBillDashboard = () => {
                 <Label>Payment Method</Label>
                 <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-popover z-50">
+                  <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                     <SelectItem value="upi">UPI</SelectItem>
@@ -1956,14 +1956,16 @@ const PurchaseBillDashboard = () => {
                 </Select>
               </div>
             </div>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={isRecordingPayment}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleRecordPayment} disabled={isRecordingPayment}>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPaymentDialog(false)} disabled={isRecordingPayment}>
+                Cancel
+              </Button>
+              <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
                 {isRecordingPayment ? "Recording..." : "Record Payment"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {selectedSupplierForHistory && currentOrganization && (
           <SupplierHistoryDialog
@@ -2641,14 +2643,14 @@ const PurchaseBillDashboard = () => {
       </AlertDialog>
 
       {/* Payment Recording Dialog */}
-      <AlertDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Record Payment</AlertDialogTitle>
-            <AlertDialogDescription>
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
               Record a payment for purchase bill {selectedBillForPayment?.software_bill_no}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </DialogDescription>
+          </DialogHeader>
           
           {selectedBillForPayment && (
             <div className="space-y-4 py-4">
@@ -2710,7 +2712,7 @@ const PurchaseBillDashboard = () => {
                   <SelectTrigger id="payment-method">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
+                  <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                     <SelectItem value="cheque">Cheque</SelectItem>
@@ -2732,12 +2734,11 @@ const PurchaseBillDashboard = () => {
             </div>
           )}
 
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRecordingPayment}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRecordPayment}
-              disabled={isRecordingPayment}
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentDialog(false)} disabled={isRecordingPayment}>
+              Cancel
+            </Button>
+            <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
               {isRecordingPayment ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -2746,10 +2747,10 @@ const PurchaseBillDashboard = () => {
               ) : (
                 "Record Payment"
               )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Supplier History Dialog */}
       {selectedSupplierForHistory && currentOrganization && (
