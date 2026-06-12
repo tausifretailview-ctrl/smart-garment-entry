@@ -25,7 +25,7 @@ interface DesktopAppShellProps {
 
 /**
  * Single sticky desktop chrome: left menu + header + window tabs.
- * POS / Sale Bill / Purchase Bill: no sidebar, no global menu/shortcut bar, no tab strip.
+ * POS / Sale Bill / Purchase Bill: no sidebar or global menu bar; window tab strip stays visible.
  */
 export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
   const location = useLocation();
@@ -42,12 +42,8 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               {!billingFullScreen && <AppSidebar />}
               {!billingFullScreen && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
-                {!billingFullScreen && (
-                  <>
-                    <Header />
-                    <WindowTabsBar />
-                  </>
-                )}
+                {!billingFullScreen && <Header />}
+                <WindowTabsBar />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
               </SidebarInset>
             </div>

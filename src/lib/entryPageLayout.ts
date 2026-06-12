@@ -2,7 +2,7 @@
 export const ENTRY_FULLSCREEN_PATH =
   /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry)(\/|$)/;
 
-/** POS + primary bill entry — full viewport: no sidebar, global header, or tab strip. */
+/** POS + primary bill entry — full viewport: no sidebar or global header; window tab strip stays visible. */
 export const NO_SIDEBAR_ENTRY_PATH =
   /\/(pos-sales|sales-invoice|purchase-entry)(\/|$)/;
 

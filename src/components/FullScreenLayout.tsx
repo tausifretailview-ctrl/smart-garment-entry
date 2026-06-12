@@ -59,8 +59,10 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
     );
   }
 
-  const showSidebar = showDesktopChrome && !isNoSidebarEntryPath(location.pathname);
-  const showTopChrome = showDesktopChrome && !isEntryFullscreenPage;
+  const hideBillingChrome = isNoSidebarEntryPath(location.pathname);
+  const showSidebar = showDesktopChrome && !hideBillingChrome;
+  const showHeader = showDesktopChrome && !hideBillingChrome;
+  const showWindowTabsBar = showDesktopChrome;
 
   return (
     <ChatProvider>
@@ -92,15 +94,15 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                     : "flex flex-col flex-1 min-w-0"
                 }
               >
-                {showTopChrome && (
+                {showHeader && (
                   <>
                     <Header />
-                    <WindowTabsBar />
                     <div className="px-3 pt-2 lg:hidden">
                       <DesktopViewToggle variant="banner" />
                     </div>
                   </>
                 )}
+                {showWindowTabsBar && <WindowTabsBar />}
                 {!showDesktopChrome && !isEntryFullscreenPage && <MobileAppHeader />}
                 <main
                   className={
