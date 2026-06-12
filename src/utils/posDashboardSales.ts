@@ -4,6 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import {
+  buildPosSaleHeaderSearchFilter,
+  rankPosDashboardSearchResults,
+  shouldUnionSaleItemsForPosSearch,
+} from "@/utils/posDashboardSearch";
+import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
 } from "@/utils/customerBalanceUtils";
@@ -162,13 +167,6 @@ function posSearchBypassesDateFilter(search: string): boolean {
   return search.trim().length > 0;
 }
 
-function shouldUnionSaleItemsForPosSearch(searchStr: string): boolean {
-  const t = searchStr.trim();
-  if (!t) return false;
-  if (/^\d+$/.test(t)) return t.length >= 4;
-  return /[A-Za-z]/.test(t) && t.length >= 3;
-}
-
 function shouldApplyPosUserFilter(userFilter: string): boolean {
   return Boolean(userFilter) && userFilter !== "all" && userFilter !== "__pending__";
 }
@@ -318,10 +316,24 @@ async function applyPosSearchToQuery(
   const searchStr = filters.search.trim();
   if (!searchStr) return query;
 
-  const saleTextFilter =
-    `sale_number.ilike.%${searchStr}%,` +
-    `customer_name.ilike.%${searchStr}%,` +
-    `customer_phone.ilike.%${searchStr}%`;
+  const saleTextFilter = buildPosSaleHeaderSearchFilter(searchStr);
+
+  const { data: headerMatches, error: headerError } = await client
+    .from("sales")
+    .select("id, sale_number, sale_date")
+    .eq("organization_id", filters.organizationId)
+    .in("sale_type", ["pos", "delivery_challan"])
+    .is("deleted_at", null)
+    .or(saleTextFilter);
+  if (headerError) throw headerError;
+
+  const rankedHeaders = rankPosDashboardSearchResults(headerMatches || [], searchStr);
+  const headerMatchIds = rankedHeaders.map((s) => s.id).filter(Boolean);
+
+  // When invoice serial matches exist (e.g. "1029" → POS/26-27/1029), skip line-item union.
+  if (headerMatchIds.length > 0 && !shouldUnionSaleItemsForPosSearch(searchStr)) {
+    return query.in("id", headerMatchIds);
+  }
 
   let matchingSaleIds: string[] = [];
   if (shouldUnionSaleItemsForPosSearch(searchStr)) {
@@ -335,15 +347,7 @@ async function applyPosSearchToQuery(
   }
 
   if (matchingSaleIds.length > 0) {
-    const { data: textMatches } = await client
-      .from("sales")
-      .select("id")
-      .eq("organization_id", filters.organizationId)
-      .in("sale_type", ["pos", "delivery_challan"])
-      .is("deleted_at", null)
-      .or(saleTextFilter);
-    const textMatchIds = (textMatches || []).map((s: any) => s.id);
-    const allMatchIds = [...new Set([...textMatchIds, ...matchingSaleIds])];
+    const allMatchIds = [...new Set([...headerMatchIds, ...matchingSaleIds])];
     return query.in("id", allMatchIds);
   }
   return query.or(saleTextFilter);
@@ -552,7 +556,10 @@ export async function fetchPosDashboardPage(
     filters.organizationId,
     enriched.sales,
   );
-  return { sales: settled, creditNoteUsage: enriched.creditNoteUsage, totalCount };
+  const rankedSales = filters.search.trim()
+    ? rankPosDashboardSearchResults(settled, filters.search)
+    : settled;
+  return { sales: rankedSales, creditNoteUsage: enriched.creditNoteUsage, totalCount };
 }
 
 async function scanPosDashboardSummaryRows(
