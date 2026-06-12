@@ -558,17 +558,32 @@ export const useSaveSale = () => {
       return null;
     }
 
+    const hasNamedCustomer = () =>
+      !!saleData.customerName?.trim() &&
+      saleData.customerName.trim().toLowerCase() !== "walk-in customer";
+
     // Server-side safety net: Pay Later (credit) bills MUST have a named customer.
-    // Prevents wrongly-attributed credit entries from any save entry point.
-    if (paymentMethod === 'pay_later') {
-      const nameOk = !!saleData.customerName?.trim() &&
-        saleData.customerName.trim().toLowerCase() !== 'walk-in customer';
+    if (paymentMethod === "pay_later") {
       const phoneOk = !!saleData.customerPhone?.trim();
-      if (!nameOk && !phoneOk) {
+      if (!hasNamedCustomer() && !phoneOk) {
         savingLockRef.current = false;
         toast({
           title: "Customer Required for Credit Bill",
           description: "Please add customer name or mobile number before saving a Pay Later invoice.",
+          variant: "destructive",
+        });
+        return null;
+      }
+    }
+
+    // Mix payment with unpaid credit balance must have a named customer.
+    if (paymentMethod === "multiple" && paymentBreakdown) {
+      const mixCreditAmount = Math.max(0, saleData.netAmount - paymentBreakdown.totalPaid);
+      if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
+        savingLockRef.current = false;
+        toast({
+          title: "Customer Name Required",
+          description: "Please add customer name when mix payment includes a credit balance.",
           variant: "destructive",
         });
         return null;
@@ -1093,16 +1108,31 @@ export const useSaveSale = () => {
       return null;
     }
 
+    const hasNamedCustomer = () =>
+      !!saleData.customerName?.trim() &&
+      saleData.customerName.trim().toLowerCase() !== "walk-in customer";
+
     // Server-side safety net: Pay Later (credit) bills MUST have a named customer.
-    if (paymentMethod === 'pay_later') {
-      const nameOk = !!saleData.customerName?.trim() &&
-        saleData.customerName.trim().toLowerCase() !== 'walk-in customer';
+    if (paymentMethod === "pay_later") {
       const phoneOk = !!saleData.customerPhone?.trim();
-      if (!nameOk && !phoneOk) {
+      if (!hasNamedCustomer() && !phoneOk) {
         savingLockRef.current = false;
         toast({
           title: "Customer Required for Credit Bill",
           description: "Please add customer name or mobile number before saving a Pay Later invoice.",
+          variant: "destructive",
+        });
+        return null;
+      }
+    }
+
+    if (paymentMethod === "multiple" && paymentBreakdown) {
+      const mixCreditAmount = Math.max(0, saleData.netAmount - paymentBreakdown.totalPaid);
+      if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
+        savingLockRef.current = false;
+        toast({
+          title: "Customer Name Required",
+          description: "Please add customer name when mix payment includes a credit balance.",
           variant: "destructive",
         });
         return null;
