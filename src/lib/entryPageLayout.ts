@@ -2,8 +2,21 @@
 export const ENTRY_FULLSCREEN_PATH =
   /\/(sales-invoice|purchase-entry|sale-return-entry|purchase-return-entry|quotation-entry|sale-order-entry|delivery-challan-entry|purchase-order-entry)(\/|$)/;
 
+/** POS + primary bill entry — full width, no left menu bar (desktop shell). */
+export const NO_SIDEBAR_ENTRY_PATH =
+  /\/(pos-sales|sales-invoice|purchase-entry)(\/|$)/;
+
 export function isEntryFullscreenPath(pathname: string): boolean {
   return ENTRY_FULLSCREEN_PATH.test(pathname);
+}
+
+export function isNoSidebarEntryPath(pathname: string): boolean {
+  return NO_SIDEBAR_ENTRY_PATH.test(pathname);
+}
+
+export function isNoSidebarEntrySegment(pathSegment: string): boolean {
+  const segment = pathSegment.replace(/^\/+|\/+$/g, "");
+  return segment === "pos-sales" || segment === "sales-invoice" || segment === "purchase-entry";
 }
 
 /** Org path segment for bill/POS entry — excluded from tab cache (needs FullScreenLayout + h-dvh). */

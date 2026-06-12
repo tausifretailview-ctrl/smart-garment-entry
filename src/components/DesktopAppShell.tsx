@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarExpandStrip } from "@/components/SidebarExpandStrip";
@@ -14,6 +15,7 @@ import { StatusBar } from "@/components/StatusBar";
 import { IdleMount } from "@/components/IdleMount";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
+import { isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { cn } from "@/lib/utils";
 
 interface DesktopAppShellProps {
@@ -23,9 +25,12 @@ interface DesktopAppShellProps {
 
 /**
  * Single sticky desktop chrome: left menu + header + window tabs.
- * Page/tab switches only swap inner content — sidebar does not remount.
+ * POS / Sale Bill / Purchase Bill hide the left menu for full-width entry.
  */
 export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
+  const location = useLocation();
+  const hideSidebar = isNoSidebarEntryPath(location.pathname);
+
   return (
     <ChatProvider>
       <DashboardToolbarProvider>
@@ -34,8 +39,8 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
             <OfflineIndicator />
 
             <div className={cn("flex h-full min-h-0 w-full flex-1 bg-background overflow-hidden", className)}>
-              <AppSidebar />
-              <SidebarExpandStrip />
+              {!hideSidebar && <AppSidebar />}
+              {!hideSidebar && <SidebarExpandStrip />}
               <SidebarInset className="flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden">
                 <Header />
                 <WindowTabsBar />

@@ -19,7 +19,7 @@ import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileS
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
-import { entryPageLayoutMainClass, isEntryFullscreenPath } from "@/lib/entryPageLayout";
+import { entryPageLayoutMainClass, isEntryFullscreenPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
@@ -56,7 +56,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
     );
   }
 
-  const showSidebar = showDesktopChrome;
+  const showSidebar = showDesktopChrome && !isNoSidebarEntryPath(location.pathname);
   const showTopChrome = showDesktopChrome && !isEntryFullscreenPage;
 
   return (
