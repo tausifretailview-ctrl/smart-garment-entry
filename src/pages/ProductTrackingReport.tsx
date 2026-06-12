@@ -218,7 +218,7 @@ const ProductTrackingReport = () => {
       return { categories, brands };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60000,
+    ...STABLE_TAB_OPTIONS,
   });
 
   // Server-side paginated query

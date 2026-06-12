@@ -28,6 +28,15 @@ interface AggregatedRow {
 
 const PAGE_SIZE = 200;
 
+// Tab-return stable: keep cached data, never auto-refetch on focus/mount/reconnect.
+const STABLE_TAB_OPTIONS = {
+  staleTime: 5 * 60 * 1000,
+  gcTime: 30 * 60 * 1000,
+  refetchOnWindowFocus: false as const,
+  refetchOnMount: false as const,
+  refetchOnReconnect: false as const,
+};
+
 async function fetchAllPages(
   buildQuery: () => any,
   batchSize = 1000
