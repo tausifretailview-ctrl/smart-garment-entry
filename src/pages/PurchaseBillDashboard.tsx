@@ -1276,11 +1276,13 @@ const PurchaseBillDashboard = () => {
       });
     },
     enabled: !!currentOrganization?.id,
+    retry: false,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
   const isDashboardInitialLoad = billsQueryLoading && billsQueryData === undefined;
-  const isDashboardBackgroundRefresh = billsQueryFetching && !isDashboardInitialLoad;
+  const isDashboardBackgroundRefresh =
+    (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
   const loading = isDashboardInitialLoad && !billsQueryError;
 
   useNavPerfQueryWatch("purchase-bills-list", PERF_PATH, {
