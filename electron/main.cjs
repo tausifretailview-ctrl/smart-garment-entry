@@ -347,8 +347,8 @@ function createWindow() {
        fixed ERP status bar so Save Invoice / Save Bill is never covered. */
     [data-entry-form] {
       height: auto !important;
-      min-height: calc(100dvh - var(--ezzy-hint-bar-height, 22px));
-      max-height: calc(100dvh - var(--ezzy-hint-bar-height, 22px));
+      min-height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height, 22px));
+      max-height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height, 22px));
       overflow-y: auto !important;
       padding-bottom: var(--erp-status-bar-height, 1.75rem) !important;
     }
@@ -403,13 +403,13 @@ function createWindow() {
       --ezzy-hint-bar-height: 22px;
     }
     html.desktop-shell .h-screen {
-      height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
-      max-height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
+      height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height)) !important;
+      max-height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height)) !important;
     }
     html.desktop-shell body.entry-bill-screen,
     html.desktop-shell body.entry-bill-screen #root {
-      height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
-      max-height: calc(100dvh - var(--ezzy-hint-bar-height)) !important;
+      height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height)) !important;
+      max-height: calc(var(--ezzy-viewport-h, 100dvh) - var(--ezzy-hint-bar-height)) !important;
     }
 
     /* ── Step 5: Multi-document tab strip (Vyapar / browser-style) ─────
@@ -497,8 +497,18 @@ function createWindow() {
         }
         return bar;
       }
+      function syncViewport() {
+        try {
+          var h = window.innerHeight;
+          if (h > 0) {
+            document.documentElement.style.setProperty('--ezzy-viewport-h', h + 'px');
+          }
+          window.dispatchEvent(new Event('resize'));
+        } catch (e) {}
+      }
       function update() {
         try {
+          syncViewport();
           var bar = ensureBar();
           var k = key(location.pathname);
           var hints = HINTS[k] || DEFAULT_HINTS;
@@ -531,8 +541,12 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents.insertCSS(HEADER_CSS).catch(() => {});
     mainWindow.webContents.executeJavaScript(HINT_BAR_JS).catch(() => {});
-    // zoomFactor is already applied via webPreferences — no need to re-set it
-    // here (was causing a one-time layout reflow after first paint).
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    notifyRendererLayoutSync();
+    setTimeout(notifyRendererLayoutSync, 100);
+    setTimeout(notifyRendererLayoutSync, 500);
   });
 
   // Show maximized by default so bill entry footers and fields fit without manual resize
@@ -554,6 +568,14 @@ function createWindow() {
   });
 
   mainWindow.on('maximize', () => {
+    setTimeout(notifyRendererLayoutSync, 50);
+  });
+
+  mainWindow.on('resize', () => {
+    setTimeout(notifyRendererLayoutSync, 16);
+  });
+
+  mainWindow.on('restore', () => {
     setTimeout(notifyRendererLayoutSync, 50);
   });
 

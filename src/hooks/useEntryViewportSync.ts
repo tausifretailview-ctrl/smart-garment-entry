@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { initElectronViewportSync, syncElectronViewportHeight } from "@/lib/electronViewportSync";
 
 /**
  * Windows desktop WebView often reports a wrong innerWidth on first paint (content looks
@@ -16,24 +17,9 @@ export function useEntryViewportSync(): void {
   }, []);
 
   useEffect(() => {
-    let syncing = false;
+    initElectronViewportSync();
 
-    const sync = () => {
-      if (syncing) return;
-      syncing = true;
-      try {
-        const root = document.documentElement;
-        root.classList.add("entry-viewport-synced");
-        root.style.setProperty("--entry-vw", `${window.innerWidth}px`);
-        root.style.setProperty("--entry-vh", `${window.innerHeight}px`);
-        root.style.setProperty("--ezzy-viewport-h", `${window.innerHeight}px`);
-        if (root.style.zoom && root.style.zoom !== "1") {
-          root.style.zoom = "1";
-        }
-      } finally {
-        syncing = false;
-      }
-    };
+    const sync = () => syncElectronViewportHeight();
 
     sync();
     const raf = requestAnimationFrame(sync);
@@ -41,28 +27,11 @@ export function useEntryViewportSync(): void {
     const t250 = window.setTimeout(sync, 250);
     const t800 = window.setTimeout(sync, 800);
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") sync();
-    };
-
-    window.addEventListener("resize", sync);
-    window.addEventListener("focus", sync);
-    document.addEventListener("visibilitychange", onVisible);
-
-    const vv = window.visualViewport;
-    vv?.addEventListener("resize", sync);
-    vv?.addEventListener("scroll", sync);
-
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(t50);
       window.clearTimeout(t250);
       window.clearTimeout(t800);
-      window.removeEventListener("resize", sync);
-      window.removeEventListener("focus", sync);
-      document.removeEventListener("visibilitychange", onVisible);
-      vv?.removeEventListener("resize", sync);
-      vv?.removeEventListener("scroll", sync);
     };
   }, []);
 }

@@ -605,9 +605,20 @@ All colors MUST be HSL.
   /* Bill entry — no page scroll; only the line-items grid scrolls inside <main> */
   body.entry-bill-screen,
   body.entry-bill-screen #root {
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--ezzy-viewport-h, 100dvh);
+    max-height: var(--ezzy-viewport-h, 100dvh);
     overflow: hidden;
+  }
+
+  /* Org shell — use real window height in Electron (100dvh can exceed restored window) */
+  .ezzy-viewport-shell {
+    height: var(--ezzy-viewport-h, 100dvh);
+    max-height: var(--ezzy-viewport-h, 100dvh);
+  }
+
+  body.entry-bill-screen .ezzy-viewport-shell {
+    height: 100%;
+    max-height: 100%;
   }
 
   [data-entry-form] {

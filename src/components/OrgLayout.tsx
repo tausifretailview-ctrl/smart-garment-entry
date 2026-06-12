@@ -21,6 +21,7 @@ import {
   prefetchTabPagesIdle,
 } from "@/lib/tabPageRegistry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { syncElectronViewportHeight } from "@/lib/electronViewportSync";
 import {
   isNavigationPerfEnabled,
   recordNavigation,
@@ -275,6 +276,17 @@ export const OrgLayout = () => {
     hideAppBootSplash();
   }, [authLoading, user, orgLoading]);
 
+  // Electron: re-sync shell height when landing on POS / bill entry after login.
+  useEffect(() => {
+    if (!isElectronShell() || !isOrgSynced) return;
+    const needsViewport =
+      isEntryTabPath(currentPath) || isFillHeightWorkspacePath(location.pathname);
+    if (!needsViewport) return;
+    syncElectronViewportHeight();
+    const t = window.setTimeout(syncElectronViewportHeight, 100);
+    return () => window.clearTimeout(t);
+  }, [currentPath, isOrgSynced, location.pathname]);
+
   // For public routes, allow access without authentication
   if (isPublicRoute) {
     // Store org slug for context even for public views (in both storages)
@@ -371,7 +383,7 @@ export const OrgLayout = () => {
       <div
         className={
           constrainViewportHeight
-            ? "flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden"
+            ? "ezzy-viewport-shell flex w-full flex-col overflow-hidden"
             : "flex min-h-[100dvh] w-full flex-col"
         }
       >

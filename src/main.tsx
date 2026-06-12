@@ -6,12 +6,14 @@ import { initForceDesktopViewPreference } from "@/lib/desktopViewPreference";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { initBootSplashWatchdog } from "@/lib/appBootSplash";
 import { recoverElectronOAuthErrorPage } from "@/lib/electronOAuthRecovery";
+import { initElectronViewportSync } from "@/lib/electronViewportSync";
 import "./index.css";
 
 recoverElectronOAuthErrorPage();
 
 initForceDesktopViewPreference();
 initUIScale();
+initElectronViewportSync();
 void initNativeShell();
 initBootSplashWatchdog();
 

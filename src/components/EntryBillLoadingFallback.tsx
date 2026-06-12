@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 /** Full-viewport placeholder while Sales/Purchase bill JS chunk loads (Windows WebView). */
 export function EntryBillLoadingFallback() {
   return (
-    <div className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-100">
+    <div className="ezzy-viewport-shell flex w-full flex-col overflow-hidden bg-slate-100">
       <div className="h-[52px] shrink-0 bg-gradient-to-r from-slate-900 to-slate-800" />
       <div className="flex flex-1 flex-col items-center justify-center gap-3 min-h-0">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
