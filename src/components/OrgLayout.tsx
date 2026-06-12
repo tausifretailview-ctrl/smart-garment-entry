@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
 import { TabCachedPages } from "@/components/TabCachedPages";
-import { isCacheableEntryTabPath, isEntryTabPath, isFillHeightWorkspacePath } from "@/lib/entryPageLayout";
+import { isCacheableEntryTabPath, isEntryTabPath, isFillHeightShellPath } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
   prefetchPostLoginCriticalPages,
@@ -280,7 +280,7 @@ export const OrgLayout = () => {
   useEffect(() => {
     if (!isElectronShell() || !isOrgSynced) return;
     const needsViewport =
-      isEntryTabPath(currentPath) || isFillHeightWorkspacePath(location.pathname);
+      isEntryTabPath(currentPath) || isFillHeightShellPath(location.pathname);
     if (!needsViewport) return;
     syncElectronViewportHeight();
     const t = window.setTimeout(syncElectronViewportHeight, 100);
@@ -340,7 +340,7 @@ export const OrgLayout = () => {
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.
   // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
   const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && tabPaneReady;
-  const isFillHeightPage = isFillHeightWorkspacePath(location.pathname);
+  const isFillHeightPage = isFillHeightShellPath(location.pathname);
   const constrainViewportHeight = isEntryPage || hasVisibleTabCache || isFillHeightPage;
 
   const workspaceBody = (

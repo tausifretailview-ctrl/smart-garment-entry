@@ -81,6 +81,7 @@ import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
 import { cn } from "@/lib/utils";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { notifyPosSalesChanged, POS_SALES_REFRESH_EVENT } from "@/utils/posSalesRefresh";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
@@ -1922,6 +1923,7 @@ const POSDashboard = () => {
 
   const isMobile = useIsMobile();
   const inTabCache = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
   const fmtAmt = (n: number) =>
     n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : `₹${Math.round(n).toLocaleString("en-IN")}`;
 
@@ -2190,7 +2192,7 @@ const POSDashboard = () => {
     <div
       className={cn(
         "flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 min-h-0 overflow-hidden",
-        inTabCache ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
+        inTabCache || sharedShell ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
       )}
     >
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3">

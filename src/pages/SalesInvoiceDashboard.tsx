@@ -88,6 +88,9 @@ import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobilePeriodChips } from "@/components/mobile/MobilePeriodChips";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { cn } from "@/lib/utils";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
@@ -202,6 +205,8 @@ export default function SalesInvoiceDashboard() {
     invalidateInvoiceDashboardQueries(queryClient, currentOrganization?.id);
   }, [queryClient, currentOrganization?.id]);
   const isMobile = useIsMobile();
+  const inTabCache = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loadedItems, setLoadedItems] = useState<Record<string, any[]>>({});
@@ -3045,10 +3050,14 @@ export default function SalesInvoiceDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
-      
-      <div className="w-full min-w-0 max-w-none space-y-5">
-        <div className="flex items-center justify-between mb-1">
+    <div
+      className={cn(
+        "flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 min-h-0 overflow-hidden",
+        inTabCache || sharedShell ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
+      )}
+    >
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3">
+        <div className="flex items-center justify-between shrink-0">
           <div>
             <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
               Sales Invoice Dashboard
@@ -3099,7 +3108,7 @@ export default function SalesInvoiceDashboard() {
 
         {/* Unsaved Draft Card */}
         {hasDraft && draftData && (
-          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
+          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm shrink-0">
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -3150,7 +3159,7 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 w-full min-h-[5.5rem]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 w-full min-h-[5.5rem] shrink-0">
           <Card 
             className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0"
             onClick={() => setDeliveryFilter("all")}
@@ -3269,9 +3278,8 @@ export default function SalesInvoiceDashboard() {
           </Card>
         </div>
 
-        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
-          <div className="space-y-0">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto shrink-0">
               <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
@@ -3524,7 +3532,13 @@ export default function SalesInvoiceDashboard() {
               )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
-                <div className="w-full min-w-0 overflow-x-auto overscroll-x-contain min-h-[320px] tab-scroll-stable">
+            <div className="flex-1 min-h-0 flex flex-col">
+                <div
+                  ref={tableContainerRef}
+                  data-tab-scroll
+                  onWheel={onWheelScrollContainer}
+                  className="flex-1 min-h-0 overflow-auto tab-scroll-stable"
+                >
                 <Table className="w-full min-w-0 table-fixed border-collapse text-base [&_thead_th]:!px-2 [&_tbody_td]:!px-2 [&_thead_th]:!py-2 [&_tbody_td]:!py-1.5 [&_thead_th]:text-base [&_tbody_td]:text-sm [&_tbody_td]:align-middle [&_tbody_td]:leading-snug">
                   <colgroup>
                     <col className="w-10" />
@@ -4044,7 +4058,7 @@ export default function SalesInvoiceDashboard() {
                 </Table>
                 </div>
             {totalCount > 0 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-white shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-slate-500">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} invoices
@@ -4092,7 +4106,7 @@ export default function SalesInvoiceDashboard() {
                 </div>
               </div>
             )}
-          </div>
+            </div>
         </Card>
       </div>
 
