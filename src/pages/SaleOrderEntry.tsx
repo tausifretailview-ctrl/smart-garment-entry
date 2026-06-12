@@ -14,10 +14,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown } from "lucide-react";
+import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { UOM_OPTIONS, DEFAULT_UOM, UOMType } from "@/constants/uom";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
+import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
@@ -92,6 +93,126 @@ const customerSchema = z.object({
   gst_number: z.string().trim().max(15).optional(),
 });
 
+const VARIANT_SEARCH_SELECT = `
+  id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
+  products (id, product_name, brand, category, style, color, hsn_code, gst_per, uom)
+`;
+
+export type SaleOrderVariantSearchResult = {
+  id: string;
+  product_id: string;
+  size: string;
+  sale_price: number;
+  mrp: number;
+  barcode: string;
+  stock_qty: number;
+  product_name: string;
+  brand: string;
+  category: string;
+  color: string;
+  style: string;
+  gst_per: number;
+  hsn_code: string;
+  uom?: string;
+};
+
+function mapVariantSearchRow(v: any): SaleOrderVariantSearchResult {
+  return {
+    id: v.id,
+    product_id: v.products?.id || v.product_id || "",
+    size: v.size,
+    sale_price: v.sale_price,
+    mrp: v.mrp || 0,
+    barcode: v.barcode || "",
+    stock_qty: v.stock_qty || 0,
+    product_name: v.products?.product_name || "",
+    brand: v.products?.brand || "",
+    category: v.products?.category || "",
+    color: v.color || v.products?.color || "",
+    style: v.products?.style || "",
+    gst_per: v.products?.gst_per || 0,
+    hsn_code: v.products?.hsn_code || "",
+    uom: v.products?.uom,
+  };
+}
+
+/** Server-side variant search — avoids broken PostgREST `.or()` with `.in()` on one query. */
+async function searchSaleOrderVariants(
+  orgId: string,
+  rawQuery: string,
+): Promise<SaleOrderVariantSearchResult[]> {
+  const normalized = rawQuery.trim().toLowerCase().replace(/[%_(),."']/g, "");
+  if (!normalized) return [];
+
+  const searchTerms = normalized.split(/\s+/).filter(Boolean);
+  const primaryTerm = searchTerms[0] || normalized;
+
+  const { data: matchingProducts } = await supabase
+    .from("products")
+    .select("id")
+    .is("deleted_at", null)
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .or(
+      `product_name.ilike.%${primaryTerm}%,brand.ilike.%${primaryTerm}%,style.ilike.%${primaryTerm}%,category.ilike.%${primaryTerm}%`,
+    );
+
+  const productIds = matchingProducts?.map((p) => p.id) || [];
+
+  const { data: barcodeVariants } = await supabase
+    .from("product_variants")
+    .select(VARIANT_SEARCH_SELECT)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .eq("organization_id", orgId)
+    .ilike("barcode", `%${primaryTerm}%`)
+    .limit(50);
+
+  let productVariants: any[] = [];
+  if (productIds.length > 0) {
+    const { data } = await supabase
+      .from("product_variants")
+      .select(VARIANT_SEARCH_SELECT)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .eq("organization_id", orgId)
+      .in("product_id", productIds)
+      .limit(100);
+    productVariants = data || [];
+  }
+
+  if (productIds.length === 0) {
+    const { data: fuzzyVariants } = await supabase
+      .from("product_variants")
+      .select(VARIANT_SEARCH_SELECT)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .eq("organization_id", orgId)
+      .or(`color.ilike.%${primaryTerm}%,size.ilike.%${primaryTerm}%`)
+      .limit(50);
+    productVariants = fuzzyVariants || [];
+  }
+
+  const uniqueMap = new Map<string, any>();
+  [...(barcodeVariants || []), ...productVariants].forEach((v) => uniqueMap.set(v.id, v));
+
+  let results = Array.from(uniqueMap.values()).map(mapVariantSearchRow);
+
+  if (searchTerms.length > 1) {
+    results = results.filter((r) => {
+      const haystack =
+        `${r.product_name} ${r.brand} ${r.color} ${r.size} ${r.barcode} ${r.style} ${r.category}`.toLowerCase();
+      return searchTerms.every((term) => haystack.includes(term));
+    });
+  }
+
+  return sortSearchResults(results, normalized, {
+    barcode: "barcode",
+    style: "style",
+    productName: "product_name",
+  });
+}
+
 export default function SaleOrderEntry() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -122,6 +243,8 @@ export default function SaleOrderEntry() {
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
+  const [popoverSearchResults, setPopoverSearchResults] = useState<SaleOrderVariantSearchResult[]>([]);
+  const [isProductSearching, setIsProductSearching] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(100);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -805,9 +928,9 @@ export default function SaleOrderEntry() {
     return { color: 'text-red-600', icon: AlertTriangle, text: `${diff} short` };
   };
 
-  // Inline search for product row - debounced
+  // Inline search for product row - debounced server-side
   useEffect(() => {
-    if (!inlineSearchQuery || inlineSearchQuery.length < 1) {
+    if (!inlineSearchQuery || inlineSearchQuery.length < 1 || !currentOrganization?.id) {
       setInlineSearchResults([]);
       setShowInlineSearch(false);
       return;
@@ -815,105 +938,82 @@ export default function SaleOrderEntry() {
 
     const timer = setTimeout(async () => {
       try {
-        const query = inlineSearchQuery.toLowerCase();
-        // Use first term for DB search, all terms for client-side filtering
-        const searchTerms = query.split(/\s+/).filter(Boolean);
-        const primaryTerm = searchTerms[0] || query;
-        
-        // Search products
-        const { data: matchingProducts } = await supabase
-          .from("products")
-          .select("id")
-          .is("deleted_at", null)
-          .eq("organization_id", currentOrganization?.id)
-          .or(`product_name.ilike.%${primaryTerm}%,brand.ilike.%${primaryTerm}%,style.ilike.%${primaryTerm}%`);
-
-        const productIds = matchingProducts?.map(p => p.id) || [];
-
-        // Search variants
-        let variantsQuery = supabase
-          .from("product_variants")
-          .select(`
-            id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
-            products (id, product_name, brand, category, style, color, hsn_code, gst_per)
-          `)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .eq("organization_id", currentOrganization?.id);
-
-        if (productIds.length > 0) {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${primaryTerm}%,color.ilike.%${primaryTerm}%,size.ilike.%${primaryTerm}%,product_id.in.(${productIds.join(",")})`);
-        } else {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${primaryTerm}%,color.ilike.%${primaryTerm}%,size.ilike.%${primaryTerm}%`);
-        }
-
-        const { data } = await variantsQuery.limit(100);
-
-        let results = (data || []).map((v: any) => ({
-          id: v.id,
-          product_id: v.products?.id || "",
-          size: v.size,
-          sale_price: v.sale_price,
-          mrp: v.mrp || 0,
-          barcode: v.barcode || "",
-          stock_qty: v.stock_qty || 0,
-          product_name: v.products?.product_name || "",
-          brand: v.products?.brand || "",
-          category: v.products?.category || "",
-          color: v.color || v.products?.color || "",
-          style: v.products?.style || "",
-          gst_per: v.products?.gst_per || 0,
-          hsn_code: v.products?.hsn_code || "",
-        }));
-
-        // Multi-term client-side filter: e.g. "Rolex Gray 7" matches all 3 terms
-        if (searchTerms.length > 1) {
-          results = results.filter(r => {
-            const haystack = `${r.product_name} ${r.brand} ${r.color} ${r.size} ${r.barcode} ${r.style} ${r.category}`.toLowerCase();
-            return searchTerms.every(term => haystack.includes(term));
-          });
-        }
-
-        // Smart sort - exact barcode match first
-        const sorted = sortSearchResults(results, query, { barcode: 'barcode', style: 'style', productName: 'product_name' });
-
-        setInlineSearchResults(sorted);
+        const results = await searchSaleOrderVariants(currentOrganization.id, inlineSearchQuery);
+        setInlineSearchResults(results);
         setSelectedInlineIndex(0);
         setShowInlineSearch(true);
       } catch (error) {
         console.error("Inline search error:", error);
+        setInlineSearchResults([]);
       }
     }, 150);
 
     return () => clearTimeout(timer);
   }, [inlineSearchQuery, currentOrganization?.id]);
 
-  const handleInlineProductSelect = (result: any) => {
-    setInlineSearchQuery("");
-    setShowInlineSearch(false);
-    setInlineSearchResults([]);
+  // Popover product search — server-side (client cache can miss variants)
+  useEffect(() => {
+    if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
+      setPopoverSearchResults([]);
+      setIsProductSearching(false);
+      return;
+    }
 
-    // Find the full product from productsData
-    const product = productsData?.find(p => p.id === result.product_id);
+    setIsProductSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchSaleOrderVariants(currentOrganization.id, searchInput);
+        setPopoverSearchResults(results);
+      } catch (error) {
+        console.error("Product search error:", error);
+        setPopoverSearchResults([]);
+      } finally {
+        setIsProductSearching(false);
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, currentOrganization?.id]);
+
+  const selectSearchResult = (result: SaleOrderVariantSearchResult) => {
+    const product = productsData?.find((p) => p.id === result.product_id);
     const variant = product?.product_variants?.find((v: any) => v.id === result.id);
 
     if (product && variant) {
       addProductToOrder(product, variant);
-    } else {
-      // Fallback: create minimal product/variant from result
-      const fallbackProduct = {
-        id: result.product_id,
-        product_name: result.product_name,
-        brand: result.brand,
-        category: result.category,
-        style: result.style,
-        color: result.color,
-        gst_per: result.gst_per,
-        hsn_code: result.hsn_code,
-        product_variants: [result],
-      };
-      addProductToOrder(fallbackProduct, result);
+      return;
     }
+
+    const fallbackProduct = {
+      id: result.product_id,
+      product_name: result.product_name,
+      brand: result.brand,
+      category: result.category,
+      style: result.style,
+      color: result.color,
+      gst_per: result.gst_per,
+      hsn_code: result.hsn_code,
+      uom: result.uom || DEFAULT_UOM,
+      product_variants: [
+        {
+          id: result.id,
+          size: result.size,
+          sale_price: result.sale_price,
+          mrp: result.mrp,
+          barcode: result.barcode,
+          stock_qty: result.stock_qty,
+          color: result.color,
+        },
+      ],
+    };
+    addProductToOrder(fallbackProduct, fallbackProduct.product_variants[0]);
+  };
+
+  const handleInlineProductSelect = (result: SaleOrderVariantSearchResult) => {
+    setInlineSearchQuery("");
+    setShowInlineSearch(false);
+    setInlineSearchResults([]);
+    selectSearchResult(result);
   };
 
   // formatInlineProductDescription removed - using ERPVariantRow component instead
@@ -1123,45 +1223,22 @@ export default function SaleOrderEntry() {
     }
   };
 
-  const filteredProducts = (() => {
-    const searchLower = searchInput.toLowerCase();
-    const searchTerms = searchLower.split(/\s+/).filter(Boolean);
-    
-    const filtered = productsData?.filter(product => {
-      const productHaystack = `${product.product_name} ${product.brand} ${product.category} ${product.style} ${product.color}`.toLowerCase();
-      const variantMatch = product.product_variants?.some((v: any) => {
-        const variantHaystack = `${productHaystack} ${v.barcode} ${v.color} ${v.size}`.toLowerCase();
-        return searchTerms.every(term => variantHaystack.includes(term));
-      });
-      // Also check product-level match for all terms
-      const productMatch = searchTerms.every(term => productHaystack.includes(term));
-      return productMatch || variantMatch;
-    }) || [];
-    
-    // Apply smart sorting
-    return sortSearchResults(filtered, searchInput, {
-      style: 'style',
-      productName: 'product_name',
-    });
-  })();
-
-  // Count total matching variants (not just products)
-  const totalMatchingVariants = filteredProducts.reduce(
-    (count, product) => count + (product.product_variants?.length || 0),
-    0
-  );
+  const totalMatchingVariants = popoverSearchResults.length;
 
   // Reset display limit when search changes
   useEffect(() => {
     setDisplayLimit(100);
   }, [searchInput]);
 
+  const visiblePopoverResults = popoverSearchResults.slice(0, displayLimit);
+
   return (
-    <div className="w-full max-w-none mx-0 px-2 sm:px-3 lg:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+    <div className={cn(entryPageShellClass, "bg-background min-h-0")} data-entry-form>
+      <div className={cn("shrink-0 flex flex-col gap-2 py-2", entryPageSectionX)}>
       <BackToDashboard />
       
-      {/* Section A: Sticky Header */}
-      <div className="bg-card rounded-xl border shadow-sm p-5 sticky top-0 z-30">
+      {/* Section A: Header */}
+      <div className="bg-card rounded-lg border shadow-sm p-3">
         <div className="flex items-center justify-between">
           <h1 className="text-[18px] font-semibold flex items-center gap-2">
             <ClipboardList className="h-5 w-5 text-primary" />
@@ -1176,10 +1253,10 @@ export default function SaleOrderEntry() {
       </div>
 
       {/* Section B: Customer & Order Details */}
-      <div className="bg-secondary/50 dark:bg-muted/20 rounded-xl border shadow-sm p-6">
+      <div className="bg-secondary/50 dark:bg-muted/20 rounded-lg border shadow-sm p-3">
         <div className="erp-invoice-section-label">ORDER & CUSTOMER DETAILS</div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <Label>Order Date</Label>
             <Popover>
@@ -1302,7 +1379,7 @@ export default function SaleOrderEntry() {
       </div>
 
       {/* Section C: Entry Mode + Product Search */}
-      <div className="bg-card rounded-xl border shadow-sm p-5">
+      <div className="bg-card rounded-lg border shadow-sm p-3">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Label className="text-sm">Entry Mode:</Label>
@@ -1320,10 +1397,10 @@ export default function SaleOrderEntry() {
             </div>
           </div>
         </div>
-        <div className="mt-4">
+        <div className="mt-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start h-9">
                 <Search className="mr-2 h-4 w-4" />
                 Search Products (Shows Stock)
               </Button>
@@ -1331,8 +1408,19 @@ export default function SaleOrderEntry() {
             <PopoverContent className="w-[700px] p-0" align="start">
               <Command shouldFilter={false}>
                 <CommandInput placeholder="Search by name, barcode, brand, color, size... (e.g. 'Rolex Gray 7')" value={searchInput} onValueChange={setSearchInput} />
-                <CommandList className="max-h-[400px]">
-                  <CommandEmpty>No products found</CommandEmpty>
+                <CommandList className="max-h-[320px]">
+                  <CommandEmpty>
+                    {isProductSearching ? (
+                      <span className="flex items-center justify-center gap-2 py-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Searching...
+                      </span>
+                    ) : searchInput.length < 1 ? (
+                      "Type to search products..."
+                    ) : (
+                      "No products found"
+                    )}
+                  </CommandEmpty>
                   {totalMatchingVariants > displayLimit && (
                     <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
                       <span>Showing {displayLimit} of {totalMatchingVariants} results</span>
@@ -1352,59 +1440,52 @@ export default function SaleOrderEntry() {
                   )}
                   <CommandGroup>
                     {(() => {
-                      let variantCount = 0;
-                      const allVariants: { product: any; variant: any }[] = [];
-                      filteredProducts.forEach(product => {
-                        product.product_variants?.forEach((variant: any) => {
-                          if (variantCount >= displayLimit) return;
-                          variantCount++;
-                          allVariants.push({ product, variant });
-                        });
-                      });
-
-                      // Group by parent product
-                      const grouped: Record<string, { product: any; variants: any[] }> = {};
-                      allVariants.forEach(({ product, variant }) => {
-                        if (!grouped[product.id]) {
-                          grouped[product.id] = { product, variants: [] };
+                      const grouped: Record<string, { productName: string; brand?: string; variants: SaleOrderVariantSearchResult[] }> = {};
+                      visiblePopoverResults.forEach((result) => {
+                        if (!grouped[result.product_id]) {
+                          grouped[result.product_id] = {
+                            productName: result.product_name,
+                            brand: result.brand,
+                            variants: [],
+                          };
                         }
-                        grouped[product.id].variants.push(variant);
+                        grouped[result.product_id].variants.push(result);
                       });
 
-                      return Object.values(grouped).map(({ product, variants }) => (
-                        <div key={product.id}>
-                          {variants.length > 1 && (
+                      return Object.entries(grouped).map(([productId, group]) => (
+                        <div key={productId}>
+                          {group.variants.length > 1 && (
                             <div className="px-4 py-1.5 text-xs font-semibold text-foreground/70 bg-muted/40 border-b border-border sticky top-0">
-                              {product.product_name}
-                              {product.brand && <span className="ml-2 font-normal text-muted-foreground">Brand: {product.brand}</span>}
+                              {group.productName}
+                              {group.brand && <span className="ml-2 font-normal text-muted-foreground">Brand: {group.brand}</span>}
                             </div>
                           )}
-                          {variants.map((variant: any) => (
+                          {group.variants.map((result) => (
                             <CommandItem
-                              key={variant.id}
+                              key={result.id}
                               onSelect={() => {
-                                if ((variant.stock_qty || 0) > 0) {
-                                  addProductToOrder(product, variant);
-                                }
+                                selectSearchResult(result);
+                                setOpenProductSearch(false);
+                                setSearchInput("");
                               }}
                               className="p-0 cursor-pointer"
                             >
                               <ERPVariantRow
                                 result={{
-                                  id: variant.id,
-                                  product_id: product.id,
-                                  product_name: product.product_name,
-                                  brand: product.brand,
-                                  category: product.category,
-                                  style: product.style,
-                                  color: variant.color || product.color || "",
-                                  size: variant.size,
-                                  barcode: variant.barcode,
-                                  sale_price: variant.sale_price,
-                                  mrp: variant.mrp,
-                                  stock_qty: variant.stock_qty || 0,
+                                  id: result.id,
+                                  product_id: result.product_id,
+                                  product_name: result.product_name,
+                                  brand: result.brand,
+                                  category: result.category,
+                                  style: result.style,
+                                  color: result.color || "",
+                                  size: result.size,
+                                  barcode: result.barcode,
+                                  sale_price: result.sale_price,
+                                  mrp: result.mrp,
+                                  stock_qty: result.stock_qty || 0,
                                 }}
-                                showProductName={variants.length === 1}
+                                showProductName={group.variants.length === 1}
                               />
                             </CommandItem>
                           ))}
@@ -1418,11 +1499,13 @@ export default function SaleOrderEntry() {
           </Popover>
         </div>
       </div>
+      </div>
 
+      <main className={cn(entryPageMainClass, "flex flex-col gap-2 min-h-0", entryPageSectionX, "pb-2")}>
       {/* Section D: Line Items Table */}
-      <div className="bg-card rounded-xl border shadow-sm p-6">
+      <div className="bg-card rounded-lg border shadow-sm p-3 flex flex-1 flex-col min-h-0">
         <div className="erp-invoice-section-label">LINE ITEMS</div>
-        <div className="border rounded-md overflow-hidden relative">
+        <div className="border rounded-md overflow-hidden relative flex flex-1 flex-col min-h-0">
           <Table>
             <TableHeader className="erp-invoice-table-header">
               <TableRow>
@@ -1448,7 +1531,7 @@ export default function SaleOrderEntry() {
               </TableRow>
             </TableHeader>
           </Table>
-          <ScrollArea className="h-[400px] isolate" showScrollbar>
+          <ScrollArea className="flex-1 min-h-[160px] isolate" showScrollbar>
             <Table>
             <TableBody>
               {lineItems.map((item, index) => {
@@ -1669,16 +1752,16 @@ export default function SaleOrderEntry() {
             <div ref={tableEndRef} />
           </ScrollArea>
         </div>
-        <div className="mt-3 text-sm text-muted-foreground">
+        <div className="mt-2 text-sm text-muted-foreground">
           Total Items: {lineItems.filter(item => item.productId).length}
         </div>
       </div>
 
-      {/* Section E: Order Summary */}
-      <div className="flex flex-col md:flex-row gap-6">
-        <div className="bg-card rounded-xl border shadow-sm p-6 flex-1">
+      {/* Section E: Order Summary + Notes — single compact row */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 shrink-0">
+        <div className="bg-card rounded-lg border shadow-sm p-3 xl:col-span-1">
           <div className="erp-invoice-section-label">DISCOUNTS & ADJUSTMENTS</div>
-          <div className="grid grid-cols-2 gap-4 w-80">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Flat Discount %</Label>
               <Input
@@ -1718,45 +1801,44 @@ export default function SaleOrderEntry() {
             </div>
           </div>
         </div>
-        <div className="erp-invoice-summary-card w-full md:w-96">
+        <div className="erp-invoice-summary-card xl:col-span-1">
           <div className="erp-invoice-section-label">ORDER SUMMARY</div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-[14px] font-medium"><span>Gross Amount:</span><span className="tabular-nums">₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between text-[14px] font-medium"><span>Line Discount:</span><span className="tabular-nums">-₹{totalLineDiscount.toFixed(2)}</span></div>
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[13px] font-medium"><span>Gross Amount:</span><span className="tabular-nums">₹{grossAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between text-[13px] font-medium"><span>Line Discount:</span><span className="tabular-nums">-₹{totalLineDiscount.toFixed(2)}</span></div>
             {calculatedFlatDiscount > 0 && (
-              <div className="flex justify-between text-[14px] font-medium"><span>Flat Discount:</span><span className="tabular-nums">-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[13px] font-medium"><span>Flat Discount:</span><span className="tabular-nums">-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
             )}
             {taxType === "exclusive" && (
-              <div className="flex justify-between text-[14px] font-medium"><span>GST:</span><span className="tabular-nums">₹{totalGST.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[13px] font-medium"><span>GST:</span><span className="tabular-nums">₹{totalGST.toFixed(2)}</span></div>
             )}
             {roundOff !== 0 && (
-              <div className="flex justify-between text-[14px] font-medium"><span>Round Off:</span><span className="tabular-nums">₹{roundOff.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[13px] font-medium"><span>Round Off:</span><span className="tabular-nums">₹{roundOff.toFixed(2)}</span></div>
             )}
-            <div className="border-t mt-4 pt-4 flex justify-between">
-              <span className="text-[16px] font-bold">Net Amount:</span>
-              <span className="text-[24px] font-extrabold text-primary tabular-nums">₹{netAmount.toFixed(2)}</span>
+            <div className="border-t mt-2 pt-2 flex justify-between">
+              <span className="text-[15px] font-bold">Net Amount:</span>
+              <span className="text-[20px] font-extrabold text-primary tabular-nums">₹{netAmount.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+        <div className="bg-card rounded-lg border shadow-sm p-3 xl:col-span-1">
+          <div className="erp-invoice-section-label">NOTES & TERMS</div>
+          <div className="grid grid-cols-1 gap-2">
+            <div>
+              <Label className="text-xs">Terms & Conditions</Label>
+              <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={2} className="min-h-[52px] text-sm" />
+            </div>
+            <div>
+              <Label className="text-xs">Notes</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="min-h-[52px] text-sm" />
             </div>
           </div>
         </div>
       </div>
-
-      {/* Section F: Notes & Terms */}
-      <div className="bg-card rounded-xl border shadow-sm p-6">
-        <div className="erp-invoice-section-label">NOTES & TERMS</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Terms & Conditions</Label>
-            <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={3} />
-          </div>
-          <div>
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-          </div>
-        </div>
-      </div>
+      </main>
 
       {/* Section G: Sticky Action Footer */}
-      <div className="erp-invoice-sticky-actions">
+      <div className="erp-invoice-sticky-actions shrink-0">
         <div className="flex gap-4 justify-end">
           <Button variant="outline" onClick={() => navigate('/sale-order-dashboard')} className="h-11 rounded-lg px-6">
             Cancel
