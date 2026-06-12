@@ -3818,49 +3818,8 @@ const PurchaseEntry = () => {
           }
         }
         pendingSaveRef.current = false;
-        
-        // Generate bill number right before saving
-        const { data: newBillNo, error: billNoError } = await supabase.rpc("generate_purchase_bill_number_atomic", {
-          p_organization_id: currentOrganization.id
-        });
-        
-        if (billNoError) throw billNoError;
-        const finalBillNo = newBillNo;
-        
-        const { data: billDataResult, error: billError } = await supabase
-          .from("purchase_bills")
-          .insert([
-            {
-              software_bill_no: finalBillNo,
-              supplier_id: billData.supplier_id || null,
-              supplier_name: billData.supplier_name,
-              supplier_invoice_no: billData.supplier_invoice_no,
-              bill_date: format(billDate, "yyyy-MM-dd"),
-              bill_entry_at: new Date().toISOString(),
-              gross_amount: calculatedGrossBeforeDiscount,
-              discount_amount: calculatedTotalDiscount,
-              gst_amount: isDcPurchase ? 0 : calculatedGst,
-              other_charges: otherCharges,
-              net_amount: isDcPurchase ? (calculatedGrossAfterDiscount + otherCharges + calculatedRoundOff) : calculatedNet,
-              round_off: calculatedRoundOff,
-              organization_id: currentOrganization.id,
-              is_dc_purchase: isDcPurchase,
-            },
-          ])
-          .select()
-          .single();
 
-        if (billError) throw billError;
-
-        createdBillIdForRollback = billDataResult.id;
-
-        setBillEntryAt(
-          getPurchaseBillEntryAt(billDataResult as { bill_entry_at?: string | null; created_at?: string }),
-        );
-
-        // Insert purchase items with sku_id for stock tracking
-        const itemsToInsert = lineItems.map((item) => ({
-          bill_id: billDataResult.id,
+        const rpcItems = lineItems.map((item) => ({
           product_id: item.product_id,
           sku_id: item.sku_id,
           product_name: item.product_name,
@@ -3870,30 +3829,136 @@ const PurchaseEntry = () => {
           sale_price: item.sale_price,
           mrp: item.mrp || 0,
           gst_per: isDcPurchase ? 0 : Math.round(item.gst_per),
-          hsn_code: item.hsn_code,
-          barcode: item.barcode,
+          hsn_code: item.hsn_code || "",
+          barcode: item.barcode || "",
           line_total: item.line_total,
-          bill_number: finalBillNo,
-          brand: item.brand || null,
-          category: item.category || null,
-          color: item.color || null,
-          style: item.style || null,
+          brand: item.brand || "",
+          category: item.category || "",
+          color: item.color || "",
+          style: item.style || "",
           is_dc_item: isDcPurchase,
         }));
 
-        // Insert purchase items in chunks of 100 to avoid statement timeout on large bills
-        const INSERT_CHUNK_SIZE = 100;
-        const isLargeBill = itemsToInsert.length > 50;
-        if (isLargeBill) {
-          toast({ title: "Saving large bill...", description: `Saving ${itemsToInsert.length} items. Please wait...` });
-        }
-        for (let ci = 0; ci < itemsToInsert.length; ci += INSERT_CHUNK_SIZE) {
-          const chunk = itemsToInsert.slice(ci, ci + INSERT_CHUNK_SIZE);
-          const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
-          if (itemsError) throw itemsError;
+        const rpcBill = {
+          supplier_id: billData.supplier_id || null,
+          supplier_name: billData.supplier_name,
+          supplier_invoice_no: billData.supplier_invoice_no,
+          bill_date: format(billDate, "yyyy-MM-dd"),
+          bill_entry_at: new Date().toISOString(),
+          gross_amount: calculatedGrossBeforeDiscount,
+          discount_amount: calculatedTotalDiscount,
+          gst_amount: isDcPurchase ? 0 : calculatedGst,
+          other_charges: otherCharges,
+          net_amount: isDcPurchase
+            ? calculatedGrossAfterDiscount + otherCharges + calculatedRoundOff
+            : calculatedNet,
+          round_off: calculatedRoundOff,
+          is_dc_purchase: isDcPurchase,
+        };
+
+        const isMissingAtomicSaveRpc = (err: { code?: string; message?: string; hint?: string } | null) =>
+          err?.code === "PGRST202" ||
+          err?.code === "42883" ||
+          /save_purchase_bill_with_items_atomic/i.test(String(err?.message || err?.hint || ""));
+
+        if (rpcItems.length > 50) {
+          toast({
+            title: "Saving large bill...",
+            description: `Saving ${rpcItems.length} items atomically. Please wait...`,
+          });
         }
 
-        createdBillIdForRollback = null;
+        let billDataResult: Record<string, unknown> | null = null;
+        const { data: atomicBill, error: atomicError } = await supabase.rpc(
+          "save_purchase_bill_with_items_atomic",
+          {
+            p_organization_id: currentOrganization.id,
+            p_bill: rpcBill,
+            p_items: rpcItems,
+          },
+        );
+
+        if (!atomicError && atomicBill) {
+          billDataResult = atomicBill as Record<string, unknown>;
+        } else if (atomicError && !isMissingAtomicSaveRpc(atomicError)) {
+          throw atomicError;
+        } else {
+          // Legacy fallback until migration is applied on the target Supabase project.
+          const { data: newBillNo, error: billNoError } = await supabase.rpc(
+            "generate_purchase_bill_number_atomic",
+            { p_organization_id: currentOrganization.id },
+          );
+          if (billNoError) throw billNoError;
+          const finalBillNo = newBillNo;
+
+          const { data: legacyBill, error: billError } = await supabase
+            .from("purchase_bills")
+            .insert([
+              {
+                software_bill_no: finalBillNo,
+                supplier_id: billData.supplier_id || null,
+                supplier_name: billData.supplier_name,
+                supplier_invoice_no: billData.supplier_invoice_no,
+                bill_date: format(billDate, "yyyy-MM-dd"),
+                bill_entry_at: new Date().toISOString(),
+                gross_amount: calculatedGrossBeforeDiscount,
+                discount_amount: calculatedTotalDiscount,
+                gst_amount: isDcPurchase ? 0 : calculatedGst,
+                other_charges: otherCharges,
+                net_amount: isDcPurchase
+                  ? calculatedGrossAfterDiscount + otherCharges + calculatedRoundOff
+                  : calculatedNet,
+                round_off: calculatedRoundOff,
+                organization_id: currentOrganization.id,
+                is_dc_purchase: isDcPurchase,
+              },
+            ])
+            .select()
+            .single();
+
+          if (billError) throw billError;
+          createdBillIdForRollback = legacyBill.id;
+
+          const itemsToInsert = lineItems.map((item) => ({
+            bill_id: legacyBill.id,
+            product_id: item.product_id,
+            sku_id: item.sku_id,
+            product_name: item.product_name,
+            size: item.size,
+            qty: item.qty,
+            pur_price: item.pur_price,
+            sale_price: item.sale_price,
+            mrp: item.mrp || 0,
+            gst_per: isDcPurchase ? 0 : Math.round(item.gst_per),
+            hsn_code: item.hsn_code,
+            barcode: item.barcode,
+            line_total: item.line_total,
+            bill_number: finalBillNo,
+            brand: item.brand || null,
+            category: item.category || null,
+            color: item.color || null,
+            style: item.style || null,
+            is_dc_item: isDcPurchase,
+          }));
+
+          const INSERT_CHUNK_SIZE = 100;
+          for (let ci = 0; ci < itemsToInsert.length; ci += INSERT_CHUNK_SIZE) {
+            const chunk = itemsToInsert.slice(ci, ci + INSERT_CHUNK_SIZE);
+            const { error: itemsError } = await supabase.from("purchase_items").insert(chunk);
+            if (itemsError) throw itemsError;
+          }
+
+          createdBillIdForRollback = null;
+          billDataResult = legacyBill as Record<string, unknown>;
+        }
+
+        if (!billDataResult?.id) {
+          throw new Error("Purchase bill save did not return a bill id");
+        }
+
+        setBillEntryAt(
+          getPurchaseBillEntryAt(billDataResult as { bill_entry_at?: string | null; created_at?: string }),
+        );
 
         // Accounting Phase 1 rollout-safe gate: auto-journal only for enabled orgs
         if (accountingEngineOn) {

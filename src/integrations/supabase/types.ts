@@ -8035,6 +8035,10 @@ export type Database = {
         Args: { p_organization_id: string; p_supplier_id: string }
         Returns: string
       }
+      save_purchase_bill_with_items_atomic: {
+        Args: { p_organization_id: string; p_bill: Json; p_items: Json }
+        Returns: Json
+      }
       generate_purchase_order_number: {
         Args: { p_organization_id: string }
         Returns: string
