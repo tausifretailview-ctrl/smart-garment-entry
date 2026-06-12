@@ -320,10 +320,10 @@ const WhatsAppInbox = () => {
   const totalUnread = conversations.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
 
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col">
+    <div className="flex flex-1 flex-col min-h-0 h-full w-full overflow-hidden bg-background">
       {/* Shared Number Alert */}
       {isUsingSharedNumber && (
-        <Alert className="m-4 mb-0 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+        <Alert className="mx-4 mt-3 mb-0 shrink-0 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
           <Users className="h-4 w-4 text-amber-600" />
           <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
             <strong>Shared WhatsApp Number:</strong> You're using a shared WhatsApp number. 
@@ -334,7 +334,7 @@ const WhatsAppInbox = () => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
         <div className="flex items-center gap-3">
           <MessageSquare className="h-6 w-6 text-green-600" />
           <div className="flex items-center gap-2">
@@ -358,11 +358,11 @@ const WhatsAppInbox = () => {
         </Button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Conversations List */}
         <div className={cn(
-          "w-80 border-r flex flex-col",
-          selectedConversation ? "hidden md:flex" : "flex w-full md:w-80"
+          "w-full md:w-80 border-r flex flex-col min-h-0 shrink-0",
+          selectedConversation ? "hidden md:flex" : "flex"
         )}>
           {/* Search */}
           <div className="p-3 border-b">
@@ -378,7 +378,7 @@ const WhatsAppInbox = () => {
           </div>
 
           {/* Conversations */}
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 min-h-0">
             {loadingConversations ? (
               <div className="p-4 text-center text-muted-foreground">Loading...</div>
             ) : filteredConversations.length === 0 ? (
@@ -429,7 +429,7 @@ const WhatsAppInbox = () => {
 
         {/* Chat Area */}
         <div className={cn(
-          "flex-1 flex flex-col",
+          "flex-1 flex flex-col min-h-0 min-w-0",
           !selectedConversation ? "hidden md:flex" : "flex"
         )}>
           {selectedConversation ? (
@@ -459,7 +459,7 @@ const WhatsAppInbox = () => {
               </div>
 
               {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
+              <ScrollArea className="flex-1 min-h-0 p-4">
                 {loadingMessages ? (
                   <div className="text-center text-muted-foreground">Loading messages...</div>
                 ) : messages.length === 0 ? (
@@ -484,7 +484,7 @@ const WhatsAppInbox = () => {
               </ScrollArea>
 
               {/* Message Input */}
-              <form onSubmit={handleSendMessage} className="p-3 border-t flex gap-2">
+              <form onSubmit={handleSendMessage} className="p-3 border-t flex gap-2 shrink-0">
                 <Input
                   placeholder="Type a message..."
                   value={newMessage}

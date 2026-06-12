@@ -33,6 +33,7 @@ interface FullScreenLayoutProps {
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
   const isEntryFullscreenPage = isEntryFullscreenPath(location.pathname);
+  const isFillHeightWorkspace = /\/whatsapp-inbox(\/|$)/.test(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
   const sharedShell = useSharedAppShell();
   const inTabCachePane = useTabCacheLayout();
@@ -47,7 +48,9 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         className={cn(
           isEntryFullscreenPage
             ? `${entryPageLayoutMainClass} animate-fade-in`
-            : "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14 animate-fade-in",
+            : isFillHeightWorkspace
+              ? "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in"
+              : "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14 animate-fade-in",
           inTabCachePane && "data-tab-scroll",
         )}
       >
@@ -103,7 +106,9 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                   className={
                     isEntryFullscreenPage
                       ? `${entryPageLayoutMainClass} animate-fade-in`
-                      : `${mobileMainContentClass} animate-fade-in`
+                      : isFillHeightWorkspace
+                        ? "flex flex-1 flex-col min-h-0 min-w-0 overflow-hidden animate-fade-in"
+                        : `${mobileMainContentClass} animate-fade-in`
                   }
                 >
                   {children}

@@ -167,7 +167,7 @@ interface ColumnSettings {
   phone: boolean;
   status: boolean;
   delivery: boolean;
-  whatsapp: boolean;
+  whatsappActions: boolean;
   copyLink: boolean;
   print: boolean;
   download: boolean;
@@ -179,7 +179,7 @@ const defaultColumnSettings: ColumnSettings = {
   phone: true,  // Visible by default
   status: true,
   delivery: true,
-  whatsapp: false,
+  whatsappActions: false,
   copyLink: true,
   print: true,
   download: true,
@@ -455,7 +455,7 @@ export default function SalesInvoiceDashboard() {
         icon: Download,
         onClick: () => handleDownloadPDF(invoice),
       },
-      ...(columnSettings.whatsapp
+      ...(columnSettings.whatsappActions
         ? [{
             label: "Send on WhatsApp",
             icon: MessageCircle,
@@ -2872,7 +2872,7 @@ export default function SalesInvoiceDashboard() {
                     <Eye className="h-3.5 w-3.5" />
                     <span>View</span>
                   </button>
-                  {columnSettings.whatsapp && (
+                  {columnSettings.whatsappActions && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -3443,8 +3443,8 @@ export default function SalesInvoiceDashboard() {
                         <Label htmlFor="inv-col-whatsapp" className="text-sm">WhatsApp Share / Resend</Label>
                         <Checkbox
                           id="inv-col-whatsapp"
-                          checked={columnSettings.whatsapp}
-                          onCheckedChange={(checked) => updateColumnSetting("whatsapp", !!checked)}
+                          checked={columnSettings.whatsappActions}
+                          onCheckedChange={(checked) => updateColumnSetting("whatsappActions", !!checked)}
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -3539,7 +3539,7 @@ export default function SalesInvoiceDashboard() {
                     {columnSettings.status && <col className="w-[4.5rem]" />}
                     {columnSettings.status && <col className="w-[4rem]" />}
                     {columnSettings.delivery && <col className="w-[4.5rem]" />}
-                    <col className="w-[6rem]" />
+                    <col className={columnSettings.whatsappActions ? "w-[9rem]" : "w-[7.5rem]"} />
                   </colgroup>
                   <TableHeader className="!static">
                     <TableRow>
@@ -3732,9 +3732,9 @@ export default function SalesInvoiceDashboard() {
                                 </Badge>
                               </TableCell>
                             )}
-                            <TableCell className="text-right align-middle whitespace-nowrap py-1.5" onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="text-right align-middle whitespace-nowrap py-1.5 max-w-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                               {/* Desktop: compact single-line action icons */}
-                              <div className="hidden lg:flex justify-end items-center gap-0.5 flex-nowrap [&_button]:h-7 [&_button]:w-7 [&_button]:shrink-0">
+                              <div className="hidden lg:flex justify-end items-center gap-0.5 flex-nowrap [&_button]:h-7 [&_button]:w-7 [&_button]:shrink-0 min-w-0">
                                 {isEInvoiceEnabled && invoice.customers?.gst_number && (
                                   <>
                                     <Button variant="ghost" size="icon" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id} className={invoice.irn ? "text-green-600" : "text-orange-600"}>
@@ -3757,12 +3757,12 @@ export default function SalesInvoiceDashboard() {
                                     <Link2 className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
-                                {columnSettings.whatsapp && (
+                                {columnSettings.whatsappActions && (
                                   <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(invoice)} title="Share on WhatsApp" disabled={!invoice.customer_phone}>
                                     <MessageCircle className="h-4 w-4 text-green-600" />
                                   </Button>
                                 )}
-                                {columnSettings.whatsapp && whatsAppAPISettings?.is_active && (
+                                {columnSettings.whatsappActions && whatsAppAPISettings?.is_active && (
                                   <Button variant="ghost" size="icon" onClick={() => handleResendWhatsAppAPI(invoice)} title="Resend via WhatsApp API" disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
                                     <Send className="h-3.5 w-3.5 text-teal-600" />
                                   </Button>
@@ -3825,12 +3825,12 @@ export default function SalesInvoiceDashboard() {
                                         <IndianRupee className="h-4 w-4 mr-2 text-purple-600" /> Record Payment
                                       </DropdownMenuItem>
                                     )}
-                                    {columnSettings.whatsapp && (
+                                    {columnSettings.whatsappActions && (
                                       <DropdownMenuItem onClick={() => handleWhatsAppShare(invoice)} disabled={!invoice.customer_phone}>
                                         <MessageCircle className="h-4 w-4 mr-2 text-green-600" /> Share on WhatsApp
                                       </DropdownMenuItem>
                                     )}
-                                    {columnSettings.whatsapp && whatsAppAPISettings?.is_active && (
+                                    {columnSettings.whatsappActions && whatsAppAPISettings?.is_active && (
                                       <DropdownMenuItem onClick={() => handleResendWhatsAppAPI(invoice)} disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
                                         <Send className="h-4 w-4 mr-2 text-teal-600" /> Resend WhatsApp API
                                       </DropdownMenuItem>
