@@ -110,6 +110,7 @@ import {
   reconcileInvoiceDashboardRows,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
+import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -429,9 +430,11 @@ export default function SalesInvoiceDashboard() {
 
   // Get context menu items for invoice row
   const getInvoiceContextMenuItems = (invoice: any): ContextMenuItem[] => {
+    const cancelled = isSaleInvoiceCancelled(invoice);
     const isLocked = invoice.payment_status === 'completed';
     const canModify = hasSpecialPermission('modify_records') || !isLocked;
     const canDelete = hasSpecialPermission('delete_records');
+    const canCancelInvoice = hasSpecialPermission('cancel_invoice');
     
     return [
       {
@@ -443,7 +446,7 @@ export default function SalesInvoiceDashboard() {
         label: "Edit Invoice",
         icon: Edit,
         onClick: () => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } }),
-        disabled: !canModify,
+        disabled: !canModify || cancelled,
       },
       { label: "", separator: true, onClick: () => {} },
       {
@@ -512,10 +515,11 @@ export default function SalesInvoiceDashboard() {
         label: "Cancel Invoice",
         icon: Ban,
         onClick: () => {
+          if (isSaleInvoiceCancelled(invoice)) return;
           setCancelReason('');
           setInvoiceToCancel(invoice);
         },
-        disabled: !canDelete || invoice.is_cancelled,
+        disabled: !canCancelInvoice || cancelled,
         destructive: true,
       },
       {
@@ -1058,7 +1062,19 @@ export default function SalesInvoiceDashboard() {
     if (selectedInvoices.size === 0) return;
     setIsBulkCancelling(true);
     try {
-      const invoiceIds = Array.from(selectedInvoices);
+      const invoiceIds = Array.from(selectedInvoices).filter((id) => {
+        const inv = (paginatedInvoices as any[])?.find?.((x: any) => x.id === id);
+        return inv && !isSaleInvoiceCancelled(inv);
+      });
+      const skipped = selectedInvoices.size - invoiceIds.length;
+      if (invoiceIds.length === 0) {
+        toast({
+          title: "Nothing to cancel",
+          description: "All selected invoices are already cancelled.",
+          variant: "destructive",
+        });
+        return;
+      }
       let successCount = 0;
       let failCount = 0;
       for (const id of invoiceIds) {
@@ -1093,7 +1109,7 @@ export default function SalesInvoiceDashboard() {
       }
       toast({
         title: 'Invoices Cancelled',
-        description: `${successCount} invoice(s) cancelled successfully${failCount > 0 ? `, ${failCount} failed` : ''}. Stock has been restored.`,
+        description: `${successCount} invoice(s) cancelled successfully${failCount > 0 ? `, ${failCount} failed` : ''}${skipped > 0 ? `, ${skipped} already cancelled (skipped)` : ''}. Stock has been restored.`,
       });
       setSelectedInvoices(new Set());
       setShowBulkCancelDialog(false);
@@ -1108,6 +1124,16 @@ export default function SalesInvoiceDashboard() {
 
   const handleCancelInvoice = async () => {
     if (!invoiceToCancel) return;
+    if (isSaleInvoiceCancelled(invoiceToCancel)) {
+      toast({
+        title: "Already cancelled",
+        description: `Invoice ${invoiceToCancel.sale_number} is already cancelled.`,
+        variant: "destructive",
+      });
+      setInvoiceToCancel(null);
+      setCancelReason('');
+      return;
+    }
     setIsCancelling(true);
     try {
       const { data, error } = await supabase.rpc('cancel_invoice', {
@@ -1216,9 +1242,9 @@ export default function SalesInvoiceDashboard() {
 
   // Page totals — balance column matches reconciled `outstanding` per row
   const pageTotals = useMemo(() => {
-    const activeInvoices = paginatedInvoices.filter((inv: any) => !inv.is_cancelled);
+    const activeInvoices = paginatedInvoices.filter((inv: any) => !isSaleInvoiceCancelled(inv));
     const balanceDue = (inv: any) =>
-      inv.is_cancelled
+      isSaleInvoiceCancelled(inv)
         ? 0
         : Math.round(
             Number(
@@ -1329,15 +1355,25 @@ export default function SalesInvoiceDashboard() {
   }, [currentOrganization?.id, deliveryFilter, paymentStatusFilter, saleDateFilter, debouncedSearch, toast]);
 
   // Memoized event handlers
+  const selectableInvoices = useMemo(
+    () => paginatedInvoices.filter((inv: any) => !isSaleInvoiceCancelled(inv)),
+    [paginatedInvoices],
+  );
+
   const toggleSelectAll = useCallback(() => {
-    if (selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0) {
+    if (
+      selectableInvoices.length > 0 &&
+      selectedInvoices.size === selectableInvoices.length
+    ) {
       setSelectedInvoices(new Set());
     } else {
-      setSelectedInvoices(new Set(paginatedInvoices.map((i: any) => i.id)));
+      setSelectedInvoices(new Set(selectableInvoices.map((i: any) => i.id)));
     }
-  }, [selectedInvoices.size, paginatedInvoices]);
+  }, [selectedInvoices.size, selectableInvoices]);
 
   const toggleSelectInvoice = useCallback((invoiceId: string) => {
+    const inv = paginatedInvoices.find((i: any) => i.id === invoiceId);
+    if (inv && isSaleInvoiceCancelled(inv)) return;
     setSelectedInvoices(prev => {
       const newSelected = new Set(prev);
       if (newSelected.has(invoiceId)) {
@@ -1347,7 +1383,7 @@ export default function SalesInvoiceDashboard() {
       }
       return newSelected;
     });
-  }, []);
+  }, [paginatedInvoices]);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -3080,7 +3116,7 @@ export default function SalesInvoiceDashboard() {
             <Button onClick={() => navigate("/sales-invoice")} className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all">
               New Invoice
             </Button>
-            {selectedInvoices.size > 0 && (
+            {selectedInvoices.size > 0 && hasSpecialPermission('cancel_invoice') && (
               <div className="flex gap-2">
                 <Button
                   onClick={() => { setBulkCancelReason(''); setShowBulkCancelDialog(true); }}
@@ -3559,8 +3595,12 @@ export default function SalesInvoiceDashboard() {
                     <TableRow>
                       <TableHead className="px-1">
                         <Checkbox
-                          checked={selectedInvoices.size === paginatedInvoices.length && paginatedInvoices.length > 0}
+                          checked={
+                            selectableInvoices.length > 0 &&
+                            selectedInvoices.size === selectableInvoices.length
+                          }
                           onCheckedChange={toggleSelectAll}
+                          disabled={selectableInvoices.length === 0}
                         />
                       </TableHead>
                       <TableHead className="px-1"></TableHead>
@@ -3624,6 +3664,7 @@ export default function SalesInvoiceDashboard() {
                               <Checkbox
                                 checked={selectedInvoices.has(invoice.id)}
                                 onCheckedChange={() => toggleSelectInvoice(invoice.id)}
+                                disabled={isSaleInvoiceCancelled(invoice)}
                               />
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
@@ -3705,10 +3746,10 @@ export default function SalesInvoiceDashboard() {
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(invoice.is_cancelled && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)} className={cn(isSaleInvoiceCancelled(invoice) && "line-through text-muted-foreground")}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                {invoice.is_cancelled ? (
+                                {isSaleInvoiceCancelled(invoice) ? (
                                   <Badge className="min-w-0 max-w-full justify-center whitespace-normal text-center bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-0.5 leading-tight">
                                     Cancelled
                                   </Badge>
@@ -3733,7 +3774,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                 ₹{invoice.is_cancelled ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)))).toLocaleString('en-IN')}
+                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - (invoice.sale_return_adjust || 0)))).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -4145,7 +4186,7 @@ export default function SalesInvoiceDashboard() {
               variant="default"
               className="bg-orange-600 hover:bg-orange-700"
               onClick={handleCancelInvoice}
-              disabled={isCancelling}
+              disabled={isCancelling || isSaleInvoiceCancelled(invoiceToCancel)}
             >
               {isCancelling
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cancelling...</>

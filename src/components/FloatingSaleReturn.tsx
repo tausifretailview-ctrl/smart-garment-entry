@@ -36,6 +36,7 @@ import {
   presentationFromUnknownStockError,
   type StockIssuePresentation,
 } from "@/utils/stockErrorMessages";
+import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -495,7 +496,7 @@ export const FloatingSaleReturn = ({
     try {
       const { data: sale } = await supabase
         .from("sales")
-        .select("id, flat_discount_amount, round_off")
+        .select("id, flat_discount_amount, round_off, is_cancelled, payment_status, sale_number")
         .eq("sale_number", billNumber.trim())
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
@@ -503,6 +504,20 @@ export const FloatingSaleReturn = ({
 
       if (!sale) {
         toast({ title: "Not Found", description: `No sale found with number "${billNumber.trim()}"`, variant: "destructive" });
+        setBillSaleId(null);
+        setBillItems([]);
+        setBillFlatDiscount(0);
+        setBillRoundOff(0);
+        setBillLookupLoading(false);
+        return;
+      }
+
+      if (isSaleInvoiceCancelled(sale)) {
+        toast({
+          title: "Invoice Cancelled",
+          description: `Invoice ${sale.sale_number} is cancelled. Sale return is not allowed against cancelled bills.`,
+          variant: "destructive",
+        });
         setBillSaleId(null);
         setBillItems([]);
         setBillFlatDiscount(0);
@@ -875,6 +890,28 @@ export const FloatingSaleReturn = ({
     let createdReturnId: string | null = null;
     let savedCreditNoteNumber: string | null = null;
     try {
+      if (billSaleId || billNumber.trim()) {
+        let saleCheckQuery = supabase
+          .from("sales")
+          .select("id, sale_number, is_cancelled, payment_status")
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null);
+        if (billSaleId) {
+          saleCheckQuery = saleCheckQuery.eq("id", billSaleId);
+        } else {
+          saleCheckQuery = saleCheckQuery.eq("sale_number", billNumber.trim());
+        }
+        const { data: linkedSale } = await saleCheckQuery.maybeSingle();
+        if (linkedSale && isSaleInvoiceCancelled(linkedSale)) {
+          toast({
+            title: "Invoice Cancelled",
+            description: `Invoice ${linkedSale.sale_number} is cancelled. Sale return is not allowed.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       const { data: returnNumber, error: rnError } = await supabase
         .rpc('generate_sale_return_number', { p_organization_id: organizationId });
       if (rnError) throw rnError;
