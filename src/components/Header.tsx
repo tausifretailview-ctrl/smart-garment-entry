@@ -30,6 +30,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { isElectronShell, reloadElectronApp } from "@/lib/electronShell";
 import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
+import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 
 /** Row-2 shortcut buttons — solid fills, white label/icons */
 const shortcutBtn = (colorClass: string, extra?: string) =>
@@ -73,6 +74,7 @@ export const Header = () => {
     (permissions === null ||
       hasMenuAccess("payment_recording") ||
       hasMenuAccess("payments_dashboard"));
+  const forceDesktopView = useForceDesktopView();
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog (only when stock report is allowed)
   useEffect(() => {
@@ -166,10 +168,16 @@ export const Header = () => {
       <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-white border-t border-white border-b border-[#1b3a97] shadow-sm">
         {/* Desktop sidebar toggle — shown when menu is collapsed for full-width content */}
         {!sidebarOpen && (
-          <SidebarTrigger className="hidden lg:flex h-7 w-7 text-white hover:text-white hover:bg-white/10 shrink-0" />
+          <SidebarTrigger
+            className={cn(
+              "h-7 w-7 text-white hover:text-white hover:bg-white/10 shrink-0",
+              forceDesktopView ? "flex" : "hidden lg:flex",
+            )}
+          />
         )}
 
-        {/* Mobile menu trigger */}
+        {/* Mobile quick menu — hidden when user opted into full desktop view on phone */}
+        {!forceDesktopView && (
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild className="lg:hidden">
             <Button variant="ghost" size="icon" className="h-7 w-7 text-white hover:text-white hover:bg-white/10">
@@ -188,6 +196,7 @@ export const Header = () => {
             </nav>
           </SheetContent>
         </Sheet>
+        )}
 
         {/* Logo + App name */}
         <button onClick={goHome} className="flex items-center gap-2 flex-shrink-0">
