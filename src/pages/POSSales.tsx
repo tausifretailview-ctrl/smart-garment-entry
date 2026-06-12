@@ -2737,8 +2737,14 @@ export default function POSSales() {
     setCreditApplied(maxApplicable);
   };
 
-  const showCustomerNameRequiredWindow = () => {
-    const message = "Please enter customer name first for Credit / Pay Later invoice.";
+  const hasNamedPosCustomer = () =>
+    !!customerName?.trim() && customerName.trim().toLowerCase() !== "walk-in customer";
+
+  const showCustomerNameRequiredWindow = (reason: "pay_later" | "mix_credit" = "pay_later") => {
+    const message =
+      reason === "mix_credit"
+        ? "Please enter customer name when mix payment includes a credit balance."
+        : "Please enter customer name first for Credit / Pay Later invoice.";
     toast.error("Customer Name Required", { description: message });
     setOpenCustomerSearch(true);
     setShowCreditCustomerRequiredDialog(true);
@@ -2759,10 +2765,8 @@ export default function POSSales() {
     }
 
     const effectiveMethod = forcePaymentMethod || paymentMethod;
-    const hasNamedCustomer = !!customerName?.trim() && customerName.trim().toLowerCase() !== 'walk-in customer';
-
     // Credit / Pay Later must always have a named customer
-    if (effectiveMethod === 'pay_later' && !hasNamedCustomer) {
+    if (effectiveMethod === 'pay_later' && !hasNamedPosCustomer()) {
       showCustomerNameRequiredWindow();
       return;
     }
@@ -3008,8 +3012,7 @@ export default function POSSales() {
       return;
     }
 
-    const hasNamedCustomer = !!customerName?.trim() && customerName.trim().toLowerCase() !== 'walk-in customer';
-    if (method === 'pay_later' && !hasNamedCustomer) {
+    if (method === 'pay_later' && !hasNamedPosCustomer()) {
       paymentLockRef.current = false;
       showCustomerNameRequiredWindow();
       return;
@@ -3192,10 +3195,10 @@ export default function POSSales() {
     issueCreditNote?: boolean;
     refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => {
-    // Check if there's a balance and customer mobile is missing
-    const balanceAmount = finalAmount - paymentData.totalPaid;
-    if (balanceAmount > 0 && !customerPhone?.trim()) {
-      toast.error("Customer Details Required", { description: "Please enter customer details first for balance invoice. Mobile number is mandatory for partial payments." });
+    // Customer name required only when mix payment leaves a credit balance on the bill
+    const mixCreditAmount = Math.max(0, Number(paymentData.creditAmount) || 0);
+    if (mixCreditAmount > 0.01 && !hasNamedPosCustomer()) {
+      showCustomerNameRequiredWindow("mix_credit");
       return;
     }
 
@@ -4400,7 +4403,7 @@ export default function POSSales() {
         <AlertDialogHeader>
           <AlertDialogTitle>Customer Details Required</AlertDialogTitle>
           <AlertDialogDescription>
-            Please enter customer name first for Credit / Pay Later invoice.
+            Customer name is required for Credit / Pay Later invoices and for mix payments that include a credit balance.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
