@@ -22,6 +22,9 @@ import { IdleMount } from "@/components/IdleMount";
 import { entryPageLayoutMainClass, isEntryFullscreenPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { cn } from "@/lib/utils";
 
 interface FullScreenLayoutProps {
   children: ReactNode;
@@ -30,11 +33,31 @@ interface FullScreenLayoutProps {
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   const location = useLocation();
   const isEntryFullscreenPage = isEntryFullscreenPath(location.pathname);
-  const showDesktopChrome = useShowDesktopChrome() && !isEntryFullscreenPage;
+  const showDesktopChrome = useShowDesktopChrome();
+  const sharedShell = useSharedAppShell();
+  const inTabCachePane = useTabCacheLayout();
 
   useEffect(() => {
     if (isEntryFullscreenPage) initUIScale();
   }, [isEntryFullscreenPage]);
+
+  if (sharedShell) {
+    return (
+      <main
+        className={cn(
+          isEntryFullscreenPage
+            ? `${entryPageLayoutMainClass} animate-fade-in`
+            : "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable p-3 sm:p-4 pb-14 animate-fade-in",
+          inTabCachePane && "data-tab-scroll",
+        )}
+      >
+        {children}
+      </main>
+    );
+  }
+
+  const showSidebar = showDesktopChrome;
+  const showTopChrome = showDesktopChrome && !isEntryFullscreenPage;
 
   return (
     <ChatProvider>
@@ -57,8 +80,8 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                   : "flex min-h-screen w-full bg-background"
               }
             >
-              {showDesktopChrome && <AppSidebar />}
-              {showDesktopChrome && <SidebarExpandStrip />}
+              {showSidebar && <AppSidebar />}
+              {showSidebar && <SidebarExpandStrip />}
               <SidebarInset
                 className={
                   isEntryFullscreenPage
@@ -66,20 +89,16 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
                     : "flex flex-col flex-1 min-w-0"
                 }
               >
-                {!isEntryFullscreenPage && (
+                {showTopChrome && (
                   <>
-                    {showDesktopChrome && (
-                      <>
-                        <Header />
-                        <WindowTabsBar />
-                        <div className="px-3 pt-2 lg:hidden">
-                          <DesktopViewToggle variant="banner" />
-                        </div>
-                      </>
-                    )}
-                    {!showDesktopChrome && <MobileAppHeader />}
+                    <Header />
+                    <WindowTabsBar />
+                    <div className="px-3 pt-2 lg:hidden">
+                      <DesktopViewToggle variant="banner" />
+                    </div>
                   </>
                 )}
+                {!showDesktopChrome && !isEntryFullscreenPage && <MobileAppHeader />}
                 <main
                   className={
                     isEntryFullscreenPage

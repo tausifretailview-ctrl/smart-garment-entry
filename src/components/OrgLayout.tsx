@@ -29,6 +29,9 @@ import {
 } from "@/lib/navigationPerfDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
+import { DesktopAppShell } from "@/components/DesktopAppShell";
+import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
+import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 
 /** Sentinel — no cached pane is active while a bill-entry screen uses <Outlet>. */
 const TAB_CACHE_INACTIVE = "__none__";
@@ -56,6 +59,7 @@ export const OrgLayout = () => {
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
   const location = useLocation();
   const { openWindows } = useWindowTabs();
+  const showDesktopChrome = useShowDesktopChrome();
 
   const currentPath = useMemo(
     () => getOrgPathSegment(location.pathname, orgSlug),
@@ -325,46 +329,59 @@ export const OrgLayout = () => {
   const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && tabPaneReady;
   const constrainViewportHeight = isEntryPage || hasVisibleTabCache;
 
-  return (
-    <div
-      className={
-        constrainViewportHeight
-          ? "flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden"
-          : "flex min-h-[100dvh] w-full flex-col"
-      }
-    >
-      <GlobalShortcuts />
-      <div className="flex min-h-0 flex-1 flex-col w-full">
-        {/* Keep other tab panes mounted (hidden) during bill entry so inventory tabs don't lose state. */}
-        {tabPaths.length > 0 && (
-          <div
-            className={cn(
-              "flex min-h-0 flex-col w-full",
-              hideTabCacheContainer ? "hidden" : "flex-1",
-            )}
-          >
-            <TabCachedPages
-              paths={tabPaths}
-              activePath={tabCacheActivePath}
-              onActivePaneReady={(path) => {
-                tabPaneReadyPathsRef.current.add(path);
-                if (path === currentPath) setTabPaneReady(true);
-              }}
-            />
-          </div>
-        )}
-        {!renderViaTabCache && (
-          <div
-            className={
-              isEntryPage
+  const workspaceBody = (
+    <>
+      {tabPaths.length > 0 && (
+        <div
+          className={cn(
+            "flex min-h-0 flex-col w-full",
+            hideTabCacheContainer ? "hidden" : "flex-1",
+          )}
+        >
+          <TabCachedPages
+            paths={tabPaths}
+            activePath={tabCacheActivePath}
+            onActivePaneReady={(path) => {
+              tabPaneReadyPathsRef.current.add(path);
+              if (path === currentPath) setTabPaneReady(true);
+            }}
+          />
+        </div>
+      )}
+      {!renderViaTabCache && (
+        <div
+          className={
+            isEntryPage
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
+              : showDesktopChrome
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden w-full"
                 : "contents"
-            }
-          >
-            <Outlet />
-          </div>
+          }
+        >
+          <Outlet />
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <SharedAppShellContext.Provider value={showDesktopChrome}>
+      <div
+        className={
+          constrainViewportHeight
+            ? "flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden"
+            : "flex min-h-[100dvh] w-full flex-col"
+        }
+      >
+        <GlobalShortcuts />
+        {showDesktopChrome ? (
+          <DesktopAppShell className="flex-1 min-h-0">
+            {workspaceBody}
+          </DesktopAppShell>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col w-full">{workspaceBody}</div>
         )}
       </div>
-    </div>
+    </SharedAppShellContext.Provider>
   );
 };

@@ -36,6 +36,7 @@ import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { IdleMount } from "@/components/IdleMount";
 import { mobileMainPaddingClass } from "@/lib/mobileShell";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { cn } from "@/lib/utils";
 
 interface POSLayoutProps {
@@ -43,6 +44,7 @@ interface POSLayoutProps {
 }
 
 const POSLayoutContent = ({ children }: POSLayoutProps) => {
+  const sharedShell = useSharedAppShell();
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
@@ -66,9 +68,17 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
     }
   };
 
-  return (
-    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
-      {/* Top Header Bar */}
+  const posDialogs = (
+    <>
+      <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
+      <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
+      <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
+      <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
+      <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
+    </>
+  );
+
+  const posHeader = (
       <header className="h-12 shrink-0 bg-primary text-primary-foreground flex items-center justify-between px-4 shadow-md z-50">
         <div className="flex items-center gap-3">
           <DropdownMenu>
@@ -330,13 +340,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
           <span className="text-xs md:text-sm opacity-90 ml-2">Point of Sale</span>
         </div>
       </header>
-      
-      <div className="hidden lg:block shrink-0">
-        <WindowTabsBar />
-      </div>
+  );
 
-      <OfflineIndicator />
-
+  const posMain = (
       <main
         className={cn(
           "flex flex-1 flex-col min-h-0 h-0 overflow-hidden p-3 sm:p-4",
@@ -348,14 +354,28 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
           {children}
         </div>
       </main>
+  );
 
+  if (sharedShell) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col w-full bg-background overflow-hidden">
+        {posHeader}
+        {posMain}
+        {posDialogs}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen w-full bg-background overflow-hidden">
+      {posHeader}
+      <div className="hidden lg:block shrink-0">
+        <WindowTabsBar />
+      </div>
+      <OfflineIndicator />
+      {posMain}
       <MobileBottomNav />
-      
-      <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
-      <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
-      <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
-      <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
-      <DeliveryChallanPOSDialog open={showDCDialog} onOpenChange={setShowDCDialog} />
+      {posDialogs}
       <WhatsAppMessageNotifier />
       <IdleMount>
         <PwaInstallBanner />
@@ -368,11 +388,17 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
 };
 
 export const POSLayout = ({ children }: POSLayoutProps) => {
-  return (
-    <ChatProvider>
-      <POSProvider>
-        <POSLayoutContent>{children}</POSLayoutContent>
-      </POSProvider>
-    </ChatProvider>
+  const sharedShell = useSharedAppShell();
+
+  const inner = (
+    <POSProvider>
+      <POSLayoutContent>{children}</POSLayoutContent>
+    </POSProvider>
   );
+
+  if (sharedShell) {
+    return inner;
+  }
+
+  return <ChatProvider>{inner}</ChatProvider>;
 };

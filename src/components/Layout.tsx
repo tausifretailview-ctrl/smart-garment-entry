@@ -25,6 +25,7 @@ import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -36,10 +37,24 @@ export const Layout = ({ children }: LayoutProps) => {
   const isSalesInvoicePage = /\/sales-invoice(\/|$)/.test(location.pathname);
   const showDesktopChrome = useShowDesktopChrome();
   const inTabCachePane = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
 
   useEffect(() => {
     initUIScale();
   }, []);
+
+  if (sharedShell) {
+    return (
+      <main
+        className={cn(
+          "flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto tab-scroll-stable relative z-[1] p-3 sm:p-4 pb-14 animate-fade-in",
+          inTabCachePane && "data-tab-scroll",
+        )}
+      >
+        {children}
+      </main>
+    );
+  }
 
   return (
     <ChatProvider>
