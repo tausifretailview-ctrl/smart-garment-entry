@@ -29,6 +29,13 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
+import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
+import { validateStockCeiling } from "@/utils/stockCeilingValidation";
+import {
+  buildStockCeilingValidationIssue,
+  presentationFromUnknownStockError,
+  type StockIssuePresentation,
+} from "@/utils/stockErrorMessages";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
 
@@ -169,6 +176,8 @@ export const FloatingSaleReturn = ({
   const [barcodeInput, setBarcodeInput] = useState("");
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
+  const [stockIssuePresentation, setStockIssuePresentation] = useState<StockIssuePresentation | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -558,6 +567,36 @@ export const FloatingSaleReturn = ({
     return fallbackPrice;
   };
 
+  const openStockIssueDialog = (issue: StockIssuePresentation) => {
+    setStockIssuePresentation(issue);
+    setShowStockIssueDialog(true);
+  };
+
+  const getReturnCartQtyForVariant = (variantId: string, items = returnItems) =>
+    items.reduce((sum, item) => (item.variantId === variantId ? sum + item.quantity : sum), 0);
+
+  const checkReturnStockCeiling = async (
+    variantId: string,
+    productName: string,
+    size: string,
+    proposedTotalCartQty: number,
+  ): Promise<boolean> => {
+    const result = await validateStockCeiling(supabase, variantId, proposedTotalCartQty, "Sale Return");
+    if (!result.valid && result.currentStock !== undefined && result.maxAllowed !== undefined) {
+      openStockIssueDialog(
+        buildStockCeilingValidationIssue(
+          productName,
+          size,
+          result.currentStock,
+          proposedTotalCartQty,
+          result.maxAllowed,
+        ),
+      );
+      return false;
+    }
+    return true;
+  };
+
   const addProduct = async (productId: string, variantId: string) => {
     const product = products.find(p => p.id === productId);
     const variant = variants.find(v => v.id === variantId);
@@ -571,6 +610,18 @@ export const FloatingSaleReturn = ({
     }
 
     const existingIndex = returnItems.findIndex(item => item.variantId === variantId);
+    const proposedTotalCartQty = existingIndex !== -1
+      ? returnItems[existingIndex].quantity + 1
+      : getReturnCartQtyForVariant(variantId) + 1;
+
+    const ceilingOk = await checkReturnStockCeiling(
+      variantId,
+      product.product_name,
+      variant.size,
+      proposedTotalCartQty,
+    );
+    if (!ceilingOk) return;
+
     if (existingIndex !== -1) {
       const updated = [...returnItems];
       updated[existingIndex].quantity += 1;
@@ -686,8 +737,26 @@ export const FloatingSaleReturn = ({
     barcodeInputRef.current?.focus();
   };
 
-  const updateQuantity = (index: number, qty: number) => {
+  const updateQuantity = async (index: number, qty: number) => {
     if (qty < 1) return;
+    const item = returnItems[index];
+    if (!item) return;
+
+    if (qty > item.quantity) {
+      const proposedTotalCartQty = returnItems.reduce((sum, row, idx) => {
+        if (row.variantId !== item.variantId) return sum;
+        return sum + (idx === index ? qty : row.quantity);
+      }, 0);
+
+      const ceilingOk = await checkReturnStockCeiling(
+        item.variantId,
+        item.productName,
+        item.size,
+        proposedTotalCartQty,
+      );
+      if (!ceilingOk) return;
+    }
+
     const updated = [...returnItems];
     updated[index].quantity = qty;
     updated[index].lineTotal = qty * updated[index].unitPrice;
@@ -774,6 +843,32 @@ export const FloatingSaleReturn = ({
         setSaving(false);
       }
       return;
+    }
+
+    // Stock ceiling validation — ensure return won't push stock above purchased qty
+    const aggregatedReturnQty = new Map<string, { qty: number; label: string }>();
+    for (const item of returnItems) {
+      const existing = aggregatedReturnQty.get(item.variantId);
+      if (existing) {
+        existing.qty += item.quantity;
+      } else {
+        aggregatedReturnQty.set(item.variantId, {
+          qty: item.quantity,
+          label: `${item.productName} (${item.size})`,
+        });
+      }
+    }
+
+    for (const [variantId, { qty, label }] of aggregatedReturnQty) {
+      const result = await validateStockCeiling(supabase, variantId, qty, "Sale Return");
+      if (!result.valid) {
+        openStockIssueDialog(
+          result.currentStock !== undefined && result.maxAllowed !== undefined
+            ? buildStockCeilingValidationIssue(label, "", result.currentStock, qty, result.maxAllowed)
+            : presentationFromUnknownStockError(result.reason || "Stock ceiling exceeded", label),
+        );
+        return;
+      }
     }
 
     setSaving(true);
@@ -1109,7 +1204,18 @@ export const FloatingSaleReturn = ({
         }
       }
       const errMsg = error?.details || error?.hint || error?.message || "Failed to save sale return";
-      toast({ title: "Error", description: errMsg, variant: "destructive" });
+      if (/stock ceiling exceeded/i.test(errMsg)) {
+        const variantMatch = errMsg.match(/variant ([a-f0-9-]+)/i);
+        const matchingItem = variantMatch?.[1]
+          ? returnItems.find((item) => item.variantId === variantMatch[1])
+          : undefined;
+        const productLabel = matchingItem
+          ? `${matchingItem.productName} (${matchingItem.size})`
+          : undefined;
+        openStockIssueDialog(presentationFromUnknownStockError(errMsg, productLabel));
+      } else {
+        toast({ title: "Error", description: errMsg, variant: "destructive" });
+      }
     } finally {
       setSaving(false);
     }
@@ -1680,6 +1786,13 @@ export const FloatingSaleReturn = ({
         )
       )}
     </div>
+
+    <StockIssueAlertDialog
+      open={showStockIssueDialog}
+      onOpenChange={setShowStockIssueDialog}
+      issue={stockIssuePresentation}
+      onConfirm={() => barcodeInputRef.current?.focus()}
+    />
     </>
   );
 };

@@ -75,6 +75,12 @@ import {
 } from "@/utils/posGstTotals";
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
+import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
+import {
+  buildInsufficientStockIssue,
+  buildMultipleStockIssues,
+  type StockIssuePresentation,
+} from "@/utils/stockErrorMessages";
 import {
   Command,
   CommandEmpty,
@@ -324,7 +330,7 @@ export default function POSSales() {
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
-  const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
+  const { checkStock, validateCartStock } = useStockValidation();
   const queryClient = useQueryClient();
 
   const refreshPosAfterBillPrint = useCallback(() => {
@@ -499,9 +505,9 @@ export default function POSSales() {
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<PendingPriceSelection | null>(null);
   
-  // Stock not available dialog state
-  const [showStockNotAvailableDialog, setShowStockNotAvailableDialog] = useState(false);
-  const [stockNotAvailableMessage, setStockNotAvailableMessage] = useState("");
+  // Stock issue dialog state (insufficient / out-of-stock on add or payment)
+  const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
+  const [stockIssuePresentation, setStockIssuePresentation] = useState<StockIssuePresentation | null>(null);
 
   // Floating reports state
   const [showFloatingCashierReport, setShowFloatingCashierReport] = useState(false);
@@ -522,6 +528,16 @@ export default function POSSales() {
   const [outOfStockProduct, setOutOfStockProduct] = useState<{ productId: string; productName: string } | null>(null);
 
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
+
+  const openStockIssueDialog = useCallback((
+    issue: StockIssuePresentation,
+    historyProduct?: { productId: string; productName: string },
+  ) => {
+    playErrorBeep();
+    setOutOfStockProduct(historyProduct ?? null);
+    setStockIssuePresentation(issue);
+    setShowStockIssueDialog(true);
+  }, [playErrorBeep]);
 
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
@@ -2101,12 +2117,12 @@ export default function POSSales() {
             return;
           }
           
-          // Zero stock — show out-of-stock dialog
+          // Zero stock — show stock issue dialog
           setSearchInput("");
-          playErrorBeep();
-          setOutOfStockProduct({ productId: prod.id, productName: prod.product_name });
-          setStockNotAvailableMessage(`${prod.product_name} (Size: ${dbVariant.size}) — Stock: ${stockQty}`);
-          setShowStockNotAvailableDialog(true);
+          openStockIssueDialog(
+            buildInsufficientStockIssue(prod.product_name, dbVariant.size, 1, stockQty),
+            { productId: prod.id, productName: prod.product_name },
+          );
           return;
         }
 
@@ -2313,9 +2329,10 @@ export default function POSSales() {
       const stockCheck = await checkStock(variant.id, newQty);
       
       if (!stockCheck.isAvailable) {
-        playErrorBeep();
-        setStockNotAvailableMessage(`${stockCheck.productName} (${stockCheck.size}) - Only ${stockCheck.availableStock} in stock, cannot add ${newQty}`);
-        setShowStockNotAvailableDialog(true);
+        openStockIssueDialog(
+          buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, newQty, stockCheck.availableStock),
+          stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+        );
         setSearchInput("");
         return;
       }
@@ -2338,9 +2355,10 @@ export default function POSSales() {
       const stockCheck = await checkStock(variant.id, 1);
       
       if (!stockCheck.isAvailable) {
-        playErrorBeep();
-        setStockNotAvailableMessage(`${stockCheck.productName} (${stockCheck.size}) is out of stock`);
-        setShowStockNotAvailableDialog(true);
+        openStockIssueDialog(
+          buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, 1, stockCheck.availableStock),
+          stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+        );
         setSearchInput("");
         return;
       }
@@ -2497,11 +2515,8 @@ export default function POSSales() {
     const stockCheck = await checkStock(item.variantId, newQty);
     
     if (!stockCheck.isAvailable) {
-      showStockError(
-        item.productName,
-        item.size,
-        newQty,
-        stockCheck.availableStock
+      openStockIssueDialog(
+        buildInsufficientStockIssue(item.productName, item.size, newQty, stockCheck.availableStock),
       );
       return;
     }
@@ -3008,7 +3023,7 @@ export default function POSSales() {
     
     if (insufficientItems.length > 0) {
       paymentLockRef.current = false;
-      showMultipleStockErrors(insufficientItems);
+      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
       return;
     }
 
@@ -3217,7 +3232,7 @@ export default function POSSales() {
     );
     
     if (insufficientItems.length > 0) {
-      showMultipleStockErrors(insufficientItems);
+      openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
       return;
     }
 
@@ -6549,38 +6564,19 @@ export default function POSSales() {
           </div>
         )}
 
-        {/* Stock Not Available Dialog */}
-        <AlertDialog open={showStockNotAvailableDialog} onOpenChange={setShowStockNotAvailableDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Stock Not Available</AlertDialogTitle>
-              <AlertDialogDescription>
-                {stockNotAvailableMessage}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              {outOfStockProduct && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowStockNotAvailableDialog(false);
-                    setShowOutOfStockHistory(true);
-                  }}
-                >
-                  <History className="h-4 w-4 mr-1" />
-                  View History
-                </Button>
-              )}
-              <AlertDialogAction onClick={() => {
-                setShowStockNotAvailableDialog(false);
-                setOutOfStockProduct(null);
-                barcodeInputRef.current?.focus();
-              }}>
-                OK
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <StockIssueAlertDialog
+          open={showStockIssueDialog}
+          onOpenChange={setShowStockIssueDialog}
+          issue={stockIssuePresentation}
+          onConfirm={() => {
+            setOutOfStockProduct(null);
+            barcodeInputRef.current?.focus();
+          }}
+          secondaryAction={outOfStockProduct ? {
+            label: "View History",
+            onClick: () => setShowOutOfStockHistory(true),
+          } : undefined}
+        />
 
         {/* Floating Reports */}
         <FloatingPOSReports
