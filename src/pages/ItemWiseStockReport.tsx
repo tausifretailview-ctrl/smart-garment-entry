@@ -139,7 +139,7 @@ export default function ItemWiseStockReport() {
       return { brands, categories, departments, suppliers };
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60000,
+    ...STABLE_TAB_OPTIONS,
   });
 
   // Fetch stock data - always enabled now
@@ -192,6 +192,7 @@ export default function ItemWiseStockReport() {
       return allVariants;
     },
     enabled: !!currentOrganization?.id,
+    ...STABLE_TAB_OPTIONS,
   });
 
   // Fetch supplier map for variants - always load since groupBy can change anytime
@@ -214,7 +215,7 @@ export default function ItemWiseStockReport() {
       return map;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 60000,
+    ...STABLE_TAB_OPTIONS,
   });
 
   // Aggregate data by selected group field
