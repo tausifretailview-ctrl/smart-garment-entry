@@ -208,7 +208,16 @@ export default function StockReport() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const REPORT_CACHE = { staleTime: 5 * 60 * 1000, gcTime: 30 * 60 * 1000, refetchOnWindowFocus: false as const };
+  // Tab-return stable: never refetch on focus/mount/reconnect; keep previous rows while any
+  // background refetch is in flight so switching browser/ERP tabs never flashes a skeleton.
+  const REPORT_CACHE = {
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false as const,
+    refetchOnMount: false as const,
+    refetchOnReconnect: false as const,
+    placeholderData: keepPreviousData,
+  };
 
   // Fetch global totals via RPC (single JSON instead of downloading all variants)
   const { data: cachedGlobalTotals } = useQuery({
