@@ -8027,6 +8027,14 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      peek_next_supplier_invoice_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      allocate_supplier_invoice_number: {
+        Args: { p_organization_id: string; p_supplier_id: string }
+        Returns: string
+      }
       generate_purchase_order_number: {
         Args: { p_organization_id: string }
         Returns: string
