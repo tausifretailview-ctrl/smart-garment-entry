@@ -7,6 +7,7 @@ import { initUIScale } from "@/components/UIScaleSelector";
 import { initBootSplashWatchdog } from "@/lib/appBootSplash";
 import { recoverElectronOAuthErrorPage } from "@/lib/electronOAuthRecovery";
 import { initElectronViewportSync } from "@/lib/electronViewportSync";
+import { ensurePosAppSession } from "@/lib/posCartPersistence";
 import "./index.css";
 
 recoverElectronOAuthErrorPage();
@@ -14,6 +15,7 @@ recoverElectronOAuthErrorPage();
 initForceDesktopViewPreference();
 initUIScale();
 initElectronViewportSync();
+ensurePosAppSession();
 void initNativeShell();
 initBootSplashWatchdog();
 

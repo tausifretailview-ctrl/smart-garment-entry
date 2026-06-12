@@ -1193,4 +1193,22 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents
+      .executeJavaScript(
+        `(function () {
+          try {
+            for (var i = sessionStorage.length - 1; i >= 0; i--) {
+              var k = sessionStorage.key(i);
+              if (k && k.indexOf('pos_cart_') === 0) sessionStorage.removeItem(k);
+            }
+            for (var j = localStorage.length - 1; j >= 0; j--) {
+              var lk = localStorage.key(j);
+              if (lk && lk.indexOf('pos_cart_') === 0) localStorage.removeItem(lk);
+            }
+          } catch (e) {}
+        })();`,
+      )
+      .catch(() => {});
+  }
 });
