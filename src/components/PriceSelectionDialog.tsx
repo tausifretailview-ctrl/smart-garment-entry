@@ -28,6 +28,7 @@ interface PriceSelectionDialogProps {
   masterPrice: {
     sale_price: number;
     mrp: number;
+    date?: Date;
   };
   lastPurchasePrice?: {
     sale_price: number;
@@ -68,6 +69,7 @@ export function PriceSelectionDialog({
       sale_price: masterPrice.sale_price,
       mrp: masterPrice.mrp,
       source: "master",
+      date: masterPrice.date,
     },
   ];
 
@@ -143,7 +145,7 @@ export function PriceSelectionDialog({
                     </div>
                     {option.date && (
                       <p className="text-xs text-muted-foreground">
-                        Last: {format(option.date, "dd MMM yyyy")}
+                        {option.source === "master" ? "Updated" : "Last"}: {format(option.date, "dd MMM yyyy")}
                       </p>
                     )}
                   </div>
