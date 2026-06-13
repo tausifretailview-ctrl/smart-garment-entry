@@ -292,13 +292,22 @@ const App = () => {
 
   useEffect(() => {
     initNavigationPerfDiagnostics();
-    initCloudUsageDiagnostics();
+    // Only attach fetch-wrapper diagnostics when explicitly enabled — avoids prod overhead.
+    const diagEnabled =
+      import.meta.env.DEV ||
+      (typeof localStorage !== "undefined" &&
+        localStorage.getItem("ezzy_cloud_usage") === "1") ||
+      (typeof window !== "undefined" &&
+        window.location.search.includes("cloudusage=1"));
+    if (diagEnabled) {
+      initCloudUsageDiagnostics();
+    }
   }, []);
 
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30_000, // 30s — fresh enough for dashboards; stops refetch storms on tab switch
+        staleTime: 60_000, // 60s — cuts cloud reads on tab/component remount; live queries override via STALE_LIVE
         gcTime: 30 * 60 * 1000, // 30 min — survive browser tab sleep / ERP window tab switches
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
