@@ -110,3 +110,14 @@ export function nextSupplierInvoiceNumberFromLastBill(
     lastSupplierInvoiceNo,
   );
 }
+
+/** Prefer server peek (scans all bills); fall back to client series from recent rows. */
+export function resolveNextSupplierInvoiceNumber(
+  serverPeek: string | null | undefined,
+  invoices: Array<string | null | undefined>,
+  referenceInvoice?: string | null,
+): string {
+  const peek = String(serverPeek ?? "").trim();
+  if (peek) return peek;
+  return nextSupplierInvoiceNumberFromSeries(invoices, referenceInvoice);
+}
