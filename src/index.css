@@ -1503,6 +1503,27 @@ main:has(.dashboard-workspace) {
   .sale-bill-readable .pos-sales-footer .text-\[11px\],
   .sale-bill-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }
   .sale-bill-readable kbd { font-size: 11px !important; }
+
+  /* Sale Order — same typography scale as Sale Bill, inverted white/black chrome */
+  .sale-order-readable {
+    background: #ffffff !important;
+    color: #0a0a0a;
+  }
+  .sale-order-readable .text-xs { font-size: 13px !important; line-height: 1.25 !important; }
+  .sale-order-readable .text-\[10px\] { font-size: 12px !important; }
+  .sale-order-readable .text-\[11px\] { font-size: 13px !important; }
+  .sale-order-readable .text-\[12px\] { font-size: 14px !important; }
+  .sale-order-readable .text-\[13px\] { font-size: 14px !important; }
+  .sale-order-readable .text-\[15px\] { font-size: 16px !important; }
+  .sale-order-readable .text-sm { font-size: 14px !important; }
+  .sale-order-readable table th { font-size: 13px !important; color: #0a0a0a !important; }
+  .sale-order-readable table td { font-size: 14px !important; color: #0a0a0a !important; }
+  .sale-order-readable input,
+  .sale-order-readable [role="combobox"] { font-size: 15px !important; color: #0a0a0a !important; }
+  .sale-order-readable label { font-size: 13px !important; font-weight: 700 !important; color: #0a0a0a !important; }
+  .sale-order-readable .sale-order-footer {
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
@@ -14,12 +13,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2 } from "lucide-react";
+import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown, Loader2, ChevronLeft, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { UOM_OPTIONS, DEFAULT_UOM, UOMType } from "@/constants/uom";
 import { cn, sortSearchResults, buildProductDisplayName } from "@/lib/utils";
 import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
-import { BackToDashboard } from "@/components/BackToDashboard";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
   Command,
@@ -316,8 +315,10 @@ export default function SaleOrderEntry() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
   const skipDraftSaveOnUnmountRef = useRef(false);
+  const [showNotesSection, setShowNotesSection] = useState(false);
   const [salesman, setSalesman] = useState<string>("");
   const [invoiceFormat, setInvoiceFormat] = useState<"standard" | "wholesale-size-grouping">("standard");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
@@ -338,12 +339,14 @@ export default function SaleOrderEntry() {
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
 
 
-  // Inline search state for table row
+  // Inline search state for table row (legacy — browse bar is primary)
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
   const [inlineSearchResults, setInlineSearchResults] = useState<any[]>([]);
   const [showInlineSearch, setShowInlineSearch] = useState(false);
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
   const inlineSearchInputRef = useRef<HTMLInputElement>(null);
+
+  useEntryViewportSync();
 
   // Draft save hook
   const {
@@ -1402,63 +1405,91 @@ export default function SaleOrderEntry() {
     setDisplayLimit(100);
   }, [searchInput]);
 
+  const filledOrderItems = lineItems.filter((item) => item.productId !== "");
+  const totalOrderQty = filledOrderItems.reduce((sum, item) => sum + item.orderQty, 0);
+  const showMrpCol = (settings?.sale_settings as any)?.showMRP !== false;
+
   return (
-    <div className={cn(entryPageShellClass, "bg-background min-h-0")} data-entry-form>
-      <div className={cn("shrink-0 flex flex-col gap-2 py-2", entryPageSectionX)}>
-      <BackToDashboard />
-      
-      {/* Section A: Header */}
-      <div className="bg-card rounded-lg border shadow-sm p-3">
-        <div className="flex items-center justify-between">
-          <h1 className="text-[18px] font-semibold flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            {editingOrderId ? 'Edit Sale Order' : 'New Sale Order'}
-            {quotationId && <Badge variant="outline">From Quotation</Badge>}
-          </h1>
-          <div className="flex items-center gap-3">
-            <Label className="text-[13px] font-medium text-muted-foreground">Order No:</Label>
-            <span className="font-mono bg-muted/40 px-3 py-1 rounded-md text-[15px] font-semibold">{orderNumber}</span>
+    <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0")} data-entry-form>
+      <header className="bg-white border-b-2 border-black shrink-0 flex flex-col">
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
+          <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/sale-order-dashboard")}
+              className="h-8 shrink-0 text-black hover:text-black hover:bg-black/5 border border-black/20 text-xs gap-1.5 font-bold"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+            <div className="w-px h-6 bg-black/15 shrink-0" />
+            <ClipboardList className="h-5 w-5 text-black shrink-0" />
+            <span className="text-black font-bold text-[15px] whitespace-nowrap hidden md:inline">
+              {editingOrderId ? "Edit Sale Order" : "Sale Order"}
+            </span>
+            {quotationId && (
+              <Badge variant="outline" className="border-black text-black font-bold">
+                From Quotation
+              </Badge>
+            )}
+            <span className="border-2 border-black text-black font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
+              {orderNumber || "NEW"}
+            </span>
+          </div>
+          <div className="entry-page-header-actions flex items-center gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setLineItems(
+                  Array(7)
+                    .fill(null)
+                    .map((_, i) => ({
+                      id: `row-${i}`,
+                      productId: "",
+                      variantId: "",
+                      productName: "",
+                      size: "",
+                      barcode: "",
+                      orderQty: 0,
+                      box: "",
+                      stockQty: 0,
+                      mrp: 0,
+                      salePrice: 0,
+                      discountPercent: 0,
+                      discountAmount: 0,
+                      gstPercent: 0,
+                      lineTotal: 0,
+                      uom: DEFAULT_UOM,
+                    })),
+                );
+                setSelectedCustomerId("");
+                setSelectedCustomer(null);
+                setTermsConditions("");
+                setNotes("");
+                setFlatDiscountPercent(0);
+                setFlatDiscountAmount(0);
+                setRoundOff(0);
+                setSearchInput("");
+                setPopoverSearchResults([]);
+              }}
+              className="h-8 text-black hover:bg-black/5 border border-black/20 text-xs gap-1 px-2.5 font-bold"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">New</span>
+            </Button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Section B: Customer & Order Details */}
-      <div className="bg-secondary/50 dark:bg-muted/20 rounded-lg border shadow-sm p-3">
-        <div className="erp-invoice-section-label">ORDER & CUSTOMER DETAILS</div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div>
-            <Label>Order Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(orderDate, "PPP")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={orderDate} onSelect={(d) => d && setOrderDate(d)} />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div>
-            <Label>Expected Delivery</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(expectedDelivery, "PPP")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={expectedDelivery} onSelect={(d) => d && setExpectedDelivery(d)} />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="md:col-span-2">
-            <Label className="flex items-center gap-1">Customer <span className="ml-1 w-1.5 h-1.5 inline-block bg-destructive rounded-full"></span></Label>
+      <main className={entryPageMainClass}>
+      <section className={cn("bg-white border-b border-black/10 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
+          <div className="col-span-2 md:col-span-1 lg:col-span-2">
+            <Label className="text-[13px] font-bold text-black">
+              Customer <span className="text-red-600">*</span>
+            </Label>
             <div className="flex gap-2">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
@@ -1504,9 +1535,44 @@ export default function SaleOrderEntry() {
           </div>
 
           <div>
-            <Label>Tax Type</Label>
+            <Label className="text-[13px] font-bold text-black mb-1 block">Order No</Label>
+            <Input value={orderNumber} readOnly className="h-10 bg-neutral-50 font-mono font-bold text-sm border-black/20" />
+          </div>
+
+          <div>
+            <Label className="text-[13px] font-bold text-black mb-1 block">Order Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(orderDate, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={orderDate} onSelect={(d) => d && setOrderDate(d)} />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div>
+            <Label className="text-[13px] font-bold text-black mb-1 block">Expected Delivery</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(expectedDelivery, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={expectedDelivery} onSelect={(d) => d && setExpectedDelivery(d)} />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <div>
+            <Label className="text-[13px] font-bold text-black mb-1 block">Tax Type</Label>
             <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10 text-sm border-black/20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1517,14 +1583,14 @@ export default function SaleOrderEntry() {
           </div>
 
           <div>
-            <Label>Salesman</Label>
+            <Label className="text-[13px] font-bold text-black mb-1 block">Salesman</Label>
             <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10 text-sm border-black/20">
                 <SelectValue placeholder="Select Salesman" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
-                {employeesData?.map(emp => (
+                {employeesData?.map((emp) => (
                   <SelectItem key={emp.id} value={emp.employee_name}>
                     {emp.employee_name}
                   </SelectItem>
@@ -1533,10 +1599,10 @@ export default function SaleOrderEntry() {
             </Select>
           </div>
 
-          <div>
-            <Label>Invoice Format</Label>
+          <div className="col-span-2 md:col-span-1">
+            <Label className="text-[13px] font-bold text-black mb-1 block">Invoice Format</Label>
             <Select value={invoiceFormat} onValueChange={(v: "standard" | "wholesale-size-grouping") => setInvoiceFormat(v)}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10 text-sm border-black/20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1546,36 +1612,36 @@ export default function SaleOrderEntry() {
             </Select>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Section C: Entry Mode + Product Search */}
-      <div className="bg-card rounded-lg border shadow-sm p-3">
-        <div className="flex items-center gap-4">
+      <section className={cn("bg-neutral-50 border-b border-black/10 py-3 shrink-0", entryPageSectionX)}>
+        <div className="flex items-center gap-3 flex-wrap">
           {sizeGridEnabled && (
-          <div className="flex items-center gap-2">
-            <Label className="text-sm">Entry Mode:</Label>
-            <div className="flex items-center gap-2">
-              <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-sm font-bold ${entryMode === "grid" ? "text-black" : "text-black/50"}`}>
                 Size Grid
               </span>
               <Switch
                 checked={entryMode === "inline"}
                 onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
               />
-              <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
+              <span className={`text-sm font-bold ${entryMode === "inline" ? "text-black" : "text-black/50"}`}>
                 Inline
               </span>
             </div>
-          </div>
           )}
-        </div>
-        <div className="mt-3">
+          <div className="text-black/30 text-lg font-light select-none">|</div>
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start h-9">
-                <Search className="mr-2 h-4 w-4" />
-                Search Products (Shows Stock)
-              </Button>
+              <div className="relative flex-1 min-w-[280px] cursor-pointer">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40" />
+                <Input
+                  placeholder="Browse products by name, brand, category, size..."
+                  className="pl-10 pr-4 h-10 bg-white border-black/20 cursor-pointer text-sm font-semibold"
+                  readOnly
+                  onClick={() => setOpenProductSearch(true)}
+                />
+              </div>
             </PopoverTrigger>
             <PopoverContent className="w-[700px] p-0" align="start">
               <Command shouldFilter={false}>
@@ -1699,396 +1765,336 @@ export default function SaleOrderEntry() {
               </Command>
             </PopoverContent>
           </Popover>
+          <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">
+            <span className="text-[12px] font-bold opacity-80">Total Qty</span>
+            <span className="font-black tabular-nums text-[16px]">{totalOrderQty}</span>
+          </div>
         </div>
-      </div>
-      </div>
+      </section>
 
-      <main className={cn(entryPageMainClass, "flex flex-col gap-2 min-h-0", entryPageSectionX, "pb-2")}>
-      {/* Section D: Line Items Table */}
-      <div className="bg-card rounded-lg border shadow-sm p-3 flex flex-1 flex-col min-h-0">
-        <div className="erp-invoice-section-label">LINE ITEMS</div>
-        <div className="border rounded-md overflow-hidden relative flex flex-1 flex-col min-h-[220px]">
-          <div className="flex-1 min-h-[220px] overflow-x-auto overflow-y-auto isolate">
-            <Table className="w-full min-w-[1100px]">
-            <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
-              <TableRow>
-                <TableHead className="w-8">#</TableHead>
-                <TableHead className="min-w-[180px] max-w-[280px]">Product</TableHead>
-                <TableHead className="w-28">Barcode</TableHead>
-                <TableHead className="w-16">HSN</TableHead>
-                <TableHead className="w-16">Color</TableHead>
-                <TableHead className="w-16">Size</TableHead>
-                <TableHead className="w-20">Order Qty</TableHead>
-                <TableHead className="w-16">Box</TableHead>
-                <TableHead className="w-20">UOM</TableHead>
-                <TableHead className="w-20">Stock</TableHead>
-                <TableHead className="w-28">Difference</TableHead>
-                {(settings?.sale_settings as any)?.showMRP !== false && (
-                  <TableHead className="w-24">MRP</TableHead>
-                )}
-                <TableHead className="w-24">Price</TableHead>
-                <TableHead className="w-20">Disc %</TableHead>
-                <TableHead className="w-20">GST %</TableHead>
-                <TableHead className="w-24 text-right">Total</TableHead>
-                <TableHead className="w-10"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lineItems.map((item, index) => {
-                const stockInfo = getStockDifference(item);
-                return (
-                  <TableRow key={item.id} className={cn("h-14 border-b border-border/50 hover:bg-primary/[0.03] transition-colors", !item.productId && 'opacity-50')}>
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell className="min-w-[180px] max-w-[280px]">
-                      {item.productId ? (
-                        <button
-                          type="button"
-                          onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                          className="text-primary hover:underline text-left font-medium break-words whitespace-normal leading-tight"
-                        >
-                          {item.productName}
-                        </button>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.barcode || '-'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.hsnCode || '-'}</TableCell>
-                    <TableCell className="text-xs">{item.color || '-'}</TableCell>
-                    <TableCell>{item.size || '-'}</TableCell>
-                    <TableCell>
-                      {item.productId && (
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.orderQty}
-                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                          className="w-16 h-8"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.productId && (
-                        <Input
-                          type="text"
-                          value={item.box || ''}
-                          onChange={(e) => updateBox(item.id, e.target.value)}
-                          placeholder=""
-                          className="w-14 h-8"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.productId ? (
-                        <Select value={item.uom || DEFAULT_UOM} onValueChange={(v) => updateUom(item.id, v)}>
-                          <SelectTrigger className="w-20 h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {UOM_OPTIONS.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>{opt.value}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell>{item.productId ? item.stockQty : '-'}</TableCell>
-                    <TableCell>
-                      {stockInfo && (
-                        <div className={cn("flex items-center gap-1 text-sm", stockInfo.color)}>
-                          <stockInfo.icon className="h-4 w-4" />
-                          {stockInfo.text}
-                        </div>
-                      )}
-                    </TableCell>
-                    {(settings?.sale_settings as any)?.showMRP !== false && (
-                      <TableCell>
-                        {item.productId && (
+      <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
+        <div
+          ref={tableContainerRef}
+          className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-black/15 shadow-sm bg-white"
+        >
+          <div className="bg-white min-h-full pb-4 w-full min-w-full">
+            <table className="w-full min-w-[1200px] table-fixed border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-white border-b-2 border-black">
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-10">#</th>
+                  <th className="text-left text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 min-w-[160px]">Product</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24">Barcode</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">HSN</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Color</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Size</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Order Qty</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-14">Box</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">UOM</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Stock</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24">Diff</th>
+                  {showMrpCol && <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">MRP</th>}
+                  <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-20">Price</th>
+                  <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-16">Disc%</th>
+                  <th className="text-center text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-14">GST%</th>
+                  <th className="text-right text-[13px] uppercase tracking-wide font-bold h-11 text-black px-2 w-24 border-l-2 border-black">Total</th>
+                  <th className="w-8 h-11 bg-white" aria-hidden="true" />
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  if (filledOrderItems.length === 0) {
+                    return Array.from({ length: 7 }, (_, i) => (
+                      <tr key={`empty-${i}`} className="h-[38px] border-b border-black/10">
+                        <td className="text-center text-[12px] text-black/30 px-2">{i + 1}</td>
+                        {Array.from({ length: showMrpCol ? 15 : 14 }).map((_, j) => (
+                          <td key={j} className="px-2" />
+                        ))}
+                      </tr>
+                    ));
+                  }
+                  const displayItems = filledOrderItems.slice().reverse();
+                  const padCount = Math.max(0, 7 - displayItems.length);
+                  const itemRows = displayItems.map((item, displayIndex) => {
+                    const originalIndex = lineItems.findIndex((li) => li.id === item.id);
+                    const stockInfo = getStockDifference(item);
+                    return (
+                      <tr
+                        key={item.id}
+                        className={cn(
+                          "group border-b border-black/10 transition-colors",
+                          displayIndex % 2 === 0 ? "bg-white" : "bg-neutral-50",
+                          "hover:bg-neutral-100",
+                        )}
+                      >
+                        <td className="text-center text-[14px] font-bold text-black/70 px-2 py-2">{originalIndex + 1}</td>
+                        <td className="px-2 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
+                            className="text-black hover:underline text-left font-bold break-words text-[14px]"
+                          >
+                            {item.productName}
+                          </button>
+                        </td>
+                        <td className="text-center font-mono text-[13px] px-2 py-2">{item.barcode || "—"}</td>
+                        <td className="text-center text-[13px] px-2 py-2">{item.hsnCode || "—"}</td>
+                        <td className="text-center text-[13px] font-semibold px-2 py-2">{item.color || "—"}</td>
+                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.size || "—"}</td>
+                        <td className="text-center px-1 py-1">
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.orderQty || ""}
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-16 h-9 text-center font-bold mx-auto border-black/20"
+                          />
+                        </td>
+                        <td className="text-center px-1 py-1">
+                          <Input
+                            type="text"
+                            value={item.box || ""}
+                            onChange={(e) => updateBox(item.id, e.target.value)}
+                            className="w-14 h-9 text-center mx-auto border-black/20"
+                          />
+                        </td>
+                        <td className="text-center px-1 py-1">
+                          <Select value={item.uom || DEFAULT_UOM} onValueChange={(v) => updateUom(item.id, v)}>
+                            <SelectTrigger className="w-16 h-9 text-xs border-black/20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {UOM_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.value}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.stockQty}</td>
+                        <td className="text-center px-2 py-2">
+                          {stockInfo && (
+                            <div className={cn("flex items-center justify-center gap-1 text-xs font-bold", stockInfo.color)}>
+                              <stockInfo.icon className="h-3.5 w-3.5" />
+                              {stockInfo.text}
+                            </div>
+                          )}
+                        </td>
+                        {showMrpCol && (
+                          <td className="text-right px-1 py-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.mrp || ""}
+                              onChange={(e) => updateMrp(item.id, parseFloat(e.target.value) || 0)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-20 h-9 text-right ml-auto border-black/20 font-semibold"
+                            />
+                          </td>
+                        )}
+                        <td className="text-right px-1 py-1">
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
-                            value={item.mrp}
-                            onChange={(e) => updateMrp(item.id, parseFloat(e.target.value) || 0)}
+                            value={item.salePrice || ""}
+                            onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20 h-8"
+                            className="w-20 h-9 text-right ml-auto border-black/20 font-semibold"
                           />
-                        )}
-                      </TableCell>
-                    )}
-                    <TableCell>
-                      {item.productId && (
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={item.salePrice}
-                          onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20 h-8"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.productId && (
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.discountPercent}
-                          onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-8"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {item.productId && (
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.gstPercent}
-                          onChange={(e) => updateGstPercent(item.id, parseFloat(e.target.value) || 0)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-16 h-8"
-                        />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">₹{item.lineTotal.toFixed(2)}</TableCell>
-                    <TableCell>
-                      {item.productId && (
-                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              
-              {/* Inline Search Row - Always visible at bottom */}
-              <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
-                <TableCell className="font-medium text-muted-foreground">
-                  {lineItems.filter(item => item.productId).length + 1}
-                </TableCell>
-                <TableCell colSpan={2} className="relative overflow-visible" style={{ overflow: 'visible' }}>
-                  <div className="relative" style={{ overflow: 'visible' }}>
-                    <Input
-                      ref={inlineSearchInputRef}
-                      value={inlineSearchQuery}
-                      onChange={(e) => setInlineSearchQuery(e.target.value)}
-                      onFocus={() => {
-                        if (inlineSearchQuery.length >= 1) {
-                          setShowInlineSearch(true);
-                        }
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => setShowInlineSearch(false), 200);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'ArrowDown') {
-                          e.preventDefault();
-                          if (inlineDisplayRows.length > 0) {
-                            setSelectedInlineIndex(prev => 
-                              prev < inlineDisplayRows.length - 1 ? prev + 1 : 0
-                            );
-                          }
-                        } else if (e.key === 'ArrowUp') {
-                          e.preventDefault();
-                          if (inlineDisplayRows.length > 0) {
-                            setSelectedInlineIndex(prev => 
-                              prev > 0 ? prev - 1 : inlineDisplayRows.length - 1
-                            );
-                          }
-                        } else if (e.key === 'Enter') {
-                          e.preventDefault();
-                          if (inlineDisplayRows.length > 0) {
-                            handleInlineProductSelect(inlineDisplayRows[selectedInlineIndex]);
-                          }
-                        }
-                      }}
-                      placeholder="Search product name, brand, barcode..."
-                      className="w-full pr-8"
-                    />
-                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    
-                    {/* Inline Search Dropdown - Using Portal */}
-                    {showInlineSearch && inlineSearchInputRef.current && createPortal(
-                      <div 
-                        className="bg-popover border border-border rounded-md shadow-xl max-h-80 overflow-auto"
-                        style={{ 
-                          position: 'fixed',
-                          top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
-                          left: inlineSearchInputRef.current.getBoundingClientRect().left,
-                          width: Math.max(600, inlineSearchInputRef.current.getBoundingClientRect().width),
-                          zIndex: 9999,
-                        }}
-                      >
-                        {inlineDisplayRows.length > 0 ? (
-                          entryMode === "grid" ? (
-                            inlineDisplayRows.map((result, idx) => (
-                              <button
-                                key={result.product_id}
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => handleInlineProductSelect(result)}
-                                onMouseEnter={() => setSelectedInlineIndex(idx)}
-                                className={cn(
-                                  "flex w-full flex-col gap-1 border-b border-border px-4 py-3 text-left last:border-0",
-                                  idx === selectedInlineIndex
-                                    ? "bg-primary text-primary-foreground"
-                                    : "hover:bg-accent",
-                                )}
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex min-w-0 items-center gap-2">
-                                    <span className="truncate font-medium">
-                                      {buildProductDisplayName(result)}
-                                    </span>
-                                    {result.size_range && (
-                                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
-                                        {result.size_range}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="shrink-0 font-semibold">₹{(result.sale_price || 0).toFixed(2)}</span>
-                                </div>
-                                <div className="flex items-center justify-between text-xs opacity-80">
-                                  <span>{result.brand}</span>
-                                  <span>Stock: {result.total_stock}</span>
-                                </div>
-                              </button>
-                            ))
-                          ) : (
-                            inlineDisplayRows.map((result, idx) => (
-                              <ERPVariantRow
-                                key={result.id + idx}
-                                result={result}
-                                isSelected={idx === selectedInlineIndex}
-                                onClick={() => handleInlineProductSelect(result)}
-                                onMouseEnter={() => setSelectedInlineIndex(idx)}
-                              />
-                            ))
-                          )
-                        ) : inlineSearchQuery.length >= 1 ? (
-                          <div className="px-4 py-3 text-sm text-muted-foreground">
-                            No products found for "{inlineSearchQuery}"
-                          </div>
-                        ) : null}
-                      </div>,
-                      document.body
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell colSpan={13} className="text-muted-foreground text-sm">
-                  Type to search or use the search button above
-                </TableCell>
-              </TableRow>
-            </TableBody>
-            </Table>
+                        </td>
+                        <td className="text-right px-1 py-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={item.discountPercent || ""}
+                            onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-14 h-9 text-right ml-auto border-black/20"
+                          />
+                        </td>
+                        <td className="text-center px-1 py-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={item.gstPercent || ""}
+                            onChange={(e) => updateGstPercent(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-14 h-9 text-center mx-auto border-black/20"
+                          />
+                        </td>
+                        <td className="text-right px-2 py-2 border-l border-black/10 font-black font-mono tabular-nums">
+                          ₹{item.lineTotal.toFixed(2)}
+                        </td>
+                        <td className="px-0 py-1 text-center">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeItem(item.id)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  });
+                  const padRows = Array.from({ length: padCount }, (_, i) => (
+                    <tr key={`pad-${i}`} className="h-[38px] border-b border-black/10 bg-white">
+                      <td className="text-center text-[12px] text-black/30 px-2">{displayItems.length + i + 1}</td>
+                      {Array.from({ length: showMrpCol ? 15 : 14 }).map((_, j) => (
+                        <td key={j} className="px-2" />
+                      ))}
+                    </tr>
+                  ));
+                  return [...itemRows, ...padRows];
+                })()}
+              </tbody>
+            </table>
             <div ref={tableEndRef} />
           </div>
         </div>
-        <div className="mt-2 text-sm text-muted-foreground">
-          Total Items: {lineItems.filter(item => item.productId).length}
-        </div>
-      </div>
+      </section>
 
-      {/* Section E: Order Summary + Notes — single compact row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 shrink-0">
-        <div className="bg-card rounded-lg border shadow-sm p-3 xl:col-span-1">
-          <div className="erp-invoice-section-label">DISCOUNTS & ADJUSTMENTS</div>
-          <div className="grid grid-cols-2 gap-3">
+      {showNotesSection && (
+        <div className={cn("shrink-0 py-3 bg-white border-t border-black/10 max-h-[30vh] overflow-y-auto", entryPageSectionX)}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <Label>Flat Discount %</Label>
+              <Label className="text-[12px] font-bold text-black">Terms & Conditions</Label>
+              <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={3} className="text-[13px] bg-white border-black/20 mt-1" />
+            </div>
+            <div>
+              <Label className="text-[12px] font-bold text-black">Notes</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="text-[13px] bg-white border-black/20 mt-1" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      </main>
+
+      <footer className="entry-page-footer sale-order-footer shrink-0 relative z-40">
+        <div className="bg-white text-black border-t-2 border-black w-full">
+          <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0 flex-wrap">
+            <div className="flex items-center gap-0 shrink-0 overflow-x-auto flex-wrap">
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc %</span>
               <Input
                 type="number"
                 min="0"
                 max="100"
-                value={flatDiscountPercent}
+                value={flatDiscountPercent || ""}
+                placeholder="0"
                 onChange={(e) => {
                   setFlatDiscountPercent(parseFloat(e.target.value) || 0);
                   setFlatDiscountAmount(0);
                 }}
-                className="h-9"
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-[80px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
-            </div>
-            <div>
-              <Label>Flat Discount ₹</Label>
+              <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Flat Disc ₹</span>
               <Input
                 type="number"
                 min="0"
-                value={flatDiscountAmount}
+                value={flatDiscountAmount || ""}
+                placeholder="0"
                 onChange={(e) => {
                   setFlatDiscountAmount(parseFloat(e.target.value) || 0);
                   setFlatDiscountPercent(0);
                 }}
-                className="h-9"
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-[90px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
-            </div>
-            <div className="col-span-2">
-              <Label>Round Off</Label>
+              <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Round</span>
               <Input
                 type="number"
                 step="0.01"
-                value={roundOff}
+                value={roundOff || ""}
+                placeholder="0"
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                className="h-9"
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-[100px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
               />
             </div>
-          </div>
-        </div>
-        <div className="erp-invoice-summary-card xl:col-span-1">
-          <div className="erp-invoice-section-label">ORDER SUMMARY</div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-[13px] font-medium"><span>Gross Amount:</span><span className="tabular-nums">₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between text-[13px] font-medium"><span>Line Discount:</span><span className="tabular-nums">-₹{totalLineDiscount.toFixed(2)}</span></div>
-            {calculatedFlatDiscount > 0 && (
-              <div className="flex justify-between text-[13px] font-medium"><span>Flat Discount:</span><span className="tabular-nums">-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
-            )}
-            {taxType === "exclusive" && (
-              <div className="flex justify-between text-[13px] font-medium"><span>GST:</span><span className="tabular-nums">₹{totalGST.toFixed(2)}</span></div>
-            )}
-            {roundOff !== 0 && (
-              <div className="flex justify-between text-[13px] font-medium"><span>Round Off:</span><span className="tabular-nums">₹{roundOff.toFixed(2)}</span></div>
-            )}
-            <div className="border-t mt-2 pt-2 flex justify-between">
-              <span className="text-[15px] font-bold">Net Amount:</span>
-              <span className="text-[20px] font-extrabold text-primary tabular-nums">₹{netAmount.toFixed(2)}</span>
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Items</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{filledOrderItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Total Qty</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{totalOrderQty}</span>
+                </div>
+              </div>
+              <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Discount</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">-₹{totalDiscount.toFixed(0)}</span>
+                </div>
+              </div>
+              <div className="pl-4 border-l-2 border-black flex flex-col items-end shrink-0">
+                <span className="text-[13px] font-extrabold uppercase tracking-wide text-black underline underline-offset-2">Net Amount</span>
+                <span className="text-[36px] font-black font-mono tabular-nums leading-none text-black tracking-tighter">
+                  ₹{netAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-        <div className="bg-card rounded-lg border shadow-sm p-3 xl:col-span-1">
-          <div className="erp-invoice-section-label">NOTES & TERMS</div>
-          <div className="grid grid-cols-1 gap-2">
-            <div>
-              <Label className="text-xs">Terms & Conditions</Label>
-              <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={2} className="min-h-[52px] text-sm" />
-            </div>
-            <div>
-              <Label className="text-xs">Notes</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="min-h-[52px] text-sm" />
-            </div>
+        <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
+          <div className="hidden xl:flex items-center gap-2 text-[14px] text-black font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+            <span>Subtotal <span className="font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
+            <span className="text-black/30">—</span>
+            <span>Disc <span className="font-extrabold">₹{totalDiscount.toFixed(0)}</span></span>
+            <span className="text-black/30">+</span>
+            <span>GST <span className="font-extrabold">₹{taxType === "exclusive" ? totalGST.toFixed(0) : "0"}</span></span>
+            <span className="text-black/30">=</span>
+            <span>Net <span className="font-black">₹{netAmount.toLocaleString("en-IN")}</span></span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowNotesSection((prev) => !prev)}
+              className="h-9 px-3 text-[13px] font-bold text-black hover:bg-black/5 gap-1.5 border border-black/15"
+            >
+              <FileText className="h-4 w-4" />
+              Notes
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/sale-order-dashboard")}
+              className="h-9 px-3 text-[13px] font-bold text-red-700 hover:bg-red-50 gap-1.5 border border-red-200"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSaveAndPrint}
+              disabled={isSaving}
+              variant="outline"
+              className="h-9 px-4 text-[13px] font-extrabold gap-1.5 border-2 border-black text-black hover:bg-black/5"
+            >
+              <Printer className="h-4 w-4" />
+              Save & Print
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleSaveOrder().then((r) => r.success && navigate("/sale-order-dashboard"))}
+              disabled={isSaving}
+              className="h-9 px-5 text-[14px] bg-black text-white hover:bg-black/90 font-extrabold gap-1.5"
+            >
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Book Sale Order"}
+            </Button>
           </div>
         </div>
-      </div>
-      </main>
-
-      {/* Section G: Sticky Action Footer */}
-      <div className="erp-invoice-sticky-actions shrink-0">
-        <div className="flex gap-4 justify-end">
-          <Button variant="outline" onClick={() => navigate('/sale-order-dashboard')} className="h-11 rounded-lg px-6">
-            Cancel
-          </Button>
-          <Button onClick={handleSaveAndPrint} disabled={isSaving} variant="secondary" className="h-11 rounded-lg px-6">
-            <Printer className="mr-2 h-4 w-4" />
-            Save & Print
-          </Button>
-          <Button onClick={() => handleSaveOrder().then(r => r.success && navigate('/sale-order-dashboard'))} disabled={isSaving} className="h-11 rounded-lg px-6 shadow-sm">
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? 'Saving...' : 'Book Sale Order'}
-          </Button>
-        </div>
-      </div>
+      </footer>
 
       {/* Off-screen print source — do not use Tailwind hidden (blanks react-to-print) */}
       <div className="invoice-print-source-screen">
