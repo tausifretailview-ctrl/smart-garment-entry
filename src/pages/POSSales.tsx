@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { logError } from "@/lib/errorLogger";
-import { cn, displayBarcode } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
@@ -174,6 +174,29 @@ interface CartItem {
 interface POSBarcodeRuntimeSettings {
   pos_barcode_price_mode: 'mrp' | 'sale_price';
   enable_mrp: boolean;
+}
+
+const POS_CART_BARCODE_COL_MIN = 110;
+const POS_CART_BARCODE_COL_MAX = 240;
+
+function formatPosCartBarcode(barcode: string | null | undefined): string {
+  return (barcode || "").trim();
+}
+
+function posCartBarcodeColumnWidth(items: { barcode?: string | null }[]): number {
+  const longest = items.reduce((max, item) => {
+    const len = formatPosCartBarcode(item.barcode).length;
+    return len > max ? len : max;
+  }, 0);
+  if (longest <= 10) return POS_CART_BARCODE_COL_MIN;
+  return Math.min(
+    POS_CART_BARCODE_COL_MAX,
+    Math.max(POS_CART_BARCODE_COL_MIN, longest * 7 + 16),
+  );
+}
+
+function posCartGridColumns(barcodeColPx: number): string {
+  return `40px ${barcodeColPx}px minmax(0, 1fr) 58px 72px 60px 100px 72px 86px 110px 85px 120px`;
 }
 
 /** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
@@ -375,6 +398,10 @@ export default function POSSales() {
       return next;
     });
   }, []);
+  const posCartGridCols = useMemo(
+    () => posCartGridColumns(posCartBarcodeColumnWidth(items)),
+    [items],
+  );
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
@@ -5113,8 +5140,8 @@ export default function POSSales() {
                                   </span>
                                 </div>
                                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/90">
-                                  {displayBarcode(item.variant.barcode) && (
-                                    <span className="font-mono">{displayBarcode(item.variant.barcode)}</span>
+                                  {formatPosCartBarcode(item.variant.barcode) && (
+                                    <span className="font-mono text-xs">{formatPosCartBarcode(item.variant.barcode)}</span>
                                   )}
                                   <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
                                   {item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
@@ -5502,7 +5529,7 @@ export default function POSSales() {
           <div className="w-full h-full min-h-0 flex flex-col overflow-hidden">
           <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-border/60 shadow-sm">
             <div className="bg-slate-900 text-white">
-              <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: '40px 110px 1fr 58px 72px 60px 100px 72px 86px 110px 85px 120px' }}>
+              <div className="grid gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ gridTemplateColumns: posCartGridCols }}>
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
@@ -5570,9 +5597,8 @@ export default function POSSales() {
               {(() => {
                   const MIN_DISPLAY_ROWS = 5;
                   const blankRowsNeeded = Math.max(0, MIN_DISPLAY_ROWS - items.length);
-                  const ROW_COLS = '40px 110px 1fr 58px 72px 60px 100px 72px 86px 110px 85px 120px';
                   const blankRow = (idx: number) => (
-                    <div key={`blank-${idx}`} className={`grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: ROW_COLS }}>
+                    <div key={`blank-${idx}`} className={`grid gap-1.5 px-3 py-2.5 border-b border-border/40 text-sm ${(items.length + idx) % 2 === 1 ? 'bg-muted/20' : ''}`} style={{ gridTemplateColumns: posCartGridCols }}>
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
@@ -5603,10 +5629,18 @@ export default function POSSales() {
                             highlightCartItemId === item.id &&
                               "ring-2 ring-inset ring-primary/70 bg-primary/10 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.35)] z-[1] relative"
                           )}
-                          style={{ gridTemplateColumns: ROW_COLS }}
+                          style={{ gridTemplateColumns: posCartGridCols }}
                         >
                           <div className="flex items-center justify-center font-semibold text-foreground/80">{index + 1}</div>
-                          <div className="flex items-center text-sm font-mono text-foreground/80">{displayBarcode(item.barcode)}</div>
+                          <div
+                            className={cn(
+                              "flex items-center font-mono text-foreground/80 min-w-0",
+                              formatPosCartBarcode(item.barcode).length > 10 ? "text-[11px] leading-tight" : "text-sm",
+                            )}
+                            title={formatPosCartBarcode(item.barcode) || undefined}
+                          >
+                            {formatPosCartBarcode(item.barcode)}
+                          </div>
                           <div className="flex items-center font-medium text-sm min-w-0 gap-1">
                             <span className="truncate">{item.productName}</span>
                             {item.isDcProduct && (
