@@ -141,7 +141,7 @@ import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 interface PendingPriceSelection {
   product: any;
   variant: any;
-  masterPrice: { sale_price: number; mrp: number };
+  masterPrice: { sale_price: number; mrp: number; date?: Date };
   lastPurchasePrice: { sale_price: number; mrp: number; date?: Date };
 }
 
