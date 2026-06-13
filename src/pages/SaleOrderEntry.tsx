@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
@@ -94,7 +94,7 @@ const customerSchema = z.object({
 
 const VARIANT_SEARCH_SELECT = `
   id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
-  products (id, product_name, brand, category, style, color, hsn_code, gst_per, uom)
+  products (id, product_name, brand, category, style, color, hsn_code, gst_per, uom, size_group_id)
 `;
 
 export type SaleOrderVariantSearchResult = {
@@ -113,7 +113,50 @@ export type SaleOrderVariantSearchResult = {
   gst_per: number;
   hsn_code: string;
   uom?: string;
+  size_range?: string | null;
 };
+
+function sizeRangeFromGroup(sizes: string[] | undefined | null): string | null {
+  if (!sizes?.length) return null;
+  return sizes.length > 1 ? `${sizes[0]}-${sizes[sizes.length - 1]}` : sizes[0];
+}
+
+function attachSizeRangesToResults(
+  rows: any[],
+  sizeGroupsMap: Record<string, { sizes: string[] }>,
+): SaleOrderVariantSearchResult[] {
+  return rows.map((v) => {
+    const mapped = mapVariantSearchRow(v);
+    const sizeGroupId = v.products?.size_group_id as string | undefined;
+    const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
+    return {
+      ...mapped,
+      size_range: sizeRangeFromGroup(sizeGroup?.sizes),
+    };
+  });
+}
+
+/** One row per product for size-grid search — highest-stock variant as representative. */
+function pickProductLevelSearchRows(
+  results: SaleOrderVariantSearchResult[],
+): Array<SaleOrderVariantSearchResult & { total_stock: number }> {
+  const groups = new Map<string, { rep: SaleOrderVariantSearchResult; totalStock: number }>();
+  for (const r of results) {
+    const existing = groups.get(r.product_id);
+    if (!existing) {
+      groups.set(r.product_id, { rep: r, totalStock: r.stock_qty || 0 });
+      continue;
+    }
+    existing.totalStock += r.stock_qty || 0;
+    if ((r.stock_qty || 0) > (existing.rep.stock_qty || 0)) {
+      existing.rep = r;
+    }
+  }
+  return Array.from(groups.values()).map(({ rep, totalStock }) => ({
+    ...rep,
+    total_stock: totalStock,
+  }));
+}
 
 function mapVariantSearchRow(v: any): SaleOrderVariantSearchResult {
   return {
@@ -195,7 +238,23 @@ async function searchSaleOrderVariants(
   const uniqueMap = new Map<string, any>();
   [...(barcodeVariants || []), ...productVariants].forEach((v) => uniqueMap.set(v.id, v));
 
-  let results = Array.from(uniqueMap.values()).map(mapVariantSearchRow);
+  const mergedRows = Array.from(uniqueMap.values());
+  const sizeGroupIds = [
+    ...new Set(mergedRows.map((v) => v.products?.size_group_id).filter(Boolean)),
+  ] as string[];
+
+  let sizeGroupsMap: Record<string, { sizes: string[] }> = {};
+  if (sizeGroupIds.length > 0) {
+    const { data: sizeGroups } = await supabase
+      .from("size_groups")
+      .select("id, sizes")
+      .in("id", sizeGroupIds);
+    sizeGroups?.forEach((sg: { id: string; sizes: string[] | null }) => {
+      sizeGroupsMap[sg.id] = { sizes: sg.sizes || [] };
+    });
+  }
+
+  let results = attachSizeRangesToResults(mergedRows, sizeGroupsMap);
 
   if (searchTerms.length > 1) {
     results = results.filter((r) => {
@@ -267,7 +326,8 @@ export default function SaleOrderEntry() {
   const initialDraftCheckDone = useRef(false);
 
   // Size grid entry mode - will be set from settings
-  const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
+  const [sizeGridEnabled, setSizeGridEnabled] = useState(true);
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
@@ -464,7 +524,11 @@ export default function SaleOrderEntry() {
   useEffect(() => {
     if (settings && !entryModeInitialized) {
       const saleSettings = settings.sale_settings as any;
-      if (saleSettings?.defaultEntryMode) {
+      const enabled = saleSettings?.enable_size_grid_sales !== false;
+      setSizeGridEnabled(enabled);
+      if (!enabled) {
+        setEntryMode("inline");
+      } else if (saleSettings?.defaultEntryMode) {
         setEntryMode(saleSettings.defaultEntryMode);
       }
       setEntryModeInitialized(true);
@@ -617,22 +681,96 @@ export default function SaleOrderEntry() {
     }
   }, [taxType]);
 
-  // Open size grid modal for a product
-  const openSizeGridForProduct = (product: any) => {
-    const variants = product.product_variants || [];
-    if (variants.length === 0) return;
-    
-    setSizeGridProduct(product);
-    setSizeGridVariants(variants.map((v: any) => ({
-      id: v.id,
-      size: v.size,
-      stock_qty: v.stock_qty || 0,
-      sale_price: v.sale_price,
-      color: v.color || product.color,
-      barcode: v.barcode,
-    })));
+  // Open size grid — fetch all variants from DB (matches Sale Invoice / Purchase Entry).
+  const openSizeGridForProductId = useCallback(async (productId: string, selectedSalePrice?: number) => {
+    if (!currentOrganization?.id) return;
+
+    const { data: productRow, error: productError } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, style, color, hsn_code, gst_per, uom")
+      .eq("id", productId)
+      .eq("organization_id", currentOrganization.id)
+      .maybeSingle();
+
+    if (productError || !productRow) {
+      toast({
+        title: "Product not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("id, size, color, barcode, sale_price, mrp, stock_qty, active, product_id")
+      .eq("product_id", productId)
+      .eq("organization_id", currentOrganization.id)
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    if (error || !data?.length) {
+      toast({
+        title: "No variants found",
+        description: "This product has no active variants.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const uniqueMap = new Map<string, (typeof data)[0]>();
+    for (const v of data) {
+      const key = `${(v.size || "").toLowerCase()}_${(v.color || "").toLowerCase()}`;
+      const existing = uniqueMap.get(key);
+      if (!existing) {
+        uniqueMap.set(key, v);
+        continue;
+      }
+      const existingStock = existing.stock_qty || 0;
+      const newStock = v.stock_qty || 0;
+      if (selectedSalePrice) {
+        const existingMatchesPrice =
+          Math.round(existing.sale_price || 0) === Math.round(selectedSalePrice);
+        const newMatchesPrice = Math.round(v.sale_price || 0) === Math.round(selectedSalePrice);
+        if (newMatchesPrice && !existingMatchesPrice) {
+          uniqueMap.set(key, v);
+        } else if (!newMatchesPrice && existingMatchesPrice) {
+          // keep existing
+        } else if (newStock > existingStock) {
+          uniqueMap.set(key, v);
+        }
+      } else if (newStock > existingStock) {
+        uniqueMap.set(key, v);
+      }
+    }
+
+    const cartQtyByVariant = new Map<string, number>();
+    for (const item of lineItems) {
+      if (item.variantId) {
+        cartQtyByVariant.set(
+          item.variantId,
+          (cartQtyByVariant.get(item.variantId) || 0) + item.orderQty,
+        );
+      }
+    }
+
+    setSizeGridProduct(productRow);
+    setSizeGridVariants(
+      Array.from(uniqueMap.values()).map((v) => ({
+        id: v.id,
+        size: v.size,
+        stock_qty: Math.max(0, (v.stock_qty || 0) - (cartQtyByVariant.get(v.id) || 0)),
+        sale_price: v.sale_price || 0,
+        mrp: v.mrp || 0,
+        color: v.color || productRow.color || "",
+        barcode: v.barcode,
+      })),
+    );
     setShowSizeGrid(true);
-  };
+    setOpenProductSearch(false);
+    setSearchInput("");
+    setInlineSearchQuery("");
+    setShowInlineSearch(false);
+  }, [currentOrganization?.id, lineItems, toast]);
 
   // Handle size grid confirmation
   const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
@@ -644,6 +782,7 @@ export default function SaleOrderEntry() {
     let addedCount = 0;
 
     for (const { variant, qty } of items) {
+      if (qty <= 0) continue;
       const existingIndex = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
       if (existingIndex >= 0) {
@@ -691,11 +830,14 @@ export default function SaleOrderEntry() {
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  const addProductToOrder = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
-    if (entryMode === "grid") {
-      openSizeGridForProduct(product);
-      setOpenProductSearch(false);
-      setSearchInput("");
+  const addProductToOrder = async (
+    product: any,
+    variant: any,
+    overridePrice?: { sale_price: number; mrp: number },
+    options?: { skipSizeGrid?: boolean },
+  ) => {
+    if (entryMode === "grid" && !options?.skipSizeGrid) {
+      await openSizeGridForProductId(product.id, variant?.sale_price);
       return;
     }
 
@@ -974,12 +1116,23 @@ export default function SaleOrderEntry() {
     return () => clearTimeout(timer);
   }, [searchInput, currentOrganization?.id]);
 
-  const selectSearchResult = (result: SaleOrderVariantSearchResult) => {
+  const selectSearchResult = (result: SaleOrderVariantSearchResult, query?: string) => {
+    const trimmedQuery = (query ?? searchInput).trim();
+    const isBarcodeMatch =
+      Boolean(result.barcode) &&
+      trimmedQuery.length > 0 &&
+      result.barcode.toLowerCase() === trimmedQuery.toLowerCase();
+
+    if (entryMode === "grid" && !isBarcodeMatch) {
+      void openSizeGridForProductId(result.product_id, result.sale_price);
+      return;
+    }
+
     const product = productsData?.find((p) => p.id === result.product_id);
     const variant = product?.product_variants?.find((v: any) => v.id === result.id);
 
     if (product && variant) {
-      addProductToOrder(product, variant);
+      void addProductToOrder(product, variant, undefined, { skipSizeGrid: isBarcodeMatch });
       return;
     }
 
@@ -1005,14 +1158,16 @@ export default function SaleOrderEntry() {
         },
       ],
     };
-    addProductToOrder(fallbackProduct, fallbackProduct.product_variants[0]);
+    void addProductToOrder(fallbackProduct, fallbackProduct.product_variants[0], undefined, {
+      skipSizeGrid: isBarcodeMatch,
+    });
   };
 
   const handleInlineProductSelect = (result: SaleOrderVariantSearchResult) => {
     setInlineSearchQuery("");
     setShowInlineSearch(false);
     setInlineSearchResults([]);
-    selectSearchResult(result);
+    selectSearchResult(result, inlineSearchQuery);
   };
 
   // formatInlineProductDescription removed - using ERPVariantRow component instead
@@ -1223,13 +1378,29 @@ export default function SaleOrderEntry() {
   };
 
   const totalMatchingVariants = popoverSearchResults.length;
+  const productLevelSearchRows = useMemo(
+    () => pickProductLevelSearchRows(popoverSearchResults),
+    [popoverSearchResults],
+  );
+  const totalMatchingProducts = productLevelSearchRows.length;
+  const visiblePopoverResults = popoverSearchResults.slice(0, displayLimit);
+  const visibleProductLevelRows = useMemo(
+    () => pickProductLevelSearchRows(visiblePopoverResults),
+    [visiblePopoverResults],
+  );
+  const inlineDisplayRows = useMemo(
+    () =>
+      entryMode === "grid"
+        ? pickProductLevelSearchRows(inlineSearchResults)
+        : inlineSearchResults,
+    [entryMode, inlineSearchResults],
+  );
+  const displaySearchCount = entryMode === "grid" ? totalMatchingProducts : totalMatchingVariants;
 
   // Reset display limit when search changes
   useEffect(() => {
     setDisplayLimit(100);
   }, [searchInput]);
-
-  const visiblePopoverResults = popoverSearchResults.slice(0, displayLimit);
 
   return (
     <div className={cn(entryPageShellClass, "bg-background min-h-0")} data-entry-form>
@@ -1380,6 +1551,7 @@ export default function SaleOrderEntry() {
       {/* Section C: Entry Mode + Product Search */}
       <div className="bg-card rounded-lg border shadow-sm p-3">
         <div className="flex items-center gap-4">
+          {sizeGridEnabled && (
           <div className="flex items-center gap-2">
             <Label className="text-sm">Entry Mode:</Label>
             <div className="flex items-center gap-2">
@@ -1395,6 +1567,7 @@ export default function SaleOrderEntry() {
               </span>
             </div>
           </div>
+          )}
         </div>
         <div className="mt-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
@@ -1420,9 +1593,12 @@ export default function SaleOrderEntry() {
                       "No products found"
                     )}
                   </CommandEmpty>
-                  {totalMatchingVariants > displayLimit && (
+                  {displaySearchCount > displayLimit && (
                     <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
-                      <span>Showing {displayLimit} of {totalMatchingVariants} results</span>
+                      <span>
+                        Showing {Math.min(displayLimit, displaySearchCount)} of {displaySearchCount}{" "}
+                        {entryMode === "grid" ? "products" : "results"}
+                      </span>
                       <Button
                         variant="link"
                         size="sm"
@@ -1438,32 +1614,59 @@ export default function SaleOrderEntry() {
                     </div>
                   )}
                   <CommandGroup>
-                    {(() => {
-                      const grouped: Record<string, { productName: string; brand?: string; variants: SaleOrderVariantSearchResult[] }> = {};
-                      visiblePopoverResults.forEach((result) => {
-                        if (!grouped[result.product_id]) {
-                          grouped[result.product_id] = {
-                            productName: result.product_name,
-                            brand: result.brand,
-                            variants: [],
-                          };
-                        }
-                        grouped[result.product_id].variants.push(result);
-                      });
-
-                      return Object.entries(grouped).map(([productId, group]) => (
-                        <div key={productId}>
-                          {group.variants.length > 1 && (
-                            <div className="px-4 py-1.5 text-xs font-semibold text-foreground/70 bg-muted/40 border-b border-border sticky top-0">
-                              {group.productName}
-                              {group.brand && <span className="ml-2 font-normal text-muted-foreground">Brand: {group.brand}</span>}
+                    {entryMode === "grid" ? (
+                      visibleProductLevelRows.map((result) => (
+                        <CommandItem
+                          key={result.product_id}
+                          onSelect={() => {
+                            selectSearchResult(result);
+                            setOpenProductSearch(false);
+                            setSearchInput("");
+                          }}
+                          className="p-0 cursor-pointer"
+                        >
+                          <div className="flex w-full flex-col gap-1 px-4 py-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <span className="truncate font-medium">
+                                  {buildProductDisplayName({
+                                    product_name: result.product_name,
+                                    brand: result.brand,
+                                    style: result.style,
+                                    category: result.category,
+                                  })}
+                                </span>
+                                {result.size_range && (
+                                  <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                                    {result.size_range}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="shrink-0 font-semibold text-primary">
+                                ₹{(result.sale_price || 0).toFixed(2)}
+                              </span>
                             </div>
-                          )}
-                          {group.variants.map((result) => (
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex flex-wrap gap-2">
+                                {result.brand && <span>{result.brand}</span>}
+                                {result.color && <span>{result.color}</span>}
+                              </div>
+                              <span className={result.total_stock > 0 ? "text-emerald-600" : "text-destructive"}>
+                                Stock: {result.total_stock}
+                              </span>
+                            </div>
+                          </div>
+                        </CommandItem>
+                      ))
+                    ) : (
+                      (() => {
+                        const grouped = groupVariantsByProduct(visiblePopoverResults);
+                        return grouped.flatMap((group) =>
+                          group.variants.map((result) => (
                             <CommandItem
                               key={result.id}
                               onSelect={() => {
-                                selectSearchResult(result);
+                                selectSearchResult(result as SaleOrderVariantSearchResult);
                                 setOpenProductSearch(false);
                                 setSearchInput("");
                               }}
@@ -1471,7 +1674,7 @@ export default function SaleOrderEntry() {
                             >
                               <ERPVariantRow
                                 result={{
-                                  id: result.id,
+                                  id: result.id!,
                                   product_id: result.product_id,
                                   product_name: result.product_name,
                                   brand: result.brand,
@@ -1487,10 +1690,10 @@ export default function SaleOrderEntry() {
                                 showProductName={group.variants.length === 1}
                               />
                             </CommandItem>
-                          ))}
-                        </div>
-                      ));
-                    })()}
+                          )),
+                        );
+                      })()
+                    )}
                   </CommandGroup>
                 </CommandList>
               </Command>
@@ -1684,22 +1887,22 @@ export default function SaleOrderEntry() {
                       onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          if (inlineSearchResults.length > 0) {
+                          if (inlineDisplayRows.length > 0) {
                             setSelectedInlineIndex(prev => 
-                              prev < inlineSearchResults.length - 1 ? prev + 1 : 0
+                              prev < inlineDisplayRows.length - 1 ? prev + 1 : 0
                             );
                           }
                         } else if (e.key === 'ArrowUp') {
                           e.preventDefault();
-                          if (inlineSearchResults.length > 0) {
+                          if (inlineDisplayRows.length > 0) {
                             setSelectedInlineIndex(prev => 
-                              prev > 0 ? prev - 1 : inlineSearchResults.length - 1
+                              prev > 0 ? prev - 1 : inlineDisplayRows.length - 1
                             );
                           }
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
-                          if (inlineSearchResults.length > 0) {
-                            handleInlineProductSelect(inlineSearchResults[selectedInlineIndex]);
+                          if (inlineDisplayRows.length > 0) {
+                            handleInlineProductSelect(inlineDisplayRows[selectedInlineIndex]);
                           }
                         }
                       }}
@@ -1720,16 +1923,52 @@ export default function SaleOrderEntry() {
                           zIndex: 9999,
                         }}
                       >
-                        {inlineSearchResults.length > 0 ? (
-                          inlineSearchResults.map((result, idx) => (
-                            <ERPVariantRow
-                              key={result.id + idx}
-                              result={result}
-                              isSelected={idx === selectedInlineIndex}
-                              onClick={() => handleInlineProductSelect(result)}
-                              onMouseEnter={() => setSelectedInlineIndex(idx)}
-                            />
-                          ))
+                        {inlineDisplayRows.length > 0 ? (
+                          entryMode === "grid" ? (
+                            inlineDisplayRows.map((result, idx) => (
+                              <button
+                                key={result.product_id}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => handleInlineProductSelect(result)}
+                                onMouseEnter={() => setSelectedInlineIndex(idx)}
+                                className={cn(
+                                  "flex w-full flex-col gap-1 border-b border-border px-4 py-3 text-left last:border-0",
+                                  idx === selectedInlineIndex
+                                    ? "bg-primary text-primary-foreground"
+                                    : "hover:bg-accent",
+                                )}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate font-medium">
+                                      {buildProductDisplayName(result)}
+                                    </span>
+                                    {result.size_range && (
+                                      <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                                        {result.size_range}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="shrink-0 font-semibold">₹{(result.sale_price || 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-xs opacity-80">
+                                  <span>{result.brand}</span>
+                                  <span>Stock: {result.total_stock}</span>
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            inlineDisplayRows.map((result, idx) => (
+                              <ERPVariantRow
+                                key={result.id + idx}
+                                result={result}
+                                isSelected={idx === selectedInlineIndex}
+                                onClick={() => handleInlineProductSelect(result)}
+                                onMouseEnter={() => setSelectedInlineIndex(idx)}
+                              />
+                            ))
+                          )
                         ) : inlineSearchQuery.length >= 1 ? (
                           <div className="px-4 py-3 text-sm text-muted-foreground">
                             No products found for "{inlineSearchQuery}"
