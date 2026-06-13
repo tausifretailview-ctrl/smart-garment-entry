@@ -99,7 +99,7 @@ export const Layout = ({ children }: LayoutProps) => {
                       ? mobileFullscreenMainClass
                       : showDesktopChrome
                         ? cn(
-                            "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 pb-14 animate-fade-in",
+                            "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 pb-[calc(var(--erp-status-bar-height,1.75rem)+1.5rem)] animate-fade-in",
                             inTabCachePane && "data-tab-scroll",
                           )
                         : mobileMainContentClass
