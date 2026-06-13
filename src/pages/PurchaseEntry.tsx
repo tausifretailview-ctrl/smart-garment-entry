@@ -1594,17 +1594,29 @@ const PurchaseEntry = () => {
 
   // Auto-populate supplier invoice number for new bills; refresh when another user saves.
   useEffect(() => {
-    if (!nextSupplierInvNo || isEditMode || supplierInvManuallyEditedRef.current) return;
+    if (isEditMode || supplierInvManuallyEditedRef.current) return;
+    // Per-supplier serial wins once a supplier is selected; otherwise fall back
+    // to the org-wide next number so the field is never blank on a new bill.
+    const suggested = nextSupplierInvNoForSupplier || nextSupplierInvNo;
+    if (!suggested) return;
 
     setBillData((prev) => {
       const current = prev.supplier_invoice_no.trim();
+      // Allow auto-update if field is blank or still holds a previously auto-filled value
+      // (so picking a supplier replaces the org-wide guess with the supplier's own next no.).
       if (current && current !== supplierInvAutoValueRef.current) {
         return prev;
       }
-      supplierInvAutoValueRef.current = nextSupplierInvNo;
-      return { ...prev, supplier_invoice_no: nextSupplierInvNo };
+      if (current === suggested) return prev;
+      supplierInvAutoValueRef.current = suggested;
+      return { ...prev, supplier_invoice_no: suggested };
     });
-  }, [nextSupplierInvNo, isEditMode, supplierInvAutoFillEpoch]);
+  }, [
+    nextSupplierInvNo,
+    nextSupplierInvNoForSupplier,
+    isEditMode,
+    supplierInvAutoFillEpoch,
+  ]);
 
   // Menu / Alt+B — open blank new bill (not the last edited bill).
   // confirmDiscardRef (not confirmDiscardUnsavedPurchase) used here so this effect doesn't
