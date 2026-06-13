@@ -4,6 +4,7 @@ import {
   maxSupplierInvoiceInSeries,
   nextSupplierInvoiceNumberFromLastBill,
   nextSupplierInvoiceNumberFromSeries,
+  resolveNextSupplierInvoiceNumber,
 } from "./purchaseSupplierInvoiceNumber";
 
 describe("incrementSupplierInvoiceNumber", () => {
@@ -50,5 +51,19 @@ describe("maxSupplierInvoiceInSeries", () => {
     expect(maxSupplierInvoiceInSeries(["6/11/24", "6/11/29", "6/11/26"], "6/11/26")).toBe(
       "6/11/29",
     );
+  });
+});
+
+describe("resolveNextSupplierInvoiceNumber", () => {
+  it("prefers server peek over client fallback", () => {
+    expect(
+      resolveNextSupplierInvoiceNumber("RV0626099947", ["RV0626099945"], "RV0626099945"),
+    ).toBe("RV0626099947");
+  });
+
+  it("falls back to client series when peek is empty", () => {
+    expect(
+      resolveNextSupplierInvoiceNumber(null, ["46111", "46112"], "46112"),
+    ).toBe("46113");
   });
 });
