@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      _kz_excel_stage: {
+        Row: {
+          barcode: string
+          brand: string | null
+          color: string | null
+          product_name: string
+          pur_price: number | null
+          sale_price: number | null
+          size: string | null
+          style: string | null
+        }
+        Insert: {
+          barcode: string
+          brand?: string | null
+          color?: string | null
+          product_name: string
+          pur_price?: number | null
+          sale_price?: number | null
+          size?: string | null
+          style?: string | null
+        }
+        Update: {
+          barcode?: string
+          brand?: string | null
+          color?: string | null
+          product_name?: string
+          pur_price?: number | null
+          sale_price?: number | null
+          size?: string | null
+          style?: string | null
+        }
+        Relationships: []
+      }
       academic_years: {
         Row: {
           created_at: string | null
@@ -8383,6 +8416,14 @@ export type Database = {
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
+      }
+      kz_reconcile_excel_import: {
+        Args: { p_org: string }
+        Returns: {
+          products_created: number
+          variants_inserted: number
+          variants_updated: number
+        }[]
       }
       log_audit: {
         Args: {
