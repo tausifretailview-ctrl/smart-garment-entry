@@ -72,6 +72,7 @@ interface ModernWholesaleTemplateProps {
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   termsConditions?: string[];
   declarationText?: string;
+  notes?: string;
   stampImageBase64?: string;
   stampSize?: 'small' | 'medium' | 'large';
   [key: string]: any;
@@ -126,11 +127,14 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   format = 'a4',
   termsConditions,
   declarationText,
+  notes,
   stampImageBase64,
   stampSize = 'medium',
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
+  const displayNote =
+    notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
 
   // Use "Rs." for summary labels, plain number for table cells
   const formatCurrencyPlain = (amount: number) => {
@@ -612,12 +616,24 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               <strong>Terms:</strong> {termsConditions.map((t, i) => (
                 <span key={i}>{i > 0 && <br />}{i + 1}. {t}</span>
               ))}
+              {displayNote && (
+                <>
+                  <br />
+                  {termsConditions.length + 1}. <strong>Note:</strong> {displayNote}
+                </>
+              )}
             </p>
           ) : (
             <p style={{ margin: 0 }}>
               <strong>Terms:</strong> 1. Goods once sold will not be taken back.
               <br />
               2. Subject to local jurisdiction.
+              {displayNote && (
+                <>
+                  <br />
+                  3. <strong>Note:</strong> {displayNote}
+                </>
+              )}
             </p>
           )}
         </div>
