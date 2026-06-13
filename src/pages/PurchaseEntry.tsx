@@ -285,10 +285,11 @@ const PurchaseEntry = () => {
   const initialBrowserSnapshotRef = useRef<PurchaseEntrySnapshot | null | undefined>(undefined);
   if (initialBrowserSnapshotRef.current === undefined) {
     const navState = (location.state ?? {}) as { newBill?: boolean; editBillId?: string };
-    initialBrowserSnapshotRef.current =
-      currentOrganization?.id && user?.id && !navState.newBill && !navState.editBillId
-        ? readPurchaseEntrySnapshot(currentOrganization.id, user.id)
-        : null;
+    if (navState.newBill || navState.editBillId) {
+      initialBrowserSnapshotRef.current = null;
+    } else if (currentOrganization?.id && user?.id) {
+      initialBrowserSnapshotRef.current = readPurchaseEntrySnapshot(currentOrganization.id, user.id);
+    }
   }
   const initialBrowserSnapshot = initialBrowserSnapshotRef.current;
   const { invalidatePurchases } = useDashboardInvalidation();
@@ -458,7 +459,7 @@ const PurchaseEntry = () => {
   const [updatedRows, setUpdatedRows] = useState<Set<string>>(new Set());
 
   // DC Purchase (Direct Cash / No GST) state
-  const [isDcPurchase, setIsDcPurchase] = useState(false);
+  const [isDcPurchase, setIsDcPurchase] = useState(Boolean(initialBrowserSnapshot?.isDcPurchase));
 
   // Bill lock state
   const [isBillLocked, setIsBillLocked] = useState(false);
