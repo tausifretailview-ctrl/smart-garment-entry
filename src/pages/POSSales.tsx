@@ -2404,7 +2404,11 @@ export default function POSSales() {
         setPendingPriceSelection({
           product,
           variant,
-          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
+          masterPrice: {
+            sale_price: masterSalePrice,
+            mrp: masterMrp,
+            date: variant.updated_at ? new Date(variant.updated_at) : undefined,
+          },
           lastPurchasePrice: { 
             sale_price: lastPurchaseSalePrice, 
             mrp: lastPurchaseMrp || lastPurchaseSalePrice,
