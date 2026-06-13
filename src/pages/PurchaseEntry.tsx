@@ -1370,6 +1370,46 @@ const PurchaseEntry = () => {
     lastPurchaseBill?.supplier_invoice_no,
   ]);
 
+  // Per-supplier serial: last supplier_invoice_no saved for THIS supplier in THIS org.
+  // Used to suggest the next number once a supplier is picked (overrides org-wide series).
+  const { data: lastInvoiceForSupplier } = useQuery({
+    queryKey: [
+      "last-supplier-invoice-for-supplier",
+      currentOrganization?.id,
+      billData.supplier_id || null,
+    ],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !billData.supplier_id) return null;
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("supplier_invoice_no, created_at")
+        .eq("organization_id", currentOrganization.id)
+        .eq("supplier_id", billData.supplier_id)
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false")
+        .not("supplier_invoice_no", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? [])
+        .map((r) => String(r.supplier_invoice_no ?? "").trim())
+        .filter(Boolean);
+    },
+    enabled:
+      !!currentOrganization?.id && !!billData.supplier_id && !isEditMode,
+    refetchOnWindowFocus: false,
+    staleTime: 15000,
+  });
+
+  const nextSupplierInvNoForSupplier = useMemo(() => {
+    if (isEditMode || !billData.supplier_id) return undefined;
+    const list = lastInvoiceForSupplier ?? [];
+    if (list.length === 0) return undefined;
+    // Pick highest serial in the supplier's own series (continues their numbering even
+    // if the most recently created bill had a one-off prefix).
+    return nextSupplierInvoiceNumberFromSeries(list, list[0]);
+  }, [isEditMode, billData.supplier_id, lastInvoiceForSupplier]);
+
   // Fetch all purchase bill IDs for navigation
   const { data: allBillIds } = useQuery({
     queryKey: ['all-purchase-bill-ids', currentOrganization?.id],
