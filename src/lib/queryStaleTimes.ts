@@ -27,7 +27,7 @@ export const STALE_FREQUENT = 10_000;
 export const STALE_PAGINATED = 5_000;
 
 /** Sales/POS dashboards — reuse cache when switching window tabs; invalidation still forces fresh. */
-export const STALE_DASHBOARD_TAB_RETURN = 30_000;
+export const STALE_DASHBOARD_TAB_RETURN = 120_000;
 
 /** Search-as-you-type, filters, barcode scan — must refetch when key changes. */
 export const STALE_LIVE = 0;
