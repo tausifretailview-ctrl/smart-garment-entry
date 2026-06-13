@@ -1,55 +1,71 @@
-## Goal
+## What you're seeing
 
-When you minimize the window, switch to another browser tab, or click another ERP tab and come back to an Inventory page (Stock Report, Item-wise Stock, Stock Ageing, Stock Adjustment, Product Tracking, Item-wise Sales, etc.), the page should stay stable — no skeleton flash, no refetch — exactly like POS Dashboard and Sales Invoice Dashboard.
+In the video, when you click away to another ERP window tab (Customers / Accounts) and come back to **Purchase Bills**, the KPI cards stay but the bills table flashes a skeleton for ~1 second. POS Dashboard and Sales Invoice Dashboard do **not** do this — they stay static.
 
-## Why it happens today
+All three dashboards are kept mounted in `TabCachedPages` (`pos-dashboard`, `sales-invoice-dashboard`, `purchase-bill-dashboard` are all in `EXPLICIT_PROTECTED_TAB_PATHS`), so the component is never unmounted on tab change. All three also already spread `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` (`refetchOnMount:false`, `refetchOnWindowFocus:false`, `refetchOnReconnect:false`, `placeholderData: keepPreviousData`). So the cache itself is fine.
 
-I traced the difference between the screens that are stable (POS / Sales / Sale Returns / Purchase Bill Dashboard / Product Dashboard / Purchase Return Dashboard) and the screens that flash a skeleton (the rest of the Inventory module):
+## Root cause — the `loading` flag, not the query
 
-1. **Stable screens** all spread `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` (`src/lib/dashboardQueryOptions.ts`) onto every `useQuery`. That preset sets:
-   - `refetchOnWindowFocus: false`
-   - `refetchOnMount: false`
-   - `refetchOnReconnect: false`
-   - `staleTime: STALE_DASHBOARD_TAB_RETURN`
-   - `placeholderData: keepPreviousData`
+The skeleton is driven by the local `loading` boolean that each dashboard passes to `ERPTable isLoading={loading}`. The Purchase Bills version is more fragile than the POS/Sales version.
 
-2. **Inventory report screens that flash** only set a short `staleTime` (30–60 s) and rely on React Query defaults. Defaults are `refetchOnWindowFocus: true` + `refetchOnMount: true`, so:
-   - On tab/window return, AuthContext's `visibilitychange` handler revalidates the session and calls `setSession(...)` whenever the access_token rotates. That re-renders all consumers, which re-runs effects, which re-evaluates queries. Anything past `staleTime` refetches → `isLoading`/`isFetching` flips true → skeleton flashes for 1–3 s.
-   - Same thing happens when the OS suspends the tab for a while.
+**POS Dashboard** (`src/pages/POSDashboard.tsx:640`) — stable:
+```ts
+const loading = salesQueryLoading && paginatedSales.length === 0;
+```
+Once rows are on screen, `paginatedSales.length > 0`, so `loading` can never flip back to `true` — even if React Query momentarily considers the query "loading" again (auth token rotate, org context re-render, enable→disable→enable cycle, brief gcTime hiccup).
 
-3. POS / Sales feel stable because their dashboards already opt out of all three refetch triggers via the shared preset.
+**Sales Invoice Dashboard** (`src/pages/SalesInvoiceDashboard.tsx:802`) — also stable thanks to `keepPreviousData`: `dashboardPage` stays defined after the first load, so `isDashboardInitialLoad` stays `false`.
 
-## Files to fix
+**Purchase Bill Dashboard** (`src/pages/PurchaseBillDashboard.tsx:1288-1292`) — fragile:
+```ts
+const isDashboardInitialLoad =
+  purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
+const loading = isDashboardInitialLoad && !billsQueryError;
+```
+This depends on **three** moving pieces simultaneously. The one that bites us on tab return is `purchaseQueriesEnabled`, which is:
+```ts
+const purchaseQueriesEnabled = !!currentOrganization?.id && purchaseFiltersReady;
+```
+On tab return the AuthContext `visibilitychange` handler revalidates the session and (per `.lovable/plan.md`) currently calls `setSession` on every silent token rotation. That re-renders `OrganizationProvider` consumers. If `currentOrganization` is momentarily replaced by a new reference where `id` is still the same — but more importantly, when React Query sees the query toggled (because of any re-render inside a `<Suspense>` parent or an effect downstream), it can flip `isLoading` for one render before the cached `placeholderData` takes effect. With Sales/POS the guard `… && paginatedX.length === 0` masks that one-render flip; in Purchase, `billsQueryData === undefined` is only briefly true at that boundary and `loading` flashes `true` → ERPTable renders skeleton rows → user sees the flash.
 
-Apply `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` to every `useQuery` in these files, and switch any `loading = isLoading` flags to `loading = isLoading && data.length === 0` (so the skeleton only ever appears on the first cold load, not while a background refetch is in flight):
+The 404s in the console (`get_invoice_dashboard_stats`, `_with_items_atomic`) are unrelated — they're missing/legacy RPC fallbacks and don't affect the Purchase Bills list query.
 
-- `src/pages/StockReport.tsx` (2 queries — global totals, filter options + the main list)
-- `src/pages/ItemWiseStockReport.tsx` (filter options, stockData, supplierMap)
-- `src/pages/StockAgeingReport.tsx` (rawData)
-- `src/pages/StockAdjustment.tsx` (rawVariants)
-- `src/pages/ProductTrackingReport.tsx` (filter options, queryResult)
-- `src/pages/ItemWiseSalesReport.tsx` (filterOptionsData, saleItems, rpcSummary — REPORT_CACHE already covers two, normalize the rest)
-- `src/pages/PriceHistoryReport.tsx` (audit all `useQuery` calls)
-- `src/pages/BarcodePrinting.tsx` (audit `useQuery` calls)
+Net root cause in one line: **Purchase Bill Dashboard's `loading` flag is computed from `billsQueryData === undefined` instead of `paginatedBills.length === 0`, so it briefly returns `true` after tab return even though the cached rows are still in memory.**
 
-For each query: keep its own `staleTime` if it is intentionally short, but force `refetchOnWindowFocus: false`, `refetchOnMount: false`, `refetchOnReconnect: false`, and `placeholderData: keepPreviousData` so previous rows stay visible during any background refetch.
+## Fix — align Purchase with the POS/Sales pattern
 
-## Auth tab-resume polish (root-cause guard)
+One small, surgical change. Keep the existing `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` (already correct). Only adjust the local `loading` derivation.
 
-In `src/contexts/AuthContext.tsx` `handleVisibilityChange` (around line 356):
+`src/pages/PurchaseBillDashboard.tsx` around line 1288:
 
-- Today `applyResumedSession` calls `setSession` whenever `access_token` changes, even though `user.id` is the same. Every silent token rotation therefore re-renders every consumer of `useAuth`.
-- Change it so that when `user.id` is unchanged we only update `sessionRef.current` (which is what the Supabase client and refresh logic actually need) and do **not** call `setSession` / `setUser`. We still call `setSession` when the user identity changes or when we recover from a lost session.
-- Net effect: silent token rotations on tab resume stop cascading re-renders into OrgLayout → all dashboards (Inventory included) no longer get a fresh effect/query pass on every tab return.
+```ts
+// Before
+const isDashboardInitialLoad =
+  purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
+const isDashboardBackgroundRefresh =
+  (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
+const loading = isDashboardInitialLoad && !billsQueryError;
 
-## TabCachedPages cross-check (no code change required)
+// After (mirrors POSDashboard line 640)
+const isDashboardInitialLoad =
+  purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;
+const isDashboardBackgroundRefresh =
+  (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
+const loading = isDashboardInitialLoad && !billsQueryError;
+```
 
-`src/components/TabCachedPages.tsx` already keeps `purchase-bill-dashboard`, `purchase-bills`, `purchase-orders`, `purchase-return-dashboard`, `purchase-returns`, `product-dashboard`, `products`, `barcode-printing`, `stock-settlement`, `bulk-product-update` mounted on web. After the query-options fix above, the remaining stock/ageing/tracking report pages (which mount via `<Outlet>`) will also stop flashing because their queries no longer refetch on focus/mount.
+The same `bills.length === 0` guard already exists for mobile (line 1885 reads `isDashboardInitialLoad` for `<Skeleton>` cards), so the mobile path keeps working correctly — first cold load still shows skeletons because `bills` is empty then.
+
+No other files need to change. `BackgroundSyncBadge` (already mounted in StatusBar) will still give the subtle "Syncing…" hint during the silent background refetch if one happens.
 
 ## Acceptance checks
 
-1. Open Stock Report, switch to another browser tab for 30 s, return → table stays populated, no skeleton, no loading spinner.
-2. Open Item-wise Stock Report, click another ERP window tab, click back → table is instant, no flash.
-3. Open Purchase Bill Dashboard with data loaded, minimize the window for 2 min, restore → list is unchanged, no skeleton.
-4. POS Dashboard / Sales Invoice Dashboard behavior is unchanged (still stable).
-5. After saving a new purchase bill, clicking Refresh in the dashboard still pulls fresh data (manual refetch path untouched).
+1. Open Purchase Bills with data loaded → switch to Customers tab → switch back → table stays populated, no skeleton flash.
+2. Switch browser to another window for 30s → return to Purchase Bills → no flash.
+3. First time you click Purchase Bills after login (empty cache) → skeleton still appears until rows load (unchanged behavior).
+4. Save a new purchase bill → table refreshes via `invalidatePurchases()` → still works (manual invalidation path untouched).
+5. POS Dashboard and Sales Invoice Dashboard behavior is unchanged.
+
+## Out of scope (worth a follow-up but not required for this fix)
+
+- The auth tab-resume polish in `.lovable/plan.md` (stop calling `setSession` on silent token rotation when `user.id` is unchanged). That would prevent the underlying re-render that exposes the flag fragility on many other inventory pages too. Happy to do this as a separate change if you want, but the one-line fix above is enough to make Purchase Bills behave exactly like POS/Sales for the scenario in your video.
