@@ -145,7 +145,7 @@ export function PriceSelectionDialog({
                     </div>
                     {option.date && (
                       <p className="text-xs text-muted-foreground">
-                        Last: {format(option.date, "dd MMM yyyy")}
+                        {option.source === "master" ? "Updated" : "Last"}: {format(option.date, "dd MMM yyyy")}
                       </p>
                     )}
                   </div>
