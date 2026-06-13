@@ -28,6 +28,7 @@ interface PriceSelectionDialogProps {
   masterPrice: {
     sale_price: number;
     mrp: number;
+    date?: Date;
   };
   lastPurchasePrice?: {
     sale_price: number;
