@@ -33,7 +33,7 @@ const QUICK_OPEN_PAGES = [
   { path: "quotation-dashboard", label: "Quotations", icon: "ClipboardList", category: "Sales" },
   { path: "sale-order-dashboard", label: "Sale Orders", icon: "ClipboardList", category: "Sales" },
   { path: "purchase-entry", label: "Purchase Entry", icon: "Package", category: "Purchase" },
-  { path: "purchase-bill-dashboard", label: "Purchase Bills", icon: "Package", category: "Purchase" },
+  { path: "purchase-bills", label: "Purchase Bills", icon: "Package", category: "Purchase" },
   { path: "product-dashboard", label: "Products", icon: "Layers", category: "Masters" },
   { path: "customers", label: "Customers", icon: "Users", category: "Masters" },
   { path: "suppliers", label: "Suppliers", icon: "Building2", category: "Masters" },

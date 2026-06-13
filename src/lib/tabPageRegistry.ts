@@ -235,26 +235,46 @@ for (const [alias, target] of Object.entries(URL_ALIASES)) {
   }
 }
 
+/**
+ * Legacy / tab-bar slugs → canonical tab-cache key (matches App.tsx routes).
+ * One cache pane per screen — prevents duplicate mounts (e.g. purchase-bills vs purchase-bill-dashboard).
+ */
+const TAB_CACHE_CANONICAL_PATH: Record<string, string> = {
+  "purchase-bill-dashboard": "purchase-bills",
+  products: "product-dashboard",
+  "purchase-returns": "purchase-return-dashboard",
+  "sales-report": "sales-report-by-customer",
+  "purchase-report": "purchase-report-by-supplier",
+};
+
+/** Resolve URL / window-tab segment to the single tab-cache key for that page. */
+export function resolveTabCachePath(path: string): string {
+  if (!path) return path;
+  return TAB_CACHE_CANONICAL_PATH[path] ?? path;
+}
+
 const prefetchCache = new Map<string, Promise<unknown>>();
 
 export function isTabCachePath(path: string): boolean {
-  return Boolean(TAB_PAGE_REGISTRY[path]);
+  return Boolean(TAB_PAGE_REGISTRY[path]) || Boolean(TAB_PAGE_REGISTRY[resolveTabCachePath(path)]);
 }
 
 export function prefetchTabPage(path: string): void {
-  const def = TAB_PAGE_REGISTRY[path];
-  if (!def || prefetchCache.has(path)) return;
+  const resolved = resolveTabCachePath(path);
+  const def = TAB_PAGE_REGISTRY[resolved];
+  if (!def || prefetchCache.has(resolved)) return;
   const promise = importWithRetry(def.loader).catch((err) => {
-    prefetchCache.delete(path);
-    console.warn(`[prefetch] Failed to load tab chunk: ${path}`, err);
+    prefetchCache.delete(resolved);
+    console.warn(`[prefetch] Failed to load tab chunk: ${resolved}`, err);
   });
-  prefetchCache.set(path, promise);
+  prefetchCache.set(resolved, promise);
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
 export function resetTabPageChunk(path: string): void {
-  prefetchCache.delete(path);
-  lazyCache.delete(path);
+  const resolved = resolveTabCachePath(path);
+  prefetchCache.delete(resolved);
+  lazyCache.delete(resolved);
 }
 
 /** Warm bill-entry chunks after login (reduces first-open failures in desktop WebView). */
@@ -290,10 +310,11 @@ export function prefetchTabPages(paths: string[]): void {
 
 /** Prefetch the active tab immediately; load other open tabs when the browser is idle. */
 export function prefetchTabPagesIdle(paths: string[], activePath: string): () => void {
-  if (isTabCachePath(activePath)) prefetchTabPage(activePath);
+  const resolvedActive = resolveTabCachePath(activePath);
+  if (isTabCachePath(resolvedActive)) prefetchTabPage(resolvedActive);
   // Electron: prefetch only the visible tab — idle prefetch of many chunks can spike memory.
   if (shouldElectronMountOnlyActiveTab()) return () => {};
-  const rest = paths.filter((p) => isTabCachePath(p) && p !== activePath);
+  const rest = paths.map(resolveTabCachePath).filter((p) => isTabCachePath(p) && p !== resolvedActive);
   if (rest.length === 0) return () => {};
 
   // Web/PWA: skip background prefetch entirely on slow links (2g / slow-2g)
@@ -318,12 +339,13 @@ export function prefetchTabPagesIdle(paths: string[], activePath: string): () =>
 const lazyCache = new Map<string, LazyExoticComponent<ComponentType<unknown>>>();
 
 export function getLazyTabPage(path: string): LazyExoticComponent<ComponentType<unknown>> | null {
-  const def = TAB_PAGE_REGISTRY[path];
+  const resolved = resolveTabCachePath(path);
+  const def = TAB_PAGE_REGISTRY[resolved];
   if (!def) return null;
-  let cached = lazyCache.get(path);
+  let cached = lazyCache.get(resolved);
   if (!cached) {
     cached = lazyWithRetry(def.loader);
-    lazyCache.set(path, cached);
+    lazyCache.set(resolved, cached);
   }
   return cached;
 }

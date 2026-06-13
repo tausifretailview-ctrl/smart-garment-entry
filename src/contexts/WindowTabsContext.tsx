@@ -4,7 +4,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { getMenuPermissionForPath, resolveFirstAllowedPath } from "@/lib/menuPermissions";
-import { prefetchTabPage } from "@/lib/tabPageRegistry";
+import { prefetchTabPage, resolveTabCachePath } from "@/lib/tabPageRegistry";
 import { 
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
@@ -87,6 +87,24 @@ const STORAGE_KEY = "smart_inventory_open_windows";
 const VISIBILITY_KEY = "smart_inventory_tabs_visible";
 const MAX_WINDOWS = 8;
 
+function normalizeWindowTab(tab: WindowTab): WindowTab {
+  const canonical = resolveTabCachePath(tab.path);
+  if (canonical === tab.path) return tab;
+  return { ...tab, path: canonical };
+}
+
+function normalizeWindowTabs(tabs: WindowTab[]): WindowTab[] {
+  const seen = new Set<string>();
+  const out: WindowTab[] = [];
+  for (const tab of tabs) {
+    const normalized = normalizeWindowTab(tab);
+    if (seen.has(normalized.path)) continue;
+    seen.add(normalized.path);
+    out.push(normalized);
+  }
+  return out;
+}
+
 export function WindowTabsProvider({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -97,7 +115,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   const [openWindows, setOpenWindows] = useState<WindowTab[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
+      return saved ? normalizeWindowTabs(JSON.parse(saved)) : [];
     } catch {
       return [];
     }
@@ -139,7 +157,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
   const navigateToWindowPath = useCallback(
     (path: string, windows: WindowTab[] = openWindows) => {
-      const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+      const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
       const savedSearch = windows.find((w) => w.path === cleanPath)?.search || "";
       navigate(getOrgPath(`/${cleanPath}`) + savedSearch);
     },
@@ -184,7 +202,16 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
 
   // Update active window on location change, persist query string per tab, auto-add to tabs
   useEffect(() => {
-    const currentPath = getCurrentPath();
+    const rawPath = getCurrentPath();
+    const currentPath = resolveTabCachePath(rawPath);
+
+    // Legacy tab-bar URLs (e.g. purchase-bill-dashboard) → canonical App route
+    if (rawPath !== currentPath && PAGE_CONFIG[currentPath]) {
+      const savedSearch = location.search || undefined;
+      navigate(getOrgPath(`/${currentPath}`) + (savedSearch ?? ""), { replace: true });
+      return;
+    }
+
     setActiveWindow(currentPath);
 
     // Warm main dashboard chunk while user is on POS so first return is instant.
@@ -215,7 +242,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
         return changed ? next : prev;
       });
     }
-  }, [location.pathname, location.search, getCurrentPath, canAccessPath]);
+  }, [location.pathname, location.search, getCurrentPath, canAccessPath, navigate, getOrgPath]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -262,7 +289,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [openWindows, activeWindow, navigate, getOrgPath, canAccessPath]);
 
   const openWindow = useCallback((path: string) => {
-    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+    const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
     const config = PAGE_CONFIG[cleanPath];
     if (!config || !canAccessPath(cleanPath)) return;
 
@@ -278,7 +305,7 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [openWindows, navigateToWindowPath, canAccessPath]);
 
   const closeWindow = useCallback((path: string) => {
-    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+    const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
     const newWindows = openWindows.filter(w => w.path !== cleanPath);
     setOpenWindows(newWindows);
     
@@ -291,13 +318,14 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
   }, [openWindows, activeWindow, navigateToWindowPath]);
 
   const switchWindow = useCallback((path: string) => {
-    if (!canAccessPath(path)) return;
-    prefetchTabPage(path);
-    navigateToWindowPath(path);
+    const cleanPath = resolveTabCachePath(path);
+    if (!canAccessPath(cleanPath)) return;
+    prefetchTabPage(cleanPath);
+    navigateToWindowPath(cleanPath);
   }, [navigateToWindowPath, canAccessPath]);
 
   const isWindowOpen = useCallback((path: string) => {
-    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+    const cleanPath = resolveTabCachePath(path.startsWith("/") ? path.slice(1) : path);
     return openWindows.some(w => w.path === cleanPath);
   }, [openWindows]);
 

@@ -79,6 +79,17 @@ export function readDashboardFilters(
   }
 }
 
+/** Purchase Bills — read saved filters (canonical + legacy dashboard id). */
+export function readPurchaseBillDashboardFilters(
+  orgId: string | undefined,
+): Record<string, unknown> | null {
+  if (!orgId) return null;
+  return (
+    readDashboardFilters(orgId, "purchase-bills") ??
+    readDashboardFilters(orgId, "purchase-bill-dashboard")
+  );
+}
+
 export function writeDashboardFilters(
   orgId: string,
   dashboardId: string,

@@ -54,7 +54,7 @@ import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
-import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { isDashboardFilterRestoring, pickPersistedNumber, pickPersistedString, readPurchaseBillDashboardFilters, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
   derivePurchaseBillDisplayStatus,
   getEffectivePaidAmountForPurchaseBill,
@@ -166,10 +166,17 @@ const PurchaseBillDashboard = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
+  const savedPurchaseFilters = readPurchaseBillDashboardFilters(currentOrganization?.id);
   const [itemsLoading, setItemsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState(
+    () => pickPersistedString(savedPurchaseFilters?.searchQuery) ?? "",
+  );
+  const [startDate, setStartDate] = useState(
+    () => pickPersistedString(savedPurchaseFilters?.startDate) ?? "",
+  );
+  const [endDate, setEndDate] = useState(
+    () => pickPersistedString(savedPurchaseFilters?.endDate) ?? "",
+  );
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
@@ -182,14 +189,25 @@ const PurchaseBillDashboard = () => {
 
   // Selection and pagination states
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [currentPage, setCurrentPage] = useState(
+    () => pickPersistedNumber(savedPurchaseFilters?.currentPage) ?? 1,
+  );
+  const [itemsPerPage, setItemsPerPage] = useState(
+    () => pickPersistedNumber(savedPurchaseFilters?.itemsPerPage) ?? 50,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
-  const [dcFilter, setDcFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">(() => {
+    const saved = pickPersistedString(savedPurchaseFilters?.sortOrder);
+    return saved === "asc" || saved === "desc" ? saved : "desc";
+  });
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(
+    () => pickPersistedString(savedPurchaseFilters?.paymentStatusFilter) ?? "all",
+  );
+  const [dcFilter, setDcFilter] = useState<string>(
+    () => pickPersistedString(savedPurchaseFilters?.dcFilter) ?? "all",
+  );
 
   const purchaseFilterSnapshot = useMemo(
     () => ({
@@ -214,8 +232,8 @@ const PurchaseBillDashboard = () => {
     ],
   );
 
-  const { filtersReady: purchaseFiltersReady } = useDashboardFilterPersistence(
-    "purchase-bill-dashboard",
+  useDashboardFilterPersistence(
+    "purchase-bills",
     currentOrganization?.id,
     purchaseFilterSnapshot,
     (saved) => {
@@ -236,7 +254,7 @@ const PurchaseBillDashboard = () => {
     },
   );
 
-  const purchaseQueriesEnabled = !!currentOrganization?.id && purchaseFiltersReady;
+  const purchaseQueriesEnabled = !!currentOrganization?.id;
 
   // Image upload and lock states
   const [uploadingImageForBill, setUploadingImageForBill] = useState<string | null>(null);

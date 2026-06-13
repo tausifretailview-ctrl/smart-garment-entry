@@ -7,6 +7,7 @@ import {
   prefetchTabPage,
   prefetchTabPagesIdle,
   resetTabPageChunk,
+  resolveTabCachePath,
   type TabPageLayout,
   type TabPageRole,
 } from "@/lib/tabPageRegistry";
@@ -116,13 +117,22 @@ const LIVE_WORK_TAB_PATHS = new Set([
   "sale-order-entry",
 ]);
 
+/** Core workflow dashboards — stay mounted on Electron tab switch (matches browser). */
+const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
+  "purchase-bills",
+  "pos-dashboard",
+  "sales-invoice-dashboard",
+]);
+
 function isProtectedTabPath(path: string): boolean {
-  if (isEntryTabPath(path)) return true;
-  if (LIVE_WORK_TAB_PATHS.has(path)) return true;
-  if (IDLE_EVICT_ALLOWED_PATHS.has(path)) return false;
+  const resolved = resolveTabCachePath(path);
+  if (isEntryTabPath(resolved)) return true;
+  if (LIVE_WORK_TAB_PATHS.has(resolved)) return true;
+  if (IDLE_EVICT_ALLOWED_PATHS.has(resolved)) return false;
+  if (isElectronShell() && ELECTRON_WORKFLOW_DASHBOARD_PATHS.has(resolved)) return true;
   // Browser/PWA: keep dashboards mounted for instant tab switch.
   if (!isElectronShell()) {
-    return EXPLICIT_PROTECTED_TAB_PATHS.has(path) || isTabCachePath(path);
+    return EXPLICIT_PROTECTED_TAB_PATHS.has(resolved) || isTabCachePath(resolved);
   }
   // Electron: evict idle list dashboards — keeping every tab mounted causes OOM crashes.
   return false;
@@ -422,14 +432,15 @@ type TabCachedPagesProps = {
  * the user switches to them (avoids loading 8+ dashboards at once).
  */
 export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCachedPagesProps) {
+  const resolvedActivePath = resolveTabCachePath(activePath);
   const uniquePaths = useMemo(
-    () => [...new Set(paths.filter((p) => isTabCachePath(p)))],
+    () => [...new Set(paths.map(resolveTabCachePath).filter((p) => isTabCachePath(p)))],
     [paths],
   );
 
   const [mountedPaths, setMountedPaths] = useState<Set<string>>(() => {
     const initial = new Set<string>();
-    if (isTabCachePath(activePath)) initial.add(activePath);
+    if (isTabCachePath(resolvedActivePath)) initial.add(resolvedActivePath);
     return initial;
   });
 
@@ -453,7 +464,7 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
       const idleCandidates: string[] = [];
 
       for (const path of prev) {
-        if (path === activePath) continue;
+        if (path === resolvedActivePath) continue;
         if (isProtectedTabPath(path)) continue;
         const lastActive = lastActiveAtRef.current.get(path) ?? 0;
         if (now - lastActive > idleUnmountMs) {
@@ -471,35 +482,35 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
 
       return next.size === prev.size ? prev : next;
     });
-  }, [activePath, electronSingleTab]);
+  }, [resolvedActivePath, electronSingleTab]);
 
-  const prevActivePathRef = useRef(activePath);
+  const prevActivePathRef = useRef(resolvedActivePath);
   useEffect(() => {
-    if (!isTabCachePath(activePath)) return;
-    if (isNavigationPerfEnabled() && prevActivePathRef.current !== activePath) {
-      recordTabSwitch(activePath, {
+    if (!isTabCachePath(resolvedActivePath)) return;
+    if (isNavigationPerfEnabled() && prevActivePathRef.current !== resolvedActivePath) {
+      recordTabSwitch(resolvedActivePath, {
         from: prevActivePathRef.current,
         mounted: [...mountedPaths],
       });
     }
-    prevActivePathRef.current = activePath;
-    touchTabActiveAt(activePath);
+    prevActivePathRef.current = resolvedActivePath;
+    touchTabActiveAt(resolvedActivePath);
     setMountedPaths((prev) => {
       if (electronSingleTab) {
-        const next = new Set<string>([activePath]);
+        const next = new Set<string>([resolvedActivePath]);
         for (const path of prev) {
-          if (path !== activePath && isProtectedTabPath(path)) next.add(path);
+          if (path !== resolvedActivePath && isProtectedTabPath(path)) next.add(path);
         }
         return next;
       }
-      if (prev.has(activePath)) return prev;
+      if (prev.has(resolvedActivePath)) return prev;
       const next = new Set(prev);
-      next.add(activePath);
-      touchTabActiveAt(activePath);
+      next.add(resolvedActivePath);
+      touchTabActiveAt(resolvedActivePath);
       return next;
     });
     evictIdleMountedTabs();
-  }, [activePath, electronSingleTab, touchTabActiveAt, evictIdleMountedTabs]);
+  }, [resolvedActivePath, electronSingleTab, touchTabActiveAt, evictIdleMountedTabs]);
 
   // Browser/PWA: mount tabs lazily — only when the user activates them.
   // The activePath effect above already mounts the visible tab, and protected
@@ -577,7 +588,7 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
           <CachedTabPane
             key={path === "" ? "__dashboard__" : path}
             path={path}
-            active={path === activePath}
+            active={path === resolvedActivePath}
             layout={meta.layout}
             roles={meta.roles}
             onActivePaneReady={onActivePaneReady}

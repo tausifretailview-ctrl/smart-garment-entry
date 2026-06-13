@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -19,6 +19,7 @@ import {
   prefetchPostLoginIdlePages,
   prefetchTabPage,
   prefetchTabPagesIdle,
+  resolveTabCachePath,
 } from "@/lib/tabPageRegistry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { syncElectronViewportHeight } from "@/lib/electronViewportSync";
@@ -59,6 +60,14 @@ export const OrgLayout = () => {
   const [forceOutletFallback, setForceOutletFallback] = useState(false);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
+
+  const isTabPaneReadyForPath = useCallback((path: string): boolean => {
+    if (tabPaneReadyPathsRef.current.has(path)) return true;
+    for (const recorded of tabPaneReadyPathsRef.current) {
+      if (resolveTabCachePath(recorded) === path) return true;
+    }
+    return false;
+  }, []);
   const location = useLocation();
   const { openWindows } = useWindowTabs();
   const showDesktopChrome = useShowDesktopChrome();
@@ -67,6 +76,7 @@ export const OrgLayout = () => {
     () => getOrgPathSegment(location.pathname, orgSlug),
     [location.pathname, orgSlug],
   );
+  const resolvedCurrentPath = resolveTabCachePath(currentPath);
 
   const isEntryPage = isEntryTabPath(currentPath);
   const isCacheableEntryActive = isCacheableEntryTabPath(currentPath);
@@ -90,14 +100,16 @@ export const OrgLayout = () => {
   const tabPaths = useMemo(() => {
     const set = new Set<string>();
     openWindows.forEach((w) => {
-      if (isCacheableTabPath(w.path)) set.add(w.path);
+      const resolved = resolveTabCachePath(w.path);
+      if (isCacheableTabPath(resolved)) set.add(resolved);
     });
     pinnedCacheableEntryPaths.forEach((p) => {
-      if (isCacheableTabPath(p)) set.add(p);
+      const resolved = resolveTabCachePath(p);
+      if (isCacheableTabPath(resolved)) set.add(resolved);
     });
-    if (isCacheableTabPath(currentPath)) set.add(currentPath);
+    if (isCacheableTabPath(resolvedCurrentPath)) set.add(resolvedCurrentPath);
     return [...set];
-  }, [openWindows, currentPath, pinnedCacheableEntryPaths]);
+  }, [openWindows, resolvedCurrentPath, pinnedCacheableEntryPaths]);
 
   useEffect(() => {
     const prefetchActive = isEntryPage && !isCacheableEntryActive ? "" : currentPath;
@@ -158,11 +170,13 @@ export const OrgLayout = () => {
 
   // purchase-entry is tab-cached so in-app tab switch keeps the form mounted (other entry routes use Outlet).
   const wantsTabCache =
-    isCacheableTabPath(currentPath) && tabPaths.length > 0;
+    isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
+  const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
+  const effectiveTabPaneReady = tabPaneReady || tabPaneWasReady;
   // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
   // Dashboards: keep <Outlet> visible until the cached pane has mounted (chunk still loading).
   const renderViaTabCache =
-    wantsTabCache && (isCacheableEntryActive || tabPaneReady) && !forceOutletFallback;
+    wantsTabCache && (isCacheableEntryActive || effectiveTabPaneReady) && !forceOutletFallback;
   /**
    * Which cached pane is visible. Non-cacheable entry routes use INACTIVE so dashboard
    * panes stay mounted (hidden). Cacheable entry must use currentPath — otherwise
@@ -171,37 +185,37 @@ export const OrgLayout = () => {
   const tabCacheActivePath =
     !wantsTabCache || (isEntryPage && !isCacheableEntryActive)
       ? TAB_CACHE_INACTIVE
-      : currentPath;
+      : resolvedCurrentPath;
   /** Hide tab-cache container while Outlet shows the first-load fallback (dashboards only). */
   const hideTabCacheContainer =
     (isEntryPage && !isCacheableEntryActive) ||
-    (wantsTabCache && !tabPaneReady && !isCacheableEntryActive) ||
-    !isCacheableTabPath(currentPath);
+    (wantsTabCache && !effectiveTabPaneReady && !isCacheableEntryActive) ||
+    !isCacheableTabPath(resolvedCurrentPath);
 
   // Reset on navigation — restore immediately when this path was already mounted in tab cache.
   useEffect(() => {
     setForceOutletFallback(false);
     if (
-      isCacheableTabPath(currentPath) &&
+      isCacheableTabPath(resolvedCurrentPath) &&
       tabPaths.length > 0 &&
-      tabPaneReadyPathsRef.current.has(currentPath)
+      isTabPaneReadyForPath(resolvedCurrentPath)
     ) {
       setTabPaneReady(true);
     } else {
       setTabPaneReady(false);
     }
-  }, [currentPath, tabPaths.length]);
+  }, [resolvedCurrentPath, tabPaths.length, isTabPaneReadyForPath]);
 
   // Safety net: if the cached pane never signals ready (slow network / chunk failure), keep Outlet visible.
   useEffect(() => {
-    if (!wantsTabCache || isCacheableEntryActive || tabPaneReady) return;
+    if (!wantsTabCache || isCacheableEntryActive || effectiveTabPaneReady) return;
     const timeoutMs = isElectronShell() ? 12_000 : 18_000;
     const timer = window.setTimeout(() => {
       console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
       setForceOutletFallback(true);
     }, timeoutMs);
     return () => window.clearTimeout(timer);
-  }, [wantsTabCache, isCacheableEntryActive, tabPaneReady, currentPath]);
+  }, [wantsTabCache, isCacheableEntryActive, effectiveTabPaneReady, currentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
@@ -348,7 +362,7 @@ export const OrgLayout = () => {
 
   // Window tabs need a fixed viewport height chain so dashboard panes scroll inside <main>.
   // min-h-[100dvh] alone lets content grow past the viewport and breaks overflow-y on tab return.
-  const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && tabPaneReady;
+  const hasVisibleTabCache = tabPaths.length > 0 && !hideTabCacheContainer && effectiveTabPaneReady;
   const isFillHeightPage = isFillHeightShellPath(location.pathname);
   const constrainViewportHeight = isEntryPage || hasVisibleTabCache || isFillHeightPage;
 
@@ -365,8 +379,9 @@ export const OrgLayout = () => {
             paths={tabPaths}
             activePath={tabCacheActivePath}
             onActivePaneReady={(path) => {
-              tabPaneReadyPathsRef.current.add(path);
-              if (path === currentPath) setTabPaneReady(true);
+              const canonical = resolveTabCachePath(path);
+              tabPaneReadyPathsRef.current.add(canonical);
+              if (resolveTabCachePath(currentPath) === canonical) setTabPaneReady(true);
             }}
           />
         </div>
