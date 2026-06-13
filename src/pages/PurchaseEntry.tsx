@@ -4824,13 +4824,40 @@ const PurchaseEntry = () => {
         const { data: inserted, error: batchErr } = await supabase
           .from('product_variants')
           .insert(batchSlice.map((v) => v.variantData) as any)
-          .select('id');
+          .select('id, barcode');
 
         if (!batchErr && inserted && inserted.length === batchSlice.length) {
-          inserted.forEach((v: { id: string }, j: number) => {
-            if (batchSlice[j]) insertedVariantMap.set(batchSlice[j].rowIndex, v.id);
+          // CRITICAL: map by barcode, NOT by array index. Postgres RETURNING does not
+          // guarantee row order matches insert order, and an index-based map silently
+          // assigns Excel rows to the wrong variant ids (causing barcode↔product drift).
+          const insertedByBarcode = new Map<string, string>();
+          (inserted as Array<{ id: string; barcode: string | null }>).forEach((v) => {
+            if (v.barcode) insertedByBarcode.set(v.barcode, v.id);
           });
-          successCount += inserted.length;
+          let mappedInBatch = 0;
+          for (const item of batchSlice) {
+            const bc = item.variantData.barcode?.toString() || '';
+            const id = insertedByBarcode.get(bc);
+            if (id) {
+              insertedVariantMap.set(item.rowIndex, id);
+              mappedInBatch++;
+            }
+          }
+          successCount += mappedInBatch;
+          // Any row not matched by barcode falls through to per-row resolve below.
+          if (mappedInBatch < batchSlice.length) {
+            for (const item of batchSlice) {
+              if (insertedVariantMap.has(item.rowIndex)) continue;
+              const skuId = await resolveVariantId(item.variantData, item.rowIndex);
+              if (skuId) {
+                insertedVariantMap.set(item.rowIndex, skuId);
+                successCount++;
+              } else {
+                errorCount++;
+                failedExcelRows.push(item.rowIndex + 2);
+              }
+            }
+          }
         } else {
           // Either an error, or a partial response — fall back to per-row resolution for the entire batch
           // to make sure every row is accounted for (mapped to an existing variant or recorded as failed).
