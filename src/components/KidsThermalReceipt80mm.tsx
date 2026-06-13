@@ -304,17 +304,25 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         <div style={solid} />
 
         {/* Fixed footer — KIDS ZONE style */}
-        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35', marginTop: '2px' }}>
-          <div style={center}>** FIXED RATE **</div>
-          <div style={{ margin: '2px 0' }}>
+        <div
+          style={{
+            ...left,
+            fontSize: '13px',
+            fontWeight: 900,
+            lineHeight: '1.35',
+            marginTop: '2px',
+          }}
+        >
+          <div style={{ ...center, fontSize: '14px', letterSpacing: '0.3px' }}>** FIXED RATE **</div>
+          <div style={{ margin: '2px 0', fontSize: '13px' }}>
             ** NO GUARANTEE FOR COLORS FANCY DRESS MATERIAL AND KIDS WEAR **
           </div>
         </div>
 
         <div style={dotted} />
 
-        <div style={{ ...left, fontSize: '10px', fontWeight: 900, lineHeight: '1.35' }}>
-          <div style={{ fontWeight: 900, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
+        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
+          <div style={{ fontWeight: 900, fontSize: '12px', marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
           {KIDS_DEFAULT_TERMS.map((term, idx) => (
             <div key={idx}>{term}</div>
           ))}
