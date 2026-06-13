@@ -3908,8 +3908,8 @@ const PurchaseEntry = () => {
           });
         }
 
-        let billDataResult: Record<string, unknown> | null = null;
-        const { data: atomicBill, error: atomicError } = await supabase.rpc(
+        let billDataResult: any = null;
+        const { data: atomicBill, error: atomicError } = await (supabase as any).rpc(
           "save_purchase_bill_with_items_atomic",
           {
             p_organization_id: currentOrganization.id,
@@ -3919,7 +3919,7 @@ const PurchaseEntry = () => {
         );
 
         if (!atomicError && atomicBill) {
-          billDataResult = atomicBill as Record<string, unknown>;
+          billDataResult = atomicBill as any;
         } else if (atomicError && !isMissingAtomicSaveRpc(atomicError)) {
           throw atomicError;
         } else {
