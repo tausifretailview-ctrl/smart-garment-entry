@@ -866,13 +866,13 @@ const PurchaseEntry = () => {
 
       if (!orgId || !userId) {
         if (mightHaveBrowserDraft || mightHaveDbDraft) {
-          setIsRestoringDraft(true);
+          if (lineCount === 0) setIsRestoringDraft(true);
         }
         return false;
       }
 
       if (mightHaveBrowserDraft || mightHaveDbDraft) {
-        setIsRestoringDraft(true);
+        if (lineCount === 0) setIsRestoringDraft(true);
       }
 
       entryPersistenceBlockedRef.current = true;
@@ -943,15 +943,24 @@ const PurchaseEntry = () => {
     }
   }, [currentOrganization?.id, user?.id, lineItems.length, location.state?.newBill, location.key]);
 
-  // Restore before paint when remounting the same history entry (minimize / PWA resume).
+  // Restore exactly once per real mount. Re-running on focus/auth-refresh caused
+  // the "Restoring your bill…" banner to flash on minimize-restore (Sales Invoice
+  // does not have this hook). The restore callback is always-current via ref.
+  const restorePersistedWorkRef = useRef(restorePersistedWork);
+  restorePersistedWorkRef.current = restorePersistedWork;
   useLayoutEffect(() => {
-    void restorePersistedWork();
-  }, [restorePersistedWork]);
+    void restorePersistedWorkRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Also restore when draft metadata arrives after mount.
+  // When draft metadata first arrives after mount (DB draft loaded async), try once.
+  const draftMetaArrivedRef = useRef(false);
   useEffect(() => {
-    void restorePersistedWork();
-  }, [restorePersistedWork]);
+    if (draftMetaArrivedRef.current) return;
+    if (!hasDraft || !draftData) return;
+    draftMetaArrivedRef.current = true;
+    void restorePersistedWorkRef.current();
+  }, [hasDraft, draftData]);
 
   useEntryViewportSync();
 

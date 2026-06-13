@@ -1,71 +1,38 @@
-## What you're seeing
+## What the user sees
+On Windows / web, after minimizing the window and bringing it back, **Purchase Entry** briefly shows a loading state (the amber "Restoring your bill…" banner and a re-mount of the form), even though no bill was actually navigated away from. **Sales Invoice** in the same scenario stays static — the form keeps its values and never flashes a loader.
 
-In the video, when you click away to another ERP window tab (Customers / Accounts) and come back to **Purchase Bills**, the KPI cards stay but the bills table flashes a skeleton for ~1 second. POS Dashboard and Sales Invoice Dashboard do **not** do this — they stay static.
+## Root cause
 
-All three dashboards are kept mounted in `TabCachedPages` (`pos-dashboard`, `sales-invoice-dashboard`, `purchase-bill-dashboard` are all in `EXPLICIT_PROTECTED_TAB_PATHS`), so the component is never unmounted on tab change. All three also already spread `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` (`refetchOnMount:false`, `refetchOnWindowFocus:false`, `refetchOnReconnect:false`, `placeholderData: keepPreviousData`). So the cache itself is fine.
+Purchase Entry has visibility / draft-restore logic that Sales Invoice does not have. Three places re-fire on window focus / remount and together produce the "reload" effect:
 
-## Root cause — the `loading` flag, not the query
+1. `src/pages/PurchaseEntry.tsx` lines 928-944 — a `useLayoutEffect` that, whenever its deps change (currentOrganization.id, user.id, lineItems.length, location.state.newBill, location.key), checks `hasPurchaseEntryDraftInBrowser` and calls `setIsRestoringDraft(true)`. When the auth/org context re-resolves on tab focus (the existing session-resilience hook revalidates on `visibilitychange`), `currentOrganization?.id` momentarily changes identity → this effect fires → amber "Restoring your bill…" banner appears.
 
-The skeleton is driven by the local `loading` boolean that each dashboard passes to `ERPTable isLoading={loading}`. The Purchase Bills version is more fragile than the POS/Sales version.
+2. Lines 946-954 — TWO restore effects (one `useLayoutEffect`, one `useEffect`) call `restorePersistedWork()` whenever the callback identity changes. `restorePersistedWork` depends on `currentOrganization?.id`, `user?.id`, `hasDraft`, `draftData`, `location.state.editBillId`, `location.state.loadDraft` etc. On window focus those queries re-validate → callback identity changes → restore runs again → it reads IndexedDB and re-applies the draft into state, causing visible reflow (the "reload").
 
-**POS Dashboard** (`src/pages/POSDashboard.tsx:640`) — stable:
-```ts
-const loading = salesQueryLoading && paginatedSales.length === 0;
-```
-Once rows are on screen, `paginatedSales.length > 0`, so `loading` can never flip back to `true` — even if React Query momentarily considers the query "loading" again (auth token rotate, org context re-render, enable→disable→enable cycle, brief gcTime hiccup).
+3. SalesInvoice does **not** have any of `restorePersistedWork`, `isRestoringDraft`, or visibility listeners — it relies entirely on staying mounted in the tab cache. Purchase Entry's extra machinery was originally added for the Excel-import interruption guard but now fires far too often.
 
-**Sales Invoice Dashboard** (`src/pages/SalesInvoiceDashboard.tsx:802`) — also stable thanks to `keepPreviousData`: `dashboardPage` stays defined after the first load, so `isDashboardInitialLoad` stays `false`.
+The pane itself never unmounts (tab cache keeps it alive) — what the user perceives as "reload" is the banner + a forced re-render from re-running the restore path.
 
-**Purchase Bill Dashboard** (`src/pages/PurchaseBillDashboard.tsx:1288-1292`) — fragile:
-```ts
-const isDashboardInitialLoad =
-  purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
-const loading = isDashboardInitialLoad && !billsQueryError;
-```
-This depends on **three** moving pieces simultaneously. The one that bites us on tab return is `purchaseQueriesEnabled`, which is:
-```ts
-const purchaseQueriesEnabled = !!currentOrganization?.id && purchaseFiltersReady;
-```
-On tab return the AuthContext `visibilitychange` handler revalidates the session and (per `.lovable/plan.md`) currently calls `setSession` on every silent token rotation. That re-renders `OrganizationProvider` consumers. If `currentOrganization` is momentarily replaced by a new reference where `id` is still the same — but more importantly, when React Query sees the query toggled (because of any re-render inside a `<Suspense>` parent or an effect downstream), it can flip `isLoading` for one render before the cached `placeholderData` takes effect. With Sales/POS the guard `… && paginatedX.length === 0` masks that one-render flip; in Purchase, `billsQueryData === undefined` is only briefly true at that boundary and `loading` flashes `true` → ERPTable renders skeleton rows → user sees the flash.
+## Fix plan (UI / behaviour only)
 
-The 404s in the console (`get_invoice_dashboard_stats`, `_with_items_atomic`) are unrelated — they're missing/legacy RPC fallbacks and don't affect the Purchase Bills list query.
+Edit `src/pages/PurchaseEntry.tsx`:
 
-Net root cause in one line: **Purchase Bill Dashboard's `loading` flag is computed from `billsQueryData === undefined` instead of `paginatedBills.length === 0`, so it briefly returns `true` after tab return even though the cached rows are still in memory.**
+1. **Guard the "Restoring" banner against re-trigger after first restore.**
+   In the `useLayoutEffect` at lines 928-944, add an early return when `workRestoredRef.current === true`. This stops the amber banner from re-appearing after the initial mount restore is done.
 
-## Fix — align Purchase with the POS/Sales pattern
+2. **Stop the restore effects from re-running on focus.**
+   Replace the two effects at lines 946-954 with a single mount-only `useLayoutEffect` (empty dep array) that calls `restorePersistedWork()` once. The fallback "draft metadata arrives after mount" case is already handled by the `useLayoutEffect` above which sets the banner; once `draftData` lands the existing `loadDraftData` path inside `restorePersistedWork` will be invoked through the dashboard-discarded event handler that already exists.
 
-One small, surgical change. Keep the existing `DASHBOARD_TAB_RETURN_QUERY_OPTIONS` (already correct). Only adjust the local `loading` derivation.
+3. **Skip re-restore when the tab pane is still mounted and we already restored.**
+   In `restorePersistedWork`, before doing any IndexedDB read, return early if `workRestoredRef.current === true && lineItemsCountRef.current === 0 && isTabCachePaneMounted(...)` — meaning we're getting called again only because of a focus event, not a real remount.
 
-`src/pages/PurchaseBillDashboard.tsx` around line 1288:
+4. **Do not flip `setIsRestoringDraft(true)` if line items are already present** anywhere in `restorePersistedWork` (lines 869 and 875). The banner is only meaningful before lines load.
 
-```ts
-// Before
-const isDashboardInitialLoad =
-  purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
-const isDashboardBackgroundRefresh =
-  (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
-const loading = isDashboardInitialLoad && !billsQueryError;
+No changes to Sales Invoice, no changes to persistence files, no DB / RPC changes. Pure presentation + effect-dependency cleanup so Purchase Entry behaves like Sales Invoice on minimize-restore.
 
-// After (mirrors POSDashboard line 640)
-const isDashboardInitialLoad =
-  purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;
-const isDashboardBackgroundRefresh =
-  (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
-const loading = isDashboardInitialLoad && !billsQueryError;
-```
+## Verification
 
-The same `bills.length === 0` guard already exists for mobile (line 1885 reads `isDashboardInitialLoad` for `<Skeleton>` cards), so the mobile path keeps working correctly — first cold load still shows skeletons because `bills` is empty then.
-
-No other files need to change. `BackgroundSyncBadge` (already mounted in StatusBar) will still give the subtle "Syncing…" hint during the silent background refetch if one happens.
-
-## Acceptance checks
-
-1. Open Purchase Bills with data loaded → switch to Customers tab → switch back → table stays populated, no skeleton flash.
-2. Switch browser to another window for 30s → return to Purchase Bills → no flash.
-3. First time you click Purchase Bills after login (empty cache) → skeleton still appears until rows load (unchanged behavior).
-4. Save a new purchase bill → table refreshes via `invalidatePurchases()` → still works (manual invalidation path untouched).
-5. POS Dashboard and Sales Invoice Dashboard behavior is unchanged.
-
-## Out of scope (worth a follow-up but not required for this fix)
-
-- The auth tab-resume polish in `.lovable/plan.md` (stop calling `setSession` on silent token rotation when `user.id` is unchanged). That would prevent the underlying re-render that exposes the flag fragility on many other inventory pages too. Happy to do this as a separate change if you want, but the one-line fix above is enough to make Purchase Bills behave exactly like POS/Sales for the scenario in your video.
+- Open Purchase Entry with a few line items → minimize the window → restore. Form stays static, no amber banner, no flash.
+- Open blank Purchase Entry, type a supplier invoice no, minimize → restore. Field keeps its value, no flash.
+- Hard refresh (F5) on Purchase Entry with a draft in IndexedDB still shows the "Restoring your bill…" banner once (correct behaviour preserved).
+- Excel-import interruption guard still works — `pendingImportRef` and `entryPersistenceBlockedRef` paths are untouched.
