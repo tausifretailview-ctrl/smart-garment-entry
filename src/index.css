@@ -1387,6 +1387,11 @@ body.pos-large-ui .pos-desktop-readable table td {
     padding-bottom: calc(var(--erp-status-bar-height, 1.75rem) + var(--ezzy-hint-bar-height, 0px));
     box-sizing: border-box;
   }
+  /* Reserve space below the POS totals strip so the fixed blue status bar
+     sits directly under the teal strip (not overlapping NET AMOUNT / right edge). */
+  .pos-sales-footer {
+    margin-bottom: calc(var(--erp-status-bar-height, 1.75rem) + var(--ezzy-hint-bar-height, 0px));
+  }
 }
 .pos-sales-notes {
   flex-shrink: 0;
