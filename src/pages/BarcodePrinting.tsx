@@ -1707,6 +1707,13 @@ export default function BarcodePrinting() {
 
     const fromPurchase = !!purchaseNavKey;
     if (!fromPurchase && hasResolvedDefaultTabRef.current) return;
+    // Never auto-override an explicit Label Designer selection — the resolver
+    // only returns "standard"/"precision", so re-running on a purchase nav or
+    // a settings refetch would silently kick the user out of the Designer tab.
+    if (activeBarTab === "designer") {
+      hasResolvedDefaultTabRef.current = true;
+      return;
+    }
 
     const resolved = resolveBarcodePrintTab({
       routeRequestedTab,
