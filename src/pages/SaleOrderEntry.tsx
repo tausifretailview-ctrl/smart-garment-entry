@@ -28,14 +28,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -337,14 +329,6 @@ export default function SaleOrderEntry() {
   
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
-
-
-  // Inline search state for table row (legacy — browse bar is primary)
-  const [inlineSearchQuery, setInlineSearchQuery] = useState("");
-  const [inlineSearchResults, setInlineSearchResults] = useState<any[]>([]);
-  const [showInlineSearch, setShowInlineSearch] = useState(false);
-  const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
-  const inlineSearchInputRef = useRef<HTMLInputElement>(null);
 
   useEntryViewportSync();
 
@@ -771,8 +755,6 @@ export default function SaleOrderEntry() {
     setShowSizeGrid(true);
     setOpenProductSearch(false);
     setSearchInput("");
-    setInlineSearchQuery("");
-    setShowInlineSearch(false);
   }, [currentOrganization?.id, lineItems, toast]);
 
   // Handle size grid confirmation
@@ -1072,29 +1054,6 @@ export default function SaleOrderEntry() {
     return { color: 'text-red-600', icon: AlertTriangle, text: `${diff} short` };
   };
 
-  // Inline search for product row - debounced server-side
-  useEffect(() => {
-    if (!inlineSearchQuery || inlineSearchQuery.length < 1 || !currentOrganization?.id) {
-      setInlineSearchResults([]);
-      setShowInlineSearch(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        const results = await searchSaleOrderVariants(currentOrganization.id, inlineSearchQuery);
-        setInlineSearchResults(results);
-        setSelectedInlineIndex(0);
-        setShowInlineSearch(true);
-      } catch (error) {
-        console.error("Inline search error:", error);
-        setInlineSearchResults([]);
-      }
-    }, 150);
-
-    return () => clearTimeout(timer);
-  }, [inlineSearchQuery, currentOrganization?.id]);
-
   // Popover product search — server-side (client cache can miss variants)
   useEffect(() => {
     if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
@@ -1165,15 +1124,6 @@ export default function SaleOrderEntry() {
       skipSizeGrid: isBarcodeMatch,
     });
   };
-
-  const handleInlineProductSelect = (result: SaleOrderVariantSearchResult) => {
-    setInlineSearchQuery("");
-    setShowInlineSearch(false);
-    setInlineSearchResults([]);
-    selectSearchResult(result, inlineSearchQuery);
-  };
-
-  // formatInlineProductDescription removed - using ERPVariantRow component instead
 
   const handleSaveOrder = async (): Promise<{ success: boolean; orderId?: string }> => {
     // Capture items at save time to prevent race conditions
@@ -1390,13 +1340,6 @@ export default function SaleOrderEntry() {
   const visibleProductLevelRows = useMemo(
     () => pickProductLevelSearchRows(visiblePopoverResults),
     [visiblePopoverResults],
-  );
-  const inlineDisplayRows = useMemo(
-    () =>
-      entryMode === "grid"
-        ? pickProductLevelSearchRows(inlineSearchResults)
-        : inlineSearchResults,
-    [entryMode, inlineSearchResults],
   );
   const displaySearchCount = entryMode === "grid" ? totalMatchingProducts : totalMatchingVariants;
 
