@@ -22,6 +22,10 @@ import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import {
+  markTabCachePaneMounted,
+  markTabCachePaneUnmounted,
+} from "@/lib/tabCacheMountRegistry";
 import { TabCacheLayoutContext } from "@/contexts/TabCacheLayoutContext";
 import {
   isNavigationPerfEnabled,
@@ -120,6 +124,7 @@ const LIVE_WORK_TAB_PATHS = new Set([
 /** Core workflow dashboards — stay mounted on Electron tab switch (matches browser). */
 const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
   "purchase-bills",
+  "purchase-bill-dashboard",
   "pos-dashboard",
   "sales-invoice-dashboard",
 ]);
@@ -332,6 +337,11 @@ function CachedTabPane({
     hasPaneMountedRef.current = true;
     onActivePaneReady?.(path);
   }, [onActivePaneReady, path]);
+
+  useEffect(() => {
+    markTabCachePaneMounted(path);
+    return () => markTabCachePaneUnmounted(path);
+  }, [path]);
 
   useEffect(() => {
     const pane = paneRef.current;

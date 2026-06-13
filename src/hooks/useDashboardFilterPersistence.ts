@@ -8,6 +8,15 @@ import {
 
 export { isDashboardFilterRestoring } from "@/lib/dashboardFilterPersistence";
 
+/** Sync read for dashboard filter initial state (avoids default-then-restore query flash). */
+export function readInitialDashboardFilters(
+  orgId: string | undefined,
+  dashboardId: string,
+): Record<string, unknown> | null {
+  if (!orgId || !dashboardId) return null;
+  return readDashboardFilters(orgId, dashboardId);
+}
+
 type UseDashboardFilterPersistenceOptions = {
   enabled?: boolean;
 };

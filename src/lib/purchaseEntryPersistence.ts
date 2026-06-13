@@ -1,3 +1,6 @@
+import { resolveTabCachePath } from "@/lib/tabPageRegistry";
+import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
+
 const PURCHASE_ENTRY_SESSION_PREFIX = "purchaseEntryState";
 const PURCHASE_ENTRY_LOCAL_PREFIX = "purchaseEntryStateLocal";
 const PURCHASE_ENTRY_META_PREFIX = "purchaseEntryDraftMeta";
@@ -389,10 +392,14 @@ export function markPurchaseEntryUnmountNavKey(navKey: string | undefined): void
   safeSessionSet(LAST_UNMOUNT_NAV_KEY, navKey);
 }
 
-/** True when the same history entry remounted (minimize / tab restore) — not a fresh sidebar click. */
+/** True when the same history entry remounted after the pane was unmounted — not a hidden tab switch. */
 export function wasPurchaseEntryRemount(navKey: string | undefined): boolean {
   if (!navKey) return false;
-  return safeSessionGet(LAST_UNMOUNT_NAV_KEY) === navKey;
+  if (safeSessionGet(LAST_UNMOUNT_NAV_KEY) !== navKey) return false;
+  const cachePath = resolveTabCachePath("purchase-entry");
+  // Pane still mounted in tab cache — visibility toggle only, not a true remount.
+  if (isTabCachePaneMounted(cachePath)) return false;
+  return true;
 }
 
 export function markPurchaseEntryNavHandled(navKey: string | undefined): void {

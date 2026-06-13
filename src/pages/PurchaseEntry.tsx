@@ -54,10 +54,13 @@ import {
   readPurchaseEntryDraftMeta,
   readPurchaseEntrySnapshotAsync,
   wasPurchaseEntryNavHandled,
+  wasPurchaseEntryRemount,
   writePurchaseEntrySnapshot,
   type PurchaseDraftDiscardedDetail,
   type PurchaseEntrySnapshot,
 } from "@/lib/purchaseEntryPersistence";
+import { resolveTabCachePath } from "@/lib/tabPageRegistry";
+import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
@@ -843,6 +846,15 @@ const PurchaseEntry = () => {
         return false;
       }
 
+      // Hidden tab still mounted with live line items — not a true remount after eviction.
+      if (
+        !options?.force &&
+        isTabCachePaneMounted(resolveTabCachePath("purchase-entry")) &&
+        lineCount > 0
+      ) {
+        return false;
+      }
+
       if (location.state?.editBillId) return false;
       if (shouldDeferRestoreForNewBill()) return false;
       const mightHaveBrowserDraft = Boolean(
@@ -920,10 +932,16 @@ const PurchaseEntry = () => {
     const orgId = currentOrganization?.id;
     const userId = user?.id;
     if (!orgId || !userId) return;
+    if (
+      isTabCachePaneMounted(resolveTabCachePath("purchase-entry")) &&
+      !wasPurchaseEntryRemount(location.key)
+    ) {
+      return;
+    }
     if (hasPurchaseEntryDraftInBrowser(orgId, userId) || readPurchaseEntryDraftMeta(orgId, userId)) {
       setIsRestoringDraft(true);
     }
-  }, [currentOrganization?.id, user?.id, lineItems.length, location.state?.newBill]);
+  }, [currentOrganization?.id, user?.id, lineItems.length, location.state?.newBill, location.key]);
 
   // Restore before paint when remounting the same history entry (minimize / PWA resume).
   useLayoutEffect(() => {
