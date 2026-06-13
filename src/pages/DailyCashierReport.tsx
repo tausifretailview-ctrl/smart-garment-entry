@@ -870,7 +870,7 @@ const DailyCashierReport = () => {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
             <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
@@ -1287,6 +1287,8 @@ const DailyCashierReport = () => {
             <p>Generated on {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
             <p className="mt-2">--- End of Report ---</p>
           </div>
+          {/* Spacer so last Balance row clears the fixed status bar */}
+          <div aria-hidden className="h-8 lg:h-10" />
         </>
       )}
 
