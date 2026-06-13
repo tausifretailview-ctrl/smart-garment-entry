@@ -479,18 +479,30 @@ const PurchaseEntry = () => {
   const [rollEntryColors, setRollEntryColors] = useState<string[]>([]);
   const [rollEntryRate, setRollEntryRate] = useState(0);
 
-  const [billData, setBillData] = useState({
-    supplier_id: "",
-    supplier_name: "",
-    supplier_invoice_no: "",
+  const [billData, setBillData] = useState(() => {
+    const restored = initialBrowserSnapshot?.billData as
+      | { supplier_id?: string; supplier_name?: string; supplier_invoice_no?: string }
+      | undefined;
+    return {
+      supplier_id: restored?.supplier_id ?? "",
+      supplier_name: restored?.supplier_name ?? "",
+      supplier_invoice_no: restored?.supplier_invoice_no ?? "",
+    };
   });
-  const supplierInvAutoValueRef = useRef<string | null>(null);
-  const supplierInvManuallyEditedRef = useRef(false);
+  const supplierInvAutoValueRef = useRef<string | null>(
+    typeof (initialBrowserSnapshot?.billData as { supplier_invoice_no?: unknown } | undefined)
+      ?.supplier_invoice_no === "string"
+      ? ((initialBrowserSnapshot?.billData as { supplier_invoice_no?: string }).supplier_invoice_no ?? null)
+      : null,
+  );
+  const supplierInvManuallyEditedRef = useRef(
+    Boolean((initialBrowserSnapshot?.billData as { supplier_invoice_no?: string } | undefined)?.supplier_invoice_no),
+  );
   const [supplierInvAutoFillEpoch, setSupplierInvAutoFillEpoch] = useState(0);
   const bumpSupplierInvAutoFill = useCallback(() => {
     setSupplierInvAutoFillEpoch((n) => n + 1);
   }, []);
-  const [softwareBillNo, setSoftwareBillNo] = useState<string>("");
+  const [softwareBillNo, setSoftwareBillNo] = useState<string>(initialBrowserSnapshot?.softwareBillNo ?? "");
 
   // Draft save hook for auto-saving work in progress
   const {
