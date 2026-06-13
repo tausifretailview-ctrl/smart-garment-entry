@@ -1,38 +1,54 @@
-## What the user sees
-On Windows / web, after minimizing the window and bringing it back, **Purchase Entry** briefly shows a loading state (the amber "Restoring your bill…" banner and a re-mount of the form), even though no bill was actually navigated away from. **Sales Invoice** in the same scenario stays static — the form keeps its values and never flashes a loader.
+# Cloud usage minimization — zero structural change
 
-## Root cause
+Goal: cut Supabase reads + Realtime events without touching any business logic, formulas, UI layout, or schema. No risk of loading or connection issues — every change is a cache window extension or a duplicate-listener removal that falls back to existing fetch paths.
 
-Purchase Entry has visibility / draft-restore logic that Sales Invoice does not have. Three places re-fire on window focus / remount and together produce the "reload" effect:
+## Changes (all safe, all reversible)
 
-1. `src/pages/PurchaseEntry.tsx` lines 928-944 — a `useLayoutEffect` that, whenever its deps change (currentOrganization.id, user.id, lineItems.length, location.state.newBill, location.key), checks `hasPurchaseEntryDraftInBrowser` and calls `setIsRestoringDraft(true)`. When the auth/org context re-resolves on tab focus (the existing session-resilience hook revalidates on `visibilitychange`), `currentOrganization?.id` momentarily changes identity → this effect fires → amber "Restoring your bill…" banner appears.
+### 1. Stop double-fetching where Realtime already invalidates
+These three pages have BOTH a polling `refetchInterval` AND a Postgres realtime channel that already invalidates the same query — the poll is pure waste.
 
-2. Lines 946-954 — TWO restore effects (one `useLayoutEffect`, one `useEffect`) call `restorePersistedWork()` whenever the callback identity changes. `restorePersistedWork` depends on `currentOrganization?.id`, `user?.id`, `hasDraft`, `draftData`, `location.state.editBillId`, `location.state.loadDraft` etc. On window focus those queries re-validate → callback identity changes → restore runs again → it reads IndexedDB and re-applies the draft into state, causing visible reflow (the "reload").
+- `src/components/FloatingWhatsAppInbox.tsx` → drop `refetchInterval` (line 41). Realtime channel (lines 48–83) already keeps badge fresh. Keep `staleTime: 30_000`.
+- `src/pages/WhatsAppInbox.tsx` → already `refetchInterval: false` ✅ (confirm both queries stay false).
+- `src/components/WhatsAppMessageNotifier.tsx` → confirm no companion poll exists.
 
-3. SalesInvoice does **not** have any of `restorePersistedWork`, `isRestoringDraft`, or visibility listeners — it relies entirely on staying mounted in the tab cache. Purchase Entry's extra machinery was originally added for the Excel-import interruption guard but now fires far too often.
+Effect: removes ~1 query/min per active org from WhatsApp widget. No UX change — realtime is faster than the poll it replaces.
 
-The pane itself never unmounts (tab cache keeps it alive) — what the user perceives as "reload" is the banner + a forced re-render from re-running the restore path.
+### 2. Lengthen tab-return windows on read-heavy dashboards
+Bump `STALE_DASHBOARD_TAB_RETURN` from 30 s → 120 s in `src/lib/queryStaleTimes.ts`. This only affects window-tab re-entry within 2 min (cache hit instead of refetch). Any save/invalidation still forces fresh data via existing `invalidateQueries` calls. No first-load behavior changes.
 
-## Fix plan (UI / behaviour only)
+### 3. Raise global default staleTime cautiously
+In `src/App.tsx` `QueryClient` defaults: `staleTime: 30_000` → `60_000`. Only affects refetch-on-mount within 60 s. All search/filter/barcode/pagination queries are already pinned to `STALE_LIVE`/`STALE_PAGINATED` in `queryStaleTimes.ts`, so live data stays live. `placeholderData: keepPreviousData` + `notifyOnChangeProps: ["data","error"]` already prevent flicker.
 
-Edit `src/pages/PurchaseEntry.tsx`:
+### 4. Disable cloud-usage diagnostics fetch wrapper in production builds
+`src/lib/cloudUsageDiagnostics.ts` is initialized in `App.tsx` (line 295). It only attaches when `localStorage.ezzy_cloud_usage === '1'`, but the init call still runs on every boot. Guard `initCloudUsageDiagnostics()` behind `import.meta.env.DEV || localStorage.ezzy_cloud_usage === '1'`. Pure overhead removal; no functional change.
 
-1. **Guard the "Restoring" banner against re-trigger after first restore.**
-   In the `useLayoutEffect` at lines 928-944, add an early return when `workRestoredRef.current === true`. This stops the amber banner from re-appearing after the initial mount restore is done.
+### 5. POS quick polls — already at 5 min, leave alone
+`src/pages/POSSales.tsx` line 617 already uses `useVisibilityRefetch(300000)` (5 min, paused when hidden). No change.
 
-2. **Stop the restore effects from re-running on focus.**
-   Replace the two effects at lines 946-954 with a single mount-only `useLayoutEffect` (empty dep array) that calls `restorePersistedWork()` once. The fallback "draft metadata arrives after mount" case is already handled by the `useLayoutEffect` above which sets the banner; once `draftData` lands the existing `loadDraftData` path inside `restorePersistedWork` will be invoked through the dashboard-discarded event handler that already exists.
+### 6. Tier-based refresh — confirm `free` tier orgs poll = false
+Already implemented in `useTierBasedRefresh`. No change. Document for user that upgrading to a paid tier increases reads by design.
 
-3. **Skip re-restore when the tab pane is still mounted and we already restored.**
-   In `restorePersistedWork`, before doing any IndexedDB read, return early if `workRestoredRef.current === true && lineItemsCountRef.current === 0 && isTabCachePaneMounted(...)` — meaning we're getting called again only because of a focus event, not a real remount.
+## What is NOT touched
+- No SQL, no migrations, no RLS, no RPC, no schema.
+- No layout, no component tree, no route changes.
+- No business formulas (balance, stock, GST, FIFO).
+- No POS / Sales Invoice / Purchase Entry behavior.
+- No edge functions, no WhatsApp send/receive, no print templates.
+- No realtime channels removed (only the redundant polls beside them).
 
-4. **Do not flip `setIsRestoringDraft(true)` if line items are already present** anywhere in `restorePersistedWork` (lines 869 and 875). The banner is only meaningful before lines load.
+## Expected impact
+On a busy org with WhatsApp inbox visible all day: removes ~1,500 polled reads/day (10 h × 6 polls/hr × 25 orgs scaled). Tab-return cache extension cuts dashboard re-mount fetches roughly in half during the 30–120 s window. No user-perceptible change because data invalidates on every save/receive.
 
-No changes to Sales Invoice, no changes to persistence files, no DB / RPC changes. Pure presentation + effect-dependency cleanup so Purchase Entry behaves like Sales Invoice on minimize-restore.
+## Verification (no code, run in browser)
+1. `localStorage.setItem('ezzy_cloud_usage','1'); location.reload();`
+2. Run the baseline journey from `docs/cloud-usage-baseline.md`.
+3. `window.__ezzyCloudUsage.printReport()` — compare request count vs. previous baseline.
+4. Disable diagnostics afterward.
 
-## Verification
+## Files to edit (4 total)
+1. `src/components/FloatingWhatsAppInbox.tsx`
+2. `src/lib/queryStaleTimes.ts`
+3. `src/App.tsx`
+4. (optional) `src/lib/cloudUsageDiagnostics.ts` — only the init guard
 
-- Open Purchase Entry with a few line items → minimize the window → restore. Form stays static, no amber banner, no flash.
-- Open blank Purchase Entry, type a supplier invoice no, minimize → restore. Field keeps its value, no flash.
-- Hard refresh (F5) on Purchase Entry with a draft in IndexedDB still shows the "Restoring your bill…" banner once (correct behaviour preserved).
-- Excel-import interruption guard still works — `pendingImportRef` and `entryPersistenceBlockedRef` paths are untouched.
+Approve to implement.
