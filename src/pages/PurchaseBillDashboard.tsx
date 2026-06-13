@@ -1286,7 +1286,7 @@ const PurchaseBillDashboard = () => {
   });
 
   const isDashboardInitialLoad =
-    purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
+    purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;
   const isDashboardBackgroundRefresh =
     (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
   const loading = isDashboardInitialLoad && !billsQueryError;
