@@ -1000,10 +1000,21 @@ const PurchaseEntry = () => {
   // does not have this hook). The restore callback is always-current via ref.
   const restorePersistedWorkRef = useRef(restorePersistedWork);
   restorePersistedWorkRef.current = restorePersistedWork;
+  const mountRestoreHadIdentityRef = useRef(false);
   useLayoutEffect(() => {
+    mountRestoreHadIdentityRef.current = Boolean(currentOrganization?.id && user?.id);
     void restorePersistedWorkRef.current();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If the pane mounts before auth/org context is ready, retry once as soon as
+  // identity arrives. This preserves hard-refresh recovery without focus reloads.
+  useLayoutEffect(() => {
+    if (mountRestoreHadIdentityRef.current) return;
+    if (!currentOrganization?.id || !user?.id) return;
+    mountRestoreHadIdentityRef.current = true;
+    if (lineItemsCountRef.current === 0) void restorePersistedWorkRef.current();
+  }, [currentOrganization?.id, user?.id]);
 
   // When draft metadata first arrives after mount (DB draft loaded async), try once.
   const draftMetaArrivedRef = useRef(false);
