@@ -8,7 +8,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
-import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import {
   fetchActualUnreadMessageCount,
   isCustomerReplyMessage,
@@ -21,9 +20,6 @@ export const FloatingWhatsAppInbox = () => {
   const { currentOrganization } = useOrganization();
   const { hasMenuAccess, hasSpecialPermission, loading: permLoading } = useUserPermissions();
   
-  // Tier-based polling - free tier uses manual refresh only
-  const { getRefreshInterval } = useTierBasedRefresh();
-
   const canAccess =
     hasMenuAccess("whatsapp_inbox") ||
     hasSpecialPermission("whatsapp_api") ||
@@ -38,7 +34,8 @@ export const FloatingWhatsAppInbox = () => {
     },
     enabled: !!currentOrganization?.id && canAccess,
     staleTime: 30_000,
-    refetchInterval: getRefreshInterval('slow'), // Tier-based: false for free tier
+    // No polling — realtime postgres_changes subscription below keeps badge fresh.
+    refetchInterval: false,
   });
 
   // Realtime badge updates (instant alert count without waiting for poll)
