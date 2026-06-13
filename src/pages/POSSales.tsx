@@ -1559,7 +1559,7 @@ export default function POSSales() {
       while (vHasMore) {
         const { data, error } = await supabase
           .from('product_variants')
-          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product')
+          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product')
           .eq('organization_id', currentOrganization.id)
           .is('deleted_at', null)
           .or('stock_qty.gt.0,barcode.not.is.null')
@@ -1875,7 +1875,7 @@ export default function POSSales() {
     setIsProductSearchLoading(true);
 
     const runSearch = async () => {
-      const variantSelect = 'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)';
+      const variantSelect = 'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)';
       const escapedTerm = term.replace(/[%_,]/g, '');
       const isNumeric = /^\d+$/.test(term);
 
@@ -2123,7 +2123,7 @@ export default function POSSales() {
         // Try exact barcode match first
         const { data: dbVariant } = await supabase
           .from('product_variants')
-          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
           .eq('organization_id', currentOrganization.id)
           .eq('products.organization_id', currentOrganization.id)
           .eq('barcode', searchTerm)
@@ -2157,7 +2157,7 @@ export default function POSSales() {
         if (!(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
           const { data: nameResults } = await supabase
             .from('product_variants')
-            .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+            .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
             .eq('organization_id', currentOrganization.id)
             .eq('products.organization_id', currentOrganization.id)
             .ilike('products.product_name', `%${searchTerm}%`)
@@ -2189,7 +2189,7 @@ export default function POSSales() {
           if (purchaseItem?.sku_id) {
             const { data: variant } = await supabase
               .from('product_variants')
-              .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
+              .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
               .eq('id', purchaseItem.sku_id)
               .is('deleted_at', null)
               .maybeSingle();
