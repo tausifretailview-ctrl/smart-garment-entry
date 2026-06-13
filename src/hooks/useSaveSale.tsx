@@ -1273,7 +1273,6 @@ export const useSaveSale = () => {
       // Completing a hold/pending bill must use today's date (resumeHeldSale does this too; safety net here).
       const completingOpenBill =
         (priorStatus === "hold" || priorStatus === "pending") &&
-        payStatus !== "hold" &&
         payStatus !== "pending";
       const saleDatePatch = completingOpenBill
         ? { sale_date: new Date().toISOString() }
