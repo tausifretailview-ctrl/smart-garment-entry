@@ -555,6 +555,7 @@ All colors MUST be HSL.
   /* ERP Status Bar — Tally/SAP style bottom bar */
   :root {
     --erp-status-bar-height: 1.75rem;
+    --ezzy-hint-bar-height: 0px;
   }
 
   .erp-status-bar {
@@ -1379,6 +1380,13 @@ body.pos-large-ui .pos-desktop-readable table td {
   position: relative;
   flex-shrink: 0;
   z-index: 40;
+}
+@media (min-width: 1024px) {
+  /* Keep totals / Flat Disc / S/R Adj above fixed status + Electron hint bars */
+  body.entry-bill-screen .pos-sales-main {
+    padding-bottom: calc(var(--erp-status-bar-height, 1.75rem) + var(--ezzy-hint-bar-height, 0px));
+    box-sizing: border-box;
+  }
 }
 .pos-sales-notes {
   flex-shrink: 0;
