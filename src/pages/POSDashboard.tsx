@@ -2182,25 +2182,29 @@ const POSDashboard = () => {
               paginatedSales.map((sale) => {
                 const totalSettled =
                   (sale.paid_amount || 0) + Number(sale.sale_return_adjust || 0);
+                const cancelled = isSaleInvoiceCancelled(sale);
                 const effectiveStatus =
-                  sale.payment_status === "hold"
-                    ? "hold"
-                    : totalSettled >= (sale.net_amount || 0)
-                      ? "completed"
-                      : totalSettled > 0
-                        ? "partial"
-                        : "pending";
+                  cancelled
+                    ? "cancelled"
+                    : sale.payment_status === "hold"
+                      ? "hold"
+                      : totalSettled >= (sale.net_amount || 0)
+                        ? "completed"
+                        : totalSettled > 0
+                          ? "partial"
+                          : "pending";
                 const statusClass: Record<string, string> = {
                   completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
                   partial: "bg-amber-50 text-amber-700 border-amber-200",
                   pending: "bg-rose-50 text-rose-700 border-rose-200",
                   hold: "bg-slate-50 text-slate-700 border-slate-200",
+                  cancelled: "bg-red-50 text-red-700 border-red-200",
                 };
                 return (
                   <MobileListCard
                     key={sale.id}
-                    muted={isSaleInvoiceCancelled(sale)}
-                    onClick={() => !isSaleInvoiceCancelled(sale) && navigate(`/pos-sales?saleId=${sale.id}`)}
+                    muted={cancelled}
+                    onClick={() => !cancelled && navigate(`/pos-sales?saleId=${sale.id}`)}
                     title={sale.sale_number}
                     subtitle={sale.customer_name || "Walk-in"}
                     badge={
@@ -2210,10 +2214,11 @@ const POSDashboard = () => {
                           statusClass[effectiveStatus] || statusClass.pending,
                         )}
                       >
-                        {effectiveStatus}
+                        {effectiveStatus === "cancelled" ? "Cancelled" : effectiveStatus}
                       </span>
                     }
                     amount={fmtAmt(sale.net_amount || 0)}
+                    amountClassName={cancelled ? "line-through decoration-red-500/70 text-muted-foreground" : undefined}
                     meta={
                       sale.sale_date
                         ? format(new Date(sale.sale_date), "dd MMM · hh:mm a")
@@ -2748,10 +2753,18 @@ const POSDashboard = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedSales.map((sale) => (
+                      paginatedSales.map((sale) => {
+                        const cancelled = isSaleInvoiceCancelled(sale);
+                        const cancelStrike = cancelled
+                          ? "line-through decoration-red-500/70 text-muted-foreground"
+                          : "";
+                        return (
                         <React.Fragment key={sale.id}>
                           <TableRow
-                            className="cursor-pointer hover:bg-accent/50 h-10"
+                            className={cn(
+                              "cursor-pointer hover:bg-accent/50 h-10",
+                              cancelled && "bg-red-50/50 dark:bg-red-950/20",
+                            )}
                           >
                             <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
@@ -2770,7 +2783,14 @@ const POSDashboard = () => {
                             <TableCell className="text-sm font-medium" onClick={() => toggleExpanded(sale.id)}>
                               <div className="flex flex-col gap-0.5 min-w-0">
                                 <div className="flex items-center gap-1 flex-wrap">
-                                  <span className="text-primary font-semibold">{sale.sale_number}</span>
+                                  <span className={cn("text-primary font-semibold", cancelStrike)}>
+                                    {sale.sale_number}
+                                  </span>
+                                  {cancelled && (
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 font-bold leading-none">
+                                      Cancelled
+                                    </Badge>
+                                  )}
                                   {sale.sale_type === 'delivery_challan' && (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300 leading-none">
                                       DC
@@ -2783,7 +2803,10 @@ const POSDashboard = () => {
                               </div>
                             </TableCell>
                             <TableCell 
-                              className="px-2 py-1.5 text-sm cursor-pointer text-blue-600 hover:underline"
+                              className={cn(
+                                "px-2 py-1.5 text-sm cursor-pointer text-blue-600 hover:underline",
+                                cancelStrike,
+                              )}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedCustomerForHistory({
@@ -2812,7 +2835,7 @@ const POSDashboard = () => {
                                 return qty != null ? qty : '-';
                               })()}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
                                 const discountTotal = (sale.discount_amount || 0) + (sale.flat_discount_amount || 0) + ((sale as any).points_redeemed_amount || 0);
                                 const srAdjust = Number(sale.sale_return_adjust || 0);
@@ -2856,20 +2879,23 @@ const POSDashboard = () => {
                                 );
                               })()}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              {sale.cash_amount ? `₹${Math.round(sale.cash_amount).toLocaleString('en-IN')}` : '-'}
+                            <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
+                              {cancelled ? "-" : sale.cash_amount ? `₹${Math.round(sale.cash_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              {sale.card_amount ? `₹${Math.round(sale.card_amount).toLocaleString('en-IN')}` : '-'}
+                            <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
+                              {cancelled ? "-" : sale.card_amount ? `₹${Math.round(sale.card_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              {sale.upi_amount ? `₹${Math.round(sale.upi_amount).toLocaleString('en-IN')}` : '-'}
+                            <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
+                              {cancelled ? "-" : sale.upi_amount ? `₹${Math.round(sale.upi_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
-                              ₹{Math.round(getEffectivePaidAmountForDashboard(sale)).toLocaleString('en-IN')}
+                            <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
+                              {cancelled ? "-" : `₹${Math.round(getEffectivePaidAmountForDashboard(sale)).toLocaleString('en-IN')}`}
                             </TableCell>
-                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className={cn("px-2 py-1.5 text-sm text-right tabular-nums", cancelStrike)} onClick={() => toggleExpanded(sale.id)}>
                               {(() => {
+                                if (cancelled) {
+                                  return <span className="text-muted-foreground">-</span>;
+                                }
                                 const discountTotal =
                                   (sale.discount_amount || 0) +
                                   (sale.flat_discount_amount || 0) +
@@ -2993,7 +3019,11 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.status && (
                               <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
-                                {(() => {
+                                {cancelled ? (
+                                  <Badge className="min-w-[60px] justify-center whitespace-nowrap text-xs px-1.5 py-0 bg-red-500 hover:bg-red-600 text-white">
+                                    Cancelled
+                                  </Badge>
+                                ) : (() => {
                                   const es = isHoldLikeSale(sale)
                                     ? "hold"
                                     : isPaidCompletedForDashboard(sale)
@@ -3153,6 +3183,11 @@ const POSDashboard = () => {
                             <TableRow>
                               <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (isEInvoiceEnabled ? 1 : 0) + 16} className="bg-muted/30 p-3">
                                 <div className="space-y-3">
+                                  {cancelled && (
+                                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+                                      This invoice has been cancelled.
+                                    </div>
+                                  )}
                                   <div>
                                     <h4 className="font-semibold text-[13px] mb-1.5">Sale Items:</h4>
                                     <div className="rounded-md border">
@@ -3378,7 +3413,8 @@ const POSDashboard = () => {
                             </TableRow>
                           )}
                         </React.Fragment>
-                      ))
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
