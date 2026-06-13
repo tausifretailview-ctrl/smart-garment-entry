@@ -69,6 +69,7 @@ export function PriceSelectionDialog({
       sale_price: masterPrice.sale_price,
       mrp: masterPrice.mrp,
       source: "master",
+      date: masterPrice.date,
     },
   ];
 
