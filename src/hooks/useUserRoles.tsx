@@ -56,6 +56,7 @@ export const useUserRoles = (organizationId?: string) => {
   const [error, setError] = useState<Error | null>(null);
   const [verifyGeneration, setVerifyGeneration] = useState(0);
   const runIdRef = useRef(0);
+  const hasLoadedRef = useRef(false);
 
   const refetch = useCallback(() => {
     setVerifyGeneration((g) => g + 1);
@@ -75,7 +76,12 @@ export const useUserRoles = (organizationId?: string) => {
       }
 
       if (cancelled || runId !== runIdRef.current) return;
-      setLoading(true);
+      // Only show the loading shell on the very first verification — subsequent
+      // re-checks (e.g. AuthContext refreshing the session on tab resume) must
+      // not unmount the active dashboard. Matches Sales Invoice Dashboard.
+      if (!hasLoadedRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
       let lastError: Error | null = null;
@@ -93,6 +99,7 @@ export const useUserRoles = (organizationId?: string) => {
           if (cancelled || runId !== runIdRef.current) return;
           setRoles(allRoles);
           setLoading(false);
+          hasLoadedRef.current = true;
           setError(null);
           return;
         } catch (err: unknown) {
@@ -124,7 +131,10 @@ export const useUserRoles = (organizationId?: string) => {
     return () => {
       cancelled = true;
     };
-  }, [user, organizationId, verifyGeneration]);
+    // Depend on user?.id (stable across session refreshes) instead of the user
+    // object itself — otherwise tab-resume session refresh re-runs verification
+    // and unmounts role-protected pages.
+  }, [user?.id, organizationId, verifyGeneration]);
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isAdmin = hasRole("admin");
