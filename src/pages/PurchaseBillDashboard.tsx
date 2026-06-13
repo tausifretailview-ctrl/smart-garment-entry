@@ -51,6 +51,8 @@ import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/componen
 import { ERPTable } from "@/components/erp-table";
 import { cn } from "@/lib/utils";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
@@ -158,6 +160,7 @@ const PERF_PATH = "purchase-bills";
 const PurchaseBillDashboard = () => {
   useNavPerfPage(PERF_PATH);
   const inTabCache = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -1283,7 +1286,7 @@ const PurchaseBillDashboard = () => {
   });
 
   const isDashboardInitialLoad =
-    purchaseQueriesEnabled && billsQueryLoading && billsQueryData === undefined;
+    purchaseQueriesEnabled && billsQueryLoading && bills.length === 0;
   const isDashboardBackgroundRefresh =
     (billsQueryFetching || purchaseSummaryFetching) && !isDashboardInitialLoad;
   const loading = isDashboardInitialLoad && !billsQueryError;
@@ -1878,7 +1881,7 @@ const PurchaseBillDashboard = () => {
           { label: "Bills", value: String(summaryStats.totalBills), color: "text-purple-600", bg: "bg-purple-50" },
         ]} />
 
-        <div className="flex-1 px-4 space-y-2.5 pb-4">
+        <div className="flex-1 min-h-0 overflow-auto px-4 space-y-2.5 pb-4">
           {isDashboardInitialLoad ? (
             Array.from({length: 5}).map((_,i) => (
               <Skeleton key={i} className="h-20 rounded-2xl" />
@@ -2000,12 +2003,12 @@ const PurchaseBillDashboard = () => {
   return (
     <div
       className={cn(
-        "bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6",
-        inTabCache ? "h-full min-h-0 w-full" : "min-h-screen pb-24 lg:pb-6",
+        "flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 min-h-0 overflow-hidden",
+        inTabCache || sharedShell ? "h-full w-full" : "h-[calc(100vh-3.5rem)]",
       )}
     >
-      <div className="w-full min-w-0 max-w-none space-y-5">
-        <div className="flex items-center justify-between mb-1">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-3">
+        <div className="flex items-center justify-between shrink-0 mb-1">
           <div>
             <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
               Purchase Bills
@@ -2079,7 +2082,7 @@ const PurchaseBillDashboard = () => {
         </div>
 
         {showDraftBanner && draftSummary && (
-          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm">
+          <Card className="border border-amber-400/60 bg-amber-50 rounded-xl shadow-sm shrink-0">
             <CardHeader className="py-3 px-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -2148,7 +2151,7 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 w-full shrink-0">
           <Card className="cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 px-3">
               <CardDescription className="text-base font-medium text-white/80">Total Bills</CardDescription>
@@ -2235,9 +2238,9 @@ const PurchaseBillDashboard = () => {
           </Card>
         </div>
 
-        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
-          <div className="space-y-0">
-            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto">
+        <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white overflow-x-auto shrink-0">
               <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
@@ -2299,6 +2302,12 @@ const PurchaseBillDashboard = () => {
               <div id="erp-toolbar-portal-purchase" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
 
+            <div
+              ref={tableContainerRef}
+              data-tab-scroll
+              onWheel={onWheelScrollContainer}
+              className="flex-1 min-h-0 overflow-auto tab-scroll-stable"
+            >
             {billsQueryError ? (
               <div className="text-center py-12 bg-white border border-destructive/20 rounded-lg mx-2">
                 <Receipt className="h-12 w-12 mx-auto mb-4 text-destructive/60" />
@@ -2341,8 +2350,10 @@ const PurchaseBillDashboard = () => {
               />
             )}
 
+            </div>
+
             {filteredBills.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white shrink-0">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="text-sm text-slate-500 tabular-nums">
                     Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}

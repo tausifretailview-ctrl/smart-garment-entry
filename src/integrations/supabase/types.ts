@@ -7812,6 +7812,10 @@ export type Database = {
         }
         Returns: number
       }
+      _increment_supplier_invoice_no: {
+        Args: { prev: string }
+        Returns: string
+      }
       _is_cn_refund_payment_voucher: {
         Args: {
           p_description: string
@@ -7821,6 +7825,14 @@ export type Database = {
           p_voucher_type: string
         }
         Returns: boolean
+      }
+      _next_supplier_invoice_in_series: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      _supplier_invoice_serial_parts: {
+        Args: { inv: string }
+        Returns: Record<string, unknown>
       }
       _voucher_financial_year_label: {
         Args: { p_date: string }
@@ -7852,6 +7864,10 @@ export type Database = {
         Returns: boolean
       }
       aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
+      allocate_supplier_invoice_number: {
+        Args: { p_organization_id: string; p_supplier_id: string }
+        Returns: string
+      }
       apply_credit_note_to_sale: {
         Args: {
           p_apply_amount: number
@@ -8026,18 +8042,6 @@ export type Database = {
       generate_purchase_bill_number_atomic: {
         Args: { p_organization_id: string }
         Returns: string
-      }
-      peek_next_supplier_invoice_number: {
-        Args: { p_organization_id: string }
-        Returns: string
-      }
-      allocate_supplier_invoice_number: {
-        Args: { p_organization_id: string; p_supplier_id: string }
-        Returns: string
-      }
-      save_purchase_bill_with_items_atomic: {
-        Args: { p_organization_id: string; p_bill: Json; p_items: Json }
-        Returns: Json
       }
       generate_purchase_order_number: {
         Args: { p_organization_id: string }
@@ -8298,6 +8302,16 @@ export type Database = {
           sample_references: string[]
         }[]
       }
+      get_purchase_bill_dashboard_stats: {
+        Args: {
+          p_dc_filter?: string
+          p_end_date?: string
+          p_org_id: string
+          p_payment_status_filter?: string
+          p_start_date?: string
+        }
+        Returns: Json
+      }
       get_purchase_summary: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
@@ -8408,6 +8422,10 @@ export type Database = {
           p_fy_start_year?: number
           p_organization_id: string
         }
+        Returns: string
+      }
+      peek_next_supplier_invoice_number: {
+        Args: { p_organization_id: string }
         Returns: string
       }
       platform_assign_user_to_org: {

@@ -93,6 +93,7 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import {
   incrementSupplierInvoiceNumber,
   nextSupplierInvoiceNumberFromSeries,
+  resolveNextSupplierInvoiceNumber,
 } from "@/utils/purchaseSupplierInvoiceNumber";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
@@ -456,6 +457,10 @@ const PurchaseEntry = () => {
   });
   const supplierInvAutoValueRef = useRef<string | null>(null);
   const supplierInvManuallyEditedRef = useRef(false);
+  const [supplierInvAutoFillEpoch, setSupplierInvAutoFillEpoch] = useState(0);
+  const bumpSupplierInvAutoFill = useCallback(() => {
+    setSupplierInvAutoFillEpoch((n) => n + 1);
+  }, []);
   const [softwareBillNo, setSoftwareBillNo] = useState<string>("");
 
   // Draft save hook for auto-saving work in progress
@@ -485,6 +490,7 @@ const PurchaseEntry = () => {
     setBillData({ supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
     supplierInvAutoValueRef.current = null;
     supplierInvManuallyEditedRef.current = false;
+    bumpSupplierInvAutoFill();
     setSoftwareBillNo("");
     setBillDate(new Date());
     setBillEntryAt(null);
@@ -514,7 +520,7 @@ const PurchaseEntry = () => {
     loadedEditBillIdRef.current = null;
     isInitializingEditRef.current = false;
     updateCurrentData(null);
-  }, [clearEntrySession, deleteDraft, updateCurrentData]);
+  }, [bumpSupplierInvAutoFill, clearEntrySession, deleteDraft, updateCurrentData]);
 
   // Dashboard "Discard draft" — entry tab may stay mounted in window tabs and would re-save otherwise.
   useEffect(() => {
@@ -679,6 +685,7 @@ const PurchaseEntry = () => {
     if (currentOrganization?.id) {
       void queryClient.invalidateQueries({ queryKey: ["last-purchase-bill", currentOrganization.id] });
       void queryClient.invalidateQueries({ queryKey: ["org-supplier-invoice-numbers", currentOrganization.id] });
+      void queryClient.invalidateQueries({ queryKey: ["peek-next-supplier-invoice", currentOrganization.id] });
     }
     if (currentOrganization?.id && user?.id) {
       dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
@@ -745,6 +752,15 @@ const PurchaseEntry = () => {
     
     // Set bill metadata immediately
     setBillData(data.billData || { supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
+    const restoredInv = String(data.billData?.supplier_invoice_no ?? "").trim();
+    if (!data.isEditMode && !restoredInv) {
+      supplierInvManuallyEditedRef.current = false;
+      supplierInvAutoValueRef.current = null;
+      bumpSupplierInvAutoFill();
+    } else if (restoredInv) {
+      supplierInvManuallyEditedRef.current = true;
+      supplierInvAutoValueRef.current = restoredInv;
+    }
     setSoftwareBillNo(data.softwareBillNo || "");
     setBillDate(data.billDate ? new Date(data.billDate) : new Date());
     setOtherCharges(data.otherCharges || 0);
@@ -795,7 +811,7 @@ const PurchaseEntry = () => {
       loadedEditBillIdRef.current = data.editingBillId;
       setOriginalLineItems(data.originalLineItems || []);
     }
-  }, []);
+  }, [bumpSupplierInvAutoFill]);
 
   const readPersistedSnapshot = useCallback(async () => {
     if (!currentOrganization?.id || !user?.id) return null;
@@ -1319,14 +1335,80 @@ const PurchaseEntry = () => {
     staleTime: 15000,
   });
 
+  const { data: peekNextSupplierInvNo } = useQuery({
+    queryKey: ["peek-next-supplier-invoice", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("peek_next_supplier_invoice_number", {
+        p_organization_id: currentOrganization!.id,
+      });
+      if (error) {
+        // RPC not deployed yet — client fallback in nextSupplierInvNo handles it.
+        if (error.code === "PGRST202" || (error as { status?: number }).status === 404) {
+          return null;
+        }
+        throw error;
+      }
+      return data ? String(data) : null;
+    },
+    enabled: !!currentOrganization?.id && !isEditMode,
+    refetchOnWindowFocus: false,
+    staleTime: 15000,
+  });
+
   // Serial supplier invoice no from the highest number in the org series (not only the last bill).
   const nextSupplierInvNo = useMemo(() => {
     if (isEditMode) return undefined;
-    return nextSupplierInvoiceNumberFromSeries(
+    return resolveNextSupplierInvoiceNumber(
+      peekNextSupplierInvNo,
       orgSupplierInvoices?.map((row) => row.supplier_invoice_no) ?? [],
       lastPurchaseBill?.supplier_invoice_no,
     );
-  }, [isEditMode, orgSupplierInvoices, lastPurchaseBill?.supplier_invoice_no]);
+  }, [
+    isEditMode,
+    peekNextSupplierInvNo,
+    orgSupplierInvoices,
+    lastPurchaseBill?.supplier_invoice_no,
+  ]);
+
+  // Per-supplier serial: last supplier_invoice_no saved for THIS supplier in THIS org.
+  // Used to suggest the next number once a supplier is picked (overrides org-wide series).
+  const { data: lastInvoiceForSupplier } = useQuery({
+    queryKey: [
+      "last-supplier-invoice-for-supplier",
+      currentOrganization?.id,
+      billData.supplier_id || null,
+    ],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !billData.supplier_id) return null;
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("supplier_invoice_no, created_at")
+        .eq("organization_id", currentOrganization.id)
+        .eq("supplier_id", billData.supplier_id)
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false")
+        .not("supplier_invoice_no", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? [])
+        .map((r) => String(r.supplier_invoice_no ?? "").trim())
+        .filter(Boolean);
+    },
+    enabled:
+      !!currentOrganization?.id && !!billData.supplier_id && !isEditMode,
+    refetchOnWindowFocus: false,
+    staleTime: 15000,
+  });
+
+  const nextSupplierInvNoForSupplier = useMemo(() => {
+    if (isEditMode || !billData.supplier_id) return undefined;
+    const list = lastInvoiceForSupplier ?? [];
+    if (list.length === 0) return undefined;
+    // Pick highest serial in the supplier's own series (continues their numbering even
+    // if the most recently created bill had a one-off prefix).
+    return nextSupplierInvoiceNumberFromSeries(list, list[0]);
+  }, [isEditMode, billData.supplier_id, lastInvoiceForSupplier]);
 
   // Fetch all purchase bill IDs for navigation
   const { data: allBillIds } = useQuery({
@@ -1512,17 +1594,29 @@ const PurchaseEntry = () => {
 
   // Auto-populate supplier invoice number for new bills; refresh when another user saves.
   useEffect(() => {
-    if (!nextSupplierInvNo || isEditMode || supplierInvManuallyEditedRef.current) return;
+    if (isEditMode || supplierInvManuallyEditedRef.current) return;
+    // Per-supplier serial wins once a supplier is selected; otherwise fall back
+    // to the org-wide next number so the field is never blank on a new bill.
+    const suggested = nextSupplierInvNoForSupplier || nextSupplierInvNo;
+    if (!suggested) return;
 
     setBillData((prev) => {
       const current = prev.supplier_invoice_no.trim();
+      // Allow auto-update if field is blank or still holds a previously auto-filled value
+      // (so picking a supplier replaces the org-wide guess with the supplier's own next no.).
       if (current && current !== supplierInvAutoValueRef.current) {
         return prev;
       }
-      supplierInvAutoValueRef.current = nextSupplierInvNo;
-      return { ...prev, supplier_invoice_no: nextSupplierInvNo };
+      if (current === suggested) return prev;
+      supplierInvAutoValueRef.current = suggested;
+      return { ...prev, supplier_invoice_no: suggested };
     });
-  }, [nextSupplierInvNo, isEditMode]);
+  }, [
+    nextSupplierInvNo,
+    nextSupplierInvNoForSupplier,
+    isEditMode,
+    supplierInvAutoFillEpoch,
+  ]);
 
   // Menu / Alt+B — open blank new bill (not the last edited bill).
   // confirmDiscardRef (not confirmDiscardUnsavedPurchase) used here so this effect doesn't
@@ -3779,6 +3873,7 @@ const PurchaseEntry = () => {
         });
         supplierInvAutoValueRef.current = null;
         supplierInvManuallyEditedRef.current = false;
+        bumpSupplierInvAutoFill();
         setBillDate(new Date());
         setBillEntryAt(null);
         setLineItems([]);
@@ -3865,8 +3960,8 @@ const PurchaseEntry = () => {
           });
         }
 
-        let billDataResult: Record<string, unknown> | null = null;
-        const { data: atomicBill, error: atomicError } = await supabase.rpc(
+        let billDataResult: any = null;
+        const { data: atomicBill, error: atomicError } = await (supabase as any).rpc(
           "save_purchase_bill_with_items_atomic",
           {
             p_organization_id: currentOrganization.id,
@@ -3876,7 +3971,7 @@ const PurchaseEntry = () => {
         );
 
         if (!atomicError && atomicBill) {
-          billDataResult = atomicBill as Record<string, unknown>;
+          billDataResult = atomicBill as any;
         } else if (atomicError && !isMissingAtomicSaveRpc(atomicError)) {
           throw atomicError;
         } else {
@@ -4061,6 +4156,7 @@ const PurchaseEntry = () => {
         });
         supplierInvAutoValueRef.current = null;
         supplierInvManuallyEditedRef.current = false;
+        bumpSupplierInvAutoFill();
         setBillDate(new Date());
         setBillEntryAt(null);
         setLineItems([]);
@@ -4849,7 +4945,7 @@ const PurchaseEntry = () => {
               </div>
               <div>
                 <Label className="text-[11px]">Supplier Inv. No.</Label>
-                <Input data-field="supplier-invoice-no" value={billData.supplier_invoice_no} onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)} placeholder="Inv #" className="h-9 text-sm rounded-xl" />
+                <Input data-field="supplier-invoice-no" value={billData.supplier_invoice_no} onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)} placeholder={nextSupplierInvNo ? `Next: ${nextSupplierInvNo}` : "Inv #"} className="h-9 text-sm rounded-xl" />
               </div>
             </div>
           </div>
@@ -5211,7 +5307,7 @@ const PurchaseEntry = () => {
                   data-field="supplier-invoice-no"
                   value={billData.supplier_invoice_no}
                   onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
-                  placeholder="Invoice number"
+                  placeholder={nextSupplierInvNo ? `Next: ${nextSupplierInvNo}` : "Invoice number"}
                 />
               </div>
 
