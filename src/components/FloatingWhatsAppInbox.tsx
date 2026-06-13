@@ -8,7 +8,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
-import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import {
   fetchActualUnreadMessageCount,
   isCustomerReplyMessage,
