@@ -842,6 +842,17 @@ const PurchaseEntry = () => {
         workRestoredRef.current = false;
       }
 
+      // Already restored on this mount and the tab pane is still mounted in the
+      // tab cache — extra calls (from focus / auth refresh) must not re-run the
+      // IndexedDB read or flip the "Restoring…" banner. Sales Invoice stays static.
+      if (
+        !options?.force &&
+        workRestoredRef.current &&
+        isTabCachePaneMounted(resolveTabCachePath("purchase-entry"))
+      ) {
+        return false;
+      }
+
       if (draftDiscardedExternallyRef.current && !location.state?.loadDraft && !options?.force) {
         return false;
       }
