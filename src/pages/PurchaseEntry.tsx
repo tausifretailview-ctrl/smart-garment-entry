@@ -558,6 +558,7 @@ const PurchaseEntry = () => {
 
   const requestNewBill = useCallback(() => {
     if (!confirmDiscardUnsavedPurchase()) return;
+    draftDiscardedExternallyRef.current = true;
     resetToNewBill();
   }, [confirmDiscardUnsavedPurchase, resetToNewBill]);
 
@@ -819,19 +820,8 @@ const PurchaseEntry = () => {
   }, [currentOrganization?.id, user?.id]);
 
   const shouldDeferRestoreForNewBill = useCallback(() => {
-    if (!location.state?.newBill) return false;
-    if (wasPurchaseEntryRemount(location.key)) return false;
-    if (wasPurchaseEntryNavHandled(location.key)) return false;
-    if (
-      isDocumentReload() &&
-      currentOrganization?.id &&
-      user?.id &&
-      hasPurchaseEntryDraftInBrowser(currentOrganization.id, user.id)
-    ) {
-      return false;
-    }
-    return true;
-  }, [location.key, location.state?.newBill, currentOrganization?.id, user?.id]);
+    return Boolean(location.state?.newBill);
+  }, [location.state?.newBill]);
 
   const restorePersistedWork = useCallback(
     async (options?: { notify?: boolean; force?: boolean }) => {
@@ -849,6 +839,10 @@ const PurchaseEntry = () => {
 
       if (options?.force && workRestoredRef.current && lineCount === 0) {
         workRestoredRef.current = false;
+      }
+
+      if (draftDiscardedExternallyRef.current && !location.state?.loadDraft && !options?.force) {
+        return false;
       }
 
       if (location.state?.editBillId) return false;
@@ -922,6 +916,8 @@ const PurchaseEntry = () => {
 
   // Show restoring hint on F5 before async IDB read completes.
   useLayoutEffect(() => {
+    if (location.state?.newBill) return;
+    if (draftDiscardedExternallyRef.current) return;
     if (lineItems.length > 0 || workRestoredRef.current) return;
     const orgId = currentOrganization?.id;
     const userId = user?.id;
@@ -929,7 +925,7 @@ const PurchaseEntry = () => {
     if (hasPurchaseEntryDraftInBrowser(orgId, userId) || readPurchaseEntryDraftMeta(orgId, userId)) {
       setIsRestoringDraft(true);
     }
-  }, [currentOrganization?.id, user?.id, lineItems.length]);
+  }, [currentOrganization?.id, user?.id, lineItems.length, location.state?.newBill]);
 
   // Restore before paint when remounting the same history entry (minimize / PWA resume).
   useLayoutEffect(() => {
@@ -1618,40 +1614,10 @@ const PurchaseEntry = () => {
     supplierInvAutoFillEpoch,
   ]);
 
-  // Menu / Alt+B — open blank new bill (not the last edited bill).
-  // confirmDiscardRef (not confirmDiscardUnsavedPurchase) used here so this effect doesn't
-  // re-fire on every lineItems change and accidentally show a second confirm dialog.
+  // Menu / Alt+B / sidebar "Purchase Entry" — always open a blank new bill (never auto-restore draft).
   useEffect(() => {
     if (!location.state?.newBill) return;
     if (wasPurchaseEntryNavHandled(location.key)) {
-      clearNewBillNavigation();
-      return;
-    }
-
-    const orgId = currentOrganization?.id;
-    const userId = user?.id;
-
-    if (
-      orgId &&
-      userId &&
-      hasPurchaseEntryDraftInBrowser(orgId, userId) &&
-      lineItemsCountRef.current === 0
-    ) {
-      void restorePersistedWork({ notify: true, force: true }).finally(() => {
-        clearNewBillNavigation();
-      });
-      return;
-    }
-
-    // Remount/minimize recovery: restore persisted work instead of wiping on a stale newBill flag.
-    if (wasPurchaseEntryRemount(location.key)) {
-      void restorePersistedWork({ notify: true, force: true }).finally(() => {
-        clearNewBillNavigation();
-      });
-      return;
-    }
-
-    if (workRestoredRef.current) {
       clearNewBillNavigation();
       return;
     }
@@ -1660,6 +1626,8 @@ const PurchaseEntry = () => {
       clearNewBillNavigation();
       return;
     }
+
+    draftDiscardedExternallyRef.current = true;
     resetToNewBill();
     clearNewBillNavigation();
   }, [
@@ -1667,9 +1635,6 @@ const PurchaseEntry = () => {
     location.key,
     clearNewBillNavigation,
     resetToNewBill,
-    restorePersistedWork,
-    currentOrganization?.id,
-    user?.id,
   ]);
 
   // Load bill when opened from dashboard with editBillId (same pattern as Sales Invoice)
@@ -5216,7 +5181,7 @@ const PurchaseEntry = () => {
           </div>
         </div>
 
-        {!isEditMode && lastPurchaseBill && (
+        {!isEditMode && lastPurchaseBill && lineItems.length > 0 && (
           <div className={cn("h-[34px] bg-slate-800/80 border-t border-white/10 flex items-center gap-2 text-[12px] overflow-x-auto", entryPageSectionX)}>
             <span className="text-white/50 shrink-0">Last:</span>
             <span className="text-green-300 font-mono font-bold text-[11px] shrink-0">{lastPurchaseBill.software_bill_no}</span>
