@@ -44,7 +44,9 @@ const ELECTRON_MIN_KEEP_TABS = 2;
 const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
 
 /** Heavy admin screens — only these may idle-evict when many tabs are open. */
-const IDLE_EVICT_ALLOWED_PATHS = new Set(["settings", "user-rights"]);
+// NOTE: Settings was previously evictable, but users reported the tab "reloading"
+// after minimize/tab-switch. Keep it mounted like Sales/Purchase dashboards.
+const IDLE_EVICT_ALLOWED_PATHS = new Set(["user-rights"]);
 
 /** Live working screens — never auto-unmount (cart, bill entry, unsaved-work proxy). */
 const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
@@ -72,6 +74,10 @@ const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "salesman-commission",
   "pos-dashboard",
   "sales-invoice-dashboard",
+  "settings",
+  "customer-account-statement",
+  "customer-ledger-report",
+  "customer-balance-activity",
 ]);
 
 /** Persist scroll positions per window tab when panes are hidden. */
@@ -127,6 +133,22 @@ const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
   "purchase-bill-dashboard",
   "pos-dashboard",
   "sales-invoice-dashboard",
+  // Match browser behavior — keep these dashboards mounted on Electron too so
+  // tab change / window minimize does not reload the page.
+  "purchase-returns",
+  "purchase-return-dashboard",
+  "product-dashboard",
+  "products",
+  "accounts",
+  "payments-dashboard",
+  "chart-of-accounts",
+  "journal-vouchers",
+  "manual-journal",
+  "ledger-opening-balances",
+  "customer-account-statement",
+  "customer-ledger-report",
+  "customer-balance-activity",
+  "settings",
 ]);
 
 function isProtectedTabPath(path: string): boolean {
