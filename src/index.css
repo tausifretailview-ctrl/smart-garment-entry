@@ -1484,6 +1484,27 @@ main:has(.dashboard-workspace) {
 }
 
 /* Reduce motion for users who prefer it */
+/* Sales Invoice (Sale Bill) page — boost readability without changing layout.
+   Scoped to .sale-bill-readable so POS and other pages are untouched. */
+@media (min-width: 1024px) {
+  .sale-bill-readable .text-xs { font-size: 13px !important; line-height: 1.25 !important; }
+  .sale-bill-readable .text-\[10px\] { font-size: 12px !important; }
+  .sale-bill-readable .text-\[11px\] { font-size: 13px !important; }
+  .sale-bill-readable .text-\[12px\] { font-size: 14px !important; }
+  .sale-bill-readable .text-\[13px\] { font-size: 14px !important; }
+  .sale-bill-readable .text-\[15px\] { font-size: 16px !important; }
+  .sale-bill-readable .text-sm { font-size: 14px !important; }
+  .sale-bill-readable table th { font-size: 13px !important; }
+  .sale-bill-readable table td { font-size: 14px !important; }
+  .sale-bill-readable input,
+  .sale-bill-readable [role="combobox"] { font-size: 15px !important; }
+  .sale-bill-readable label { font-size: 13px !important; }
+  /* Footer totals strip — Items / Total Qty / Gross / Discount labels & values */
+  .sale-bill-readable .pos-sales-footer .text-\[11px\],
+  .sale-bill-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }
+  .sale-bill-readable kbd { font-size: 11px !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-in-fast,
   .fade-in-smooth,
