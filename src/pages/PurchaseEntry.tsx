@@ -52,6 +52,7 @@ import {
   PURCHASE_DRAFT_DISCARDED_EVENT,
   dispatchPurchaseDraftSaved,
   readPurchaseEntryDraftMeta,
+  readPurchaseEntrySnapshot,
   readPurchaseEntrySnapshotAsync,
   wasPurchaseEntryNavHandled,
   wasPurchaseEntryRemount,
@@ -281,6 +282,15 @@ const PurchaseEntry = () => {
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
+  const initialBrowserSnapshotRef = useRef<PurchaseEntrySnapshot | null | undefined>(undefined);
+  if (initialBrowserSnapshotRef.current === undefined) {
+    const navState = (location.state ?? {}) as { newBill?: boolean; editBillId?: string };
+    initialBrowserSnapshotRef.current =
+      currentOrganization?.id && user?.id && !navState.newBill && !navState.editBillId
+        ? readPurchaseEntrySnapshot(currentOrganization.id, user.id)
+        : null;
+  }
+  const initialBrowserSnapshot = initialBrowserSnapshotRef.current;
   const { invalidatePurchases } = useDashboardInvalidation();
   const queryClient = useQueryClient();
   const { isColumnVisible } = useUserPermissions();
@@ -304,20 +314,30 @@ const PurchaseEntry = () => {
   const [sizeGridVariants, setSizeGridVariants] = useState<SizeGridVariant[]>([]);
   const [sizeQty, setSizeQty] = useState<{ [size: string]: number }>({});
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    () => (initialBrowserSnapshot?.lineItems as LineItem[] | undefined) ?? [],
+  );
   const lineItemsCountRef = useRef(lineItems.length);
   lineItemsCountRef.current = lineItems.length;
-  const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
-  const [billDate, setBillDate] = useState<Date>(new Date());
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">(
+    initialBrowserSnapshot?.entryMode === "inline" ? "inline" : "grid",
+  );
+  const [billDate, setBillDate] = useState<Date>(() =>
+    initialBrowserSnapshot?.billDate ? new Date(initialBrowserSnapshot.billDate) : new Date(),
+  );
   const [billDateOpen, setBillDateOpen] = useState(false);
   /** When this bill was first saved in EzzyERP (read-only after save). */
   const [billEntryAt, setBillEntryAt] = useState<string | null>(null);
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
-  const [discountAmount, setDiscountAmount] = useState(0);
-  const [otherCharges, setOtherCharges] = useState(0);
-  const [roundOff, setRoundOff] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(
+    () => Number(initialBrowserSnapshot?.discountAmount) || 0,
+  );
+  const [otherCharges, setOtherCharges] = useState(
+    () => Number(initialBrowserSnapshot?.otherCharges) || 0,
+  );
+  const [roundOff, setRoundOff] = useState(() => Number(initialBrowserSnapshot?.roundOff) || 0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
@@ -326,18 +346,24 @@ const PurchaseEntry = () => {
   const inlineSearchInputRef = useRef<HTMLInputElement>(null);
   const isNavigatingForProductRef = useRef(false); // Track navigation to product entry
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
-  const [editingBillId, setEditingBillId] = useState<string | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
+  const [editingBillId, setEditingBillId] = useState<string | null>(
+    initialBrowserSnapshot?.editingBillId ?? null,
+  );
+  const [isEditMode, setIsEditMode] = useState(Boolean(initialBrowserSnapshot?.isEditMode));
+  const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>(
+    () => (initialBrowserSnapshot?.originalLineItems as LineItem[] | undefined) ?? [],
+  ); // Store original items for comparison
   const isInitializingEditRef = useRef(false);
   const loadedEditBillIdRef = useRef<string | null>(null);
-  const workRestoredRef = useRef(false);
+  const workRestoredRef = useRef(Boolean(initialBrowserSnapshot?.lineItems?.length));
   const draftDiscardedExternallyRef = useRef(false);
   /** Blocks debounced draft writes after a successful bill save (pending timeout race). */
   const purchaseSaveFinalizedRef = useRef(false);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
-  const latestSnapshotRef = useRef<Record<string, unknown> | null>(null);
+  const latestSnapshotRef = useRef<Record<string, unknown> | null>(
+    initialBrowserSnapshot?.lineItems?.length ? (initialBrowserSnapshot as Record<string, unknown>) : null,
+  );
   /** Always-current ref so the newBill effect can call confirmDiscard without adding it to deps. */
   const confirmDiscardRef = useRef<() => boolean>(() => true);
   /** Skip duplicate snapshot rebuild right after Excel import / bulk restore. */
@@ -347,7 +373,9 @@ const PurchaseEntry = () => {
    *  completion). Persisted into every draft snapshot/checkpoint so an interrupted
    *  import (refresh/tab close) leaves a marker — doSave hard-blocks saving such a
    *  partial draft, which previously silently truncated bills. */
-  const pendingImportRef = useRef<{ expectedRows: number; expectedQty: number } | null>(null);
+  const pendingImportRef = useRef<{ expectedRows: number; expectedQty: number } | null>(
+    initialBrowserSnapshot?.pendingImport ?? null,
+  );
   /** Blocks session flush/clear while async restore, edit load, or Excel import is in flight. */
   const entryPersistenceBlockedRef = useRef(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
