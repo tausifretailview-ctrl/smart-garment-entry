@@ -346,6 +346,9 @@ const App = () => {
               <Route path="/sale-returns" element={<NonOrgRedirect path="sale-returns" />} />
               <Route path="/sale-return-entry/*" element={<NonOrgRedirectWithTail pathPrefix="sale-return-entry" />} />
               <Route path="/sale-return-dashboard" element={<NonOrgLegacySaleReturnDashboardRedirect />} />
+              <Route path="/product-dashboard" element={<NonOrgRedirect path="products" />} />
+              <Route path="/purchase-bill-dashboard" element={<NonOrgRedirect path="purchase-bills" />} />
+              <Route path="/purchase-return-dashboard" element={<NonOrgRedirect path="purchase-returns" />} />
               
               {/* Platform admin route */}
               <Route
@@ -425,6 +428,7 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route path="product-dashboard" element={<Navigate to="products" replace />} />
                 <Route
                   path="product-entry"
                   element={
@@ -473,6 +477,7 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route path="purchase-bill-dashboard" element={<Navigate to="purchase-bills" replace />} />
                 <Route
                   path="purchase-returns"
                   element={
@@ -485,6 +490,7 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+                <Route path="purchase-return-dashboard" element={<Navigate to="purchase-returns" replace />} />
                 <Route
                   path="purchase-return-entry"
                   element={

@@ -34,7 +34,7 @@ const QUICK_OPEN_PAGES = [
   { path: "sale-order-dashboard", label: "Sale Orders", icon: "ClipboardList", category: "Sales" },
   { path: "purchase-entry", label: "Purchase Entry", icon: "Package", category: "Purchase" },
   { path: "purchase-bills", label: "Purchase Bills", icon: "Package", category: "Purchase" },
-  { path: "product-dashboard", label: "Products", icon: "Layers", category: "Masters" },
+  { path: "products", label: "Products", icon: "Layers", category: "Masters" },
   { path: "customers", label: "Customers", icon: "Users", category: "Masters" },
   { path: "suppliers", label: "Suppliers", icon: "Building2", category: "Masters" },
   { path: "stock-report", label: "Stock Report", icon: "BarChart3", category: "Reports" },

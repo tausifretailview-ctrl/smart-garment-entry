@@ -236,15 +236,15 @@ for (const [alias, target] of Object.entries(URL_ALIASES)) {
 }
 
 /**
- * Legacy / tab-bar slugs → canonical tab-cache key (matches App.tsx routes).
- * One cache pane per screen — prevents duplicate mounts (e.g. purchase-bills vs purchase-bill-dashboard).
+ * Legacy tab-bar / registry slugs → canonical App.tsx route segment.
+ * Tab cache + window tabs use the short route; registry still loads the same chunk.
  */
 const TAB_CACHE_CANONICAL_PATH: Record<string, string> = {
   "purchase-bill-dashboard": "purchase-bills",
-  products: "product-dashboard",
-  "purchase-returns": "purchase-return-dashboard",
-  "sales-report": "sales-report-by-customer",
-  "purchase-report": "purchase-report-by-supplier",
+  "product-dashboard": "products",
+  "purchase-return-dashboard": "purchase-returns",
+  "sales-report-by-customer": "sales-report",
+  "purchase-report-by-supplier": "purchase-report",
 };
 
 /** Resolve URL / window-tab segment to the single tab-cache key for that page. */
