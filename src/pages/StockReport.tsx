@@ -1501,7 +1501,7 @@ export default function StockReport() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6 print:bg-white print:p-4">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-20 print:bg-white print:p-4">
       <div className="w-full min-w-0 max-w-none space-y-5 print:space-y-3">
       <div className="print:hidden">
         <BackToDashboard />
@@ -1748,28 +1748,28 @@ export default function StockReport() {
                 <CardContent>
                   <div className="max-h-[min(70vh,900px)] overflow-auto overscroll-contain">
                   <div className="overflow-x-auto min-w-0">
-                      <Table>
-                      <TableHeader>
+                      <Table className="text-[15px]">
+                      <TableHeader className="sticky top-0 z-20">
                         <TableRow>
-                          <TableHead className="w-16 text-center">Sr No</TableHead>
-                          <TableHead>Supplier</TableHead>
-                          <TableHead>Supplier Invoice</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>{fieldLabels.brand}</TableHead>
-                          <TableHead>Size</TableHead>
-                          <TableHead>{fieldLabels.color}</TableHead>
-                          <TableHead>{fieldLabels.style}</TableHead>
-                          <TableHead>Barcode</TableHead>
-                          <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
-                          <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
-                          <TableHead className="text-right bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
-                          <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
-                          <TableHead className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-white">Sale Return</TableHead>
-                          <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-primary">Current Stock</TableHead>
-                          <TableHead className="text-right">Pur Price</TableHead>
-                          <TableHead className="text-right">Stock Value</TableHead>
-                          <TableHead className="text-right">Sale Price</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead className="w-16 text-center text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Sr No</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Supplier</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Supplier Invoice</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Product</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">{fieldLabels.brand}</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Size</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">{fieldLabels.color}</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">{fieldLabels.style}</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Barcode</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-white">Sale Return</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-white">Current Stock</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Pur Price</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Stock Value</TableHead>
+                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Sale Price</TableHead>
+                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1782,53 +1782,53 @@ export default function StockReport() {
                         ) : (
                           paginatedStockItems.map((item, index) => (
                             <TableRow key={item.id}>
-                              <TableCell className="text-center font-medium text-muted-foreground">
+                              <TableCell className="text-center font-medium text-muted-foreground py-2.5">
                                 {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
                               </TableCell>
-                              <TableCell className="text-muted-foreground">{item.supplier_name || '—'}</TableCell>
-                              <TableCell className="font-mono text-sm">{item.supplier_invoice_no || '—'}</TableCell>
-                              <TableCell className="font-medium">{item.product_name}</TableCell>
-                              <TableCell>{item.brand}</TableCell>
-                              <TableCell>{item.size}</TableCell>
-                              <TableCell>{item.color || '—'}</TableCell>
-                              <TableCell>{item.department || '—'}</TableCell>
-                              <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
-                              <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium">
+                              <TableCell className="text-muted-foreground py-2.5">{item.supplier_name || '—'}</TableCell>
+                              <TableCell className="font-mono py-2.5">{item.supplier_invoice_no || '—'}</TableCell>
+                              <TableCell className="font-medium py-2.5">{item.product_name}</TableCell>
+                              <TableCell className="py-2.5">{item.brand}</TableCell>
+                              <TableCell className="py-2.5">{item.size}</TableCell>
+                              <TableCell className="py-2.5">{item.color || '—'}</TableCell>
+                              <TableCell className="py-2.5">{item.department || '—'}</TableCell>
+                              <TableCell className="font-mono py-2.5">{item.barcode}</TableCell>
+                              <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium py-2.5 whitespace-nowrap">
                                 {item.opening_qty}
                               </TableCell>
-                              <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400">
+                              <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400 py-2.5 whitespace-nowrap">
                                 +{item.purchase_qty}
                               </TableCell>
-                              <TableCell className="text-right bg-orange-50 dark:bg-orange-950 font-medium text-orange-700 dark:text-orange-400">
+                              <TableCell className="text-right bg-orange-50 dark:bg-orange-950 font-medium text-orange-700 dark:text-orange-400 py-2.5 whitespace-nowrap">
                                 {item.purchase_return_qty > 0 ? `-${item.purchase_return_qty}` : '0'}
                               </TableCell>
-                              <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
+                              <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400 py-2.5 whitespace-nowrap">
                                 {item.sales_qty > 0 ? `-${item.sales_qty}` : '0'}
                               </TableCell>
-                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400">
+                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400 py-2.5 whitespace-nowrap">
                                 {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                               </TableCell>
-                              <TableCell className="text-right bg-primary/10 font-bold text-primary">
+                              <TableCell className="text-right bg-violet-50 dark:bg-violet-950 font-bold text-violet-800 dark:text-violet-300 py-2.5 whitespace-nowrap">
                                 {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right py-2.5 whitespace-nowrap">
                                 {item.pur_price ? (
                                   <span>₹{item.pur_price}</span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-right font-medium text-primary">
+                              <TableCell className="text-right font-medium text-primary py-2.5 whitespace-nowrap">
                                 {item.pur_price ? (
                                   <span>₹{(item.pur_price * item.stock_qty).toLocaleString('en-IN')}</span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right py-2.5 whitespace-nowrap">
                                 <span>₹{item.sale_price}</span>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="py-2.5">
                                 {item.stock_qty === 0 ? (
                                   <Badge variant="destructive">Out of Stock</Badge>
                                 ) : item.stock_qty <= lowStockThreshold ? (
@@ -1842,34 +1842,34 @@ export default function StockReport() {
                         )}
                         {/* Totals Row */}
                         {filteredStockItems.length > 0 && (
-                          <TableRow className="bg-muted/50 font-bold border-t-2">
-                            <TableCell className="text-center" colSpan={9}>TOTAL</TableCell>
-                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950">
+                          <TableRow className="sticky bottom-0 z-20 font-bold border-t-2">
+                            <TableCell className="text-center bg-slate-100 dark:bg-slate-800 py-2.5" colSpan={9}>TOTAL</TableCell>
+                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950 py-2.5 whitespace-nowrap">
                               {filteredStockItems.reduce((s, i) => s + i.opening_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400">
+                            <TableCell className="text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 py-2.5 whitespace-nowrap">
                               +{filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400">
+                            <TableCell className="text-right bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400 py-2.5 whitespace-nowrap">
                               -{filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
+                            <TableCell className="text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 py-2.5 whitespace-nowrap">
                               -{filteredStockItems.reduce((s, i) => s + i.sales_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400">
+                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 py-2.5 whitespace-nowrap">
                               +{filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-primary/10 text-primary">
+                            <TableCell className="text-right bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300 py-2.5 whitespace-nowrap">
                               {filteredStockItems.reduce((s, i) => s + i.stock_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right">—</TableCell>
-                            <TableCell className="text-right text-primary">
+                            <TableCell className="text-right bg-slate-100 dark:bg-slate-800 py-2.5 whitespace-nowrap">—</TableCell>
+                            <TableCell className="text-right text-primary bg-slate-100 dark:bg-slate-800 py-2.5 whitespace-nowrap">
                               ₹{Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right bg-slate-100 dark:bg-slate-800 py-2.5 whitespace-nowrap">
                               ₹{Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell>—</TableCell>
+                            <TableCell className="bg-slate-100 dark:bg-slate-800 py-2.5">—</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
