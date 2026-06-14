@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { sortSizes } from "@/utils/sizeSort";
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -131,6 +132,7 @@ export default function StockReport() {
   // Pagination for All Stock tab
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
+  const searchRequestIdRef = useRef(0);
 
   const stockFilterSnapshot = useMemo(
     () => ({
@@ -219,22 +221,61 @@ export default function StockReport() {
     placeholderData: keepPreviousData,
   };
 
-  // Fetch global totals via RPC (single JSON instead of downloading all variants)
-  const { data: cachedGlobalTotals } = useQuery({
-    queryKey: ["stock-report-global-totals-rpc", currentOrganization?.id],
+  // Org-wide summary cards — slim paginated fetch, cached 5 min, non-blocking
+  const { data: cachedGlobalTotals, isLoading: globalTotalsQueryLoading } = useQuery({
+    queryKey: ["stock-report-global-totals", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const { data, error } = await supabase.rpc("get_stock_report_totals", {
-        p_organization_id: currentOrganization.id,
-      });
-      if (error) throw error;
-      const result = data as any;
-      return {
-        totalStock: result?.total_stock ?? 0,
-        stockValue: result?.stock_value ?? 0,
-        saleValue: result?.sale_value ?? 0,
-        variantCount: result?.variant_count ?? 0,
-      };
+
+      const allVariants: Array<{ stock_qty?: number | null; pur_price?: number | null; sale_price?: number | null }> = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
+            stock_qty,
+            sale_price,
+            pur_price,
+            products!inner (
+              product_type,
+              deleted_at
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .neq("products.product_type", "service")
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      return allVariants.reduce(
+        (acc, item) => {
+          const qty = item.stock_qty || 0;
+          const purPrice = item.pur_price || 0;
+          const salePrice = item.sale_price || 0;
+          return {
+            totalStock: acc.totalStock + qty,
+            stockValue: acc.stockValue + purPrice * qty,
+            saleValue: acc.saleValue + salePrice * qty,
+            variantCount: acc.variantCount + 1,
+          };
+        },
+        { totalStock: 0, stockValue: 0, saleValue: 0, variantCount: 0 },
+      );
     },
     enabled: !!currentOrganization?.id,
     ...REPORT_CACHE,
@@ -311,12 +352,14 @@ export default function StockReport() {
     ...REPORT_CACHE,
   });
 
-  // Sync cached data to state
+  // Sync cached global totals to card state (non-blocking; cards show their own loader)
   useEffect(() => {
     if (cachedGlobalTotals) {
       setGlobalTotals({ ...cachedGlobalTotals, isLoading: false });
+    } else if (globalTotalsQueryLoading) {
+      setGlobalTotals((prev) => ({ ...prev, isLoading: true }));
     }
-  }, [cachedGlobalTotals]);
+  }, [cachedGlobalTotals, globalTotalsQueryLoading]);
 
   useEffect(() => {
     if (cachedFilterOptions) {
@@ -476,74 +519,6 @@ export default function StockReport() {
     }
   };
 
-  // Fetch global stock totals for default cards
-  const fetchGlobalTotals = async () => {
-    if (!currentOrganization?.id) return;
-    
-    try {
-      setGlobalTotals(prev => ({ ...prev, isLoading: true }));
-      
-      // Fetch all variant data to compute totals
-      const allVariants: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("product_variants")
-          .select(`
-            id,
-            stock_qty,
-            sale_price,
-            pur_price,
-            products!inner (
-              product_type,
-              deleted_at
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .neq("products.product_type", "service")
-          .range(offset, offset + PAGE_SIZE - 1);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allVariants.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      // Calculate totals
-      const totals = allVariants.reduce((acc, item) => {
-        const qty = item.stock_qty || 0;
-        const purPrice = item.pur_price || 0;
-        const salePrice = item.sale_price || 0;
-        
-        return {
-          totalStock: acc.totalStock + qty,
-          stockValue: acc.stockValue + (purPrice * qty),
-          saleValue: acc.saleValue + (salePrice * qty),
-          variantCount: acc.variantCount + 1
-        };
-      }, { totalStock: 0, stockValue: 0, saleValue: 0, variantCount: 0 });
-      
-      setGlobalTotals({
-        ...totals,
-        isLoading: false
-      });
-    } catch (error) {
-      console.error("Error fetching global totals:", error);
-      setGlobalTotals(prev => ({ ...prev, isLoading: false }));
-    }
-  };
-
   // Search for variant IDs by barcode in purchase_items and sale_items (for old/changed barcodes)
   const searchOldBarcodes = async (barcode: string) => {
     if (!currentOrganization?.id) return;
@@ -614,6 +589,8 @@ export default function StockReport() {
       supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
     
     if (!hasFilters) return;
+
+    const requestId = ++searchRequestIdRef.current;
     
     setLoading(true);
     setHasSearched(true);
@@ -683,6 +660,26 @@ export default function StockReport() {
         } else if (stockStatusFilter === "in") {
           query = query.gt("stock_qty", 0);
         }
+
+        // Push dropdown filters server-side (supplier filters stay client-side)
+        if (productNameFilter.trim()) {
+          query = query.eq("products.product_name", productNameFilter.trim());
+        }
+        if (brandFilter !== "all") {
+          query = query.eq("products.brand", brandFilter);
+        }
+        if (categoryFilter !== "all") {
+          query = query.eq("products.category", categoryFilter);
+        }
+        if (departmentFilter !== "all") {
+          query = query.eq("products.style", departmentFilter);
+        }
+        if (sizeFilter !== "all") {
+          query = query.eq("size", sizeFilter);
+        }
+        if (colorFilter !== "all") {
+          query = query.eq("color", colorFilter);
+        }
         
         const { data, error } = await query
           .order("stock_qty", { ascending: true })
@@ -699,8 +696,12 @@ export default function StockReport() {
         }
       }
 
+      if (requestId !== searchRequestIdRef.current) return;
+
       // Wait for old barcode search to complete
       await oldBarcodePromise;
+
+      if (requestId !== searchRequestIdRef.current) return;
       
       const data = allVariants;
 
@@ -869,6 +870,8 @@ export default function StockReport() {
         };
       }) || [];
 
+      if (requestId !== searchRequestIdRef.current) return;
+
       // Update filter options from fetched data
       setFilterOptions(prev => ({
         ...prev,
@@ -882,10 +885,16 @@ export default function StockReport() {
       }));
 
       setStockItems(formattedData);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching stock data:", error);
+      if (requestId === searchRequestIdRef.current) {
+        setStockItems([]);
+        toast.error("Search failed", { description: error.message || "Could not load stock data. Try again." });
+      }
     } finally {
-      setLoading(false);
+      if (requestId === searchRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [currentOrganization?.id, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, categoryFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
 
