@@ -285,6 +285,30 @@ function resolveServiceVariantDefaultMrp(variant: {
   return rawMrp > 0 ? rawMrp : salePrice;
 }
 
+/** Columns required by POS add-to-cart (barcode scan + price-selection dialog). */
+const POS_VARIANT_LOOKUP_SELECT =
+  'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom)';
+
+async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
+  const { data, error } = await supabase
+    .from('product_variants')
+    .select(POS_VARIANT_LOOKUP_SELECT)
+    .eq('organization_id', orgId)
+    .eq('barcode', barcode)
+    .is('deleted_at', null)
+    .is('products.deleted_at', null)
+    .eq('products.organization_id', orgId)
+    .eq('products.status', 'active')
+    .limit(1);
+
+  if (error) throw error;
+
+  const row = data?.[0] as { products?: Record<string, unknown> } & Record<string, unknown> | undefined;
+  if (!row?.products) return null;
+
+  return { product: row.products, variant: row };
+}
+
 /** Recompute line net, then Sale GST % from post-discount unit price vs threshold. */
 function applyPosGarmentGstToItem(
   item: CartItem,
@@ -412,6 +436,7 @@ export default function POSSales() {
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
   const [isProductSearchLoading, setIsProductSearchLoading] = useState(false);
+  const [quickServiceDialogDefaultMrp, setQuickServiceDialogDefaultMrp] = useState<number | undefined>();
   const productCommandListRef = useRef<HTMLDivElement | null>(null);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
@@ -1519,95 +1544,6 @@ export default function POSSales() {
   const [dcTransferItems, setDcTransferItems] = useState<any[]>([]);
   const [dcTransferSaleId, setDcTransferSaleId] = useState("");
 
-  const { data: productsData, isLoading: productsLoading, isFetching: productsFetching } = useQuery({
-    queryKey: ['pos-products', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      
-      // Two-query strategy: load active products and only stocked-or-barcoded variants
-      // separately, then join in JS. Avoids pulling tens of thousands of variant rows
-      // for orgs with large catalogs.
-      const PAGE_SIZE = 1000;
-
-      // Query 1: active, non-deleted products
-      const allProducts: any[] = [];
-      let pOffset = 0;
-      let pHasMore = true;
-      while (pHasMore) {
-        const { data, error } = await supabase
-          .from('products')
-          .select('id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, product_type, status, category, style, color, sale_discount_type, sale_discount_value, uom')
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .range(pOffset, pOffset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          pOffset += PAGE_SIZE;
-          pHasMore = data.length === PAGE_SIZE;
-        } else {
-          pHasMore = false;
-        }
-      }
-
-      // Query 2: only variants with stock OR a barcode (so zero-stock barcoded
-      // items can still be scanned). Excludes deleted variants.
-      const allVariants: any[] = [];
-      let vOffset = 0;
-      let vHasMore = true;
-      while (vHasMore) {
-        const { data, error } = await supabase
-          .from('product_variants')
-          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product')
-          .eq('organization_id', currentOrganization.id)
-          .is('deleted_at', null)
-          .or('stock_qty.gt.0,barcode.not.is.null')
-          .range(vOffset, vOffset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allVariants.push(...data);
-          vOffset += PAGE_SIZE;
-          vHasMore = data.length === PAGE_SIZE;
-        } else {
-          vHasMore = false;
-        }
-      }
-
-      // Group variants by product_id
-      const variantsByProduct: Record<string, any[]> = {};
-      for (const v of allVariants) {
-        if (!variantsByProduct[v.product_id]) variantsByProduct[v.product_id] = [];
-        variantsByProduct[v.product_id].push(v);
-      }
-
-      // Join + apply same product-type filtering as before
-      return allProducts
-        .map((product: any) => ({
-          ...product,
-          product_variants: variantsByProduct[product.id] || [],
-        }))
-        .filter((product: any) => {
-          if (product.product_type === 'service' || product.product_type === 'combo') {
-            return product.product_variants.length > 0;
-          }
-          return product.product_variants.some((v: any) => v.stock_qty > 0);
-        })
-        .map((product: any) => {
-          if (product.product_type === 'service' || product.product_type === 'combo') {
-            return product;
-          }
-          return {
-            ...product,
-            product_variants: product.product_variants.filter((v: any) => v.stock_qty > 0),
-          };
-        });
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes — invalidated after sale/stock writes
-    refetchOnWindowFocus: false,
-  });
-
   // Use reliable customer search hook - pass customerName directly as search term
   const { 
     customers = [], 
@@ -1634,11 +1570,6 @@ export default function POSSales() {
     customerIds: visibleCustomerIds,
   });
 
-  useNavPerfQueryWatch("pos-products", PERF_PATH, {
-    isLoading: productsLoading,
-    isFetching: productsFetching,
-    rowCount: productsData?.length,
-  });
   useNavPerfQueryWatch("todays-sales", PERF_PATH, {
     isLoading: todaysSalesLoading,
     isFetching: todaysSalesFetching,
@@ -1875,7 +1806,7 @@ export default function POSSales() {
     setIsProductSearchLoading(true);
 
     const runSearch = async () => {
-      const variantSelect = 'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at)';
+      const variantSelect = POS_VARIANT_LOOKUP_SELECT;
       const escapedTerm = term.replace(/[%_,]/g, '');
       const isNumeric = /^\d+$/.test(term);
 
@@ -2040,180 +1971,160 @@ export default function POSSales() {
         });
 
       setProductSearchResults(formatted);
-      setIsProductSearchLoading(false);
     };
 
-    runSearch().catch((error) => {
-      if (requestSeq !== productSearchSeqRef.current) return;
-      console.error('POS product search failed:', error);
-      setProductSearchResults([]);
-      setIsProductSearchLoading(false);
-    });
+    runSearch()
+      .catch((error) => {
+        if (requestSeq !== productSearchSeqRef.current) return;
+        console.error('POS product search failed:', error);
+        setProductSearchResults([]);
+      })
+      .finally(() => {
+        if (requestSeq === productSearchSeqRef.current) {
+          setIsProductSearchLoading(false);
+        }
+      });
   }, [openProductSearch, searchInput, selectedProductType, currentOrganization?.id]);
 
+  useEffect(() => {
+    if (!showQuickServiceDialog || quickServiceProductForAdd || !quickServiceCode || !currentOrganization?.id) {
+      if (!showQuickServiceDialog) {
+        setQuickServiceDialogDefaultMrp(undefined);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    fetchPosVariantByBarcode(currentOrganization.id, quickServiceCode)
+      .then((match) => {
+        if (cancelled || !match) return;
+        setQuickServiceDialogDefaultMrp(resolveServiceVariantDefaultMrp(match.variant));
+      })
+      .catch(() => {
+        if (!cancelled) setQuickServiceDialogDefaultMrp(undefined);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showQuickServiceDialog, quickServiceCode, quickServiceProductForAdd, currentOrganization?.id]);
+
   async function searchAndAddProduct(searchTerm: string) {
-    // Quick service shortcodes (1-9): check if a real product has this barcode first
-    if (/^[1-9]$/.test(searchTerm)) {
-      // Check local cache for exact barcode match
-      const hasRealProduct = productsData?.some(product =>
-        product.product_variants?.some((v: any) =>
-          v.barcode?.toLowerCase() === searchTerm.toLowerCase()
-        )
-      );
-      if (!hasRealProduct) {
-        // No real product — open quick service dialog
-        setQuickServiceCode(searchTerm);
-        setShowQuickServiceDialog(true);
-        setSearchInput("");
-        return;
-      }
-      // Has real product — fall through to normal search
-    }
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
 
-    // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
-    // Skip validation for service shortcodes (1-9) so service products can be sold
-    if (mobileERP.enabled && mobileERP.imei_scan_enforcement && !/^[1-9]$/.test(searchTerm)) {
-      if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
-        toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
-        setSearchInput("");
-        return;
-      }
-    }
-
-    // Search by barcode first (exact match for speed)
-    let foundVariant: any = null;
-    let foundProduct: any = null;
-
-    // Try local cache first if available
-    if (productsData) {
-      // Priority 1: Exact barcode match (most common for scanners)
-      for (const product of productsData) {
-        const variantMatch = product.product_variants?.find((v: any) => 
-          v.barcode?.toLowerCase() === searchTerm.toLowerCase()
-        );
-        
-        if (variantMatch) {
-          foundVariant = variantMatch;
-          foundProduct = product;
-          break;
-        }
-      }
-
-      // Priority 2: Product name match (for manual search) — blocked in IMEI mode
-      if (!foundVariant && !(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
-        for (const product of productsData) {
-          if (product.product_name.toLowerCase().includes(searchTerm.toLowerCase())) {
-            foundVariant = product.product_variants?.[0];
-            foundProduct = product;
-            break;
-          }
-        }
-      }
-    }
-
-    if (foundVariant && foundProduct) {
-      // Clear input immediately for fast scanning UX
-      setSearchInput("");
-      // Await stock check before adding - prevents out-of-stock items from being added
-      const isBarcodeMatch = (foundVariant?.barcode || '').toLowerCase() === searchTerm.toLowerCase();
-      await addItemToCart(foundProduct, foundVariant, undefined, isBarcodeMatch ? 'barcode' : 'manual');
-    } else {
-      // Not found in local cache (or cache not loaded yet) — search DB directly
-      if (currentOrganization?.id) {
-        // Try exact barcode match first
-        const { data: dbVariant } = await supabase
-          .from('product_variants')
-          .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
-          .eq('organization_id', currentOrganization.id)
-          .eq('products.organization_id', currentOrganization.id)
-          .eq('barcode', searchTerm)
-          .is('deleted_at', null)
-          .is('products.deleted_at', null)
-          .eq('products.status', 'active')
-          .maybeSingle();
-
-        if (dbVariant && (dbVariant as any).products) {
-          const prod = (dbVariant as any).products;
-          const stockQty = dbVariant.stock_qty || 0;
-          
-          // If product has stock, add it to cart directly (cache miss recovery)
-          if (stockQty > 0 || prod.product_type === 'service' || prod.product_type === 'combo') {
-            setSearchInput("");
-            const isBarcodeMatch = (dbVariant?.barcode || '').toLowerCase() === searchTerm.toLowerCase();
-            await addItemToCart(prod, dbVariant, undefined, isBarcodeMatch ? 'barcode' : 'manual');
-            return;
-          }
-          
-          // Zero stock — show stock issue dialog
+    try {
+      // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
+      if (/^[1-9]$/.test(searchTerm)) {
+        const shortMatch = await fetchPosVariantByBarcode(orgId, searchTerm);
+        if (!shortMatch) {
+          setQuickServiceCode(searchTerm);
+          setShowQuickServiceDialog(true);
           setSearchInput("");
-          openStockIssueDialog(
-            buildInsufficientStockIssue(prod.product_name, dbVariant.size, 1, stockQty),
-            { productId: prod.id, productName: prod.product_name },
-          );
+          return;
+        }
+        setSearchInput("");
+        await addItemToCart(shortMatch.product, shortMatch.variant, undefined, 'barcode');
+        return;
+      }
+
+      // Mobile ERP IMEI enforcement: validate IMEI format before allowing scan
+      if (mobileERP.enabled && mobileERP.imei_scan_enforcement) {
+        if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
+          toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
+          setSearchInput("");
+          return;
+        }
+      }
+
+      const barcodeMatch = await fetchPosVariantByBarcode(orgId, searchTerm);
+      if (barcodeMatch) {
+        const prod = barcodeMatch.product;
+        const dbVariant = barcodeMatch.variant;
+        const stockQty = dbVariant.stock_qty || 0;
+
+        setSearchInput("");
+        if (stockQty > 0 || prod.product_type === 'service' || prod.product_type === 'combo') {
+          await addItemToCart(prod, dbVariant, undefined, 'barcode');
           return;
         }
 
-        // Try product name search via DB if not IMEI mode
-        if (!(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
-          const { data: nameResults } = await supabase
-            .from('product_variants')
-            .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
-            .eq('organization_id', currentOrganization.id)
-            .eq('products.organization_id', currentOrganization.id)
-            .ilike('products.product_name', `%${searchTerm}%`)
-            .is('deleted_at', null)
-            .is('products.deleted_at', null)
-            .eq('products.status', 'active')
-            .gt('stock_qty', 0)
-            .limit(1);
+        openStockIssueDialog(
+          buildInsufficientStockIssue(prod.product_name, dbVariant.size, 1, stockQty),
+          { productId: prod.id, productName: prod.product_name },
+        );
+        return;
+      }
 
-          if (nameResults && nameResults.length > 0) {
-            const match = nameResults[0];
-            const prod = (match as any).products;
-            setSearchInput("");
-            await addItemToCart(prod, match, undefined, 'manual');
-            return;
-          }
+      // Try product name search via DB if not IMEI mode
+      if (!(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
+        const { data: nameResults, error: nameError } = await supabase
+          .from('product_variants')
+          .select(POS_VARIANT_LOOKUP_SELECT)
+          .eq('organization_id', orgId)
+          .eq('products.organization_id', orgId)
+          .ilike('products.product_name', `%${searchTerm}%`)
+          .is('deleted_at', null)
+          .is('products.deleted_at', null)
+          .eq('products.status', 'active')
+          .gt('stock_qty', 0)
+          .limit(1);
+
+        if (nameError) throw nameError;
+
+        if (nameResults && nameResults.length > 0) {
+          const match = nameResults[0] as any;
+          const prod = match.products;
+          setSearchInput("");
+          await addItemToCart(prod, match, undefined, 'manual');
+          return;
         }
+      }
 
-        // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases)
-        if (mobileERP.enabled) {
-          const { data: purchaseItem } = await supabase
-            .from('purchase_items')
-            .select('sku_id, barcode, product_name, size')
-            .eq('barcode', searchTerm)
+      // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases)
+      if (mobileERP.enabled) {
+        const { data: purchaseItem, error: purchaseError } = await supabase
+          .from('purchase_items')
+          .select('sku_id, barcode, product_name, size')
+          .eq('barcode', searchTerm)
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle();
+
+        if (purchaseError) throw purchaseError;
+
+        if (purchaseItem?.sku_id) {
+          const { data: variant, error: variantError } = await supabase
+            .from('product_variants')
+            .select(POS_VARIANT_LOOKUP_SELECT)
+            .eq('id', purchaseItem.sku_id)
             .is('deleted_at', null)
-            .limit(1)
             .maybeSingle();
 
-          if (purchaseItem?.sku_id) {
-            const { data: variant } = await supabase
-              .from('product_variants')
-              .select('id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status)')
-              .eq('id', purchaseItem.sku_id)
-              .is('deleted_at', null)
-              .maybeSingle();
+          if (variantError) throw variantError;
 
-            if (variant && (variant as any).products) {
-              const prod = (variant as any).products;
-              setSearchInput("");
-              const variantWithIMEI = { ...variant, barcode: searchTerm };
-              await addItemToCart(prod, variantWithIMEI, undefined, 'barcode');
-              return;
-            }
+          if (variant && (variant as any).products) {
+            const prod = (variant as any).products;
+            setSearchInput("");
+            const variantWithIMEI = { ...variant, barcode: searchTerm };
+            await addItemToCart(prod, variantWithIMEI, undefined, 'barcode');
+            return;
           }
         }
       }
 
-      // Clear input and show error for product not found
       setSearchInput("");
       setProductSearchResults([]);
-      setIsProductSearchLoading(false);
       playErrorBeep();
+    } catch (error: any) {
+      console.error('POS scan/search failed:', error);
+      toast.error('Lookup failed', { description: error.message || 'Could not search products. Try again.' });
+    } finally {
+      setIsProductSearchLoading(false);
     }
   }
 
-  const handleQuickServiceAdd = useCallback(({ code, quantity, mrp, description }: { code: string; quantity: number; mrp: number; description?: string }) => {
+  const handleQuickServiceAdd = useCallback(async ({ code, quantity, mrp, description }: { code: string; quantity: number; mrp: number; description?: string }) => {
     // If we have a pre-identified product (from barcode scan), use it directly
     if (quickServiceProductForAdd) {
       const { product, variant } = quickServiceProductForAdd;
@@ -2254,18 +2165,19 @@ export default function POSSales() {
     let productId = '';
     let variantId = '';
     let matchedServiceGst = 0;
-    if (productsData) {
-      for (const product of productsData) {
-        const variantMatch = product.product_variants?.find((v: any) => 
-          v.barcode?.toLowerCase() === code.toLowerCase()
-        );
-        if (variantMatch) {
-          productName = product.product_name;
-          productId = product.id;
-          variantId = variantMatch.id;
-          matchedServiceGst = Number(product.sale_gst_percent || product.gst_per || 0);
-          break;
+    if (currentOrganization?.id) {
+      try {
+        const match = await fetchPosVariantByBarcode(currentOrganization.id, code);
+        if (match) {
+          productName = match.product.product_name as string;
+          productId = match.product.id as string;
+          variantId = match.variant.id as string;
+          matchedServiceGst = Number(match.product.sale_gst_percent || match.product.gst_per || 0);
         }
+      } catch (error) {
+        console.error('Quick service lookup failed:', error);
+        toast.error('Lookup failed', { description: 'Could not resolve service product. Try again.' });
+        return;
       }
     }
 
@@ -2304,7 +2216,7 @@ export default function POSSales() {
     setShowQuickServiceDialog(false);
     setQuickServiceCode("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
-  }, [setItems, playSuccessBeep, productsData, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings]);
+  }, [setItems, playSuccessBeep, currentOrganization?.id, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings]);
 
   const addItemToCart = async (
     product: any,
@@ -4411,21 +4323,8 @@ export default function POSSales() {
     },
   });
 
-  // Filter products for POS suggestions: prefer fast server results, fall back to local cache
-  const filteredProducts = useMemo(() => {
-    if (productSearchResults.length > 0) return productSearchResults;
-    if (!productsData || !searchInput.trim()) return [];
-
-    const term = searchInput.toLowerCase();
-    return productsData.flatMap(product => {
-      if (selectedProductType !== 'all' && product.product_type !== selectedProductType) return [];
-      return product.product_variants?.map((variant: any) => ({
-        product,
-        variant,
-        searchText: `${product.product_name} ${variant.size} ${variant.color || ''} ${variant.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase()
-      })).filter((item: any) => item.searchText.includes(term)) || [];
-    });
-  }, [productSearchResults, productsData, searchInput, selectedProductType]);
+  // Product suggestions come from on-demand server search only
+  const filteredProducts = useMemo(() => productSearchResults, [productSearchResults]);
 
   useEffect(() => {
     if (!openProductSearch || filteredProducts.length === 0) {
@@ -6666,18 +6565,7 @@ export default function POSSales() {
             if (quickServiceProductForAdd?.variant) {
               return resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant);
             }
-            if (quickServiceCode && productsData) {
-              for (const product of productsData) {
-                const variantMatch = product.product_variants?.find(
-                  (v: { barcode?: string | null }) =>
-                    v.barcode?.toLowerCase() === quickServiceCode.toLowerCase(),
-                );
-                if (variantMatch) {
-                  return resolveServiceVariantDefaultMrp(variantMatch);
-                }
-              }
-            }
-            return undefined;
+            return quickServiceDialogDefaultMrp;
           })()}
           onAdd={handleQuickServiceAdd}
         />
