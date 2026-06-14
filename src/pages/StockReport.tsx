@@ -1746,8 +1746,7 @@ export default function StockReport() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="max-h-[min(70vh,900px)] overflow-auto overscroll-contain">
-                  <div className="overflow-x-auto min-w-0">
+                  <div className="max-h-[min(70vh,900px)] overflow-auto overscroll-contain min-w-0">
                       <Table className="text-[15px]">
                       <TableHeader className="sticky top-0 z-20">
                         <TableRow>
@@ -1842,40 +1841,40 @@ export default function StockReport() {
                         )}
                         {/* Totals Row */}
                         {filteredStockItems.length > 0 && (
-                          <TableRow className="sticky bottom-0 z-20 font-bold border-t-2">
-                            <TableCell className="text-center bg-slate-100 dark:bg-slate-800 py-2.5" colSpan={9}>TOTAL</TableCell>
-                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950 py-2.5 whitespace-nowrap">
+                          <TableRow className="sticky bottom-0 z-20 font-bold border-t-2 text-base">
+                            <TableCell className="text-center text-base bg-slate-100 dark:bg-slate-800 py-3" colSpan={9}>TOTAL</TableCell>
+                            <TableCell className="text-right text-base bg-blue-50 dark:bg-blue-950 py-3 whitespace-nowrap tabular-nums">
                               {filteredStockItems.reduce((s, i) => s + i.opening_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 py-3 whitespace-nowrap tabular-nums">
                               +{filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400 py-3 whitespace-nowrap tabular-nums">
                               -{filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 py-3 whitespace-nowrap tabular-nums">
                               -{filteredStockItems.reduce((s, i) => s + i.sales_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 py-3 whitespace-nowrap tabular-nums">
                               +{filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300 py-3 whitespace-nowrap tabular-nums">
                               {filteredStockItems.reduce((s, i) => s + i.stock_qty, 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-slate-100 dark:bg-slate-800 py-2.5 whitespace-nowrap">—</TableCell>
-                            <TableCell className="text-right text-primary bg-slate-100 dark:bg-slate-800 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-slate-100 dark:bg-slate-800 py-3 whitespace-nowrap">—</TableCell>
+                            <TableCell className="text-right text-base text-primary bg-slate-100 dark:bg-slate-800 py-3 whitespace-nowrap tabular-nums">
                               ₹{Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="text-right bg-slate-100 dark:bg-slate-800 py-2.5 whitespace-nowrap">
+                            <TableCell className="text-right text-base bg-slate-100 dark:bg-slate-800 py-3 whitespace-nowrap tabular-nums">
                               ₹{Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell className="bg-slate-100 dark:bg-slate-800 py-2.5">—</TableCell>
+                            <TableCell className="text-base bg-slate-100 dark:bg-slate-800 py-3">—</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
                     </Table>
                   </div>
-                  
+
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between mt-4 pt-4 border-t">
@@ -1948,7 +1947,6 @@ export default function StockReport() {
                       </div>
                     </div>
                   )}
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
