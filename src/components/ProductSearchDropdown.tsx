@@ -47,6 +47,7 @@ export function ProductSearchDropdown({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const latestReqId = useRef(0);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
   const updatePosition = useCallback(() => {
@@ -69,10 +70,12 @@ export function ProductSearchDropdown({
     }
 
     const timer = setTimeout(async () => {
+      const id = ++latestReqId.current;
       setLoading(true);
       try {
         const trimmed = value.trim();
         const looksLikeBarcode = /\d/.test(trimmed) && trimmed.length >= 5;
+        const tokens = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
 
         let query = supabase
           .from("product_variants")
@@ -102,22 +105,22 @@ export function ProductSearchDropdown({
         if (looksLikeBarcode) {
           query = query.or(`barcode.eq.${trimmed},barcode.ilike.${trimmed}%`);
         } else {
-          const token = trimmed.split(/\s+/)[0];
-          if (token) {
+          for (const token of tokens) {
             query = query.or(
               `product_name.ilike.%${token}%,brand.ilike.%${token}%,style.ilike.%${token}%,category.ilike.%${token}%`,
-              { referencedTable: "products" }
+              { referencedTable: "products" },
             );
           }
         }
 
         const { data, error } = await query
           .order("stock_qty", { ascending: false })
-          .limit(500);
+          .limit(80);
 
         if (error) throw error;
 
-        const tokens = value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        if (id !== latestReqId.current) return;
+
         const formatted = (data || [])
           .filter((item: any) => {
             const haystack = [
@@ -158,11 +161,16 @@ export function ProductSearchDropdown({
       } catch (error) {
         console.error("Search error:", error);
       } finally {
-        setLoading(false);
+        if (id === latestReqId.current) {
+          setLoading(false);
+        }
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      latestReqId.current += 1;
+    };
   }, [value, currentOrganization?.id, updatePosition]);
 
   useEffect(() => {
