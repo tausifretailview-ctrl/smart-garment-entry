@@ -34,6 +34,7 @@ import { NavigationPerfPanel } from "@/components/NavigationPerfPanel";
 import { ElectronOAuthRecovery } from "@/components/ElectronOAuthRecovery";
 import { initNavigationPerfDiagnostics } from "@/lib/navigationPerfDiagnostics";
 import { initCloudUsageDiagnostics } from "@/lib/cloudUsageDiagnostics";
+import { EntryBillLoadingFallback } from "@/components/EntryBillLoadingFallback";
 
 // Lazy-loaded page components for code splitting
 const OrganizationManagement = lazyWithRetry(() => import("./pages/OrganizationManagement"));
@@ -155,13 +156,22 @@ const PortalAccount = lazyWithRetry(() => import("./pages/portal/PortalAccount")
 const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommission"));
 const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
+const SafeEntryFallback =
+  typeof EntryBillLoadingFallback === "function"
+    ? EntryBillLoadingFallback
+    : () => (
+        <div className="flex min-h-[40vh] w-full items-center justify-center">
+          <span className="text-sm text-muted-foreground">Loading bill screen…</span>
+        </div>
+      );
+
 const LazyFallback = () => {
   const path = window.location.pathname;
   if (isAppBootRoute(path)) {
     return <AppBootSplash message="Loading…" />;
   }
   if (isEntryFullscreenPath(path)) {
-    return <EntryBillLoadingFallback />;
+    return <SafeEntryFallback />;
   }
   return (
     <div className="min-h-[40vh] w-full">

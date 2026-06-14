@@ -70,6 +70,7 @@ import {
 } from "@/lib/posCartPersistence";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
+import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
 import {
   computePosBillGst,
   posLineDisplayTotal,
@@ -411,6 +412,7 @@ export default function POSSales() {
     flushScheduledSalesInvalidation(currentOrganization?.id);
     if (currentOrganization?.id) {
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization.id] });
+      invalidatePosDashboardQueries(queryClient, currentOrganization.id);
     }
   }, [currentOrganization?.id, flushScheduledSalesInvalidation, queryClient]);
 
@@ -2826,6 +2828,7 @@ export default function POSSales() {
       setCurrentInvoiceNumber(result.sale_number);
       
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
       notifyPosSalesChanged({ organizationId: currentOrganization?.id });
 
       // Reset to show the newly saved invoice (index 0, as sales are sorted by created_at desc)
@@ -4203,6 +4206,7 @@ export default function POSSales() {
       
       // Refetch today's sales, dashboard data, and held bills
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
       notifyPosSalesChanged({ organizationId: currentOrganization?.id });
       await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       await refetchHeldBills();
