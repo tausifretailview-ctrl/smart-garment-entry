@@ -19,6 +19,10 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
+import {
+  findBarcodeConflictsInOrg,
+  formatBarcodeConflictMessage,
+} from "@/utils/barcodeValidation";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 import {
   resolveGarmentGstForLine,
@@ -1155,66 +1159,42 @@ const ProductEntry = () => {
   };
 
   const validateBarcodeUniqueness = async (): Promise<boolean> => {
-    // Get all barcodes from variants that have values
-    const barcodesToCheck = variants
-      .map(v => v.barcode)
-      .filter(b => b && b.trim() !== "");
+    if (!currentOrganization?.id) return false;
 
-    if (barcodesToCheck.length === 0) {
-      return true; // No barcodes to validate
+    const rawBarcodes = variants
+      .map((v) => String(v.barcode ?? "").trim())
+      .filter(Boolean);
+    if (rawBarcodes.length === 0) {
+      return true;
     }
 
-    // Step 1: Check for duplicate barcodes within the same product's variants
-    const barcodeSet = new Set<string>();
-    const internalDuplicates: string[] = [];
-    for (const barcode of barcodesToCheck) {
-      if (barcodeSet.has(barcode)) {
-        internalDuplicates.push(barcode);
-      } else {
-        barcodeSet.add(barcode);
-      }
-    }
-
-    if (internalDuplicates.length > 0) {
-      const uniqueDuplicates = [...new Set(internalDuplicates)];
+    if (rawBarcodes.length !== new Set(rawBarcodes).size) {
       toast({
         title: "Duplicate Barcode Error",
-        description: `The same barcode "${uniqueDuplicates.join(", ")}" is used for multiple variants. Each variant must have a unique barcode.`,
+        description:
+          "Duplicate barcodes found in variants. Each variant must have a unique barcode.",
         variant: "destructive",
       });
       return false;
     }
 
     try {
-      // Step 2: Check if any of these barcodes already exist in the database
-      const { data: existingVariants, error } = await supabase
-        .from("product_variants")
-        .select("barcode, product_id, products(product_name)")
-        .in("barcode", barcodesToCheck)
-        .is("deleted_at", null);
+      const conflicts = await findBarcodeConflictsInOrg(
+        rawBarcodes,
+        currentOrganization.id,
+        {
+          excludeProductId: editingProductId,
+          excludeVariantIds: variants.map((v) => v.id).filter(Boolean) as string[],
+        },
+      );
 
-      if (error) throw error;
-
-      if (existingVariants && existingVariants.length > 0) {
-        // Filter out barcodes that belong to the current product being edited
-        const duplicates = existingVariants.filter(
-          v => v.product_id !== editingProductId
-        );
-
-        if (duplicates.length > 0) {
-          const duplicateBarcodes = duplicates.map(d => d.barcode).join(", ");
-          const productNames = duplicates
-            .map(d => (d.products as any)?.product_name)
-            .filter(name => name)
-            .join(", ");
-
-          toast({
-            title: "Duplicate Barcode Error",
-            description: `Barcode(s) ${duplicateBarcodes} already exist${productNames ? ` in product(s): ${productNames}` : ""}. Please use unique barcodes.`,
-            variant: "destructive",
-          });
-          return false;
-        }
+      if (conflicts.length > 0) {
+        toast({
+          title: "Duplicate Barcode Error",
+          description: `Barcode(s) already exist: ${formatBarcodeConflictMessage(conflicts)}. Please use unique barcodes.`,
+          variant: "destructive",
+        });
+        return false;
       }
 
       return true;

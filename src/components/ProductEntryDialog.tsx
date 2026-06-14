@@ -45,6 +45,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM, isDecimalUOM } from "@/constants/uom";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import {
+  findBarcodeConflictsInOrg,
+  formatBarcodeConflictMessage,
+} from "@/utils/barcodeValidation";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -1106,6 +1110,72 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
     if (!validateForm()) return;
     if (!currentOrganization?.id) return;
 
+    let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
+      ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
+      : [...variants];
+
+    if (variantsToCreate.length > 0) {
+      if (hideOpeningQty && isAutoBarcode) {
+        for (let i = 0; i < variantsToCreate.length; i++) {
+          if (!variantsToCreate[i].barcode) {
+            variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
+          }
+        }
+      }
+
+      const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
+      if (missingBarcode) {
+        toast({
+          title: mobileERPMode?.enabled ? "IMEI Required" : "Barcode Required",
+          description: isAutoBarcode
+            ? "Failed to generate barcodes. Please try again."
+            : mobileERPMode?.enabled
+              ? "Please scan IMEI for all variants before adding to bill"
+              : "Please scan or enter barcode for all variants before adding to bill",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (mobileERPMode?.enabled) {
+        const invalidIMEI = variantsToCreate.find(v => {
+          const cleaned = (v.barcode || '').replace(/\s/g, '');
+          return !/^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 4) || cleaned.length > (mobileERPMode.imei_max_length || 25);
+        });
+        if (invalidIMEI) {
+          toast({
+            title: "Invalid IMEI",
+            description: `IMEI must be ${mobileERPMode.imei_min_length}-${mobileERPMode.imei_max_length} characters. Check: ${invalidIMEI.barcode}`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      try {
+        const conflicts = await findBarcodeConflictsInOrg(
+          variantsToCreate.map((v) => v.barcode),
+          currentOrganization.id,
+        );
+        if (conflicts.length > 0) {
+          toast({
+            title: "Duplicate Barcode Error",
+            description: `Barcode(s) already exist: ${formatBarcodeConflictMessage(conflicts)}. Please use unique barcodes.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      } catch (error) {
+        console.error("Barcode validation error:", error);
+        toast({
+          title: "Validation Error",
+          description: "Failed to validate barcodes. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const productColor = formData.colors.length > 0 ? formData.colors[0] : null;
@@ -1144,53 +1214,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
 
       if (productError) throw productError;
 
-      // Insert variants — in purchase context, only create variants with purchase_qty > 0
+      // Insert variants — prepared and validated before product insert
       let insertedVariants: any[] = [];
-      let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
-        ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
-        : [...variants];
       if (variantsToCreate.length > 0) {
-        // In purchase context, auto-generate barcodes only in auto mode
-        if (hideOpeningQty && isAutoBarcode) {
-          for (let i = 0; i < variantsToCreate.length; i++) {
-            if (!variantsToCreate[i].barcode) {
-              variantsToCreate[i] = { ...variantsToCreate[i], barcode: await generateSequentialBarcode() };
-            }
-          }
-        }
-        
-        // Block save if any variant still has no barcode
-        const missingBarcode = variantsToCreate.some(v => !v.barcode || !v.barcode.trim());
-        if (missingBarcode) {
-          toast({
-            title: mobileERPMode?.enabled ? "IMEI Required" : "Barcode Required",
-            description: isAutoBarcode
-              ? "Failed to generate barcodes. Please try again."
-              : mobileERPMode?.enabled
-                ? "Please scan IMEI for all variants before adding to bill"
-                : "Please scan or enter barcode for all variants before adding to bill",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-        
-        // IMEI format validation in Mobile ERP mode
-        if (mobileERPMode?.enabled) {
-          const invalidIMEI = variantsToCreate.find(v => {
-            const cleaned = (v.barcode || '').replace(/\s/g, '');
-            return !/^[a-zA-Z0-9\-_.\/]+$/.test(cleaned) || cleaned.length < (mobileERPMode.imei_min_length || 4) || cleaned.length > (mobileERPMode.imei_max_length || 25);
-          });
-          if (invalidIMEI) {
-            toast({
-              title: "Invalid IMEI",
-              description: `IMEI must be ${mobileERPMode.imei_min_length}-${mobileERPMode.imei_max_length} characters. Check: ${invalidIMEI.barcode}`,
-              variant: "destructive",
-            });
-            setLoading(false);
-            return;
-          }
-        }
         const variantsToInsert = variantsToCreate.map((v) => ({
           product_id: productData.id,
           organization_id: currentOrganization.id,
@@ -1199,7 +1225,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           pur_price: v.pur_price,
           sale_price: v.sale_price,
           mrp: v.mrp,
-          barcode: v.barcode,
+          barcode: v.barcode.trim(),
           active: v.active,
           opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
           // Service products have unlimited/virtual stock — no physical stock tracking
