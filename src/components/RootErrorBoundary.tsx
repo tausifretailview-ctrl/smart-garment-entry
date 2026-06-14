@@ -1,23 +1,39 @@
 import React, { Component, ErrorInfo } from 'react';
 import { Button } from '@/components/ui/button';
-import { isChunkLoadError } from '@/lib/chunkLoadRetry';
+import { isChunkLoadError, attemptSkewRecoveryReload } from '@/lib/chunkLoadRetry';
 
 interface Props { children: React.ReactNode; }
-interface State { hasError: boolean; error?: Error; }
+interface State { hasError: boolean; error?: Error; isRecovering?: boolean; }
 
 export class RootErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    if (isChunkLoadError(error)) {
+      return { hasError: true, error, isRecovering: true };
+    }
+    return { hasError: true, error, isRecovering: false };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('EzzyERP crashed:', error, info.componentStack);
-    // Auto-reload disabled — user keeps current page/state. Manual buttons below.
+    if (isChunkLoadError(error)) {
+      if (attemptSkewRecoveryReload()) {
+        return;
+      }
+      this.setState({ isRecovering: false });
+    }
   }
 
   render() {
+    if (this.state.isRecovering) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-6">
+          <p className="text-sm text-muted-foreground">Updating…</p>
+        </div>
+      );
+    }
+
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-6">

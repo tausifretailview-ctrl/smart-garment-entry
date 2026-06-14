@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from "react";
-import { isChunkLoadError, lazyWithRetry } from "@/lib/chunkLoadRetry";
+import { isChunkLoadError, lazyWithRetry, attemptSkewRecoveryReload, resetSkewReloadCount } from "@/lib/chunkLoadRetry";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { ThemeProvider } from "next-themes";
@@ -264,9 +264,13 @@ function NonOrgLegacySaleReturnDashboardRedirect() {
 })();
 
 const App = () => {
-  // Auto-reload is fully disabled — clear any stale counter from older builds.
+  // Fresh skew-recovery budget after a healthy boot; clear legacy counter from older builds.
   useEffect(() => {
     sessionStorage.removeItem("chunk_reload_count");
+    const timer = window.setTimeout(() => {
+      resetSkewReloadCount();
+    }, 1000);
+    return () => window.clearTimeout(timer);
   }, []);
 
   // Recover from transient chunk load failures (common on first navigation after login in desktop WebView).
@@ -276,16 +280,11 @@ const App = () => {
         console.error("Unhandled promise rejection:", event.reason);
         return;
       }
-      const reloadCount = parseInt(
-        sessionStorage.getItem("chunk_reload_count") || "0",
-        10,
-      );
-      // Never auto-reload — user explicitly wants tabs to stay put and only
-      // refresh manually. Swallow the rejection so it does not bubble into a
-      // crash overlay; the TabPaneErrorBoundary already shows a Retry button.
       event.preventDefault();
-      sessionStorage.setItem("chunk_reload_count", String(reloadCount + 1));
-      console.warn("Chunk load failed (auto-reload disabled):", event.reason);
+      if (attemptSkewRecoveryReload()) {
+        return;
+      }
+      console.warn("Chunk load failed (skew recovery exhausted):", event.reason);
     };
 
     window.addEventListener("unhandledrejection", handleRejection);

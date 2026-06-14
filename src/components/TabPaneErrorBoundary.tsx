@@ -1,7 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isChunkLoadError } from "@/lib/chunkLoadRetry";
+import { isChunkLoadError, attemptSkewRecoveryReload } from "@/lib/chunkLoadRetry";
 
 type Props = {
   children: ReactNode;
@@ -12,6 +12,7 @@ type Props = {
 type State = {
   hasError: boolean;
   error?: Error;
+  isRecovering?: boolean;
 };
 
 /**
@@ -21,11 +22,20 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    if (isChunkLoadError(error)) {
+      return { hasError: true, error, isRecovering: true };
+    }
+    return { hasError: true, error, isRecovering: false };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`[tab:${this.props.tabPath}]`, error, errorInfo);
+    if (isChunkLoadError(error)) {
+      if (attemptSkewRecoveryReload()) {
+        return;
+      }
+      this.setState({ isRecovering: false });
+    }
   }
 
   private handleRetry = () => {
@@ -42,6 +52,14 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    if (this.state.isRecovering) {
+      return (
+        <div className="flex flex-1 h-full min-h-[40vh] w-full items-center justify-center p-6">
+          <p className="text-sm text-muted-foreground">Updating…</p>
+        </div>
+      );
+    }
+
     if (!this.state.hasError) return this.props.children;
 
     const chunkError = this.state.error && isChunkLoadError(this.state.error);

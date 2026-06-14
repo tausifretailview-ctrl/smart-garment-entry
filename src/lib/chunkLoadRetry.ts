@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 
-const CHUNK_RELOAD_KEY = "chunk_reload_count";
+const SKEW_RELOAD_KEY = "skew_reload_count";
+const MAX_SKEW_RECOVERY_RELOADS = 1;
 const MAX_IMPORT_RETRIES = 5;
 const RETRY_BASE_MS = 500;
 /** Per-attempt ceiling so a hung dynamic import cannot block Suspense forever.
@@ -111,20 +112,51 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
 ] as const;
 
 export function isChunkLoadError(error: unknown): boolean {
+  const err = error instanceof Error ? error : null;
+  const name = err?.name ?? "";
   const msg =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
-        : "";
+    err?.message ??
+    (typeof error === "string" ? error : "");
+
+  if (name === "ChunkLoadError") return true;
+
+  if (!msg) return false;
+
   return (
-    msg.includes("Failed to fetch dynamically imported module") ||
-    msg.includes("Importing a module script failed") ||
-    msg.includes("error loading dynamically imported module") ||
-    msg.includes("Loading chunk") ||
-    msg.includes("Loading CSS chunk") ||
+    /failed to fetch dynamically imported module/i.test(msg) ||
+    /loading chunk .* failed/i.test(msg) ||
+    /importing a module script failed/i.test(msg) ||
+    /error loading dynamically imported module/i.test(msg) ||
+    /loading css chunk .* failed/i.test(msg) ||
+    /\bis not defined\b/.test(msg) ||
+    /unexpected token '<'/i.test(msg) ||
     msg.includes("Module load timed out")
   );
+}
+
+/** Clears the one-reload skew budget after a healthy boot. */
+export function resetSkewReloadCount(): void {
+  try {
+    sessionStorage.removeItem(SKEW_RELOAD_KEY);
+  } catch {
+    // ignore private mode / storage errors
+  }
+}
+
+/**
+ * Bounded full-page reload for deploy/version skew. MAX 1 per session until reset.
+ * Returns true if reload was initiated (caller should show a brief splash).
+ */
+export function attemptSkewRecoveryReload(): boolean {
+  try {
+    const count = parseInt(sessionStorage.getItem(SKEW_RELOAD_KEY) || "0", 10);
+    if (count >= MAX_SKEW_RECOVERY_RELOADS) return false;
+    sessionStorage.setItem(SKEW_RELOAD_KEY, String(count + 1));
+    window.location.reload();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function importWithTimeout<T>(
@@ -169,9 +201,8 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
     }
   }
 
-  // Auto-reload disabled by design — user wants tabs to stay put. The
-  // TabPaneErrorBoundary / Suspense fallback exposes a manual "Retry tab"
-  // and "Refresh app" button so the user controls when (or if) to reload.
+  // Auto-reload disabled by design — skew recovery is handled by error boundaries
+  // via attemptSkewRecoveryReload() (bounded, once per session).
   throw lastError;
 }
 
