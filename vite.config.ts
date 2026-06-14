@@ -1,11 +1,22 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { readFileSync } from "fs";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
+/** Bust React Query persisted cache on each build/deploy (see queryPersister.ts). */
+const appBuildId =
+  process.env.VITE_APP_BUILD_ID ??
+  process.env.GITHUB_SHA?.slice(0, 12) ??
+  pkg.version;
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(appBuildId),
+  },
   server: {
     host: "::",
     port: 8080,

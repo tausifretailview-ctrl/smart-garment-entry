@@ -6,7 +6,9 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient, keepPreviousData } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
@@ -308,7 +310,7 @@ const App = () => {
     defaultOptions: {
       queries: {
         staleTime: 60_000, // 60s — cuts cloud reads on tab/component remount; live queries override via STALE_LIVE
-        gcTime: 30 * 60 * 1000, // 30 min — survive browser tab sleep / ERP window tab switches
+        gcTime: 1000 * 60 * 60 * 24, // 24h — matches persist maxAge; retention only, not refetch frequency
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         // refetchOnMount: true (default) — first page visit always fetches; tab return within staleTime skips
@@ -327,7 +329,21 @@ const App = () => {
   return (
     <RootErrorBoundary>
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 1000 * 60 * 60 * 24,
+        buster: APP_BUILD_BUSTER,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (q) =>
+            q.state.status === "success" && !isVolatileOrSensitiveKey(q.queryKey),
+        },
+      }}
+      onSuccess={() => {
+        void queryClient.resumePausedMutations();
+      }}
+    >
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -1517,7 +1533,7 @@ const App = () => {
         <NavigationPerfPanel />
       </BrowserRouter>
     </TooltipProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
     </ThemeProvider>
     </RootErrorBoundary>
   );
