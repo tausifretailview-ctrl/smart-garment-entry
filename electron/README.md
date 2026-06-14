@@ -57,7 +57,8 @@ restart when ready.
 
 | Symptom | Check |
 | --- | --- |
-| Blank window on launch | Internet down? App will auto-retry up to 4 times. Press **F5**, use **File → Refresh App**, or right-click → **Refresh App**. |
+| Blank window on launch | Internet down? App auto-retries up to 4 times. Press **F5**, use **File → Refresh App**, or right-click → **Refresh App**. |
+| Blank window after minimize / tab switch | Renderer may have crashed (memory). A **Reload app** dialog should appear; if not, press **F5**. Close unused ERP tabs to reduce memory use. |
 | Stale data / screen stuck | **F5** or **Ctrl+R** reloads the app. Tray icon → **Refresh App** also works. Unsaved work on the current screen may be lost. |
 | "Not responding" dialog | Click **Reload now** — work on the current screen may be lost. |
 | App stays in background after Close | That's intentional. Right-click tray icon → **Quit** to fully exit. |

@@ -158,9 +158,30 @@ function getAppUrl() {
 
 function reloadMainWindow(reason) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
-  // Auto-reload disabled per user request — keep window sticky with existing data.
-  // User can manually refresh via F5, Ctrl+R, right-click, or File → Refresh App.
-  console.warn('[EzzyERP] Skipping auto-reload (disabled):', reason);
+  if (loadRetryCount >= MAX_LOAD_RETRIES) {
+    console.error('[EzzyERP] Load failed after retries:', reason);
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'error',
+      buttons: ['Retry', 'Close'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'EzzyERP could not load',
+      message: 'The application failed to connect.',
+      detail: 'Check your internet connection, then choose Retry. If the problem continues, close and reopen EzzyERP.',
+    });
+    if (choice === 0) {
+      loadRetryCount = 0;
+      mainWindow.loadURL(getAppUrl());
+    }
+    return;
+  }
+  loadRetryCount += 1;
+  const delayMs = Math.min(8000, 1000 * loadRetryCount);
+  console.warn(`[EzzyERP] Retrying load (${loadRetryCount}/${MAX_LOAD_RETRIES}) in ${delayMs}ms:`, reason);
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.loadURL(getAppUrl());
+  }, delayMs);
 }
 
 /** User-initiated full reload (menu, F5, right-click, in-app button). */
@@ -250,16 +271,31 @@ function createWindow() {
     recoverSupabaseOAuthJsonErrorPage();
   });
 
-  // Auto-reload on network/CDN failure disabled — user reloads manually if needed.
+  // Retry main-frame load failures (network blip / CDN timeout). User can still F5 anytime.
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, _description, _url, isMainFrame) => {
     if (!isMainFrame) return;
-    if (errorCode === -3) return;
-    console.warn('[EzzyERP] did-fail-load (auto-reload disabled):', errorCode);
+    if (errorCode === -3) return; // ERR_ABORTED — navigation cancelled
+    console.warn('[EzzyERP] did-fail-load:', errorCode);
+    reloadMainWindow(`did-fail-load:${errorCode}`);
   });
 
-  // Renderer crash — log only, no auto-reload. User keeps window state.
+  // Renderer crash/OOM — offer reload; a dead renderer shows a blank off-white window.
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('[EzzyERP] render-process-gone (auto-reload disabled):', details);
+    console.error('[EzzyERP] render-process-gone:', details);
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      buttons: ['Reload app', 'Close'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'EzzyERP needs to restart',
+      message: 'The application window stopped working.',
+      detail: `Reason: ${details?.reason || 'unknown'}. Reload to continue. Unsaved work on the current screen may be lost.`,
+    });
+    if (choice === 0) {
+      loadRetryCount = 0;
+      mainWindow.loadURL(getAppUrl());
+    }
   });
 
   mainWindow.webContents.on('unresponsive', () => {
