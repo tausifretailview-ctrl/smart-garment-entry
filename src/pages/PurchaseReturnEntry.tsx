@@ -10,18 +10,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, CalendarIcon, Trash2, Plus, Search, Barcode } from "lucide-react";
+import { Loader2, CalendarIcon, Trash2, Search, Barcode, ChevronLeft, Save, X, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { getUOMLabel, isDecimalUOM } from "@/constants/uom";
-import { entryPageContentClass, entryPageShellClass } from "@/lib/entryPageLayout";
-import { BackToDashboard } from "@/components/BackToDashboard";
+import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
@@ -149,6 +149,7 @@ async function fetchPurchaseReturnProductsByIds(
 }
 
 const PurchaseReturnEntry = () => {
+  useEntryViewportSync();
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization, loading: orgLoading } = useOrganization();
@@ -1476,45 +1477,40 @@ const PurchaseReturnEntry = () => {
   };
 
   const displayNetAmount = isDC ? grossAmount - discountAmount : netAmount;
+  const taxableAmount = isDC ? grossAmount - discountAmount : Math.max(0, displayNetAmount - gstAmount);
+  const totalReturnQty = lineItems.reduce((sum, item) => sum + item.qty, 0);
   const isReturnHydrating = isEditMode && loadingReturn;
   const isReturnEditBlocked = isReturnHydrating || !!returnLoadError;
 
   return (
     <>
     <div
-      className={cn(entryPageShellClass, "relative")}
+      className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0 relative")}
       data-entry-form
       aria-busy={isReturnHydrating}
     >
       {(isReturnHydrating || returnLoadError) && (
-        <div className="absolute inset-0 z-30 flex items-start justify-center bg-background/70 px-4 pt-16 backdrop-blur-[1px]">
-          <Card className="w-full max-w-md border-primary/20 shadow-lg">
+        <div className="absolute inset-0 z-30 flex items-start justify-center bg-white/80 px-4 pt-16 backdrop-blur-[1px]">
+          <Card className="w-full max-w-md border-black/20 shadow-lg">
             <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
               {returnLoadError ? (
                 <>
-                  <p className="text-sm font-semibold text-destructive">Could not load purchase return</p>
-                  <p className="text-xs text-muted-foreground">{returnLoadError}</p>
+                  <p className="text-sm font-bold text-destructive">Could not load purchase return</p>
+                  <p className="text-xs text-black/60">{returnLoadError}</p>
                   <div className="flex gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      onClick={() => setReturnLoadRetryKey((key) => key + 1)}
-                    >
+                    <Button size="sm" onClick={() => setReturnLoadRetryKey((key) => key + 1)}>
                       Retry
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate("/purchase-returns")}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => navigate("/purchase-returns")}>
                       Back to Returns
                     </Button>
                   </div>
                 </>
               ) : (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <p className="text-sm font-medium">Loading purchase return details...</p>
-                  <p className="text-xs text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin text-black" />
+                  <p className="text-sm font-bold text-black">Loading purchase return details...</p>
+                  <p className="text-xs text-black/60">
                     The window is ready. Item rows will appear here shortly.
                   </p>
                 </>
@@ -1523,283 +1519,219 @@ const PurchaseReturnEntry = () => {
           </Card>
         </div>
       )}
-      <div
-        className={cn(
-          "flex-1 min-h-0 overflow-y-auto",
-          isReturnEditBlocked && "pointer-events-none opacity-60",
-        )}
-      >
-        <div className={cn(entryPageContentClass, "space-y-4 sm:space-y-6")}>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            {isEditMode ? "Edit Purchase Return" : "Purchase Return Entry"}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {isEditMode ? `Editing return: ${returnNumber}` : "Create a new purchase return record"}
-          </p>
+
+      <header className="bg-white border-b-2 border-black shrink-0 flex flex-col">
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
+          <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/purchase-returns")}
+              className="h-8 shrink-0 text-black hover:text-black hover:bg-black/5 border border-black/20 text-xs gap-1.5 font-bold"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+            <div className="w-px h-6 bg-black/15 shrink-0" />
+            <RotateCcw className="h-5 w-5 text-black shrink-0" />
+            <span className="text-black font-bold text-[15px] whitespace-nowrap hidden md:inline">
+              {isEditMode ? "Edit Purchase Return" : "Purchase Return Entry"}
+            </span>
+            <span className="border-2 border-black text-black font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
+              {returnNumber || "NEW"}
+            </span>
+          </div>
         </div>
-        <BackToDashboard to="/purchase-returns" label="Back to Returns" />
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Return Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Return No.</Label>
-                <Input
-                  value={returnNumber}
-                  readOnly
-                  className="bg-muted font-medium"
-                />
-              </div>
+      <main className={cn(entryPageMainClass, isReturnEditBlocked && "pointer-events-none opacity-60")}>
+        <section className={cn("bg-white border-b border-black/10 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+          <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
+            <div className="space-y-1 flex-1 min-w-[120px]">
+              <Label htmlFor="return_number" className="text-[13px] font-bold text-black">Return No.</Label>
+              <Input
+                id="return_number"
+                value={returnNumber}
+                readOnly
+                className="h-10 bg-neutral-50 font-mono font-bold text-sm border-black/20"
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label>Supplier *</Label>
-                <Select value={returnData.supplier_id} onValueChange={handleSupplierChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.supplier_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1 flex-[1.5] min-w-[160px]">
+              <Label className="text-[13px] font-bold text-black">
+                Supplier <span className="text-red-600">*</span>
+              </Label>
+              <Select value={returnData.supplier_id} onValueChange={handleSupplierChange}>
+                <SelectTrigger className="h-10 border-black/20">
+                  <SelectValue placeholder="Select supplier" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.supplier_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Return Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !returnDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {returnDate ? format(returnDate, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={returnDate}
-                      onSelect={(date) => date && setReturnDate(date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Supplier invoice no. (original purchase)</Label>
-                <p className="text-xs text-muted-foreground -mt-1">
-                  Load Items: each line qty = min(qty on purchase, current stock qty). Lines with no stock are omitted.
-                </p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Same as Supplier Invoice No on Purchase Entry (or software bill no.)"
-                    value={returnData.original_bill_number}
-                    className="no-uppercase"
-                    onChange={(e) => {
-                      setReturnData({ ...returnData, original_bill_number: e.target.value });
-                      setBillLoaded(false);
-                      setOriginalBillId('');
-                    }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadBillByNumber(); } }}
-                  />
+            <div className="space-y-1 flex-1 min-w-[140px]">
+              <Label className="text-[13px] font-bold text-black">Return Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
                   <Button
-                    type="button"
-                    onClick={loadBillByNumber}
-                    disabled={loadingBill || !returnData.original_bill_number.trim()}
-                    className="h-10 px-4 flex items-center gap-2 flex-shrink-0"
-                  >
-                    {loadingBill ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" />Loading...</>
-                    ) : (
-                      <><Search className="h-4 w-4" />Load Items</>
+                    variant="outline"
+                    className={cn(
+                      "w-full h-10 justify-start text-left font-normal border-black/20",
+                      !returnDate && "text-muted-foreground",
                     )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {returnDate ? format(returnDate, "PPP") : <span>Pick a date</span>}
                   </Button>
-                </div>
-                {billLoaded && (
-                  <p className="text-xs text-green-600 font-medium mt-1">
-                    ✅ Items loaded — quantities reflect current stock (not full purchase qty). Adjust if needed before saving.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>GST Type</Label>
-                <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive" | "dc") => setTaxType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="exclusive">GST Exclusive</SelectItem>
-                    <SelectItem value="inclusive">GST Inclusive</SelectItem>
-                    <SelectItem value="dc">DC (No GST)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label>Notes</Label>
-                <Textarea
-                  placeholder="Enter notes or reason for return"
-                  value={returnData.notes}
-                  onChange={(e) => setReturnData({ ...returnData, notes: e.target.value })}
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-3 md:col-span-3 border-t pt-4">
-                <Label className="text-sm font-medium">Refund settlement (GL)</Label>
-                <Select
-                  value={refundSettlement}
-                  onValueChange={(v) => setRefundSettlement(v as PurchaseReturnRefundSettlement)}
-                >
-                  <SelectTrigger className="max-w-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ap_adjustment">Reduce supplier balance (Accounts Payable)</SelectItem>
-                    <SelectItem value="immediate_refund">Refund received from supplier (cash or bank)</SelectItem>
-                  </SelectContent>
-                </Select>
-                {refundSettlement === "immediate_refund" && (
-                  <div className="space-y-2 max-w-xs">
-                    <Label className="text-xs text-muted-foreground">Received via</Label>
-                    <Select
-                      value={refundPaymentMethod}
-                      onValueChange={(v) => setRefundPaymentMethod(v as PurchaseReturnRefundPm)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cash">Cash</SelectItem>
-                        <SelectItem value="upi">UPI</SelectItem>
-                        <SelectItem value="card">Card</SelectItem>
-                        <SelectItem value="bank_transfer">Bank transfer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[11px] text-muted-foreground">
-                      Cash → <span className="font-mono">1000</span>; UPI, Card, Bank transfer →{" "}
-                      <span className="font-mono">1010</span>. AP adjustment uses <span className="font-mono">2000</span>.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Gross Amount:</span>
-              <span className="font-medium">₹{grossAmount.toFixed(2)}</span>
-            </div>
-            <div className="space-y-2 border-t pt-3">
-              <Label className="text-sm text-muted-foreground">Discount</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="relative">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={discountPercent || ""}
-                    onChange={(e) => handleDiscountPercentChange(parseFloat(e.target.value) || 0)}
-                    placeholder="0"
-                    className="pr-6"
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={returnDate}
+                    onSelect={(date) => date && setReturnDate(date)}
+                    initialFocus
                   />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
-                </div>
-                <div className="relative">
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={discountAmount || ""}
-                    onChange={(e) => handleDiscountAmountChange(parseFloat(e.target.value) || 0)}
-                    placeholder="0"
-                    className="pl-6"
-                  />
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
-                </div>
-              </div>
+                </PopoverContent>
+              </Popover>
             </div>
-            {discountAmount > 0 && (
-              <div className="flex justify-between text-destructive">
-                <span className="text-muted-foreground">Discount:</span>
-                <span className="font-medium">-₹{discountAmount.toFixed(2)}</span>
-              </div>
-            )}
-            {!isDC ? (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">GST Amount:</span>
-                <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground font-medium">GST Amount:</span>
-                <span className="flex items-center gap-2">
-                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded font-bold">
-                    DC
-                  </span>
-                  <span className="font-medium">₹0.00</span>
-                </span>
-              </div>
-            )}
-            <div className="flex justify-between border-t pt-3">
-              <span className="font-semibold">Net Amount:</span>
-              <span className="font-bold text-lg">
-                ₹{(isDC ? grossAmount - discountAmount : netAmount).toFixed(2)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Return Items</CardTitle>
-            <div className="flex items-center gap-4 text-sm">
-              <span className="text-muted-foreground">
-                Total Items: <span className="font-semibold text-foreground">{lineItems.length}</span>
-              </span>
-              <span className="text-muted-foreground">
-                Total Qty: <span className="font-semibold text-foreground">{lineItems.reduce((sum, item) => sum + item.qty, 0)}</span>
-              </span>
+            <div className="space-y-1 flex-1 min-w-[140px]">
+              <Label className="text-[13px] font-bold text-black">GST Type</Label>
+              <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive" | "dc") => setTaxType(value)}>
+                <SelectTrigger className="h-10 border-black/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exclusive">GST Exclusive</SelectItem>
+                  <SelectItem value="inclusive">GST Inclusive</SelectItem>
+                  <SelectItem value="dc">DC (No GST)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="relative">
-            <div className="flex gap-1.5">
-              <div className="relative flex-1">
+
+          <div className="mt-3 flex flex-wrap lg:flex-nowrap items-end gap-3">
+            <div className="space-y-1 flex-[2] min-w-[220px]">
+              <Label className="text-[13px] font-bold text-black">Supplier Invoice No. (original purchase)</Label>
+              <p className="text-[11px] text-black/55 leading-snug">
+                Load Items: each line qty = min(qty on purchase, current stock). Lines with no stock are omitted.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Supplier invoice no. or software bill no."
+                  value={returnData.original_bill_number}
+                  className="no-uppercase h-10 border-black/20"
+                  onChange={(e) => {
+                    setReturnData({ ...returnData, original_bill_number: e.target.value });
+                    setBillLoaded(false);
+                    setOriginalBillId("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      loadBillByNumber();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  onClick={loadBillByNumber}
+                  disabled={loadingBill || !returnData.original_bill_number.trim()}
+                  className="h-10 px-4 flex items-center gap-2 shrink-0 bg-black text-white hover:bg-black/90 font-bold"
+                >
+                  {loadingBill ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4" />
+                      Load Items
+                    </>
+                  )}
+                </Button>
+              </div>
+              {billLoaded && (
+                <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                  Items loaded — qty reflects current stock. Adjust before saving.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1 flex-1 min-w-[160px]">
+              <Label className="text-[13px] font-bold text-black">Refund Settlement (GL)</Label>
+              <Select
+                value={refundSettlement}
+                onValueChange={(v) => setRefundSettlement(v as PurchaseReturnRefundSettlement)}
+              >
+                <SelectTrigger className="h-10 border-black/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ap_adjustment">Reduce supplier balance (AP)</SelectItem>
+                  <SelectItem value="immediate_refund">Refund received (cash/bank)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {refundSettlement === "immediate_refund" && (
+              <div className="space-y-1 flex-1 min-w-[120px]">
+                <Label className="text-[13px] font-bold text-black">Received via</Label>
+                <Select
+                  value={refundPaymentMethod}
+                  onValueChange={(v) => setRefundPaymentMethod(v as PurchaseReturnRefundPm)}
+                >
+                  <SelectTrigger className="h-10 border-black/20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-1 flex-[1.5] min-w-[180px]">
+              <Label className="text-[13px] font-bold text-black">Notes</Label>
+              <Textarea
+                placeholder="Enter notes or reason for return"
+                value={returnData.notes}
+                onChange={(e) => setReturnData({ ...returnData, notes: e.target.value })}
+                rows={2}
+                className="min-h-[40px] resize-none border-black/20 text-sm"
+              />
+            </div>
+          </div>
+
+          {isDC && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-md">
+              <span className="text-xs font-bold text-orange-700">DC Return — GST set to 0% for all items</span>
+            </div>
+          )}
+        </section>
+
+        <section className={cn("bg-neutral-50 border-b border-black/10 py-3 shrink-0", entryPageSectionX)}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[280px]">
+              <div className="relative">
                 {isSearching ? (
-                  <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                  <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40 animate-spin pointer-events-none" />
                 ) : (
-                  <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40 pointer-events-none" />
                 )}
                 <Input
                   ref={searchInputRef}
-                  placeholder="Scan barcode or search products..."
+                  placeholder="SCAN BARCODE OR SEARCH BY NAME, BRAND, CATEGORY, STYLE..."
                   value={searchQuery}
                   onChange={(e) => {
                     const newValue = e.target.value;
@@ -1853,98 +1785,102 @@ const PurchaseReturnEntry = () => {
                       barcodeScanner.reset();
                     }
                   }}
-                  className="pl-10"
+                  className="pl-10 h-10 text-sm bg-white border-black/20 uppercase font-semibold"
                   autoComplete="off"
                 />
-              </div>
-              <CameraScanButton
-                onBarcodeScanned={(barcode) => {
-                  void searchAndAddProduct(barcode, { fromScan: true });
-                }}
-                className="h-10"
-              />
-            </div>
-            {showSearch && searchResults.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                {searchResults.map((variant, idx) => (
-                  <div
-                    key={variant.id}
-                    className={cn(
-                      "p-3 hover:bg-muted cursor-pointer border-b last:border-b-0",
-                      idx === 0 && "bg-primary/5"
-                    )}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleProductSelect(variant)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium">{variant.product_name}</div>
-                      <div className="text-xs text-muted-foreground font-mono">{variant.barcode}</div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {variant.brand} | Size: {variant.size} | ₹{variant.pur_price}
-                    </div>
+                {showSearch && searchResults.length > 0 && (
+                  <div className="absolute top-full mt-1 w-full bg-white border border-black/15 rounded-md shadow-lg z-[100] max-h-60 overflow-auto">
+                    {searchResults.map((variant, idx) => (
+                      <div
+                        key={variant.id}
+                        className={cn(
+                          "p-3 hover:bg-neutral-100 cursor-pointer border-b border-black/5 last:border-b-0",
+                          idx === 0 && "bg-neutral-50",
+                        )}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleProductSelect(variant)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold text-sm text-black">{variant.product_name}</div>
+                          <div className="text-xs text-black/50 font-mono">{variant.barcode}</div>
+                        </div>
+                        <div className="text-sm text-black/60">
+                          {variant.brand} | Size: {variant.size} | ₹{variant.pur_price}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
+            </div>
+            <CameraScanButton
+              onBarcodeScanned={(barcode) => {
+                void searchAndAddProduct(barcode, { fromScan: true });
+              }}
+              className="h-10 border-black/20"
+            />
+            <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">
+              <span className="text-[12px] font-bold opacity-80">Total Qty</span>
+              <span className="font-black tabular-nums text-[16px]">{totalReturnQty}</span>
+            </div>
           </div>
+        </section>
 
-          {lineItems.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Sr No</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Barcode</TableHead>
-                    <TableHead className="w-24">Qty</TableHead>
-                    {showMrp && <TableHead className="w-24">MRP</TableHead>}
-                    <TableHead className="w-32">Price</TableHead>
-                    <TableHead className="w-20">Disc%</TableHead>
-                    <TableHead className="w-24">Disc ₹</TableHead>
-                    {!isDC && <TableHead className="w-24">GST%</TableHead>}
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="w-12"></TableHead>
+        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
+          <div className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-black/15 shadow-sm bg-white">
+            {lineItems.length > 0 ? (
+              <Table className="table-fixed w-full min-w-[1100px] border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+                <TableHeader className="sticky top-0 z-10">
+                  <TableRow className="bg-white border-b-2 border-black hover:bg-white">
+                    <TableHead className="w-[40px] text-center text-[13px] uppercase font-bold text-black h-11">#</TableHead>
+                    <TableHead className="min-w-[160px] text-left text-[13px] uppercase font-bold text-black h-11">Item Name</TableHead>
+                    <TableHead className="w-[80px] text-center text-[13px] uppercase font-bold text-black h-11">Brand</TableHead>
+                    <TableHead className="w-[70px] text-center text-[13px] uppercase font-bold text-black h-11">Color</TableHead>
+                    <TableHead className="w-[60px] text-center text-[13px] uppercase font-bold text-black h-11">Size</TableHead>
+                    <TableHead className="w-[100px] text-center text-[13px] uppercase font-bold text-black h-11">Barcode</TableHead>
+                    <TableHead className="w-[72px] text-center text-[13px] uppercase font-bold text-black h-11">Qty</TableHead>
+                    {showMrp && (
+                      <TableHead className="w-[80px] text-right text-[13px] uppercase font-bold text-black h-11">MRP</TableHead>
+                    )}
+                    <TableHead className="w-[88px] text-right text-[13px] uppercase font-bold text-black h-11 bg-neutral-100">Pur. Rate</TableHead>
+                    <TableHead className="w-[64px] text-center text-[13px] uppercase font-bold text-black h-11">Disc%</TableHead>
+                    <TableHead className="w-[72px] text-right text-[13px] uppercase font-bold text-black h-11">Disc ₹</TableHead>
+                    {!isDC && (
+                      <TableHead className="w-[64px] text-center text-[13px] uppercase font-bold text-black h-11">GST%</TableHead>
+                    )}
+                    <TableHead className="w-[88px] text-right text-[13px] uppercase font-bold text-black h-11 border-l-2 border-black bg-neutral-100">Total</TableHead>
+                    <TableHead className="w-[40px] h-11" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {lineItems.map((item, index) => (
-                    <TableRow key={item.temp_id}>
-                      <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
-                      <TableCell className="font-medium">{item.product_name}</TableCell>
-                      <TableCell>{item.brand}</TableCell>
-                      <TableCell>{item.color || "-"}</TableCell>
-                      <TableCell>{item.size}</TableCell>
-                      <TableCell>{item.barcode}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
+                    <TableRow key={item.temp_id} className="border-b border-black/5">
+                      <TableCell className="text-center text-black/60 font-mono text-sm py-1">{index + 1}</TableCell>
+                      <TableCell className="font-semibold text-sm text-black py-1">{item.product_name}</TableCell>
+                      <TableCell className="text-center text-sm text-black py-1">{item.brand}</TableCell>
+                      <TableCell className="text-center text-sm text-black py-1">{item.color || "-"}</TableCell>
+                      <TableCell className="text-center text-sm font-mono text-black py-1">{item.size}</TableCell>
+                      <TableCell className="text-center text-xs font-mono text-black/70 py-1">{item.barcode}</TableCell>
+                      <TableCell className="py-1">
+                        <div className="flex items-center gap-1 justify-center">
                           <Input
                             type="number"
                             min={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             step={isDecimalUOM(item.uom) ? "0.001" : "1"}
                             value={item.qty}
                             onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "qty",
-                                parseReturnQty(item.uom, e.target.value),
-                              )
+                              updateLineItem(item.temp_id, "qty", parseReturnQty(item.uom, e.target.value))
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20"
+                            className="w-[56px] h-8 text-center text-sm border-black/20 font-mono"
                           />
                           {item.uom && item.uom !== "NOS" && item.uom !== "PCS" && (
-                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                              {getUOMLabel(item.uom)}
-                            </span>
+                            <span className="text-[10px] text-black/50 whitespace-nowrap">{getUOMLabel(item.uom)}</span>
                           )}
                         </div>
                       </TableCell>
                       {showMrp && (
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             type="number"
                             min="0"
@@ -1954,11 +1890,11 @@ const PurchaseReturnEntry = () => {
                               updateLineItem(item.temp_id, "mrp", parseFloat(e.target.value) || 0)
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-24"
+                            className="w-[72px] h-8 text-right text-sm border-black/20 font-mono ml-auto"
                           />
                         </TableCell>
                       )}
-                      <TableCell>
+                      <TableCell className="py-1">
                         <Input
                           type="number"
                           min="0"
@@ -1968,10 +1904,10 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "pur_price", parseFloat(e.target.value) || 0)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-28"
+                          className="w-[80px] h-8 text-right text-sm border-black/20 font-mono ml-auto bg-neutral-50"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1">
                         <Input
                           type="number"
                           min="0"
@@ -1982,10 +1918,10 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "discount_percent", parseFloat(e.target.value) || 0)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-20"
+                          className="w-[56px] h-8 text-center text-sm border-black/20 font-mono mx-auto"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1">
                         <Input
                           type="number"
                           min="0"
@@ -1995,11 +1931,11 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "discount_amount", parseFloat(e.target.value) || 0)
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-24"
+                          className="w-[64px] h-8 text-right text-sm border-black/20 font-mono ml-auto"
                         />
                       </TableCell>
                       {!isDC && (
-                        <TableCell>
+                        <TableCell className="py-1">
                           <Input
                             type="number"
                             min="0"
@@ -2010,52 +1946,144 @@ const PurchaseReturnEntry = () => {
                               updateLineItem(item.temp_id, "gst_per", parseFloat(e.target.value) || 0)
                             }
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-20"
+                            className="w-[56px] h-8 text-center text-sm border-black/20 font-mono mx-auto"
                           />
                         </TableCell>
                       )}
-                      <TableCell className="text-right font-medium">
+                      <TableCell className="text-right font-bold text-sm font-mono tabular-nums text-black py-1 border-l-2 border-black/10">
                         ₹{item.line_total.toFixed(2)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-1">
                         <Button
                           variant="ghost"
                           size="sm"
+                          className="h-8 w-8 p-0 hover:bg-red-50"
                           onClick={() => removeLineItem(item.temp_id)}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <Trash2 className="h-4 w-4 text-red-600" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Search and add products to create a return</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-        </div>
-      </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-black/45">
+                <Search className="h-10 w-10 mb-3 opacity-40" />
+                <p className="text-sm font-semibold">Scan barcode or search products to add return lines</p>
+                <p className="text-xs mt-1">Or load items from an original supplier invoice above</p>
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
 
-      <footer className="shrink-0 border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-2 sm:px-3 lg:px-4 py-3 flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground hidden sm:block">
-          {lineItems.length === 0
-            ? "No items added yet"
-            : `${lineItems.length} item(s) · Net: ₹${displayNetAmount.toFixed(2)}`}
-        </p>
-        <div className="flex justify-end gap-4 ml-auto">
-          <Button variant="outline" onClick={() => navigate("/purchase-returns")}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={loading || isReturnEditBlocked}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {isEditMode ? "Update Return" : "Save Return"}
-          </Button>
+      <footer className="entry-page-footer sale-order-footer shrink-0 relative z-40">
+        <div className="bg-white text-black border-t-2 border-black w-full">
+          <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0 flex-wrap">
+            <div className="flex items-center gap-0 shrink-0 overflow-x-auto flex-wrap">
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Bill Disc %</span>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={discountPercent || ""}
+                onChange={(e) => handleDiscountPercentChange(parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                placeholder="0"
+                className="w-[80px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
+              />
+              <div className="w-px h-8 bg-black/15 mx-3 shrink-0" />
+              <span className="text-[14px] font-extrabold uppercase tracking-wide text-black mr-2 whitespace-nowrap">Bill Disc ₹</span>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={discountAmount || ""}
+                onChange={(e) => handleDiscountAmountChange(parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                placeholder="0"
+                className="w-[90px] h-10 text-[16px] text-right bg-white text-black font-extrabold font-mono border-2 border-black/20 rounded-sm"
+              />
+            </div>
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Items</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{lineItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Total Qty</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{totalReturnQty}</span>
+                </div>
+              </div>
+              <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
+                </div>
+                {!isDC && (
+                  <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                    <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">GST</span>
+                    <span className="text-[16px] font-extrabold tabular-nums">₹{gstAmount.toFixed(0)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="pl-4 border-l-2 border-black flex flex-col items-end shrink-0">
+                <span className="text-[13px] font-extrabold uppercase tracking-wide text-black underline underline-offset-2">Net Return</span>
+                <span className="text-[36px] font-black font-mono tabular-nums leading-none text-black tracking-tighter">
+                  ₹{displayNetAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
+          <div className="hidden xl:flex items-center gap-2 text-[14px] text-black font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+            <span>Gross <span className="font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
+            <span className="text-black/30">—</span>
+            <span>Disc <span className="font-extrabold">₹{discountAmount.toFixed(0)}</span></span>
+            <span className="text-black/30">=</span>
+            <span>Taxable <span className="font-extrabold">₹{taxableAmount.toFixed(2)}</span></span>
+            {!isDC && (
+              <>
+                <span className="text-black/30">+</span>
+                <span>GST <span className="font-extrabold">₹{gstAmount.toFixed(2)}</span></span>
+              </>
+            )}
+            <span className="text-black/30">=</span>
+            <span>Net <span className="font-black">₹{displayNetAmount.toLocaleString("en-IN")}</span></span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/purchase-returns")}
+              className="h-9 px-3 text-[13px] font-bold text-red-700 hover:bg-red-50 gap-1.5 border border-red-200"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={loading || isReturnEditBlocked || lineItems.length === 0}
+              className="h-9 px-5 text-[14px] bg-black text-white hover:bg-black/90 font-extrabold gap-1.5"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  {isEditMode ? "Update Return" : "Save Return"}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </footer>
     </div>
