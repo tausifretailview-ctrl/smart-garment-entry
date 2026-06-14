@@ -51,6 +51,7 @@ import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
+import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -469,8 +470,7 @@ export default function SalesInvoiceDashboard() {
             icon: MessageCircle,
             onClick: () => {
               if (invoice.customer_phone) {
-                const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-                const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
+                const invoiceUrl = buildSaleInvoiceViewUrl(invoice.id);
                 const message = formatMessage("sales_invoice", invoice, undefined, 0, {
                   invoiceLink: invoiceUrl,
                   organizationName: currentOrganization?.name || '',
@@ -600,6 +600,18 @@ export default function SalesInvoiceDashboard() {
   }, [settings]);
 
   const saleSettings = (settings as any)?.sale_settings;
+
+  const buildSaleInvoiceViewUrl = useCallback(
+    (saleId: string) =>
+      buildPublicInvoiceViewUrl({
+        orgSlug: currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || "",
+        saleId,
+        billContext: "sale",
+        saleSettings,
+        baseUrl: window.location.origin,
+      }),
+    [currentOrganization?.slug, saleSettings],
+  );
 
   const effectiveSaleBillFormat = useMemo((): PosBillFormat => {
     const raw = (billFormat || saleSettings?.sales_bill_format || "a4") as PosBillFormat;
@@ -1737,9 +1749,7 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    // Generate invoice URL - include org slug for branding
-    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
+    const invoiceUrl = buildSaleInvoiceViewUrl(invoice.id);
     
     let customerBalance = 0;
     if (invoice.customer_id && currentOrganization?.id) {
@@ -1813,6 +1823,11 @@ export default function SalesInvoiceDashboard() {
           salesman: invoice.salesman,
           organization_name: currentOrganization?.name,
           organization_id: currentOrganization?.id,
+          bill_context: 'sale',
+          invoice_paper_format: saleSettings?.invoice_paper_format || '',
+          sales_bill_format: saleSettings?.sales_bill_format || '',
+          pos_bill_format: saleSettings?.pos_bill_format || '',
+          invoice_template: saleSettings?.invoice_template || '',
         },
       });
       
@@ -1830,9 +1845,7 @@ export default function SalesInvoiceDashboard() {
   };
 
   const handleCopyLink = async (invoice: any) => {
-    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
-    copyInvoiceLink(invoiceUrl);
+    copyInvoiceLink(buildSaleInvoiceViewUrl(invoice.id));
   };
 
   const openPaymentDialog = (invoice: any) => {
@@ -2917,7 +2930,7 @@ export default function SalesInvoiceDashboard() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const invoiceUrl = `${window.location.origin}/invoice/view/${inv.id}`;
+                        const invoiceUrl = buildSaleInvoiceViewUrl(inv.id);
                         const message = `Invoice ${inv.sale_number}%0AAmount: ₹${(inv.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${inv.customer_name || 'Walk-in'}%0A%0AView: ${invoiceUrl}`;
                         window.open(`https://wa.me/?text=${message}`, '_blank');
                       }}

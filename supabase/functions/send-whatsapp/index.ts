@@ -6,6 +6,7 @@ import {
   parseWhatsAppProviderError,
 } from "../_shared/whatsappAuth.ts";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
+import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -190,15 +191,25 @@ function buildTemplateParams(
         return String(saleData.days_overdue || 0);
       case 'contact_number':
         return String(saleData.contact_number || '');
-      case 'invoice_link':
-        // Build public invoice URL
+      case 'invoice_link': {
         const orgSlug = String(saleData.org_slug || '');
         const saleId = String(saleData.sale_id || saleData.id || '');
-        const posBillFormat = String(saleData.pos_bill_format || '');
-        const thermalSuffix = posBillFormat === 'thermal' ? '?format=thermal' : '';
-        return saleId && orgSlug 
-          ? `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix}` 
-          : '';
+        const billContext =
+          String(saleData.bill_context || saleData.sale_source || 'sale') === 'pos'
+            ? 'pos'
+            : 'sale';
+        return buildPublicInvoiceViewUrl({
+          orgSlug,
+          saleId,
+          billContext,
+          saleSettings: {
+            invoice_paper_format: saleData.invoice_paper_format,
+            sales_bill_format: saleData.sales_bill_format,
+            pos_bill_format: saleData.pos_bill_format,
+            invoice_template: saleData.invoice_template,
+          },
+        });
+      }
       case 'payment_link':
         return String(saleData.payment_link || '');
       case 'website':
@@ -849,9 +860,20 @@ serve(async (req) => {
                 orgSlug = org?.slug;
               }
               if (saleId && orgSlug) {
-                const posFmt = String(saleData?.pos_bill_format || '');
-                const thermalSuffix = posFmt === 'thermal' ? '?format=thermal' : '';
-                const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix}`;
+                const invoiceLink = buildPublicInvoiceViewUrl({
+                  orgSlug: String(orgSlug),
+                  saleId: String(saleId),
+                  billContext:
+                    String(saleData?.bill_context || saleData?.sale_source || 'sale') === 'pos'
+                      ? 'pos'
+                      : 'sale',
+                  saleSettings: {
+                    invoice_paper_format: saleData?.invoice_paper_format,
+                    sales_bill_format: saleData?.sales_bill_format,
+                    pos_bill_format: saleData?.pos_bill_format,
+                    invoice_template: saleData?.invoice_template,
+                  },
+                });
                 const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
                 await supabase
                   .from('whatsapp_logs')
@@ -999,11 +1021,12 @@ serve(async (req) => {
         // Fetch org name for the organization_name field
         const { data: companySettings } = await supabase
           .from('settings')
-          .select('business_name')
+          .select('business_name, sale_settings')
           .eq('organization_id', organizationId)
           .maybeSingle();
         
         const orgName = companySettings?.business_name || 'Our Company';
+        const saleSettingsRow = (companySettings?.sale_settings as Record<string, unknown> | null) ?? {};
 
         // Enrich saleData with org-level social links so params like
         // instagram / facebook / google_review_link / website auto-fill.
@@ -1012,6 +1035,14 @@ serve(async (req) => {
         // hasn't filled social links yet. WhatsApp rejects empty params.
         const enrichedSaleData: Record<string, unknown> = {
           ...saleData,
+          invoice_paper_format:
+            saleData.invoice_paper_format ?? saleSettingsRow.invoice_paper_format ?? '',
+          sales_bill_format:
+            saleData.sales_bill_format ?? saleSettingsRow.sales_bill_format ?? '',
+          pos_bill_format:
+            saleData.pos_bill_format ?? saleSettingsRow.pos_bill_format ?? '',
+          invoice_template:
+            saleData.invoice_template ?? saleSettingsRow.invoice_template ?? '',
           website: saleData.website || socialLinks.website || '-',
           instagram: saleData.instagram || socialLinks.instagram || '-',
           facebook: saleData.facebook || socialLinks.facebook || '-',
@@ -1151,6 +1182,8 @@ serve(async (req) => {
               });
               // Avoid sending the logo again as a separate image message
               headerLogoEmbedded = true;
+              finalImageUrl = undefined;
+              finalImageCaption = undefined;
               console.log('Embedded org logo into IMAGE header:', headerLogoUrl);
             } else {
               console.warn('Template has IMAGE header but no org logo_url found in settings.bill_barcode_settings');
@@ -1308,10 +1341,20 @@ serve(async (req) => {
         }
         
         if (saleId && orgSlug) {
-          // Build the invoice link
-          const posFmt2 = String(saleData?.pos_bill_format || '');
-          const thermalSuffix2 = posFmt2 === 'thermal' ? '?format=thermal' : '';
-          const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}${thermalSuffix2}`;
+          const invoiceLink = buildPublicInvoiceViewUrl({
+            orgSlug: String(orgSlug),
+            saleId: String(saleId),
+            billContext:
+              String(saleData?.bill_context || saleData?.sale_source || 'sale') === 'pos'
+                ? 'pos'
+                : 'sale',
+            saleSettings: {
+              invoice_paper_format: saleData?.invoice_paper_format,
+              sales_bill_format: saleData?.sales_bill_format,
+              pos_bill_format: saleData?.pos_bill_format,
+              invoice_template: saleData?.invoice_template,
+            },
+          });
           
           // Store follow-up data with the log entry - will be sent when customer clicks button
           const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
@@ -1370,7 +1413,8 @@ serve(async (req) => {
     }
 
     // Send image attachment if available (e.g., org logo - sent before text/document)
-    if (finalImageUrl && response.ok) {
+    // Skip when logo is already in the template IMAGE header (invoice_1 etc.)
+    if (finalImageUrl && response.ok && !headerLogoEmbedded) {
       console.log('Sending image attachment:', finalImageUrl);
       
       const imagePayload = {

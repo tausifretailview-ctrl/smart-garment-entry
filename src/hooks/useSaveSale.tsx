@@ -878,7 +878,12 @@ export const useSaveSale = () => {
               items_count: saleData.items.reduce((sum, item) => sum + item.quantity, 0),
               salesman: saleData.salesman,
               organization_name: companyName,
+              bill_context: 'pos',
+              invoice_paper_format: (saleSettings as any)?.invoice_paper_format || '',
+              sales_bill_format: (saleSettings as any)?.sales_bill_format || '',
               pos_bill_format: (saleSettings as any)?.pos_bill_format || '',
+              invoice_template: (saleSettings as any)?.invoice_template || '',
+              sale_source: 'pos',
               // Include social links from settings
               website: (whatsappSettings.social_links as Record<string, string> | null)?.website || '',
               instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
@@ -912,8 +917,6 @@ export const useSaveSale = () => {
                     useDocumentHeaderTemplate: false,
                     documentHeaderTemplateName: null,
                     pdfBlob: null,
-                    imageUrl: logoUrl,
-                    imageCaption: logoUrl ? companyName : undefined,
                   }
                 });
               } catch (flowAError) {
@@ -989,8 +992,6 @@ export const useSaveSale = () => {
                       documentHeaderTemplateName: whatsappSettings.invoice_document_template_name,
                       pdfBlob: pdfBase64,
                       documentFilename: documentFilename,
-                      imageUrl: logoUrl,
-                      imageCaption: logoUrl ? companyName : undefined,
                     }
                   });
                 }

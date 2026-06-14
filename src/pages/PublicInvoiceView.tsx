@@ -41,6 +41,7 @@ export default function PublicInvoiceView() {
   const { saleId } = useParams<{ saleId: string }>();
   const [searchParams] = useSearchParams();
   const formatParam = searchParams.get('format');
+  const templateOverride = searchParams.get('template');
   const printRef = useRef<HTMLDivElement>(null);
   // Mobile auto-fit: scale the A4 invoice down to fit the phone screen width.
   const scaleWrapRef = useRef<HTMLDivElement>(null);
@@ -148,7 +149,10 @@ export default function PublicInvoiceView() {
   }
 
   const saleItems = sale.sale_items || [];
-  const template = settings?.invoice_template || 'professional';
+  const template =
+    (templateOverride && templateOverride.trim()) ||
+    settings?.invoice_template ||
+    'professional';
   const thermalStyle = settings?.thermal_receipt_style || 'classic';
 
   // Calculate GST from item-level data

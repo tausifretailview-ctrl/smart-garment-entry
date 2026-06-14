@@ -53,6 +53,7 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";
 import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { generateOrgSaleNumber } from "@/utils/saleNumber";
+import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
   Command,
@@ -2751,6 +2752,7 @@ Thank you for choosing us!`;
 
             if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
               const companyName = (settingsData as any)?.business_name || currentOrganization.name || 'Our Company';
+              const saleSettings = (settingsData as any)?.sale_settings || {};
 
               const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
                 day: '2-digit',
@@ -2781,6 +2783,11 @@ Thank you for choosing us!`;
                     discount_amount: flatDiscountAmount,
                     items_count: totalQty,
                     organization_name: companyName,
+                    bill_context: 'sale',
+                    invoice_paper_format: saleSettings.invoice_paper_format || '',
+                    sales_bill_format: saleSettings.sales_bill_format || '',
+                    pos_bill_format: saleSettings.pos_bill_format || '',
+                    invoice_template: saleSettings.invoice_template || '',
                   },
                   referenceId: saleData.id,
                   referenceType: 'sale',
