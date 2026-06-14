@@ -190,7 +190,10 @@ export const OrgLayout = () => {
   const hideTabCacheContainer =
     (isEntryPage && !isCacheableEntryActive) ||
     (wantsTabCache && !effectiveTabPaneReady && !isCacheableEntryActive) ||
-    !isCacheableTabPath(resolvedCurrentPath);
+    !isCacheableTabPath(resolvedCurrentPath) ||
+    // Once we fell back to <Outlet>, keep the cached pane hidden even if it
+    // later signals ready — otherwise both render and the page appears duplicated.
+    forceOutletFallback;
 
   // Reset on navigation — restore immediately when this path was already mounted in tab cache.
   useEffect(() => {
@@ -381,7 +384,11 @@ export const OrgLayout = () => {
             onActivePaneReady={(path) => {
               const canonical = resolveTabCachePath(path);
               tabPaneReadyPathsRef.current.add(canonical);
-              if (resolveTabCachePath(currentPath) === canonical) setTabPaneReady(true);
+              if (resolveTabCachePath(currentPath) === canonical) {
+                setTabPaneReady(true);
+                // Pane is now ready — drop the Outlet fallback so we don't render twice.
+                setForceOutletFallback(false);
+              }
             }}
           />
         </div>
