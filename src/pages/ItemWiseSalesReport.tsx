@@ -407,6 +407,12 @@ export default function ItemWiseSalesReport() {
     return data;
   }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment, selectedColor]);
 
+  const itemWiseTotals = useMemo(() => ({
+    total_qty: filteredData.reduce((s, r) => s + r.total_qty, 0),
+    stock_qty: filteredData.reduce((s, r) => s + r.stock_qty, 0),
+    total_amount: filteredData.reduce((s, r) => s + r.total_amount, 0),
+  }), [filteredData]);
+
   // Brand-wise data: aggregate saleItems by customer_name + brand
   const brandWiseData = useMemo(() => {
     const groups = new Map<string, { customer_name: string; brand: string; total_qty: number; total_amount: number }>();
@@ -1080,6 +1086,18 @@ export default function ItemWiseSalesReport() {
                       );
                     })()}
                   </TableBody>
+                  {filteredData.length > 0 && (
+                    <TableFooter>
+                      <TableRow>
+                        <TableCell colSpan={6} className="font-bold">Grand Total</TableCell>
+                        <TableCell className="text-right font-bold">{itemWiseTotals.total_qty.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold">{itemWiseTotals.stock_qty.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">
+                          ₹{itemWiseTotals.total_amount.toLocaleString("en-IN")}
+                        </TableCell>
+                      </TableRow>
+                    </TableFooter>
+                  )}
                 </Table>
               </div>
             </CardContent>
