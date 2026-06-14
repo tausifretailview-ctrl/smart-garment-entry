@@ -289,6 +289,32 @@ function resolveServiceVariantDefaultMrp(variant: {
 const POS_VARIANT_LOOKUP_SELECT =
   'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom)';
 
+interface PosVariantRow {
+  id: string;
+  barcode?: string | null;
+  size?: string | null;
+  color?: string | null;
+  stock_qty?: number | null;
+  sale_price?: number | string | null;
+  mrp?: number | string | null;
+  pur_price?: number | string | null;
+  product_id?: string;
+  active?: boolean;
+  last_purchase_sale_price?: number | string | null;
+  last_purchase_mrp?: number | string | null;
+  last_purchase_date?: string | null;
+  updated_at?: string | null;
+  is_dc_product?: boolean | null;
+  [key: string]: unknown;
+}
+
+interface PosProductRow {
+  id: string;
+  product_name: string;
+  product_type?: string;
+  [key: string]: unknown;
+}
+
 async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
   const { data, error } = await supabase
     .from('product_variants')
@@ -303,7 +329,7 @@ async function fetchPosVariantByBarcode(orgId: string, barcode: string) {
 
   if (error) throw error;
 
-  const row = data?.[0] as { products?: Record<string, unknown> } & Record<string, unknown> | undefined;
+  const row = data?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined;
   if (!row?.products) return null;
 
   return { product: row.products, variant: row };
