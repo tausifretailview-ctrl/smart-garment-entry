@@ -31,6 +31,7 @@ import {
 } from "@/lib/navigationPerfDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
+import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { prefetchPurchaseDashboardQueries } from "@/utils/purchaseDashboardPrefetch";
 import { DesktopAppShell } from "@/components/DesktopAppShell";
 import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
@@ -62,6 +63,8 @@ export const OrgLayout = () => {
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
 
   const isTabPaneReadyForPath = useCallback((path: string): boolean => {
+    // Registry reflects actual mount state (cleared on idle eviction). Ref alone goes stale.
+    if (isTabCachePaneMounted(path)) return true;
     if (tabPaneReadyPathsRef.current.has(path)) return true;
     for (const recorded of tabPaneReadyPathsRef.current) {
       if (resolveTabCachePath(recorded) === path) return true;
@@ -172,7 +175,8 @@ export const OrgLayout = () => {
   const wantsTabCache =
     isCacheableTabPath(resolvedCurrentPath) && tabPaths.length > 0;
   const tabPaneWasReady = isTabPaneReadyForPath(resolvedCurrentPath);
-  const effectiveTabPaneReady = tabPaneReady || tabPaneWasReady;
+  const paneMounted = isTabCachePaneMounted(resolvedCurrentPath);
+  const effectiveTabPaneReady = tabPaneReady || (tabPaneWasReady && paneMounted);
   // Cacheable entry (purchase-entry): always render via tab cache when window tabs are open.
   // Dashboards: keep <Outlet> visible until the cached pane has mounted (chunk still loading).
   const renderViaTabCache =
@@ -211,14 +215,14 @@ export const OrgLayout = () => {
 
   // Safety net: if the cached pane never signals ready (slow network / chunk failure), keep Outlet visible.
   useEffect(() => {
-    if (!wantsTabCache || isCacheableEntryActive || effectiveTabPaneReady) return;
+    if (!wantsTabCache || effectiveTabPaneReady) return;
     const timeoutMs = isElectronShell() ? 12_000 : 18_000;
     const timer = window.setTimeout(() => {
       console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
       setForceOutletFallback(true);
     }, timeoutMs);
     return () => window.clearTimeout(timer);
-  }, [wantsTabCache, isCacheableEntryActive, effectiveTabPaneReady, currentPath]);
+  }, [wantsTabCache, effectiveTabPaneReady, currentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
@@ -386,8 +390,15 @@ export const OrgLayout = () => {
               tabPaneReadyPathsRef.current.add(canonical);
               if (resolveTabCachePath(currentPath) === canonical) {
                 setTabPaneReady(true);
-                // Pane is now ready — drop the Outlet fallback so we don't render twice.
                 setForceOutletFallback(false);
+              }
+            }}
+            onTabEvicted={(path) => {
+              const canonical = resolveTabCachePath(path);
+              tabPaneReadyPathsRef.current.delete(canonical);
+              if (resolveTabCachePath(currentPath) === canonical) {
+                setTabPaneReady(false);
+                setForceOutletFallback(true);
               }
             }}
           />

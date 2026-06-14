@@ -36,8 +36,8 @@ import {
 
 /** Hidden tab panes idle longer than this may be unmounted (read-only dashboards only). */
 const IDLE_UNMOUNT_MS = 600_000;
-/** Windows desktop: evict idle dashboards sooner to avoid renderer OOM / sudden app close. */
-const ELECTRON_IDLE_UNMOUNT_MS = 180_000;
+/** Windows desktop: evict idle dashboards sooner to avoid renderer OOM / blank window. */
+const ELECTRON_IDLE_UNMOUNT_MS = 120_000;
 /** Avoid churn when few tabs are open — never auto-unmount at or below this count. */
 const MIN_KEEP_TABS = 3;
 const ELECTRON_MIN_KEEP_TABS = 2;
@@ -454,6 +454,8 @@ type TabCachedPagesProps = {
   activePath: string;
   /** Fired when the active pane's lazy chunk has mounted (Suspense resolved). */
   onActivePaneReady?: (path: string) => void;
+  /** Fired when an idle tab is unmounted from memory (Electron OOM guard). */
+  onTabEvicted?: (path: string) => void;
 };
 
 /**
@@ -463,7 +465,7 @@ type TabCachedPagesProps = {
  * On full reload only the active tab is mounted first — other open tabs mount when
  * the user switches to them (avoids loading 8+ dashboards at once).
  */
-export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCachedPagesProps) {
+export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvicted }: TabCachedPagesProps) {
   const resolvedActivePath = resolveTabCachePath(activePath);
   const uniquePaths = useMemo(
     () => [...new Set(paths.map(resolveTabCachePath).filter((p) => isTabCachePath(p)))],
@@ -478,6 +480,20 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady }: TabCach
 
   const electronSingleTab = shouldElectronMountOnlyActiveTab();
   const lastActiveAtRef = useRef<Map<string, number>>(new Map());
+  const prevMountedPathsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!onTabEvicted) {
+      prevMountedPathsRef.current = new Set(mountedPaths);
+      return;
+    }
+    for (const path of prevMountedPathsRef.current) {
+      if (!mountedPaths.has(path)) {
+        onTabEvicted(path);
+      }
+    }
+    prevMountedPathsRef.current = new Set(mountedPaths);
+  }, [mountedPaths, onTabEvicted]);
 
   const touchTabActiveAt = useCallback((path: string) => {
     lastActiveAtRef.current.set(path, Date.now());

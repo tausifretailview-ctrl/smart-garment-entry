@@ -399,9 +399,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               console.log("Session restored after tab resume");
               applyResumedSession(resumed);
             } else {
-              console.warn("No valid session after tab resume — signing out");
-              toast.error("Session expired, please login again");
-              await safeSignOut(setSession, setUser);
+              // Windows tray wake / slow network — one more read before forcing relogin.
+              await delay(1500);
+              const { data: { session: retrySession } } = await supabase.auth.getSession();
+              if (retrySession?.user) {
+                console.log("Session found on delayed resume check");
+                applyResumedSession(retrySession);
+              } else if (!navigator.onLine && sessionRef.current?.user) {
+                console.warn("Offline after tab resume — keeping stored session");
+              } else {
+                console.warn("No valid session after tab resume — signing out");
+                toast.error("Session expired, please login again");
+                await safeSignOut(setSession, setUser);
+              }
             }
           } else if (isSessionNeedsRefresh(currentSession)) {
             console.log("Session near expiry after tab resume, refreshing...");
