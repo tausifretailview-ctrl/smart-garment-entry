@@ -27,6 +27,16 @@ const VOLATILE_PREFIXES = [
   "variant-lookup",
   "barcode-scan",
   "barcode-stock-scan",
+  "product-stock-movements",
+  "stock-movements",
+  "stock-adjustment-variants",
+  "floating-stock-fallback",
+  "owner-low-stock",
+  "todays-sales",
+  "today-sales",
+  "mobile-dashboard-today-sales",
+  "payment-reconciliation",
+  "customers-with-balance",
   "auth",
   "session",
 ] as const;
@@ -39,6 +49,8 @@ const LIVE_SEARCH_MARKERS = [
   "debouncedsearch",
   "searchterm",
   "searchquery",
+  "payment-status",
+  "paymentstatus",
 ] as const;
 
 /** Skip live search, barcode, and auth keys — persist reference/dashboard data only. */
