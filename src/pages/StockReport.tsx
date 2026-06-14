@@ -75,6 +75,13 @@ interface SizeWiseRow {
   totalStock: number;
 }
 
+/** Override ui/table defaults (bg-black + text-white on thead/th) for light report headers */
+const STOCK_TABLE_HEAD =
+  "sticky top-0 z-20 !bg-transparent [&_tr]:!bg-transparent [&_tr]:border-slate-200";
+const STOCK_NEUTRAL_TH =
+  "text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal";
+const STOCK_TABLE_SCROLL = "max-h-[min(calc(100vh-260px),780px)] overflow-auto overscroll-contain min-w-0";
+
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
   const fieldLabels = useProductFieldLabels();
@@ -1501,17 +1508,17 @@ export default function StockReport() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-20 print:bg-white print:p-4">
-      <div className="w-full min-w-0 max-w-none space-y-5 print:space-y-3">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-3 pb-24 lg:pb-16 print:bg-white print:p-4">
+      <div className="w-full min-w-0 max-w-none space-y-3 print:space-y-3">
       <div className="print:hidden">
         <BackToDashboard />
       </div>
-      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+          <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight leading-tight">
             Stock Report
           </h1>
-          <p className="text-slate-400 text-base mt-0.5">
+          <p className="text-slate-400 text-sm">
             Search · filter · export — all stock, size-wise, and valuations
           </p>
         </div>
@@ -1546,7 +1553,7 @@ export default function StockReport() {
       <ReportKpiCards items={stockKpiItems} />
 
       <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden print:hidden">
-        <div className="space-y-3 p-4 border-b border-slate-100 bg-white">
+        <div className="space-y-2.5 p-3 border-b border-slate-100 bg-white">
         <div className="flex gap-2 items-center">
           <ProductSearchDropdown
             value={searchTerm}
@@ -1601,9 +1608,9 @@ export default function StockReport() {
         )}
 
         {/* Always visible multi-field filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-          <div className="space-y-2 relative">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Product Name</label>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+          <div className="space-y-1 relative">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Product Name</label>
             <SearchableSelect
               value={productNameFilter || "all"}
               onValueChange={(val) => {
@@ -1631,28 +1638,28 @@ export default function StockReport() {
               placeholder="All Products"
             />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Brand</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Brand</label>
             <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={derivedFilterOptions.brands} allLabel="All Brands" placeholder="All Brands" />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fieldLabels.category}</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
             <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={derivedFilterOptions.categories} allLabel="All Categories" placeholder="All Categories" />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fieldLabels.style}</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
             <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={derivedFilterOptions.departments} allLabel={`All ${fieldLabels.style}`} placeholder={`All ${fieldLabels.style}`} />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Size</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Size</label>
             <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={derivedFilterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{fieldLabels.color}</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
             <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={derivedFilterOptions.colors} allLabel="All Colors" placeholder="All Colors" />
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Stock Status</label>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Stock Status</label>
             <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
               <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Status" />
@@ -1678,12 +1685,12 @@ export default function StockReport() {
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</label>
                 <SearchableSelect value={supplierFilter} onValueChange={setSupplierFilter} options={derivedFilterOptions.suppliers} allLabel="All Suppliers" placeholder="All Suppliers" />
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supplier Invoice</label>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier Invoice</label>
                 <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={derivedFilterOptions.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />
               </div>
             </div>
@@ -1693,84 +1700,90 @@ export default function StockReport() {
       </Card>
 
       {!hasSearched ? (
-        <Card className="py-16 rounded-xl border border-slate-200 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center text-center">
-            <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium mb-2">Search to View Detailed Stock Report</h3>
+        <Card className="py-10 rounded-xl border border-slate-200 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center text-center py-4">
+            <Search className="h-10 w-10 text-muted-foreground/50 mb-3" />
+            <h3 className="text-base font-medium mb-1">Search to View Detailed Stock Report</h3>
             <p className="text-muted-foreground text-sm max-w-md">
               Apply filters or enter a search term, then click Search to view detailed stock data.
             </p>
           </CardContent>
         </Card>
       ) : loading ? (
-        <Card className="py-16">
-          <CardContent className="flex flex-col items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Loading stock data...</p>
+        <Card className="py-10 rounded-xl border border-slate-200 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-4">
+            <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
+            <p className="text-muted-foreground text-sm">Loading stock data...</p>
           </CardContent>
         </Card>
       ) : (
-        <>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="h-10 bg-muted/60 p-1 rounded-xl">
-              <TabsTrigger value="all" className="rounded-lg text-xs font-medium">All Stock</TabsTrigger>
-              <TabsTrigger value="sizewise" className="rounded-lg text-xs font-medium gap-1">
-                <Grid3X3 className="h-4 w-4" />
-                Size-wise
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white">
+              <TabsList className="h-9 bg-slate-100 p-0.5 rounded-lg">
+                <TabsTrigger value="all" className="rounded-md text-xs font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                  All Stock
+                </TabsTrigger>
+                <TabsTrigger value="sizewise" className="rounded-md text-xs font-semibold px-3 gap-1 data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                  <Grid3X3 className="h-3.5 w-3.5" />
+                  Size-wise
+                </TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-slate-500">
+                  {activeTab === "all"
+                    ? `Showing ${filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0}–${Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of ${filteredStockItems.length}`
+                    : `${sizeWiseData.rows.length} products`}
+                </span>
+                {activeTab === "all" ? (
+                  <>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={exportAllStockToExcel} disabled={filteredStockItems.length === 0}>
+                      <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={printAllStock} disabled={filteredStockItems.length === 0}>
+                      <Printer className="h-3.5 w-3.5 mr-1" /> Print
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={exportSizeWiseToExcel} disabled={sizeWiseData.rows.length === 0}>
+                      <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={exportSizeWiseToPDF} disabled={sizeWiseData.rows.length === 0}>
+                      <FileText className="h-3.5 w-3.5 mr-1" /> PDF
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
 
-            <TabsContent value="all" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Current Stock Levels</CardTitle>
-                      <CardDescription>
-                        Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty + Sale Return = Current Stock Qty
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-muted-foreground">
-                        Showing {filteredStockItems.length > 0 ? ((currentPage - 1) * ITEMS_PER_PAGE) + 1 : 0} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of {filteredStockItems.length} items
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={exportAllStockToExcel} disabled={filteredStockItems.length === 0}>
-                          <FileSpreadsheet className="h-4 w-4 mr-1" /> Excel
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={printAllStock} disabled={filteredStockItems.length === 0}>
-                          <Printer className="h-4 w-4 mr-1" /> Print
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="max-h-[min(70vh,900px)] overflow-auto overscroll-contain min-w-0">
-                      <Table className="text-[15px]">
-                      <TableHeader className="sticky top-0 z-20">
-                        <TableRow>
-                          <TableHead className="w-16 text-center text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Sr No</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Supplier</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Supplier Invoice</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Product</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">{fieldLabels.brand}</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Size</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">{fieldLabels.color}</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">{fieldLabels.style}</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Barcode</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-white">Sale Return</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-white">Current Stock</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Pur Price</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Stock Value</TableHead>
-                          <TableHead className="text-right text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Sale Price</TableHead>
-                          <TableHead className="text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800">Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
+            <TabsContent value="all" className="mt-0 focus-visible:outline-none">
+              <CardContent className="p-0">
+                <div className={STOCK_TABLE_SCROLL}>
+                  <Table className="text-[15px]">
+                    <TableHeader className={STOCK_TABLE_HEAD}>
+                      <TableRow>
+                        <TableHead className={cn("w-16 text-center", STOCK_NEUTRAL_TH)}>Sr No</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>Supplier</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>Supplier Invoice</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>Product</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.brand}</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>Size</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.color}</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>{fieldLabels.style}</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>Barcode</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100")}>Opening Qty</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-100")}>Purchase Qty</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-orange-100")}>Pur Return</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-100")}>Sales Qty</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-100")}>Sale Return</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>Current Stock</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Pur Price</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Stock Value</TableHead>
+                        <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Sale Price</TableHead>
+                        <TableHead className={STOCK_NEUTRAL_TH}>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
                       <TableBody>
                         {paginatedStockItems.length === 0 ? (
                           <TableRow>
@@ -1877,8 +1890,8 @@ export default function StockReport() {
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                      <div className="text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between px-3 py-2 border-t border-slate-100 bg-slate-50/80">
+                      <div className="text-xs text-slate-500">
                         Page {currentPage} of {totalPages}
                       </div>
                       <div className="flex items-center gap-2">
@@ -1947,90 +1960,59 @@ export default function StockReport() {
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+              </CardContent>
             </TabsContent>
 
-            <TabsContent value="sizewise" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Grid3X3 className="h-5 w-5" />
-                        Size-wise Item Stock Report
-                      </CardTitle>
-                      <CardDescription>
-                        Product stock grouped by sizes - shows quantity per size with total
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={exportSizeWiseToExcel}
-                        disabled={sizeWiseData.rows.length === 0}
-                      >
-                        <FileSpreadsheet className="h-4 w-4 mr-1" />
-                        Excel
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={exportSizeWiseToPDF}
-                        disabled={sizeWiseData.rows.length === 0}
-                      >
-                        <FileText className="h-4 w-4 mr-1" />
-                        PDF
-                      </Button>
-                    </div>
+            <TabsContent value="sizewise" className="mt-0 focus-visible:outline-none">
+              <CardContent className="p-0">
+                <div className="px-3 py-2 border-b border-slate-100">
+                  <div className="relative max-w-2xl">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search live: type product-category-brand-style-color-size (use - or space)"
+                      value={sizeWiseSearch}
+                      onChange={(e) => setSizeWiseSearch(e.target.value)}
+                      className="pl-9 h-9"
+                    />
                   </div>
-                </CardHeader>
-                <CardContent className="p-0 md:p-6">
-                  <div className="px-4 md:px-0 pb-3 md:pb-4">
-                    <div className="relative max-w-2xl">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search live: type product-category-brand-style-color-size (use - or space)"
-                        value={sizeWiseSearch}
-                        onChange={(e) => setSizeWiseSearch(e.target.value)}
-                        className="pl-9 h-9"
-                      />
+                  {sizeWiseSearch && (
+                    <div className="text-xs text-slate-500 mt-1">
+                      Showing {sizeWiseData.rows.length} matching products
                     </div>
-                    {sizeWiseSearch && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Showing {sizeWiseData.rows.length} matching products
-                      </div>
-                    )}
-                  </div>
-                  {sizeWiseData.rows.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No products found matching your filters</p>
-                  ) : (
-                    <>
-                      {/* Mobile hint for horizontal scroll */}
-                      <div className="md:hidden px-4 pb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                        <ChevronLeft className="h-3 w-3" />
-                        <span>Swipe to see all sizes</span>
-                        <ChevronRight className="h-3 w-3" />
-                      </div>
-                      <div className="overflow-x-auto scroll-smooth snap-x snap-mandatory md:snap-none scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-                        <Table className="min-w-max">
-                          <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead className="font-semibold min-w-[180px] md:min-w-[250px] sticky left-0 bg-muted/95 z-10 backdrop-blur-sm">Product</TableHead>
-                              {sizeWiseData.sizes.map((size, idx) => (
-                                <TableHead 
-                                  key={size} 
-                                  className={`text-center font-semibold min-w-[50px] md:min-w-[60px] bg-primary/10 snap-start ${idx === 0 ? 'scroll-ml-[180px] md:scroll-ml-0' : ''}`}
-                                >
-                                  {size}
-                                </TableHead>
-                              ))}
-                              <TableHead className="text-center font-bold min-w-[60px] md:min-w-[80px] bg-primary/20 text-primary sticky right-0 backdrop-blur-sm">
-                                Stock
+                  )}
+                </div>
+                {sizeWiseData.rows.length === 0 ? (
+                  <p className="text-center text-muted-foreground text-sm py-8">No products found matching your filters</p>
+                ) : (
+                  <>
+                    <div className="md:hidden px-3 py-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                      <ChevronLeft className="h-3 w-3" />
+                      <span>Swipe to see all sizes</span>
+                      <ChevronRight className="h-3 w-3" />
+                    </div>
+                    <div className={cn(STOCK_TABLE_SCROLL, "overflow-x-auto scroll-smooth snap-x snap-mandatory md:snap-none")}>
+                      <Table className="min-w-max text-[15px]">
+                        <TableHeader className={STOCK_TABLE_HEAD}>
+                          <TableRow>
+                            <TableHead className={cn("min-w-[180px] md:min-w-[250px] sticky left-0 z-10", STOCK_NEUTRAL_TH)}>Product</TableHead>
+                            {sizeWiseData.sizes.map((size, idx) => (
+                              <TableHead
+                                key={size}
+                                className={cn(
+                                  "text-center min-w-[50px] md:min-w-[60px] snap-start",
+                                  STOCK_NEUTRAL_TH,
+                                  "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100",
+                                  idx === 0 ? "scroll-ml-[180px] md:scroll-ml-0" : "",
+                                )}
+                              >
+                                {size}
                               </TableHead>
-                            </TableRow>
-                          </TableHeader>
+                            ))}
+                            <TableHead className={cn("text-center min-w-[60px] md:min-w-[80px] sticky right-0 z-10", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>
+                              Stock
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
                           <TableBody>
                             {sizeWiseData.rows.map((row, index) => (
                               <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
@@ -2088,11 +2070,10 @@ export default function StockReport() {
                       </div>
                     </>
                   )}
-                </CardContent>
-              </Card>
+              </CardContent>
             </TabsContent>
-          </Tabs>
-        </>
+          </Card>
+        </Tabs>
       )}
       </div>
     </div>
