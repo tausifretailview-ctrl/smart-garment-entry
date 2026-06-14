@@ -66,6 +66,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
+import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useMobileERP } from "@/hooks/useMobileERP";
 import {
@@ -1261,8 +1262,13 @@ const POSDashboard = () => {
 
     // Generate invoice URL - include org slug for branding
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const thermalSuffix = saleSettings?.pos_bill_format === 'thermal' ? '?format=thermal' : '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}${thermalSuffix}`;
+    const invoiceUrl = buildPublicInvoiceViewUrl({
+      orgSlug,
+      saleId: sale.id,
+      billContext: 'pos',
+      saleSettings,
+      baseUrl: window.location.origin,
+    });
     
     // Fetch customer balance if customer_id exists
     let customerBalance = 0;
@@ -1399,8 +1405,13 @@ const POSDashboard = () => {
   const handleCopyLink = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
-    const thermalSuffix = saleSettings?.pos_bill_format === 'thermal' ? '?format=thermal' : '';
-    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}${thermalSuffix}`;
+    const invoiceUrl = buildPublicInvoiceViewUrl({
+      orgSlug,
+      saleId: sale.id,
+      billContext: 'pos',
+      saleSettings,
+      baseUrl: window.location.origin,
+    });
     copyInvoiceLink(invoiceUrl);
   };
 
