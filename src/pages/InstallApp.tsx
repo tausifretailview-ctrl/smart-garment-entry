@@ -135,7 +135,13 @@ export default function InstallApp() {
   }, [orgSlug]);
 
   const installUrl = `${linkOrigin}/${orgSlug}/install`;
+  const androidApkUrl = `${linkOrigin}${ANDROID_APK_URL}`;
   const appStartUrl = `${window.location.origin}/${orgSlug}`;
+
+  const copyApkLink = () => {
+    navigator.clipboard.writeText(androidApkUrl);
+    toast.success("Android APK link copied");
+  };
 
   const handleInstall = async () => {
     if (isInstallable) {
@@ -152,11 +158,7 @@ export default function InstallApp() {
   };
 
   const shareWhatsApp = () => {
-    const androidNote =
-      platform === "android"
-        ? `\nAndroid app (APK): ${linkOrigin}${ANDROID_APK_URL}`
-        : "";
-    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}${androidNote}`;
+    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}\nAndroid APK: ${androidApkUrl}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
@@ -192,7 +194,9 @@ export default function InstallApp() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{orgName || "Ezzy ERP"}</h1>
-            <p className="text-sm text-muted-foreground mt-1">Install the app on your phone</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {platform === "desktop" ? "Download for phone or computer" : "Install the app on your phone"}
+            </p>
           </div>
         </div>
 
@@ -239,12 +243,17 @@ export default function InstallApp() {
               </Button>
             </div>
           </Card>
-        ) : platform === "android" || platform === "other" ? (
+        ) : null}
+
+        {/* Android APK — shown on Android phones and on desktop (for sharing / sideload) */}
+        {!(isStandalone || isInstalled) && platform !== "ios" && (
           <Card className="p-6 space-y-4">
             <div className="text-center space-y-1">
               <h2 className="font-semibold text-lg">Download Android App</h2>
               <p className="text-sm text-muted-foreground">
-                Native app — opens your shop, updates automatically from the cloud.
+                {platform === "desktop"
+                  ? "Share this APK link with staff — open on an Android phone to install."
+                  : "Native app — opens your shop, updates automatically from the cloud."}
               </p>
             </div>
             <Button asChild className="w-full h-14 text-base" size="lg">
@@ -253,8 +262,18 @@ export default function InstallApp() {
                 Download EzzyERP for Android
               </a>
             </Button>
+            <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+              <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
+              <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
             <p className="text-xs text-center text-muted-foreground">
-              After download, tap the APK file and allow <strong>Install unknown apps</strong> if prompted.
+              {platform === "desktop" ? (
+                <>Version 1.1 · After download on phone, tap the APK and allow <strong>Install unknown apps</strong>.</>
+              ) : (
+                <>After download, tap the APK file and allow <strong>Install unknown apps</strong> if prompted.</>
+              )}
             </p>
             {platform === "android" && isInstallable && (
               <>
@@ -269,13 +288,18 @@ export default function InstallApp() {
                 Prefer a home-screen shortcut? Chrome menu (⋮) → <strong>Install app</strong>
               </p>
             )}
-            <div className="pt-2 border-t">
-              <Button asChild variant="ghost" className="w-full" size="lg">
-                <a href={appStartUrl}>Open in Browser</a>
-              </Button>
-            </div>
+            {platform !== "desktop" && (
+              <div className="pt-2 border-t">
+                <Button asChild variant="ghost" className="w-full" size="lg">
+                  <a href={appStartUrl}>Open in Browser</a>
+                </Button>
+              </div>
+            )}
           </Card>
-        ) : (
+        )}
+
+        {/* Windows — desktop browsers only */}
+        {!(isStandalone || isInstalled) && platform === "desktop" && (
           <Card className="p-6 space-y-4">
             <div className="text-center space-y-1">
               <h2 className="font-semibold text-lg">Download for Windows</h2>
@@ -315,6 +339,17 @@ export default function InstallApp() {
           <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
             <span className="text-xs flex-1 truncate font-mono">{installUrl}</span>
           </div>
+          {platform !== "ios" && (
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Android APK direct link</div>
+              <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+                <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
+                <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <Button variant="outline" size="sm" onClick={copyLink}>
               <Copy className="mr-2 h-4 w-4" /> Copy Link
