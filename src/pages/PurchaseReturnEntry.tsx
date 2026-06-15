@@ -1832,12 +1832,12 @@ const PurchaseReturnEntry = () => {
               <Table className="table-fixed w-full min-w-[1100px] border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
                 <TableHeader className="sticky top-0 z-10">
                   <TableRow className="bg-white border-b-2 border-black hover:bg-white">
-                    <TableHead className="w-[40px] text-center text-[13px] uppercase font-bold text-black h-11">#</TableHead>
-                    <TableHead className="min-w-[160px] text-left text-[13px] uppercase font-bold text-black h-11">Item Name</TableHead>
-                    <TableHead className="w-[80px] text-center text-[13px] uppercase font-bold text-black h-11">Brand</TableHead>
-                    <TableHead className="w-[70px] text-center text-[13px] uppercase font-bold text-black h-11">Color</TableHead>
-                    <TableHead className="w-[60px] text-center text-[13px] uppercase font-bold text-black h-11">Size</TableHead>
-                    <TableHead className="w-[100px] text-center text-[13px] uppercase font-bold text-black h-11">Barcode</TableHead>
+                    <TableHead className="w-[40px] text-center !text-[15px] uppercase font-bold text-black h-11">#</TableHead>
+                    <TableHead className="min-w-[160px] text-left !text-[15px] uppercase font-bold text-black h-11">Item Name</TableHead>
+                    <TableHead className="w-[80px] text-center !text-[15px] uppercase font-bold text-black h-11">Brand</TableHead>
+                    <TableHead className="w-[70px] text-center !text-[15px] uppercase font-bold text-black h-11">Color</TableHead>
+                    <TableHead className="w-[60px] text-center !text-[15px] uppercase font-bold text-black h-11">Size</TableHead>
+                    <TableHead className="w-[100px] text-center !text-[15px] uppercase font-bold text-black h-11">Barcode</TableHead>
                     <TableHead className="w-[72px] text-center text-[13px] uppercase font-bold text-black h-11">Qty</TableHead>
                     {showMrp && (
                       <TableHead className="w-[80px] text-right text-[13px] uppercase font-bold text-black h-11">MRP</TableHead>
@@ -1855,12 +1855,12 @@ const PurchaseReturnEntry = () => {
                 <TableBody>
                   {lineItems.map((item, index) => (
                     <TableRow key={item.temp_id} className="border-b border-black/5">
-                      <TableCell className="text-center text-black/60 font-mono text-sm py-1">{index + 1}</TableCell>
-                      <TableCell className="font-semibold text-sm text-black py-1">{item.product_name}</TableCell>
-                      <TableCell className="text-center text-sm text-black py-1">{item.brand}</TableCell>
-                      <TableCell className="text-center text-sm text-black py-1">{item.color || "-"}</TableCell>
-                      <TableCell className="text-center text-sm font-mono text-black py-1">{item.size}</TableCell>
-                      <TableCell className="text-center text-xs font-mono text-black/70 py-1">{item.barcode}</TableCell>
+                      <TableCell className="text-center text-black/60 font-mono !text-[15px] py-1.5">{index + 1}</TableCell>
+                      <TableCell className="font-bold !text-[17px] text-black py-1.5 leading-snug">{item.product_name}</TableCell>
+                      <TableCell className="text-center !text-[16px] font-medium text-black py-1.5">{item.brand}</TableCell>
+                      <TableCell className="text-center !text-[16px] font-medium text-black py-1.5">{item.color || "-"}</TableCell>
+                      <TableCell className="text-center !text-[16px] font-mono font-semibold text-black py-1.5">{item.size}</TableCell>
+                      <TableCell className="text-center !text-[15px] font-mono font-medium text-black/80 py-1.5">{item.barcode}</TableCell>
                       <TableCell className="py-1">
                         <div className="flex items-center gap-1 justify-center">
                           <Input
@@ -1950,7 +1950,7 @@ const PurchaseReturnEntry = () => {
                           />
                         </TableCell>
                       )}
-                      <TableCell className="text-right font-bold text-sm font-mono tabular-nums text-black py-1 border-l-2 border-black/10">
+                      <TableCell className="text-right font-bold text-[15px] font-mono tabular-nums text-black py-1.5 border-l-2 border-black/10">
                         ₹{item.line_total.toFixed(2)}
                       </TableCell>
                       <TableCell className="py-1">
@@ -2020,13 +2020,13 @@ const PurchaseReturnEntry = () => {
               </div>
               <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
                 <div className="flex items-center justify-between gap-3 min-w-[140px]">
-                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
-                  <span className="text-[16px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
+                  <span className="text-[13px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
+                  <span className="text-[18px] font-extrabold tabular-nums">₹{grossAmount.toFixed(0)}</span>
                 </div>
                 {!isDC && (
                   <div className="flex items-center justify-between gap-3 min-w-[140px]">
-                    <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">GST</span>
-                    <span className="text-[16px] font-extrabold tabular-nums">₹{gstAmount.toFixed(0)}</span>
+                    <span className="text-[13px] uppercase tracking-wide font-extrabold text-black/70">GST</span>
+                    <span className="text-[18px] font-extrabold tabular-nums">₹{gstAmount.toFixed(0)}</span>
                   </div>
                 )}
               </div>
@@ -2039,8 +2039,8 @@ const PurchaseReturnEntry = () => {
             </div>
           </div>
         </div>
-        <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2 gap-x-3 gap-y-1.5">
-          <div className="hidden xl:flex items-center gap-2 text-[14px] text-black font-mono flex-1 min-w-0 overflow-hidden whitespace-nowrap">
+        <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2.5 gap-x-3 gap-y-1.5">
+          <div className="flex items-center gap-2.5 !text-[17px] text-black font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
             <span>Gross <span className="font-extrabold">₹{grossAmount.toFixed(0)}</span></span>
             <span className="text-black/30">—</span>
             <span>Disc <span className="font-extrabold">₹{discountAmount.toFixed(0)}</span></span>
