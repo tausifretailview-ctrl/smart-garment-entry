@@ -27,6 +27,11 @@ android/capacitor-cordova-android-plugins/
 !debug.keystore
 android/keystore.properties
 
+# Installers — host on Supabase Storage / CDN; never commit binaries
+public/downloads/*.apk
+public/downloads/*.exe
+!public/downloads/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

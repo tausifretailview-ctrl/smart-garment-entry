@@ -8,13 +8,18 @@ import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle } 
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
+import {
+  APP_VERSION,
+  ANDROID_APK_DOWNLOAD_NAME,
+  ANDROID_APK_URL,
+  WINDOWS_PORTABLE_URL,
+  WINDOWS_SETUP_URL,
+  isAndroidApkConfigured,
+  isWindowsInstallerConfigured,
+  isWindowsPortableConfigured,
+} from "@/config/downloads";
 
 type Platform = "android" | "ios" | "desktop" | "other";
-
-// Installers served from public/downloads/ (upload after each release build).
-const ANDROID_APK_URL = "/downloads/EzzyERP-1.1.0.apk";
-const WINDOWS_SETUP_URL = "/downloads/EzzyERP-Setup-1.0.0.exe";
-const WINDOWS_PORTABLE_URL = "/downloads/EzzyERP-Portable-1.0.0.exe";
 
 function detectPlatform(): Platform {
   const ua = navigator.userAgent;
@@ -69,7 +74,7 @@ export default function InstallApp() {
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [apkAvailable, setApkAvailable] = useState<boolean | null>(null);
+  const androidApkConfigured = isAndroidApkConfigured();
   const platform = detectPlatform();
   const isStandalone = isStandaloneDisplay();
   const manifestRevokeRef = useRef<(() => void) | null>(null);
@@ -135,24 +140,8 @@ export default function InstallApp() {
     })();
   }, [orgSlug]);
 
-  useEffect(() => {
-    const apkUrl = `${linkOrigin}${ANDROID_APK_URL}`;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(apkUrl, { method: "HEAD" });
-        if (!cancelled) setApkAvailable(res.ok);
-      } catch {
-        if (!cancelled) setApkAvailable(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [linkOrigin]);
-
   const installUrl = `${linkOrigin}/${orgSlug}/install`;
-  const androidApkUrl = `${linkOrigin}${ANDROID_APK_URL}`;
+  const androidApkUrl = ANDROID_APK_URL;
   const appStartUrl = `${window.location.origin}/${orgSlug}`;
 
   const copyApkLink = () => {
@@ -175,7 +164,8 @@ export default function InstallApp() {
   };
 
   const shareWhatsApp = () => {
-    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}\nAndroid APK: ${androidApkUrl}`;
+    const apkLine = androidApkConfigured ? `\nAndroid APK: ${androidApkUrl}` : "";
+    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}${apkLine}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
@@ -273,26 +263,31 @@ export default function InstallApp() {
                   : "Native app — opens your shop, updates automatically from the cloud."}
               </p>
             </div>
-            <Button asChild className="w-full h-14 text-base" size="lg">
-              <a href={androidApkUrl} download="EzzyERP-1.1.0.apk">
+            <Button asChild className="w-full h-14 text-base" size="lg" disabled={!androidApkConfigured}>
+              <a
+                href={androidApkConfigured ? androidApkUrl : undefined}
+                download={androidApkConfigured ? ANDROID_APK_DOWNLOAD_NAME : undefined}
+              >
                 <Download className="mr-2 h-5 w-5" />
                 Download EzzyERP for Android
               </a>
             </Button>
-            {apkAvailable === false && (
+            {!androidApkConfigured && (
               <p className="text-xs text-center text-destructive">
-                APK file is not on the server yet. Deploy <span className="font-mono">public/downloads/EzzyERP-1.1.0.apk</span> to fix this.
+                Android installer not configured yet.
               </p>
             )}
-            <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
-              <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
-              <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
+            {androidApkConfigured && (
+              <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+                <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
+                <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
             <p className="text-xs text-center text-muted-foreground">
               {platform === "desktop" ? (
-                <>Version 1.1 · Open the APK link on an Android phone, then tap <strong>Install</strong> (not Open in browser).</>
+                <>Version {APP_VERSION} · Open the APK link on an Android phone, then tap <strong>Install</strong> (not Open in browser).</>
               ) : (
                 <>
                   1. Tap Download above · 2. Open notification or Files app · 3. Tap the APK · 4. Choose{" "}
@@ -324,7 +319,7 @@ export default function InstallApp() {
         )}
 
         {/* Windows — desktop browsers only */}
-        {!(isStandalone || isInstalled) && platform === "desktop" && (
+        {!(isStandalone || isInstalled) && platform === "desktop" && isWindowsInstallerConfigured() && (
           <Card className="p-6 space-y-4">
             <div className="text-center space-y-1">
               <h2 className="font-semibold text-lg">Download for Windows</h2>
@@ -338,11 +333,13 @@ export default function InstallApp() {
                 Download EzzyERP for Windows
               </a>
             </Button>
-            <Button asChild variant="outline" className="w-full" size="sm">
-              <a href={WINDOWS_PORTABLE_URL} download>
-                Portable version (no install needed)
-              </a>
-            </Button>
+            {isWindowsPortableConfigured() && (
+              <Button asChild variant="outline" className="w-full" size="sm">
+                <a href={WINDOWS_PORTABLE_URL} download>
+                  Portable version (no install needed)
+                </a>
+              </Button>
+            )}
             <p className="text-xs text-center text-muted-foreground">
               Windows 10/11 (64-bit). If Windows shows &quot;Unknown publisher&quot;, click{" "}
               <strong>More info → Run anyway</strong>.
@@ -364,7 +361,7 @@ export default function InstallApp() {
           <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
             <span className="text-xs flex-1 truncate font-mono">{installUrl}</span>
           </div>
-          {platform !== "ios" && (
+          {platform !== "ios" && androidApkConfigured && (
             <div className="space-y-1">
               <div className="text-xs text-muted-foreground">Android APK direct link</div>
               <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
