@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,7 +11,8 @@ import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 
 type Platform = "android" | "ios" | "desktop" | "other";
 
-// Windows desktop installers served from the site's public/ folder.
+// Installers served from public/downloads/ (upload after each release build).
+const ANDROID_APK_URL = "/downloads/EzzyERP-1.1.0.apk";
 const WINDOWS_SETUP_URL = "/downloads/EzzyERP-Setup-1.0.0.exe";
 const WINDOWS_PORTABLE_URL = "/downloads/EzzyERP-Portable-1.0.0.exe";
 
@@ -71,12 +73,12 @@ export default function InstallApp() {
   const isStandalone = isStandaloneDisplay();
   const manifestRevokeRef = useRef<(() => void) | null>(null);
 
-  // iOS "Add to Home Screen" keeps the page URL; send standalone users straight to the org app.
+  // PWA / native shell: install page is only for downloading; open the org app once installed.
   useLayoutEffect(() => {
     if (!orgSlug || !isValidOrgSlug(orgSlug)) return;
-    if (!isStandaloneDisplay()) return;
     const p = window.location.pathname.replace(/\/$/, "");
-    if (p === `/${orgSlug}/install`) {
+    if (p !== `/${orgSlug}/install`) return;
+    if (isStandaloneDisplay() || Capacitor.isNativePlatform()) {
       window.location.replace(`/${orgSlug}`);
     }
   }, [orgSlug]);
@@ -150,7 +152,11 @@ export default function InstallApp() {
   };
 
   const shareWhatsApp = () => {
-    const text = `Install ${orgName || "our"} app on your phone:\n${installUrl}`;
+    const androidNote =
+      platform === "android"
+        ? `\nAndroid app (APK): ${linkOrigin}${ANDROID_APK_URL}`
+        : "";
+    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}${androidNote}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
@@ -167,8 +173,8 @@ export default function InstallApp() {
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <p className="text-sm text-muted-foreground text-center">
           Invalid install link. Use <span className="font-mono text-foreground">/your-shop-slug/install</span> (example:{" "}
-          <a className="text-primary underline" href="https://app.inventoryshop.in/demo/install">
-            demo/install
+          <a className="text-primary underline" href="https://app.inventoryshop.in/ella-noor/install">
+            ella-noor/install
           </a>
           ).
         </p>
@@ -235,17 +241,36 @@ export default function InstallApp() {
           </Card>
         ) : platform === "android" || platform === "other" ? (
           <Card className="p-6 space-y-4">
-            <Button onClick={handleInstall} className="w-full h-14 text-base" size="lg">
-              <Download className="mr-2 h-5 w-5" />
-              Install App
+            <div className="text-center space-y-1">
+              <h2 className="font-semibold text-lg">Download Android App</h2>
+              <p className="text-sm text-muted-foreground">
+                Native app — opens your shop, updates automatically from the cloud.
+              </p>
+            </div>
+            <Button asChild className="w-full h-14 text-base" size="lg">
+              <a href={ANDROID_APK_URL} download="EzzyERP-1.1.0.apk">
+                <Download className="mr-2 h-5 w-5" />
+                Download EzzyERP for Android
+              </a>
             </Button>
-            {!isInstallable && (
+            <p className="text-xs text-center text-muted-foreground">
+              After download, tap the APK file and allow <strong>Install unknown apps</strong> if prompted.
+            </p>
+            {platform === "android" && isInstallable && (
+              <>
+                <div className="pt-2 border-t text-center text-xs text-muted-foreground">or add to home screen (PWA)</div>
+                <Button onClick={handleInstall} variant="outline" className="w-full" size="lg">
+                  Install Web App Shortcut
+                </Button>
+              </>
+            )}
+            {platform === "android" && !isInstallable && (
               <p className="text-xs text-center text-muted-foreground">
-                If install button doesn&apos;t trigger, open Chrome menu (⋮) and tap <strong>&quot;Install app&quot;</strong>
+                Prefer a home-screen shortcut? Chrome menu (⋮) → <strong>Install app</strong>
               </p>
             )}
             <div className="pt-2 border-t">
-              <Button asChild variant="outline" className="w-full" size="lg">
+              <Button asChild variant="ghost" className="w-full" size="lg">
                 <a href={appStartUrl}>Open in Browser</a>
               </Button>
             </div>

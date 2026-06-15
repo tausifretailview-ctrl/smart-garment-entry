@@ -105,7 +105,7 @@ npx cap sync android
 npm run android:open
 ```
 
-Remove `server.url` before release/APK builds.
+Remove `server.url` before **local live-reload** dev only. Keep `server.url` for production remote-shell APKs.
 
 ## Native features (Capacitor)
 
@@ -119,12 +119,37 @@ Remove `server.url` before release/APK builds.
 
 `PwaInstallBanner` is hidden in the native WebView. Offline UI uses `OfflineIndicator` + network plugin on native.
 
-## Release APK / AAB (Play Store)
+## Release APK / AAB (Play Store or direct install)
 
-1. Android Studio → **Build → Generate Signed Bundle / APK**
-2. Choose **Android App Bundle (AAB)** for Play Console
-3. Create or use a release keystore (store safely; not in git)
-4. Upload AAB to Google Play Console
+The Android shell loads **https://app.inventoryshop.in** at runtime (same as desktop Electron). Web updates deploy via Vercel — no APK reinstall for code changes. Bump `versionCode` / `versionName` in `android/app/build.gradle` only when releasing a new native build.
+
+### Signing (one-time)
+
+1. Generate keystore **outside the repo** (save passwords securely):
+
+```powershell
+mkdir $env:USERPROFILE\keys -ErrorAction SilentlyContinue
+cd $env:USERPROFILE\keys
+keytool -genkey -v -keystore ezzyerp-release.keystore -alias ezzyerp -keyalg RSA -keysize 2048 -validity 10000
+```
+
+2. Copy `android/keystore.properties.example` → `android/keystore.properties` and set absolute `storeFile` path + passwords (file is gitignored).
+
+### Build signed APK
+
+```powershell
+npm run build:android
+cd android
+.\gradlew.bat assembleRelease
+```
+
+**Output:** `android/app/build/outputs/apk/release/app-release.apk`
+
+Copy/rename to `public/downloads/EzzyERP-1.1.0.apk` and deploy to Vercel so org install pages can link it (e.g. `https://app.inventoryshop.in/ella-noor/install`).
+
+Play Store AAB: `.\gradlew.bat bundleRelease` → `android/app/build/outputs/bundle/release/app-release.aab`
+
+Or use Android Studio → **Build → Generate Signed Bundle / APK**.
 
 ## App ID
 

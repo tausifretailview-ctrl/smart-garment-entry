@@ -9,6 +9,8 @@ const config: CapacitorConfig = {
   },
   server: {
     androidScheme: "https",
+    url: "https://app.inventoryshop.in",
+    cleartext: false,
   },
   plugins: {
     SplashScreen: {
