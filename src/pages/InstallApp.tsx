@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import {
   APP_VERSION,
-  ANDROID_APK_DOWNLOAD_NAME,
   ANDROID_APK_URL,
   WINDOWS_PORTABLE_URL,
   WINDOWS_SETUP_URL,
@@ -264,10 +263,7 @@ export default function InstallApp() {
               </p>
             </div>
             <Button asChild className="w-full h-14 text-base" size="lg" disabled={!androidApkConfigured}>
-              <a
-                href={androidApkConfigured ? androidApkUrl : undefined}
-                download={androidApkConfigured ? ANDROID_APK_DOWNLOAD_NAME : undefined}
-              >
+              <a href={androidApkConfigured ? androidApkUrl : undefined}>
                 <Download className="mr-2 h-5 w-5" />
                 Download EzzyERP for Android
               </a>
