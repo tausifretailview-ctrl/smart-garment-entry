@@ -187,9 +187,9 @@ export function WindowTabsBar() {
                   className={cn(
                     "group flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-all",
                     "hover:bg-background/80",
-                    isActive 
-                      ? "bg-background text-primary shadow-sm border" 
-                      : "text-muted-foreground hover:text-foreground"
+                    isActive
+                      ? "bg-background text-primary shadow-sm border font-bold"
+                      : "text-muted-foreground hover:text-foreground font-normal",
                   )}
                   onClick={() => switchWindow(window.path)}
                 >
@@ -199,7 +199,9 @@ export function WindowTabsBar() {
                     </kbd>
                   )}
                   <IconComponent className="h-3 w-3 shrink-0" />
-                  <span className="truncate max-w-[100px]">{window.label}</span>
+                  <span className={cn("truncate max-w-[100px]", isActive && "font-bold text-primary")}>
+                    {window.label}
+                  </span>
                   {openWindows.length > 1 && (
                     <button
                       onClick={(e) => {
