@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      _kidz_mrp_staging: {
+        Row: {
+          barcode: string
+          mrp: number
+        }
+        Insert: {
+          barcode: string
+          mrp: number
+        }
+        Update: {
+          barcode?: string
+          mrp?: number
+        }
+        Relationships: []
+      }
       academic_years: {
         Row: {
           created_at: string | null
