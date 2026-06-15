@@ -69,6 +69,7 @@ export default function InstallApp() {
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const [orgName, setOrgName] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [apkAvailable, setApkAvailable] = useState<boolean | null>(null);
   const platform = detectPlatform();
   const isStandalone = isStandaloneDisplay();
   const manifestRevokeRef = useRef<(() => void) | null>(null);
@@ -133,6 +134,22 @@ export default function InstallApp() {
       setLoading(false);
     })();
   }, [orgSlug]);
+
+  useEffect(() => {
+    const apkUrl = `${linkOrigin}${ANDROID_APK_URL}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(apkUrl, { method: "HEAD" });
+        if (!cancelled) setApkAvailable(res.ok);
+      } catch {
+        if (!cancelled) setApkAvailable(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkOrigin]);
 
   const installUrl = `${linkOrigin}/${orgSlug}/install`;
   const androidApkUrl = `${linkOrigin}${ANDROID_APK_URL}`;
@@ -257,11 +274,16 @@ export default function InstallApp() {
               </p>
             </div>
             <Button asChild className="w-full h-14 text-base" size="lg">
-              <a href={ANDROID_APK_URL} download="EzzyERP-1.1.0.apk">
+              <a href={androidApkUrl} download="EzzyERP-1.1.0.apk">
                 <Download className="mr-2 h-5 w-5" />
                 Download EzzyERP for Android
               </a>
             </Button>
+            {apkAvailable === false && (
+              <p className="text-xs text-center text-destructive">
+                APK file is not on the server yet. Deploy <span className="font-mono">public/downloads/EzzyERP-1.1.0.apk</span> to fix this.
+              </p>
+            )}
             <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
               <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
               <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
@@ -270,9 +292,12 @@ export default function InstallApp() {
             </div>
             <p className="text-xs text-center text-muted-foreground">
               {platform === "desktop" ? (
-                <>Version 1.1 · After download on phone, tap the APK and allow <strong>Install unknown apps</strong>.</>
+                <>Version 1.1 · Open the APK link on an Android phone, then tap <strong>Install</strong> (not Open in browser).</>
               ) : (
-                <>After download, tap the APK file and allow <strong>Install unknown apps</strong> if prompted.</>
+                <>
+                  1. Tap Download above · 2. Open notification or Files app · 3. Tap the APK · 4. Choose{" "}
+                  <strong>Install</strong> (do not open in Chrome). Allow <strong>Install unknown apps</strong> if asked.
+                </>
               )}
             </p>
             {platform === "android" && isInstallable && (

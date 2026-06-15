@@ -14,6 +14,7 @@
     "build:android": "npm run build && npx cap sync android",
     "build:apk:debug": "npm run build:android && cd android && gradlew.bat assembleDebug",
     "build:apk:release": "npm run build:android && cd android && gradlew.bat assembleRelease",
+    "publish:apk": "npm run build:apk:debug && node scripts/copy-apk-to-public.mjs",
     "android:open": "npx cap open android",
     "android:run": "npm run build:android && npx cap run android",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && electron .\"",

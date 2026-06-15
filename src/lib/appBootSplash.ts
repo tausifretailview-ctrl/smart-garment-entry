@@ -1,6 +1,7 @@
 /** HTML splash in index.html (sibling of #root) — hide when login / app shell is ready */
 
 import { isElectronShell } from "@/lib/electronShell";
+import { Capacitor } from "@capacitor/core";
 
 const SPLASH_ID = "splash-screen";
 
@@ -35,6 +36,12 @@ export function initBootSplashWatchdog(): void {
   if (isElectronShell()) {
     window.setTimeout(() => dismissIfStuck("electron-8s"), 8_000);
     window.setTimeout(() => dismissIfStuck("electron-15s"), 15_000);
+  }
+
+  // Capacitor remote-URL shell: slow mobile networks can delay first React paint.
+  if (Capacitor.isNativePlatform()) {
+    window.setTimeout(() => dismissIfStuck("native-12s"), 12_000);
+    window.setTimeout(() => dismissIfStuck("native-20s"), 20_000);
   }
 
   // Universal safety — React mounted but hideAppBootSplash never ran.
