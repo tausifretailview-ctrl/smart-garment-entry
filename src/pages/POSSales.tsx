@@ -20,6 +20,7 @@ import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
+import { isElectronShell } from "@/lib/electronShell";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -514,6 +515,7 @@ export default function POSSales() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [highlightCartItemId, setHighlightCartItemId] = useState<string | null>(null);
   const highlightClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const barcodeBlurRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const posCartRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   /** Whole numbers only — avoids controlled-input bugs (e.g. typing "10" stuck as "1.00" with toFixed(2)). */
@@ -702,14 +704,36 @@ export default function POSSales() {
       return document.activeElement === el;
     };
 
+    const scheduleRetries = () => {
+      const delays = isElectronShell() ? [120, 300] : [120];
+      delays.forEach((ms) => window.setTimeout(() => tryFocus(), ms));
+    };
+
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (!tryFocus()) {
-          window.setTimeout(() => tryFocus(), 120);
-        }
+        if (!tryFocus()) scheduleRetries();
       });
     });
   }, [isIOS]);
+
+  const shouldSkipBarcodeFocusRecovery = useCallback((active: Element | null) => {
+    if (!active || active === barcodeInputRef.current) return true;
+    const tag = active.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'BUTTON') return true;
+    if (active.closest('button, [role="dialog"], [role="listbox"], [data-radix-collection-item]')) return true;
+    if (document.querySelector('[role="dialog"][data-state="open"]')) return true;
+    return false;
+  }, []);
+
+  const handleBarcodeInputBlur = useCallback(() => {
+    if (isIOS) return;
+    if (barcodeBlurRecoveryTimerRef.current) clearTimeout(barcodeBlurRecoveryTimerRef.current);
+    barcodeBlurRecoveryTimerRef.current = window.setTimeout(() => {
+      barcodeBlurRecoveryTimerRef.current = null;
+      if (shouldSkipBarcodeFocusRecovery(document.activeElement)) return;
+      focusBarcodeScanInput();
+    }, isElectronShell() ? 120 : 80);
+  }, [isIOS, focusBarcodeScanInput, shouldSkipBarcodeFocusRecovery]);
 
   // Focus barcode when POS opens, tab becomes visible, or New Sale is clicked.
   useEffect(() => {
@@ -779,6 +803,19 @@ export default function POSSales() {
     document.addEventListener('click', handleGlobalClick);
     return () => document.removeEventListener('click', handleGlobalClick);
   }, [isIOS, focusBarcodeScanInput]);
+
+  // Refocus barcode when the desktop window regains focus (Electron alt-tab back).
+  useEffect(() => {
+    if (isIOS) return;
+
+    const onWindowFocus = () => {
+      if (!location.pathname.includes('/pos-sales')) return;
+      focusBarcodeScanInput();
+    };
+
+    window.addEventListener('focus', onWindowFocus);
+    return () => window.removeEventListener('focus', onWindowFocus);
+  }, [isIOS, location.pathname, focusBarcodeScanInput]);
 
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
@@ -1751,16 +1788,11 @@ export default function POSSales() {
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
       
-      // Search and add product directly
-      searchAndAddProduct(rawValue);
+      // Search and add product directly (refocus happens after add completes)
+      void searchAndAddProduct(rawValue);
       
       // Reset scanner detection for next input
       resetScannerDetection();
-      
-      // Keep focus on barcode input for continuous scanning
-      setTimeout(() => {
-        barcodeInputRef.current?.focus();
-      }, 50);
     }
   }, [resetScannerDetection, cancelAutoSubmit, markSubmitted, searchAndAddProduct]);
 
@@ -1793,10 +1825,9 @@ export default function POSSales() {
       setIsProductSearchLoading(false);
       // Schedule auto-submit for scanners that don't send Enter
       scheduleAutoSubmit(value, (val) => {
-        searchAndAddProduct(val);
+        void searchAndAddProduct(val);
         setSearchInput("");
         resetScannerDetection();
-        setTimeout(() => barcodeInputRef.current?.focus(), 50);
       });
       return;
     }
@@ -2062,6 +2093,7 @@ export default function POSSales() {
         if (!validateIMEI(searchTerm, mobileERP.imei_min_length, mobileERP.imei_max_length)) {
           toast.error("Invalid IMEI", { description: `Please scan a valid barcode (${mobileERP.imei_min_length}-${mobileERP.imei_max_length} characters)` });
           setSearchInput("");
+          focusBarcodeScanInput();
           return;
         }
       }
@@ -2145,9 +2177,11 @@ export default function POSSales() {
       setSearchInput("");
       setProductSearchResults([]);
       playErrorBeep();
+      focusBarcodeScanInput();
     } catch (error: any) {
       console.error('POS scan/search failed:', error);
       toast.error('Lookup failed', { description: error.message || 'Could not search products. Try again.' });
+      focusBarcodeScanInput();
     } finally {
       setIsProductSearchLoading(false);
     }
@@ -2460,13 +2494,14 @@ export default function POSSales() {
     // Close search dropdown and clear input
     setOpenProductSearch(false);
     setSearchInput("");
+    focusBarcodeScanInput();
   };
 
   // Handle price selection from dialog
   const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
     if (pendingPriceSelection) {
       hasManuallyAddedNewItemRef.current = true;
-      addItemToCart(pendingPriceSelection.product, pendingPriceSelection.variant, prices, 'manual');
+      void addItemToCart(pendingPriceSelection.product, pendingPriceSelection.variant, prices, 'manual');
       setPendingPriceSelection(null);
       setShowPriceSelectionDialog(false);
     }
@@ -4946,6 +4981,7 @@ export default function POSSales() {
                       placeholder={mobileERP.enabled && mobileERP.imei_scan_enforcement ? "Scan IMEI Number" : "Scan barcode or search: name / brand / category / style / color / size / price (use spaces to combine)"}
                       value={searchInput}
                       onChange={handleBarcodeInputChange}
+                      onBlur={handleBarcodeInputBlur}
                       onKeyDown={(e) => {
                         if (openProductSearch && filteredProducts.length > 0) {
                           if (e.key === 'ArrowDown') {
@@ -6518,7 +6554,10 @@ export default function POSSales() {
             open={showPriceSelectionDialog}
             onOpenChange={(open) => {
               setShowPriceSelectionDialog(open);
-              if (!open) setPendingPriceSelection(null);
+              if (!open) {
+                setPendingPriceSelection(null);
+                focusBarcodeScanInput();
+              }
             }}
             productName={pendingPriceSelection.product.product_name}
             size={pendingPriceSelection.variant.size}
@@ -6542,11 +6581,14 @@ export default function POSSales() {
 
         <StockIssueAlertDialog
           open={showStockIssueDialog}
-          onOpenChange={setShowStockIssueDialog}
+          onOpenChange={(open) => {
+            setShowStockIssueDialog(open);
+            if (!open) focusBarcodeScanInput();
+          }}
           issue={stockIssuePresentation}
           onConfirm={() => {
             setOutOfStockProduct(null);
-            barcodeInputRef.current?.focus();
+            focusBarcodeScanInput();
           }}
           secondaryAction={outOfStockProduct ? {
             label: "View History",
