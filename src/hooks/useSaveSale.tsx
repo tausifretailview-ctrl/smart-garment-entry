@@ -1271,13 +1271,16 @@ export const useSaveSale = () => {
         isUpdate: true,
       });
 
-      // Completing a hold/pending bill must use today's date (resumeHeldSale does this too; safety net here).
+      // First-time completion of hold/pending: stamp sale_date only if the bill never had one.
+      // Do not re-date invoices that already have sale_date (e.g. old pending bills edited later).
+      const hadPriorSaleDate = !!existingSale?.sale_date;
       const completingOpenBill =
         (priorStatus === "hold" || priorStatus === "pending") &&
         payStatus !== "pending";
-      const saleDatePatch = completingOpenBill
-        ? { sale_date: new Date().toISOString() }
-        : {};
+      const saleDatePatch =
+        completingOpenBill && !hadPriorSaleDate
+          ? { sale_date: new Date().toISOString() }
+          : {};
 
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
       const { error: deleteError } = await supabase
