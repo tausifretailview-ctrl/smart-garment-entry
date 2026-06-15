@@ -318,9 +318,9 @@ const SalesmanCustomers = () => {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-3 space-y-4 max-w-full overflow-x-hidden">
       {/* Search Bar */}
-      <div className="sticky top-0 z-10 bg-background pb-2 flex gap-2">
+      <div className="sticky top-0 z-10 bg-background pb-2 flex gap-2 w-full">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -330,7 +330,7 @@ const SalesmanCustomers = () => {
             className="pl-10 h-12"
           />
         </div>
-        <Button variant="outline" size="icon" className="h-12 w-12" onClick={handleRefresh}>
+        <Button variant="outline" size="icon" className="h-12 w-12 shrink-0" onClick={handleRefresh}>
           <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
         </Button>
       </div>
@@ -396,34 +396,34 @@ const SalesmanCustomers = () => {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 w-full">
                 {customer.phone && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 min-w-0 px-2"
                     onClick={() => window.open(`tel:${customer.phone}`)}
                   >
-                    <Phone className="h-4 w-4 mr-1" />
-                    Call
+                    <Phone className="h-4 w-4 mr-1 shrink-0" />
+                    <span className="truncate">Call</span>
                   </Button>
                 )}
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 min-w-0 px-2"
                   onClick={() => navigate(`/salesman/customer/${customer.id}`)}
                 >
-                  Account
-                  <ChevronRight className="h-4 w-4 ml-1" />
+                  <span className="truncate">Account</span>
+                  <ChevronRight className="h-4 w-4 ml-1 shrink-0" />
                 </Button>
                 <Button
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 min-w-0 px-2"
                   onClick={() => navigate(`/salesman/order/new?customerId=${customer.id}`)}
                 >
-                  <ShoppingCart className="h-4 w-4 mr-1" />
-                  Order
+                  <ShoppingCart className="h-4 w-4 mr-1 shrink-0" />
+                  <span className="truncate">Order</span>
                 </Button>
               </div>
             </CardContent>
