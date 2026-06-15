@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   incrementSupplierInvoiceNumber,
+  isPureNumericSupplierInvoice,
+  maxPureNumericSupplierInvoice,
   maxSupplierInvoiceInSeries,
+  nextGlobalNumericSupplierInvoice,
   nextSupplierInvoiceNumberFromLastBill,
   nextSupplierInvoiceNumberFromSeries,
   resolveNextSupplierInvoiceNumber,
@@ -25,6 +28,30 @@ describe("incrementSupplierInvoiceNumber", () => {
   it("increments prefixed bill numbers", () => {
     expect(incrementSupplierInvoiceNumber("PUR/26-27/88")).toBe("PUR/26-27/89");
     expect(incrementSupplierInvoiceNumber("INV-0012")).toBe("INV-0013");
+  });
+});
+
+describe("nextGlobalNumericSupplierInvoice", () => {
+  it("ignores prefixed invoices and uses max pure numeric + 1", () => {
+    expect(
+      nextGlobalNumericSupplierInvoice(["480", "481", "RV1000524"]),
+    ).toBe("482");
+  });
+
+  it("starts at 1 when no pure-numeric invoices exist", () => {
+    expect(nextGlobalNumericSupplierInvoice(["RV1000524", "6/11/26"])).toBe("1");
+    expect(nextGlobalNumericSupplierInvoice([])).toBe("1");
+  });
+
+  it("isPureNumericSupplierInvoice", () => {
+    expect(isPureNumericSupplierInvoice("481")).toBe(true);
+    expect(isPureNumericSupplierInvoice("RV1000524")).toBe(false);
+    expect(isPureNumericSupplierInvoice("6/11/26")).toBe(false);
+  });
+
+  it("maxPureNumericSupplierInvoice", () => {
+    expect(maxPureNumericSupplierInvoice(["480", "481", "RV1000524"])).toBe(481n);
+    expect(maxPureNumericSupplierInvoice(["RV1000524"])).toBe(null);
   });
 });
 
@@ -55,15 +82,27 @@ describe("maxSupplierInvoiceInSeries", () => {
 });
 
 describe("resolveNextSupplierInvoiceNumber", () => {
-  it("prefers server peek over client fallback", () => {
+  it("prefers numeric server peek when >= client fallback", () => {
     expect(
-      resolveNextSupplierInvoiceNumber("RV0626099947", ["RV0626099945"], "RV0626099945"),
-    ).toBe("RV0626099947");
+      resolveNextSupplierInvoiceNumber("483", ["480", "481", "RV1000524"]),
+    ).toBe("483");
   });
 
-  it("falls back to client series when peek is empty", () => {
+  it("ignores non-numeric server peek and uses client numeric global", () => {
+    expect(
+      resolveNextSupplierInvoiceNumber("RV1000525", ["480", "481"], "481"),
+    ).toBe("482");
+  });
+
+  it("falls back to client numeric when peek is empty", () => {
     expect(
       resolveNextSupplierInvoiceNumber(null, ["46111", "46112"], "46112"),
     ).toBe("46113");
+  });
+
+  it("uses client when peek is lower than client max+1", () => {
+    expect(
+      resolveNextSupplierInvoiceNumber("480", ["481", "482"]),
+    ).toBe("483");
   });
 });

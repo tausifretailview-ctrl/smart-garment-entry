@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,15 @@ import {
   isCustomerReplyMessage,
 } from "@/utils/whatsappInboxUnread";
 
+/** Org home only — hide floating inbox on POS, bills, accounts, etc. */
+function isMainDashboardPath(pathname: string, orgSlug?: string | null): boolean {
+  if (!orgSlug) return false;
+  const prefix = `/${orgSlug}`;
+  if (!pathname.startsWith(prefix)) return false;
+  const segment = pathname.slice(prefix.length).replace(/^\/+/, "").split("/")[0] ?? "";
+  return segment === "" || segment === "dashboard";
+}
+
 export const FloatingWhatsAppInbox = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -25,6 +34,11 @@ export const FloatingWhatsAppInbox = () => {
     hasSpecialPermission("whatsapp_api") ||
     hasSpecialPermission("whatsapp_send");
 
+  const onMainDashboard = useMemo(
+    () => isMainDashboardPath(location.pathname, currentOrganization?.slug),
+    [location.pathname, currentOrganization?.slug],
+  );
+
   // Badge = actual inbound messages not yet read (not cached conversation counter).
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['whatsapp-unread-count', currentOrganization?.id],
@@ -32,7 +46,7 @@ export const FloatingWhatsAppInbox = () => {
       if (!currentOrganization?.id) return 0;
       return fetchActualUnreadMessageCount(currentOrganization.id);
     },
-    enabled: !!currentOrganization?.id && canAccess,
+    enabled: !!currentOrganization?.id && canAccess && onMainDashboard,
     staleTime: 30_000,
     // No polling — realtime postgres_changes subscription below keeps badge fresh.
     refetchInterval: false,
@@ -40,7 +54,7 @@ export const FloatingWhatsAppInbox = () => {
 
   // Realtime badge updates (instant alert count without waiting for poll)
   useEffect(() => {
-    if (!currentOrganization?.id || !canAccess) return;
+    if (!currentOrganization?.id || !canAccess || !onMainDashboard) return;
 
     const channel = supabase
       .channel(`whatsapp-unread-${currentOrganization.id}`)
@@ -82,11 +96,11 @@ export const FloatingWhatsAppInbox = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentOrganization?.id, canAccess, queryClient]);
+  }, [currentOrganization?.id, canAccess, onMainDashboard, queryClient]);
 
   const onInboxPage = location.pathname.includes("/whatsapp-inbox");
 
-  if (permLoading || !canAccess || !currentOrganization || onInboxPage) {
+  if (permLoading || !canAccess || !currentOrganization || onInboxPage || !onMainDashboard) {
     return null;
   }
 

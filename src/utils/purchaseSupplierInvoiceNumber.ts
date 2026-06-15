@@ -68,6 +68,35 @@ export function incrementSupplierInvoiceNumber(
   return "1";
 }
 
+/** True when invoice no is digits only (org-wide global serial). */
+export function isPureNumericSupplierInvoice(raw: string | null | undefined): boolean {
+  const s = String(raw ?? "").trim();
+  return s.length > 0 && /^\d+$/.test(s);
+}
+
+/** Highest pure-numeric supplier invoice in a list; ignores RV*, slashes, etc. */
+export function maxPureNumericSupplierInvoice(
+  invoices: Array<string | null | undefined>,
+): bigint | null {
+  let best: bigint | null = null;
+  for (const inv of invoices) {
+    const s = String(inv ?? "").trim();
+    if (!isPureNumericSupplierInvoice(s)) continue;
+    const n = BigInt(s);
+    if (best === null || n > best) best = n;
+  }
+  return best;
+}
+
+/** Next org-wide supplier invoice: max(all pure-numeric) + 1, or "1" if none. */
+export function nextGlobalNumericSupplierInvoice(
+  invoices: Array<string | null | undefined>,
+): string {
+  const max = maxPureNumericSupplierInvoice(invoices);
+  if (max === null) return "1";
+  return String(max + 1n);
+}
+
 /** Highest serial in the same prefix series as the reference invoice. */
 export function maxSupplierInvoiceInSeries(
   invoices: Array<string | null | undefined>,
@@ -111,13 +140,21 @@ export function nextSupplierInvoiceNumberFromLastBill(
   );
 }
 
-/** Prefer server peek (scans all bills); fall back to client series from recent rows. */
+/** Prefer server peek (numeric global); fall back to client max pure-numeric + 1. */
 export function resolveNextSupplierInvoiceNumber(
   serverPeek: string | null | undefined,
   invoices: Array<string | null | undefined>,
-  referenceInvoice?: string | null,
+  _referenceInvoice?: string | null,
 ): string {
+  const clientNext = nextGlobalNumericSupplierInvoice(invoices);
   const peek = String(serverPeek ?? "").trim();
-  if (peek) return peek;
-  return nextSupplierInvoiceNumberFromSeries(invoices, referenceInvoice);
+  if (!peek) return clientNext;
+  if (!isPureNumericSupplierInvoice(peek)) return clientNext;
+  try {
+    const peekNum = BigInt(peek);
+    const clientNum = BigInt(clientNext);
+    return peekNum >= clientNum ? peek : clientNext;
+  } catch {
+    return clientNext;
+  }
 }
