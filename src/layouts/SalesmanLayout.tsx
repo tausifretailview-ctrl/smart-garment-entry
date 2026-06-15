@@ -270,7 +270,7 @@ const SalesmanLayout = () => {
       {/* Bottom Navigation - Orange active state */}
       <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <div className="flex items-center justify-around h-16">
+        <div className="flex items-stretch justify-around h-16 w-full overflow-hidden">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
@@ -280,14 +280,16 @@ const SalesmanLayout = () => {
                 type="button"
                 onClick={() => navigate(getOrgPath(item.path))}
                 className={cn(
-                  "flex flex-col items-center justify-center flex-1 h-full transition-colors",
+                  "flex flex-col items-center justify-center flex-1 min-w-0 h-full px-1 transition-colors",
                   active
                     ? "text-orange-500"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className={cn("h-6 w-6", active && "fill-orange-500/20")} />
-                <span className="text-xs mt-1 font-medium">{item.label}</span>
+                <Icon className={cn("h-5 w-5 shrink-0", active && "fill-orange-500/20")} />
+                <span className="text-[10px] leading-tight mt-1 font-medium w-full text-center truncate">
+                  {item.label}
+                </span>
               </button>
             );
           })}
