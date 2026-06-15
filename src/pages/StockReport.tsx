@@ -3,7 +3,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
@@ -80,7 +80,13 @@ const STOCK_TABLE_HEAD =
   "sticky top-0 z-20 !bg-transparent [&_tr]:!bg-transparent [&_tr]:border-slate-200";
 const STOCK_NEUTRAL_TH =
   "text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal";
-const STOCK_TABLE_SCROLL = "max-h-[min(calc(100vh-260px),780px)] overflow-auto overscroll-contain min-w-0";
+const STOCK_TABLE_SCROLL = "max-h-[min(calc(100vh-300px),720px)] overflow-auto overscroll-contain min-w-0";
+/** Pinned footer row — matches body column alignment, sits above pagination */
+const STOCK_TABLE_FOOTER =
+  "border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent";
+const STOCK_FOOTER_CELL = "py-2.5 align-middle text-sm font-bold tabular-nums whitespace-nowrap";
+const SIZEWISE_FOOTER_CELL =
+  "text-center min-w-[50px] md:min-w-[60px] px-3 py-2.5 align-middle text-sm md:text-base font-bold tabular-nums";
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
@@ -1045,6 +1051,20 @@ export default function StockReport() {
   const totalStockValue = filteredStockItems.reduce((sum, item) => sum + (item.pur_price || 0) * item.stock_qty, 0);
   const totalSaleValue = filteredStockItems.reduce((sum, item) => sum + (item.sale_price || 0) * item.stock_qty, 0);
 
+  const allStockTotals = useMemo(
+    () => ({
+      opening: filteredStockItems.reduce((s, i) => s + i.opening_qty, 0),
+      purchase: filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0),
+      purchaseReturn: filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0),
+      sales: filteredStockItems.reduce((s, i) => s + i.sales_qty, 0),
+      saleReturn: filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0),
+      currentStock: filteredStockItems.reduce((s, i) => s + i.stock_qty, 0),
+      stockValue: Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)),
+      saleValue: Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)),
+    }),
+    [filteredStockItems],
+  );
+
   // Pagination calculations for All Stock tab
   const totalPages = Math.ceil(filteredStockItems.length / ITEMS_PER_PAGE);
   const paginatedStockItems = useMemo(() => {
@@ -1758,8 +1778,10 @@ export default function StockReport() {
             </div>
 
             <TabsContent value="all" className="mt-0 focus-visible:outline-none">
-              <CardContent className="p-0">
-                <div className={STOCK_TABLE_SCROLL}>
+              <CardContent className="p-0 flex flex-col min-h-0">
+                <div className="overflow-x-auto">
+                  <div className="flex flex-col min-w-max">
+                <div className={cn(STOCK_TABLE_SCROLL, "overflow-x-visible border-b border-slate-100")}>
                   <Table className="text-[15px]">
                     <TableHeader className={STOCK_TABLE_HEAD}>
                       <TableRow>
@@ -1784,113 +1806,123 @@ export default function StockReport() {
                         <TableHead className={STOCK_NEUTRAL_TH}>Status</TableHead>
                       </TableRow>
                     </TableHeader>
-                      <TableBody>
-                        {paginatedStockItems.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
-                              No products found matching your search
+                    <TableBody>
+                      {paginatedStockItems.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
+                            No products found matching your search
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paginatedStockItems.map((item, index) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="text-center font-medium text-muted-foreground py-2.5">
+                              {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground py-2.5">{item.supplier_name || '—'}</TableCell>
+                            <TableCell className="font-mono py-2.5">{item.supplier_invoice_no || '—'}</TableCell>
+                            <TableCell className="font-medium py-2.5">{item.product_name}</TableCell>
+                            <TableCell className="py-2.5">{item.brand}</TableCell>
+                            <TableCell className="py-2.5">{item.size}</TableCell>
+                            <TableCell className="py-2.5">{item.color || '—'}</TableCell>
+                            <TableCell className="py-2.5">{item.department || '—'}</TableCell>
+                            <TableCell className="font-mono py-2.5">{item.barcode}</TableCell>
+                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium py-2.5 whitespace-nowrap tabular-nums">
+                              {item.opening_qty}
+                            </TableCell>
+                            <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400 py-2.5 whitespace-nowrap tabular-nums">
+                              +{item.purchase_qty}
+                            </TableCell>
+                            <TableCell className="text-right bg-orange-50 dark:bg-orange-950 font-medium text-orange-700 dark:text-orange-400 py-2.5 whitespace-nowrap tabular-nums">
+                              {item.purchase_return_qty > 0 ? `-${item.purchase_return_qty}` : '0'}
+                            </TableCell>
+                            <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400 py-2.5 whitespace-nowrap tabular-nums">
+                              {item.sales_qty > 0 ? `-${item.sales_qty}` : '0'}
+                            </TableCell>
+                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400 py-2.5 whitespace-nowrap tabular-nums">
+                              {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
+                            </TableCell>
+                            <TableCell className="text-right bg-violet-50 dark:bg-violet-950 font-bold text-violet-800 dark:text-violet-300 py-2.5 whitespace-nowrap tabular-nums">
+                              {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
+                            </TableCell>
+                            <TableCell className="text-right py-2.5 whitespace-nowrap tabular-nums">
+                              {item.pur_price ? (
+                                <span>₹{item.pur_price}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-primary py-2.5 whitespace-nowrap tabular-nums">
+                              {item.pur_price ? (
+                                <span>₹{(item.pur_price * item.stock_qty).toLocaleString('en-IN')}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right py-2.5 whitespace-nowrap tabular-nums">
+                              <span>₹{item.sale_price}</span>
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              {item.stock_qty === 0 ? (
+                                <Badge variant="destructive">Out of Stock</Badge>
+                              ) : item.stock_qty <= lowStockThreshold ? (
+                                <Badge variant="secondary">Low Stock</Badge>
+                              ) : (
+                                <Badge variant="outline">In Stock</Badge>
+                              )}
                             </TableCell>
                           </TableRow>
-                        ) : (
-                          paginatedStockItems.map((item, index) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="text-center font-medium text-muted-foreground py-2.5">
-                                {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground py-2.5">{item.supplier_name || '—'}</TableCell>
-                              <TableCell className="font-mono py-2.5">{item.supplier_invoice_no || '—'}</TableCell>
-                              <TableCell className="font-medium py-2.5">{item.product_name}</TableCell>
-                              <TableCell className="py-2.5">{item.brand}</TableCell>
-                              <TableCell className="py-2.5">{item.size}</TableCell>
-                              <TableCell className="py-2.5">{item.color || '—'}</TableCell>
-                              <TableCell className="py-2.5">{item.department || '—'}</TableCell>
-                              <TableCell className="font-mono py-2.5">{item.barcode}</TableCell>
-                              <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium py-2.5 whitespace-nowrap">
-                                {item.opening_qty}
-                              </TableCell>
-                              <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400 py-2.5 whitespace-nowrap">
-                                +{item.purchase_qty}
-                              </TableCell>
-                              <TableCell className="text-right bg-orange-50 dark:bg-orange-950 font-medium text-orange-700 dark:text-orange-400 py-2.5 whitespace-nowrap">
-                                {item.purchase_return_qty > 0 ? `-${item.purchase_return_qty}` : '0'}
-                              </TableCell>
-                              <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400 py-2.5 whitespace-nowrap">
-                                {item.sales_qty > 0 ? `-${item.sales_qty}` : '0'}
-                              </TableCell>
-                              <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400 py-2.5 whitespace-nowrap">
-                                {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
-                              </TableCell>
-                              <TableCell className="text-right bg-violet-50 dark:bg-violet-950 font-bold text-violet-800 dark:text-violet-300 py-2.5 whitespace-nowrap">
-                                {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
-                              </TableCell>
-                              <TableCell className="text-right py-2.5 whitespace-nowrap">
-                                {item.pur_price ? (
-                                  <span>₹{item.pur_price}</span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right font-medium text-primary py-2.5 whitespace-nowrap">
-                                {item.pur_price ? (
-                                  <span>₹{(item.pur_price * item.stock_qty).toLocaleString('en-IN')}</span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right py-2.5 whitespace-nowrap">
-                                <span>₹{item.sale_price}</span>
-                              </TableCell>
-                              <TableCell className="py-2.5">
-                                {item.stock_qty === 0 ? (
-                                  <Badge variant="destructive">Out of Stock</Badge>
-                                ) : item.stock_qty <= lowStockThreshold ? (
-                                  <Badge variant="secondary">Low Stock</Badge>
-                                ) : (
-                                  <Badge variant="outline">In Stock</Badge>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                        {/* Totals Row */}
-                        {filteredStockItems.length > 0 && (
-                          <TableRow className="sticky bottom-0 z-20 font-bold border-t-2 text-base">
-                            <TableCell className="text-center text-base bg-slate-100 dark:bg-slate-800 py-3" colSpan={9}>TOTAL</TableCell>
-                            <TableCell className="text-right text-base bg-blue-50 dark:bg-blue-950 py-3 whitespace-nowrap tabular-nums">
-                              {filteredStockItems.reduce((s, i) => s + i.opening_qty, 0).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 py-3 whitespace-nowrap tabular-nums">
-                              +{filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400 py-3 whitespace-nowrap tabular-nums">
-                              -{filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 py-3 whitespace-nowrap tabular-nums">
-                              -{filteredStockItems.reduce((s, i) => s + i.sales_qty, 0).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 py-3 whitespace-nowrap tabular-nums">
-                              +{filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300 py-3 whitespace-nowrap tabular-nums">
-                              {filteredStockItems.reduce((s, i) => s + i.stock_qty, 0).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-slate-100 dark:bg-slate-800 py-3 whitespace-nowrap">—</TableCell>
-                            <TableCell className="text-right text-base text-primary bg-slate-100 dark:bg-slate-800 py-3 whitespace-nowrap tabular-nums">
-                              ₹{Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-right text-base bg-slate-100 dark:bg-slate-800 py-3 whitespace-nowrap tabular-nums">
-                              ₹{Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)).toLocaleString('en-IN')}
-                            </TableCell>
-                            <TableCell className="text-base bg-slate-100 dark:bg-slate-800 py-3">—</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {filteredStockItems.length > 0 && (
+                  <div className="shrink-0 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600">
+                    <Table className="text-[15px] min-w-max">
+                      <TableFooter className={STOCK_TABLE_FOOTER}>
+                        <TableRow>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-100 dark:bg-slate-800")} colSpan={9}>
+                            GRAND TOTAL
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100")}>
+                            {allStockTotals.opening.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400")}>
+                            +{allStockTotals.purchase.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400")}>
+                            -{allStockTotals.purchaseReturn.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400")}>
+                            -{allStockTotals.sales.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400")}>
+                            +{allStockTotals.saleReturn.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300")}>
+                            {allStockTotals.currentStock.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-100 dark:bg-slate-800")}>—</TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-primary bg-slate-100 dark:bg-slate-800")}>
+                            ₹{allStockTotals.stockValue.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-100 dark:bg-slate-800")}>
+                            ₹{allStockTotals.saleValue.toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "bg-slate-100 dark:bg-slate-800")}>—</TableCell>
+                        </TableRow>
+                      </TableFooter>
                     </Table>
                   </div>
+                )}
+                  </div>
+                </div>
 
                   {/* Pagination Controls */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-3 py-2 border-t border-slate-100 bg-slate-50/80">
+                    <div className="flex items-center justify-between px-3 py-2.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 shrink-0">
                       <div className="text-xs text-slate-500">
                         Page {currentPage} of {totalPages}
                       </div>
@@ -1964,7 +1996,7 @@ export default function StockReport() {
             </TabsContent>
 
             <TabsContent value="sizewise" className="mt-0 focus-visible:outline-none">
-              <CardContent className="p-0">
+              <CardContent className="p-0 flex flex-col min-h-0">
                 <div className="px-3 py-2 border-b border-slate-100">
                   <div className="relative max-w-2xl">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1990,33 +2022,35 @@ export default function StockReport() {
                       <span>Swipe to see all sizes</span>
                       <ChevronRight className="h-3 w-3" />
                     </div>
-                    <div className={cn(STOCK_TABLE_SCROLL, "overflow-x-auto scroll-smooth snap-x snap-mandatory md:snap-none")}>
-                      <Table className="min-w-max text-[15px]">
-                        <TableHeader className={STOCK_TABLE_HEAD}>
-                          <TableRow>
-                            <TableHead className={cn("min-w-[180px] md:min-w-[250px] sticky left-0 z-10", STOCK_NEUTRAL_TH)}>Product</TableHead>
-                            {sizeWiseData.sizes.map((size, idx) => (
-                              <TableHead
-                                key={size}
-                                className={cn(
-                                  "text-center min-w-[50px] md:min-w-[60px] snap-start",
-                                  STOCK_NEUTRAL_TH,
-                                  "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100",
-                                  idx === 0 ? "scroll-ml-[180px] md:scroll-ml-0" : "",
-                                )}
-                              >
-                                {size}
+                    <div className="overflow-x-auto scroll-smooth snap-x snap-mandatory md:snap-none">
+                      <div className="flex flex-col min-w-max">
+                        <div className={cn(STOCK_TABLE_SCROLL, "overflow-x-visible border-b border-slate-100")}>
+                        <Table className="min-w-max text-[15px]">
+                          <TableHeader className={STOCK_TABLE_HEAD}>
+                            <TableRow>
+                              <TableHead className={cn("min-w-[180px] md:min-w-[250px] sticky left-0 z-10", STOCK_NEUTRAL_TH)}>Product</TableHead>
+                              {sizeWiseData.sizes.map((size, idx) => (
+                                <TableHead
+                                  key={size}
+                                  className={cn(
+                                    "text-center min-w-[50px] md:min-w-[60px] snap-start",
+                                    STOCK_NEUTRAL_TH,
+                                    "bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100",
+                                    idx === 0 ? "scroll-ml-[180px] md:scroll-ml-0" : "",
+                                  )}
+                                >
+                                  {size}
+                                </TableHead>
+                              ))}
+                              <TableHead className={cn("text-center min-w-[60px] md:min-w-[80px] sticky right-0 z-10", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>
+                                Stock
                               </TableHead>
-                            ))}
-                            <TableHead className={cn("text-center min-w-[60px] md:min-w-[80px] sticky right-0 z-10", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>
-                              Stock
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
+                            </TableRow>
+                          </TableHeader>
                           <TableBody>
                             {sizeWiseData.rows.map((row, index) => (
                               <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
-                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm">
+                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[180px] md:min-w-[250px] py-2.5 align-top">
                                   <div className="flex flex-col">
                                     <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none font-bold">{row.productName}</span>
                                     {(row.brand || row.color) && (
@@ -2037,37 +2071,55 @@ export default function StockReport() {
                                 {sizeWiseData.sizes.map(size => {
                                   const qty = row.sizeStocks[size] || 0;
                                   return (
-                                    <TableCell 
-                                      key={size} 
-                                      className={`text-center text-sm md:text-base ${
-                                        qty === 0 ? 'text-muted-foreground/50' : 
-                                        'font-bold text-foreground bg-green-100 dark:bg-green-900/40'
-                                      }`}
+                                    <TableCell
+                                      key={size}
+                                      className={cn(
+                                        SIZEWISE_FOOTER_CELL,
+                                        "font-medium",
+                                        qty === 0
+                                          ? "text-muted-foreground/50 bg-transparent"
+                                          : "text-foreground bg-green-100 dark:bg-green-900/40",
+                                      )}
                                     >
                                       {qty}
                                     </TableCell>
                                   );
                                 })}
-                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm">
+                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm min-w-[60px] md:min-w-[80px] px-3 py-2.5 tabular-nums">
                                   {row.totalStock}
                                 </TableCell>
                               </TableRow>
                             ))}
-                            {/* Total Row */}
-                            <TableRow className="bg-destructive/10 font-bold border-t-2">
-                              <TableCell className="text-destructive font-bold sticky left-0 bg-destructive/10 z-10 backdrop-blur-sm">Total Stock</TableCell>
-                              {sizeWiseData.sizes.map(size => (
-                                <TableCell key={size} className="text-center text-destructive font-bold text-sm md:text-base">
-                                  {sizeWiseTotals.sizeTotals[size] || 0}
-                                </TableCell>
-                              ))}
-                              <TableCell className="text-center font-bold text-destructive bg-destructive/20 sticky right-0 backdrop-blur-sm">
-                                {sizeWiseTotals.grandTotal}
-                              </TableCell>
-                            </TableRow>
                           </TableBody>
                         </Table>
                       </div>
+                      <div className="shrink-0 bg-amber-50/90 dark:bg-amber-950/30 border-t-2 border-amber-300 dark:border-amber-800">
+                        <Table className="min-w-max text-[15px]">
+                          <TableFooter className="border-0 bg-transparent [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+                            <TableRow>
+                              <TableCell className="text-destructive font-bold sticky left-0 z-10 bg-amber-50/95 dark:bg-amber-950/40 min-w-[180px] md:min-w-[250px] px-5 py-2.5 align-middle">
+                                Total Stock
+                              </TableCell>
+                              {sizeWiseData.sizes.map(size => (
+                                <TableCell
+                                  key={size}
+                                  className={cn(
+                                    SIZEWISE_FOOTER_CELL,
+                                    "text-destructive bg-amber-50/95 dark:bg-amber-950/40",
+                                  )}
+                                >
+                                  {sizeWiseTotals.sizeTotals[size] || 0}
+                                </TableCell>
+                              ))}
+                              <TableCell className="text-center font-bold text-destructive bg-amber-100 dark:bg-amber-900/50 sticky right-0 backdrop-blur-sm min-w-[60px] md:min-w-[80px] px-3 py-2.5 tabular-nums">
+                                {sizeWiseTotals.grandTotal}
+                              </TableCell>
+                            </TableRow>
+                          </TableFooter>
+                        </Table>
+                      </div>
+                      </div>
+                    </div>
                     </>
                   )}
               </CardContent>
