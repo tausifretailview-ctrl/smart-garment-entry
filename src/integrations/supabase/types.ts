@@ -2900,6 +2900,27 @@ export type Database = {
           },
         ]
       }
+      kidzstock_barcode_swap_20260615: {
+        Row: {
+          new_barcode: string
+          old_barcode: string
+          swapped_at: string
+          variant_id: string
+        }
+        Insert: {
+          new_barcode: string
+          old_barcode: string
+          swapped_at?: string
+          variant_id: string
+        }
+        Update: {
+          new_barcode?: string
+          old_barcode?: string
+          swapped_at?: string
+          variant_id?: string
+        }
+        Relationships: []
+      }
       ledger_opening_balances: {
         Row: {
           account_id: string
