@@ -1,35 +1,22 @@
-## Goal
-Revert ONLY the Kids Zone 80mm thermal receipt layout to the previous "perfect" version. Every other change made after that point stays intact.
+## Make `app-downloads` bucket public for APK distribution
 
-## Scope (single file)
-- `src/components/KidsThermalReceipt80mm.tsx`
+**Goal:** Allow the APK file (`EzzyERP-1.1.0.apk`) to be downloaded via a direct public URL without authentication.
 
-No edits to:
-- Thermal print CSS / wrappers (`thermalReceiptPrintDocument.ts`)
-- `InvoiceWrapper.tsx` routing
-- Print hooks, QZ, WebUSB, settings, or any other module
+### Steps
 
-## Available previous versions (from git history of this file)
-| Commit | Date | Note |
-|---|---|---|
-| fe5f5565 | 15-Jun 10:50 | Current (bordered table redesign — the one you don't like) |
-| 4f825211 | 13-Jun 10:41 | "kids" — last version before the redesign |
-| 34e30f06 | 11-Jun 19:27 | earlier tweak |
-| 4d4ad22d | 11-Jun 16:36 | earlier tweak |
-| 867b94e6 | 11-Jun 15:46 | earlier tweak |
-| 08baa0fa | 11-Jun 15:07 | base thermal |
+1. **Flip bucket to Public**
+   - Use `supabase--storage_update_bucket` to set `app-downloads` → `public: true`.
+   - Note: if workspace policy `cloud_block_public_buckets` is enabled, this call will fail and you'll need to enable public buckets in Settings → Privacy & Security first.
 
-Default target: **`4f825211` (13-Jun)** — the most recent version before today's redesign. If that one still isn't right, I'll roll back to an earlier commit from the table above.
+2. **Add public read RLS policy on `storage.objects`**
+   - Migration creating a SELECT policy scoped to `bucket_id = 'app-downloads'` for the `anon` and `authenticated` roles, so the public URL resolves without a token.
+   - Keep write/update/delete restricted (no policy added) so only service role / dashboard uploads can modify files.
 
-## Steps
-1. In build mode, check out the contents of `src/components/KidsThermalReceipt80mm.tsx` from commit `4f825211`.
-2. Overwrite the current file with that exact content (single file change, no other edits anywhere).
-3. Open the preview and print a Kids Zone bill at 80mm to confirm it matches your old design.
-4. If it looks right but you want one or two small label/value tweaks on top, tell me and I'll patch only those lines.
+### Result
 
-## Rollback safety
-- Only one file changes, so undoing is trivial — revert that single message if needed.
-- No DB, no settings, no print plumbing touched.
+The URL below will work for anyone:
+```
+https://lkbbrqcsbhqjvsxiorvp.supabase.co/storage/v1/object/public/app-downloads/EzzyERP-1.1.0.apk
+```
 
-## Confirm before I proceed
-- Target commit `4f825211` (13-Jun) sound right, or pick another from the table?
+No frontend code changes. No other buckets affected.
