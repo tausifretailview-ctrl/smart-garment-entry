@@ -10,7 +10,7 @@ import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportK
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X, FileText, ChevronLeft, ChevronRight } from "lucide-react";
@@ -594,32 +594,34 @@ export default function ItemWiseStockReport() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    <>
-                      {paginatedData.map((item, idx) => (
-                        <TableRow key={item.key} className="hover:bg-muted/30 print:hover:bg-transparent">
-                          <TableCell className="print:text-xs print:py-1">{(currentPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
-                          <TableCell className="font-medium print:text-xs print:py-1">{item.key}</TableCell>
-                          <TableCell className="text-right print:text-xs print:py-1">{item.total_qty}</TableCell>
-                          <TableCell className="text-right print:text-xs print:py-1">{item.purchase_value.toFixed(2)}</TableCell>
-                          <TableCell className="text-right print:text-xs print:py-1">{item.sale_value.toFixed(2)}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/70 font-bold print:bg-transparent border-t-2">
-                        <TableCell className="print:text-xs print:py-1"></TableCell>
-                        <TableCell className="text-primary print:text-xs print:py-1">Grand Totals:</TableCell>
-                        <TableCell className="text-right print:text-xs print:py-1">{grandTotals.total_qty}</TableCell>
-                        <TableCell className="text-right print:text-xs print:py-1">{grandTotals.purchase_value.toFixed(2)}</TableCell>
-                        <TableCell className="text-right print:text-xs print:py-1">{grandTotals.sale_value.toFixed(2)}</TableCell>
+                    paginatedData.map((item, idx) => (
+                      <TableRow key={item.key} className="hover:bg-muted/30 print:hover:bg-transparent">
+                        <TableCell className="print:text-xs print:py-1">{(currentPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
+                        <TableCell className="font-medium print:text-xs print:py-1">{item.key}</TableCell>
+                        <TableCell className="text-right print:text-xs print:py-1 tabular-nums">{item.total_qty}</TableCell>
+                        <TableCell className="text-right print:text-xs print:py-1 tabular-nums">{item.purchase_value.toFixed(2)}</TableCell>
+                        <TableCell className="text-right print:text-xs print:py-1 tabular-nums">{item.sale_value.toFixed(2)}</TableCell>
                       </TableRow>
-                    </>
+                    ))
                   )}
                 </TableBody>
+                {aggregatedData.length > 0 && (
+                  <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+                    <TableRow>
+                      <TableCell className="print:text-xs print:py-1" />
+                      <TableCell className="font-bold text-primary print:text-xs py-2.5 align-middle">Grand Totals:</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums print:text-xs py-2.5 align-middle">{grandTotals.total_qty}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums print:text-xs py-2.5 align-middle">{grandTotals.purchase_value.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-bold tabular-nums print:text-xs py-2.5 align-middle">{grandTotals.sale_value.toFixed(2)}</TableCell>
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
             </div>
 
             {/* Enhanced Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t print:hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-200 dark:border-slate-700 print:hidden">
                 <p className="text-sm text-muted-foreground">
                   Page {currentPage} of {totalPages} ({aggregatedData.length} records)
                 </p>
