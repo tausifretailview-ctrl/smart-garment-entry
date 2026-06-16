@@ -318,8 +318,7 @@ export default function SaleOrderEntry() {
   const [roundOff, setRoundOff] = useState<number>(0);
   const initialDraftCheckDone = useRef(false);
 
-  // Size grid entry mode - will be set from settings
-  const [sizeGridEnabled, setSizeGridEnabled] = useState(true);
+  // Size grid entry mode — Sale Order always supports grid/inline toggle (not gated by Sales Invoice setting).
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
@@ -507,17 +506,11 @@ export default function SaleOrderEntry() {
     refetchOnWindowFocus: false,
   });
 
-  // Initialize entry mode from settings
+  // Initialize entry mode from org settings (default: size grid for multi-size entry).
   useEffect(() => {
     if (settings && !entryModeInitialized) {
       const saleSettings = settings.sale_settings as any;
-      const enabled = saleSettings?.enable_size_grid_sales !== false;
-      setSizeGridEnabled(enabled);
-      if (!enabled) {
-        setEntryMode("inline");
-      } else if (saleSettings?.defaultEntryMode) {
-        setEntryMode(saleSettings.defaultEntryMode);
-      }
+      setEntryMode(saleSettings?.defaultEntryMode === "inline" ? "inline" : "grid");
       setEntryModeInitialized(true);
     }
   }, [settings, entryModeInitialized]);
@@ -1559,20 +1552,19 @@ export default function SaleOrderEntry() {
 
       <section className={cn("bg-neutral-50 border-b border-black/10 py-3 shrink-0", entryPageSectionX)}>
         <div className="flex items-center gap-3 flex-wrap">
-          {sizeGridEnabled && (
-            <div className="flex items-center gap-2 shrink-0">
-              <span className={`text-sm font-bold ${entryMode === "grid" ? "text-black" : "text-black/50"}`}>
-                Size Grid
-              </span>
-              <Switch
-                checked={entryMode === "inline"}
-                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-              />
-              <span className={`text-sm font-bold ${entryMode === "inline" ? "text-black" : "text-black/50"}`}>
-                Inline
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 shrink-0 rounded-lg border border-black/15 bg-white px-3 py-1.5">
+            <span className={`text-sm font-bold ${entryMode === "grid" ? "text-black" : "text-black/50"}`}>
+              Size Grid
+            </span>
+            <Switch
+              checked={entryMode === "inline"}
+              onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              aria-label="Toggle between size grid and inline entry"
+            />
+            <span className={`text-sm font-bold ${entryMode === "inline" ? "text-black" : "text-black/50"}`}>
+              Inline
+            </span>
+          </div>
           <div className="text-black/30 text-lg font-light select-none">|</div>
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
