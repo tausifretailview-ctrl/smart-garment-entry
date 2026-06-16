@@ -64,6 +64,10 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
+  resolvePurchaseDashboardInitialPeriod,
+  resolvePurchaseDashboardQueryDates,
+} from "@/utils/purchaseDashboardDates";
+import {
   fetchPurchaseBillIdsMatchingLineItems,
   purchaseBillTextSearchFilter,
 } from "@/utils/purchaseBillDashboardSearch";
@@ -167,16 +171,14 @@ const PurchaseBillDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const savedPurchaseFilters = readPurchaseBillDashboardFilters(currentOrganization?.id);
+  const initialPurchasePeriod = resolvePurchaseDashboardInitialPeriod(savedPurchaseFilters);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(
     () => pickPersistedString(savedPurchaseFilters?.searchQuery) ?? "",
   );
-  const [startDate, setStartDate] = useState(
-    () => pickPersistedString(savedPurchaseFilters?.startDate) ?? "",
-  );
-  const [endDate, setEndDate] = useState(
-    () => pickPersistedString(savedPurchaseFilters?.endDate) ?? "",
-  );
+  const [periodFilter, setPeriodFilter] = useState(() => initialPurchasePeriod.periodFilter);
+  const [startDate, setStartDate] = useState(() => initialPurchasePeriod.startDate);
+  const [endDate, setEndDate] = useState(() => initialPurchasePeriod.endDate);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
@@ -209,11 +211,17 @@ const PurchaseBillDashboard = () => {
     () => pickPersistedString(savedPurchaseFilters?.dcFilter) ?? "all",
   );
 
+  const queryDateRange = useMemo(
+    () => resolvePurchaseDashboardQueryDates(periodFilter, startDate, endDate),
+    [periodFilter, startDate, endDate],
+  );
+
   const purchaseFilterSnapshot = useMemo(
     () => ({
       searchQuery,
-      startDate,
-      endDate,
+      periodFilter,
+      startDate: periodFilter === "custom" ? startDate : "",
+      endDate: periodFilter === "custom" ? endDate : "",
       sortOrder,
       paymentStatusFilter,
       dcFilter,
@@ -222,6 +230,7 @@ const PurchaseBillDashboard = () => {
     }),
     [
       searchQuery,
+      periodFilter,
       startDate,
       endDate,
       sortOrder,
@@ -240,6 +249,7 @@ const PurchaseBillDashboard = () => {
       restoreDashboardFilters(saved, {
         strings: [
           ["searchQuery", setSearchQuery],
+          ["periodFilter", setPeriodFilter],
           ["startDate", setStartDate],
           ["endDate", setEndDate],
           ["sortOrder", setSortOrder],
@@ -514,14 +524,15 @@ const PurchaseBillDashboard = () => {
   useEffect(() => {
     if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
-  }, [startDate, endDate, itemsPerPage, paymentStatusFilter, dcFilter]);
+  }, [periodFilter, startDate, endDate, itemsPerPage, paymentStatusFilter, dcFilter]);
 
   const purchaseBillsQueryKey = [
     "purchase-bills",
     currentOrganization?.id,
     debouncedSearch,
-    startDate,
-    endDate,
+    periodFilter,
+    queryDateRange.startDate,
+    queryDateRange.endDate,
     sortOrder,
     currentPage,
     itemsPerPage,
@@ -574,8 +585,8 @@ const PurchaseBillDashboard = () => {
           currentOrganization.id,
           searchStr,
           {
-            startDate: isBarcodeLikeSearch ? undefined : startDate,
-            endDate: isBarcodeLikeSearch ? undefined : endDate,
+            startDate: isBarcodeLikeSearch ? undefined : queryDateRange.startDate,
+            endDate: isBarcodeLikeSearch ? undefined : queryDateRange.endDate,
             skipDate: Boolean(isBarcodeLikeSearch),
           },
         );
@@ -600,11 +611,11 @@ const PurchaseBillDashboard = () => {
       }
 
       // Server-side date filtering — skip when searching by barcode/numeric to find bills across all dates
-      if (startDate && !isBarcodeLikeSearch) {
-        query = query.gte("bill_date", startDate);
+      if (queryDateRange.startDate && !isBarcodeLikeSearch) {
+        query = query.gte("bill_date", queryDateRange.startDate);
       }
-      if (endDate && !isBarcodeLikeSearch) {
-        query = query.lte("bill_date", endDate);
+      if (queryDateRange.endDate && !isBarcodeLikeSearch) {
+        query = query.lte("bill_date", queryDateRange.endDate);
       }
 
       // Payment status filter
@@ -1288,13 +1299,13 @@ const PurchaseBillDashboard = () => {
 
   // Server-side summary stats — mirrors ALL filters from the bills query (no pagination)
   const { data: purchaseSummaryData, isLoading: purchaseSummaryLoading, isFetching: purchaseSummaryFetching } = useQuery({
-    queryKey: ['purchase-summary', currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, debouncedSearch],
+    queryKey: ['purchase-summary', currentOrganization?.id, periodFilter, queryDateRange.startDate, queryDateRange.endDate, paymentStatusFilter, dcFilter, debouncedSearch],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       return fetchPurchaseDashboardSummary({
         organizationId: currentOrganization.id,
-        startDate,
-        endDate,
+        startDate: queryDateRange.startDate,
+        endDate: queryDateRange.endDate,
         paymentStatusFilter,
         dcFilter,
         debouncedSearch,
@@ -1805,8 +1816,8 @@ const PurchaseBillDashboard = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
-      if (startDate) query = query.gte("bill_date", startDate);
-      if (endDate) query = query.lte("bill_date", endDate);
+      if (queryDateRange.startDate) query = query.gte("bill_date", queryDateRange.startDate);
+      if (queryDateRange.endDate) query = query.lte("bill_date", queryDateRange.endDate);
       if (paymentStatusFilter && paymentStatusFilter !== "all") {
         if (paymentStatusFilter === "not_paid") {
           query = query.or("payment_status.is.null,payment_status.eq.unpaid,payment_status.eq.pending");
@@ -1860,7 +1871,7 @@ const PurchaseBillDashboard = () => {
     } catch (err: any) {
       toast({ title: "Export failed", description: err.message, variant: "destructive" });
     }
-  }, [currentOrganization?.id, startDate, endDate, paymentStatusFilter, dcFilter, toast]);
+  }, [currentOrganization?.id, periodFilter, queryDateRange.startDate, queryDateRange.endDate, paymentStatusFilter, dcFilter, toast]);
 
   // No full-page blocker — layout renders immediately, ERPTable shows skeletons via isLoading
   const isMobile = useIsMobile();
@@ -2270,20 +2281,35 @@ const PurchaseBillDashboard = () => {
                   className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
-              <Input
-                type="date"
-                placeholder="Start Date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
-              />
-              <Input
-                type="date"
-                placeholder="End Date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
-              />
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">This Month</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="yearly">This Year</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+              {periodFilter === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    aria-label="Start date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
+                  />
+                  <Input
+                    type="date"
+                    aria-label="End date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white"
+                  />
+                </>
+              )}
               <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
                 <SelectTrigger className="w-[180px] h-10 text-base gap-2 border-slate-200 bg-slate-50 hover:bg-white">
                   <ArrowUpDown className="h-4 w-4" />
