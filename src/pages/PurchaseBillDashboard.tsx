@@ -65,6 +65,7 @@ import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf"
 import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
   resolvePurchaseDashboardInitialPeriod,
+  type PurchaseDashboardPeriodFilter,
   resolvePurchaseDashboardQueryDates,
 } from "@/utils/purchaseDashboardDates";
 import {
@@ -2281,7 +2282,7 @@ const PurchaseBillDashboard = () => {
                   className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
-              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+              <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PurchaseDashboardPeriodFilter)}>
                 <SelectTrigger className="w-[150px] h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
                   <SelectValue placeholder="Period" />
                 </SelectTrigger>

@@ -1387,6 +1387,11 @@ export default function BarcodePrinting() {
   );
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Dedupe guard: skip printer_presets/templates writes when signature unchanged.
+  // Prevents the auto-save effects from re-persisting identical config on every
+  // mount, route change or render — which was driving ~1.6M printer_presets
+  // UPDATEs and dominating DB CPU on the small instance.
+  const lastPersistedSignatureRef = useRef<string>("");
   // Tracks whether we've resolved the initial default tab for the current org.
   // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
   // otherwise prefer Precision Pro (thermal/barcode printer workflow).
@@ -1449,6 +1454,19 @@ export default function BarcodePrinting() {
     const saveWidth = isKidszonePresetName(targetName) ? KIDSZONE_50X40_DIMENSIONS.width : labelWidth;
     const saveHeight = isKidszonePresetName(targetName) ? KIDSZONE_50X40_DIMENSIONS.height : labelHeight;
 
+    // Skip the write entirely when nothing material has changed since the last
+    // persist. Without this the auto-save effects re-write printer_presets on
+    // every mount/route-change/render — millions of identical UPDATEs per day.
+    let signature = "";
+    try {
+      signature = `${orgId}|${cleanName}|${saveWidth}|${saveHeight}|${JSON.stringify(configToSave)}`;
+    } catch {
+      signature = `${orgId}|${cleanName}|${saveWidth}|${saveHeight}`;
+    }
+    if (lastPersistedSignatureRef.current === signature) {
+      return true;
+    }
+
     try {
       if (targetName.startsWith("preset:")) {
         const { error } = await supabase
@@ -1479,6 +1497,7 @@ export default function BarcodePrinting() {
           : p
       ));
 
+      lastPersistedSignatureRef.current = signature;
       return true;
     } catch (error) {
       console.error("Failed to auto-save precision design:", error);
