@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isDecimalUOM } from "@/constants/uom";
 
 // Auth validation schemas
 export const authSchema = z.object({
@@ -97,19 +98,41 @@ export const purchaseBillSchema = z.object({
 export type PurchaseBillData = z.infer<typeof purchaseBillSchema>;
 
 // Purchase Line Item validation
-export const purchaseLineItemSchema = z.object({
-  product_id: z.string().min(1, "Product is required"),
-  sku_id: z.string().min(1, "SKU is required"),
-  product_name: z.string().min(1, "Product name is required"),
-  size: z.string().min(1, "Size is required"),
-  qty: z.number().min(1, "Quantity must be at least 1").max(99999, "Quantity too large"),
-  pur_price: z.number().min(0, "Purchase price cannot be negative"),
-  sale_price: z.number().min(0, "Sale price cannot be negative"),
-  gst_per: z.number().min(0).max(100, "GST must be between 0 and 100"),
-  hsn_code: z.string().max(8, "HSN code must be less than 8 characters").optional(),
-  barcode: z.string().max(20, "Barcode must be less than 20 characters").optional(),
-  discount_percent: z.number().min(0).max(100, "Discount must be between 0 and 100"),
-});
+export const purchaseLineItemSchema = z
+  .object({
+    product_id: z.string().min(1, "Product is required"),
+    sku_id: z.string().min(1, "SKU is required"),
+    product_name: z.string().min(1, "Product name is required"),
+    size: z.string().min(1, "Size is required"),
+    uom: z.string().optional(),
+    qty: z.number().max(99999, "Quantity too large"),
+    pur_price: z.number().min(0, "Purchase price cannot be negative"),
+    sale_price: z.number().min(0, "Sale price cannot be negative"),
+    gst_per: z.number().min(0).max(100, "GST must be between 0 and 100"),
+    hsn_code: z.string().max(8, "HSN code must be less than 8 characters").optional(),
+    barcode: z.string().max(20, "Barcode must be less than 20 characters").optional(),
+    discount_percent: z.number().min(0).max(100, "Discount must be between 0 and 100"),
+  })
+  .superRefine((data, ctx) => {
+    const qty = Number(data.qty);
+    if (isDecimalUOM(data.uom)) {
+      if (!Number.isFinite(qty) || qty < 0.001) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Quantity must be at least 0.001 for KG/MTR units",
+          path: ["qty"],
+        });
+      }
+      return;
+    }
+    if (!Number.isInteger(qty) || qty < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Quantity must be at least 1",
+        path: ["qty"],
+      });
+    }
+  });
 
 export type PurchaseLineItemData = z.infer<typeof purchaseLineItemSchema>;
 
