@@ -729,6 +729,8 @@ const PurchaseEntry = () => {
       void queryClient.invalidateQueries({ queryKey: ["last-purchase-bill", currentOrganization.id] });
       void queryClient.invalidateQueries({ queryKey: ["org-supplier-invoice-numbers", currentOrganization.id] });
       void queryClient.invalidateQueries({ queryKey: ["peek-next-supplier-invoice", currentOrganization.id] });
+      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
     }
     if (currentOrganization?.id && user?.id) {
       dispatchPurchaseDraftSaved(currentOrganization.id, user.id);

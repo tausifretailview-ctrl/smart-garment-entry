@@ -75,7 +75,7 @@ export const Layout = ({ children }: LayoutProps) => {
               {showDesktopChrome && <SidebarExpandStrip />}
               <SidebarInset
                 className={cn(
-                  "flex flex-col flex-1 min-w-0",
+                  "flex flex-col flex-1 min-w-0 min-h-0",
                   inTabCachePane && "!min-h-0 h-full overflow-hidden",
                 )}
               >
@@ -99,7 +99,7 @@ export const Layout = ({ children }: LayoutProps) => {
                       ? mobileFullscreenMainClass
                       : showDesktopChrome
                         ? cn(
-                            "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 pb-[calc(var(--erp-status-bar-height,1.75rem)+1.5rem)] animate-fade-in",
+                            "flex-1 min-h-0 overflow-y-auto tab-scroll-stable relative z-[1] min-w-0 p-3 sm:p-4 animate-fade-in",
                             inTabCachePane && "data-tab-scroll",
                           )
                         : mobileMainContentClass
@@ -107,6 +107,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 >
                   {children}
                 </main>
+                {showDesktopChrome && <StatusBar />}
               </SidebarInset>
             </div>
 
@@ -123,7 +124,6 @@ export const Layout = ({ children }: LayoutProps) => {
                 <FloatingChatButton />
               </div>
             </IdleMount>
-            <StatusBar />
             <DesktopViewEscapeHatch />
           </SidebarProvider>
         </MobileScanProvider>

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -72,6 +73,7 @@ export const useSaveSale = () => {
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
   const { invalidateSales, scheduleInvalidateSales } = useDashboardInvalidation();
+  const queryClient = useQueryClient();
 
   const applyPostSaleInvalidation = (
     organizationId: string | undefined,
@@ -84,6 +86,8 @@ export const useSaveSale = () => {
       saleDate: saleMeta?.saleDate,
       saleNumber: saleMeta?.saleNumber,
     });
+    void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
     if (runtimeOptions?.deferDashboardInvalidation) {
       scheduleInvalidateSales(organizationId, { skipPosNotify: true });
     } else {

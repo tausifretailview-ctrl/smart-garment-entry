@@ -19,6 +19,7 @@ function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvali
   queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
   queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
   queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
+  queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
   queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
   queryClient.invalidateQueries({ queryKey: ["todays-sales"] });
   queryClient.invalidateQueries({ queryKey: ["today-sales"] });

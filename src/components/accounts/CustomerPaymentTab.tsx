@@ -593,6 +593,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
@@ -1025,6 +1026,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-statement"] });
@@ -1184,6 +1186,7 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });

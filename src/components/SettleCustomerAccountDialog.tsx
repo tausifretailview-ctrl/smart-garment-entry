@@ -430,6 +430,8 @@ export function SettleCustomerAccountDialog({
 
       queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });

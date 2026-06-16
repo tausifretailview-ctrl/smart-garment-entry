@@ -2363,6 +2363,7 @@ export default function SalesInvoiceDashboard() {
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
       invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
+      void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {
       toast({
@@ -4800,6 +4801,7 @@ export default function SalesInvoiceDashboard() {
           onSuccess={() => {
             setShowSettleDialog(false);
             invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
+            void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
             queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
           }}
         />

@@ -550,6 +550,7 @@ export function SupplierPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
       resetForm();
     },
@@ -631,6 +632,8 @@ export function SupplierPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     },
     onError: (error: any) => toast.error(error.message),

@@ -46,6 +46,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
                 {!billingFullScreen && <Header />}
                 <WindowTabsBar />
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+                <StatusBar />
               </SidebarInset>
             </div>
 
@@ -56,7 +57,6 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
                 <FloatingChatButton />
               </div>
             </IdleMount>
-            <StatusBar />
             <DesktopViewEscapeHatch />
           </SidebarProvider>
         </MobileScanProvider>

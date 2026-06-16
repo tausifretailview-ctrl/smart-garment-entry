@@ -716,6 +716,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
       queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       resetForm();
     },
     onError: (e: Error) => toast.error(e.message),

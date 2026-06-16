@@ -1174,6 +1174,8 @@ const PurchaseBillDashboard = () => {
 
       setShowPaymentDialog(false);
       setSelectedBillForPayment(null);
+      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+      void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
       await fetchBills();
     } catch (error: any) {
       toast({

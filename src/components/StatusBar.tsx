@@ -39,6 +39,10 @@ const getCurrentPageName = (path: string): string => {
   return PAGE_NAMES[segment] || '';
 };
 
+function StatusSep() {
+  return <div className="erp-status-bar__sep" aria-hidden />;
+}
+
 export const StatusBar = () => {
   const isLgUp = useIsLgUp();
   const isNarrow = useIsNarrowViewport();
@@ -87,8 +91,7 @@ export const StatusBar = () => {
     <div
       className={cn(
         "erp-status-bar",
-        isLgUp ? "hidden lg:flex" : "flex",
-        showOnPhoneForcedDesktop && "safe-area-pb",
+        showOnPhoneForcedDesktop ? "erp-status-bar--fixed safe-area-pb" : "erp-status-bar--inset hidden lg:flex",
       )}
       style={
         showOnPhoneForcedDesktop
@@ -96,39 +99,42 @@ export const StatusBar = () => {
           : undefined
       }
     >
-      <div className="status-item">
-        <span className="status-dot" />
-        <span>Connected</span>
+      <div className="erp-status-bar__left">
+        <div className="status-item shrink-0">
+          <span className="status-dot" />
+          <span>Connected</span>
+        </div>
+        <StatusSep />
+        <div className="status-item truncate">
+          <span className="truncate">{currentOrganization?.name || "—"}</span>
+        </div>
+        <StatusSep />
+        <div className="status-item shrink-0">
+          <span>{fy}</span>
+        </div>
+        <StatusSep />
+        <div className="status-item shrink-0 tabular-nums">
+          <span>Stock: {Number(stockQty).toLocaleString("en-IN")}</span>
+        </div>
+        <StatusSep />
+        <div className="status-item shrink-0 tabular-nums" style={{ color: "hsl(38 92% 70%)" }}>
+          <span>Due: ₹{Number(dueAmount).toLocaleString("en-IN")}</span>
+        </div>
+        {pageName && (
+          <>
+            <StatusSep />
+            <div className="status-item shrink-0">
+              <span>{pageName}</span>
+            </div>
+          </>
+        )}
       </div>
-      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
-      <div className="status-item">
-        <span>{currentOrganization?.name || "—"}</span>
-      </div>
-      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
-      <div className="status-item">
-        <span>{fy}</span>
-      </div>
-      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
-      <div className="status-item">
-        <span>Stock: {Number(stockQty).toLocaleString("en-IN")}</span>
-      </div>
-      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
-      <div className="status-item" style={{ color: "hsl(38 92% 70%)" }}>
-        <span>Due: ₹{Number(dueAmount).toLocaleString("en-IN")}</span>
-      </div>
-      {pageName && (
-        <>
-          <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
-          <div className="status-item">
-            <span>{pageName}</span>
-          </div>
-        </>
-      )}
-      <div className="flex-1" />
-      <BackgroundSyncBadge />
-      <div className="w-px h-3 bg-primary-foreground/20 mx-1" />
-      <div className="status-item opacity-50 text-[10px]">
-        EzzyERP v2.0
+      <div className="erp-status-bar__right">
+        <BackgroundSyncBadge />
+        <StatusSep />
+        <div className="status-item opacity-50 text-[10px] shrink-0">
+          EzzyERP v2.0
+        </div>
       </div>
     </div>
   );
