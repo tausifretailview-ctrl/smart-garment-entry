@@ -49,6 +49,30 @@ function computeIsTablet(): boolean {
   return isTouchTabletDevice() && w < TABLET_BREAKPOINT;
 }
 
+/** Viewport width only — ignores force-desktop (for layout damage-control on phones). */
+function computeIsNarrowViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < MOBILE_BREAKPOINT;
+}
+
+export function useIsNarrowViewport() {
+  const [isNarrow, setIsNarrow] = React.useState(computeIsNarrowViewport);
+
+  React.useEffect(() => {
+    const refresh = () => setIsNarrow(computeIsNarrowViewport());
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+    mql.addEventListener("change", refresh);
+    window.addEventListener("resize", refresh);
+    refresh();
+    return () => {
+      mql.removeEventListener("change", refresh);
+      window.removeEventListener("resize", refresh);
+    };
+  }, []);
+
+  return isNarrow;
+}
+
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(computeIsMobile);
 

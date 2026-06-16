@@ -12,6 +12,7 @@ import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
+import { DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
@@ -56,6 +57,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
               </div>
             </IdleMount>
             <StatusBar />
+            <DesktopViewEscapeHatch />
           </SidebarProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>

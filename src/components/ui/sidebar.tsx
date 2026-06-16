@@ -3,7 +3,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useIsNarrowViewport } from "@/hooks/use-mobile";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,8 @@ type SidebarContext = {
   openMobile: boolean;
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
+  /** Sheet drawer (mobile or forced-desktop on a narrow viewport). */
+  useSheetSidebar: boolean;
   toggleSidebar: () => void;
 };
 
@@ -50,6 +52,9 @@ const SidebarProvider = React.forwardRef<
   }
 >(({ defaultOpen = true, open: openProp, onOpenChange: setOpenProp, className, style, children, ...props }, ref) => {
   const isMobile = useIsMobile();
+  const isNarrowViewport = useIsNarrowViewport();
+  const forceDesktop = useForceDesktopView();
+  const useSheetSidebar = isMobile || (forceDesktop && isNarrowViewport);
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
@@ -73,8 +78,8 @@ const SidebarProvider = React.forwardRef<
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
-    return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen, setOpenMobile]);
+    return useSheetSidebar ? setOpenMobile((open) => !open) : setOpen((open) => !open);
+  }, [useSheetSidebar, setOpen, setOpenMobile]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -99,11 +104,12 @@ const SidebarProvider = React.forwardRef<
       open,
       setOpen,
       isMobile,
+      useSheetSidebar,
       openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+    [state, open, setOpen, isMobile, useSheetSidebar, openMobile, setOpenMobile, toggleSidebar],
   );
 
   return (
@@ -137,7 +143,7 @@ const Sidebar = React.forwardRef<
     collapsible?: "offcanvas" | "icon" | "none";
   }
 >(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { useSheetSidebar, state, openMobile, setOpenMobile } = useSidebar();
   const forceDesktopLayout = useForceDesktopView();
   const peerVisibility = forceDesktopLayout ? "block" : "hidden md:block";
   const panelVisibility = forceDesktopLayout ? "flex" : "hidden md:flex";
@@ -154,13 +160,13 @@ const Sidebar = React.forwardRef<
     );
   }
 
-  if (isMobile && !forceDesktopLayout) {
+  if (useSheetSidebar) {
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
           data-sidebar="sidebar"
           data-mobile="true"
-          className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden z-[60]"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

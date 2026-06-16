@@ -2,7 +2,7 @@
 export { MobileAppHeader } from "./MobileAppHeader";
 export { PwaInstallBanner } from "./PwaInstallBanner";
 export { MobileBottomNav } from "./MobileBottomNav";
-export { DesktopViewToggle } from "./DesktopViewToggle";
+export { DesktopViewToggle, DesktopViewEscapeHatch } from "./DesktopViewToggle";
 export { MobileFAB } from "./MobileFAB";
 export { MobileDrawer } from "./MobileDrawer";
 export { MobileQuickActions } from "./MobileQuickActions";

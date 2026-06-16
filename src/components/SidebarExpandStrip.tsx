@@ -6,12 +6,16 @@ import { writeSidebarLockedOpen } from "@/lib/sidebarPreference";
 
 /** Visible left-edge strip when the sidebar is fully collapsed (offcanvas). */
 export function SidebarExpandStrip() {
-  const { open, setOpen, isMobile } = useSidebar();
+  const { open, setOpen, setOpenMobile, useSheetSidebar } = useSidebar();
   const forceDesktopLayout = useForceDesktopView();
 
-  if ((isMobile && !forceDesktopLayout) || open) return null;
+  if (useSheetSidebar || open) return null;
 
   const handleOpen = () => {
+    if (useSheetSidebar) {
+      setOpenMobile(true);
+      return;
+    }
     writeSidebarLockedOpen(true);
     setOpen(true);
   };

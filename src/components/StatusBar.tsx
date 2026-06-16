@@ -1,5 +1,7 @@
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useIsLgUp } from "@/hooks/use-mobile";
+import { useIsLgUp, useIsNarrowViewport } from "@/hooks/use-mobile";
+import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
@@ -39,6 +41,8 @@ const getCurrentPageName = (path: string): string => {
 
 export const StatusBar = () => {
   const isLgUp = useIsLgUp();
+  const isNarrow = useIsNarrowViewport();
+  const forceDesktop = useForceDesktopView();
   const { currentOrganization } = useOrganization();
   const location = useLocation();
 
@@ -76,10 +80,22 @@ export const StatusBar = () => {
   const dueAmount = summary?.dueAmount ?? 0;
   const pageName = getCurrentPageName(location.pathname);
 
-  if (!isLgUp) return null;
+  const showOnPhoneForcedDesktop = forceDesktop && isNarrow;
+  if (!isLgUp && !showOnPhoneForcedDesktop) return null;
 
   return (
-    <div className="erp-status-bar hidden lg:flex">
+    <div
+      className={cn(
+        "erp-status-bar",
+        isLgUp ? "hidden lg:flex" : "flex",
+        showOnPhoneForcedDesktop && "safe-area-pb",
+      )}
+      style={
+        showOnPhoneForcedDesktop
+          ? { bottom: "env(safe-area-inset-bottom, 0px)" }
+          : undefined
+      }
+    >
       <div className="status-item">
         <span className="status-dot" />
         <span>Connected</span>

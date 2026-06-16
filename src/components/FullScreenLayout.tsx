@@ -17,7 +17,7 @@ import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
-import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
+import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { IdleMount } from "@/components/IdleMount";
 import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightShellPath, isNoSidebarEntryPath } from "@/lib/entryPageLayout";
 import { initUIScale } from "@/components/UIScaleSelector";
@@ -139,6 +139,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
               </div>
             </IdleMount>
             {!isEntryFullscreenPage && <StatusBar />}
+            <DesktopViewEscapeHatch />
           </SidebarProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>

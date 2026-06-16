@@ -31,6 +31,7 @@ import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { isElectronShell, reloadElectronApp } from "@/lib/electronShell";
 import { requestPosBarcodeFocus } from "@/utils/posSalesRefresh";
 import { useForceDesktopView } from "@/hooks/useDesktopViewPreference";
+import { useIsNarrowViewport } from "@/hooks/use-mobile";
 
 /** Row-2 shortcut buttons — solid fills, white label/icons */
 const shortcutBtn = (colorClass: string, extra?: string) =>
@@ -43,7 +44,7 @@ const shortcutBtn = (colorClass: string, extra?: string) =>
 
 export const Header = () => {
   const { user, signOut } = useAuth();
-  const { open: sidebarOpen } = useSidebar();
+  const { open: sidebarOpen, openMobile, useSheetSidebar } = useSidebar();
   const { currentOrganization, organizationRole } = useOrganization();
   const navigate = useNavigate();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
@@ -75,6 +76,7 @@ export const Header = () => {
       hasMenuAccess("payment_recording") ||
       hasMenuAccess("payments_dashboard"));
   const forceDesktopView = useForceDesktopView();
+  const isNarrowViewport = useIsNarrowViewport();
 
   // Ctrl+G keyboard shortcut to open Size Stock dialog (only when stock report is allowed)
   useEffect(() => {
@@ -165,13 +167,18 @@ export const Header = () => {
   return (
     <>
       {/* ROW 1: Title bar */}
-      <div className="sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-white border-t border-white border-b border-[#1b3a97] shadow-sm">
+      <div
+        className={cn(
+          "sticky top-0 z-50 flex h-9 items-center px-3 gap-3 bg-[#1e40af] text-white border-t border-white border-b border-[#1b3a97] shadow-sm",
+          forceDesktopView && isNarrowViewport && "safe-area-pt",
+        )}
+      >
         {/* Desktop sidebar toggle — shown when menu is collapsed for full-width content */}
-        {!sidebarOpen && (
+        {(useSheetSidebar ? !openMobile : !sidebarOpen) && (
           <SidebarTrigger
             className={cn(
               "h-7 w-7 text-white hover:text-white hover:bg-white/10 shrink-0",
-              forceDesktopView ? "flex" : "hidden lg:flex",
+              useSheetSidebar || forceDesktopView ? "flex" : "hidden lg:flex",
             )}
           />
         )}

@@ -21,7 +21,7 @@ import { useLocation } from "react-router-dom";
 import { DashboardToolbarProvider } from "@/contexts/DashboardToolbarContext";
 import { mobileFullscreenMainClass, mobileMainContentClass } from "@/lib/mobileShell";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
-import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
+import { DesktopViewToggle, DesktopViewEscapeHatch } from "@/components/mobile/DesktopViewToggle";
 import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { cn } from "@/lib/utils";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
@@ -124,6 +124,7 @@ export const Layout = ({ children }: LayoutProps) => {
               </div>
             </IdleMount>
             <StatusBar />
+            <DesktopViewEscapeHatch />
           </SidebarProvider>
         </MobileScanProvider>
       </DashboardToolbarProvider>

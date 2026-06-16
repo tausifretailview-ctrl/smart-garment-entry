@@ -1,6 +1,7 @@
 import { Monitor, Smartphone } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useDesktopViewActions, useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { useDesktopViewActions, useForceDesktopView, useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
+import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { MOBILE_DEFAULT_LANDING_PATH } from "@/lib/mobileShell";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -11,14 +12,59 @@ type DesktopViewToggleProps = {
 };
 
 /**
+ * Fixed escape hatch when desktop view is forced on a phone-width screen.
+ * Always on top — not buried in menus or scrollable headers.
+ */
+export function DesktopViewEscapeHatch() {
+  const forced = useForceDesktopView();
+  const isNarrow = useIsNarrowViewport();
+  const { disableDesktopView } = useDesktopViewActions();
+  const { orgNavigate } = useOrgNavigation();
+
+  if (!forced || !isNarrow) return null;
+
+  const handleSwitch = () => {
+    disableDesktopView();
+    toast.success("Mobile view restored");
+    orgNavigate(MOBILE_DEFAULT_LANDING_PATH);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleSwitch}
+      className={cn(
+        "fixed left-1/2 -translate-x-1/2 z-[100]",
+        "flex items-center gap-2 px-4 py-2 rounded-full shadow-lg",
+        "bg-primary text-primary-foreground text-xs font-semibold",
+        "border border-primary-foreground/20 touch-manipulation active:scale-[0.97]",
+        "bottom-[calc(env(safe-area-inset-bottom,0px)+var(--erp-status-bar-height,1.75rem)+0.5rem)]",
+        "max-w-[calc(100vw-1.5rem)]",
+      )}
+      aria-label="Switch to mobile view"
+    >
+      <Smartphone className="h-4 w-4 shrink-0" />
+      <span className="truncate">Switch to Mobile View</span>
+    </button>
+  );
+}
+
+/**
  * Switch between mobile shell and full desktop layout (sidebar, GL, wide forms).
  */
 export function DesktopViewToggle({ variant = "menu-row", className }: DesktopViewToggleProps) {
   const { orgNavigate } = useOrgNavigation();
   const { forced, enableDesktopView, disableDesktopView } = useDesktopViewActions();
   const showDesktopChrome = useShowDesktopChrome();
+  const isNarrow = useIsNarrowViewport();
 
   const handleEnable = () => {
+    if (isNarrow) {
+      const ok = window.confirm(
+        "Desktop view is meant for larger screens and tablets. Continue?",
+      );
+      if (!ok) return;
+    }
     enableDesktopView();
     toast.success("Desktop view enabled", {
       description: "Sidebar and full menus are now available. Rotate to landscape for more space.",
