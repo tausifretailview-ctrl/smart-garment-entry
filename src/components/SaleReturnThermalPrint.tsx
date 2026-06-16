@@ -54,170 +54,197 @@ function numberToWords(num: number): string {
   return words.trim();
 }
 
-const dashedLine = '- - - - - - - - - - - - - - - - - - - -';
+const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
+
+const clip = (text: string, max: number): string =>
+  text.length > max ? `${text.slice(0, max - 2)}..` : text;
 
 export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnThermalPrintProps>(
   ({ saleReturn, businessDetails }, ref) => {
     const totalQty = saleReturn.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+    const isRefund = saleReturn.refund_type === 'cash_refund';
+    const returnDate = new Date(saleReturn.return_date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    });
 
-    const S: React.CSSProperties = {
-      width: '80mm',
-      padding: '4mm',
-      fontFamily: "'Courier New', monospace",
-      fontSize: '14px',
-      fontWeight: 'bold',
+    const base: React.CSSProperties = {
+      width: '72mm',
+      maxWidth: '72mm',
+      padding: '2mm 2mm 2mm 4mm',
       backgroundColor: 'white',
-      color: 'black',
-      boxSizing: 'border-box',
+      fontFamily: "'Courier New', Courier, monospace",
+      fontSize: '13px',
       lineHeight: 1.45,
+      color: '#000',
+      fontWeight: 700,
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+      WebkitPrintColorAdjust: 'exact',
+      printColorAdjust: 'exact',
     };
 
-    return (
-      <div ref={ref} className="sale-return-thermal" style={S}>
-        <style>{`
-          @media print {
-            @page { size: 80mm auto; margin: 2mm; }
-            .sale-return-thermal { width: 76mm !important; }
-            .sale-return-thermal * { color: black !important; font-weight: bold !important; }
-          }
-        `}</style>
+    const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
+    const row: React.CSSProperties = {
+      display: 'flex',
+      justifyContent: 'space-between',
+      width: '100%',
+      gap: '4px',
+    };
+    const dblLine: React.CSSProperties = { borderTop: '2px solid #000', margin: '3px 0' };
+    const singleLine: React.CSSProperties = { borderTop: '1px dashed #000', margin: '3px 0' };
 
+    return (
+      <div ref={ref} className="thermal-print-80mm thermal-receipt-container sale-return-thermal" style={base}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
-            {businessDetails.business_name || 'Business Name'}
+        <div style={dblLine} />
+        <div style={{ ...center, marginBottom: '4px' }}>
+          <div style={{ fontWeight: 900, fontSize: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {clip(businessDetails.business_name || 'Business Name', 24)}
           </div>
           {businessDetails.address && (
-            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '2px' }}>{businessDetails.address}</div>
+            <div style={{ fontSize: '11px', lineHeight: 1.3, wordBreak: 'break-word', marginTop: '2px' }}>
+              {businessDetails.address}
+            </div>
           )}
           {businessDetails.mobile_number && (
-            <div style={{ fontSize: '13px', fontWeight: 'bold' }}>Ph: {businessDetails.mobile_number}</div>
+            <div style={{ fontSize: '11px' }}>Ph: {businessDetails.mobile_number}</div>
           )}
           {businessDetails.gst_number && (
-            <div style={{ fontSize: '13px', fontWeight: 'bold' }}>GSTIN: {businessDetails.gst_number}</div>
+            <div style={{ fontSize: '11px', fontWeight: 900 }}>GSTIN: {businessDetails.gst_number}</div>
           )}
         </div>
-
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={dblLine} />
 
         {/* Title */}
-        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '18px', margin: '4px 0' }}>
-          {saleReturn.refund_type === 'cash_refund' ? 'REFUND' : 'CREDIT NOTE'}
+        <div style={{ ...center, fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px', margin: '3px 0' }}>
+          {isRefund ? 'REFUND' : 'CREDIT NOTE'}
         </div>
-        <div style={{ textAlign: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '2px' }}>
-          (Sale Return)
-        </div>
+        <div style={{ ...center, fontSize: '11px', marginBottom: '2px' }}>(Sale Return)</div>
+        <div style={singleLine} />
 
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
-
-        {/* Meta info */}
-        <div style={{ fontSize: '14px', fontWeight: 'bold', margin: '4px 0' }}>
+        {/* Meta */}
+        <div style={{ fontSize: '12px', marginBottom: '3px' }}>
           {saleReturn.return_number && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Return No:</span>
-              <span style={{ fontWeight: 'bold' }}>{saleReturn.return_number}</span>
+            <div style={row}>
+              <span>Return:</span>
+              <span style={{ fontWeight: 900, textAlign: 'right', wordBreak: 'break-all' }}>
+                {saleReturn.return_number}
+              </span>
             </div>
           )}
           {saleReturn.credit_note_number && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={row}>
               <span>CN No:</span>
-              <span style={{ fontWeight: 'bold' }}>{saleReturn.credit_note_number}</span>
+              <span style={{ fontWeight: 900, textAlign: 'right', wordBreak: 'break-all' }}>
+                {saleReturn.credit_note_number}
+              </span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={row}>
             <span>Date:</span>
-            <span>{new Date(saleReturn.return_date).toLocaleDateString('en-IN')}</span>
+            <span>{returnDate}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Customer:</span>
-            <span style={{ fontWeight: 'bold', textAlign: 'right', maxWidth: '55%' }}>{saleReturn.customer_name}</span>
-          </div>
+          {saleReturn.customer_name && (
+            <div style={{ marginTop: '2px', wordBreak: 'break-word' }}>
+              Cust: {clip(saleReturn.customer_name, 28)}
+            </div>
+          )}
           {saleReturn.original_sale_number && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Orig. Invoice:</span>
-              <span>{saleReturn.original_sale_number}</span>
+            <div style={row}>
+              <span>Orig Inv:</span>
+              <span style={{ textAlign: 'right', wordBreak: 'break-all' }}>
+                {clip(saleReturn.original_sale_number, 16)}
+              </span>
             </div>
           )}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
-
-        {/* Column headers */}
-        <div style={{ display: 'flex', fontSize: '13px', fontWeight: 'bold', padding: '2px 0' }}>
-          <span style={{ width: '8%' }}>#</span>
-          <span style={{ flex: 1 }}>Item</span>
-          <span style={{ width: '12%', textAlign: 'center' }}>Qty</span>
-          <span style={{ width: '22%', textAlign: 'right' }}>Rate</span>
-          <span style={{ width: '22%', textAlign: 'right' }}>Amt</span>
-        </div>
-
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={singleLine} />
 
         {/* Items */}
-        {saleReturn.items?.map((item, idx) => (
-          <div key={idx} style={{ marginBottom: '3px' }}>
-            <div style={{ display: 'flex', fontSize: '14px', fontWeight: 'bold' }}>
-              <span style={{ width: '8%' }}>{idx + 1}</span>
-              <span style={{ flex: 1, fontWeight: 'bold' }}>{item.product_name}</span>
-              <span style={{ width: '12%', textAlign: 'center' }}>{item.quantity}</span>
-              <span style={{ width: '22%', textAlign: 'right' }}>{item.unit_price.toFixed(0)}</span>
-              <span style={{ width: '22%', textAlign: 'right' }}>{item.line_total.toFixed(0)}</span>
-            </div>
-            {(item.size || item.color) && (
-              <div style={{ fontSize: '12px', fontWeight: 'bold', paddingLeft: '8%' }}>
-                {item.size}{item.color ? ` / ${item.color}` : ''}
-                {item.gst_percent > 0 ? ` (GST ${item.gst_percent}%)` : ''}
-              </div>
-            )}
-          </div>
-        ))}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', tableLayout: 'fixed' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #000' }}>
+              <th style={{ textAlign: 'left', padding: '2px 0', fontWeight: 900, width: '42%' }}>ITEM</th>
+              <th style={{ textAlign: 'center', padding: '2px 0', fontWeight: 900, width: '14%' }}>QTY</th>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, width: '22%' }}>RATE</th>
+              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, width: '22%' }}>AMT</th>
+            </tr>
+          </thead>
+          <tbody>
+            {saleReturn.items?.map((item, idx) => (
+              <tr key={idx} style={{ borderBottom: '0.5px dotted #000' }}>
+                <td style={{ padding: '2px 0', lineHeight: 1.3, wordBreak: 'break-word', verticalAlign: 'top' }}>
+                  {clip(item.product_name, 22)}
+                  {(item.size || item.color) && (
+                    <div style={{ fontSize: '10px', fontWeight: 700 }}>
+                      {item.size}{item.color ? ` / ${item.color}` : ''}
+                      {item.gst_percent > 0 ? ` GST${item.gst_percent}%` : ''}
+                    </div>
+                  )}
+                </td>
+                <td style={{ textAlign: 'center', padding: '2px 0', verticalAlign: 'top', fontWeight: 900 }}>
+                  {item.quantity}
+                </td>
+                <td style={{ textAlign: 'right', padding: '2px 0', verticalAlign: 'top' }}>
+                  {fmtAmt(item.unit_price)}
+                </td>
+                <td style={{ textAlign: 'right', padding: '2px 0', verticalAlign: 'top', fontWeight: 900 }}>
+                  {fmtAmt(item.line_total)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
+        <div style={singleLine} />
 
         {/* Totals */}
-        <div style={{ fontSize: '14px', fontWeight: 'bold', margin: '4px 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Total Qty:</span>
-            <span style={{ fontWeight: 'bold' }}>{totalQty}</span>
+        <div style={{ fontSize: '12px' }}>
+          <div style={row}>
+            <span style={{ fontWeight: 900 }}>Total Qty:</span>
+            <span style={{ fontWeight: 900 }}>{totalQty}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Gross Amount:</span>
-            <span>₹{saleReturn.gross_amount.toFixed(2)}</span>
+          <div style={row}>
+            <span>Gross Amt:</span>
+            <span>₹{fmtAmt(saleReturn.gross_amount)}</span>
           </div>
           {saleReturn.gst_amount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={row}>
               <span>Total GST:</span>
-              <span>₹{saleReturn.gst_amount.toFixed(2)}</span>
+              <span>₹{fmtAmt(saleReturn.gst_amount)}</span>
             </div>
           )}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
-
-        {/* Grand Total */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '18px', margin: '4px 0' }}>
-          <span>NET CREDIT:</span>
-          <span>₹{saleReturn.net_amount.toFixed(2)}</span>
+        <div style={dblLine} />
+        <div style={{ ...row, fontSize: '16px', fontWeight: 900, margin: '4px 0' }}>
+          <span>{isRefund ? 'NET REFUND:' : 'NET CREDIT:'}</span>
+          <span>₹{fmtAmt(saleReturn.net_amount)}</span>
         </div>
+        <div style={dblLine} />
 
-        <div style={{ fontSize: '12px', fontWeight: 'bold', textAlign: 'center', fontStyle: 'italic', margin: '2px 0' }}>
+        <div style={{ fontSize: '10px', textAlign: 'center', fontStyle: 'italic', margin: '3px 0', lineHeight: 1.35 }}>
           {numberToWords(Math.floor(saleReturn.net_amount))} Rupees Only
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '11px', letterSpacing: '1px' }}>{dashedLine}</div>
-
-        {/* Notes */}
         {saleReturn.notes && (
-          <div style={{ fontSize: '13px', fontWeight: 'bold', margin: '4px 0' }}>
-            <span style={{ fontWeight: 'bold' }}>Note: </span>{saleReturn.notes}
-          </div>
+          <>
+            <div style={singleLine} />
+            <div style={{ fontSize: '11px', wordBreak: 'break-word' }}>
+              <span style={{ fontWeight: 900 }}>Note: </span>
+              {clip(saleReturn.notes, 80)}
+            </div>
+          </>
         )}
 
-        {/* Footer */}
-        <div style={{ textAlign: 'center', fontSize: '12px', fontWeight: 'bold', marginTop: '8px' }}>
+        <div style={singleLine} />
+        <div style={{ ...center, fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
           <div>This credit can be used for future purchases</div>
           <div>Not redeemable for cash</div>
-          <div style={{ marginTop: '6px', fontWeight: 'bold', fontSize: '14px' }}>Thank you!</div>
+          <div style={{ marginTop: '6px', fontWeight: 900, fontSize: '13px' }}>Thank you!</div>
         </div>
       </div>
     );
