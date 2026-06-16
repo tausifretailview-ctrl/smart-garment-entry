@@ -4162,9 +4162,17 @@ const PurchaseEntry = () => {
     } catch (error: any) {
       if (createdBillIdForRollback && currentOrganization?.id) {
         try {
+          const rollbackAt = new Date().toISOString();
           await supabase.from("purchase_items").delete().eq("bill_id", createdBillIdForRollback);
-          await supabase.from("purchase_bills").delete().eq("id", createdBillIdForRollback);
-          console.warn("[PurchaseEntry] Rolled back orphan bill after item save failure:", createdBillIdForRollback);
+          await supabase.from("purchase_bills").update({
+            deleted_at: rollbackAt,
+            deleted_by: user?.id ?? null,
+            is_cancelled: true,
+            cancelled_at: rollbackAt,
+            cancelled_by: user?.id ?? null,
+            cancelled_reason: "auto-rollback: items insert failed during save",
+          }).eq("id", createdBillIdForRollback);
+          console.warn("[PurchaseEntry] Soft-cancelled orphan bill after item save failure:", createdBillIdForRollback);
         } catch (rollbackErr) {
           console.error("[PurchaseEntry] Orphan bill rollback failed:", rollbackErr);
         }
