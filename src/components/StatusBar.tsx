@@ -1,4 +1,5 @@
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useIsLgUp } from "@/hooks/use-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
@@ -37,6 +38,7 @@ const getCurrentPageName = (path: string): string => {
 };
 
 export const StatusBar = () => {
+  const isLgUp = useIsLgUp();
   const { currentOrganization } = useOrganization();
   const location = useLocation();
 
@@ -73,6 +75,8 @@ export const StatusBar = () => {
   const stockQty = summary?.stockQty ?? 0;
   const dueAmount = summary?.dueAmount ?? 0;
   const pageName = getCurrentPageName(location.pathname);
+
+  if (!isLgUp) return null;
 
   return (
     <div className="erp-status-bar hidden lg:flex">
