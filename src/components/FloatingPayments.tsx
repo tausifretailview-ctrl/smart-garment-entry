@@ -281,6 +281,14 @@ function CustomerPaymentForm({
       const paymentAmount = parseFloat(amount);
       let remainingAmount = paymentAmount;
       const processedInvoices: any[] = [];
+      const pendingSalesUpdates: Array<{
+        invoiceId: string;
+        invoice: (typeof customerInvoices)[number];
+        newPaidAmount: number;
+        newStatus: string;
+        prevPaid: number;
+        prevStatus: string;
+      }> = [];
       const saleRevert: Array<{ id: string; prevPaid: number; prevStatus: string }> = [];
       const isOpeningBalancePayment = selectedInvoiceIds.length === 0;
 
@@ -296,8 +304,14 @@ function CustomerPaymentForm({
           if (amountToApply <= 0) continue;
           const newPaidAmount = currentPaid + amountToApply;
           const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 'partial';
-          saleRevert.push({ id: invoiceId, prevPaid: currentPaid, prevStatus });
-          await supabase.from('sales').update({ paid_amount: newPaidAmount, payment_status: newStatus, payment_date: format(voucherDate, 'yyyy-MM-dd') }).eq('id', invoiceId);
+          pendingSalesUpdates.push({
+            invoiceId,
+            invoice,
+            newPaidAmount,
+            newStatus,
+            prevPaid: currentPaid,
+            prevStatus,
+          });
           processedInvoices.push({ invoice, amountApplied: amountToApply, previousBalance: outstanding, currentBalance: outstanding - amountToApply });
           remainingAmount -= amountToApply;
         }
@@ -310,17 +324,52 @@ function CustomerPaymentForm({
       else if ((paymentMethod === 'upi' || paymentMethod === 'bank_transfer') && transactionId) paymentDetails = ` | Transaction ID: ${transactionId}`;
 
       const createdIds: string[] = [];
+      const createdVoucherNumbers: string[] = [];
 
       const rollbackFloatingReceipts = async () => {
-        for (const vid of [...createdIds].reverse()) {
-          await deleteJournalEntryByReference(organizationId, "CustomerReceipt", vid, supabase);
-          await supabase.from("voucher_entries").delete().eq("id", vid);
+        const rollbackFailures: string[] = [];
+        for (let i = createdIds.length - 1; i >= 0; i--) {
+          const vid = createdIds[i];
+          const vNum = createdVoucherNumbers[i] ?? vid;
+          try {
+            await deleteJournalEntryByReference(organizationId, "CustomerReceipt", vid, supabase);
+            const { error: delErr } = await supabase.from("voucher_entries").delete().eq("id", vid);
+            if (delErr) throw delErr;
+          } catch (err) {
+            const rollbackAt = new Date().toISOString();
+            const { error: softErr } = await supabase
+              .from("voucher_entries")
+              .update({ deleted_at: rollbackAt })
+              .eq("id", vid);
+            const msg = err instanceof Error ? err.message : String(err);
+            if (softErr) {
+              rollbackFailures.push(`voucher ${vNum} (${vid}): hard delete failed (${msg}); soft-cancel failed (${softErr.message})`);
+            } else {
+              rollbackFailures.push(`voucher ${vNum} (${vid}): hard delete failed (${msg}); soft-cancelled`);
+            }
+          }
         }
         for (const r of saleRevert) {
-          await supabase
-            .from("sales")
-            .update({ paid_amount: r.prevPaid, payment_status: r.prevStatus })
-            .eq("id", r.id);
+          try {
+            const { error: saleErr } = await supabase
+              .from("sales")
+              .update({ paid_amount: r.prevPaid, payment_status: r.prevStatus })
+              .eq("id", r.id);
+            if (saleErr) throw saleErr;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            rollbackFailures.push(`sale ${r.id}: revert failed (${msg})`);
+          }
+        }
+        if (rollbackFailures.length > 0) {
+          console.error("[FloatingPayments] Receipt rollback incomplete", {
+            voucherNumber,
+            voucherNumbers: createdVoucherNumbers,
+            voucherIds: createdIds,
+            saleIds: saleRevert.map((r) => r.id),
+            invoiceIds: pendingSalesUpdates.map((p) => p.invoiceId),
+            failures: rollbackFailures,
+          });
         }
       };
 
@@ -348,6 +397,7 @@ function CustomerPaymentForm({
             if (vInsErr) throw vInsErr;
             if (!vrow?.id) throw new Error("Receipt voucher insert failed");
             createdIds.push(vrow.id);
+            createdVoucherNumbers.push(vNum);
             if (postLedger) {
               await recordCustomerReceiptJournalEntry(
                 vrow.id,
@@ -393,6 +443,7 @@ function CustomerPaymentForm({
           if (vInsErr) throw vInsErr;
           if (!vrow?.id) throw new Error("Receipt voucher insert failed");
           createdIds.push(vrow.id);
+          createdVoucherNumbers.push(voucherNumber);
           if (postLedger) {
             await recordCustomerReceiptJournalEntry(
               vrow.id,
@@ -416,6 +467,23 @@ function CustomerPaymentForm({
               amount: paymentAmount,
             });
           }
+        }
+
+        for (const pending of pendingSalesUpdates) {
+          const { error: saleUpdErr } = await supabase
+            .from("sales")
+            .update({
+              paid_amount: pending.newPaidAmount,
+              payment_status: pending.newStatus,
+              payment_date: format(voucherDate, "yyyy-MM-dd"),
+            })
+            .eq("id", pending.invoiceId);
+          if (saleUpdErr) throw saleUpdErr;
+          saleRevert.push({
+            id: pending.invoiceId,
+            prevPaid: pending.prevPaid,
+            prevStatus: pending.prevStatus,
+          });
         }
       } catch (e) {
         await rollbackFloatingReceipts();
