@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format } from "date-fns";
+import { formatTimestampIST } from "@/lib/localDayBounds";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -141,7 +142,7 @@ export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
               <div className="flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">
-                  {format(new Date(bill.sale_date), "dd MMM yyyy")} • {format(new Date(bill.created_at), "hh:mm a")}
+                  {formatTimestampIST(bill.created_at || bill.sale_date)}
                 </span>
               </div>
               <div className="flex items-center gap-2">

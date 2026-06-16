@@ -5,10 +5,11 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MobileDashboardSummary } from "./MobileDashboardSummary";
+import { MobileBusinessOverview, type BusinessOverviewPeriod } from "./MobileBusinessOverview";
 import { 
-  TrendingUp, BarChart3, Package, AlertCircle, WifiOff, RefreshCw, 
+  BarChart3, Package, AlertCircle, WifiOff, RefreshCw, 
   ShoppingCart, Receipt, ShoppingBag, Calculator, Users, Building2, CreditCard, Calendar,
-  IndianRupee, Layers,
+  Layers,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useRef, useState, useEffect, useCallback } from "react";
@@ -75,12 +76,13 @@ export const MobileDashboard = () => {
     useCallback(async () => {
       await invalidateOwnerDashboardQueries(queryClient);
       await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
-      await queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-today-sales"] });
     }, [queryClient])
   );
   
   // Lazy loading for summary section
   const [summaryVisible, setSummaryVisible] = useState(false);
+  const [overviewPeriod, setOverviewPeriod] = useState<BusinessOverviewPeriod>("today");
   const summaryRef = useRef<HTMLDivElement>(null);
   
   const today = todayLocalYmd();
@@ -165,18 +167,18 @@ export const MobileDashboard = () => {
   // Also fetch month stats with a separate RPC call (different date range)
   const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), "yyyy-MM-dd");
   const monthEnd = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), "yyyy-MM-dd");
-  
-  const { data: monthStats, isLoading: monthLoading } = useQuery({
-    queryKey: ["mobile-month-stats", currentOrganization?.id, monthStart],
+
+  const { data: monthDashStats, isLoading: monthDashLoading } = useQuery({
+    queryKey: ["mobile-dashboard-stats", currentOrganization?.id, monthStart, monthEnd],
     queryFn: async () => {
       if (!currentOrganization) return null;
-      const { data, error } = await supabase.rpc('get_erp_dashboard_stats', {
+      const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
         p_org_id: currentOrganization.id,
         p_start_date: monthStart,
         p_end_date: monthEnd,
       });
       if (error) throw error;
-      return data as { total_sales: number };
+      return data as ErpDashboardStats;
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 120000,
@@ -184,10 +186,13 @@ export const MobileDashboard = () => {
     retry: 2,
   });
 
+  const overviewStats = overviewPeriod === "today" ? dashStats : monthDashStats;
+  const overviewLoading = overviewPeriod === "today" ? isLoading : monthDashLoading || isLoading;
+
   return (
     <div
       ref={scrollRef}
-      className="min-h-screen bg-slate-50 dark:bg-background pb-24"
+      className="min-h-screen bg-slate-50 dark:bg-background pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+1rem)]"
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />
@@ -236,18 +241,29 @@ export const MobileDashboard = () => {
         </div>
       </div>
 
+      {/* ── BUSINESS OVERVIEW ── */}
+      <MobileBusinessOverview
+        period={overviewPeriod}
+        onPeriodChange={setOverviewPeriod}
+        stats={overviewStats}
+        salesTotalOverride={overviewPeriod === "today" ? todaySalesLive?.total : undefined}
+        salesCountOverride={overviewPeriod === "today" ? todaySalesLive?.count : undefined}
+        isLoading={overviewLoading}
+        onNavigate={orgNavigate}
+      />
+
       {/* ── METRIC CARDS — pulled up into the gradient ── */}
       <div className="px-4 -mt-8 relative z-10">
         <div className="grid grid-cols-3 gap-2.5">
           {[
             {
               label: "This Month",
-              value: monthStats?.total_sales,
+              value: monthDashStats?.total_sales,
               icon: BarChart3,
               color: "text-blue-600",
               bg: "bg-blue-50",
               nav: "/daily-cashier-report",
-              loading: monthLoading,
+              loading: monthDashLoading,
             },
             {
               label: "Stock Value",
@@ -283,80 +299,8 @@ export const MobileDashboard = () => {
                 {card.loading ? (
                   <Skeleton className="h-5 w-16 mt-0.5" />
                 ) : (
-                  <p className="text-sm font-bold tabular-nums text-foreground">{displayValue}</p>
+                  <p className="text-sm font-bold tabular-nums text-foreground leading-tight break-all">{displayValue}</p>
                 )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── TODAY'S BUSINESS ── */}
-      <div className="px-4 mt-5">
-        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-          Today&apos;s Business
-        </h2>
-        <div className="grid grid-cols-2 gap-2.5">
-          {[
-            {
-              label: "Purchase",
-              sub: `${dashStats?.purchase_count ?? 0} bills`,
-              value: formatCompactInr(dashStats?.total_purchase),
-              icon: ShoppingBag,
-              color: "text-orange-600",
-              bg: "bg-orange-50",
-              nav: "/owner-purchases",
-              isCount: false,
-            },
-            {
-              label: "Gross Profit",
-              sub: "Sales − purchase",
-              value: formatCompactInr(dashStats?.gross_profit),
-              icon: TrendingUp,
-              color: "text-emerald-600",
-              bg: "bg-emerald-50",
-              nav: "/owner-reports",
-              isCount: false,
-            },
-            {
-              label: "Collection",
-              sub: "Cash received",
-              value: formatCompactInr(dashStats?.cash_collection),
-              icon: IndianRupee,
-              color: "text-blue-600",
-              bg: "bg-blue-50",
-              nav: "/mobile-accounts",
-              isCount: false,
-            },
-            {
-              label: "Pending",
-              sub: "Unpaid invoices",
-              value: String(dashStats?.pending_count ?? 0),
-              icon: AlertCircle,
-              color: "text-amber-600",
-              bg: "bg-amber-50",
-              nav: "/mobile-accounts",
-              isCount: true,
-            },
-          ].map((row) => {
-            const Icon = row.icon;
-            return (
-              <button
-                key={row.label}
-                type="button"
-                onClick={() => orgNavigate(row.nav)}
-                className="bg-white dark:bg-card rounded-2xl p-3.5 shadow-sm border border-border/40 text-left touch-manipulation active:scale-[0.98] transition-transform"
-              >
-                <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center mb-2", row.bg)}>
-                  <Icon className={cn("h-4 w-4", row.color)} />
-                </div>
-                <p className="text-[10px] text-muted-foreground">{row.label}</p>
-                {isLoading && !row.isCount ? (
-                  <Skeleton className="h-6 w-20 mt-0.5" />
-                ) : (
-                  <p className="text-base font-bold tabular-nums text-foreground">{row.value}</p>
-                )}
-                <p className="text-[10px] text-muted-foreground mt-0.5">{row.sub}</p>
               </button>
             );
           })}

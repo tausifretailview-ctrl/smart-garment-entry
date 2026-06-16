@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Network } from "@capacitor/network";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { MOBILE_BOTTOM_NAV_HEIGHT } from "@/lib/mobileShell";
 
 interface OfflineAction {
   id: string;
@@ -14,18 +15,133 @@ interface OfflineAction {
 
 const STORAGE_KEY = "ezzy_offline_queue";
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 5000; // 5 seconds
+const RETRY_DELAY = 5000;
+const NETWORK_TOAST_DEBOUNCE_MS = 3000;
+const NETWORK_TOAST_DURATION_MS = 3500;
+
+const MOBILE_TOAST_STYLE = {
+  marginBottom: `calc(${MOBILE_BOTTOM_NAV_HEIGHT} + env(safe-area-inset-bottom, 0px) + 0.5rem)`,
+};
+
+type NetworkSubscriber = {
+  onOnline: () => void;
+  onOffline: () => void;
+};
+
+let networkMonitorActive = false;
+let networkWasOffline = !navigator.onLine;
+let lastNetworkToastAt = 0;
+let globalOnline = navigator.onLine;
+const networkSubscribers = new Map<number, NetworkSubscriber>();
+let nextSubscriberId = 0;
+let nativeTeardown: (() => void) | undefined;
+let syncOnOnlineCallback: (() => void) | null = null;
+
+function showBackOnlineToast() {
+  const now = Date.now();
+  if (now - lastNetworkToastAt < NETWORK_TOAST_DEBOUNCE_MS) return;
+  lastNetworkToastAt = now;
+  toast.success("Back online", {
+    description: "Syncing pending actions...",
+    duration: NETWORK_TOAST_DURATION_MS,
+    position: "bottom-center",
+    style: MOBILE_TOAST_STYLE,
+  });
+}
+
+function showOfflineToast() {
+  const now = Date.now();
+  if (now - lastNetworkToastAt < NETWORK_TOAST_DEBOUNCE_MS) return;
+  lastNetworkToastAt = now;
+  toast.warning("You're offline", {
+    description: "Changes will be saved locally",
+    duration: NETWORK_TOAST_DURATION_MS,
+    position: "bottom-center",
+    style: MOBILE_TOAST_STYLE,
+  });
+}
+
+function dispatchOnline() {
+  if (globalOnline) return;
+  globalOnline = true;
+  if (networkWasOffline) {
+    showBackOnlineToast();
+    syncOnOnlineCallback?.();
+  }
+  networkWasOffline = false;
+  networkSubscribers.forEach((s) => s.onOnline());
+}
+
+function dispatchOffline() {
+  if (!globalOnline) return;
+  globalOnline = false;
+  networkWasOffline = true;
+  showOfflineToast();
+  networkSubscribers.forEach((s) => s.onOffline());
+}
+
+function ensureNetworkMonitor() {
+  if (networkMonitorActive) return;
+  networkMonitorActive = true;
+  networkWasOffline = !navigator.onLine;
+  globalOnline = navigator.onLine;
+
+  if (Capacitor.isNativePlatform()) {
+    void (async () => {
+      const status = await Network.getStatus();
+      globalOnline = status.connected;
+      networkWasOffline = !status.connected;
+      if (status.connected) syncOnOnlineCallback?.();
+
+      const listener = await Network.addListener("networkStatusChange", (s) => {
+        if (s.connected) dispatchOnline();
+        else dispatchOffline();
+      });
+      nativeTeardown = () => listener.remove();
+    })();
+    return;
+  }
+
+  const onWindowOnline = () => dispatchOnline();
+  const onWindowOffline = () => dispatchOffline();
+  window.addEventListener("online", onWindowOnline);
+  window.addEventListener("offline", onWindowOffline);
+  nativeTeardown = () => {
+    window.removeEventListener("online", onWindowOnline);
+    window.removeEventListener("offline", onWindowOffline);
+  };
+}
+
+function subscribeNetworkStatus(onStoreChange: () => void) {
+  ensureNetworkMonitor();
+  const id = ++nextSubscriberId;
+  networkSubscribers.set(id, {
+    onOnline: onStoreChange,
+    onOffline: onStoreChange,
+  });
+  return () => {
+    networkSubscribers.delete(id);
+    if (networkSubscribers.size === 0 && nativeTeardown) {
+      nativeTeardown();
+      nativeTeardown = undefined;
+      networkMonitorActive = false;
+    }
+  };
+}
+
+function getNetworkSnapshot() {
+  return globalOnline;
+}
 
 export const useOfflineSync = () => {
   const [pendingActions, setPendingActions] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const isOnline = useSyncExternalStore(subscribeNetworkStatus, getNetworkSnapshot, () => true);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncInProgress = useRef(false);
   const retryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load pending actions count from storage
   const loadPendingCount = useCallback(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -40,7 +156,6 @@ export const useOfflineSync = () => {
     return [];
   }, []);
 
-  // Save actions to storage
   const saveActions = useCallback((actions: OfflineAction[]) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(actions));
@@ -50,61 +165,23 @@ export const useOfflineSync = () => {
     }
   }, []);
 
-  // Queue an action for offline sync
-  const queueAction = useCallback((type: OfflineAction["type"], data: any) => {
-    const action: OfflineAction = {
-      id: crypto.randomUUID(),
-      type,
-      data,
-      createdAt: Date.now(),
-      retries: 0,
-    };
-
-    const actions = loadPendingCount();
-    actions.push(action);
-    saveActions(actions);
-    
-    // Show feedback to user
-    toast.info(`Saved offline: ${type}`, {
-      description: "Will sync when online",
-    });
-
-    // If online, try to sync immediately
-    if (navigator.onLine) {
-      syncActions();
-    }
-
-    return action.id;
-  }, [loadPendingCount, saveActions]);
-
-  // Process a single action
   const processAction = async (action: OfflineAction): Promise<boolean> => {
     try {
       switch (action.type) {
         case "sale":
-          // Sale data should include all necessary info
-          // This is handled by useSaveSale - placeholder for future local-first
           console.log("Syncing sale:", action.data);
-          // For now, we assume sales are saved directly
-          // Future: implement actual sale sync
           return true;
-          
         case "payment":
-          // Payment sync logic
           console.log("Syncing payment:", action.data);
           return true;
-          
-        case "customer":
-          const { error } = await supabase
-            .from("customers")
-            .insert(action.data);
+        case "customer": {
+          const { error } = await supabase.from("customers").insert(action.data);
           if (error) throw error;
           return true;
-          
+        }
         case "purchase":
           console.log("Syncing purchase:", action.data);
           return true;
-          
         default:
           console.warn("Unknown action type:", action.type);
           return true;
@@ -115,9 +192,8 @@ export const useOfflineSync = () => {
     }
   };
 
-  // Sync all pending actions
   const syncActions = useCallback(async () => {
-    if (syncInProgress.current || !navigator.onLine) return;
+    if (syncInProgress.current || !globalOnline) return;
 
     syncInProgress.current = true;
     setIsSyncing(true);
@@ -126,8 +202,6 @@ export const useOfflineSync = () => {
     try {
       const actions = loadPendingCount();
       if (actions.length === 0) {
-        setIsSyncing(false);
-        syncInProgress.current = false;
         return;
       }
 
@@ -137,7 +211,6 @@ export const useOfflineSync = () => {
 
       for (const action of actions) {
         const success = await processAction(action);
-        
         if (success) {
           successCount++;
         } else {
@@ -146,7 +219,6 @@ export const useOfflineSync = () => {
             remainingActions.push(action);
             failCount++;
           } else {
-            // Action failed after max retries, notify user
             toast.error(`Failed to sync ${action.type} after ${MAX_RETRIES} attempts`);
           }
         }
@@ -156,13 +228,16 @@ export const useOfflineSync = () => {
       setLastSyncTime(new Date());
 
       if (remainingActions.length === 0 && actions.length > 0) {
-        toast.success(`${successCount} action${successCount !== 1 ? 's' : ''} synced successfully`);
+        toast.success(`${successCount} action${successCount !== 1 ? "s" : ""} synced successfully`, {
+          duration: NETWORK_TOAST_DURATION_MS,
+          position: "bottom-center",
+          style: MOBILE_TOAST_STYLE,
+        });
       } else if (failCount > 0) {
-        setSyncError(`${failCount} action${failCount !== 1 ? 's' : ''} failed to sync`);
-        // Schedule retry
+        setSyncError(`${failCount} action${failCount !== 1 ? "s" : ""} failed to sync`);
         if (retryTimeout.current) clearTimeout(retryTimeout.current);
         retryTimeout.current = setTimeout(() => {
-          if (navigator.onLine) syncActions();
+          if (globalOnline) void syncActions();
         }, RETRY_DELAY);
       }
     } catch (error) {
@@ -174,63 +249,66 @@ export const useOfflineSync = () => {
     }
   }, [loadPendingCount, saveActions]);
 
-  // Clear all pending actions (use with caution)
+  const syncActionsRef = useRef(syncActions);
+  syncActionsRef.current = syncActions;
+
+  useEffect(() => {
+    syncOnOnlineCallback = () => {
+      void syncActionsRef.current();
+    };
+    return () => {
+      if (syncOnOnlineCallback) syncOnOnlineCallback = null;
+    };
+  }, []);
+
+  const queueAction = useCallback(
+    (type: OfflineAction["type"], data: any) => {
+      const action: OfflineAction = {
+        id: crypto.randomUUID(),
+        type,
+        data,
+        createdAt: Date.now(),
+        retries: 0,
+      };
+
+      const actions = loadPendingCount();
+      actions.push(action);
+      saveActions(actions);
+
+      toast.info(`Saved offline: ${type}`, {
+        description: "Will sync when online",
+        duration: NETWORK_TOAST_DURATION_MS,
+        position: "bottom-center",
+        style: MOBILE_TOAST_STYLE,
+      });
+
+      if (globalOnline) {
+        void syncActionsRef.current();
+      }
+
+      return action.id;
+    },
+    [loadPendingCount, saveActions],
+  );
+
   const clearQueue = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setPendingActions(0);
     setSyncError(null);
   }, []);
 
-  // Monitor online status (Capacitor Network on native, window events in browser/PWA)
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success("Back online", { description: "Syncing pending actions..." });
-      syncActions();
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.warning("You're offline", { description: "Changes will be saved locally" });
-    };
-
     loadPendingCount();
-
-    if (Capacitor.isNativePlatform()) {
-      let remove: (() => void) | undefined;
-
-      const setup = async () => {
-        const status = await Network.getStatus();
-        setIsOnline(status.connected);
-        if (status.connected) syncActions();
-
-        const listener = await Network.addListener("networkStatusChange", (s) => {
-          if (s.connected) handleOnline();
-          else handleOffline();
-        });
-        remove = () => listener.remove();
-      };
-
-      void setup();
-      return () => {
-        remove?.();
-        if (retryTimeout.current) clearTimeout(retryTimeout.current);
-      };
+    if (globalOnline) {
+      void syncActionsRef.current();
     }
+  }, [loadPendingCount]);
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    if (navigator.onLine) {
-      syncActions();
-    }
-
+  useEffect(() => {
     return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
       if (retryTimeout.current) clearTimeout(retryTimeout.current);
     };
-  }, [syncActions, loadPendingCount]);
+  }, []);
 
   return {
     isOnline,

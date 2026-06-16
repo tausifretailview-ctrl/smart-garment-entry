@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Search, FileText, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { localDayBounds } from "@/lib/localDayBounds";
+import { localDayBounds, formatTimestampIST } from "@/lib/localDayBounds";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -183,7 +183,7 @@ export const OwnerSalesBillList = ({ period, customRange, onBack, onViewBill }: 
                   </div>
                   <div className="text-right shrink-0 ml-3">
                     <p className="text-[10px] text-muted-foreground">
-                      {bill.created_at ? format(new Date(bill.created_at), "dd MMM, hh:mm a") : ""}
+                      {bill.created_at ? formatTimestampIST(bill.created_at) : ""}
                     </p>
                     <p className="text-sm font-bold text-success tabular-nums mt-0.5">
                       {fmt(bill.net_amount || 0)}

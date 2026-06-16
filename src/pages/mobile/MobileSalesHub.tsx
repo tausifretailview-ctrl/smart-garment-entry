@@ -12,6 +12,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
 import { MOBILE_HOME_SALE_TYPES, mobileSalesDateBounds } from "@/lib/mobileShell";
+import { formatTimestampIST } from "@/lib/localDayBounds";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { Badge } from "@/components/ui/badge";
@@ -435,7 +436,7 @@ export default function MobileSalesHub() {
                       {sale.customer_name || 'Walk-in'}
                     </button>
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                      {format(new Date(sale.created_at || sale.sale_date), "d MMM, hh:mm a")}
+                      {formatTimestampIST(sale.created_at || sale.sale_date)}
                     </p>
                   </div>
                   <div className="text-right flex flex-col items-end gap-1 ml-2">

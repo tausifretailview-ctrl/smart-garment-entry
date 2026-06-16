@@ -42,3 +42,20 @@ export function saleRowCalendarYmd(sale: {
 export function todayLocalYmd(): string {
   return format(new Date(), "yyyy-MM-dd");
 }
+
+const IST_DISPLAY_FORMATTER = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  day: "numeric",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
+/** Display sale/invoice timestamps in IST (Asia/Kolkata). */
+export function formatTimestampIST(iso: string | Date | null | undefined): string {
+  if (!iso) return "";
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  if (Number.isNaN(d.getTime())) return "";
+  return IST_DISPLAY_FORMATTER.format(d);
+}
