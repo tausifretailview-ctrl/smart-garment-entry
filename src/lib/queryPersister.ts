@@ -34,6 +34,7 @@ const VOLATILE_PREFIXES = [
   "owner-low-stock",
   "todays-sales",
   "today-sales",
+  "pos-dashboard-sales",
   "mobile-dashboard-today-sales",
   "payment-reconciliation",
   "customers-with-balance",

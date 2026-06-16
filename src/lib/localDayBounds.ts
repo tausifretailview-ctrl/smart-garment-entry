@@ -43,6 +43,38 @@ export function todayLocalYmd(): string {
   return format(new Date(), "yyyy-MM-dd");
 }
 
+/** Wall-clock "now" in Asia/Kolkata (same pattern as FY / sale-number logic). */
+export function istNowDate(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+}
+
+/** Business sale_date timestamptz — IST wall clock with +05:30 offset. */
+export function saleDateIsoIst(): string {
+  const d = istNowDate();
+  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}+05:30`;
+}
+
+/** Ledger/voucher txn date — IST calendar day YYYY-MM-DD. */
+export function istCalendarYmd(): string {
+  const d = istNowDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/*
+ * DATA CHECK (review before any correction — shifts which day revenue counts on):
+ * SELECT id, sale_number, sale_date, created_at,
+ *   (sale_date AT TIME ZONE 'Asia/Kolkata')::date AS sale_date_ist,
+ *   (created_at AT TIME ZONE 'Asia/Kolkata')::date AS created_ist
+ * FROM sales
+ * WHERE deleted_at IS NULL
+ *   AND sale_type = 'pos'
+ *   AND (sale_date AT TIME ZONE 'Asia/Kolkata')::date
+ *       <> (created_at AT TIME ZONE 'Asia/Kolkata')::date
+ *   AND EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Kolkata') < 5.5;
+ */
+
 const IST_DISPLAY_FORMATTER = new Intl.DateTimeFormat("en-IN", {
   timeZone: "Asia/Kolkata",
   day: "numeric",

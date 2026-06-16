@@ -25,6 +25,8 @@ import {
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
+import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
+import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 
 interface CartItem {
   id: string;
@@ -88,6 +90,7 @@ export const useSaveSale = () => {
     });
     void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
     void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+    invalidatePosDashboardQueries(queryClient, organizationId);
     if (runtimeOptions?.deferDashboardInvalidation) {
       scheduleInvalidateSales(organizationId, { skipPosNotify: true });
     } else {
@@ -674,8 +677,8 @@ export const useSaveSale = () => {
         exchange,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
 
-      // Insert sale record
-      const saleDateIso = new Date().toISOString();
+      // Insert sale record — IST business date (not UTC day after midnight IST)
+      const saleDateIso = saleDateIsoIst();
 
       const { data: sale, error: saleError } = await supabase
         .from('sales')
@@ -765,7 +768,7 @@ export const useSaveSale = () => {
 
       // Customer Account Statement — write double-entry ledger (fire-and-forget)
       if (saleData.customerId) {
-        const txnDate = new Date().toISOString().slice(0, 10);
+        const txnDate = istCalendarYmd();
         // For exchange-with-refund, debit the items value (positive) — the SR
         // credit (already written when SR was created) will offset it. For
         // normal sales, debit the net amount.
@@ -797,7 +800,7 @@ export const useSaveSale = () => {
 
       if (isExchangeRefund && saleData.customerId) {
         try {
-          const txnDate = new Date().toISOString().slice(0, 10);
+          const txnDate = istCalendarYmd();
           await writeExchangePaymentVouchers({
             saleNumber,
             customerId: saleData.customerId,
@@ -1283,7 +1286,7 @@ export const useSaveSale = () => {
         payStatus !== "pending";
       const saleDatePatch =
         completingOpenBill && !hadPriorSaleDate
-          ? { sale_date: new Date().toISOString() }
+          ? { sale_date: saleDateIsoIst() }
           : {};
 
       // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
@@ -1390,7 +1393,7 @@ export const useSaveSale = () => {
           voucherTypes: ['SALE', 'RECEIPT'],
         });
         if (saleData.customerId) {
-          const txnDate = new Date().toISOString().slice(0, 10);
+          const txnDate = istCalendarYmd();
           const saleDebitAmount = isExchangeRefund ? exchange.billAmount : saleData.netAmount;
           insertLedgerDebit({
             organizationId: currentOrganization.id,
@@ -1417,7 +1420,7 @@ export const useSaveSale = () => {
 
       if (isExchangeRefund && saleData.customerId && sale?.sale_number) {
         try {
-          const txnDate = new Date().toISOString().slice(0, 10);
+          const txnDate = istCalendarYmd();
           await (supabase as any)
             .from('voucher_entries')
             .delete()
@@ -1801,7 +1804,7 @@ export const useSaveSale = () => {
         .from('sales')
         .update({
           sale_number: newSaleNumber,
-          sale_date: new Date().toISOString(),
+          sale_date: saleDateIsoIst(),
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,
