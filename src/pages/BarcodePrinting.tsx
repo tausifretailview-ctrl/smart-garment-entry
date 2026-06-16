@@ -1387,6 +1387,11 @@ export default function BarcodePrinting() {
   );
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Dedupe guard: skip printer_presets/templates writes when signature unchanged.
+  // Prevents the auto-save effects from re-persisting identical config on every
+  // mount, route change or render — which was driving ~1.6M printer_presets
+  // UPDATEs and dominating DB CPU on the small instance.
+  const lastPersistedSignatureRef = useRef<string>("");
   // Tracks whether we've resolved the initial default tab for the current org.
   // Resolution is "Auto": prefer Standard if a saved A4 sheet default exists,
   // otherwise prefer Precision Pro (thermal/barcode printer workflow).
