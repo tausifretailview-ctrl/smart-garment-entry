@@ -35,6 +35,7 @@ import {
   recordPurchaseReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { coerceToMap } from "@/lib/coerceToMap";
 
 function parseReturnQty(uom: string | undefined, raw: string): number {
   if (isDecimalUOM(uom)) {
@@ -157,7 +158,7 @@ const PurchaseReturnEntry = () => {
   const location = useLocation();
   const routeState = location.state as PurchaseReturnRouteState | null;
   const editId =
-    searchParams.get("edit") ||
+    (typeof searchParams?.get === "function" ? searchParams.get("edit") : null) ||
     routeState?.editReturnId ||
     null;
   const returnPreview = routeState?.returnPreview;
@@ -425,12 +426,14 @@ const PurchaseReturnEntry = () => {
             ...new Set((items || []).map((item: any) => item.sku_id).filter(Boolean)),
           ] as string[];
 
-          const [productsData, variantMap] = await Promise.all([
+          const [productsData, variantMapRaw] = await Promise.all([
             fetchPurchaseReturnProductsByIds(orgId, productIds, "id, product_name, brand, uom"),
             fetchVariantColorsByIds(skuIds),
           ]);
 
-          const productMap = new Map(productsData.map((p) => [p.id, p]));
+          const productRows = Array.isArray(productsData) ? productsData : [];
+          const productMap = new Map(productRows.map((p) => [p.id, p]));
+          const variantMap = coerceToMap<string, { color?: string }>(variantMapRaw);
 
           const loadedItems: LineItem[] = (items || []).map((item: any) => {
             const product = productMap.get(item.product_id);
