@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil, Printer, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -223,6 +223,73 @@ export default function AdvanceBookingDashboard() {
   const totalCount = advancesData?.count || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
+  // Filter-scoped totals for grand total row (matches active filters, all pages)
+  const { data: filteredTotals } = useQuery({
+    queryKey: ["advance-filter-totals", orgId, debouncedSearch, dateFilter, statusFilter],
+    queryFn: async () => {
+      let customerIds: string[] | null = null;
+      if (debouncedSearch) {
+        const term = `%${debouncedSearch}%`;
+        const { data: matchedCustomers } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("organization_id", orgId!)
+          .or(`customer_name.ilike.${term},phone.ilike.${term}`)
+          .limit(200);
+        customerIds = matchedCustomers?.map(c => c.id) || [];
+      }
+
+      const buildQuery = () => {
+        let query = supabase
+          .from("customer_advances")
+          .select("amount, used_amount")
+          .eq("organization_id", orgId!);
+
+        if (debouncedSearch) {
+          const term = `%${debouncedSearch}%`;
+          if (customerIds && customerIds.length > 0) {
+            query = query.or(`advance_number.ilike.${term},customer_id.in.(${customerIds.join(",")})`);
+          } else {
+            query = query.ilike("advance_number", term);
+          }
+        }
+
+        const dateFrom = getDateRange();
+        if (dateFrom) {
+          query = query.gte("advance_date", dateFrom);
+        }
+
+        if (statusFilter !== "all") {
+          query = query.eq("status", statusFilter);
+        }
+        return query;
+      };
+
+      let totalAmount = 0;
+      let totalUsed = 0;
+      const PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        const { data: pageRows, error } = await buildQuery().range(offset, offset + PAGE - 1);
+        if (error) throw error;
+        if (!pageRows?.length) break;
+        for (const row of pageRows) {
+          totalAmount += Number(row.amount || 0);
+          totalUsed += Number(row.used_amount || 0);
+        }
+        if (pageRows.length < PAGE) break;
+        offset += PAGE;
+      }
+      return { totalAmount, totalUsed, totalAvailable: totalAmount - totalUsed };
+    },
+    enabled: !!orgId,
+    staleTime: STALE_LIVE,
+  });
+
+  const grandTotalAmount = filteredTotals?.totalAmount ?? advances.reduce((s, a) => s + (a.amount || 0), 0);
+  const grandTotalUsed = filteredTotals?.totalUsed ?? advances.reduce((s, a) => s + (a.used_amount || 0), 0);
+  const grandTotalAvailable = filteredTotals?.totalAvailable ?? grandTotalAmount - grandTotalUsed;
+
   // Refund mutation
   const refundMutation = useMutation({
     mutationFn: async ({ advanceId, amount, method, reason }: { advanceId: string; amount: number; method: string; reason: string }) => {
@@ -240,6 +307,7 @@ export default function AdvanceBookingDashboard() {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger-adv-refunds"] });
@@ -291,6 +359,7 @@ export default function AdvanceBookingDashboard() {
      onSuccess: () => {
        queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
        queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
        queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
        queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
        toast.success("Advance updated successfully");
@@ -398,6 +467,7 @@ export default function AdvanceBookingDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
@@ -511,6 +581,7 @@ export default function AdvanceBookingDashboard() {
         <Button variant="outline" size="icon" onClick={() => {
           queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
           queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+          queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
         }}>
           <RefreshCw className="h-4 w-4" />
         </Button>
@@ -614,6 +685,25 @@ export default function AdvanceBookingDashboard() {
               })
             )}
           </TableBody>
+          {advances.length > 0 && (
+            <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+              <TableRow>
+                <TableCell colSpan={5} className="font-bold text-primary py-2.5">
+                  GRAND TOTAL
+                </TableCell>
+                <TableCell className="text-right font-bold tabular-nums py-2.5">
+                  ₹{fmt(grandTotalAmount)}
+                </TableCell>
+                <TableCell className="text-right font-bold tabular-nums text-muted-foreground py-2.5">
+                  ₹{fmt(grandTotalUsed)}
+                </TableCell>
+                <TableCell className="text-right font-bold tabular-nums text-green-600 py-2.5">
+                  ₹{fmt(grandTotalAvailable)}
+                </TableCell>
+                <TableCell colSpan={3} />
+              </TableRow>
+            </TableFooter>
+          )}
         </Table>
       </div>
 
@@ -643,6 +733,7 @@ export default function AdvanceBookingDashboard() {
             if (!open) {
               queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
               queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["advance-filter-totals"] });
             }
           }}
           organizationId={orgId}

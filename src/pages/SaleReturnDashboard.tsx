@@ -19,7 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard, Banknote, ArrowLeftRight, Pencil, FileSpreadsheet, Package, Settings2 } from "lucide-react";
@@ -531,17 +531,21 @@ export default function SaleReturnDashboard() {
       if (countError) throw countError;
 
       let totalValue = 0;
+      let totalGross = 0;
+      let totalGst = 0;
       const allReturnIds: string[] = [];
       const PAGE = 1000;
       let offset = 0;
       while (true) {
         const { data: pageRows, error: pageError } = await withSearch(
-          supabase.from("sale_returns").select("id, net_amount"),
+          supabase.from("sale_returns").select("id, net_amount, gross_amount, gst_amount"),
         ).range(offset, offset + PAGE - 1);
         if (pageError) throw pageError;
         if (!pageRows?.length) break;
         for (const row of pageRows) {
           totalValue += Number(row.net_amount || 0);
+          totalGross += Number(row.gross_amount || 0);
+          totalGst += Number(row.gst_amount || 0);
           if (row.id) allReturnIds.push(row.id);
         }
         if (pageRows.length < PAGE) break;
@@ -561,7 +565,7 @@ export default function SaleReturnDashboard() {
         );
       }
 
-      return { totalReturns: count || 0, totalValue, totalQty };
+      return { totalReturns: count || 0, totalValue, totalQty, totalGross, totalGst };
     },
     enabled: !!currentOrganization?.id,
     staleTime: STALE_LIVE,
@@ -711,6 +715,8 @@ export default function SaleReturnDashboard() {
   const totalReturns = summaryData?.totalReturns ?? returnsData?.totalCount ?? returns.length;
   const totalValue = summaryData?.totalValue ?? returns.reduce((sum, ret) => sum + ret.net_amount, 0);
   const totalQty = summaryData?.totalQty ?? returns.reduce((sum, ret) => sum + (ret.total_qty || 0), 0);
+  const totalGross = summaryData?.totalGross ?? returns.reduce((sum, ret) => sum + (ret.gross_amount || 0), 0);
+  const totalGst = summaryData?.totalGst ?? returns.reduce((sum, ret) => sum + (ret.gst_amount || 0), 0);
   const averageValue = totalReturns > 0 ? totalValue / totalReturns : 0;
   const totalPages = Math.ceil(totalReturns / pageSize);
 
@@ -1669,6 +1675,39 @@ export default function SaleReturnDashboard() {
                     </>
                   ))}
                 </TableBody>
+                {returns.length > 0 && (
+                  <TableFooter className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+                    <TableRow>
+                      <TableCell className="print:hidden" />
+                      <TableCell
+                        colSpan={3 + (columnSettings.phone ? 1 : 0) + (columnSettings.originalSale ? 1 : 0)}
+                        className="font-bold text-primary py-2.5"
+                      >
+                        GRAND TOTAL
+                      </TableCell>
+                      <TableCell className="text-center font-bold tabular-nums py-2.5">
+                        {totalQty.toLocaleString("en-IN")}
+                      </TableCell>
+                      {columnSettings.gross && (
+                        <TableCell className="text-right font-bold tabular-nums py-2.5">
+                          ₹{Math.round(totalGross).toLocaleString("en-IN")}
+                        </TableCell>
+                      )}
+                      {columnSettings.gst && (
+                        <TableCell className="text-right font-bold tabular-nums py-2.5">
+                          ₹{Math.round(totalGst).toLocaleString("en-IN")}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right font-bold tabular-nums py-2.5">
+                        ₹{Math.round(totalValue).toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell
+                        colSpan={5 + (columnSettings.adjInvoice ? 1 : 0)}
+                        className="print:[display:none]"
+                      />
+                    </TableRow>
+                  </TableFooter>
+                )}
               </Table>
                 )}
               </div>
