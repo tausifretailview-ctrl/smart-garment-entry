@@ -1022,8 +1022,12 @@ export default function SaleReturnEntry() {
                   journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
                 })
                 .eq("id", returnData.id);
+              const rollbackAt = new Date().toISOString();
               await supabase.from("sale_return_items").delete().eq("return_id", returnData.id);
-              await supabase.from("sale_returns").delete().eq("id", returnData.id);
+              await supabase.from("sale_returns").update({
+                deleted_at: rollbackAt,
+                notes: "auto-rollback: items insert failed during save",
+              }).eq("id", returnData.id);
               throw glErr;
             }
           }
@@ -1052,8 +1056,12 @@ export default function SaleReturnEntry() {
                 createdReturnId,
                 supabase
               );
+              const rollbackAt = new Date().toISOString();
               await supabase.from("sale_return_items").delete().eq("return_id", createdReturnId);
-              await supabase.from("sale_returns").delete().eq("id", createdReturnId);
+              await supabase.from("sale_returns").update({
+                deleted_at: rollbackAt,
+                notes: "auto-rollback: items insert failed during save",
+              }).eq("id", createdReturnId);
             } catch (cleanupErr) {
               console.error("Cleanup failed:", cleanupErr);
             }

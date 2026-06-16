@@ -1401,8 +1401,12 @@ const PurchaseReturnEntry = () => {
                 journal_error: glErr instanceof Error ? glErr.message.slice(0, 2000) : String(glErr).slice(0, 2000),
               })
               .eq("id", prId);
+            const rollbackAt = new Date().toISOString();
             await supabase.from("purchase_return_items" as any).delete().eq("return_id", prId);
-            await supabase.from("purchase_returns" as any).delete().eq("id", prId);
+            await supabase.from("purchase_returns" as any).update({
+              deleted_at: rollbackAt,
+              notes: "auto-rollback: items insert failed during save",
+            }).eq("id", prId);
             throw glErr;
           }
         } else if (isDC) {
