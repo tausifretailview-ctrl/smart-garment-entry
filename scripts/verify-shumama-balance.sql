@@ -1,7 +1,8 @@
 -- READ-ONLY: Shumama Baireli (ELLA NOOR) — run ONE block at a time in Supabase SQL editor.
 -- Customer: 224e20b5-12a7-4ad0-b7e3-c8d593d7d8f9
 -- Org:      3fdca631-1e0c-4417-9704-421f5129ff67
--- Expect: get_customer_true_outstanding ≈ -17400 (negative = customer in credit / refund owed)
+-- Expect after 20260817120000: get_customer_true_outstanding ≈ -12850 (negative = customer in credit)
+-- (Prior bug showed ≈ -419550 from advance double-count in receipt_payments.)
 
 -- Block 1: lifetime outstanding (signed: negative = Cr)
 SELECT public.get_customer_true_outstanding(
