@@ -3552,6 +3552,7 @@ const PurchaseEntry = () => {
         sku_id: item.sku_id,
         product_name: item.product_name,
         size: item.size,
+        uom: item.uom,
         qty: Number(item.qty),
         pur_price: Number(item.pur_price),
         sale_price: Number(item.sale_price),
