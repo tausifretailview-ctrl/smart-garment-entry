@@ -29,6 +29,7 @@ import {
   formatPurchaseReturnOrigBill,
   type LinkedBillLabel,
 } from "@/utils/purchaseReturnCnDisplay";
+import { lookupMap } from "@/lib/coerceToMap";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 
@@ -274,52 +275,57 @@ const PurchaseReturnDashboard = () => {
 
   const linkedBillIds = [...new Set((returnsData?.returns || []).map((r) => r.linked_bill_id).filter(Boolean))] as string[];
 
-  const { data: linkedBillById = new Map<string, LinkedBillLabel>() } = useQuery({
+  const { data: linkedBillByIdRaw } = useQuery({
     queryKey: ["purchase-return-linked-bills", currentOrganization?.id, linkedBillIds.join(",")],
-    queryFn: async () => {
-      if (linkedBillIds.length === 0) return new Map<string, LinkedBillLabel>();
+    queryFn: async (): Promise<Record<string, LinkedBillLabel>> => {
+      if (linkedBillIds.length === 0) return {};
       const { data, error } = await supabase
         .from("purchase_bills")
         .select("id, software_bill_no, supplier_invoice_no")
         .in("id", linkedBillIds);
       if (error) throw error;
-      return new Map(
-        (data || []).map((b) => [
-          b.id,
-          { software_bill_no: b.software_bill_no, supplier_invoice_no: b.supplier_invoice_no },
-        ])
-      );
+      const out: Record<string, LinkedBillLabel> = {};
+      for (const b of data || []) {
+        out[b.id] = {
+          software_bill_no: b.software_bill_no,
+          supplier_invoice_no: b.supplier_invoice_no,
+        };
+      }
+      return out;
     },
     enabled: !!currentOrganization?.id && linkedBillIds.length > 0,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const { data: cnAmountByReturnId = new Map<string, number>() } = useQuery({
+  const { data: cnAmountByReturnIdRaw } = useQuery({
     queryKey: [
       "purchase-return-cn-amounts",
       currentOrganization?.id,
       (returnsData?.returns || []).map((r) => r.id).join(","),
     ],
-    queryFn: async () => {
+    queryFn: async (): Promise<Record<string, number>> => {
       const cnIds = [...new Set((returnsData?.returns || []).map((r) => r.credit_note_id).filter(Boolean))] as string[];
-      if (cnIds.length === 0) return new Map<string, number>();
+      if (cnIds.length === 0) return {};
       const { data, error } = await supabase
         .from("voucher_entries")
         .select("id, total_amount")
         .in("id", cnIds);
       if (error) throw error;
       const byCn = new Map((data || []).map((v) => [v.id, Number(v.total_amount) || 0]));
-      const map = new Map<string, number>();
+      const out: Record<string, number> = {};
       for (const r of returnsData?.returns || []) {
         if (r.credit_note_id && byCn.has(r.credit_note_id)) {
-          map.set(r.id, byCn.get(r.credit_note_id)!);
+          out[r.id] = byCn.get(r.credit_note_id)!;
         }
       }
-      return map;
+      return out;
     },
     enabled: !!returnsData?.returns?.length,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
+
+  const linkedBillById = linkedBillByIdRaw ?? {};
+  const cnAmountByReturnId = cnAmountByReturnIdRaw ?? {};
 
   useEffect(() => {
     if (returnsData) {
@@ -890,13 +896,13 @@ const PurchaseReturnDashboard = () => {
                         <TableCell className="px-2 py-1.5 text-sm">
                           <Badge variant="outline" className="text-xs px-1.5 py-0.5 max-w-[120px] truncate" title={
                             returnRecord.credit_status === "adjusted" && returnRecord.linked_bill_id
-                              ? `Adjusted against bill ${formatPurchaseReturnOrigBill(returnRecord, linkedBillById.get(returnRecord.linked_bill_id!))}`
+                              ? `Adjusted against bill ${formatPurchaseReturnOrigBill(returnRecord, lookupMap(linkedBillById, returnRecord.linked_bill_id))}`
                               : undefined
                           }>
                             {formatPurchaseReturnOrigBill(
                               returnRecord,
                               returnRecord.linked_bill_id
-                                ? linkedBillById.get(returnRecord.linked_bill_id)
+                                ? lookupMap(linkedBillById, returnRecord.linked_bill_id)
                                 : null
                             )}
                           </Badge>
@@ -923,9 +929,9 @@ const PurchaseReturnDashboard = () => {
                             const label = formatPurchaseReturnCreditStatusLabel(
                               returnRecord,
                               returnRecord.linked_bill_id
-                                ? linkedBillById.get(returnRecord.linked_bill_id)
+                                ? lookupMap(linkedBillById, returnRecord.linked_bill_id)
                                 : null,
-                              cnAmountByReturnId.get(returnRecord.id) ?? returnRecord.net_amount
+                              cnAmountByReturnId[returnRecord.id] ?? returnRecord.net_amount
                             );
                             if (!st) return <span className="text-muted-foreground text-xs">-</span>;
                             const className =
