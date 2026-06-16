@@ -1055,7 +1055,16 @@ export const useSaveSale = () => {
       return { ...sale, pointsAwarded };
     } catch (error: any) {
       if (insertedSaleIdForRollback) {
-        await supabase.from('sales').delete().eq('id', insertedSaleIdForRollback);
+        const rollbackAt = new Date().toISOString();
+        await supabase.from('sale_items').delete().eq('sale_id', insertedSaleIdForRollback);
+        await supabase.from('sales').update({
+          deleted_at: rollbackAt,
+          is_cancelled: true,
+          cancelled_at: rollbackAt,
+          cancelled_by: user?.id ?? null,
+          cancelled_reason: 'auto-rollback: sale_items insert failed during save',
+          payment_status: 'cancelled',
+        }).eq('id', insertedSaleIdForRollback);
       }
       console.error('Error saving sale:', error);
       const isDuplicate = error?.code === '23505' || 
