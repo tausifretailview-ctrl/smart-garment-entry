@@ -107,7 +107,6 @@ import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
-  invalidateInvoiceDashboardQueries,
   reconcileInvoiceDashboardRows,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
@@ -204,8 +203,9 @@ export default function SalesInvoiceDashboard() {
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const queryClient = useQueryClient();
   const refreshInvoiceDashboard = useCallback(() => {
-    invalidateInvoiceDashboardQueries(queryClient, currentOrganization?.id);
-  }, [queryClient, currentOrganization?.id]);
+    void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+    void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
+  }, [queryClient]);
   const isMobile = useIsMobile();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -1418,7 +1418,8 @@ export default function SalesInvoiceDashboard() {
     const st = location.state as { refreshSalesList?: boolean } | null;
     if (!st?.refreshSalesList) return;
     setCurrentPage(1);
-    void queryClient.invalidateQueries({ queryKey: ['invoice-dashboard-unified'] });
+    void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+    void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
     window.history.replaceState({}, document.title);
   }, [location.state, queryClient]);
 
@@ -2363,6 +2364,7 @@ export default function SalesInvoiceDashboard() {
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
       invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
+      void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {
@@ -2461,6 +2463,9 @@ export default function SalesInvoiceDashboard() {
         });
 
       if (trackingError) throw trackingError;
+
+      void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
 
       toast({
         title: "Status Updated",
