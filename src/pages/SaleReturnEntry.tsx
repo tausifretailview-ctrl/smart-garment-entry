@@ -15,11 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { Trash2, Search, Plus, Check, ChevronsUpDown } from "lucide-react";
+import { Trash2, Search, Plus, Check, ChevronsUpDown, ChevronLeft, RotateCcw, Barcode, Save, X, Loader2, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -29,7 +31,8 @@ import {
   type SaleItemPriceFields,
 } from "@/utils/saleReturnPricing";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
-import { entryPageContentClass, entryPageShellClass } from "@/lib/entryPageLayout";
+import { entryPageMainClass, entryPageSectionX, entryPageShellClass } from "@/lib/entryPageLayout";
+import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { cn } from "@/lib/utils";
 
 interface Customer {
@@ -75,6 +78,7 @@ interface ReturnItem {
 }
 
 export default function SaleReturnEntry() {
+  useEntryViewportSync();
   const { orgNavigate } = useOrgNavigation();
   const { editId } = useParams<{ editId?: string }>();
   const { toast } = useToast();
@@ -1093,112 +1097,79 @@ export default function SaleReturnEntry() {
   };
 
   const totals = calculateTotals();
+  const totalReturnQty = returnItems.reduce((sum, item) => sum + item.quantity, 0);
+  const taxableAmount =
+    taxType === "inclusive" ? totals.grossAmount - totals.gstAmount : totals.grossAmount;
+  const displayNetAmount = totals.netAmount;
+  const returnDateAsDate = returnDate ? new Date(`${returnDate}T12:00:00`) : undefined;
 
   if (editLoading) {
     return (
-      <div className="w-full max-w-none px-2 sm:px-3 lg:px-4 py-4 sm:py-6 flex items-center justify-center min-h-[400px]">
-        <p className="text-muted-foreground">Loading sale return...</p>
+      <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0 relative")} data-entry-form>
+        <div className="absolute inset-0 z-30 flex items-start justify-center bg-white/80 px-4 pt-16 backdrop-blur-[1px]">
+          <Card className="w-full max-w-md border-black/20 shadow-lg">
+            <CardContent className="flex flex-col items-center gap-3 p-5 text-center">
+              <Loader2 className="h-5 w-5 animate-spin text-black" />
+              <p className="text-sm font-bold text-black">Loading sale return details...</p>
+              <p className="text-xs text-black/60">Item rows will appear here shortly.</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={entryPageShellClass} data-entry-form>
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className={cn(entryPageContentClass, "space-y-4 sm:space-y-5")}>
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-8 bg-destructive rounded-full" />
-          <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">
-              {isEditMode ? 'Edit Sale Return' : 'Sale Return Entry'}
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {isEditMode ? `Editing return ${nextReturnNumber}` : 'Create a new return against a sale'}
-            </p>
+    <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0 relative")} data-entry-form>
+      <header className="bg-white border-b-2 border-black shrink-0 flex flex-col">
+        <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
+          <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => orgNavigate("/sale-returns")}
+              className="h-8 shrink-0 text-black hover:text-black hover:bg-black/5 border border-black/20 text-xs gap-1.5 font-bold"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+            <div className="w-px h-6 bg-black/15 shrink-0" />
+            <RotateCcw className="h-5 w-5 text-black shrink-0" />
+            <span className="text-black font-bold text-[15px] whitespace-nowrap hidden md:inline">
+              {isEditMode ? "Edit Sale Return" : "Sale Return Entry"}
+            </span>
+            <span className="border-2 border-black text-black font-mono text-[11px] font-bold px-3 py-1 rounded-md shrink-0">
+              {nextReturnNumber || "NEW"}
+            </span>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => orgNavigate('/sale-returns')}
-          className="h-9 px-4 text-sm font-medium border-border"
-        >
-          ← Back to Dashboard
-        </Button>
-      </div>
+      </header>
 
-      {/* Barcode Scanner */}
-      <div className="rounded-xl border border-border bg-card shadow-sm px-5 py-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-1.5 h-5 bg-primary rounded-full" />
-          <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Barcode Scanner</h2>
-        </div>
-        <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={barcodeInputRef}
-              type="text"
-              placeholder="SCAN BARCODE OR ENTER PRODUCT NAME..."
-              value={barcodeInput}
-              onChange={(e) => setBarcodeInput(e.target.value)}
-              className="pl-9 h-10 text-sm uppercase tracking-wide placeholder:normal-case placeholder:tracking-normal"
-              autoFocus
-            />
-          </div>
-          <CameraScanButton
-            onBarcodeScanned={(barcode) => {
-              setBarcodeInput(barcode);
-              setTimeout(() => {
-                if (barcodeInputRef.current) {
-                  barcodeInputRef.current.focus();
-                  const enterEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-                  barcodeInputRef.current.dispatchEvent(enterEvent);
-                }
-              }, 100);
-            }}
-            className="h-10"
-          />
-          <Button type="submit" className="h-10 px-5 text-sm font-semibold">
-            Add
-          </Button>
-        </form>
-        <p className="text-xs text-muted-foreground mt-2">
-          Scan barcode or enter product name/barcode number to add product to return
-        </p>
-      </div>
-
-      {/* Return Details */}
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/30">
-          <div className="w-1.5 h-5 bg-orange-500 rounded-full" />
-          <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Return Details</h2>
-        </div>
-        <div className="px-5 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Return No</Label>
+      <main className={entryPageMainClass}>
+        <section className={cn("bg-white border-b border-black/10 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
+          <div className="flex flex-wrap lg:flex-nowrap items-end gap-3">
+            <div className="space-y-1 flex-1 min-w-[120px]">
+              <Label htmlFor="return_number" className="text-[13px] font-bold text-black">Return No.</Label>
               <Input
+                id="return_number"
                 value={nextReturnNumber}
                 readOnly
-                className="bg-muted h-10 text-sm"
+                className="h-10 bg-neutral-50 font-mono font-bold text-sm border-black/20"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer (Optional)</Label>
+            <div className="space-y-1 flex-[1.5] min-w-[160px]">
+              <Label className="text-[13px] font-bold text-black">Customer (Optional)</Label>
               <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
                     aria-expanded={customerSearchOpen}
-                    className="w-full justify-between font-normal h-10 text-sm"
+                    className="w-full justify-between font-normal h-10 text-sm border-black/20"
                   >
                     {selectedCustomer
-                      ? customers.find(c => c.id === selectedCustomer)?.customer_name || "Selected"
+                      ? customers.find((c) => c.id === selectedCustomer)?.customer_name || "Selected"
                       : "Select customer"}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -1245,7 +1216,7 @@ export default function SaleReturnEntry() {
                               )}
                             </div>
                             {selectedCustomer === customer.id && (
-                              <Check className="ml-auto h-4 w-4 text-primary" />
+                              <Check className="ml-auto h-4 w-4 text-black" />
                             )}
                           </CommandItem>
                         ))}
@@ -1256,20 +1227,36 @@ export default function SaleReturnEntry() {
               </Popover>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Return Date</Label>
-              <Input
-                type="date"
-                value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-                className="h-10 text-sm"
-              />
+            <div className="space-y-1 flex-1 min-w-[140px]">
+              <Label className="text-[13px] font-bold text-black">Return Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full h-10 justify-start text-left font-normal border-black/20",
+                      !returnDate && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {returnDateAsDate ? format(returnDateAsDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={returnDateAsDate}
+                    onSelect={(date) => date && setReturnDate(format(date, "yyyy-MM-dd"))}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Tax Type</Label>
+            <div className="space-y-1 flex-1 min-w-[140px]">
+              <Label className="text-[13px] font-bold text-black">Tax Type</Label>
               <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
-                <SelectTrigger className="h-10 text-sm">
+                <SelectTrigger className="h-10 border-black/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1278,339 +1265,492 @@ export default function SaleReturnEntry() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            <div className="space-y-2 md:col-span-2 lg:col-span-4">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Original Sale Number (Optional)</Label>
+          <div className="mt-3 flex flex-wrap lg:flex-nowrap items-end gap-3">
+            <div className="space-y-1 flex-[2] min-w-[220px]">
+              <Label className="text-[13px] font-bold text-black">Original Sale Number (Optional)</Label>
+              <p className="text-[11px] text-black/55 leading-snug">
+                Enter sale number and click Load Items to auto-populate products for return selection.
+              </p>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Enter sale invoice number e.g. INV/25-26/123 or POS/25-26/34"
+                  placeholder="e.g. INV/25-26/123 or POS/25-26/34"
                   value={originalSaleNumber}
+                  className="no-uppercase h-10 border-black/20"
                   onChange={(e) => {
                     setOriginalSaleNumber(e.target.value);
-                    setOriginalSaleId('');
+                    setOriginalSaleId("");
                     setLinkedSaleFlatDiscount(0);
                     setLinkedSaleRoundOff(0);
                     setSaleLoaded(false);
                     setSaleItems([]);
                     setSelectedSaleItemIds(new Set());
                   }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadSaleByNumber(); } }}
-                  className="h-10 flex-1 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      loadSaleByNumber();
+                    }
+                  }}
                 />
                 <Button
                   type="button"
                   onClick={loadSaleByNumber}
                   disabled={saleLoading || !originalSaleNumber.trim()}
-                  className="h-10 px-4 flex items-center gap-2"
+                  className="h-10 px-4 flex items-center gap-2 shrink-0 bg-black text-white hover:bg-black/90 font-bold"
                 >
                   {saleLoading ? (
-                    <><span className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />Loading...</>
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading...
+                    </>
                   ) : (
-                    <><Search className="h-4 w-4" />Load Items</>
+                    <>
+                      <Search className="h-4 w-4" />
+                      Load Items
+                    </>
                   )}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Enter sale number and click "Load Items" to auto-populate products for return selection</p>
+              {saleLoaded && (
+                <p className="text-[11px] text-emerald-700 font-semibold mt-1">
+                  Sale items loaded — select lines below and add to return.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1 flex-[1.5] min-w-[180px]">
+              <Label className="text-[13px] font-bold text-black">Notes</Label>
+              <Textarea
+                placeholder="Reason for return, notes..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="min-h-[40px] resize-none border-black/20 text-sm"
+              />
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Sale Items Selection Panel */}
-      {saleLoaded && saleItems.length > 0 && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-blue-200 dark:border-blue-800 bg-blue-100/60 dark:bg-blue-900/30">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-5 bg-blue-500 rounded-full" />
-              <h3 className="font-semibold text-blue-900 dark:text-blue-200 text-sm">
-                Sale Items — {originalSaleNumber}
-              </h3>
-              <span className="text-xs text-blue-600 dark:text-blue-300 bg-blue-200 dark:bg-blue-800 px-2 py-0.5 rounded-full font-medium">
-                {saleItems.length} items
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                onClick={() => setSelectedSaleItemIds(new Set(saleItems.map(i => i.variantId)))}
-              >
-                Select All
-              </button>
-              <span className="text-blue-300 dark:text-blue-600">|</span>
-              <button
-                type="button"
-                className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline"
-                onClick={() => setSelectedSaleItemIds(new Set())}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-
-          <div className="divide-y divide-blue-100 dark:divide-blue-800">
-            {saleItems.map((item, i) => {
-              const isSelected = selectedSaleItemIds.has(item.variantId);
-              return (
-                <div
-                  key={item.variantId + i}
-                  onClick={() => toggleSaleItemSelection(item.variantId)}
-                  className={`flex items-center gap-4 px-5 py-3 cursor-pointer transition-colors ${
-                    isSelected ? 'bg-blue-100/80 dark:bg-blue-900/40' : 'hover:bg-blue-50 dark:hover:bg-blue-950/30'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                    isSelected ? 'bg-blue-600 border-blue-600' : 'border-blue-300 dark:border-blue-600 bg-white dark:bg-transparent'
-                  }`}>
-                    {isSelected && (
-                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-foreground truncate">{item.productName}</p>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs text-muted-foreground">Size: <span className="font-medium text-foreground">{item.size}</span></span>
-                      {item.color && <span className="text-xs text-muted-foreground">Color: <span className="font-medium text-foreground">{item.color}</span></span>}
-                      {item.barcode && <span className="text-xs text-muted-foreground">Barcode: <span className="font-mono text-foreground">{item.barcode}</span></span>}
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-sm font-bold text-foreground">₹{item.unitPrice.toFixed(2)}</p>
-                    {item.originalUnitPrice != null &&
-                      Math.abs(item.originalUnitPrice - item.unitPrice) > 0.01 && (
-                        <p className="text-xs text-muted-foreground line-through">
-                          ₹{item.originalUnitPrice.toFixed(2)}
-                        </p>
-                      )}
-                    <p className="text-xs text-muted-foreground">
-                      Qty: {item.quantity} | Line: ₹{item.paidLineTotal.toFixed(2)} | GST: {item.gstPercent}%
-                    </p>
-                  </div>
+        {saleLoaded && saleItems.length > 0 && (
+          <section className={cn("bg-neutral-50 border-b border-black/10 py-2 shrink-0", entryPageSectionX)}>
+            <div className="rounded-lg border border-black/15 bg-white overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-black/10 bg-neutral-50">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-bold text-[14px] text-black truncate">
+                    Sale Items — {originalSaleNumber}
+                  </span>
+                  <span className="text-[11px] text-black/70 bg-black/5 border border-black/10 px-2 py-0.5 rounded-full font-bold shrink-0">
+                    {saleItems.length} items
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    className="text-[12px] text-black font-bold hover:underline"
+                    onClick={() => setSelectedSaleItemIds(new Set(saleItems.map((i) => i.variantId)))}
+                  >
+                    Select All
+                  </button>
+                  <span className="text-black/25">|</span>
+                  <button
+                    type="button"
+                    className="text-[12px] text-black font-bold hover:underline"
+                    onClick={() => setSelectedSaleItemIds(new Set())}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
 
-          <div className="px-5 py-3 border-t border-blue-200 dark:border-blue-800 bg-blue-100/60 dark:bg-blue-900/30 flex items-center justify-between">
-            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
-              {selectedSaleItemIds.size} of {saleItems.length} selected
-            </span>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => { setSaleLoaded(false); setSaleItems([]); setSelectedSaleItemIds(new Set()); }}
-                className="h-8 text-xs"
-              >
-                Dismiss
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={selectedSaleItemIds.size === 0}
-                onClick={addSelectedSaleItems}
-                className="h-8 text-xs px-4"
-              >
-                Add {selectedSaleItemIds.size > 0 ? `${selectedSaleItemIds.size} ` : ''}Selected to Return
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Return Items */}
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-5 bg-green-600 rounded-full" />
-            <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Return Items</h2>
-            {returnItems.length > 0 && (
-              <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 px-2 py-0.5 rounded-full font-semibold">
-                {returnItems.length} item{returnItems.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-          <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-            <PopoverTrigger asChild>
-              <Button size="sm" className="h-8 px-3 text-xs font-semibold gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
-                Add Product
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0" align="end">
-              <Command>
-                <CommandInput
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onValueChange={setSearchTerm}
-                />
-                <CommandList>
-                  <CommandEmpty>No products found</CommandEmpty>
-                  <CommandGroup>
-                    {filteredProducts.map((product) => {
-                      const productVariants = variants.filter((v) => v.product_id === product.id);
-                      return productVariants.map((variant) => (
-                        <CommandItem
-                          key={variant.id}
-                          onSelect={() => addProduct(product.id, variant.id)}
-                        >
-                          <div className="flex-1">
-                            <div className="font-medium">{product.product_name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              Size: {variant.size} | Price: ₹{variant.sale_price}
-                              {variant.barcode && ` | ${variant.barcode}`}
-                            </div>
-                          </div>
-                        </CommandItem>
-                      ));
-                    })}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="px-5 py-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Product</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Size</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Color</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40">Barcode</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 w-24">Qty</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Price</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">GST%</TableHead>
-                <TableHead className="text-xs font-bold text-muted-foreground uppercase tracking-wide bg-muted/40 text-right">Total</TableHead>
-                <TableHead className="bg-muted/40 w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {returnItems.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                    No items added
-                  </TableCell>
-                </TableRow>
-              ) : (
-                returnItems.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="text-sm font-medium">{item.productName}</TableCell>
-                    <TableCell className="text-sm">{item.size}</TableCell>
-                    <TableCell className="text-sm">{item.color || "-"}</TableCell>
-                    <TableCell className="text-sm font-mono">{item.barcode || "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <Input
-                          type="number"
-                          min="1"
-                          max={item.maxReturnable || undefined}
-                          value={item.quantity}
-                          onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                          className="w-20 h-8 text-sm text-center"
-                        />
-                        {item.maxReturnable && (
-                          <span className="text-[10px] text-muted-foreground">Max: {item.maxReturnable}</span>
+              <div className="divide-y divide-black/5 max-h-[220px] overflow-y-auto">
+                {saleItems.map((item, i) => {
+                  const isSelected = selectedSaleItemIds.has(item.variantId);
+                  return (
+                    <div
+                      key={item.variantId + i}
+                      onClick={() => toggleSaleItemSelection(item.variantId)}
+                      className={cn(
+                        "flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors",
+                        isSelected ? "bg-neutral-100" : "hover:bg-neutral-50",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                          isSelected ? "bg-black border-black" : "border-black/30 bg-white",
+                        )}
+                      >
+                        {isSelected && (
+                          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                            <path
+                              d="M2 6l3 3 5-5"
+                              stroke="#fff"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right text-sm">
-                      ₹{item.unitPrice.toFixed(2)}
-                      {useOriginalPriceForReturn && item.discountPercent ? (
-                        <span className="block text-[10px] text-muted-foreground">(before disc)</span>
-                      ) : item.originalPrice && item.originalPrice !== item.unitPrice ? (
-                        <span className="block text-[10px] text-muted-foreground">MRP ₹{item.originalPrice.toFixed(0)}</span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-right text-sm">{item.gstPercent}%</TableCell>
-                    <TableCell className="text-right text-sm font-semibold">₹{item.lineTotal.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(index)}
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-[15px] text-black truncate">{item.productName}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap text-[13px] text-black/65">
+                          <span>
+                            Size: <span className="font-semibold text-black">{item.size}</span>
+                          </span>
+                          {item.color && (
+                            <span>
+                              Color: <span className="font-semibold text-black">{item.color}</span>
+                            </span>
+                          )}
+                          {item.barcode && (
+                            <span className="font-mono">
+                              Barcode: <span className="text-black">{item.barcode}</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-[15px] font-extrabold text-black">₹{item.unitPrice.toFixed(2)}</p>
+                        {item.originalUnitPrice != null &&
+                          Math.abs(item.originalUnitPrice - item.unitPrice) > 0.01 && (
+                            <p className="text-[12px] text-black/50 line-through">
+                              ₹{item.originalUnitPrice.toFixed(2)}
+                            </p>
+                          )}
+                        <p className="text-[12px] text-black/60">
+                          Qty: {item.quantity} | Line: ₹{item.paidLineTotal.toFixed(2)} | GST: {item.gstPercent}%
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
-          {/* Totals */}
-          <div className="mt-5 flex justify-end">
-            <div className="w-72 bg-muted/30 rounded-xl border border-border overflow-hidden">
-              <div className="px-4 py-2.5 flex items-center justify-between border-b border-border">
-                <span className="text-sm text-muted-foreground">Gross Amount</span>
-                <span className="text-sm font-semibold text-foreground">₹{totals.grossAmount.toFixed(2)}</span>
+              <div className="px-4 py-2.5 border-t border-black/10 bg-neutral-50 flex items-center justify-between gap-3 flex-wrap">
+                <span className="text-[13px] text-black font-bold">
+                  {selectedSaleItemIds.size} of {saleItems.length} selected
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSaleLoaded(false);
+                      setSaleItems([]);
+                      setSelectedSaleItemIds(new Set());
+                    }}
+                    className="h-8 text-xs border-black/20 font-bold"
+                  >
+                    Dismiss
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={selectedSaleItemIds.size === 0}
+                    onClick={addSelectedSaleItems}
+                    className="h-8 text-xs px-4 bg-black text-white hover:bg-black/90 font-bold"
+                  >
+                    Add {selectedSaleItemIds.size > 0 ? `${selectedSaleItemIds.size} ` : ""}Selected to Return
+                  </Button>
+                </div>
               </div>
-              <div className="px-4 py-2.5 flex items-center justify-between border-b border-border">
-                <span className="text-sm text-muted-foreground">Total GST</span>
-                <span className="text-sm font-semibold text-foreground">₹{totals.gstAmount.toFixed(2)}</span>
+            </div>
+          </section>
+        )}
+
+        <section className={cn("bg-neutral-50 border-b border-black/10 py-3 shrink-0", entryPageSectionX)}>
+          <form onSubmit={handleBarcodeSubmit} className="flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[280px]">
+              <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40 pointer-events-none" />
+              <Input
+                ref={barcodeInputRef}
+                type="text"
+                placeholder="SCAN BARCODE OR SEARCH BY NAME, BRAND, CATEGORY..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                className="pl-10 h-10 text-sm bg-white border-black/20 uppercase font-semibold"
+                autoFocus
+                autoComplete="off"
+              />
+            </div>
+            <CameraScanButton
+              onBarcodeScanned={(barcode) => {
+                setBarcodeInput(barcode);
+                setTimeout(() => {
+                  if (barcodeInputRef.current) {
+                    barcodeInputRef.current.focus();
+                    const enterEvent = new KeyboardEvent("keydown", { key: "Enter", bubbles: true });
+                    barcodeInputRef.current.dispatchEvent(enterEvent);
+                  }
+                }, 100);
+              }}
+              className="h-10 border-black/20"
+            />
+            <Button
+              type="submit"
+              className="h-10 px-5 bg-black text-white hover:bg-black/90 font-bold shrink-0"
+            >
+              Add
+            </Button>
+            <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">
+              <span className="text-[12px] font-bold opacity-80">Total Qty</span>
+              <span className="font-black tabular-nums text-[16px]">{totalReturnQty}</span>
+            </div>
+          </form>
+        </section>
+
+        <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
+          <div className="h-full w-full min-w-0 overflow-x-auto overflow-y-auto isolate rounded-lg border border-black/15 shadow-sm bg-white">
+            {returnItems.length > 0 ? (
+              <Table className="table-fixed w-full min-w-[1000px] border-separate border-spacing-0 erp-desktop-table erp-entry-lines-table">
+                <TableHeader className="sticky top-0 z-10">
+                  <TableRow className="bg-white border-b-2 border-black hover:bg-white">
+                    <TableHead className="w-[40px] text-center !text-[15px] uppercase font-bold text-black h-11">#</TableHead>
+                    <TableHead className="min-w-[160px] text-left !text-[15px] uppercase font-bold text-black h-11">Product</TableHead>
+                    <TableHead className="w-[70px] text-center !text-[15px] uppercase font-bold text-black h-11">Size</TableHead>
+                    <TableHead className="w-[80px] text-center !text-[15px] uppercase font-bold text-black h-11">Color</TableHead>
+                    <TableHead className="w-[110px] text-center !text-[15px] uppercase font-bold text-black h-11">Barcode</TableHead>
+                    <TableHead className="w-[80px] text-center text-[13px] uppercase font-bold text-black h-11">Qty</TableHead>
+                    <TableHead className="w-[96px] text-right text-[13px] uppercase font-bold text-black h-11 bg-neutral-100">Price</TableHead>
+                    <TableHead className="w-[64px] text-center text-[13px] uppercase font-bold text-black h-11">GST%</TableHead>
+                    <TableHead className="w-[96px] text-right text-[13px] uppercase font-bold text-black h-11 border-l-2 border-black bg-neutral-100">Total</TableHead>
+                    <TableHead className="w-[40px] h-11" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {returnItems.map((item, index) => (
+                    <TableRow key={index} className="border-b border-black/5">
+                      <TableCell className="text-center text-black/60 font-mono !text-[15px] py-1.5">{index + 1}</TableCell>
+                      <TableCell className="font-bold !text-[17px] text-black py-1.5 leading-snug">{item.productName}</TableCell>
+                      <TableCell className="text-center !text-[16px] font-mono font-semibold text-black py-1.5">{item.size}</TableCell>
+                      <TableCell className="text-center !text-[16px] font-medium text-black py-1.5">{item.color || "-"}</TableCell>
+                      <TableCell className="text-center !text-[15px] font-mono font-medium text-black/80 py-1.5">{item.barcode || "-"}</TableCell>
+                      <TableCell className="py-1">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <Input
+                            type="number"
+                            min="1"
+                            max={item.maxReturnable || undefined}
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-[56px] h-8 text-center text-sm border-black/20 font-mono"
+                          />
+                          {item.maxReturnable && (
+                            <span className="text-[10px] text-black/50">Max: {item.maxReturnable}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right !text-[15px] font-mono font-semibold text-black py-1.5">
+                        ₹{item.unitPrice.toFixed(2)}
+                        {useOriginalPriceForReturn && item.discountPercent ? (
+                          <span className="block text-[10px] text-black/50 font-normal">(before disc)</span>
+                        ) : item.originalPrice && item.originalPrice !== item.unitPrice ? (
+                          <span className="block text-[10px] text-black/50 font-normal">
+                            MRP ₹{item.originalPrice.toFixed(0)}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-center !text-[15px] font-mono text-black py-1.5">{item.gstPercent}%</TableCell>
+                      <TableCell className="text-right font-bold text-[15px] font-mono tabular-nums text-black py-1.5 border-l-2 border-black/10">
+                        ₹{item.lineTotal.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="py-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-red-50"
+                          onClick={() => removeItem(index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-black/45">
+                <Search className="h-10 w-10 mb-3 opacity-40" />
+                <p className="text-sm font-semibold">Scan barcode or search products to add return lines</p>
+                <p className="text-xs mt-1">Or load items from an original sale invoice above</p>
+                <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-4 h-9 px-4 bg-black text-white hover:bg-black/90 font-bold gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Product
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="center">
+                    <Command>
+                      <CommandInput placeholder="Search products..." value={searchTerm} onValueChange={setSearchTerm} />
+                      <CommandList>
+                        <CommandEmpty>No products found</CommandEmpty>
+                        <CommandGroup>
+                          {filteredProducts.map((product) => {
+                            const productVariants = variants.filter((v) => v.product_id === product.id);
+                            return productVariants.map((variant) => (
+                              <CommandItem key={variant.id} onSelect={() => addProduct(product.id, variant.id)}>
+                                <div className="flex-1">
+                                  <div className="font-medium">{product.product_name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Size: {variant.size} | Price: ₹{variant.sale_price}
+                                    {variant.barcode && ` | ${variant.barcode}`}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            ));
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div className="px-4 py-3 flex items-center justify-between bg-muted/50">
-                <span className="text-sm font-bold text-foreground">Net Amount</span>
-                <span className="text-lg font-extrabold text-green-600">₹{totals.netAmount.toFixed(2)}</span>
+            )}
+          </div>
+          {returnItems.length > 0 && (
+            <div className="flex justify-end pt-2">
+              <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-9 px-4 bg-black text-white hover:bg-black/90 font-bold gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Product
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="end">
+                  <Command>
+                    <CommandInput placeholder="Search products..." value={searchTerm} onValueChange={setSearchTerm} />
+                    <CommandList>
+                      <CommandEmpty>No products found</CommandEmpty>
+                      <CommandGroup>
+                        {filteredProducts.map((product) => {
+                          const productVariants = variants.filter((v) => v.product_id === product.id);
+                          return productVariants.map((variant) => (
+                            <CommandItem key={variant.id} onSelect={() => addProduct(product.id, variant.id)}>
+                              <div className="flex-1">
+                                <div className="font-medium">{product.product_name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Size: {variant.size} | Price: ₹{variant.sale_price}
+                                  {variant.barcode && ` | ${variant.barcode}`}
+                                </div>
+                              </div>
+                            </CommandItem>
+                          ));
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+        </section>
+      </main>
+
+      <footer className="entry-page-footer sale-order-footer shrink-0 relative z-40">
+        <div className="bg-white text-black border-t-2 border-black w-full">
+          <div className="flex items-center justify-between px-4 py-3 gap-4 w-full min-w-0 flex-wrap">
+            <div className="flex items-center gap-3 shrink-0 text-[13px] font-bold text-black/70">
+              {returnItems.length === 0 ? (
+                <span>No items added yet</span>
+              ) : (
+                <span>
+                  {returnItems.length} item{returnItems.length !== 1 ? "s" : ""} in return
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-4 shrink-0 ml-auto">
+              <div className="hidden md:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Items</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{returnItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[120px]">
+                  <span className="text-[12px] uppercase tracking-wide font-extrabold text-black/70">Total Qty</span>
+                  <span className="text-[16px] font-extrabold tabular-nums">{totalReturnQty}</span>
+                </div>
+              </div>
+              <div className="hidden lg:flex flex-col gap-0.5 pl-4 border-l border-black/15">
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[13px] uppercase tracking-wide font-extrabold text-black/70">Gross</span>
+                  <span className="text-[18px] font-extrabold tabular-nums">₹{totals.grossAmount.toFixed(0)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 min-w-[140px]">
+                  <span className="text-[13px] uppercase tracking-wide font-extrabold text-black/70">GST</span>
+                  <span className="text-[18px] font-extrabold tabular-nums">₹{totals.gstAmount.toFixed(0)}</span>
+                </div>
+              </div>
+              <div className="pl-4 border-l-2 border-black flex flex-col items-end shrink-0">
+                <span className="text-[13px] font-extrabold uppercase tracking-wide text-black underline underline-offset-2">
+                  Net Return
+                </span>
+                <span className="text-[36px] font-black font-mono tabular-nums leading-none text-black tracking-tighter">
+                  ₹{displayNetAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Notes */}
-      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-muted/30">
-          <div className="w-1.5 h-5 bg-muted-foreground rounded-full" />
-          <h2 className="font-semibold text-sm text-foreground uppercase tracking-wide">Additional Notes</h2>
-        </div>
-        <div className="px-5 py-4">
-          <Textarea
-            placeholder="Reason for return, notes..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            className="text-sm"
-          />
-        </div>
-      </div>
-        </div>
-      </div>
-
-      {/* Pinned footer — always visible (entry fullscreen layout clips overflow) */}
-      <footer className="shrink-0 border-t border-border bg-card shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-2 sm:px-3 lg:px-4 py-3 flex items-center justify-between gap-4">
-        <p className="text-sm text-muted-foreground hidden sm:block">
-          {returnItems.length === 0
-            ? 'No items added yet'
-            : `${returnItems.length} item(s) · Net Return: ₹${totals.netAmount.toFixed(2)}`}
-        </p>
-        <div className="flex gap-3 ml-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => orgNavigate('/sale-returns')}
-            className="h-9 px-5 text-sm font-medium"
-          >
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            onClick={handleSave}
-            disabled={saving || returnItems.length === 0}
-            className="h-9 px-6 text-sm font-semibold min-w-[130px]"
-          >
-            {saving ? (
-              <><span className="h-3.5 w-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mr-2" />Saving...</>
-            ) : (
-              isEditMode ? 'Update Return' : 'Save Return'
-            )}
-          </Button>
+        <div className="bg-neutral-100 border-t border-black/10 flex flex-wrap items-center px-4 py-2.5 gap-x-3 gap-y-1.5">
+          <div className="flex items-center gap-2.5 !text-[17px] text-black font-mono flex-1 min-w-0 overflow-x-auto whitespace-nowrap">
+            <span>
+              Gross <span className="font-extrabold">₹{totals.grossAmount.toFixed(0)}</span>
+            </span>
+            <span className="text-black/30">=</span>
+            <span>
+              Taxable <span className="font-extrabold">₹{taxableAmount.toFixed(2)}</span>
+            </span>
+            <span className="text-black/30">+</span>
+            <span>
+              GST <span className="font-extrabold">₹{totals.gstAmount.toFixed(2)}</span>
+            </span>
+            <span className="text-black/30">=</span>
+            <span>
+              Net <span className="font-black">₹{displayNetAmount.toLocaleString("en-IN")}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => orgNavigate("/sale-returns")}
+              className="h-9 px-3 text-[13px] font-bold text-red-700 hover:bg-red-50 gap-1.5 border border-red-200"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saving || returnItems.length === 0}
+              className="h-9 px-5 text-[14px] bg-black text-white hover:bg-black/90 font-extrabold gap-1.5"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  {isEditMode ? "Update Return" : "Save Return"}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </footer>
     </div>
