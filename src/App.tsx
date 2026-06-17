@@ -104,6 +104,7 @@ const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"
 const StockSettlement = lazyWithRetry(() => import("./pages/StockSettlement"));
 const DailySaleAnalysis = lazyWithRetry(() => import("./pages/DailySaleAnalysis"));
 const EInvoiceReport = lazyWithRetry(() => import("./pages/EInvoiceReport"));
+const ReportsHub = lazyWithRetry(() => import("./pages/ReportsHub"));
 const CustomerLedgerPage = lazyWithRetry(() => import("./pages/CustomerLedgerPage"));
 const CustomerAuditReport = lazyWithRetry(() => import("./pages/CustomerAuditReport"));
 const CustomerLedgerReport = lazyWithRetry(() => import("./pages/CustomerLedgerReport"));
@@ -1006,6 +1007,16 @@ const App = () => {
                 />
 
                 {/* Reports */}
+                <Route
+                  path="reports"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ReportsHub />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="purchase-report"
                   element={

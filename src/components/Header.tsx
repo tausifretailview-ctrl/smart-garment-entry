@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, ShieldCheck, FileText, Scale, Banknote, RefreshCw } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download, LayoutGrid, BoxIcon, ChevronDown, Plus, FileText, Scale, Banknote, RefreshCw } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -75,6 +75,38 @@ export const Header = () => {
     (permissions === null ||
       hasMenuAccess("payment_recording") ||
       hasMenuAccess("payments_dashboard"));
+  const canAccessReportsHub = useMemo(() => {
+    if (permissionsLoading) return false;
+    if (permissions === null) return true;
+    const reportPermissions = [
+      "stock_report",
+      "item_wise_sales",
+      "item_wise_stock",
+      "stock_ageing",
+      "daily_tally",
+      "daily_cashier_report",
+      "sale_analysis",
+      "hourly_sales_analysis",
+      "accounting_reports_view",
+      "net_profit_analysis",
+      "sales_analytics",
+      "gst_reports",
+      "gst_register",
+      "einvoice_report",
+      "customer_audit_report",
+      "customer_ledger",
+      "customer_account_statement",
+      "sales_invoice_dashboard",
+      "sales_report_customer",
+      "purchase_dashboard",
+      "purchase_report_supplier",
+      "purchase_return_dashboard",
+      "purchase_return",
+      "payments_dashboard",
+      "tally_export",
+    ];
+    return reportPermissions.some((id) => hasMenuAccess(id));
+  }, [permissions, permissionsLoading, hasMenuAccess]);
   const forceDesktopView = useForceDesktopView();
   const isNarrowViewport = useIsNarrowViewport();
 
@@ -135,13 +167,15 @@ export const Header = () => {
         dialogKey: "customerStatement",
       });
     }
-    base.push({ icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false, dialogKey: "", permission: "stock_report" });
+    if (canAccessReportsHub) {
+      base.push({ icon: TrendingUp, label: "Reports", path: "/reports", isDialog: false, dialogKey: "" });
+    }
     return base.filter(
       (a) =>
         !a.permission ||
         (!permissionsLoading && (permissions === null || hasMenuAccess(a.permission)))
     );
-  }, [canQuickCustomerStatement, permissions, permissionsLoading, hasMenuAccess]);
+  }, [canQuickCustomerStatement, canAccessReportsHub, permissions, permissionsLoading, hasMenuAccess]);
 
   const openPosSales = () => {
     orgNavigate("/pos-sales");
@@ -398,121 +432,14 @@ export const Header = () => {
             </DropdownMenu>
           )}
 
-          {(can("stock_report") || can("item_wise_sales") || can("item_wise_stock") || can("stock_ageing") || can("daily_tally") || can("daily_cashier_report") || can("sale_analysis") || can("hourly_sales_analysis") || can("accounting_reports_view") || can("net_profit_analysis") || can("sales_analytics") || can("gst_reports") || can("gst_register") || can("einvoice_report") || canQuickCustomerStatement || can("customer_audit_report")) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none">
-                  Reports
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56 text-sm">
-                {can("stock_report") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/stock-report")} className="cursor-pointer">
-                    <BoxIcon className="h-3.5 w-3.5 mr-2 opacity-60" /> Stock Report
-                  </DropdownMenuItem>
-                )}
-                {can("item_wise_sales") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/item-wise-sales")} className="cursor-pointer">
-                    Item-wise Sales
-                  </DropdownMenuItem>
-                )}
-                {can("item_wise_stock") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/item-wise-stock")} className="cursor-pointer">
-                    Item-wise Stock
-                  </DropdownMenuItem>
-                )}
-                {can("stock_ageing") && (
-                  <DropdownMenuItem onClick={() => orgNavigate("/stock-ageing")} className="cursor-pointer">
-                    Stock Ageing
-                  </DropdownMenuItem>
-                )}
-                {(can("daily_tally") || can("daily_cashier_report") || can("sale_analysis") || can("hourly_sales_analysis")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("daily_tally") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/daily-tally")} className="cursor-pointer">
-                        <TrendingUp className="h-3.5 w-3.5 mr-2 opacity-60" /> Daily Tally
-                      </DropdownMenuItem>
-                    )}
-                    {can("daily_cashier_report") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/daily-cashier-report")} className="cursor-pointer">
-                        Daily Cashier
-                      </DropdownMenuItem>
-                    )}
-                    {can("sale_analysis") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/daily-sale-analysis")} className="cursor-pointer">
-                        Daily Sale Analysis
-                      </DropdownMenuItem>
-                    )}
-                    {can("hourly_sales_analysis") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/hourly-sales-analysis")} className="cursor-pointer">
-                        Hourly Sales
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-                {(can("accounting_reports_view") || can("net_profit_analysis") || can("sales_analytics")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("accounting_reports_view") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/accounting-reports")} className="cursor-pointer">
-                        P&L / Balance Sheet
-                      </DropdownMenuItem>
-                    )}
-                    {can("net_profit_analysis") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/net-profit-analysis")} className="cursor-pointer">
-                        Net Profit Analysis
-                      </DropdownMenuItem>
-                    )}
-                    {can("sales_analytics") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/sales-analytics")} className="cursor-pointer">
-                        Sales Analytics
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-                {(can("gst_reports") || can("gst_register") || can("einvoice_report")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {can("gst_reports") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/gst-reports")} className="cursor-pointer">
-                        GST Reports
-                      </DropdownMenuItem>
-                    )}
-                    {can("gst_register") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/gst-register")} className="cursor-pointer">
-                        GST Register
-                      </DropdownMenuItem>
-                    )}
-                    {can("einvoice_report") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/einvoice-report")} className="cursor-pointer">
-                        E-Invoice Report
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-                {(canQuickCustomerStatement || can("customer_audit_report")) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    {canQuickCustomerStatement && (
-                      <DropdownMenuItem
-                        onClick={() => setCustomerStatementOpen(true)}
-                        className="cursor-pointer"
-                      >
-                        <FileText className="h-3.5 w-3.5 mr-2 opacity-60" />
-                        Account statement (audit)
-                      </DropdownMenuItem>
-                    )}
-                    {can("customer_audit_report") && (
-                      <DropdownMenuItem onClick={() => orgNavigate("/customer-audit-report")} className="cursor-pointer">
-                        <ShieldCheck className="h-3.5 w-3.5 mr-2 opacity-60" />
-                        Customer Audit Report
-                      </DropdownMenuItem>
-                    )}
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {canAccessReportsHub && (
+            <button
+              type="button"
+              onClick={() => orgNavigate("/reports")}
+              className="text-[14px] font-semibold text-white hover:bg-white/10 px-2.5 py-1.5 rounded transition-colors focus:outline-none"
+            >
+              Reports
+            </button>
           )}
 
           {can("settings_view") && (
