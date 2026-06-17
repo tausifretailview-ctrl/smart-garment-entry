@@ -26,6 +26,8 @@ export type InvoiceDashboardSaleDateFilter = {
 export type InvoiceDashboardFilters = {
   organizationId: string;
   debouncedSearch: string;
+  /** When resolved (e.g. picker), narrows stats RPC via customer_id index. */
+  customerId?: string | null;
   deliveryFilter: string;
   paymentStatusFilter: string[];
   shopFilter: string;
@@ -211,6 +213,9 @@ function applyInvoiceDashboardFilters(query: any, filters: InvoiceDashboardFilte
   }
   if (filters.saleDateFilter.end) {
     q = q.lte("sale_date", filters.saleDateFilter.end);
+  }
+  if (filters.customerId) {
+    q = q.eq("customer_id", filters.customerId);
   }
   return q;
 }
@@ -398,6 +403,8 @@ export async function fetchInvoiceDashboardStats(
       p_date_from: filters.saleDateFilter.start,
       p_date_to: filters.saleDateFilter.end,
       p_filters: buildInvoiceDashboardRpcFilters(filters),
+      p_search: filters.debouncedSearch.trim() || null,
+      p_customer_id: filters.customerId || null,
     });
 
     if (error) {
