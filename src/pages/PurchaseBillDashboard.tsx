@@ -1015,6 +1015,76 @@ const PurchaseBillDashboard = () => {
     }
   };
 
+  const handleFixMissingMrp = async () => {
+    setIsFixing(true);
+    try {
+      const { data: itemsToFix, error: fetchError } = await supabase
+        .from("purchase_items")
+        .select(`
+          id,
+          sku_id,
+          mrp,
+          product_variants!inner (
+            mrp
+          )
+        `)
+        .or("mrp.is.null,mrp.eq.0");
+
+      if (fetchError) throw fetchError;
+
+      if (!itemsToFix || itemsToFix.length === 0) {
+        toast({
+          title: "All Good!",
+          description: "No purchase items with missing MRP found",
+        });
+        return;
+      }
+
+      let updatedCount = 0;
+      for (const item of itemsToFix) {
+        const itemMrp = Number(item.mrp) || 0;
+        if (itemMrp > 0) continue;
+
+        const masterMrp = Number((item.product_variants as any)?.mrp) || 0;
+        if (masterMrp <= 0) continue;
+
+        const { error: updateError } = await supabase
+          .from("purchase_items")
+          .update({ mrp: masterMrp })
+          .eq("id", item.id)
+          .or("mrp.is.null,mrp.eq.0");
+
+        if (updateError) {
+          console.error(`Failed to update MRP for item ${item.id}:`, updateError);
+        } else {
+          updatedCount++;
+        }
+      }
+
+      if (updatedCount === 0) {
+        toast({
+          title: "Nothing to backfill",
+          description: "No MRP to backfill (master MRP not set). Re-import with MRP mapped.",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Fixed MRP on ${updatedCount} purchase item(s) from product master`,
+        });
+      }
+
+      await fetchBills();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fix missing MRP",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
   const handlePageSizeChange = useCallback((value: string) => {
     setItemsPerPage(Number(value));
     setCurrentPage(1);
@@ -2076,6 +2146,19 @@ const PurchaseBillDashboard = () => {
                 <Database className="h-4 w-4" />
               )}
               Fix Missing Data
+            </Button>
+            <Button
+              onClick={handleFixMissingMrp}
+              variant="outline"
+              className="gap-2 h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 font-medium"
+              disabled={isFixing}
+            >
+              {isFixing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <IndianRupee className="h-4 w-4" />
+              )}
+              Fix Missing MRP
             </Button>
             <Button
               onClick={() => navigate("/purchase-entry", { state: { newBill: true } })}
