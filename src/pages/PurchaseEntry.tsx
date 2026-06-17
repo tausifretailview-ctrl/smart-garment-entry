@@ -377,6 +377,55 @@ const normalizeSizeGridVariants = (variants: SizeGridVariant[]): SizeGridVariant
   });
 };
 
+type PurchaseFinalizedMarker = {
+  billId: string;
+  softwareBillNo: string;
+  savedAt: number;
+};
+
+const PURCHASE_FINALIZED_STORAGE_KEY = (orgId: string, userId: string) =>
+  `ezzy:purchase-finalized:${orgId}:${userId}`;
+
+function writePurchaseFinalizedMarker(
+  orgId: string,
+  userId: string,
+  billId: string,
+  softwareBillNo: string,
+): void {
+  try {
+    sessionStorage.setItem(
+      PURCHASE_FINALIZED_STORAGE_KEY(orgId, userId),
+      JSON.stringify({ billId, softwareBillNo, savedAt: Date.now() } satisfies PurchaseFinalizedMarker),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function readPurchaseFinalizedMarker(
+  orgId: string,
+  userId: string,
+): PurchaseFinalizedMarker | null {
+  try {
+    const raw = sessionStorage.getItem(PURCHASE_FINALIZED_STORAGE_KEY(orgId, userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PurchaseFinalizedMarker;
+    if (!parsed?.billId || !parsed?.softwareBillNo) return null;
+    if (Date.now() - parsed.savedAt > 7 * 24 * 60 * 60 * 1000) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearPurchaseFinalizedMarker(orgId: string, userId: string): void {
+  try {
+    sessionStorage.removeItem(PURCHASE_FINALIZED_STORAGE_KEY(orgId, userId));
+  } catch {
+    /* ignore */
+  }
+}
+
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -462,6 +511,8 @@ const PurchaseEntry = () => {
   const draftDiscardedExternallyRef = useRef(false);
   /** Blocks debounced draft writes after a successful bill save (pending timeout race). */
   const purchaseSaveFinalizedRef = useRef(false);
+  /** Last bill committed this session — used when a stale import draft is resumed. */
+  const lastFinalizedPurchaseBillRef = useRef<{ billId: string; softwareBillNo: string } | null>(null);
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(
@@ -665,8 +716,20 @@ const PurchaseEntry = () => {
     workRestoredRef.current = false;
     loadedEditBillIdRef.current = null;
     isInitializingEditRef.current = false;
+    purchaseSaveFinalizedRef.current = false;
+    lastFinalizedPurchaseBillRef.current = null;
+    if (currentOrganization?.id && user?.id) {
+      clearPurchaseFinalizedMarker(currentOrganization.id, user.id);
+    }
     updateCurrentData(null);
-  }, [bumpSupplierInvAutoFill, clearEntrySession, deleteDraft, updateCurrentData]);
+  }, [
+    bumpSupplierInvAutoFill,
+    clearEntrySession,
+    currentOrganization?.id,
+    deleteDraft,
+    updateCurrentData,
+    user?.id,
+  ]);
 
   // Dashboard "Discard draft" — entry tab may stay mounted in window tabs and would re-save otherwise.
   useEffect(() => {
@@ -816,39 +879,58 @@ const PurchaseEntry = () => {
     ],
   );
 
-  const finalizeSuccessfulPurchaseSave = useCallback(async () => {
-    purchaseSaveFinalizedRef.current = true;
-    if (autoSaveDebounceRef.current) {
-      clearTimeout(autoSaveDebounceRef.current);
-      autoSaveDebounceRef.current = null;
-    }
-    latestSnapshotRef.current = null;
-    skipSnapshotEffectRef.current = true;
-    importJustAppliedRef.current = false;
-    pendingImportRef.current = null;
-    await deleteDraft();
-    updateCurrentData(null);
-    clearEntrySession();
-    if (currentOrganization?.id) {
-      void queryClient.invalidateQueries({ queryKey: ["last-purchase-bill", currentOrganization.id] });
-      void queryClient.invalidateQueries({ queryKey: ["org-supplier-invoice-numbers", currentOrganization.id] });
-      void queryClient.invalidateQueries({ queryKey: ["peek-next-supplier-invoice", currentOrganization.id] });
-      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-      void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
-    }
-    if (currentOrganization?.id && user?.id) {
-      dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
-    }
-    invalidatePurchases();
-  }, [
-    clearEntrySession,
-    currentOrganization?.id,
-    deleteDraft,
-    invalidatePurchases,
-    queryClient,
-    updateCurrentData,
-    user?.id,
-  ]);
+  const finalizeSuccessfulPurchaseSave = useCallback(
+    async (saved?: { billId: string; softwareBillNo: string }) => {
+      purchaseSaveFinalizedRef.current = true;
+      workRestoredRef.current = false;
+      stopAutoSave();
+      updateCurrentData(null);
+      if (autoSaveDebounceRef.current) {
+        clearTimeout(autoSaveDebounceRef.current);
+        autoSaveDebounceRef.current = null;
+      }
+      latestSnapshotRef.current = null;
+      skipSnapshotEffectRef.current = true;
+      importJustAppliedRef.current = false;
+      pendingImportRef.current = null;
+      await deleteDraft();
+      clearEntrySession();
+      if (saved?.billId) {
+        const swNo = String(saved.softwareBillNo ?? "").trim();
+        lastFinalizedPurchaseBillRef.current = {
+          billId: saved.billId,
+          softwareBillNo: swNo,
+        };
+        if (currentOrganization?.id && user?.id && swNo) {
+          writePurchaseFinalizedMarker(currentOrganization.id, user.id, saved.billId, swNo);
+        }
+      }
+      if (currentOrganization?.id) {
+        void queryClient.invalidateQueries({ queryKey: ["last-purchase-bill", currentOrganization.id] });
+        void queryClient.invalidateQueries({ queryKey: ["org-supplier-invoice-numbers", currentOrganization.id] });
+        void queryClient.invalidateQueries({ queryKey: ["peek-next-supplier-invoice", currentOrganization.id] });
+        void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+        void queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
+      }
+      if (currentOrganization?.id && user?.id) {
+        dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
+      }
+      clearEntrySession();
+      invalidatePurchases();
+      startAutoSave();
+    },
+    [
+      clearEntrySession,
+      currentOrganization?.id,
+      deleteDraft,
+      invalidatePurchases,
+      queryClient,
+      startAutoSave,
+      stopAutoSave,
+      updateCurrentData,
+      user?.id,
+    ],
+  );
 
   const createLineItemRow = useCallback(
     (item: Omit<LineItem, "temp_id" | "line_total">): LineItem => {
@@ -962,6 +1044,81 @@ const PurchaseEntry = () => {
     }
   }, [bumpSupplierInvAutoFill]);
 
+  const findCommittedBillForDraftSnapshot = useCallback(
+    async (snapshot: { softwareBillNo?: string } | null | undefined): Promise<string | null> => {
+      const orgId = currentOrganization?.id;
+      if (!orgId || !snapshot) return null;
+
+      const swNo = String(snapshot.softwareBillNo ?? "").trim();
+
+      if (user?.id) {
+        const marker = readPurchaseFinalizedMarker(orgId, user.id);
+        if (marker && (!swNo || marker.softwareBillNo === swNo)) {
+          return marker.billId;
+        }
+      }
+
+      const finalized = lastFinalizedPurchaseBillRef.current;
+      if (finalized && (!swNo || finalized.softwareBillNo === swNo)) {
+        return finalized.billId;
+      }
+
+      if (purchaseSaveFinalizedRef.current && savedBillId && (!swNo || softwareBillNo.trim() === swNo)) {
+        return savedBillId;
+      }
+
+      if (!swNo) return null;
+
+      const { data: existingBill, error } = await supabase
+        .from("purchase_bills")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("software_bill_no", swNo)
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false")
+        .maybeSingle();
+
+      if (error) {
+        console.warn("[PurchaseEntry] Saved-bill lookup for draft guard failed:", error);
+        return null;
+      }
+      return existingBill?.id ?? null;
+    },
+    [currentOrganization?.id, savedBillId, softwareBillNo, user?.id],
+  );
+
+  const openCommittedBillInsteadOfStaleDraft = useCallback(
+    async (billId: string): Promise<boolean> => {
+      purchaseSaveFinalizedRef.current = true;
+      skipSnapshotEffectRef.current = true;
+      importJustAppliedRef.current = false;
+      pendingImportRef.current = null;
+      updateCurrentData(null);
+      await deleteDraft();
+      clearEntrySession();
+      if (currentOrganization?.id && user?.id) {
+        dispatchPurchaseDraftSaved(currentOrganization.id, user.id);
+      }
+      workRestoredRef.current = false;
+      loadedEditBillIdRef.current = null;
+      toast({
+        title: "Bill already saved",
+        description: "This draft was already committed. Opening the saved bill in edit mode.",
+      });
+      navigate(location.pathname, { replace: true, state: { editBillId: billId } });
+      return true;
+    },
+    [
+      clearEntrySession,
+      currentOrganization?.id,
+      deleteDraft,
+      location.pathname,
+      navigate,
+      updateCurrentData,
+      user?.id,
+    ],
+  );
+
   const readPersistedSnapshot = useCallback(async () => {
     if (!currentOrganization?.id || !user?.id) return null;
     return readPurchaseEntrySnapshotAsync(currentOrganization.id, user.id);
@@ -1037,6 +1194,10 @@ const PurchaseEntry = () => {
       try {
         const persisted = await readPersistedSnapshot();
         if (persisted?.lineItems?.length) {
+          const committedBillId = await findCommittedBillForDraftSnapshot(persisted);
+          if (committedBillId) {
+            return await openCommittedBillInsteadOfStaleDraft(committedBillId);
+          }
           workRestoredRef.current = true;
           await loadDraftData(persisted);
           if (options?.notify !== false) notifyWorkRestored(persisted);
@@ -1045,6 +1206,10 @@ const PurchaseEntry = () => {
 
         if (location.state?.loadDraft) {
           if (hasDraft && draftData) {
+            const committedBillId = await findCommittedBillForDraftSnapshot(draftData);
+            if (committedBillId) {
+              return await openCommittedBillInsteadOfStaleDraft(committedBillId);
+            }
             workRestoredRef.current = true;
             await loadDraftData(draftData);
             notifyWorkRestored(draftData);
@@ -1055,6 +1220,10 @@ const PurchaseEntry = () => {
         }
 
         if (hasDraft && draftData?.lineItems?.length > 0) {
+          const committedBillId = await findCommittedBillForDraftSnapshot(draftData);
+          if (committedBillId) {
+            return await openCommittedBillInsteadOfStaleDraft(committedBillId);
+          }
           workRestoredRef.current = true;
           await loadDraftData(draftData);
           notifyWorkRestored(draftData);
@@ -1079,6 +1248,8 @@ const PurchaseEntry = () => {
       loadDraftData,
       deleteDraft,
       notifyWorkRestored,
+      findCommittedBillForDraftSnapshot,
+      openCommittedBillInsteadOfStaleDraft,
     ],
   );
 
@@ -3993,7 +4164,10 @@ const PurchaseEntry = () => {
           }
         }
 
-        await finalizeSuccessfulPurchaseSave();
+        await finalizeSuccessfulPurchaseSave({
+          billId: editingBillId,
+          softwareBillNo: softwareBillNo.trim(),
+        });
 
         // Reset edit mode state - Critical fix for duplicate bill prevention
         setIsEditMode(false);
@@ -4048,6 +4222,47 @@ const PurchaseEntry = () => {
           }
         }
         pendingSaveRef.current = false;
+
+        // Client guard: software bill no already committed — open edit instead of inserting again.
+        const commitGuardBillNo = softwareBillNo.trim();
+        if (commitGuardBillNo) {
+          let committedBillId: string | null = null;
+          if (user?.id) {
+            const marker = readPurchaseFinalizedMarker(currentOrganization.id, user.id);
+            if (marker?.softwareBillNo === commitGuardBillNo) {
+              committedBillId = marker.billId;
+            }
+          }
+          if (!committedBillId) {
+            const finalized = lastFinalizedPurchaseBillRef.current;
+            if (finalized?.softwareBillNo === commitGuardBillNo) {
+              committedBillId = finalized.billId;
+            }
+          }
+          if (!committedBillId) {
+            const { data: existingCommitted, error: committedErr } = await supabase
+              .from("purchase_bills")
+              .select("id")
+              .eq("organization_id", currentOrganization.id)
+              .eq("software_bill_no", commitGuardBillNo)
+              .is("deleted_at", null)
+              .or("is_cancelled.is.null,is_cancelled.eq.false")
+              .maybeSingle();
+            if (committedErr) {
+              console.warn("[PurchaseEntry] Commit guard lookup failed:", committedErr);
+            } else if (existingCommitted?.id) {
+              committedBillId = existingCommitted.id;
+            }
+          }
+          if (committedBillId) {
+            toast({
+              title: "Bill already saved",
+              description: `${commitGuardBillNo} is already saved. Opening in edit mode to prevent a duplicate bill.`,
+            });
+            await openCommittedBillInsteadOfStaleDraft(committedBillId);
+            return;
+          }
+        }
 
         const rpcItems = lineItems.map((item) => ({
           product_id: item.product_id,
@@ -4279,9 +4494,10 @@ const PurchaseEntry = () => {
           }
         }
 
-        await finalizeSuccessfulPurchaseSave();
-
-        // Reset edit mode if we were editing
+        await finalizeSuccessfulPurchaseSave({
+          billId: billDataResult.id,
+          softwareBillNo: String((billDataResult as { software_bill_no?: string }).software_bill_no ?? softwareBillNo).trim(),
+        });
         if (isEditMode) {
           setIsEditMode(false);
           setEditingBillId(null);
