@@ -444,6 +444,13 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
   });
 };
 
+// Normalize Excel header for alias matching (case/space/dot insensitive).
+const normalizeImportHeader = (header: string): string =>
+  header.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/** Bare fragments that cause PRate/SRate/MRP cross-mapping in fuzzy pass — exact aliases only. */
+const FUZZY_EXCLUDED_ALIASES = new Set(['rate', 'price']);
+
 // Extended field aliases for better matching
 const fieldAliases: Record<string, string[]> = {
   // Bill-level field aliases for purchase bill import
@@ -452,20 +459,20 @@ const fieldAliases: Record<string, string[]> = {
   bill_date: ['billdate', 'invoicedate', 'invdate', 'date', 'voucherdate', 'purchasedate', 'docdate', 'entrydate'],
   bill_other_charges: ['othercharges', 'charges', 'freight', 'transport', 'transportcharges', 'freightcharges', 'extracharges'],
   // Line item fields
-  product_name: ['product', 'productname', 'name', 'item', 'itemname', 'description', 'itemdescription', 'productdesc', 'article', 'articlename'],
+  product_name: ['product', 'productname', 'name', 'item', 'itemname', 'itemd', 'description', 'itemdescription', 'productdesc', 'article', 'articlename'],
   category: ['category', 'cat', 'type', 'producttype', 'group', 'itemgroup', 'productgroup'],
-  brand: ['brand', 'brandname', 'make', 'manufacturer', 'company', 'partyname'],
-  style: ['style', 'stylename', 'model', 'design', 'designno', 'styleno', 'modelno'],
-  color: ['color', 'colour', 'clr', 'shade'],
+  brand: ['brand', 'brandname', 'brandd', 'make', 'manufacturer', 'company', 'partyname'],
+  style: ['style', 'stylename', 'model', 'design', 'designno', 'styleno', 'modelno', 'article', 'articled'],
+  color: ['color', 'colour', 'clr', 'shade', 'colord'],
   hsn_code: ['hsn', 'hsncode', 'hsnno', 'saccode', 'sac', 'hsnorsac'],
   gst_per: ['gst', 'gstper', 'gstpercent', 'gstrate', 'tax', 'taxrate', 'taxper', 'taxpercentage', 'igst', 'cgst', 'sgst'],
   uom: ['uom', 'unit', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement', 'units'],
-  size: ['size', 'sz', 'productsize', 'itemsize', 'dimension'],
+  size: ['size', 'sz', 'sized', 'productsize', 'itemsize', 'dimension'],
   barcode: ['barcode', 'bcodeno', 'bcode', 'bcodeo', 'barcodeno', 'barcodenumber', 'eancode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'skucode'],
-  pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate', 'purchasrprice', 'purchasepkr', 'purchasingprice', 'buyprice', 'purchasprice'],
-  sale_price: ['saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
-  mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice', 'price'],
-  qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces', 'nos', 'qnty', 'stockqty'],
+  pur_price: ['prate', 'purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'purchaserate', 'purchasrprice', 'purchasepkr', 'purchasingprice', 'buyprice', 'purchasprice'],
+  sale_price: ['srate', 'saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
+  mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice'],
+  qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces', 'nos', 'qnty', 'stockqty', 'bqty'],
   line_total: ['linetotal', 'lineamount', 'amount', 'linenet', 'netamount', 'value', 'linevalue', 'itemamount', 'totalamount', 'linewiseamount', 'grossamount', 'basicamount', 'taxableamount'],
   default_pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost'],
   default_sale_price: ['saleprice', 'sellingprice', 'mrp', 'sp', 'price', 'retailprice'],
@@ -484,20 +491,28 @@ const fieldAliases: Record<string, string[]> = {
   discount_percent: ['discountpercent', 'discount', 'disc', 'discper', 'discountper', 'discountrate'],
 };
 
-// Fuzzy matching: check if header words match any aliases
+const aliasesForFuzzyMatch = (fieldKey: string, aliases: string[]): string[] => {
+  const isPriceField = fieldKey === 'pur_price' || fieldKey === 'sale_price' || fieldKey === 'mrp';
+  if (!isPriceField) return aliases;
+  return aliases.filter((alias) => !FUZZY_EXCLUDED_ALIASES.has(alias));
+};
+
+const exactAliasMatch = (normalizedHeader: string, aliases: string[]): boolean =>
+  aliases.includes(normalizedHeader);
+
+// Fuzzy matching: check if header words match any aliases (never beats exact pass)
 const fuzzyMatchField = (header: string, aliases: string[]): boolean => {
-  const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '');
-  
-  // Direct match
-  if (aliases.includes(normalizedHeader)) return true;
-  
+  const normalizedHeader = normalizeImportHeader(header).replace(/\s+/g, '');
+
+  if (exactAliasMatch(normalizedHeader, aliases)) return false;
+
   // Check if header contains any alias or alias contains header
   for (const alias of aliases) {
     if (normalizedHeader.includes(alias) || alias.includes(normalizedHeader)) {
       return true;
     }
   }
-  
+
   // Word-based matching: split header into words and check each
   const words = header.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
   for (const word of words) {
@@ -515,7 +530,7 @@ const fuzzyMatchField = (header: string, aliases: string[]): boolean => {
       }
     }
   }
-  
+
   return false;
 };
 
@@ -525,43 +540,41 @@ export const autoMapFields = (
 ): Record<string, string | null> => {
   const mappings: Record<string, string | null> = {};
   const usedSystemFields = new Set<string>();
-  
-  // First pass: exact and direct alias matches
-  excelHeaders.forEach(header => {
-    const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
-    let matched = false;
+
+  const tryAssign = (header: string, fieldKey: string): boolean => {
+    if (usedSystemFields.has(fieldKey)) return false;
+    mappings[header] = fieldKey;
+    usedSystemFields.add(fieldKey);
+    return true;
+  };
+
+  const getAliases = (field: TargetField): string[] =>
+    fieldAliases[field.key] || [normalizeImportHeader(field.key)];
+
+  // Pass 1: exact normalized header match only (PRate→pur_price, SRate→sale_price, MRP→mrp, etc.)
+  excelHeaders.forEach((header) => {
+    const normalizedHeader = normalizeImportHeader(header);
+    mappings[header] = null;
 
     for (const field of targetFields) {
       if (usedSystemFields.has(field.key)) continue;
-      
-      const aliases = fieldAliases[field.key] || [field.key.toLowerCase().replace(/[^a-z0-9]/g, '')];
-      
-      // Exact match on normalized header
-      if (aliases.includes(normalizedHeader)) {
-        mappings[header] = field.key;
-        usedSystemFields.add(field.key);
-        matched = true;
+      if (exactAliasMatch(normalizedHeader, getAliases(field))) {
+        tryAssign(header, field.key);
         break;
       }
     }
-
-    if (!matched) {
-      mappings[header] = null;
-    }
   });
 
-  // Second pass: fuzzy matching for unmapped headers
-  excelHeaders.forEach(header => {
-    if (mappings[header] !== null) return; // Already mapped
+  // Pass 2: fuzzy matching for remaining headers — price fields skip bare rate/price fragments
+  excelHeaders.forEach((header) => {
+    if (mappings[header] !== null) return;
 
     for (const field of targetFields) {
       if (usedSystemFields.has(field.key)) continue;
-      
-      const aliases = fieldAliases[field.key] || [field.key.toLowerCase().replace(/[^a-z0-9]/g, '')];
-      
-      if (fuzzyMatchField(header, aliases)) {
-        mappings[header] = field.key;
-        usedSystemFields.add(field.key);
+
+      const fuzzyAliases = aliasesForFuzzyMatch(field.key, getAliases(field));
+      if (fuzzyMatchField(header, fuzzyAliases)) {
+        tryAssign(header, field.key);
         break;
       }
     }
