@@ -674,7 +674,7 @@ export default function StockReport() {
           query = query.gt("stock_qty", 0);
         }
 
-        // Push dropdown filters server-side (supplier filters stay client-side)
+        // Push dropdown filters server-side (supplier narrowed before stock loop when active)
         if (productNameFilter.trim()) {
           query = query.eq("products.product_name", productNameFilter.trim());
         }
@@ -716,11 +716,95 @@ export default function StockReport() {
 
       if (requestId !== searchRequestIdRef.current) return;
       
-      const data = allVariants;
+      let data = allVariants;
+
+      // When supplier / supplier-invoice filter is active, resolve purchased variant ids FIRST
+      // so the heavy stock batch loop runs only on that subset (not the full catalog).
+      const hasSupplierScope = supplierFilter !== "all" || supplierInvoiceFilter !== "all";
+      if (hasSupplierScope) {
+        const SUPPLIER_BILL_PAGE = 1000;
+        const SUPPLIER_BILL_ID_CHUNK = 200;
+
+        const billIds: string[] = [];
+        let billOffset = 0;
+        let moreBills = true;
+        while (moreBills) {
+          let billQuery = supabase
+            .from("purchase_bills")
+            .select("id")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null);
+          if (supplierFilter !== "all") {
+            billQuery = billQuery.eq("supplier_name", supplierFilter);
+          }
+          if (supplierInvoiceFilter !== "all") {
+            billQuery = billQuery.eq("supplier_invoice_no", supplierInvoiceFilter);
+          }
+          const { data: billRows, error: billError } = await billQuery
+            .order("id")
+            .range(billOffset, billOffset + SUPPLIER_BILL_PAGE - 1);
+          if (billError) throw billError;
+          if (billRows && billRows.length > 0) {
+            billIds.push(...billRows.map((b) => b.id));
+            billOffset += SUPPLIER_BILL_PAGE;
+            moreBills = billRows.length === SUPPLIER_BILL_PAGE;
+          } else {
+            moreBills = false;
+          }
+        }
+
+        if (requestId !== searchRequestIdRef.current) return;
+
+        if (billIds.length === 0) {
+          setStockItems([]);
+          return;
+        }
+
+        const supplierVariantIds = new Set<string>();
+        for (let bi = 0; bi < billIds.length; bi += SUPPLIER_BILL_ID_CHUNK) {
+          const billChunk = billIds.slice(bi, bi + SUPPLIER_BILL_ID_CHUNK);
+          let itemOffset = 0;
+          let moreItems = true;
+          while (moreItems) {
+            const { data: itemRows, error: itemError } = await supabase
+              .from("purchase_items")
+              .select("sku_id")
+              .in("bill_id", billChunk)
+              .is("deleted_at", null)
+              .not("sku_id", "is", null)
+              .order("id")
+              .range(itemOffset, itemOffset + SUPPLIER_BILL_PAGE - 1);
+            if (itemError) throw itemError;
+            if (itemRows && itemRows.length > 0) {
+              itemRows.forEach((row) => {
+                if (row.sku_id) supplierVariantIds.add(row.sku_id);
+              });
+              itemOffset += SUPPLIER_BILL_PAGE;
+              moreItems = itemRows.length === SUPPLIER_BILL_PAGE;
+            } else {
+              moreItems = false;
+            }
+          }
+        }
+
+        if (requestId !== searchRequestIdRef.current) return;
+
+        if (supplierVariantIds.size === 0) {
+          setStockItems([]);
+          return;
+        }
+
+        data = allVariants.filter((v: any) => supplierVariantIds.has(v.id));
+
+        if (data.length === 0) {
+          setStockItems([]);
+          return;
+        }
+      }
 
       // Fetch purchase/sales/return quantities directly from transaction tables
       // This is more accurate than stock_movements which may have incomplete historical data
-      const variantIds = allVariants.map((v: any) => v.id);
+      const variantIds = data.map((v: any) => v.id);
       const BATCH_SIZE = 200;
 
       // Paginated fetch helpers for each table
