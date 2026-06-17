@@ -781,52 +781,66 @@ export function SupplierPaymentTab({
                 <Label>Supplier</Label>
                 <Popover open={supplierSearchOpen} onOpenChange={setSupplierSearchOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" aria-expanded={supplierSearchOpen} className="w-full justify-between">
+                    <Button variant="outline" role="combobox" aria-expanded={supplierSearchOpen} className="w-full justify-between font-normal">
+                      <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-left">
                       {referenceId ? (() => {
                         const supplier = suppliersWithBalance?.find(s => s.id === referenceId) || suppliers?.find(s => s.id === referenceId);
                         return supplier ? (
-                          <span className="flex items-center gap-2">
-                            {supplier.supplier_name}
+                          <>
+                            <span className="truncate">{supplier.supplier_name}</span>
                             {supplier.outstandingBalance !== undefined && (
-                              <Badge variant="destructive" className="ml-2">₹{(supplier.outstandingBalance || 0).toFixed(2)}</Badge>
+                              <Badge variant="destructive" className="shrink-0 tabular-nums">₹{(supplier.outstandingBalance || 0).toFixed(2)}</Badge>
                             )}
-                          </span>
+                          </>
                         ) : "Select supplier";
                       })() : "Select supplier..."}
+                      </span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0">
+                  <PopoverContent
+                    className="z-[200] w-[var(--radix-popover-trigger-width)] min-w-[var(--radix-popover-trigger-width)] max-w-[min(calc(100vw-2rem),42rem)] p-0"
+                    align="start"
+                    sideOffset={4}
+                  >
                     <Command>
                       <CommandInput placeholder="Search suppliers..." value={supplierSearchTerm} onValueChange={setSupplierSearchTerm} />
-                      <CommandList>
+                      <CommandList className="max-h-[min(50vh,360px)]">
                         <CommandEmpty>No supplier found.</CommandEmpty>
                         <CommandGroup heading="Suppliers with Balance">
                           {suppliersWithBalance?.filter(s => s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase())).map((supplier) => (
-                            <CommandItem key={supplier.id} value={supplier.supplier_name} onSelect={() => {
+                            <CommandItem
+                              key={supplier.id}
+                              value={supplier.supplier_name}
+                              className="flex items-center gap-2 py-2"
+                              onSelect={() => {
                               setReferenceId(supplier.id);
                               setSelectedSupplierBillIds([]);
                               setAmount("");
                               setSupplierSearchOpen(false);
                               setSupplierSearchTerm("");
                             }}>
-                              <Check className={cn("mr-2 h-4 w-4", referenceId === supplier.id ? "opacity-100" : "opacity-0")} />
-                              <span className="flex-1">{supplier.supplier_name}</span>
-                              <Badge variant="destructive" className="ml-2">₹{(supplier.outstandingBalance || 0).toFixed(2)}</Badge>
+                              <Check className={cn("h-4 w-4 shrink-0", referenceId === supplier.id ? "opacity-100" : "opacity-0")} />
+                              <span className="min-w-0 flex-1 text-left leading-snug">{supplier.supplier_name}</span>
+                              <Badge variant="destructive" className="shrink-0 tabular-nums whitespace-nowrap">₹{(supplier.outstandingBalance || 0).toFixed(2)}</Badge>
                             </CommandItem>
                           ))}
                         </CommandGroup>
                         <CommandGroup heading="All Suppliers">
                           {suppliers?.filter(s => s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase()) && !suppliersWithBalance?.find(sw => sw.id === s.id)).map((supplier) => (
-                            <CommandItem key={supplier.id} value={supplier.supplier_name} onSelect={() => {
+                            <CommandItem
+                              key={supplier.id}
+                              value={supplier.supplier_name}
+                              className="flex items-center gap-2 py-2"
+                              onSelect={() => {
                               setReferenceId(supplier.id);
                               setSelectedSupplierBillIds([]);
                               setAmount("");
                               setSupplierSearchOpen(false);
                               setSupplierSearchTerm("");
                             }}>
-                              <Check className={cn("mr-2 h-4 w-4", referenceId === supplier.id ? "opacity-100" : "opacity-0")} />
-                              <span className="flex-1">{supplier.supplier_name}</span>
+                              <Check className={cn("h-4 w-4 shrink-0", referenceId === supplier.id ? "opacity-100" : "opacity-0")} />
+                              <span className="min-w-0 flex-1 text-left leading-snug">{supplier.supplier_name}</span>
                             </CommandItem>
                           ))}
                         </CommandGroup>
