@@ -5,9 +5,9 @@
 --      validate_purchase_item_active_row, update_stock_on_purchase,
 --      update_variant_last_purchase, trg_update_purchase_bill_total_qty
 --
--- Fix: set-based validation, disable user triggers for the bulk INSERT,
--- then apply stock / total_qty / last-purchase effects in aggregated SQL
--- matching the trigger semantics (one net stock effect per physical line).
+-- Fix: set-based validation; transaction-local GUC app.bulk_purchase_insert skips
+-- per-row INSERT triggers (session_replication_role is superuser-only on Supabase),
+-- then apply stock / total_qty / last-purchase effects in aggregated SQL.
 
 CREATE OR REPLACE FUNCTION public._apply_bulk_purchase_insert_effects(p_bill_id uuid)
 RETURNS void
@@ -275,10 +275,9 @@ BEGIN
 
   v_bill_id := v_inserted_bill.id;
 
-  PERFORM set_config('session_replication_role', 'replica', true);
+  PERFORM set_config('app.bulk_purchase_insert', '1', true);
 
-  BEGIN
-    INSERT INTO public.purchase_items (
+  INSERT INTO public.purchase_items (
       bill_id,
       product_id,
       sku_id,
@@ -321,14 +320,7 @@ BEGIN
       COALESCE((item->>'is_dc_item')::boolean, false)
     FROM jsonb_array_elements(p_items) AS item;
 
-    PERFORM set_config('session_replication_role', 'origin', true);
-
-    PERFORM public._apply_bulk_purchase_insert_effects(v_bill_id);
-  EXCEPTION
-    WHEN OTHERS THEN
-      PERFORM set_config('session_replication_role', 'origin', true);
-      RAISE;
-  END;
+  PERFORM public._apply_bulk_purchase_insert_effects(v_bill_id);
 
   RETURN to_jsonb(v_inserted_bill);
 END;
