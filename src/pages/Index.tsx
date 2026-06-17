@@ -13,7 +13,8 @@ import {
   DASHBOARD_REFRESH_QUERY_KEYS,
   isDashboardMetricsQueryEnabled,
 } from "@/lib/dashboardQueryOptions";
-import { fetchCustomerSegmentCounts } from "@/utils/customerSegments";
+import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
+import type { OrganizationReceivablesSummary } from "@/utils/organizationReceivables";
 import { useIsLgUp } from "@/hooks/use-mobile";
 import { useDashboardToolbar } from "@/contexts/DashboardToolbarContext";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -60,7 +61,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
+import { format, formatDistanceToNow, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
@@ -184,6 +185,33 @@ const AnimatedMetricCard = ({
 
 type DateRangeType = "monthly" | "quarterly" | "yearly" | "all";
 
+type DashStats = {
+  total_sales: number;
+  invoice_count: number;
+  sold_qty: number;
+  total_purchase: number;
+  purchase_count: number;
+  purchase_qty: number;
+  customer_count: number;
+  supplier_count: number;
+  product_count: number;
+  total_stock_qty: number;
+  total_stock_value: number;
+  total_receivables: number;
+  pending_count: number;
+  gross_profit: number;
+  cash_collection: number;
+  sale_return_total: number;
+  sale_return_count: number;
+  sale_return_qty: number;
+  purchase_return_total: number;
+  purchase_return_count: number;
+  purchase_return_qty: number;
+};
+
+/** Hint only — never auto-fetch when cache is older than this. */
+const DASHBOARD_CACHE_STALE_MS = 30 * 60 * 1000;
+
 const getDateRange = (type: DateRangeType) => {
   const now = new Date();
   switch (type) {
@@ -237,6 +265,7 @@ const DesktopDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [metricsLoadRequested, setMetricsLoadRequested] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [cacheTick, setCacheTick] = useState(0);
   const queryClient = useQueryClient();
   const [showSizeStock, setShowSizeStock] = useState(false);
   
@@ -295,6 +324,19 @@ const DesktopDashboard = () => {
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
+  const dashStatsQueryKey = useMemo(
+    () => ["dashboard-stats", currentOrganization?.id, startDate, endDate] as const,
+    [currentOrganization?.id, startDate, endDate],
+  );
+  const customerSegmentsQueryKey = useMemo(
+    () => ["customer-segment-counts", currentOrganization?.id] as const,
+    [currentOrganization?.id],
+  );
+  const receivablesQueryKey = useMemo(
+    () => ["organization-receivables", "summary", currentOrganization?.id] as const,
+    [currentOrganization?.id],
+  );
+
   const metricsQueryEnabled = isDashboardMetricsQueryEnabled(
     currentOrganization?.id,
     metricsLoadRequested,
@@ -302,12 +344,31 @@ const DesktopDashboard = () => {
 
   useEffect(() => {
     setMetricsLoadRequested(false);
-    setLastUpdated(null);
-  }, [currentOrganization?.id]);
+    const updatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt;
+    setLastUpdated(updatedAt ? new Date(updatedAt) : null);
+  }, [currentOrganization?.id, dateRange, dashStatsQueryKey, queryClient]);
 
+  // Re-render when persisted cache hydrates from IndexedDB (no network).
   useEffect(() => {
-    setMetricsLoadRequested(false);
-  }, [dateRange]);
+    const syncFromCache = () => {
+      setCacheTick((n) => n + 1);
+      const updatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt;
+      if (updatedAt && !metricsLoadRequested) {
+        setLastUpdated(new Date(updatedAt));
+      }
+    };
+    syncFromCache();
+    return queryClient.getQueryCache().subscribe((event) => {
+      const head = String(event.query?.queryKey?.[0] ?? "");
+      if (
+        head === "dashboard-stats" ||
+        head === "customer-segment-counts" ||
+        head === "organization-receivables"
+      ) {
+        syncFromCache();
+      }
+    });
+  }, [queryClient, dashStatsQueryKey, metricsLoadRequested]);
 
   // Manual refresh — only time dashboard cards/charts hit Supabase
   const handleRefreshAll = async () => {
@@ -326,8 +387,8 @@ const DesktopDashboard = () => {
   };
 
   // Single RPC call replaces 8-10 separate queries
-  const { data: dashStats, isFetching: isLoading } = useQuery({
-    queryKey: ["dashboard-stats", currentOrganization?.id, startDate, endDate],
+  const { data: liveDashStats, isFetching: isLoading } = useQuery({
+    queryKey: dashStatsQueryKey,
     queryFn: async () => {
       if (!currentOrganization) return null;
       
@@ -338,47 +399,59 @@ const DesktopDashboard = () => {
       });
       if (error) throw error;
       setLastUpdated(new Date());
-      return data as {
-        total_sales: number;
-        invoice_count: number;
-        sold_qty: number;
-        total_purchase: number;
-        purchase_count: number;
-        purchase_qty: number;
-        customer_count: number;
-        supplier_count: number;
-        product_count: number;
-        total_stock_qty: number;
-        total_stock_value: number;
-        total_receivables: number;
-        pending_count: number;
-        gross_profit: number;
-        cash_collection: number;
-        sale_return_total: number;
-        sale_return_count: number;
-        sale_return_qty: number;
-        purchase_return_total: number;
-        purchase_return_count: number;
-        purchase_return_qty: number;
-      };
+      return data as DashStats;
     },
     enabled: metricsQueryEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
+  const displayedDashStats = useMemo(
+    () =>
+      liveDashStats ??
+      queryClient.getQueryData<DashStats>(dashStatsQueryKey) ??
+      null,
+    [liveDashStats, queryClient, dashStatsQueryKey, cacheTick],
+  );
+
+  const cachedStatsUpdatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt ?? null;
+
   // Receivables = true net customer AR (Master Reconciliation), shared with the
   // Customer Ledger card / Balance Sheet, instead of the invoice-only net−paid view.
-  const { summary: receivablesSummary } = useOrganizationReceivablesSummary(
+  const { summary: receivablesSummary, isFetching: receivablesFetching } = useOrganizationReceivablesSummary(
     currentOrganization?.id,
     { manualRefreshOnly: true, enabled: metricsQueryEnabled },
   );
 
-  const { data: customerSegments, isFetching: segmentsLoading } = useQuery({
-    queryKey: ["customer-segment-counts", currentOrganization?.id],
+  const displayedReceivablesSummary = useMemo(() => {
+    const cached =
+      queryClient.getQueryData<OrganizationReceivablesSummary>(receivablesQueryKey);
+    if (metricsLoadRequested && !receivablesFetching) {
+      return receivablesSummary;
+    }
+    return cached ?? receivablesSummary;
+  }, [
+    metricsLoadRequested,
+    receivablesFetching,
+    receivablesSummary,
+    queryClient,
+    receivablesQueryKey,
+    cacheTick,
+  ]);
+
+  const { data: liveCustomerSegments, isFetching: segmentsLoading } = useQuery({
+    queryKey: customerSegmentsQueryKey,
     enabled: metricsQueryEnabled,
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
     queryFn: () => fetchCustomerSegmentCounts(currentOrganization!.id),
   });
+
+  const displayedCustomerSegments = useMemo(
+    () =>
+      liveCustomerSegments ??
+      queryClient.getQueryData<CustomerSegmentCounts>(customerSegmentsQueryKey) ??
+      null,
+    [liveCustomerSegments, queryClient, customerSegmentsQueryKey, cacheTick],
+  );
 
   const isLgUp = useIsLgUp();
   const { setToolbar } = useDashboardToolbar();
@@ -434,19 +507,19 @@ const DesktopDashboard = () => {
     return () => setToolbar(null);
   }, [isLgUp, setToolbar, dashboardHeaderToolbar]);
 
-  // Extract metrics from single RPC result
-  const salesData = { total: dashStats?.total_sales || 0, count: dashStats?.invoice_count || 0, soldQty: dashStats?.sold_qty || 0 };
-  const purchaseData = { total: dashStats?.total_purchase || 0, count: dashStats?.purchase_count || 0, purchaseQty: dashStats?.purchase_qty || 0 };
-  const customersCount = dashStats?.customer_count || 0;
-  const productsCount = dashStats?.product_count || 0;
-  const suppliersCount = dashStats?.supplier_count || 0;
-  const stockData = dashStats?.total_stock_qty || 0;
-  const stockValue = dashStats?.total_stock_value || 0;
-  const profitData = dashStats?.gross_profit || 0;
-  const cashCollection = dashStats?.cash_collection || 0;
-  const receivablesData = { total: receivablesSummary.netReceivable || 0, count: dashStats?.pending_count || 0 };
-  const saleReturnData = { total: dashStats?.sale_return_total || 0, count: dashStats?.sale_return_count || 0, returnQty: dashStats?.sale_return_qty || 0 };
-  const purchaseReturnData = { total: dashStats?.purchase_return_total || 0, count: dashStats?.purchase_return_count || 0, returnQty: dashStats?.purchase_return_qty || 0 };
+  // Extract metrics from single RPC result (live or persisted cache)
+  const salesData = { total: displayedDashStats?.total_sales || 0, count: displayedDashStats?.invoice_count || 0, soldQty: displayedDashStats?.sold_qty || 0 };
+  const purchaseData = { total: displayedDashStats?.total_purchase || 0, count: displayedDashStats?.purchase_count || 0, purchaseQty: displayedDashStats?.purchase_qty || 0 };
+  const customersCount = displayedDashStats?.customer_count || 0;
+  const productsCount = displayedDashStats?.product_count || 0;
+  const suppliersCount = displayedDashStats?.supplier_count || 0;
+  const stockData = displayedDashStats?.total_stock_qty || 0;
+  const stockValue = displayedDashStats?.total_stock_value || 0;
+  const profitData = displayedDashStats?.gross_profit || 0;
+  const cashCollection = displayedDashStats?.cash_collection || 0;
+  const receivablesData = { total: displayedReceivablesSummary.netReceivable || 0, count: displayedDashStats?.pending_count || 0 };
+  const saleReturnData = { total: displayedDashStats?.sale_return_total || 0, count: displayedDashStats?.sale_return_count || 0, returnQty: displayedDashStats?.sale_return_qty || 0 };
+  const purchaseReturnData = { total: displayedDashStats?.purchase_return_total || 0, count: displayedDashStats?.purchase_return_count || 0, returnQty: displayedDashStats?.purchase_return_qty || 0 };
 
   // New Updates Panel Component - Maximized height to show all updates
   const NewUpdatesPanel = () => {
@@ -715,16 +788,23 @@ const DesktopDashboard = () => {
     );
   };
 
-  const hasMetrics = Boolean(dashStats);
+  const hasMetrics = Boolean(displayedDashStats);
   const showPlaceholders = !hasMetrics && (!metricsLoadRequested || isLoading);
   const metricsLoading = metricsLoadRequested && isLoading && hasMetrics;
+  const displayUpdatedAt =
+    lastUpdated ?? (cachedStatsUpdatedAt ? new Date(cachedStatsUpdatedAt) : null);
+  const cacheAgeMs = displayUpdatedAt ? Date.now() - displayUpdatedAt.getTime() : null;
+  const isCacheStale =
+    cacheAgeMs !== null && cacheAgeMs > DASHBOARD_CACHE_STALE_MS && hasMetrics && !isLoading;
+  const staleHint = isCacheStale ? " · Data may be stale — Refresh" : "";
   const statusLabel = isLoading && metricsLoadRequested && !hasMetrics
     ? "Loading…"
-    : lastUpdated
-      ? `Updated ${format(lastUpdated, "HH:mm:ss")} · refresh for latest`
+    : displayUpdatedAt
+      ? `Last updated ${formatDistanceToNow(displayUpdatedAt, { addSuffix: true })}${staleHint}`
       : hasMetrics
         ? "Showing last loaded figures · click Refresh for latest"
         : "Click Refresh to load dashboard data";
+  const segmentsBusy = metricsLoadRequested && segmentsLoading && !displayedCustomerSegments;
 
   return (
     <>
@@ -1098,10 +1178,10 @@ const DesktopDashboard = () => {
               <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
                 {showPlaceholders ? (
                   <span className="text-muted-foreground/50">—</span>
-                ) : segmentsLoading ? (
+                ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
-                  customerSegments?.vip ?? 0
+                  displayedCustomerSegments?.vip ?? 0
                 )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
@@ -1116,10 +1196,10 @@ const DesktopDashboard = () => {
               <div className="text-xl font-semibold tabular-nums text-success min-h-[28px] flex items-center justify-center">
                 {showPlaceholders ? (
                   <span className="text-muted-foreground/50">—</span>
-                ) : segmentsLoading ? (
+                ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
-                  customerSegments?.regular ?? 0
+                  displayedCustomerSegments?.regular ?? 0
                 )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
@@ -1134,10 +1214,10 @@ const DesktopDashboard = () => {
               <div className="text-xl font-semibold tabular-nums text-warning min-h-[28px] flex items-center justify-center">
                 {showPlaceholders ? (
                   <span className="text-muted-foreground/50">—</span>
-                ) : segmentsLoading ? (
+                ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
-                  customerSegments?.risk ?? 0
+                  displayedCustomerSegments?.risk ?? 0
                 )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
@@ -1152,10 +1232,10 @@ const DesktopDashboard = () => {
               <div className="text-xl font-semibold tabular-nums text-destructive min-h-[28px] flex items-center justify-center">
                 {showPlaceholders ? (
                   <span className="text-muted-foreground/50">—</span>
-                ) : segmentsLoading ? (
+                ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
-                  customerSegments?.lost ?? 0
+                  displayedCustomerSegments?.lost ?? 0
                 )}
               </div>
               <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
