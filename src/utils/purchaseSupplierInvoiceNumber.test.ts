@@ -82,27 +82,21 @@ describe("maxSupplierInvoiceInSeries", () => {
 });
 
 describe("resolveNextSupplierInvoiceNumber", () => {
-  it("prefers numeric server peek when >= client fallback", () => {
+  it("uses numeric server peek as the auto serial", () => {
     expect(
-      resolveNextSupplierInvoiceNumber("483", ["480", "481", "RV1000524"]),
-    ).toBe("483");
+      resolveNextSupplierInvoiceNumber("3", ["1", "2"]),
+    ).toBe("3");
   });
 
-  it("ignores non-numeric server peek and uses client numeric global", () => {
+  it("ignores non-numeric server peek and uses auto-generated client max + 1", () => {
     expect(
-      resolveNextSupplierInvoiceNumber("RV1000525", ["480", "481"], "481"),
-    ).toBe("482");
+      resolveNextSupplierInvoiceNumber("RV1000525", ["1", "2"]),
+    ).toBe("3");
   });
 
-  it("falls back to client numeric when peek is empty", () => {
+  it("falls back to client auto-generated serial when peek is empty", () => {
     expect(
-      resolveNextSupplierInvoiceNumber(null, ["46111", "46112"], "46112"),
-    ).toBe("46113");
-  });
-
-  it("uses client when peek is lower than client max+1", () => {
-    expect(
-      resolveNextSupplierInvoiceNumber("480", ["481", "482"]),
-    ).toBe("483");
+      resolveNextSupplierInvoiceNumber(null, ["1", "2"]),
+    ).toBe("3");
   });
 });

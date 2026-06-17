@@ -736,6 +736,8 @@ const PurchaseEntry = () => {
     Boolean((initialBrowserSnapshot?.billData as { supplier_invoice_no?: string } | undefined)?.supplier_invoice_no),
   );
   const [supplierInvAutoFillEpoch, setSupplierInvAutoFillEpoch] = useState(0);
+  /** Supplier's paper invoice from import — shown for reference; our serial (1,2,3…) is assigned on save. */
+  const [supplierPaperInvoiceNo, setSupplierPaperInvoiceNo] = useState<string | null>(null);
   const bumpSupplierInvAutoFill = useCallback(() => {
     setSupplierInvAutoFillEpoch((n) => n + 1);
   }, []);
@@ -772,6 +774,7 @@ const PurchaseEntry = () => {
     setSoftwareBillNo("");
     setBillDate(new Date());
     setBillEntryAt(null);
+    setSupplierPaperInvoiceNo(null);
     setOtherCharges(0);
     setRoundOff(0);
     setDiscountAmount(0);
@@ -1756,10 +1759,11 @@ const PurchaseEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("purchase_bills")
-        .select("supplier_invoice_no")
+        .select("supplier_invoice_no, supplier_inv_auto_generated")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
         .or("is_cancelled.is.null,is_cancelled.eq.false")
+        .eq("supplier_inv_auto_generated", true)
         .not("supplier_invoice_no", "is", null)
         .order("created_at", { ascending: false })
         .limit(1000);
@@ -1791,7 +1795,7 @@ const PurchaseEntry = () => {
     staleTime: 15000,
   });
 
-  // Org-wide pure-numeric supplier invoice no (480 → 481 → 482), all suppliers.
+  // Our org serial (1, 2, 3…) — server peek; ignores old supplier-typed numbers (84948, RV…).
   const nextSupplierInvNo = useMemo(() => {
     if (isEditMode) return undefined;
     return resolveNextSupplierInvoiceNumber(
@@ -1985,6 +1989,7 @@ const PurchaseEntry = () => {
 
   const handleSupplierInvoiceNoChange = useCallback((value: string) => {
     supplierInvManuallyEditedRef.current = true;
+    setSupplierPaperInvoiceNo(null);
     setBillData((prev) => ({ ...prev, supplier_invoice_no: value }));
   }, []);
 
@@ -3743,9 +3748,11 @@ const PurchaseEntry = () => {
         supplierInvAutoValueRef.current = allocatedStr;
       } else if (allocErr) {
         console.warn("[PurchaseEntry] allocate_supplier_invoice_number failed:", allocErr);
-        const fallback = nextGlobalNumericSupplierInvoice(
-          orgSupplierInvoices?.map((row) => row.supplier_invoice_no) ?? [],
-        );
+        const fallback =
+          (peekNextSupplierInvNo && String(peekNextSupplierInvNo).trim()) ||
+          nextGlobalNumericSupplierInvoice(
+            orgSupplierInvoices?.map((row) => row.supplier_invoice_no) ?? [],
+          );
         billData.supplier_invoice_no = fallback;
         setBillData((prev) => ({ ...prev, supplier_invoice_no: fallback }));
         supplierInvAutoValueRef.current = fallback;
@@ -4766,6 +4773,12 @@ const PurchaseEntry = () => {
     // Extract bill-level data from first row if present
     const firstRow = mappedData[0];
     if (firstRow) {
+      const importedPaperInv = firstRow.bill_supplier_invoice_no?.toString().trim() || "";
+      if (importedPaperInv) {
+        setSupplierPaperInvoiceNo(importedPaperInv);
+        supplierInvManuallyEditedRef.current = false;
+        bumpSupplierInvAutoFill();
+      }
       // Set supplier if provided
       if (firstRow.bill_supplier_name) {
         const supplierName = firstRow.bill_supplier_name?.toString().trim();
@@ -4777,22 +4790,14 @@ const PurchaseEntry = () => {
             ...prev,
             supplier_id: matchingSupplier.id,
             supplier_name: matchingSupplier.supplier_name,
-            supplier_invoice_no: firstRow.bill_supplier_invoice_no?.toString().trim() || prev.supplier_invoice_no,
           }));
         } else {
           // Just set the name if supplier not found
           setBillData(prev => ({
             ...prev,
             supplier_name: supplierName,
-            supplier_invoice_no: firstRow.bill_supplier_invoice_no?.toString().trim() || prev.supplier_invoice_no,
           }));
         }
-      } else if (firstRow.bill_supplier_invoice_no) {
-        // Set invoice number even without supplier name
-        setBillData(prev => ({
-          ...prev,
-          supplier_invoice_no: firstRow.bill_supplier_invoice_no?.toString().trim(),
-        }));
       }
       
       // Set bill date if provided
@@ -5386,8 +5391,19 @@ const PurchaseEntry = () => {
                 <Input type="date" value={format(billDate, "yyyy-MM-dd")} onChange={(e) => setBillDate(new Date(e.target.value))} className="h-9 text-sm rounded-xl" />
               </div>
               <div>
-                <Label className="text-[11px]">Supplier Inv. No.</Label>
-                <Input data-field="supplier-invoice-no" value={billData.supplier_invoice_no} onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)} placeholder={nextSupplierInvNo ? `Next: ${nextSupplierInvNo}` : "Inv #"} className="h-9 text-sm rounded-xl" />
+                <Label className="text-[11px]">Our serial</Label>
+                <Input
+                  data-field="supplier-invoice-no"
+                  value={billData.supplier_invoice_no}
+                  onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
+                  placeholder={nextSupplierInvNo ? `Serial: ${nextSupplierInvNo}` : "Inv #"}
+                  className="h-9 text-sm rounded-xl"
+                />
+                {supplierPaperInvoiceNo && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Supplier bill: {supplierPaperInvoiceNo}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -5757,8 +5773,28 @@ const PurchaseEntry = () => {
                   data-field="supplier-invoice-no"
                   value={billData.supplier_invoice_no}
                   onChange={(e) => handleSupplierInvoiceNoChange(e.target.value)}
-                  placeholder={nextSupplierInvNo ? `Next: ${nextSupplierInvNo}` : "Invoice number"}
+                  placeholder={nextSupplierInvNo ? `Serial on save: ${nextSupplierInvNo}` : "Invoice number"}
                 />
+                {!isEditMode && (
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    {supplierPaperInvoiceNo ? (
+                      <>
+                        Supplier&apos;s bill: <span className="font-mono">{supplierPaperInvoiceNo}</span>
+                        {" · "}
+                        our serial <span className="font-mono">{nextSupplierInvNo ?? "…"}</span> is assigned when you save
+                      </>
+                    ) : lastPurchaseBill?.supplier_invoice_no ? (
+                      <>
+                        Previous bill used <span className="font-mono">{lastPurchaseBill.supplier_invoice_no}</span>
+                        {nextSupplierInvNo ? (
+                          <> · next serial <span className="font-mono">{nextSupplierInvNo}</span></>
+                        ) : null}
+                      </>
+                    ) : nextSupplierInvNo ? (
+                      <>Auto serial <span className="font-mono">{nextSupplierInvNo}</span> on save</>
+                    ) : null}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2 flex-1 min-w-[160px]">
