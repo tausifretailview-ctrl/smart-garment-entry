@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle } from "lucide-react";
+import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, Monitor } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
@@ -141,11 +141,20 @@ export default function InstallApp() {
 
   const installUrl = `${linkOrigin}/${orgSlug}/install`;
   const androidApkUrl = ANDROID_APK_URL;
+  const windowsSetupUrl = WINDOWS_SETUP_URL;
+  const windowsPortableUrl = WINDOWS_PORTABLE_URL;
+  const windowsInstallerConfigured = isWindowsInstallerConfigured();
+  const windowsPortableConfigured = isWindowsPortableConfigured();
   const appStartUrl = `${window.location.origin}/${orgSlug}`;
 
   const copyApkLink = () => {
     navigator.clipboard.writeText(androidApkUrl);
     toast.success("Android APK link copied");
+  };
+
+  const copyWindowsSetupLink = () => {
+    navigator.clipboard.writeText(windowsSetupUrl);
+    toast.success("Windows installer link copied");
   };
 
   const handleInstall = async () => {
@@ -164,7 +173,8 @@ export default function InstallApp() {
 
   const shareWhatsApp = () => {
     const apkLine = androidApkConfigured ? `\nAndroid APK: ${androidApkUrl}` : "";
-    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}${apkLine}`;
+    const winLine = windowsInstallerConfigured ? `\nWindows PC: ${windowsSetupUrl}` : "";
+    const text = `Install ${orgName || "our"} EzzyERP app:\n${installUrl}${apkLine}${winLine}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
@@ -314,30 +324,39 @@ export default function InstallApp() {
           </Card>
         )}
 
-        {/* Windows — desktop browsers only */}
-        {!(isStandalone || isInstalled) && platform === "desktop" && isWindowsInstallerConfigured() && (
+        {/* Windows — desktop browsers (and shareable from install page) */}
+        {!(isStandalone || isInstalled) && platform === "desktop" && windowsInstallerConfigured && (
           <Card className="p-6 space-y-4">
             <div className="text-center space-y-1">
-              <h2 className="font-semibold text-lg">Download for Windows</h2>
+              <h2 className="font-semibold text-lg flex items-center justify-center gap-2">
+                <Monitor className="h-5 w-5 text-primary" />
+                Download for Windows
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Desktop app — opens like Tally/Vyapar, no browser needed.
               </p>
             </div>
             <Button asChild className="w-full h-14 text-base" size="lg">
-              <a href={WINDOWS_SETUP_URL} download>
+              <a href={windowsSetupUrl}>
                 <Download className="mr-2 h-5 w-5" />
                 Download EzzyERP for Windows
               </a>
             </Button>
-            {isWindowsPortableConfigured() && (
+            {windowsPortableConfigured && (
               <Button asChild variant="outline" className="w-full" size="sm">
-                <a href={WINDOWS_PORTABLE_URL} download>
+                <a href={windowsPortableUrl}>
                   Portable version (no install needed)
                 </a>
               </Button>
             )}
+            <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+              <span className="text-xs flex-1 truncate font-mono">{windowsSetupUrl}</span>
+              <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyWindowsSetupLink}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
             <p className="text-xs text-center text-muted-foreground">
-              Windows 10/11 (64-bit). If Windows shows &quot;Unknown publisher&quot;, click{" "}
+              Windows 10/11 (64-bit) · Version {APP_VERSION}. If Windows shows &quot;Unknown publisher&quot;, click{" "}
               <strong>More info → Run anyway</strong>.
             </p>
             <div className="pt-2 border-t">
@@ -363,6 +382,17 @@ export default function InstallApp() {
               <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
                 <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
                 <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+          {windowsInstallerConfigured && (
+            <div className="space-y-1">
+              <div className="text-xs text-muted-foreground">Windows installer direct link</div>
+              <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+                <span className="text-xs flex-1 truncate font-mono">{windowsSetupUrl}</span>
+                <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyWindowsSetupLink}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
