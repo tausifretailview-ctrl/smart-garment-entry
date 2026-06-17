@@ -83,6 +83,8 @@ export type PosDashboardSalesPayload = {
 export type PosDashboardFilters = {
   organizationId: string;
   search: string;
+  /** Exact customer when resolved — narrows stats RPC via customer_id index. */
+  customerId?: string | null;
   startDate: string;
   endDate: string;
   paymentMethodFilter: string;
@@ -156,6 +158,139 @@ const EMPTY_POS_SUMMARY: PosDashboardSummaryStats = {
 export const POS_DASHBOARD_SALES_SELECT =
   "*, customers:customer_id (gst_number)";
 
+const POS_DASHBOARD_STATS_RPC_CACHE_KEY = "ezzy:rpc:get_pos_dashboard_stats";
+
+let posDashboardStatsRpcWarned = false;
+
+function isPosDashboardStatsRpcUnavailable(): boolean {
+  try {
+    return sessionStorage.getItem(POS_DASHBOARD_STATS_RPC_CACHE_KEY) === "0";
+  } catch {
+    return false;
+  }
+}
+
+function markPosDashboardStatsRpcUnavailable(): void {
+  try {
+    sessionStorage.setItem(POS_DASHBOARD_STATS_RPC_CACHE_KEY, "0");
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function isPosDashboardStatsRpcNotFoundError(
+  error: { code?: string; message?: string; status?: number; hint?: string } | null | undefined,
+): boolean {
+  if (!error) return false;
+  if (error.status === 404) return true;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  const msg = String(error.message || error.hint || "");
+  return /get_pos_dashboard_stats/i.test(msg);
+}
+
+function warnPosDashboardStatsRpcFallback(reason: string): void {
+  if (posDashboardStatsRpcWarned) return;
+  posDashboardStatsRpcWarned = true;
+  console.warn(
+    `[POSDashboard] get_pos_dashboard_stats unavailable (${reason}) — using client summary scan. ` +
+      "Apply migration supabase/migrations/20260823120100_pos_dashboard_stats_search_params.sql to remove this fallback.",
+  );
+}
+
+export type PosDashboardRpcFilters = {
+  cancelFilter: string;
+  paymentMethodFilter: string;
+  paymentStatusFilter: string[];
+  saleTypeFilter: string;
+  refundFilter: string;
+  creditNoteFilter: string;
+  userFilter: string;
+};
+
+export function buildPosDashboardRpcFilters(filters: PosDashboardFilters): PosDashboardRpcFilters {
+  return {
+    cancelFilter: filters.cancelFilter,
+    paymentMethodFilter: filters.paymentMethodFilter,
+    paymentStatusFilter: filters.paymentStatusFilter,
+    saleTypeFilter: filters.saleTypeFilter,
+    refundFilter: filters.refundFilter,
+    creditNoteFilter: filters.creditNoteFilter,
+    userFilter: filters.userFilter,
+  };
+}
+
+function resolvePosDashboardRpcDates(filters: PosDashboardFilters): {
+  from: string | null;
+  to: string | null;
+} {
+  if (filters.search.trim()) {
+    return { from: null, to: null };
+  }
+  const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
+  return {
+    from: localDayStartUtcIso(bounded.startDate),
+    to: localDayEndUtcIso(bounded.endDate),
+  };
+}
+
+function parsePosDashboardStatsRow(
+  row: Partial<PosDashboardSummaryStats>,
+): PosDashboardSummaryStats {
+  return {
+    totalBills: Number(row.totalBills ?? 0),
+    totalQty: Number(row.totalQty ?? 0),
+    totalAmount: Number(row.totalAmount ?? 0),
+    totalDiscount: Number(row.totalDiscount ?? 0),
+    netSale: Number(row.netSale ?? 0),
+    completedCount: Number(row.completedCount ?? 0),
+    completedAmount: Number(row.completedAmount ?? 0),
+    pendingCount: Number(row.pendingCount ?? 0),
+    pendingAmount: Number(row.pendingAmount ?? 0),
+    holdCount: Number(row.holdCount ?? 0),
+    holdAmount: Number(row.holdAmount ?? 0),
+    refundCount: Number(row.refundCount ?? 0),
+    refundAmount: Number(row.refundAmount ?? 0),
+    creditNoteCount: Number(row.creditNoteCount ?? 0),
+    creditNoteAmount: Number(row.creditNoteAmount ?? 0),
+    totalCash: Number(row.totalCash ?? 0),
+    totalCard: Number(row.totalCard ?? 0),
+    totalUpi: Number(row.totalUpi ?? 0),
+    totalBalance: Number(row.totalBalance ?? 0),
+    totalSaleReturnAdjust: Number(row.totalSaleReturnAdjust ?? 0),
+    totalRoundOff: Number(row.totalRoundOff ?? 0),
+    cashBillCount: Number(row.cashBillCount ?? 0),
+    cardBillCount: Number(row.cardBillCount ?? 0),
+    upiBillCount: Number(row.upiBillCount ?? 0),
+  };
+}
+
+async function fetchPosDashboardSummaryViaRpc(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+): Promise<PosDashboardSummaryStats> {
+  const { from, to } = resolvePosDashboardRpcDates(filters);
+  const { data, error } = await (client as any).rpc("get_pos_dashboard_stats", {
+    p_organization_id: filters.organizationId,
+    p_date_from: from,
+    p_date_to: to,
+    p_filters: buildPosDashboardRpcFilters(filters),
+    p_search: filters.search.trim() || null,
+    p_customer_id: filters.customerId || null,
+  });
+
+  if (error) {
+    if (isPosDashboardStatsRpcNotFoundError(error)) {
+      markPosDashboardStatsRpcUnavailable();
+      warnPosDashboardStatsRpcFallback(error.code || String(error.status ?? "404"));
+    } else {
+      console.warn("get_pos_dashboard_stats RPC failed, using client fallback:", error.message || error);
+    }
+    throw error;
+  }
+
+  return parsePosDashboardStatsRow((data || {}) as Partial<PosDashboardSummaryStats>);
+}
+
 const POS_DASHBOARD_SUMMARY_SELECT =
   "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_amount, credit_note_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
 
@@ -185,6 +320,10 @@ function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
 
   if (shouldApplyPosUserFilter(filters.userFilter)) {
     q = q.eq("created_by", filters.userFilter);
+  }
+
+  if (filters.customerId) {
+    q = q.eq("customer_id", filters.customerId);
   }
 
   if (filters.paymentMethodFilter !== "all") {
@@ -598,6 +737,16 @@ export async function fetchPosDashboardSummary(
   filters: PosDashboardFilters,
 ): Promise<PosDashboardSummaryStats> {
   if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
+
+  if (!isPosDashboardStatsRpcUnavailable()) {
+    try {
+      return await fetchPosDashboardSummaryViaRpc(client, filters);
+    } catch (err) {
+      if (!isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })) {
+        console.warn("get_pos_dashboard_stats RPC threw, using client fallback:", err);
+      }
+    }
+  }
 
   const totalCount = await countFilteredPosSales(client, filters);
   if (totalCount === 0) return { ...EMPTY_POS_SUMMARY };

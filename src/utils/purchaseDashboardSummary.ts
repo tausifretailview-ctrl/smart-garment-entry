@@ -20,6 +20,8 @@ type FetchPurchaseSummaryParams = {
   paymentStatusFilter: string;
   dcFilter: string;
   debouncedSearch: string;
+  /** Exact supplier when resolved — narrows stats RPC via supplier_id index. */
+  supplierId?: string | null;
 };
 
 type PurchaseSummaryBillRow = {
@@ -98,6 +100,10 @@ function applyPurchaseBillFilters(
     q = q.eq("is_dc_purchase", true);
   } else if (params.dcFilter === "gst") {
     q = q.or("is_dc_purchase.is.null,is_dc_purchase.eq.false");
+  }
+
+  if (params.supplierId) {
+    q = q.eq("supplier_id", params.supplierId);
   }
 
   return q;
@@ -192,7 +198,7 @@ async function fetchPurchaseSummaryWithSearch(
 }
 
 async function fetchPurchaseSummaryViaRpc(
-  params: Omit<FetchPurchaseSummaryParams, "debouncedSearch">,
+  params: FetchPurchaseSummaryParams,
 ): Promise<PurchaseDashboardSummary> {
   const { data, error } = await (supabase as any).rpc("get_purchase_bill_dashboard_stats", {
     p_org_id: params.organizationId,
@@ -200,6 +206,8 @@ async function fetchPurchaseSummaryViaRpc(
     p_end_date: params.endDate || null,
     p_payment_status_filter: params.paymentStatusFilter || "all",
     p_dc_filter: params.dcFilter || "all",
+    p_search: params.debouncedSearch.trim() || null,
+    p_supplier_id: params.supplierId || null,
   });
 
   if (error) {
@@ -211,6 +219,9 @@ async function fetchPurchaseSummaryViaRpc(
         "get_purchase_bill_dashboard_stats RPC failed, using client fallback:",
         error.message || error,
       );
+    }
+    if (params.debouncedSearch.trim()) {
+      return fetchPurchaseSummaryWithSearch(params);
     }
     return fetchPurchaseSummaryClient(params);
   }
@@ -228,11 +239,10 @@ async function fetchPurchaseSummaryViaRpc(
 export async function fetchPurchaseDashboardSummary(
   params: FetchPurchaseSummaryParams,
 ): Promise<PurchaseDashboardSummary> {
-  if (params.debouncedSearch.trim()) {
-    return fetchPurchaseSummaryWithSearch(params);
-  }
-
   if (isPurchaseBillStatsRpcUnavailable()) {
+    if (params.debouncedSearch.trim()) {
+      return fetchPurchaseSummaryWithSearch(params);
+    }
     return fetchPurchaseSummaryClient(params);
   }
 
@@ -244,6 +254,9 @@ export async function fetchPurchaseDashboardSummary(
       warnPurchaseBillStatsRpcFallback("network");
     } else {
       console.warn("get_purchase_bill_dashboard_stats RPC threw, using client fallback:", err);
+    }
+    if (params.debouncedSearch.trim()) {
+      return fetchPurchaseSummaryWithSearch(params);
     }
     return fetchPurchaseSummaryClient(params);
   }
