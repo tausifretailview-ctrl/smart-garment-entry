@@ -30,6 +30,9 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal, FileSpreadsheet, User, Phone, AlertTriangle, Receipt } from "lucide-react";
 import * as XLSX from "xlsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { captureElementToPdfBlob } from "@/utils/invoiceElementToPdf";
+import { deliverPdfBlob, shouldUseMobileDocumentDelivery } from "@/utils/mobileDocumentDelivery";
+import { useIsNativeApp } from "@/hooks/useNativeApp";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfWeek, endOfWeek, subDays } from "date-fns";
@@ -207,6 +210,7 @@ export default function SalesInvoiceDashboard() {
     void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
   }, [queryClient]);
   const isMobile = useIsMobile();
+  const isNativeApp = useIsNativeApp();
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
   const [searchQuery, setSearchQuery] = useState("");
@@ -1648,85 +1652,30 @@ export default function SalesInvoiceDashboard() {
         throw new Error('Invoice template failed to render');
       }
 
-      const canvas = await html2canvas(printRef.current, {
-        scale: isMobile ? 1.5 : 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
+      const pageFormat =
+        effectiveSaleBillFormat === 'thermal'
+          ? 'thermal'
+          : effectiveSaleBillFormat === 'a5' || effectiveSaleBillFormat === 'a5-horizontal'
+            ? 'a5'
+            : 'a4';
+
+      const blob = await captureElementToPdfBlob(printRef.current, {
+        pageFormat,
+        thermalPaper: saleThermalPaper,
+        mobileOptimized: isNativeApp || shouldUseMobileDocumentDelivery(),
       });
 
-      const imgData = canvas.toDataURL(isMobile ? 'image/jpeg' : 'image/png', 0.92);
-      const pageFormat = effectiveSaleBillFormat === 'a5' || effectiveSaleBillFormat === 'a5-horizontal' ? 'a5' : 'a4';
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: pageFormat,
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
-      const singlePageThreshold = pdfHeight * 1.05;
-      const imageType = isMobile ? 'JPEG' : 'PNG';
-
-      if (scaledHeight <= singlePageThreshold) {
-        pdf.addImage(imgData, imageType, 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
-      } else {
-        const pixelsPerPage = (pdfHeight / scaledHeight) * imgHeight;
-        const totalPages = Math.ceil(scaledHeight / pdfHeight);
-
-        for (let page = 0; page < totalPages; page++) {
-          if (page > 0) pdf.addPage();
-
-          const sourceY = page * pixelsPerPage;
-          const sourceH = Math.min(pixelsPerPage, imgHeight - sourceY);
-          const sliceScaledHeight = (sourceH * pdfWidth) / imgWidth;
-
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = imgWidth;
-          pageCanvas.height = Math.ceil(sourceH);
-          const ctx = pageCanvas.getContext('2d');
-
-          if (ctx) {
-            ctx.drawImage(canvas, 0, sourceY, imgWidth, sourceH, 0, 0, imgWidth, Math.ceil(sourceH));
-            const pageImgData = pageCanvas.toDataURL(isMobile ? 'image/jpeg' : 'image/png', 0.92);
-            pdf.addImage(pageImgData, imageType, 0, 0, pdfWidth, sliceScaledHeight);
-          }
-        }
-      }
-
-      const blob = pdf.output('blob');
       const fileName = `Invoice_${invoice.sale_number}_${format(new Date(invoice.sale_date), 'ddMMyyyy')}.pdf`;
-      const url = URL.createObjectURL(blob);
-
-      if (isMobile) {
-        const opened = window.open(url, '_blank', 'noopener,noreferrer');
-        if (opened) {
-          toast({
-            title: 'Success',
-            description: 'Invoice PDF opened successfully',
-          });
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-          return;
-        }
-      }
-
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 1000);
+      const result = await deliverPdfBlob(blob, fileName);
 
       toast({
         title: 'Success',
-        description: 'PDF downloaded successfully',
+        description:
+          result === 'shared'
+            ? 'Invoice shared — choose Save to Files or a printer app'
+            : result === 'opened'
+              ? 'Invoice PDF opened — use Save or Print from the viewer'
+              : 'PDF downloaded successfully',
       });
     } catch (error) {
       console.error('Error generating PDF:', error);

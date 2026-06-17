@@ -10,12 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Download, Share2 } from 'lucide-react';
+import { format } from 'date-fns';
 import { thermalReceiptBrowserPageSize } from '@/utils/invoicePrintFormat';
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from '@/utils/thermalReceiptPrintDocument';
+import { useIsNativeApp } from '@/hooks/useNativeApp';
+import { captureElementToPdfBlob } from '@/utils/invoiceElementToPdf';
+import { deliverPdfBlob } from '@/utils/mobileDocumentDelivery';
+import { toast } from 'sonner';
 
 interface PrintPreviewDialogProps {
   open: boolean;
@@ -37,7 +42,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<string>(defaultFormat);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingPdf, setIsSavingPdf] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const isNative = useIsNativeApp();
 
   // Sync selectedFormat with defaultFormat when it changes (async settings load)
   useEffect(() => {
@@ -265,6 +272,41 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     },
   });
 
+  const getPdfPageFormat = (): 'a4' | 'a5' | 'thermal' => {
+    if (selectedFormat === 'thermal') return 'thermal';
+    if (selectedFormat === 'a5' || selectedFormat === 'a5-horizontal') return 'a5';
+    return 'a4';
+  };
+
+  const handleSaveOrSharePdf = async () => {
+    if (!printRef.current || isLoading || isSavingPdf) return;
+    setIsSavingPdf(true);
+    try {
+      const blob = await captureElementToPdfBlob(printRef.current, {
+        pageFormat: getPdfPageFormat(),
+        thermalPaper,
+        mobileOptimized: isNative || window.innerWidth < 768,
+      });
+      const fileName = `Invoice_${format(new Date(), 'ddMMyyyy_HHmm')}.pdf`;
+      const result = await deliverPdfBlob(blob, fileName);
+      if (result === 'shared') {
+        toast.success('Invoice shared');
+      } else if (result === 'opened') {
+        toast.success('Invoice PDF opened — use Save or Print from viewer');
+      } else {
+        toast.success('Invoice PDF saved');
+      }
+      onOpenChange(false);
+      onPrint?.();
+    } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return;
+      console.error('Print preview PDF failed:', error);
+      toast.error('Could not save invoice PDF');
+    } finally {
+      setIsSavingPdf(false);
+    }
+  };
+
   const getPreviewStyles = () => {
     switch (selectedFormat) {
       case 'a5':
@@ -374,15 +416,37 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 no-print">
+        <DialogFooter className="gap-2 no-print flex-wrap sm:flex-nowrap">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="no-print">
             <X className="mr-2 h-4 w-4" />
             Cancel
           </Button>
-          <Button onClick={handlePrint} disabled={isLoading} className="no-print">
-            <Printer className="mr-2 h-4 w-4" />
-            {isLoading ? 'Loading...' : 'Print'}
-          </Button>
+          {isNative ? (
+            <Button
+              onClick={handleSaveOrSharePdf}
+              disabled={isLoading || isSavingPdf}
+              className="no-print"
+            >
+              <Share2 className="mr-2 h-4 w-4" />
+              {isSavingPdf ? 'Preparing…' : 'Save / Share PDF'}
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleSaveOrSharePdf}
+                disabled={isLoading || isSavingPdf}
+                className="no-print"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {isSavingPdf ? 'Preparing…' : 'Download PDF'}
+              </Button>
+              <Button onClick={handlePrint} disabled={isLoading} className="no-print">
+                <Printer className="mr-2 h-4 w-4" />
+                {isLoading ? 'Loading...' : 'Print'}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

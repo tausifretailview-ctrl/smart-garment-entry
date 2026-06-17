@@ -27,6 +27,19 @@ export function setForceDesktopView(enabled: boolean): void {
   applyForceDesktopViewAttribute(enabled);
 }
 
+const DEFAULT_VIEWPORT =
+  "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover";
+/** Wide layout + pinch zoom when user forces desktop chrome on a phone (APK / mobile browser). */
+const FORCED_DESKTOP_VIEWPORT =
+  "width=1280, initial-scale=0.32, minimum-scale=0.2, maximum-scale=4.0, user-scalable=yes, viewport-fit=cover";
+
+function applyForcedDesktopViewport(enabled: boolean): void {
+  if (typeof document === "undefined") return;
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta) return;
+  meta.setAttribute("content", enabled ? FORCED_DESKTOP_VIEWPORT : DEFAULT_VIEWPORT);
+}
+
 export function applyForceDesktopViewAttribute(enabled?: boolean): void {
   if (typeof document === "undefined") return;
   const on = enabled ?? isForceDesktopViewEnabled();
@@ -35,6 +48,7 @@ export function applyForceDesktopViewAttribute(enabled?: boolean): void {
   } else {
     document.documentElement.removeAttribute("data-force-desktop-view");
   }
+  applyForcedDesktopViewport(on);
 }
 
 export function subscribeForceDesktopView(listener: () => void): () => void {
