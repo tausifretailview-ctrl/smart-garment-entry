@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon, TrendingUp, Receipt, IndianRupee, Percent } from "lucide-react";
+import { CalendarIcon, TrendingUp, Receipt, IndianRupee, Percent, Package } from "lucide-react";
 import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,16 @@ interface PurchaseBill {
   gross_amount: number;
   gst_amount: number;
   net_amount: number;
+  total_qty: number | null;
+}
+
+interface SupplierSummaryRow {
+  name: string;
+  count: number;
+  qty: number;
+  grossAmount: number;
+  gstAmount: number;
+  netAmount: number;
 }
 
 const PurchaseReportBySupplier = () => {
@@ -94,25 +104,42 @@ const PurchaseReportBySupplier = () => {
     grossAmount: purchaseBills.reduce((sum, bill) => sum + (bill.gross_amount || 0), 0),
     gstAmount: purchaseBills.reduce((sum, bill) => sum + (bill.gst_amount || 0), 0),
     netAmount: purchaseBills.reduce((sum, bill) => sum + (bill.net_amount || 0), 0),
+    totalQty: purchaseBills.reduce((sum, bill) => sum + (bill.total_qty || 0), 0),
     billCount: purchaseBills.length,
   };
 
-  // Group by supplier for chart
-  const supplierData = purchaseBills.reduce((acc: any, bill) => {
+  // Group by supplier for chart and supplier-wise summary
+  const supplierData = purchaseBills.reduce((acc: Record<string, SupplierSummaryRow>, bill) => {
     const supplierName = bill.supplier_name || "Unknown";
     if (!acc[supplierName]) {
       acc[supplierName] = {
         name: supplierName,
-        amount: 0,
+        qty: 0,
+        grossAmount: 0,
+        gstAmount: 0,
+        netAmount: 0,
         count: 0,
       };
     }
-    acc[supplierName].amount += bill.net_amount || 0;
+    acc[supplierName].netAmount += bill.net_amount || 0;
+    acc[supplierName].grossAmount += bill.gross_amount || 0;
+    acc[supplierName].gstAmount += bill.gst_amount || 0;
+    acc[supplierName].qty += bill.total_qty || 0;
     acc[supplierName].count += 1;
     return acc;
   }, {});
 
-  const chartData = Object.values(supplierData).sort((a: any, b: any) => b.amount - a.amount).slice(0, 10);
+  const chartData = Object.values(supplierData)
+    .map((row) => ({
+      name: row.name,
+      amount: row.netAmount,
+      qty: row.qty,
+      count: row.count,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 10);
+
+  const supplierSummaryRows = Object.values(supplierData).sort((a, b) => b.netAmount - a.netAmount);
 
   const purchaseKpiItems = useMemo((): ReportKpiItem[] => [
     {
@@ -138,6 +165,12 @@ const PurchaseReportBySupplier = () => {
       value: `₹${totals.netAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
       icon: IndianRupee,
+    },
+    {
+      label: "Total Qty",
+      value: totals.totalQty.toLocaleString("en-IN"),
+      gradient: "bg-gradient-to-br from-sky-500 to-sky-600",
+      icon: Package,
     },
   ], [totals]);
 
@@ -228,8 +261,54 @@ const PurchaseReportBySupplier = () => {
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="amount" fill="hsl(var(--primary))" name="Purchase Amount (₹)" />
+                <Bar dataKey="qty" fill="hsl(199 89% 48%)" name="Purchase Qty" />
               </BarChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Supplier-wise summary */}
+      {supplierSummaryRows.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Supplier-wise Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead className="text-right">Bills</TableHead>
+                    <TableHead className="text-right">Total Qty</TableHead>
+                    <TableHead className="text-right">Gross Amount</TableHead>
+                    <TableHead className="text-right">GST Amount</TableHead>
+                    <TableHead className="text-right">Net Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {supplierSummaryRows.map((row) => (
+                    <TableRow key={row.name}>
+                      <TableCell className="font-medium">{row.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.count}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.qty.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right tabular-nums">₹{row.grossAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="text-right tabular-nums">₹{row.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">₹{row.netAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="bg-muted/50 font-semibold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-right tabular-nums">{totals.billCount}</TableCell>
+                    <TableCell className="text-right tabular-nums">{totals.totalQty.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right tabular-nums">₹{totals.grossAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right tabular-nums">₹{totals.gstAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right tabular-nums">₹{totals.netAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -247,6 +326,7 @@ const PurchaseReportBySupplier = () => {
                   <TableHead>Bill Date</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Invoice No</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Gross Amount</TableHead>
                   <TableHead className="text-right">GST Amount</TableHead>
                   <TableHead className="text-right">Net Amount</TableHead>
@@ -255,13 +335,13 @@ const PurchaseReportBySupplier = () => {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={7} className="text-center">
                       Loading...
                     </TableCell>
                   </TableRow>
                 ) : purchaseBills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
+                    <TableCell colSpan={7} className="text-center">
                       No purchase bills found
                     </TableCell>
                   </TableRow>
@@ -271,6 +351,7 @@ const PurchaseReportBySupplier = () => {
                       <TableCell>{format(new Date(bill.bill_date), "dd/MM/yyyy")}</TableCell>
                       <TableCell>{bill.supplier_name}</TableCell>
                       <TableCell>{bill.supplier_invoice_no}</TableCell>
+                      <TableCell className="text-right tabular-nums">{(bill.total_qty || 0).toLocaleString("en-IN")}</TableCell>
                       <TableCell className="text-right">₹{bill.gross_amount?.toFixed(2)}</TableCell>
                       <TableCell className="text-right">₹{bill.gst_amount?.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-medium">₹{bill.net_amount?.toFixed(2)}</TableCell>

@@ -719,7 +719,7 @@ export async function fetchAllPurchaseBillsWithFilters(
   while (hasMore) {
     let query = supabase
       .from("purchase_bills")
-      .select("id, bill_date, supplier_name, supplier_invoice_no, gross_amount, gst_amount, net_amount, supplier_id")
+      .select("id, bill_date, supplier_name, supplier_invoice_no, gross_amount, gst_amount, net_amount, total_qty, supplier_id")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("bill_date", { ascending: false })
