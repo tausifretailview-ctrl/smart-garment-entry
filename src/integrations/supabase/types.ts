@@ -3937,6 +3937,7 @@ export type Database = {
           round_off: number | null
           software_bill_no: string | null
           supplier_id: string | null
+          supplier_inv_auto_generated: boolean
           supplier_invoice_no: string | null
           supplier_name: string
           total_qty: number | null
@@ -3970,6 +3971,7 @@ export type Database = {
           round_off?: number | null
           software_bill_no?: string | null
           supplier_id?: string | null
+          supplier_inv_auto_generated?: boolean
           supplier_invoice_no?: string | null
           supplier_name: string
           total_qty?: number | null
@@ -4003,6 +4005,7 @@ export type Database = {
           round_off?: number | null
           software_bill_no?: string | null
           supplier_id?: string | null
+          supplier_inv_auto_generated?: boolean
           supplier_invoice_no?: string | null
           supplier_name?: string
           total_qty?: number | null
@@ -8548,6 +8551,10 @@ export type Database = {
       restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
       run_nightly_balance_reconciliation: {
         Args: { p_organization_id?: string }
+        Returns: Json
+      }
+      save_purchase_bill_with_items_atomic: {
+        Args: { p_bill: Json; p_items: Json; p_organization_id: string }
         Returns: Json
       }
       scan_stock_alerts_all_orgs: {

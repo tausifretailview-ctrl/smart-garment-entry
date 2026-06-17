@@ -292,7 +292,7 @@ export function SupplierPaymentTab({
         cnCreditPool,
         voucherPaidByBill,
       );
-      return ensureStringKeyMap(map);
+      return ensureStringKeyMap<SupplierBillOutstandingBreakdown>(map);
     } catch (e) {
       console.error("SupplierPaymentTab: bill outstanding allocation failed", e);
       return new Map<string, SupplierBillOutstandingBreakdown>();
