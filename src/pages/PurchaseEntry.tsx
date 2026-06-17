@@ -537,7 +537,7 @@ const PurchaseEntry = () => {
   const [loading, setLoading] = useState(false);
   const savingRef = useRef(false);
   const saveLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const SAVE_LOCK_MAX_MS = 120_000;
+  const SAVE_LOCK_MAX_MS = 300_000;
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -3442,16 +3442,18 @@ const PurchaseEntry = () => {
     // Get unique sku_ids
     const skuIds = [...new Set(items.filter(i => i.sku_id).map(i => i.sku_id))];
     if (skuIds.length === 0) return [];
-    
-    // Fetch current prices from product_variants
-    const { data: variants, error } = await supabase
-      .from("product_variants")
-      .select("id, pur_price, sale_price, mrp")
-      .in("id", skuIds);
-    
-    if (error || !variants) return [];
-    
-    const variantMap = new Map(variants.map(v => [v.id, v]));
+
+    const variantMap = new Map<string, { id: string; pur_price: number | null; sale_price: number | null; mrp: number | null }>();
+    const PRICE_DETECT_CHUNK = 200;
+    for (let si = 0; si < skuIds.length; si += PRICE_DETECT_CHUNK) {
+      const chunk = skuIds.slice(si, si + PRICE_DETECT_CHUNK);
+      const { data: variants, error } = await supabase
+        .from("product_variants")
+        .select("id, pur_price, sale_price, mrp")
+        .in("id", chunk);
+      if (error) return [];
+      (variants || []).forEach((v) => variantMap.set(v.id, v));
+    }
     
     // Helper function to compare prices with tolerance for floating-point precision
     const arePricesEqual = (p1: number | null | undefined, p2: number | null | undefined): boolean => {
