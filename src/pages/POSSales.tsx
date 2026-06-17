@@ -3664,6 +3664,7 @@ export default function POSSales() {
           <InvoiceWrapper
             template={posInvoiceTemplate}
             format={posInvoiceWrapperFormat}
+            thermalPaper={posThermalPaper}
             billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || 'DRAFT'}
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || 'Walk in Customer'}
@@ -6232,6 +6233,7 @@ export default function POSSales() {
                 ref={printRef}
                 format={posInvoiceWrapperFormat}
                 template={posInvoiceTemplate}
+                thermalPaper={posThermalPaper}
                 billNo={currentInvoiceNumber || "DRAFT"}
                 date={new Date()}
                 customerName={customerName}
@@ -6434,6 +6436,7 @@ export default function POSSales() {
                 customerGSTIN={savedInvoiceData.customerGstNumber || ""}
                 customerTransportDetails={savedInvoiceData.customerTransportDetails || ""}
                 template={posInvoiceTemplate}
+                thermalPaper={posThermalPaper}
               items={savedInvoiceData.items.map((item: any, index: number) =>
                 mapPosPrintItem(item, index, invoiceTaxType),
               )}

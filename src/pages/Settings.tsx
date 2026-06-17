@@ -20,6 +20,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useEffect as useEffectForSizeGroups } from "react";
 import type { CalibrationPreset } from "@/components/precision-barcode/LabelCalibrationUI";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
+import { resolvePosThermalPaper } from "@/utils/invoicePrintFormat";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 const LazyUserManagement = lazyWithRetry(() =>
@@ -4353,6 +4354,7 @@ export default function Settings() {
                         salesman={
                           settings.sale_settings?.invoice_template === 'kids-80mm' ? 'SAMPLE SALES' : undefined
                         }
+                        thermalPaper={resolvePosThermalPaper(settings.bill_barcode_settings?.direct_print_pos_paper)}
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
                         format={
                           settings.sale_settings?.invoice_paper_format === 'thermal' ||

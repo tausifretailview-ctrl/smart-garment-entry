@@ -28,6 +28,7 @@ import {
   normalizeGstTaxType,
   type GstTaxType,
 } from '@/utils/gstRegisterUtils';
+import { resolvePosThermalPaper, type PosThermalPaper } from '@/utils/invoicePrintFormat';
 
 interface InvoiceItem {
   sr: number;
@@ -95,6 +96,8 @@ interface InvoiceWrapperProps {
   template?: string;
   colorScheme?: string;
   format?: string;
+  /** POS thermal roll width (58mm / 80mm) — used by kids-80mm and other thermal templates. */
+  thermalPaper?: PosThermalPaper;
   
   // Display option overrides (for live preview)
   showHSN?: boolean;
@@ -262,6 +265,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const taxType = normalizeGstTaxType(
       props.taxType ?? (settings?.sale_settings as { default_tax_type?: string })?.default_tax_type
     );
+    const thermalPaper =
+      props.thermalPaper ??
+      resolvePosThermalPaper((settings?.bill_barcode_settings as { direct_print_pos_paper?: string })?.direct_print_pos_paper);
     const sellerGstin = settings?.gst_number || '';
     const buyerGstin = props.customerGSTIN || '';
     const isInterState =
@@ -455,6 +461,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               refundCash={props.refundCash}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
+              thermalPaper={thermalPaper}
             />
           );
         }

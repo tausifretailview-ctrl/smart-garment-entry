@@ -130,7 +130,8 @@ export function buildThermalReceiptPrintCss(
   }
   .thermal-print-80mm,
   .thermal-receipt-container,
-  .modern-thermal-receipt {
+  .modern-thermal-receipt,
+  .kids-thermal-receipt-80mm {
     width: ${contentWidth} !important;
     max-width: ${contentWidth} !important;
     margin: 0 auto !important;
@@ -141,7 +142,14 @@ export function buildThermalReceiptPrintCss(
     page-break-inside: auto !important;
     break-inside: auto !important;
   }
-  .thermal-print-80mm * {
+  .kids-thermal-receipt-80mm[data-thermal-paper="58mm"] {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    padding: 1mm 1mm 1mm 1.5mm !important;
+    font-size: 10px !important;
+  }
+  .thermal-print-80mm *,
+  .kids-thermal-receipt-80mm * {
     box-sizing: border-box !important;
   }
   .thermal-print-80mm table {

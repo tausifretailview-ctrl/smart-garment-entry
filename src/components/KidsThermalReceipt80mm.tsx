@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useSettings } from '@/hooks/useSettings';
+import type { PosThermalPaper } from '@/utils/invoicePrintFormat';
 
 interface KidsThermalItem {
   sr: number;
@@ -33,6 +34,8 @@ interface KidsThermalReceipt80mmProps {
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   salesman?: string;
   settingsOverride?: Record<string, unknown>;
+  /** Roll width — 58mm POS printers need narrower layout (Settings → Direct print POS paper). */
+  thermalPaper?: PosThermalPaper;
 }
 
 const KIDS_DEFAULT_TERMS = [
@@ -47,13 +50,32 @@ const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const fmtDec = (n: number): string => n.toFixed(2);
 const fmtMrp = (n: number): string => n.toFixed(3);
 
-const KIDS_MAX_NAME_LEN = 16; // 15–18 chars for product name on thermal roll
+const KIDS_MAX_NAME_LEN_80 = 16;
+const KIDS_MAX_NAME_LEN_58 = 11;
+
+function kidsLayoutForPaper(paper: PosThermalPaper) {
+  const is58 = paper === '58mm';
+  return {
+    paperWidth: is58 ? '48mm' : '72mm',
+    padding: is58 ? '1mm 1mm 1mm 1.5mm' : '1mm 2mm 1mm 3mm',
+    baseFont: is58 ? '10px' : '12px',
+    headerFont: is58 ? '13px' : '16px',
+    titleFont: is58 ? '11px' : '13px',
+    itemFont: is58 ? '9px' : '11px',
+    footerFont: is58 ? '9px' : '11px',
+    grandFont: is58 ? '14px' : '18px',
+    maxNameLen: is58 ? KIDS_MAX_NAME_LEN_58 : KIDS_MAX_NAME_LEN_80,
+    colQtyFlex: is58 ? '0 0 12%' : '0 0 14%',
+    colAmtFlex: is58 ? '0 0 22%' : '0 0 24%',
+    stackTotals: is58,
+  };
+}
 
 /** One-line: short name - size - MRP (no box, no wrap). */
-function formatKidsParticularsLine(item: KidsThermalItem): string {
+function formatKidsParticularsLine(item: KidsThermalItem, maxNameLen: number): string {
   let name = item.particulars.trim();
-  if (name.length > KIDS_MAX_NAME_LEN) {
-    name = `${name.slice(0, KIDS_MAX_NAME_LEN - 2)}..`;
+  if (name.length > maxNameLen) {
+    name = `${name.slice(0, maxNameLen - 2)}..`;
   }
   const size = item.size?.trim() || '';
   const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
@@ -85,8 +107,10 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       refundCash = 0,
       documentType = 'invoice',
       salesman,
+      thermalPaper = '80mm',
     } = props;
     const settingsOverride = props.settingsOverride;
+    const layout = useMemo(() => kidsLayoutForPaper(thermalPaper), [thermalPaper]);
 
     const { data: orgSettings } = useSettings();
     const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
@@ -129,13 +153,13 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     })();
 
     const base: React.CSSProperties = {
-      width: '66mm',
-      maxWidth: '66mm',
+      width: layout.paperWidth,
+      maxWidth: layout.paperWidth,
       margin: '0 auto',
-      padding: '1mm 2mm 1mm 3mm',
+      padding: layout.padding,
       backgroundColor: 'white',
       fontFamily: "'Arial Black', 'Arial', sans-serif",
-      fontSize: '12px',
+      fontSize: layout.baseFont,
       lineHeight: '1.2',
       color: '#000',
       fontWeight: 900,
@@ -164,9 +188,9 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       display: 'flex',
       justifyContent: 'flex-start',
       alignItems: 'center',
-      gap: '2mm',
+      gap: layout.stackTotals ? '1mm' : '2mm',
       width: '100%',
-      fontSize: '11px',
+      fontSize: layout.itemFont,
       fontWeight: 900,
       lineHeight: '1.15',
       padding: '1px 0',
@@ -174,19 +198,21 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       textAlign: 'left',
     };
     const colParticulars: React.CSSProperties = {
-      flex: '1 1 52%',
+      flex: '1 1 auto',
+      minWidth: 0,
       textAlign: 'left',
       overflow: 'hidden',
+      textOverflow: 'ellipsis',
       fontWeight: 900,
     };
     const colQty: React.CSSProperties = {
-      flex: '0 0 14%',
-      textAlign: 'left',
+      flex: layout.colQtyFlex,
+      textAlign: 'right',
       fontWeight: 900,
     };
     const colAmt: React.CSSProperties = {
-      flex: '0 0 24%',
-      textAlign: 'left',
+      flex: layout.colAmtFlex,
+      textAlign: 'right',
       fontWeight: 900,
     };
 
@@ -205,14 +231,19 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     const website = (settings.website as string) || '-';
 
     return (
-      <div ref={ref} className="thermal-print-80mm thermal-receipt-container kids-thermal-receipt-80mm" style={base}>
+      <div
+        ref={ref}
+        className="thermal-print-80mm thermal-receipt-container kids-thermal-receipt-80mm"
+        data-thermal-paper={thermalPaper}
+        style={base}
+      >
         {/* Header — shop name & address centered */}
         <div style={{ ...center, marginBottom: '2px' }}>
-          <div style={{ fontWeight: 900, fontSize: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontWeight: 900, fontSize: layout.headerFont, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {businessName}
           </div>
           {address && (
-            <div style={{ fontSize: '10px', fontWeight: 700, lineHeight: '1.2', marginTop: '1px' }}>{address}</div>
+            <div style={{ fontSize: layout.footerFont, fontWeight: 700, lineHeight: '1.2', marginTop: '1px' }}>{address}</div>
           )}
         </div>
         <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.3' }}>
@@ -223,19 +254,28 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ ...center, fontWeight: 900, fontSize: '13px', letterSpacing: '0.5px', margin: '2px 0' }}>
+        <div style={{ ...center, fontWeight: 900, fontSize: layout.titleFont, letterSpacing: '0.5px', margin: '2px 0' }}>
           {docTitle}
         </div>
 
         <div style={dotted} />
 
-        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
-          <div style={rowBetween}>
-            <span>Inv.No.: {billNo}</span>
-            <span style={{ whiteSpace: 'nowrap' }}>
-              {format(date, 'dd/MM/yyyy')} ({format(date, 'h:mma').toUpperCase()})
-            </span>
-          </div>
+        <div style={{ ...left, fontSize: layout.itemFont, fontWeight: 900, lineHeight: '1.35' }}>
+          {layout.stackTotals ? (
+            <>
+              <div>Inv.No.: {billNo}</div>
+              <div>
+                {format(date, 'dd/MM/yyyy')} ({format(date, 'h:mma').toUpperCase()})
+              </div>
+            </>
+          ) : (
+            <div style={rowBetween}>
+              <span>Inv.No.: {billNo}</span>
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {format(date, 'dd/MM/yyyy')} ({format(date, 'h:mma').toUpperCase()})
+              </span>
+            </div>
+          )}
           <div>Party.: {partyLabel}</div>
           {salesman && <div>Salesmen: {salesman.toUpperCase()}</div>}
         </div>
@@ -244,14 +284,14 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         {/* Items — no box borders, left-aligned columns */}
         <div style={{ width: '100%', fontWeight: 900 }}>
-          <div style={{ ...itemRow, fontSize: '11px', borderBottom: '1px solid #000', paddingBottom: '2px' }}>
+          <div style={{ ...itemRow, fontSize: layout.itemFont, borderBottom: '1px solid #000', paddingBottom: '2px' }}>
             <span style={colParticulars}>Particulars</span>
             <span style={colQty}>Qty</span>
             <span style={colAmt}>N.Amt.</span>
           </div>
           {items.map((item, i) => (
             <div key={i} style={itemRow}>
-              <span style={colParticulars}>{formatKidsParticularsLine(item)}</span>
+              <span style={colParticulars}>{formatKidsParticularsLine(item, layout.maxNameLen)}</span>
               <span style={colQty}>{item.qty}</span>
               <span style={colAmt}>₹{fmtAmt(item.total)}</span>
             </div>
@@ -265,25 +305,47 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={{ borderTop: '1px dashed #000', margin: '2px 0' }} />
 
-        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
-          <div style={rowBetween}>
+        <div style={{ ...left, fontSize: layout.itemFont, fontWeight: 900, lineHeight: '1.35' }}>
+          <div style={layout.stackTotals ? { ...left, lineHeight: '1.4' } : rowBetween}>
             <span>
               S-Qty: {fmtDec(totalQty)} S-Amt: ₹{fmtDec(saleAmount)}
             </span>
-            <span>T-MRP: ₹{fmtAmt(totalMrp)}</span>
+            {!layout.stackTotals && <span>T-MRP: ₹{fmtAmt(totalMrp)}</span>}
           </div>
-          <div style={rowBetween}>
-            <span>R-Qty: R-Amt: ₹</span>
-            <span style={{ fontSize: '18px', fontWeight: 900, textDecoration: 'underline', textAlign: 'right' }}>
-              ₹{fmtAmt(grandTotal)}
-            </span>
-          </div>
-          <div style={rowBetween}>
-            <span>Mode: {modeLabel}</span>
-            {savedAmount > 0 && (
-              <span style={{ fontStyle: 'italic', fontWeight: 900, textAlign: 'right' }}>Saved ₹{fmtAmt(savedAmount)}</span>
-            )}
-          </div>
+          {layout.stackTotals && <div>T-MRP: ₹{fmtAmt(totalMrp)}</div>}
+          {layout.stackTotals ? (
+            <>
+              <div
+                style={{
+                  fontSize: layout.grandFont,
+                  fontWeight: 900,
+                  textDecoration: 'underline',
+                  margin: '2px 0',
+                }}
+              >
+                Net Amt: ₹{fmtAmt(grandTotal)}
+              </div>
+              <div>Mode: {modeLabel}</div>
+              {savedAmount > 0 && (
+                <div style={{ fontStyle: 'italic', fontWeight: 900 }}>Saved ₹{fmtAmt(savedAmount)}</div>
+              )}
+            </>
+          ) : (
+            <>
+              <div style={rowBetween}>
+                <span>R-Qty: R-Amt: ₹</span>
+                <span style={{ fontSize: layout.grandFont, fontWeight: 900, textDecoration: 'underline', textAlign: 'right' }}>
+                  ₹{fmtAmt(grandTotal)}
+                </span>
+              </div>
+              <div style={rowBetween}>
+                <span>Mode: {modeLabel}</span>
+                {savedAmount > 0 && (
+                  <span style={{ fontStyle: 'italic', fontWeight: 900, textAlign: 'right' }}>Saved ₹{fmtAmt(savedAmount)}</span>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {roundOff !== 0 && (
@@ -307,22 +369,22 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         <div
           style={{
             ...left,
-            fontSize: '13px',
+            fontSize: layout.footerFont,
             fontWeight: 900,
             lineHeight: '1.35',
             marginTop: '2px',
           }}
         >
-          <div style={{ ...center, fontSize: '14px', letterSpacing: '0.3px' }}>** FIXED RATE **</div>
-          <div style={{ margin: '2px 0', fontSize: '13px' }}>
+          <div style={{ ...center, fontSize: layout.stackTotals ? layout.titleFont : '14px', letterSpacing: '0.3px' }}>** FIXED RATE **</div>
+          <div style={{ margin: '2px 0', fontSize: layout.stackTotals ? layout.footerFont : '13px', ...(layout.stackTotals ? { whiteSpace: 'normal', wordBreak: 'break-word' } : {}) }}>
             ** NO GUARANTEE FOR COLORS FANCY DRESS MATERIAL AND KIDS WEAR **
           </div>
         </div>
 
         <div style={dotted} />
 
-        <div style={{ ...left, fontSize: '11px', fontWeight: 900, lineHeight: '1.35' }}>
-          <div style={{ fontWeight: 900, fontSize: '12px', marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
+        <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, lineHeight: '1.35', ...(layout.stackTotals ? { whiteSpace: 'normal', wordBreak: 'break-word' } : {}) }}>
+          <div style={{ fontWeight: 900, fontSize: layout.titleFont, marginBottom: '2px' }}>** TERM &amp; CONDITIONS **</div>
           {KIDS_DEFAULT_TERMS.map((term, idx) => (
             <div key={idx}>{term}</div>
           ))}
@@ -330,7 +392,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
 
         <div style={dotted} />
 
-        <div style={{ ...left, fontSize: '11px', fontWeight: 900, margin: '3px 0 1px' }}>
+        <div style={{ ...left, fontSize: layout.footerFont, fontWeight: 900, margin: '3px 0 1px' }}>
           ** THANK YOU FOR SHOPPING WITH US **
         </div>
       </div>

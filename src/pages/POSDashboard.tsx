@@ -3503,6 +3503,7 @@ const POSDashboard = () => {
               customerGSTIN={previewCustomerData?.gst_number || ''}
               customerTransportDetails={previewCustomerData?.transport_details || ''}
               template={posInvoiceTemplate}
+              thermalPaper={posThermalPaper}
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
                 particulars: item.product_name,
@@ -3682,6 +3683,7 @@ const POSDashboard = () => {
             financerDetails={printData.financerDetails || null}
                   format={posInvoiceWrapperFormat}
                   template={posInvoiceTemplate}
+                  thermalPaper={posThermalPaper}
                 />
               )}
             </div>

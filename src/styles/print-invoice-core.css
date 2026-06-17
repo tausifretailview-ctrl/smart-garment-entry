@@ -600,9 +600,11 @@
   .invoice-print-source.thermal-paper-58 .thermal-print-80mm,
   .invoice-print-source.thermal-paper-58 .thermal-receipt-container,
   .invoice-print-source.thermal-paper-58 .modern-thermal-receipt,
+  .invoice-print-source.thermal-paper-58 .kids-thermal-receipt-80mm,
   .print-dialog.thermal-paper-58 .thermal-print-80mm,
   .print-dialog.thermal-paper-58 .thermal-receipt-container,
-  .print-dialog.thermal-paper-58 .modern-thermal-receipt {
+  .print-dialog.thermal-paper-58 .modern-thermal-receipt,
+  .print-dialog.thermal-paper-58 .kids-thermal-receipt-80mm {
     width: 48mm !important;
     max-width: 48mm !important;
     font-size: 10px !important;
