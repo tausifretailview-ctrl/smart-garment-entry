@@ -55,6 +55,197 @@ async function fetchAllPages(
   return all;
 }
 
+const SUPPLIER_BILL_PAGE = 1000;
+const SUPPLIER_BILL_ID_CHUNK = 200;
+const VARIANT_ID_CHUNK = 200;
+
+/** Resolve variant ids purchased on bills for a supplier (purchase_bills → purchase_items). */
+async function resolveSupplierVariantIds(
+  organizationId: string,
+  supplierName: string,
+): Promise<Set<string>> {
+  const billIds: string[] = [];
+  let billOffset = 0;
+  let moreBills = true;
+  while (moreBills) {
+    const { data: billRows, error: billError } = await supabase
+      .from("purchase_bills")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("supplier_name", supplierName)
+      .is("deleted_at", null)
+      .order("id")
+      .range(billOffset, billOffset + SUPPLIER_BILL_PAGE - 1);
+    if (billError) throw billError;
+    if (billRows && billRows.length > 0) {
+      billIds.push(...billRows.map((b) => b.id));
+      billOffset += SUPPLIER_BILL_PAGE;
+      moreBills = billRows.length === SUPPLIER_BILL_PAGE;
+    } else {
+      moreBills = false;
+    }
+  }
+
+  const supplierVariantIds = new Set<string>();
+  for (let bi = 0; bi < billIds.length; bi += SUPPLIER_BILL_ID_CHUNK) {
+    const billChunk = billIds.slice(bi, bi + SUPPLIER_BILL_ID_CHUNK);
+    let itemOffset = 0;
+    let moreItems = true;
+    while (moreItems) {
+      const { data: itemRows, error: itemError } = await supabase
+        .from("purchase_items")
+        .select("sku_id")
+        .in("bill_id", billChunk)
+        .is("deleted_at", null)
+        .not("sku_id", "is", null)
+        .order("id")
+        .range(itemOffset, itemOffset + SUPPLIER_BILL_PAGE - 1);
+      if (itemError) throw itemError;
+      if (itemRows && itemRows.length > 0) {
+        itemRows.forEach((row) => {
+          if (row.sku_id) supplierVariantIds.add(row.sku_id);
+        });
+        itemOffset += SUPPLIER_BILL_PAGE;
+        moreItems = itemRows.length === SUPPLIER_BILL_PAGE;
+      } else {
+        moreItems = false;
+      }
+    }
+  }
+  return supplierVariantIds;
+}
+
+/** variant_id → supplier_name from purchase_items (first bill wins), scoped to given variant ids. */
+async function fetchSupplierMapFromPurchaseItems(
+  organizationId: string,
+  variantIds: string[],
+): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  if (variantIds.length === 0) return map;
+
+  for (let i = 0; i < variantIds.length; i += VARIANT_ID_CHUNK) {
+    const chunk = variantIds.slice(i, i + VARIANT_ID_CHUNK);
+    const rows = await fetchAllPages(() =>
+      supabase
+        .from("purchase_items")
+        .select("sku_id, purchase_bills!inner(supplier_name, organization_id, deleted_at)")
+        .in("sku_id", chunk)
+        .is("deleted_at", null)
+        .eq("purchase_bills.organization_id", organizationId)
+        .is("purchase_bills.deleted_at", null)
+        .order("id"),
+    );
+    rows.forEach((row: any) => {
+      if (row.sku_id && row.purchase_bills?.supplier_name && !map[row.sku_id]) {
+        map[row.sku_id] = row.purchase_bills.supplier_name;
+      }
+    });
+  }
+  return map;
+}
+
+async function fetchDistinctSupplierNames(organizationId: string): Promise<string[]> {
+  const rows = await fetchAllPages(() =>
+    supabase
+      .from("purchase_bills")
+      .select("supplier_name")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("supplier_name"),
+  );
+  return [...new Set(rows.map((b: any) => b.supplier_name).filter(Boolean))].sort() as string[];
+}
+
+function buildVariantStockQuery(
+  organizationId: string,
+  brandFilter: string,
+  categoryFilter: string,
+  departmentFilter: string,
+  groupBy: GroupByField,
+  searchQuery: string,
+) {
+  let query = supabase
+    .from("product_variants")
+    .select(`
+      id,
+      stock_qty,
+      pur_price,
+      sale_price,
+      products!inner (
+        id,
+        product_name,
+        product_type,
+        brand,
+        category,
+        style,
+        deleted_at
+      )
+    `)
+    .eq("organization_id", organizationId)
+    .eq("products.organization_id", organizationId)
+    .eq("active", true)
+    .is("deleted_at", null)
+    .is("products.deleted_at", null)
+    .neq("products.product_type", "service");
+
+  if (brandFilter && brandFilter !== "__all__") {
+    query = query.eq("products.brand", brandFilter);
+  }
+  if (categoryFilter && categoryFilter !== "__all__") {
+    query = query.eq("products.category", categoryFilter);
+  }
+  if (departmentFilter && departmentFilter !== "__all__") {
+    query = query.eq("products.style", departmentFilter);
+  }
+  if (groupBy === "product_name" && searchQuery.trim()) {
+    query = query.ilike("products.product_name", `%${searchQuery.trim()}%`);
+  }
+  return query;
+}
+
+async function fetchVariantsForStockReport(
+  organizationId: string,
+  brandFilter: string,
+  categoryFilter: string,
+  departmentFilter: string,
+  groupBy: GroupByField,
+  searchQuery: string,
+  supplierVariantIds: Set<string> | null,
+): Promise<any[]> {
+  if (supplierVariantIds && supplierVariantIds.size === 0) return [];
+
+  if (supplierVariantIds && supplierVariantIds.size > 0) {
+    const allVariants: any[] = [];
+    const ids = Array.from(supplierVariantIds);
+    for (let i = 0; i < ids.length; i += VARIANT_ID_CHUNK) {
+      const chunk = ids.slice(i, i + VARIANT_ID_CHUNK);
+      const chunkVariants = await fetchAllPages(() =>
+        buildVariantStockQuery(
+          organizationId,
+          brandFilter,
+          categoryFilter,
+          departmentFilter,
+          groupBy,
+          searchQuery,
+        ).in("id", chunk),
+      );
+      allVariants.push(...chunkVariants);
+    }
+    return allVariants;
+  }
+
+  return fetchAllPages(() =>
+    buildVariantStockQuery(
+      organizationId,
+      brandFilter,
+      categoryFilter,
+      departmentFilter,
+      groupBy,
+      searchQuery,
+    ),
+  );
+}
+
 export default function ItemWiseStockReport() {
   const { currentOrganization } = useOrganization();
   const fieldLabels = useProductFieldLabels();
@@ -116,34 +307,30 @@ export default function ItemWiseStockReport() {
     );
   }, [searchQuery, brandFilter, categoryFilter, departmentFilter, supplierFilter]);
 
+  const needsSupplierMap = groupBy === "supplier";
+
   // Fetch filter options (paginated)
   const { data: filterOptions } = useQuery({
     queryKey: ["item-stock-filters", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return { brands: [], categories: [], departments: [], suppliers: [] };
 
-      const allProducts = await fetchAllPages(() =>
-        supabase
-          .from("products")
-          .select("brand, category, style")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .neq("product_type", "service")
-          .order("product_name")
-      );
-
-      // Fetch supplier names from batch_stock → purchase_bills
-      const allBatchStock = await fetchAllPages(() =>
-        supabase
-          .from("batch_stock")
-          .select("variant_id, purchase_bills!inner(supplier_name)")
-          .eq("organization_id", currentOrganization.id)
-      );
+      const [allProducts, suppliers] = await Promise.all([
+        fetchAllPages(() =>
+          supabase
+            .from("products")
+            .select("brand, category, style")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .neq("product_type", "service")
+            .order("product_name"),
+        ),
+        fetchDistinctSupplierNames(currentOrganization.id),
+      ]);
 
       const brands = [...new Set(allProducts.map((p: any) => p.brand).filter(Boolean))].sort() as string[];
       const categories = [...new Set(allProducts.map((p: any) => p.category).filter(Boolean))].sort() as string[];
       const departments = [...new Set(allProducts.map((p: any) => p.style).filter(Boolean))].sort() as string[];
-      const suppliers = [...new Set(allBatchStock.map((b: any) => b.purchase_bills?.supplier_name).filter(Boolean))].sort() as string[];
 
       return { brands, categories, departments, suppliers };
     },
@@ -151,91 +338,73 @@ export default function ItemWiseStockReport() {
     ...STABLE_TAB_OPTIONS,
   });
 
-  // Fetch stock data - always enabled now
-  const { data: stockData = [], isLoading } = useQuery({
-    queryKey: ["item-wise-stock", currentOrganization?.id, brandFilter, categoryFilter, departmentFilter, groupBy === "product_name" ? searchQuery : ""],
+  const activeSupplierFilter =
+    supplierFilter && supplierFilter !== "__all__" ? supplierFilter : "";
+
+  // Fetch stock data — supplier filter narrows variant ids server-side before aggregation
+  const { data: stockData = [], isLoading: stockLoading } = useQuery({
+    queryKey: [
+      "item-wise-stock",
+      currentOrganization?.id,
+      brandFilter,
+      categoryFilter,
+      departmentFilter,
+      activeSupplierFilter,
+      groupBy === "product_name" ? searchQuery : "",
+    ],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      const allVariants = await fetchAllPages(() => {
-        let query = supabase
-          .from("product_variants")
-          .select(`
-            id,
-            stock_qty,
-            pur_price,
-            sale_price,
-            products!inner (
-              id,
-              product_name,
-              product_type,
-              brand,
-              category,
-              style,
-              deleted_at
-            )
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .eq("products.organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null)
-          .is("products.deleted_at", null)
-          .neq("products.product_type", "service");
+      let supplierVariantIds: Set<string> | null = null;
+      if (activeSupplierFilter) {
+        supplierVariantIds = await resolveSupplierVariantIds(
+          currentOrganization.id,
+          activeSupplierFilter,
+        );
+      }
 
-        if (brandFilter && brandFilter !== "__all__") {
-          query = query.eq("products.brand", brandFilter);
-        }
-        if (categoryFilter && categoryFilter !== "__all__") {
-          query = query.eq("products.category", categoryFilter);
-        }
-        if (departmentFilter && departmentFilter !== "__all__") {
-          query = query.eq("products.style", departmentFilter);
-        }
-        // Only apply DB-level search for product_name grouping
-        if (groupBy === "product_name" && searchQuery.trim()) {
-          query = query.ilike("products.product_name", `%${searchQuery.trim()}%`);
-        }
-        return query;
-      });
-
-      return allVariants;
+      return fetchVariantsForStockReport(
+        currentOrganization.id,
+        brandFilter,
+        categoryFilter,
+        departmentFilter,
+        groupBy,
+        searchQuery,
+        supplierVariantIds,
+      );
     },
     enabled: !!currentOrganization?.id,
     ...STABLE_TAB_OPTIONS,
   });
 
-  // Fetch supplier map for variants - always load since groupBy can change anytime
-  const { data: supplierMap = {} } = useQuery({
-    queryKey: ["item-stock-supplier-map", currentOrganization?.id],
+  const stockVariantIdsKey = useMemo(
+    () => stockData.map((v: any) => v.id).sort().join(","),
+    [stockData],
+  );
+
+  // Supplier map — only when grouping by supplier; scoped to loaded variants via purchase_items
+  const { data: supplierMap = {}, isLoading: supplierMapLoading } = useQuery({
+    queryKey: ["item-stock-supplier-map", currentOrganization?.id, stockVariantIdsKey],
     queryFn: async () => {
       if (!currentOrganization?.id) return {};
-      const allBatch = await fetchAllPages(() =>
-        supabase
-          .from("batch_stock")
-          .select("variant_id, purchase_bills!inner(supplier_name)")
-          .eq("organization_id", currentOrganization.id)
-      );
-      const map: Record<string, string> = {};
-      allBatch.forEach((b: any) => {
-        if (b.variant_id && b.purchase_bills?.supplier_name) {
-          map[b.variant_id] = b.purchase_bills.supplier_name;
-        }
-      });
-      return map;
+      const variantIds = stockData.map((v: any) => v.id as string);
+      return fetchSupplierMapFromPurchaseItems(currentOrganization.id, variantIds);
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && needsSupplierMap && stockData.length > 0,
     ...STABLE_TAB_OPTIONS,
   });
+
+  const isLoading = stockLoading || (needsSupplierMap && supplierMapLoading);
 
   // Aggregate data by selected group field
   const aggregatedData: AggregatedRow[] = useMemo(() => {
     let filtered = stockData as any[];
 
-    // Apply supplier filter
-    if (supplierFilter && supplierFilter !== "__all__") {
+    // Safety filter — stock query already narrowed when supplier filter is active
+    if (activeSupplierFilter) {
       filtered = filtered.filter((item: any) => {
-        const sup = supplierMap[item.id] || "";
-        return sup === supplierFilter;
+        const sup = supplierMap[item.id] || activeSupplierFilter;
+        return sup === activeSupplierFilter;
       });
     }
 
@@ -287,7 +456,7 @@ export default function ItemWiseStockReport() {
       results = results.filter(r => r.key.toLowerCase().includes(q));
     }
     return results;
-  }, [stockData, groupBy, supplierMap, supplierFilter, searchQuery]);
+  }, [stockData, groupBy, supplierMap, activeSupplierFilter, searchQuery]);
 
   // Paginate
   const paginatedData = useMemo(() => {
