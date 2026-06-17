@@ -201,6 +201,8 @@ type ExcelImportLoadingState = {
 };
 
 const BARCODE_VALIDATION_CHUNK = 500;
+/** PostgREST `.in()` via GET — keep small to avoid URL length limits (barcodes + UUIDs). */
+const BARCODE_IN_QUERY_SIZE = 80;
 
 type BarcodeDuplicateMatch = {
   variant_id: string;
@@ -211,13 +213,76 @@ type BarcodeDuplicateMatch = {
   barcode: string;
 };
 
+type BarcodeCheckLineItem = {
+  temp_id: string;
+  barcode?: string;
+  sku_id?: string;
+};
+
+/** In-memory conflict rules — in-bill dups, edit self-exclusion, cross-bill matches. */
+function buildBarcodeDuplicateWarnings(
+  lineItems: BarcodeCheckLineItem[],
+  barcodeLookup: Map<string, BarcodeDuplicateMatch[]>,
+  isEditMode: boolean,
+  originalLineItems: BarcodeCheckLineItem[],
+): Map<string, string> {
+  const warnings = new Map<string, string>();
+  const barcodesToCheck = lineItems.filter((item) => item.barcode && item.barcode.length > 6);
+
+  const allBillSkuIds = new Set(lineItems.map((i) => i.sku_id).filter(Boolean));
+
+  const billBarcodeMap = new Map<string, { temp_id: string; sku_id: string }>();
+  const inBillDuplicates = new Set<string>();
+  for (const item of lineItems) {
+    if (!item.barcode) continue;
+    const existing = billBarcodeMap.get(item.barcode);
+    if (existing) {
+      if (existing.sku_id !== item.sku_id) {
+        inBillDuplicates.add(item.temp_id);
+        inBillDuplicates.add(existing.temp_id);
+      }
+    } else {
+      billBarcodeMap.set(item.barcode, { temp_id: item.temp_id, sku_id: item.sku_id ?? "" });
+    }
+  }
+
+  const originalSkuIds = new Set(
+    (isEditMode ? originalLineItems : []).map((i) => i.sku_id).filter(Boolean),
+  );
+
+  for (const item of barcodesToCheck) {
+    if (inBillDuplicates.has(item.temp_id)) {
+      warnings.set(
+        item.temp_id,
+        `⚠️ Duplicate barcode in this bill — same barcode assigned to multiple items`,
+      );
+      continue;
+    }
+
+    const matches = barcodeLookup.get(item.barcode!) ?? [];
+    const afterExclude = matches.filter((d) => !item.sku_id || d.variant_id !== item.sku_id);
+    const realConflicts = afterExclude.filter(
+      (d) => !allBillSkuIds.has(d.variant_id) && !originalSkuIds.has(d.variant_id),
+    );
+    if (realConflicts.length > 0) {
+      const existing = realConflicts[0];
+      warnings.set(
+        item.temp_id,
+        `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? " / " + existing.color : ""} (Stock: ${existing.stock_qty})`,
+      );
+    }
+  }
+
+  return warnings;
+}
+
 /** Batched lookup mirroring check_barcode_duplicate RPC (batch_stock sum, created_at order). */
 async function fetchBarcodeDuplicateLookup(
   organizationId: string,
   barcodes: string[],
   onProgress?: (currentChunk: number, totalChunks: number, validatedCount: number, totalBarcodes: number) => void,
 ): Promise<Map<string, BarcodeDuplicateMatch[]>> {
-  const uniqueBarcodes = [...new Set(barcodes)];
+  const uniqueBarcodes = [...new Set(barcodes.filter(Boolean))];
   const lookup = new Map<string, BarcodeDuplicateMatch[]>();
   if (uniqueBarcodes.length === 0) return lookup;
 
@@ -228,23 +293,37 @@ async function fetchBarcodeDuplicateLookup(
       chunkIndex * BARCODE_VALIDATION_CHUNK,
       (chunkIndex + 1) * BARCODE_VALIDATION_CHUNK,
     );
+    const validatedSoFar = chunkIndex * BARCODE_VALIDATION_CHUNK;
+    onProgress?.(chunkIndex + 1, totalChunks, validatedSoFar, uniqueBarcodes.length);
 
-    const { data: variants, error } = await supabase
-      .from("product_variants")
-      .select("id, barcode, size, color, created_at, products!inner(product_name)")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .in("barcode", chunk);
+    const variantRows: Array<{
+      id: string;
+      barcode: string | null;
+      size: string | null;
+      color: string | null;
+      created_at: string | null;
+      products: { product_name?: string } | { product_name?: string }[] | null;
+    }> = [];
 
-    if (error) throw error;
+    for (let si = 0; si < chunk.length; si += BARCODE_IN_QUERY_SIZE) {
+      const barcodeSubChunk = chunk.slice(si, si + BARCODE_IN_QUERY_SIZE);
+      const { data: variants, error } = await supabase
+        .from("product_variants")
+        .select("id, barcode, size, color, created_at, products!inner(product_name)")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .in("barcode", barcodeSubChunk);
 
-    const variantRows = variants ?? [];
-    const variantIds = variantRows.map((v) => v.id);
+      if (error) throw error;
+      if (variants?.length) variantRows.push(...variants);
+    }
+
     const stockByVariant = new Map<string, number>();
+    const variantIds = variantRows.map((v) => v.id);
 
     if (variantIds.length > 0) {
-      for (let si = 0; si < variantIds.length; si += BARCODE_VALIDATION_CHUNK) {
-        const idChunk = variantIds.slice(si, si + BARCODE_VALIDATION_CHUNK);
+      for (let si = 0; si < variantIds.length; si += BARCODE_IN_QUERY_SIZE) {
+        const idChunk = variantIds.slice(si, si + BARCODE_IN_QUERY_SIZE);
         const { data: stockRows, error: stockError } = await supabase
           .from("batch_stock")
           .select("variant_id, quantity")
@@ -262,7 +341,7 @@ async function fetchBarcodeDuplicateLookup(
     for (const v of variantRows) {
       const barcode = v.barcode as string | null;
       if (!barcode) continue;
-      const product = v.products as { product_name?: string } | { product_name?: string }[] | null;
+      const product = v.products;
       const productName = Array.isArray(product)
         ? product[0]?.product_name ?? ""
         : product?.product_name ?? "";
@@ -578,6 +657,8 @@ const PurchaseEntry = () => {
   const [barcodeValidationProgress, setBarcodeValidationProgress] = useState<ExcelImportLoadingState | null>(null);
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeCheckGenRef = useRef(0);
+  const lineItemsForBarcodeCheckRef = useRef(lineItems);
+  lineItemsForBarcodeCheckRef.current = lineItems;
 
   // Helper: For MTR/roll items, use meters (from size field) as multiplier instead of qty
   const getMtrMultiplier = (item: { uom?: string; size?: string; qty: number }): number => {
@@ -1457,48 +1538,22 @@ const PurchaseEntry = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Barcode duplicate warning check — debounced 600ms after lineItems change
+  // Barcode duplicate warning check — debounced after lineItems change (batched lookup, not per-row RPC).
   useEffect(() => {
     if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current);
     if (!currentOrganization?.id || lineItems.length === 0) {
       setBarcodeWarnings(new Map());
+      setBarcodeValidationProgress(null);
       return;
     }
+
+    const debounceMs = lineItems.length > 200 ? 1500 : 600;
     barcodeCheckTimerRef.current = setTimeout(async () => {
-      const warnings = new Map<string, string>();
-      const barcodesToCheck = lineItems.filter(item => item.barcode && item.barcode.length > 6);
-
-      // Collect all sku_ids in this bill to suppress cross-row false warnings
-      const allBillSkuIds = new Set(lineItems.map(i => i.sku_id).filter(Boolean));
-
-      // Detect REAL in-bill duplicates: same barcode on DIFFERENT variants (sku_ids)
-      // Same barcode + same sku_id = same product added twice (OK, not a real duplicate)
-      // Same barcode + different sku_id = genuine duplicate barcode problem
-      const billBarcodeMap = new Map<string, { temp_id: string; sku_id: string }>();
-      const inBillDuplicates = new Set<string>();
-      for (const item of lineItems) {
-        if (!item.barcode) continue;
-        const existing = billBarcodeMap.get(item.barcode);
-        if (existing) {
-          // Only flag as duplicate if different variant (different sku_id)
-          if (existing.sku_id !== item.sku_id) {
-            inBillDuplicates.add(item.temp_id);
-            inBillDuplicates.add(existing.temp_id);
-          }
-          // Same sku_id = same variant, not a real duplicate — skip
-        } else {
-          billBarcodeMap.set(item.barcode, { temp_id: item.temp_id, sku_id: item.sku_id });
-        }
-      }
-
-      // Collect original bill's variant IDs to exclude from cross-bill check
-      const originalSkuIds = new Set(
-        (isEditMode ? originalLineItems : []).map(i => i.sku_id).filter(Boolean)
-      );
-
+      const items = lineItemsForBarcodeCheckRef.current;
+      const barcodesToCheck = items.filter((item) => item.barcode && item.barcode.length > 6);
       const uniqueBarcodes = [...new Set(barcodesToCheck.map((item) => item.barcode as string))];
-      let barcodeLookup = new Map<string, BarcodeDuplicateMatch[]>();
       const checkGen = ++barcodeCheckGenRef.current;
+      let barcodeLookup = new Map<string, BarcodeDuplicateMatch[]>();
 
       if (uniqueBarcodes.length > 0) {
         const totalChunks = Math.ceil(uniqueBarcodes.length / BARCODE_VALIDATION_CHUNK);
@@ -1520,8 +1575,8 @@ const PurchaseEntry = () => {
               });
             },
           );
-        } catch {
-          /* ignore — same as prior per-row catch */
+        } catch (err) {
+          console.error("[PurchaseEntry] Batched barcode validation failed:", err);
         } finally {
           if (checkGen === barcodeCheckGenRef.current) {
             setBarcodeValidationProgress(null);
@@ -1531,32 +1586,20 @@ const PurchaseEntry = () => {
 
       if (checkGen !== barcodeCheckGenRef.current) return;
 
-      for (const item of barcodesToCheck) {
-        // In-bill duplicate: same barcode on two different variants
-        if (inBillDuplicates.has(item.temp_id)) {
-          warnings.set(item.temp_id, `⚠️ Duplicate barcode in this bill — same barcode assigned to multiple items`);
-          continue;
-        }
+      setBarcodeWarnings(
+        buildBarcodeDuplicateWarnings(
+          items,
+          barcodeLookup,
+          isEditMode,
+          originalLineItems,
+        ),
+      );
+    }, debounceMs);
 
-        const matches = barcodeLookup.get(item.barcode!) ?? [];
-        const afterExclude = matches.filter(
-          (d) => !item.sku_id || d.variant_id !== item.sku_id,
-        );
-        const realConflicts = afterExclude.filter(
-          (d) => !allBillSkuIds.has(d.variant_id) && !originalSkuIds.has(d.variant_id),
-        );
-        if (realConflicts.length > 0) {
-          const existing = realConflicts[0];
-          warnings.set(
-            item.temp_id,
-            `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? " / " + existing.color : ""} (Stock: ${existing.stock_qty})`,
-          );
-        }
-      }
-      setBarcodeWarnings(warnings);
-    }, 600);
-    return () => { if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current); };
-  }, [lineItems, currentOrganization?.id]);
+    return () => {
+      if (barcodeCheckTimerRef.current) clearTimeout(barcodeCheckTimerRef.current);
+    };
+  }, [lineItems.length, currentOrganization?.id, isEditMode, originalLineItems]);
 
   const { data: settings } = useSettings();
 
