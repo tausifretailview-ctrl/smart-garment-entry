@@ -83,7 +83,7 @@ const STOCK_NEUTRAL_TH =
 const STOCK_TABLE_SCROLL = "max-h-[min(calc(100vh-300px),720px)] overflow-auto overscroll-contain min-w-0";
 /** Pinned footer row — matches body column alignment, sits above pagination */
 const STOCK_TABLE_FOOTER =
-  "border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent";
+  "sticky bottom-0 z-10 border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent";
 const STOCK_FOOTER_CELL = "py-2.5 align-middle text-sm font-bold tabular-nums whitespace-nowrap";
 const SIZEWISE_FOOTER_CELL =
   "text-center min-w-[50px] md:min-w-[60px] px-3 py-2.5 align-middle text-sm md:text-base font-bold tabular-nums";
@@ -1959,12 +1959,7 @@ export default function StockReport() {
                         ))
                       )}
                     </TableBody>
-                  </Table>
-                </div>
-
-                {filteredStockItems.length > 0 && (
-                  <div className="shrink-0 bg-slate-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600">
-                    <Table className="text-[15px] min-w-max">
+                    {filteredStockItems.length > 0 && (
                       <TableFooter className={STOCK_TABLE_FOOTER}>
                         <TableRow>
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-100 dark:bg-slate-800")} colSpan={9}>
@@ -1998,9 +1993,9 @@ export default function StockReport() {
                           <TableCell className={cn(STOCK_FOOTER_CELL, "bg-slate-100 dark:bg-slate-800")}>—</TableCell>
                         </TableRow>
                       </TableFooter>
-                    </Table>
-                  </div>
-                )}
+                    )}
+                  </Table>
+                </div>
                   </div>
                 </div>
 
@@ -2175,31 +2170,29 @@ export default function StockReport() {
                               </TableRow>
                             ))}
                           </TableBody>
-                        </Table>
-                      </div>
-                      <div className="shrink-0 bg-amber-50/90 dark:bg-amber-950/30 border-t-2 border-amber-300 dark:border-amber-800">
-                        <Table className="min-w-max text-[15px]">
-                          <TableFooter className="border-0 bg-transparent [&>tr]:border-0 [&>tr]:hover:bg-transparent">
-                            <TableRow>
-                              <TableCell className="text-destructive font-bold sticky left-0 z-10 bg-amber-50/95 dark:bg-amber-950/40 min-w-[180px] md:min-w-[250px] px-5 py-2.5 align-middle">
-                                Total Stock
-                              </TableCell>
-                              {sizeWiseData.sizes.map(size => (
-                                <TableCell
-                                  key={size}
-                                  className={cn(
-                                    SIZEWISE_FOOTER_CELL,
-                                    "text-destructive bg-amber-50/95 dark:bg-amber-950/40",
-                                  )}
-                                >
-                                  {sizeWiseTotals.sizeTotals[size] || 0}
+                          {sizeWiseData.rows.length > 0 && (
+                            <TableFooter className="sticky bottom-0 z-10 border-t-2 border-amber-300 dark:border-amber-800 bg-amber-50/95 dark:bg-amber-950/40 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+                              <TableRow>
+                                <TableCell className="text-destructive font-bold sticky left-0 z-10 bg-amber-50/95 dark:bg-amber-950/40 min-w-[180px] md:min-w-[250px] px-5 py-2.5 align-middle">
+                                  Total Stock
                                 </TableCell>
-                              ))}
-                              <TableCell className="text-center font-bold text-destructive bg-amber-100 dark:bg-amber-900/50 sticky right-0 backdrop-blur-sm min-w-[60px] md:min-w-[80px] px-3 py-2.5 tabular-nums">
-                                {sizeWiseTotals.grandTotal}
-                              </TableCell>
-                            </TableRow>
-                          </TableFooter>
+                                {sizeWiseData.sizes.map(size => (
+                                  <TableCell
+                                    key={size}
+                                    className={cn(
+                                      SIZEWISE_FOOTER_CELL,
+                                      "text-destructive bg-amber-50/95 dark:bg-amber-950/40",
+                                    )}
+                                  >
+                                    {sizeWiseTotals.sizeTotals[size] || 0}
+                                  </TableCell>
+                                ))}
+                                <TableCell className="text-center font-bold text-destructive bg-amber-100 dark:bg-amber-900/50 sticky right-0 backdrop-blur-sm min-w-[60px] md:min-w-[80px] px-3 py-2.5 tabular-nums">
+                                  {sizeWiseTotals.grandTotal}
+                                </TableCell>
+                              </TableRow>
+                            </TableFooter>
+                          )}
                         </Table>
                       </div>
                       </div>
