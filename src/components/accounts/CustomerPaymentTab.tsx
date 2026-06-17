@@ -99,6 +99,15 @@ const MIN_PENDING_RUPEE = 1;
 const SETTLEMENT_TOLERANCE_RUPEE = 0.99;
 const roundToRupee = (value: any) => Math.max(0, Math.round(toNumberOrZero(value)));
 
+function ensureStringKeyMap<T>(value: unknown): Map<string, T> {
+  return value instanceof Map ? value : new Map<string, T>();
+}
+
+function safeMapGet<T>(map: unknown, key: string): T | undefined {
+  if (!(map instanceof Map)) return undefined;
+  return map.get(key);
+}
+
 /** Settlement (invoice total), optional % discount → cash received + discount rupees. */
 function resolvePaymentBreakdown(
   settlementRaw: string,
@@ -262,20 +271,32 @@ export function CustomerPaymentTab({
       const saleIds = salesRows.map((s: any) => s.id).filter(Boolean);
       if (saleIds.length === 0) return salesRows;
 
-      const splitBySale = await fetchSaleReceiptSplitsForInvoices(
-        supabase,
-        organizationId,
-        salesRows.map((sale: any) => ({
-          id: sale.id,
-          sale_number: sale.sale_number,
-          customer_id: sale.customer_id,
-        })),
-      );
+      let splitBySale = new Map<string, SaleReceiptVoucherSplit>();
+      try {
+        splitBySale = ensureStringKeyMap<SaleReceiptVoucherSplit>(
+          await fetchSaleReceiptSplitsForInvoices(
+            supabase,
+            organizationId,
+            salesRows.map((sale: any) => ({
+              id: sale.id,
+              sale_number: sale.sale_number,
+              customer_id: sale.customer_id,
+            })),
+          ),
+        );
+      } catch (e) {
+        console.error("CustomerPaymentTab: invoice receipt splits failed", e);
+      }
 
       // Sync paid_amount / payment_status from receipt vouchers (ledger-consistent).
       const updates = salesRows
         .map((sale: any) => {
-          const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+          const split = safeMapGet<SaleReceiptVoucherSplit>(splitBySale, sale.id) ?? {
+            cash: 0,
+            cn: 0,
+            adv: 0,
+            discount: 0,
+          };
           const rec = reconcileSaleInvoiceWithSplit(sale, split);
           const { paymentStatus: effectiveStatus } = derivePaidAndStatus({
             netAmount: Number(sale.net_amount || 0),
@@ -315,7 +336,12 @@ export function CustomerPaymentTab({
       }
 
       return salesRows.filter((sale: any) => {
-        const split = splitBySale.get(sale.id) ?? { cash: 0, cn: 0, adv: 0, discount: 0 };
+        const split = safeMapGet<SaleReceiptVoucherSplit>(splitBySale, sale.id) ?? {
+          cash: 0,
+          cn: 0,
+          adv: 0,
+          discount: 0,
+        };
         const rec = reconcileSaleInvoiceWithSplit(sale, split);
         return rec.outstanding >= MIN_PENDING_RUPEE;
       });
@@ -323,23 +349,34 @@ export function CustomerPaymentTab({
     enabled: !!referenceId,
   });
 
-  const { data: customerInvoiceVoucherSplits = new Map<string, SaleReceiptVoucherSplit>() } = useQuery({
+  const { data: customerInvoiceVoucherSplitsRaw = new Map<string, SaleReceiptVoucherSplit>() } = useQuery({
     queryKey: ["customer-invoice-voucher-splits", organizationId, referenceId, customerInvoices?.length || 0],
     queryFn: async () => {
       const rows = customerInvoices || [];
       if (!organizationId || rows.length === 0) return new Map<string, SaleReceiptVoucherSplit>();
-      return fetchSaleReceiptSplitsForInvoices(
-        supabase,
-        organizationId,
-        rows.map((s: any) => ({
-          id: s.id,
-          sale_number: s.sale_number,
-          customer_id: s.customer_id,
-        })),
-      );
+      try {
+        const splits = await fetchSaleReceiptSplitsForInvoices(
+          supabase,
+          organizationId,
+          rows.map((s: any) => ({
+            id: s.id,
+            sale_number: s.sale_number,
+            customer_id: s.customer_id,
+          })),
+        );
+        return ensureStringKeyMap<SaleReceiptVoucherSplit>(splits);
+      } catch (e) {
+        console.error("CustomerPaymentTab: customerInvoiceVoucherSplits query failed", e);
+        return new Map<string, SaleReceiptVoucherSplit>();
+      }
     },
     enabled: !!organizationId && !!referenceId && !!customerInvoices && customerInvoices.length > 0,
   });
+
+  const invoiceVoucherSplits = useMemo(
+    () => ensureStringKeyMap<SaleReceiptVoucherSplit>(customerInvoiceVoucherSplitsRaw),
+    [customerInvoiceVoucherSplitsRaw],
+  );
 
   // Remaining Opening Balance for the selected customer
   // = customers.opening_balance − sum(receipt vouchers with reference_type='customer')
@@ -407,11 +444,11 @@ export function CustomerPaymentTab({
     if (!referenceId) return 0;
     return (
       (customerInvoices || []).reduce(
-        (s, inv) => s + getInvoiceOutstanding(inv, customerInvoiceVoucherSplits.get(inv.id)),
+        (s, inv) => s + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
         0
       ) + (openingBalanceRemaining || 0)
     );
-  }, [referenceId, customerInvoices, customerInvoiceVoucherSplits, openingBalanceRemaining]);
+  }, [referenceId, customerInvoices, invoiceVoucherSplits, openingBalanceRemaining]);
 
 
   const advanceBalance = snapshotAdvanceAvailable;
@@ -427,7 +464,7 @@ export function CustomerPaymentTab({
   const getSelectedPayableTotal = () => {
     const invoicePart = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id))
       .reduce((sum, inv) => {
-        const outstanding = getInvoiceOutstanding(inv, customerInvoiceVoucherSplits.get(inv.id));
+        const outstanding = getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id));
         const allocated = Math.min(outstanding, getAllocatedAmount(inv.id, outstanding));
         return sum + allocated;
       }, 0) || 0;
@@ -441,7 +478,7 @@ export function CustomerPaymentTab({
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
       setAmount(roundToRupee(getSelectedPayableTotal()).toFixed(2));
     }
-  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, customerInvoiceVoucherSplits, allocatedAmounts]);
+  }, [selectedInvoiceIds, customerInvoices, openingBalanceRemaining, invoiceVoucherSplits, allocatedAmounts]);
 
   useEffect(() => {
     const pct = toNumberOrZero(discountPercent);
@@ -481,7 +518,10 @@ export function CustomerPaymentTab({
       if (!referenceId || selectedInvoiceIds.length === 0) throw new Error("Select customer and invoices");
       const invoicesToProcess = customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)) || [];
       if (invoicesToProcess.length === 0) throw new Error("No invoices selected");
-      const totalOutstanding = invoicesToProcess.reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherSplits.get(inv.id)), 0);
+      const totalOutstanding = invoicesToProcess.reduce(
+        (sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)),
+        0,
+      );
       const amountToApply = Math.min(advanceBalance, totalOutstanding);
       if (amountToApply <= 0) throw new Error("No advance balance to apply");
       
@@ -517,7 +557,7 @@ export function CustomerPaymentTab({
       try {
         for (const invoice of invoicesToProcess) {
           if (remaining <= 0) break;
-          const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherSplits.get(invoice.id));
+          const outstanding = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoice.id));
           const applyAmt = Math.min(remaining, outstanding);
           if (applyAmt <= 0) continue;
           saleRevertAdv.push({
@@ -688,7 +728,7 @@ export function CustomerPaymentTab({
           const invoice = customerInvoices?.find(inv => inv.id === invoiceId);
           if (!invoice) continue;
           const currentPaid = invoice.paid_amount || 0;
-          const outstanding = getInvoiceOutstanding(invoice, customerInvoiceVoucherSplits.get(invoiceId));
+          const outstanding = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoiceId));
           const allocatedForInvoice = getAllocatedAmount(invoiceId, outstanding);
           const amountToApply = Math.min(pool, outstanding, allocatedForInvoice);
           if (amountToApply <= 0) continue;
@@ -1435,7 +1475,7 @@ export function CustomerPaymentTab({
                           onClick={() => applyAdvanceMutation.mutate()}
                         >
                           <Wallet className="h-3.5 w-3.5 mr-1.5" />
-                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, customerInvoiceVoucherSplits.get(inv.id)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
+                          {applyAdvanceMutation.isPending ? "Applying..." : `Apply ₹${Math.round(Math.min(advanceBalance, customerInvoices?.filter(inv => selectedInvoiceIds.includes(inv.id)).reduce((sum, inv) => sum + getInvoiceOutstanding(inv, safeMapGet(invoiceVoucherSplits, inv.id)), 0) || 0)).toLocaleString('en-IN')} to Invoice`}
                         </Button>
                       )}
                     </div>
@@ -1505,7 +1545,7 @@ export function CustomerPaymentTab({
                             );
                           })()}
                           {customerInvoices?.map((invoice) => {
-                            const balance = getInvoiceOutstanding(invoice, customerInvoiceVoucherSplits.get(invoice.id));
+                            const balance = getInvoiceOutstanding(invoice, safeMapGet(invoiceVoucherSplits, invoice.id));
                             const roundedBalance = roundToRupee(balance);
                             const isSelected = selectedInvoiceIds.includes(invoice.id);
                             const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;

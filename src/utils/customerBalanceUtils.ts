@@ -445,31 +445,35 @@ export function augmentSaleReceiptSplitFromCustomerVouchers(
     sale_return_adjust?: number | null;
   }>,
 ): Map<string, SaleReceiptVoucherSplit> {
-  const result = new Map(splitBySale);
-  const saleIdSet = new Set(invoices.map((i) => i.id));
+  const result = new Map(splitBySale instanceof Map ? splitBySale : new Map());
+  const saleIdSet = new Set(invoices.map((i) => i.id).filter(Boolean));
 
   for (const row of voucherRows) {
-    if (!row.reference_id) continue;
-    if (saleIdSet.has(row.reference_id)) continue;
-    const refType = String(row.reference_type || "").toLowerCase();
-    if (refType === "supplier" || refType === "employee" || refType === "expense") continue;
+    try {
+      if (!row?.reference_id) continue;
+      if (saleIdSet.has(row.reference_id)) continue;
+      const refType = String(row.reference_type || "").toLowerCase();
+      if (refType === "supplier" || refType === "employee" || refType === "expense") continue;
 
-    const matchedIds = matchInvoiceIdsFromCustomerReceiptRow(row, invoices);
-    if (matchedIds.length === 0) continue;
+      const matchedIds = matchInvoiceIdsFromCustomerReceiptRow(row, invoices);
+      if (matchedIds.length === 0) continue;
 
-    if (matchedIds.length === 1) {
-      addRowToSplitMap(result, matchedIds[0], row);
-      continue;
-    }
+      if (matchedIds.length === 1) {
+        addRowToSplitMap(result, matchedIds[0], row);
+        continue;
+      }
 
-    const share = 1 / matchedIds.length;
-    const scaled: SaleReceiptVoucherRow = {
-      ...row,
-      total_amount: Number(row.total_amount || 0) * share,
-      discount_amount: Number(row.discount_amount || 0) * share,
-    };
-    for (const saleId of matchedIds) {
-      addRowToSplitMap(result, saleId, scaled);
+      const share = 1 / matchedIds.length;
+      const scaled: SaleReceiptVoucherRow = {
+        ...row,
+        total_amount: Number(row.total_amount || 0) * share,
+        discount_amount: Number(row.discount_amount || 0) * share,
+      };
+      for (const saleId of matchedIds) {
+        addRowToSplitMap(result, saleId, scaled);
+      }
+    } catch (rowErr) {
+      console.warn("[customerBalance] skip customer receipt split row", rowErr);
     }
   }
 
@@ -481,10 +485,16 @@ export function buildSaleReceiptSplitMap(
   invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
   voucherRows: SaleReceiptVoucherRow[],
 ): Map<string, SaleReceiptVoucherSplit> {
-  const saleIds = new Set(invoices.map((i) => i.id));
-  const directRows = voucherRows.filter((r) => r.reference_id && saleIds.has(r.reference_id));
-  const base = splitSaleLinkedReceiptRows(directRows);
-  return augmentSaleReceiptSplitFromCustomerVouchers(base, voucherRows, invoices);
+  try {
+    const saleIds = new Set(invoices.map((i) => i.id).filter(Boolean));
+    const directRows = voucherRows.filter((r) => r?.reference_id && saleIds.has(r.reference_id));
+    const base = splitSaleLinkedReceiptRows(directRows);
+    const augmented = augmentSaleReceiptSplitFromCustomerVouchers(base, voucherRows, invoices);
+    return augmented instanceof Map ? augmented : new Map<string, SaleReceiptVoucherSplit>();
+  } catch (err) {
+    console.error("[customerBalance] buildSaleReceiptSplitMap failed", err);
+    return new Map<string, SaleReceiptVoucherSplit>();
+  }
 }
 
 const RECEIPT_SPLIT_SELECT =
@@ -547,59 +557,78 @@ export async function fetchSaleReceiptSplitsForInvoices(
   invoices: Array<{ id: string; sale_number?: string | null; customer_id?: string | null }>,
   options?: FetchSaleReceiptSplitsOptions,
 ): Promise<Map<string, SaleReceiptVoucherSplit>> {
-  const saleIds = invoices.map((i) => i.id).filter(Boolean);
-  if (saleIds.length === 0) return new Map();
+  const empty = new Map<string, SaleReceiptVoucherSplit>();
+  try {
+    const saleIds = invoices.map((i) => i.id).filter(Boolean);
+    if (saleIds.length === 0) return empty;
 
-  const customerIds = [
-    ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
-  ] as string[];
+    const customerIds = [
+      ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
+    ] as string[];
 
-  const merged: SaleReceiptVoucherRow[] = [];
+    const merged: SaleReceiptVoucherRow[] = [];
 
-  for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
-    const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
-    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      q.in("reference_id", chunk),
-    );
-    merged.push(...rows);
-  }
-
-  const applyVoucherDateBounds = (q: any) => {
-    let bounded = q;
-    if (options?.voucherDateFrom) {
-      bounded = bounded.gte("voucher_date", options.voucherDateFrom);
+    for (let i = 0; i < saleIds.length; i += SALE_ID_IN_CHUNK) {
+      const chunk = saleIds.slice(i, i + SALE_ID_IN_CHUNK);
+      try {
+        const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+          q.in("reference_id", chunk),
+        );
+        merged.push(...rows);
+      } catch (chunkErr) {
+        console.warn("[customerBalance] skip sale-id receipt chunk", chunkErr);
+      }
     }
-    if (options?.voucherDateTo) {
-      bounded = bounded.lte("voucher_date", options.voucherDateTo);
+
+    const applyVoucherDateBounds = (q: any) => {
+      let bounded = q;
+      if (options?.voucherDateFrom) {
+        bounded = bounded.gte("voucher_date", options.voucherDateFrom);
+      }
+      if (options?.voucherDateTo) {
+        bounded = bounded.lte("voucher_date", options.voucherDateTo);
+      }
+      return bounded;
+    };
+
+    for (const customerId of customerIds) {
+      try {
+        const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+          applyVoucherDateBounds(q.eq("reference_id", customerId)),
+        );
+        merged.push(...rows);
+      } catch (custErr) {
+        console.warn("[customerBalance] skip customer receipt rows", customerId, custErr);
+      }
     }
-    return bounded;
-  };
 
-  for (const customerId of customerIds) {
-    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      applyVoucherDateBounds(q.eq("reference_id", customerId)),
-    );
-    merged.push(...rows);
+    const saleNumbers = [
+      ...new Set(
+        invoices.map((i) => i.sale_number?.trim()).filter((n): n is string => Boolean(n)),
+      ),
+    ];
+    const DESC_OR_CHUNK = 12;
+    for (let i = 0; i < saleNumbers.length; i += DESC_OR_CHUNK) {
+      const batch = saleNumbers.slice(i, i + DESC_OR_CHUNK);
+      const orFilter = batch
+        .map((num) => `description.ilike.%${escapeIlikePattern(num)}%`)
+        .join(",");
+      try {
+        const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
+          applyVoucherDateBounds(q.or(orFilter)),
+        );
+        merged.push(...rows);
+      } catch (descErr) {
+        console.warn("[customerBalance] skip description receipt chunk", descErr);
+      }
+    }
+
+    const map = buildSaleReceiptSplitMap(invoices, dedupeReceiptRows(merged));
+    return map instanceof Map ? map : empty;
+  } catch (err) {
+    console.error("[customerBalance] fetchSaleReceiptSplitsForInvoices failed", err);
+    return empty;
   }
-
-  const saleNumbers = [
-    ...new Set(
-      invoices.map((i) => i.sale_number?.trim()).filter((n): n is string => Boolean(n)),
-    ),
-  ];
-  const DESC_OR_CHUNK = 12;
-  for (let i = 0; i < saleNumbers.length; i += DESC_OR_CHUNK) {
-    const batch = saleNumbers.slice(i, i + DESC_OR_CHUNK);
-    const orFilter = batch
-      .map((num) => `description.ilike.%${escapeIlikePattern(num)}%`)
-      .join(",");
-    const rows = await fetchPaginatedReceiptRows(client, organizationId, (q) =>
-      applyVoucherDateBounds(q.or(orFilter)),
-    );
-    merged.push(...rows);
-  }
-
-  return buildSaleReceiptSplitMap(invoices, dedupeReceiptRows(merged));
 }
 
 export function splitSaleLinkedReceiptRows(
@@ -614,24 +643,28 @@ export function splitSaleLinkedReceiptRows(
   const map = new Map<string, SaleReceiptVoucherSplit>();
 
   for (const r of rows) {
-    if (!r.reference_id) continue;
-    const v: VoucherLedgerRow = {
-      reference_id: r.reference_id,
-      total_amount: r.total_amount,
-      discount_amount: r.discount_amount,
-      payment_method: r.payment_method,
-      description: r.description,
-    };
-    const cashAmt = Number(r.total_amount || 0);
-    const discAmt = Number(r.discount_amount || 0);
-    const cur = map.get(r.reference_id) || emptySplit();
-    if (isAdvVoucher(v)) cur.adv += cashAmt;
-    else if (isCnVoucher(v)) cur.cn += cashAmt;
-    else {
-      cur.cash += cashAmt;
-      cur.discount += discAmt;
+    try {
+      if (!r?.reference_id) continue;
+      const v: VoucherLedgerRow = {
+        reference_id: r.reference_id,
+        total_amount: r.total_amount,
+        discount_amount: r.discount_amount,
+        payment_method: r.payment_method,
+        description: r.description,
+      };
+      const cashAmt = Number(r.total_amount || 0);
+      const discAmt = Number(r.discount_amount || 0);
+      const cur = map.get(r.reference_id) || emptySplit();
+      if (isAdvVoucher(v)) cur.adv += cashAmt;
+      else if (isCnVoucher(v)) cur.cn += cashAmt;
+      else {
+        cur.cash += cashAmt;
+        cur.discount += discAmt;
+      }
+      map.set(r.reference_id, cur);
+    } catch (rowErr) {
+      console.warn("[customerBalance] skip sale-linked receipt row", rowErr);
     }
-    map.set(r.reference_id, cur);
   }
   return map;
 }

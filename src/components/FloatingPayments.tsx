@@ -686,7 +686,17 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
         .order("supplier_name");
-      const balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
+      let balanceMap: Map<string, Awaited<ReturnType<typeof fetchSupplierBalanceSnapshotsForOrg>>>;
+      try {
+        balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
+      } catch (e) {
+        console.error("FloatingPayments: supplier balance snapshot failed", e);
+        balanceMap = new Map();
+      }
+      if (!(balanceMap instanceof Map)) {
+        console.error("FloatingPayments: balance snapshot was not a Map", balanceMap);
+        balanceMap = new Map();
+      }
       return (
         allSuppliers
           ?.filter((s: any) => (balanceMap.get(s.id)?.balance ?? 0) > 0.01)
