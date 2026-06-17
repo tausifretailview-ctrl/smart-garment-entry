@@ -29,12 +29,14 @@ import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/
 import {
   fetchSupplierBalanceSnapshot,
   fetchSupplierBalanceSnapshotsForOrg,
+  type SupplierBalanceSnapshot,
 } from "@/utils/supplierBalanceUtils";
 import {
   SUPPLIER_MIN_PENDING_RUPEE,
   allocateSupplierCreditToBills,
   getSupplierBillRawOutstanding,
   sumSupplierBillNetPayable,
+  type SupplierBillOutstandingBreakdown,
 } from "@/utils/supplierBillOutstanding";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { useUserRoles } from "@/hooks/useUserRoles";
@@ -47,6 +49,51 @@ import {
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+function ensureStringKeyMap<T>(value: unknown): Map<string, T> {
+  return value instanceof Map ? value : new Map<string, T>();
+}
+
+function safeMapGet<T>(map: unknown, key: string): T | undefined {
+  if (!(map instanceof Map)) return undefined;
+  return map.get(key);
+}
+
+const EMPTY_SUPPLIER_SNAPSHOT = (supplierId: string): SupplierBalanceSnapshot => ({
+  supplierId,
+  openingBalance: 0,
+  totalPurchases: 0,
+  totalPaid: 0,
+  totalCreditNotesGross: 0,
+  creditNotesAppliedToBills: 0,
+  creditNotesAppliedToOutstanding: 0,
+  creditNotesRefunded: 0,
+  totalCreditNotesNet: 0,
+  unappliedCreditNotes: 0,
+  unreflectedReturns: 0,
+  refundsReceived: 0,
+  balance: 0,
+});
+
+async function loadSupplierBalanceMapForOrg(
+  organizationId: string,
+): Promise<{ balanceMap: Map<string, SupplierBalanceSnapshot>; degraded: boolean }> {
+  let balanceMap: Map<string, SupplierBalanceSnapshot>;
+  let degraded = false;
+  try {
+    balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
+  } catch (e) {
+    console.error("SupplierPaymentTab: balance snapshot failed", e);
+    balanceMap = new Map();
+    degraded = true;
+  }
+  if (!(balanceMap instanceof Map)) {
+    console.error("SupplierPaymentTab: balance snapshot was not a Map", balanceMap);
+    balanceMap = new Map();
+    degraded = true;
+  }
+  return { balanceMap, degraded };
 }
 
 interface SupplierPaymentTabProps {
@@ -96,7 +143,7 @@ export function SupplierPaymentTab({
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
 
   // Suppliers with balance
-  const { data: suppliersWithBalance } = useQuery({
+  const { data: suppliersWithBalanceResult } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
       const { data: allSuppliers, error: suppError } = await supabase
@@ -106,22 +153,30 @@ export function SupplierPaymentTab({
         .is("deleted_at", null)
         .order("supplier_name");
       if (suppError) throw suppError;
-      const balanceMap = await fetchSupplierBalanceSnapshotsForOrg(supabase, organizationId);
-      return (
-        allSuppliers?.filter((s: any) => (balanceMap.get(s.id)?.balance ?? 0) > 0.01).map((s: any) => ({
+      const { balanceMap, degraded } = await loadSupplierBalanceMapForOrg(organizationId);
+      const suppliers =
+        allSuppliers?.filter((s: any) => (safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0) > 0.01).map((s: any) => ({
           ...s,
-          outstandingBalance: balanceMap.get(s.id)?.balance ?? 0,
-        })) || []
-      );
+          outstandingBalance: safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0,
+        })) || [];
+      return { suppliers, balanceSnapshotDegraded: degraded };
     },
     enabled: !!organizationId,
   });
+  const suppliersWithBalance = suppliersWithBalanceResult?.suppliers;
+  const balanceSnapshotDegraded = suppliersWithBalanceResult?.balanceSnapshotDegraded ?? false;
 
   // Supplier balance snapshot (same source as Supplier Ledger)
   const { data: supplierSnapshot } = useQuery({
     queryKey: ["supplier-balance-snapshot", organizationId, referenceId],
-    queryFn: async () =>
-      fetchSupplierBalanceSnapshot(supabase, organizationId, referenceId),
+    queryFn: async () => {
+      try {
+        return await fetchSupplierBalanceSnapshot(supabase, organizationId, referenceId);
+      } catch (e) {
+        console.error("SupplierPaymentTab: supplier balance snapshot failed", e);
+        return EMPTY_SUPPLIER_SNAPSHOT(referenceId);
+      }
+    },
     enabled: !!referenceId && !!organizationId,
   });
 
@@ -148,13 +203,17 @@ export function SupplierPaymentTab({
           .in("reference_id", billIds);
         if (paymentError) throw paymentError;
 
-        (paymentRows || []).forEach((row: any) => {
-          if (!row.reference_id) return;
-          voucherPaidByBill.set(
-            row.reference_id,
-            (voucherPaidByBill.get(row.reference_id) || 0) + voucherSettlementCredit(row)
-          );
-        });
+        for (const row of paymentRows || []) {
+          if (!row?.reference_id) continue;
+          try {
+            voucherPaidByBill.set(
+              row.reference_id,
+              (voucherPaidByBill.get(row.reference_id) || 0) + voucherSettlementCredit(row),
+            );
+          } catch (rowErr) {
+            console.warn("SupplierPaymentTab: skip voucher payment row", rowErr);
+          }
+        }
       }
 
       // Supplier payment reconciliation - Apr 2026:
@@ -162,7 +221,7 @@ export function SupplierPaymentTab({
       const updates = bills
         .map((bill: any) => {
           const net = Number(bill.net_amount || 0);
-          const voucherPaid = Number(voucherPaidByBill.get(bill.id) || 0);
+          const voucherPaid = Number(safeMapGet<number>(voucherPaidByBill, bill.id) || 0);
           const effectivePaid = Math.min(net, Math.max(Number(bill.paid_amount || 0), voucherPaid));
           const status = effectivePaid >= net - 0.01 ? "paid" : effectivePaid > 0 ? "partial" : "unpaid";
           return { bill, effectivePaid, status };
@@ -192,7 +251,10 @@ export function SupplierPaymentTab({
   });
 
   const supplierBills = supplierBillsData?.bills;
-  const voucherPaidByBill = supplierBillsData?.voucherPaidByBill;
+  const voucherPaidByBill = useMemo(
+    () => ensureStringKeyMap<number>(supplierBillsData?.voucherPaidByBill),
+    [supplierBillsData?.voucherPaidByBill],
+  );
 
   const { data: adjustedOutstandingCreditTotal = 0 } = useQuery({
     queryKey: ["supplier-adjusted-outstanding-credit", organizationId, referenceId],
@@ -223,15 +285,19 @@ export function SupplierPaymentTab({
     [supplierSnapshot?.unappliedCreditNotes, adjustedOutstandingCreditTotal],
   );
 
-  const billOutstandingMap = useMemo(
-    () =>
-      allocateSupplierCreditToBills(
+  const billOutstandingMap = useMemo(() => {
+    try {
+      const map = allocateSupplierCreditToBills(
         supplierBills ?? [],
         cnCreditPool,
         voucherPaidByBill,
-      ),
-    [supplierBills, cnCreditPool, voucherPaidByBill],
-  );
+      );
+      return ensureStringKeyMap(map);
+    } catch (e) {
+      console.error("SupplierPaymentTab: bill outstanding allocation failed", e);
+      return new Map<string, SupplierBillOutstandingBreakdown>();
+    }
+  }, [supplierBills, cnCreditPool, voucherPaidByBill]);
 
   const listedBillPendingTotal = useMemo(
     () => sumSupplierBillNetPayable(billOutstandingMap),
@@ -242,7 +308,7 @@ export function SupplierPaymentTab({
     () =>
       (supplierBills ?? []).filter(
         (bill) =>
-          (billOutstandingMap.get(bill.id)?.netPayable ?? 0) >= SUPPLIER_MIN_PENDING_RUPEE,
+          (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.netPayable ?? 0) >= SUPPLIER_MIN_PENDING_RUPEE,
       ),
     [supplierBills, billOutstandingMap],
   );
@@ -251,7 +317,7 @@ export function SupplierPaymentTab({
     (supplierBills ?? [])
       .filter((bill) => selectedSupplierBillIds.includes(bill.id))
       .reduce(
-        (sum, bill) => sum + (billOutstandingMap.get(bill.id)?.netPayable ?? 0),
+        (sum, bill) => sum + (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.netPayable ?? 0),
         0,
       );
 
@@ -259,7 +325,7 @@ export function SupplierPaymentTab({
     (supplierBills ?? [])
       .filter((bill) => selectedSupplierBillIds.includes(bill.id))
       .reduce(
-        (sum, bill) => sum + (billOutstandingMap.get(bill.id)?.rawOutstanding ?? 0),
+        (sum, bill) => sum + (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.rawOutstanding ?? 0),
         0,
       );
 
@@ -267,7 +333,7 @@ export function SupplierPaymentTab({
     (supplierBills ?? [])
       .filter((bill) => selectedSupplierBillIds.includes(bill.id))
       .reduce(
-        (sum, bill) => sum + (billOutstandingMap.get(bill.id)?.creditAllocated ?? 0),
+        (sum, bill) => sum + (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.creditAllocated ?? 0),
         0,
       );
 
@@ -376,7 +442,7 @@ export function SupplierPaymentTab({
           const prevPaid = Number(currentPaid);
           const prevStatus = (bill.payment_status || "unpaid") as string;
           const netDue =
-            billOutstandingMap.get(billId)?.netPayable ??
+            safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, billId)?.netPayable ??
             Math.max(0, Number(bill.net_amount || 0) - Number(currentPaid));
           const pool = remainingCash + remainingDiscount;
           if (pool <= 0 || netDue <= 0) continue;
@@ -684,6 +750,14 @@ export function SupplierPaymentTab({
           <CardDescription>Record payment made to suppliers - select bills or pay against opening balance</CardDescription>
         </CardHeader>
         <CardContent>
+          {balanceSnapshotDegraded && (
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Supplier balances could not be fully computed from bills and vouchers. The list still loads; payable amounts may show as zero until data is corrected.
+              </span>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Date */}
@@ -845,9 +919,9 @@ export function SupplierPaymentTab({
                           const netAmount = Number(bill.net_amount || 0);
                           const paidAmount = Math.max(
                             Number(bill.paid_amount || 0),
-                            Number(voucherPaidByBill?.get(bill.id) || 0),
+                            Number(safeMapGet<number>(voucherPaidByBill, bill.id) || 0),
                           );
-                          const breakdown = billOutstandingMap.get(bill.id);
+                          const breakdown = safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id);
                           const cnOffset = breakdown?.creditAllocated ?? 0;
                           const netPayable = breakdown?.netPayable ?? 0;
                           const isSelected = selectedSupplierBillIds.includes(bill.id);

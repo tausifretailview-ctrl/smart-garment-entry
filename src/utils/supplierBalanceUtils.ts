@@ -108,12 +108,19 @@ async function fetchPurchaseReturnsForBalance(client: SupabaseClient, organizati
       .eq("organization_id", organizationId)
       .is("deleted_at", null);
     if (!error) {
-      return ((data as any[]) || []).map((row) => normalizePurchaseReturnRow(row as Record<string, unknown>));
+      return ((data as any[]) || [])
+        .filter((row): row is Record<string, unknown> => row != null && typeof row === "object")
+        .map((row) => normalizePurchaseReturnRow(row))
+        .filter((row) => Boolean(row.supplier_id));
     }
     lastErr = error;
-    if (!isRecoverableSchemaError(error)) throw error;
+    if (!isRecoverableSchemaError(error)) {
+      console.error("[supplierBalance] purchase_returns fetch failed", error);
+      return [];
+    }
   }
-  throw lastErr;
+  console.error("[supplierBalance] purchase_returns fetch exhausted retries", lastErr);
+  return [];
 }
 
 async function fetchPurchaseBillsForBalance(client: SupabaseClient, organizationId: string): Promise<BillRow[]> {
@@ -129,10 +136,14 @@ async function fetchPurchaseBillsForBalance(client: SupabaseClient, organization
 
   if (isRecoverableSchemaError(res.error)) {
     const fallback = await base();
-    if (fallback.error) throw fallback.error;
+    if (fallback.error) {
+      console.error("[supplierBalance] purchase_bills fetch failed", fallback.error);
+      return [];
+    }
     return (fallback.data || []) as BillRow[];
   }
-  throw res.error;
+  console.error("[supplierBalance] purchase_bills fetch failed", res.error);
+  return [];
 }
 
 function computeSnapshotForSupplier(
@@ -147,10 +158,14 @@ function computeSnapshotForSupplier(
   const supplierBills = purchaseBillsData.filter((b) => b.supplier_id === supplierId);
 
   const supplierCreditNotesGross = (creditNotes || [])
-    .filter((cn) => cn.reference_id === supplierId)
+    .filter((cn) => cn && cn.reference_id === supplierId)
     .reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0);
 
-  const cnById = new Map((creditNotes || []).map((cn) => [cn.id, cn]));
+  const cnById = new Map(
+    (creditNotes || [])
+      .filter((cn): cn is CreditNoteRow => Boolean(cn?.id))
+      .map((cn) => [cn.id, cn]),
+  );
   let creditNotesAppliedToBills = 0;
   for (const pr of allPurchaseReturns || []) {
     if (pr.supplier_id !== supplierId) continue;
@@ -199,14 +214,17 @@ function computeSnapshotForSupplier(
 
   const supplierBillIds = supplierBills.map((b) => b.id);
   const perBillVoucherMap = new Map<string, number>();
-  voucherPayments?.forEach((v: VoucherPaymentRow) => {
-    if (v.reference_id && supplierBillIds.includes(v.reference_id)) {
+  for (const v of voucherPayments || []) {
+    if (!v?.reference_id || !supplierBillIds.includes(v.reference_id)) continue;
+    try {
       perBillVoucherMap.set(
         v.reference_id,
-        (perBillVoucherMap.get(v.reference_id) || 0) + voucherSettlementCredit(v)
+        (perBillVoucherMap.get(v.reference_id) || 0) + voucherSettlementCredit(v),
       );
+    } catch (rowErr) {
+      console.warn("[supplierBalance] skip voucher payment row", rowErr);
     }
-  });
+  }
 
   const totalPurchases = roundMoney(
     supplierBills.reduce((sum: number, b: BillRow) => sum + (Number(b.net_amount) || 0), 0)
@@ -257,83 +275,118 @@ function computeSnapshotForSupplier(
   };
 }
 
+const EMPTY_SUPPLIER_BALANCE_MAP = (): Map<string, SupplierBalanceSnapshot> =>
+  new Map<string, SupplierBalanceSnapshot>();
+
 /** Fetch balance snapshots for all non-deleted suppliers in an organization (one round-trip batch). */
 export async function fetchSupplierBalanceSnapshotsForOrg(
   client: SupabaseClient,
   organizationId: string
 ): Promise<Map<string, SupplierBalanceSnapshot>> {
-  const { data: suppliersData, error: suppliersError } = await client
-    .from("suppliers")
-    .select("id, opening_balance")
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
+  const map = EMPTY_SUPPLIER_BALANCE_MAP();
+  try {
+    const { data: suppliersData, error: suppliersError } = await client
+      .from("suppliers")
+      .select("id, opening_balance")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null);
 
-  if (suppliersError) throw suppliersError;
+    if (suppliersError) {
+      console.error("[supplierBalance] suppliers fetch failed", suppliersError);
+      return map;
+    }
 
-  const bills = await fetchPurchaseBillsForBalance(client, organizationId);
+    let bills: BillRow[] = [];
+    try {
+      bills = await fetchPurchaseBillsForBalance(client, organizationId);
+    } catch (billsErr) {
+      console.error("[supplierBalance] bills aggregation failed", billsErr);
+    }
 
-  const { data: voucherPayments, error: voucherError } = await client
-    .from("voucher_entries")
-    .select("reference_id, total_amount, discount_amount, description")
-    .eq("organization_id", organizationId)
-    .eq("reference_type", "supplier")
-    .eq("voucher_type", "payment")
-    .is("deleted_at", null);
+    const { data: voucherPayments, error: voucherError } = await client
+      .from("voucher_entries")
+      .select("reference_id, total_amount, discount_amount, description")
+      .eq("organization_id", organizationId)
+      .eq("reference_type", "supplier")
+      .eq("voucher_type", "payment")
+      .is("deleted_at", null);
 
-  if (voucherError) throw voucherError;
+    if (voucherError) {
+      console.error("[supplierBalance] supplier payment vouchers fetch failed", voucherError);
+    }
 
-  const { data: creditNotes, error: creditNoteError } = await client
-    .from("voucher_entries")
-    .select("id, reference_id, total_amount")
-    .eq("organization_id", organizationId)
-    .eq("reference_type", "supplier")
-    .eq("voucher_type", "credit_note")
-    .is("deleted_at", null);
+    const { data: creditNotes, error: creditNoteError } = await client
+      .from("voucher_entries")
+      .select("id, reference_id, total_amount")
+      .eq("organization_id", organizationId)
+      .eq("reference_type", "supplier")
+      .eq("voucher_type", "credit_note")
+      .is("deleted_at", null);
 
-  if (creditNoteError) throw creditNoteError;
+    if (creditNoteError) {
+      console.error("[supplierBalance] supplier credit notes fetch failed", creditNoteError);
+    }
 
-  const prsFromDb = await fetchPurchaseReturnsForBalance(client, organizationId);
+    let prsFromDb: PurchaseReturnRow[] = [];
+    try {
+      prsFromDb = await fetchPurchaseReturnsForBalance(client, organizationId);
+    } catch (prsErr) {
+      console.error("[supplierBalance] purchase_returns aggregation failed", prsErr);
+    }
 
-  const { data: supplierReceipts, error: rcError } = await client
-    .from("voucher_entries")
-    .select("reference_id, total_amount")
-    .eq("organization_id", organizationId)
-    .eq("reference_type", "supplier")
-    .eq("voucher_type", "receipt")
-    .is("deleted_at", null);
+    const { data: supplierReceipts, error: rcError } = await client
+      .from("voucher_entries")
+      .select("reference_id, total_amount")
+      .eq("organization_id", organizationId)
+      .eq("reference_type", "supplier")
+      .eq("voucher_type", "receipt")
+      .is("deleted_at", null);
 
-  if (rcError) throw rcError;
+    if (rcError) {
+      console.error("[supplierBalance] supplier receipts fetch failed", rcError);
+    }
 
-  const refundsBySupplier = new Map<string, number>();
-  (supplierReceipts || []).forEach((r: { reference_id: string | null; total_amount: number | null }) => {
-    if (!r.reference_id) return;
-    refundsBySupplier.set(
-      r.reference_id,
-      (refundsBySupplier.get(r.reference_id) || 0) + (Number(r.total_amount) || 0)
-    );
-  });
+    const refundsBySupplier = new Map<string, number>();
+    for (const r of supplierReceipts || []) {
+      if (!r?.reference_id) continue;
+      try {
+        refundsBySupplier.set(
+          r.reference_id,
+          (refundsBySupplier.get(r.reference_id) || 0) + (Number(r.total_amount) || 0),
+        );
+      } catch (rowErr) {
+        console.warn("[supplierBalance] skip supplier receipt row", rowErr);
+      }
+    }
 
-  const payments = (voucherPayments || []) as VoucherPaymentRow[];
-  const cns = (creditNotes || []) as CreditNoteRow[];
-  const prs = prsFromDb;
+    const payments = ((voucherPayments || []) as VoucherPaymentRow[]).filter(Boolean);
+    const cns = ((creditNotes || []) as CreditNoteRow[]).filter((cn) => Boolean(cn?.id));
+    const prs = prsFromDb;
 
-  const map = new Map<string, SupplierBalanceSnapshot>();
-  for (const supplier of suppliersData || []) {
-    const id = (supplier as { id: string }).id;
-    const ob = Number((supplier as { opening_balance?: number }).opening_balance || 0);
-    const snap = computeSnapshotForSupplier(
-      id,
-      ob,
-      bills,
-      payments,
-      cns,
-      prs,
-      refundsBySupplier.get(id) || 0
-    );
-    map.set(id, snap);
+    for (const supplier of suppliersData || []) {
+      const id = String((supplier as { id?: string }).id ?? "").trim();
+      if (!id) continue;
+      const ob = Number((supplier as { opening_balance?: number }).opening_balance || 0);
+      try {
+        const snap = computeSnapshotForSupplier(
+          id,
+          ob,
+          bills,
+          payments,
+          cns,
+          prs,
+          refundsBySupplier.get(id) || 0,
+        );
+        map.set(id, snap);
+      } catch (supplierErr) {
+        console.warn("[supplierBalance] skip supplier snapshot", id, supplierErr);
+      }
+    }
+  } catch (err) {
+    console.error("[supplierBalance] fetchSupplierBalanceSnapshotsForOrg failed", err);
   }
 
-  return map;
+  return map instanceof Map ? map : EMPTY_SUPPLIER_BALANCE_MAP();
 }
 
 /** One supplier (e.g. payment form header). */
