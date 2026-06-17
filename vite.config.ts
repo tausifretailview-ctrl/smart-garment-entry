@@ -121,5 +121,34 @@ export default defineConfig(({ mode }) => ({
     target: 'es2020',
     // Generate sourcemaps for debugging in development
     sourcemap: mode === 'development',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+
+          if (id.includes("@tanstack/react-query")) return "query-vendor";
+          if (id.includes("@supabase")) return "supabase-vendor";
+          if (id.includes("recharts") || id.includes("d3-")) return "chart-vendor";
+          if (
+            id.includes("jspdf") ||
+            id.includes("html2canvas") ||
+            id.includes("pdf-lib")
+          ) {
+            return "pdf-vendor";
+          }
+          if (id.includes("xlsx") || id.includes("sheetjs")) return "xlsx-vendor";
+          if (id.includes("@radix-ui") || id.includes("lucide-react")) {
+            return "ui-vendor";
+          }
+          if (
+            id.includes("node_modules/react-dom") ||
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-router")
+          ) {
+            return "react-vendor";
+          }
+        },
+      },
+    },
   },
 }));

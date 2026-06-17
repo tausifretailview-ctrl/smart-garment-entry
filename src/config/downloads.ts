@@ -34,6 +34,13 @@ export const WINDOWS_PORTABLE_URL =
 
 export const ANDROID_APK_DOWNLOAD_NAME = `EzzyERP-${APP_VERSION}.apk`;
 
+/** Fresh download URL — always use install page + this helper, never a cached storage redirect. */
+export function buildAndroidApkDownloadUrl(baseUrl: string = ANDROID_APK_URL): string {
+  const trimmed = baseUrl.trim();
+  const sep = trimmed.includes("?") ? "&" : "?";
+  return `${trimmed}${sep}v=${encodeURIComponent(APP_VERSION)}`;
+}
+
 function isHostedUrl(url: string): boolean {
   const trimmed = url.trim();
   return trimmed.length > 0 && (trimmed.startsWith("https://") || trimmed.startsWith("http://"));

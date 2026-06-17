@@ -54,19 +54,24 @@ Deno.serve(async (req) => {
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data, error } = await supabaseAdmin.storage
-    .from(BUCKET_ID)
-    .createSignedUrl(fileName, 120);
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET_ID).download(fileName);
 
-  if (error || !data?.signedUrl) {
+  if (error || !data) {
+    console.error("download-apk:", error?.message ?? "missing file");
     return jsonResponse({ error: "Installer not found" }, 404);
   }
 
-  return new Response(null, {
-    status: 302,
-    headers: {
-      ...corsHeaders,
-      Location: data.signedUrl,
-    },
-  });
+  const headers: Record<string, string> = {
+    ...corsHeaders,
+    "Content-Type": "application/vnd.android.package-archive",
+    "Content-Disposition": `attachment; filename="${fileName}"`,
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Content-Length": String(data.size),
+  };
+
+  if (req.method === "HEAD") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  return new Response(data, { status: 200, headers });
 });

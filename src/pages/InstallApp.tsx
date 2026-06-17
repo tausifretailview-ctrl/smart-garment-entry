@@ -4,15 +4,15 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, Monitor } from "lucide-react";
+import { Download, Share, Plus, Smartphone, CheckCircle2, Copy, MessageCircle, Monitor, RefreshCw, Info } from "lucide-react";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { toast } from "sonner";
 import { isValidOrgSlug, storeOrgSlug } from "@/lib/orgSlug";
 import {
   APP_VERSION,
-  ANDROID_APK_URL,
   WINDOWS_PORTABLE_URL,
   WINDOWS_SETUP_URL,
+  buildAndroidApkDownloadUrl,
   isAndroidApkConfigured,
   isWindowsInstallerConfigured,
   isWindowsPortableConfigured,
@@ -140,7 +140,7 @@ export default function InstallApp() {
   }, [orgSlug]);
 
   const installUrl = `${linkOrigin}/${orgSlug}/install`;
-  const androidApkUrl = ANDROID_APK_URL;
+  const androidApkUrl = buildAndroidApkDownloadUrl();
   const windowsSetupUrl = WINDOWS_SETUP_URL;
   const windowsPortableUrl = WINDOWS_PORTABLE_URL;
   const windowsInstallerConfigured = isWindowsInstallerConfigured();
@@ -150,6 +150,23 @@ export default function InstallApp() {
   const copyApkLink = () => {
     navigator.clipboard.writeText(androidApkUrl);
     toast.success("Android APK link copied");
+  };
+
+  const handleAndroidDownload = async () => {
+    if (!androidApkConfigured) return;
+
+    const downloadUrl = `${androidApkUrl}&t=${Date.now()}`;
+    try {
+      const probe = await fetch(downloadUrl, { method: "HEAD", cache: "no-store" });
+      if (!probe.ok && probe.status !== 405) {
+        toast.error("Download unavailable right now. Refresh this page and try again.");
+        return;
+      }
+    } catch {
+      // Offline or CORS on HEAD — still try navigation (GET works on edge function).
+    }
+
+    window.location.assign(downloadUrl);
   };
 
   const copyWindowsSetupLink = () => {
@@ -272,11 +289,14 @@ export default function InstallApp() {
                   : "Native app — opens your shop, updates automatically from the cloud."}
               </p>
             </div>
-            <Button asChild className="w-full h-14 text-base" size="lg" disabled={!androidApkConfigured}>
-              <a href={androidApkConfigured ? androidApkUrl : undefined}>
-                <Download className="mr-2 h-5 w-5" />
-                Download EzzyERP for Android
-              </a>
+            <Button
+              className="w-full h-14 text-base"
+              size="lg"
+              disabled={!androidApkConfigured}
+              onClick={handleAndroidDownload}
+            >
+              <Download className="mr-2 h-5 w-5" />
+              Download EzzyERP for Android
             </Button>
             {!androidApkConfigured && (
               <p className="text-xs text-center text-destructive">
@@ -284,12 +304,43 @@ export default function InstallApp() {
               </p>
             )}
             {androidApkConfigured && (
-              <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
-                <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
-                <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
+              <>
+                <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
+                  <span className="text-xs flex-1 truncate font-mono">{androidApkUrl}</span>
+                  <Button variant="ghost" size="sm" className="shrink-0 h-8 px-2" onClick={copyApkLink}>
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Card className="p-4 space-y-2 bg-muted/40 border-dashed">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                      <p className="font-semibold text-foreground">Already have the app?</p>
+                      <p>
+                        <strong>No reinstall</strong> for daily updates — the app loads the latest screens from the cloud
+                        when you open it.
+                      </p>
+                      <p>
+                        <strong>Reinstall APK</strong> only for a new native release (version {APP_VERSION}) — tap
+                        Download above; Android updates over the old app if the signing key matches.
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 space-y-2 bg-amber-500/5 border-amber-500/30">
+                  <div className="flex items-start gap-2">
+                    <RefreshCw className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p className="font-semibold text-foreground">Download error (InvalidJWT / link expired)?</p>
+                      <p>
+                        Open this install page in Chrome and tap <strong>Download</strong> again — do not reuse an old APK
+                        link from chat. Share the <strong>install page</strong> link ({installUrl}), not a downloaded
+                        file URL.
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              </>
             )}
             <p className="text-xs text-center text-muted-foreground">
               {platform === "desktop" ? (

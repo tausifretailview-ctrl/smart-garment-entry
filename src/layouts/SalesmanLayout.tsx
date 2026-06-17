@@ -189,7 +189,7 @@ const SalesmanLayout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-[100dvh] overflow-hidden bg-background flex flex-col">
       {/* Offline Status Banner */}
       {(!isOnline || pendingActions > 0) && (
         <div className={cn(
@@ -263,14 +263,16 @@ const SalesmanLayout = () => {
       <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto pb-20">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <Outlet />
       </main>
 
       {/* Bottom Navigation - Orange active state */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <div className="flex items-stretch justify-around h-16 w-full overflow-hidden">
+      <nav
+        className="shrink-0 bg-background border-t border-border z-50"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        <div className="flex items-stretch justify-around h-14 w-full overflow-hidden">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.path);
