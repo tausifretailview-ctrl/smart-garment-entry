@@ -200,7 +200,111 @@ type ExcelImportLoadingState = {
   label: string;
 };
 
-function ExcelImportLoadingOverlay({ progress }: { progress: ExcelImportLoadingState }) {
+const BARCODE_VALIDATION_CHUNK = 500;
+
+type BarcodeDuplicateMatch = {
+  variant_id: string;
+  product_name: string;
+  size: string;
+  color: string | null;
+  stock_qty: number;
+  barcode: string;
+};
+
+/** Batched lookup mirroring check_barcode_duplicate RPC (batch_stock sum, created_at order). */
+async function fetchBarcodeDuplicateLookup(
+  organizationId: string,
+  barcodes: string[],
+  onProgress?: (currentChunk: number, totalChunks: number, validatedCount: number, totalBarcodes: number) => void,
+): Promise<Map<string, BarcodeDuplicateMatch[]>> {
+  const uniqueBarcodes = [...new Set(barcodes)];
+  const lookup = new Map<string, BarcodeDuplicateMatch[]>();
+  if (uniqueBarcodes.length === 0) return lookup;
+
+  const totalChunks = Math.ceil(uniqueBarcodes.length / BARCODE_VALIDATION_CHUNK);
+
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    const chunk = uniqueBarcodes.slice(
+      chunkIndex * BARCODE_VALIDATION_CHUNK,
+      (chunkIndex + 1) * BARCODE_VALIDATION_CHUNK,
+    );
+
+    const { data: variants, error } = await supabase
+      .from("product_variants")
+      .select("id, barcode, size, color, created_at, products!inner(product_name)")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .in("barcode", chunk);
+
+    if (error) throw error;
+
+    const variantRows = variants ?? [];
+    const variantIds = variantRows.map((v) => v.id);
+    const stockByVariant = new Map<string, number>();
+
+    if (variantIds.length > 0) {
+      for (let si = 0; si < variantIds.length; si += BARCODE_VALIDATION_CHUNK) {
+        const idChunk = variantIds.slice(si, si + BARCODE_VALIDATION_CHUNK);
+        const { data: stockRows, error: stockError } = await supabase
+          .from("batch_stock")
+          .select("variant_id, quantity")
+          .in("variant_id", idChunk);
+        if (stockError) throw stockError;
+        for (const row of stockRows ?? []) {
+          const vid = row.variant_id as string;
+          stockByVariant.set(vid, (stockByVariant.get(vid) ?? 0) + Number(row.quantity ?? 0));
+        }
+      }
+    }
+
+    const grouped = new Map<string, Array<BarcodeDuplicateMatch & { created_at: string }>>();
+
+    for (const v of variantRows) {
+      const barcode = v.barcode as string | null;
+      if (!barcode) continue;
+      const product = v.products as { product_name?: string } | { product_name?: string }[] | null;
+      const productName = Array.isArray(product)
+        ? product[0]?.product_name ?? ""
+        : product?.product_name ?? "";
+      const row = {
+        variant_id: v.id,
+        product_name: productName,
+        size: v.size ?? "",
+        color: (v.color as string | null) ?? null,
+        stock_qty: stockByVariant.get(v.id) ?? 0,
+        barcode,
+        created_at: (v.created_at as string) ?? "",
+      };
+      if (!grouped.has(barcode)) grouped.set(barcode, []);
+      grouped.get(barcode)!.push(row);
+    }
+
+    for (const [barcode, rows] of grouped) {
+      rows.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      lookup.set(
+        barcode,
+        rows.map(({ created_at: _createdAt, ...rest }) => rest),
+      );
+    }
+
+    const validatedCount = Math.min((chunkIndex + 1) * BARCODE_VALIDATION_CHUNK, uniqueBarcodes.length);
+    onProgress?.(chunkIndex + 1, totalChunks, validatedCount, uniqueBarcodes.length);
+  }
+
+  return lookup;
+}
+
+function ExcelImportLoadingOverlay({
+  progress,
+  title = "Importing Excel items...",
+  progressLabel = "Items loaded",
+  hint = "Please wait — do not save the bill until import completes.",
+}: {
+  progress: ExcelImportLoadingState;
+  title?: string;
+  progressLabel?: string;
+  hint?: string;
+}) {
   const pct =
     progress.total > 0
       ? Math.min(100, Math.round((progress.current / progress.total) * 100))
@@ -212,13 +316,13 @@ function ExcelImportLoadingOverlay({ progress }: { progress: ExcelImportLoadingS
         <div className="flex items-center gap-3">
           <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
           <div>
-            <p className="font-semibold text-sm">Importing Excel items...</p>
+            <p className="font-semibold text-sm">{title}</p>
             <p className="text-xs text-muted-foreground">{progress.label}</p>
           </div>
         </div>
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Items loaded</span>
+            <span>{progressLabel}</span>
             <span className="font-mono tabular-nums">
               {progress.current.toLocaleString("en-IN")} / {progress.total.toLocaleString("en-IN")}
             </span>
@@ -229,9 +333,7 @@ function ExcelImportLoadingOverlay({ progress }: { progress: ExcelImportLoadingS
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="text-[11px] text-muted-foreground pt-1">
-            Please wait — do not save the bill until import completes.
-          </p>
+          <p className="text-[11px] text-muted-foreground pt-1">{hint}</p>
         </div>
       </div>
     </div>
@@ -422,7 +524,9 @@ const PurchaseEntry = () => {
   
   // Barcode duplicate warning state
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
+  const [barcodeValidationProgress, setBarcodeValidationProgress] = useState<ExcelImportLoadingState | null>(null);
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const barcodeCheckGenRef = useRef(0);
 
   // Helper: For MTR/roll items, use meters (from size field) as multiplier instead of qty
   const getMtrMultiplier = (item: { uom?: string; size?: string; qty: number }): number => {
@@ -1221,6 +1325,41 @@ const PurchaseEntry = () => {
         (isEditMode ? originalLineItems : []).map(i => i.sku_id).filter(Boolean)
       );
 
+      const uniqueBarcodes = [...new Set(barcodesToCheck.map((item) => item.barcode as string))];
+      let barcodeLookup = new Map<string, BarcodeDuplicateMatch[]>();
+      const checkGen = ++barcodeCheckGenRef.current;
+
+      if (uniqueBarcodes.length > 0) {
+        const totalChunks = Math.ceil(uniqueBarcodes.length / BARCODE_VALIDATION_CHUNK);
+        setBarcodeValidationProgress({
+          current: 0,
+          total: totalChunks,
+          label: `Validating barcodes (0 of ${uniqueBarcodes.length})`,
+        });
+        try {
+          barcodeLookup = await fetchBarcodeDuplicateLookup(
+            currentOrganization.id,
+            uniqueBarcodes,
+            (currentChunk, total, validatedCount, totalBarcodes) => {
+              if (checkGen !== barcodeCheckGenRef.current) return;
+              setBarcodeValidationProgress({
+                current: currentChunk,
+                total,
+                label: `Validating barcodes (${validatedCount} of ${totalBarcodes})`,
+              });
+            },
+          );
+        } catch {
+          /* ignore — same as prior per-row catch */
+        } finally {
+          if (checkGen === barcodeCheckGenRef.current) {
+            setBarcodeValidationProgress(null);
+          }
+        }
+      }
+
+      if (checkGen !== barcodeCheckGenRef.current) return;
+
       for (const item of barcodesToCheck) {
         // In-bill duplicate: same barcode on two different variants
         if (inBillDuplicates.has(item.temp_id)) {
@@ -1228,23 +1367,20 @@ const PurchaseEntry = () => {
           continue;
         }
 
-        try {
-          const { data } = await supabase.rpc('check_barcode_duplicate', {
-            p_barcode: item.barcode,
-            p_org_id: currentOrganization.id,
-            p_exclude_variant_id: item.sku_id || null
-          });
-          if (data && data.length > 0) {
-            // Filter out variants in THIS bill AND variants from the original bill being edited
-            const realConflicts = (data as any[]).filter((d: any) => 
-              !allBillSkuIds.has(d.variant_id) && !originalSkuIds.has(d.variant_id)
-            );
-            if (realConflicts.length > 0) {
-              const existing = realConflicts[0];
-              warnings.set(item.temp_id, `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? ' / ' + existing.color : ''} (Stock: ${existing.stock_qty})`);
-            }
-          }
-        } catch { /* ignore */ }
+        const matches = barcodeLookup.get(item.barcode!) ?? [];
+        const afterExclude = matches.filter(
+          (d) => !item.sku_id || d.variant_id !== item.sku_id,
+        );
+        const realConflicts = afterExclude.filter(
+          (d) => !allBillSkuIds.has(d.variant_id) && !originalSkuIds.has(d.variant_id),
+        );
+        if (realConflicts.length > 0) {
+          const existing = realConflicts[0];
+          warnings.set(
+            item.temp_id,
+            `⚠️ Barcode already used: "${existing.product_name}" ${existing.size}${existing.color ? " / " + existing.color : ""} (Stock: ${existing.stock_qty})`,
+          );
+        }
       }
       setBarcodeWarnings(warnings);
     }, 600);
@@ -4949,6 +5085,14 @@ const PurchaseEntry = () => {
     return (
       <div className="flex flex-col min-h-screen bg-muted/30">
         {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
+        {barcodeValidationProgress && (
+          <ExcelImportLoadingOverlay
+            progress={barcodeValidationProgress}
+            title="Checking barcode duplicates..."
+            progressLabel="Validation batches"
+            hint="Please wait — validating barcodes across the bill."
+          />
+        )}
         <MobilePageHeader
           title={isEditMode ? "Edit Purchase" : "Purchase Entry"}
           subtitle={softwareBillNo || "NEW"}
@@ -5161,6 +5305,14 @@ const PurchaseEntry = () => {
   return (
     <div className={cn(entryPageShellClass, "bg-slate-50")} data-entry-form>
       {excelImportLoading && <ExcelImportLoadingOverlay progress={excelImportLoading} />}
+      {barcodeValidationProgress && (
+        <ExcelImportLoadingOverlay
+          progress={barcodeValidationProgress}
+          title="Checking barcode duplicates..."
+          progressLabel="Validation batches"
+          hint="Please wait — validating barcodes across the bill."
+        />
+      )}
       {/* Draft loading overlay for large bills */}
       {draftLoading && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
