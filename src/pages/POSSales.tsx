@@ -3665,7 +3665,14 @@ export default function POSSales() {
             template={posInvoiceTemplate}
             format={posInvoiceWrapperFormat}
             thermalPaper={posThermalPaper}
-            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || 'DRAFT'}
+            // Only show a real invoice number when we actually have a saved sale or are editing one.
+            // Falling back to nextInvoicePreview here caused unsaved cart prints to carry a real-looking
+            // sequential number (e.g. POS/26-27/1576) that the next saved sale then reused.
+            billNo={
+              savedInvoiceData?.invoiceNumber
+                || currentInvoiceNumber
+                || (savedInvoiceData?.isEstimate ? 'ESTIMATE' : 'DRAFT')
+            }
             date={currentDateTime}
             customerName={savedInvoiceData?.customerName || customerName || 'Walk in Customer'}
             customerAddress={savedInvoiceData?.customerAddress || customers.find((c) => c.id === customerId)?.address || ''}
@@ -4931,15 +4938,24 @@ export default function POSSales() {
             <span>Last</span>
           </Button>
           
-          {/* 9. Print - matches Dashboard "Credit Notes" indigo-500 */}
+          {/* 9. Print last saved invoice - never prints unsaved cart */}
           <Button
-            onClick={handleTriggerBrowserPrint}
-            disabled={items.length === 0}
+            onClick={() => {
+              if (savedInvoiceData?.saleId && savedInvoiceData?.invoiceNumber) {
+                handlePrintFromDialog();
+              } else {
+                toast.error("No saved invoice to print", {
+                  description:
+                    "Complete payment (Cash/UPI/Card/Credit/Mix) first, or use Estimate (F9) for an unsaved draft.",
+                });
+              }
+            }}
+            disabled={!savedInvoiceData?.saleId}
             className="h-[60px] flex flex-col items-center justify-center gap-1 text-[12px] font-semibold w-full rounded-lg bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white shadow-sm transition-all duration-150 disabled:opacity-40"
-            title="Print"
+            title="Reprint Last Saved Invoice"
           >
             <Printer className="h-4 w-4" />
-            <span>Print</span>
+            <span>Reprint</span>
           </Button>
           
           {/* Advance Booking */}
