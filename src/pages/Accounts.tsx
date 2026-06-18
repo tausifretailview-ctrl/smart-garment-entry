@@ -814,8 +814,11 @@ export default function Accounts() {
   const outstandingHeadlineCards = currentOrganization?.id ? (
     <AccountsOutstandingHeadlineCards
       totalReceivable={receivablesSummary.netReceivable}
+      grossReceivable={receivablesSummary.grossReceivableDr}
+      customerCreditPool={receivablesSummary.customerCreditPoolCr}
       customerCount={receivablesSummary.customerCount}
       totalPayable={totalSupplierPayable}
+      openSupplierBills={totalSupplierPayable}
       receivableLoading={receivablesSummaryLoading || receivablesSummaryFetching}
       payableLoading={supplierPayableLoading || supplierPayableFetching}
       onReceivableClick={scrollToOutstandingCustomers}
