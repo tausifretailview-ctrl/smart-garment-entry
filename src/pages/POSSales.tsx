@@ -3630,8 +3630,17 @@ export default function POSSales() {
   handlePrintRef.current = handlePrint;
 
   const handleTriggerBrowserPrint = useCallback(() => {
+    // HARD GUARD: never print an unsaved cart. Only allow when either:
+    //  (a) a real sale has been saved (savedInvoiceData.saleId present), or
+    //  (b) user explicitly chose Estimate (savedInvoiceData.isEstimate === true)
+    if (!savedInvoiceData || (!savedInvoiceData.saleId && !savedInvoiceData.isEstimate)) {
+      toast.error("Cannot print unsaved bill", {
+        description: "Complete payment to save the invoice, or press F9 for Estimate.",
+      });
+      return;
+    }
     waitForPrintReady(invoicePrintRef, () => handlePrint(), { maxWait: 8000 });
-  }, [handlePrint]);
+  }, [handlePrint, savedInvoiceData]);
 
   const renderPosPrintSource = () => {
     if (items.length === 0 && !savedInvoiceData) return null;
