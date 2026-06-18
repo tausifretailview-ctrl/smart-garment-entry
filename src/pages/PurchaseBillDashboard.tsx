@@ -374,9 +374,14 @@ const PurchaseBillDashboard = () => {
             toast({ title: "Bill Cancelled", description: "Cancelled bills cannot be edited.", variant: "destructive" });
             return;
           }
+          const own = canModifyEntry((bill as any).created_by);
+          if (!own.allowed) {
+            toast({ title: "Not allowed", description: own.reason || "Only the creator or an admin can edit this bill.", variant: "destructive" });
+            return;
+          }
           navigate("/purchase-entry", { state: { editBillId: bill.id } });
         },
-        disabled: bill.is_cancelled,
+        disabled: bill.is_cancelled || !canModifyEntry((bill as any).created_by).allowed,
       },
       { label: "", separator: true, onClick: () => {} },
       {
