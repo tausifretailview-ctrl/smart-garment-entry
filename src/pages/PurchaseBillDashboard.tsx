@@ -61,6 +61,7 @@ import {
   getPurchaseBillPendingAmount,
 } from "@/utils/purchaseBillSettlement";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
@@ -156,6 +157,7 @@ interface PurchaseBill {
   is_cancelled?: boolean;
   cancelled_at?: string | null;
   cancelled_reason?: string | null;
+  created_by?: string | null;
   items?: PurchaseItem[];
   purchase_items?: { count: number }[];
 }
@@ -372,9 +374,14 @@ const PurchaseBillDashboard = () => {
             toast({ title: "Bill Cancelled", description: "Cancelled bills cannot be edited.", variant: "destructive" });
             return;
           }
+          const own = canModifyEntry((bill as any).created_by);
+          if (!own.allowed) {
+            toast({ title: "Not allowed", description: own.reason || "Only the creator or an admin can edit this bill.", variant: "destructive" });
+            return;
+          }
           navigate("/purchase-entry", { state: { editBillId: bill.id } });
         },
-        disabled: bill.is_cancelled,
+        disabled: bill.is_cancelled || !canModifyEntry((bill as any).created_by).allowed,
       },
       { label: "", separator: true, onClick: () => {} },
       {
@@ -572,7 +579,7 @@ const PurchaseBillDashboard = () => {
 
       let query = supabase
         .from("purchase_bills")
-        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
+        .select("id, supplier_id, supplier_name, supplier_invoice_no, software_bill_no, bill_date, bill_entry_at, gross_amount, discount_amount, gst_amount, net_amount, notes, created_at, created_by, payment_status, paid_amount, total_qty, is_dc_purchase, bill_image_url, is_locked, is_cancelled, cancelled_at, cancelled_reason, purchase_items(count)", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -731,6 +738,7 @@ const PurchaseBillDashboard = () => {
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
   const canCancel = hasSpecialPermission('cancel_invoice');
+  const { canModify: canModifyEntry } = useEntryOwnership();
 
   const handleDeleteClick = async (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -738,6 +746,15 @@ const PurchaseBillDashboard = () => {
       toast({
         title: "Permission Denied",
         description: "You don't have permission to delete purchase bills. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const own = canModifyEntry((bill as any).created_by);
+    if (!own.allowed) {
+      toast({
+        title: "Not allowed",
+        description: own.reason || "Only the creator or an admin can delete this bill.",
         variant: "destructive",
       });
       return;
@@ -1759,6 +1776,7 @@ const PurchaseBillDashboard = () => {
       header: "Actions",
       cell: ({ row }) => {
         const bill = row.original;
+        const ownership = canModifyEntry((bill as any).created_by);
         return (
           <div className="flex items-center gap-0" onClick={(e) => e.stopPropagation()}>
             <Button size="icon" variant="ghost" className="h-7 w-7 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-950" onClick={(e) => handleOpenPaymentDialog(bill, e)} title="Record Payment">
@@ -1767,7 +1785,7 @@ const PurchaseBillDashboard = () => {
             <Button
               size="icon"
               variant="ghost"
-              className={`h-7 w-7 ${bill.is_cancelled ? 'opacity-40 cursor-not-allowed' : bill.is_locked ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
+              className={`h-7 w-7 ${(bill.is_cancelled || bill.is_locked || !ownership.allowed) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950'}`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (bill.is_cancelled) {
@@ -1782,9 +1800,13 @@ const PurchaseBillDashboard = () => {
                   toast({ title: "Bill is locked", description: "Unlock the bill first to edit it.", variant: "destructive" });
                   return;
                 }
+                if (!ownership.allowed) {
+                  toast({ title: "Not allowed", description: ownership.reason || "Only the creator or an admin can edit this bill.", variant: "destructive" });
+                  return;
+                }
                 navigate("/purchase-entry", { state: { editBillId: bill.id } });
               }}
-              title={bill.is_cancelled ? "Bill is cancelled" : bill.is_locked ? "Unlock bill to edit" : "Edit bill"}
+              title={bill.is_cancelled ? "Bill is cancelled" : bill.is_locked ? "Unlock bill to edit" : !ownership.allowed ? (ownership.reason || "Other user's bill") : "Edit bill"}
             >
               <Edit className="h-3.5 w-3.5" />
             </Button>

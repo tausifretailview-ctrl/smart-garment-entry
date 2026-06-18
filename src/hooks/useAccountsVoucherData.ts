@@ -18,7 +18,7 @@ async function fetchAllVoucherEntries(organizationId: string) {
     const { data, error } = await supabase
       .from("voucher_entries")
       .select(
-        "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at, category, paid_by, receipt_number"
+        "id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, payment_method, discount_amount, discount_reason, created_at, created_by, category, paid_by, receipt_number"
       )
       .eq("organization_id", organizationId)
       .is("deleted_at", null)

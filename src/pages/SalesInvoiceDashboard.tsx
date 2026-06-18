@@ -83,6 +83,7 @@ import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { formatDistanceToNow } from "date-fns";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -247,6 +248,19 @@ export default function SalesInvoiceDashboard() {
     staleTime: STALE_SETTINGS,
     refetchOnWindowFocus: false,
   });
+
+  // Creator-scoped Modify/Delete (multi-user invoice protection)
+  const { canModify: canModifyEntry } = useEntryOwnership();
+  const invoiceCreatorLabel = useCallback(
+    (createdBy?: string | null) => {
+      if (!createdBy) return undefined;
+      const u: any = (orgUsers || []).find((x: any) => x?.id === createdBy);
+      const email = u?.email as string | undefined;
+      if (!email) return undefined;
+      return email.split("@")[0] || email;
+    },
+    [orgUsers],
+  );
 
   // Default userFilter: admins (and mobile) see all users; non-admins default to themselves
   useEffect(() => {
@@ -437,8 +451,9 @@ export default function SalesInvoiceDashboard() {
   const getInvoiceContextMenuItems = (invoice: any): ContextMenuItem[] => {
     const cancelled = isSaleInvoiceCancelled(invoice);
     const isLocked = invoice.payment_status === 'completed';
-    const canModify = hasSpecialPermission('modify_records') || !isLocked;
-    const canDelete = hasSpecialPermission('delete_records');
+    const ownership = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+    const canModify = (hasSpecialPermission('modify_records') || !isLocked) && ownership.allowed;
+    const canDelete = hasSpecialPermission('delete_records') && ownership.allowed;
     const canCancelInvoice = hasSpecialPermission('cancel_invoice');
     
     return [
@@ -3800,28 +3815,36 @@ export default function SalesInvoiceDashboard() {
                                     <Download className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
-                                {columnSettings.modify && (
-                                  invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                    <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
-                                      <Lock className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  ) : (
-                                    <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
+                                {columnSettings.modify && (() => {
+                                  const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                  if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                    return (
+                                      <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
+                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    );
+                                  }
+                                  return (
+                                    <Button variant="ghost" size="icon" disabled={!own.allowed} title={own.allowed ? "Edit" : own.reason} onClick={() => own.allowed && navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
                                       <Edit className="h-4 w-4" />
                                     </Button>
-                                  )
-                                )}
-                                {columnSettings.delete && (
-                                  invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                    <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
-                                      <Lock className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  ) : (
-                                    <Button variant="ghost" size="icon" onClick={() => setInvoiceToDelete(invoice)}>
+                                  );
+                                })()}
+                                {columnSettings.delete && (() => {
+                                  const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                  if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                    return (
+                                      <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
+                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                      </Button>
+                                    );
+                                  }
+                                  return (
+                                    <Button variant="ghost" size="icon" disabled={!own.allowed} title={own.allowed ? "Delete" : own.reason} onClick={() => own.allowed && setInvoiceToDelete(invoice)}>
                                       <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
-                                  )
-                                )}
+                                  );
+                                })()}
                               </div>
 
                               {/* Mobile: primary actions + more menu */}
@@ -3877,28 +3900,36 @@ export default function SalesInvoiceDashboard() {
                                       </>
                                     )}
                                     <DropdownMenuSeparator />
-                                    {columnSettings.modify && (
-                                      invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                        <DropdownMenuItem disabled>
-                                          <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
+                                    {columnSettings.modify && (() => {
+                                      const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                      if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                        return (
+                                          <DropdownMenuItem disabled>
+                                            <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
+                                          </DropdownMenuItem>
+                                        );
+                                      }
+                                      return (
+                                        <DropdownMenuItem disabled={!own.allowed} onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
+                                          <Edit className="h-4 w-4 mr-2" /> {own.allowed ? "Edit Invoice" : "Edit (Other user's bill)"}
                                         </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { editInvoiceId: invoice.id } })}>
-                                          <Edit className="h-4 w-4 mr-2" /> Edit Invoice
+                                      );
+                                    })()}
+                                    {columnSettings.delete && (() => {
+                                      const own = canModifyEntry((invoice as any).created_by, invoiceCreatorLabel((invoice as any).created_by));
+                                      if (invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices')) {
+                                        return (
+                                          <DropdownMenuItem disabled>
+                                            <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
+                                          </DropdownMenuItem>
+                                        );
+                                      }
+                                      return (
+                                        <DropdownMenuItem disabled={!own.allowed} onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
+                                          <Trash2 className="h-4 w-4 mr-2" /> {own.allowed ? "Delete Invoice" : "Delete (Other user's bill)"}
                                         </DropdownMenuItem>
-                                      )
-                                    )}
-                                    {columnSettings.delete && (
-                                      invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
-                                        <DropdownMenuItem disabled>
-                                          <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
-                                        </DropdownMenuItem>
-                                      ) : (
-                                        <DropdownMenuItem onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
-                                          <Trash2 className="h-4 w-4 mr-2" /> Delete Invoice
-                                        </DropdownMenuItem>
-                                      )
-                                    )}
+                                      );
+                                    })()}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>

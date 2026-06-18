@@ -68,6 +68,7 @@ import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useMobileERP } from "@/hooks/useMobileERP";
 import {
   SaleFinancerDetailsPanel,
@@ -284,6 +285,23 @@ const POSDashboard = () => {
   }, [userFilter, orgUsers, orgUsersFetched, user?.id, organizationRole]);
 
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
+
+  // Creator-scoped Modify/Delete (multi-user POS protection)
+  const { canModify: canModifyEntry } = useEntryOwnership();
+  const orgUserEmailById = useMemo(() => {
+    const m = new Map<string, string>();
+    (orgUsers || []).forEach((u: any) => { if (u?.id) m.set(u.id, u.email || ""); });
+    return m;
+  }, [orgUsers]);
+  const creatorLabel = useCallback(
+    (createdBy?: string | null) => {
+      if (!createdBy) return undefined;
+      const email = orgUserEmailById.get(createdBy);
+      if (!email) return undefined;
+      return email.split("@")[0] || email;
+    },
+    [orgUserEmailById],
+  );
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleFinancerDetails, setSaleFinancerDetails] = useState<Record<string, SaleFinancerDetailsDisplay | null>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
@@ -874,6 +892,19 @@ const POSDashboard = () => {
 
   const handleBulkDelete = async () => {
     if (selectedSales.size === 0 || !hasSpecialPermission('delete_records')) return;
+
+    // Block bulk delete that includes another user's bills.
+    const blocked = Array.from(selectedSales)
+      .map((sid) => sales.find((x: any) => x.id === sid))
+      .filter((s: any) => s && !canModifyEntry(s.created_by, creatorLabel(s.created_by)).allowed);
+    if (blocked.length > 0) {
+      toast({
+        title: "Some bills are owned by another user",
+        description: `Cannot delete ${blocked.length} bill(s) created by other users. Ask an admin or the original biller to delete those.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsDeleting(true);
     try {
@@ -1768,8 +1799,20 @@ const POSDashboard = () => {
 
   const handleEditSale = useCallback((saleId: string, event: React.MouseEvent) => {
     event.stopPropagation();
+    const target: any = sales.find((s: any) => s.id === saleId);
+    if (target) {
+      const check = canModifyEntry(target.created_by, creatorLabel(target.created_by));
+      if (!check.allowed) {
+        toast({
+          title: "Not allowed",
+          description: check.reason || "Only the creator or an admin can modify this entry.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     navigate(`/pos-sales?saleId=${saleId}`);
-  }, [navigate]);
+  }, [navigate, sales, canModifyEntry, creatorLabel, toast]);
 
   // ── E-Invoice handlers ──
   const handleGenerateEInvoice = async (sale: Sale) => {
@@ -3178,15 +3221,20 @@ const POSDashboard = () => {
                                     {isDownloadingEInvoice === sale.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck className="h-3.5 w-3.5 text-green-600" />}
                                   </Button>
                                 )}
-                                {columnSettings.modify && hasSpecialPermission('modify_records') && (
-                                   <Button
-                                     variant="ghost"
-                                     size="icon"
-                                     onClick={(e) => handleEditSale(sale.id, e)}
-                                   >
-                                     <Edit className="h-3.5 w-3.5" />
-                                   </Button>
-                                 )}
+                                {columnSettings.modify && hasSpecialPermission('modify_records') && (() => {
+                                  const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => handleEditSale(sale.id, e)}
+                                      disabled={!own.allowed}
+                                      title={own.allowed ? "Modify" : own.reason}
+                                    >
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                  );
+                                })()}
                               </div>
                             </TableCell>
                           </TableRow>

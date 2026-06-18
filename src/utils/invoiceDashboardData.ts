@@ -12,11 +12,11 @@ import {
 } from "@/utils/saleSettlement";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
-  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
+  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, created_by, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
 
 /** Lighter select for paginated dashboard table (faster first paint). */
 export const INVOICE_DASHBOARD_LIST_SELECT =
-  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, total_qty, sale_return_adjust, is_cancelled, shop_name, sale_type, customers:customer_id (gst_number)";
+  "id, sale_number, sale_date, customer_id, customer_name, customer_phone, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, total_qty, sale_return_adjust, is_cancelled, shop_name, sale_type, created_by, customers:customer_id (gst_number)";
 
 export type InvoiceDashboardSaleDateFilter = {
   start: string | null;

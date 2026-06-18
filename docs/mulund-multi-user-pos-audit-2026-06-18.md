@@ -138,3 +138,29 @@ Both 1101 (₹20,500 → ₹1,09,999, +437 %) and 1576 (₹82,900 → ₹3,500, 
 1. **Creator-scoped Modify permission** — restrict Modify on saved POS bills to the original creator, or gate cross-user edits behind an explicit "Edit others' bills" right under User Rights. Today both `mobility@gmail.com` and `mobilitynx@gmail.com` can edit every bill.
 2. **Realtime POS dashboard** — subscribe to `sales` INSERT / UPDATE for the current org so the second terminal's list refreshes instantly, removing the stale-row foot-gun at its source.
 3. **Show bill creator on the dashboard row** — make it visually obvious that a row belongs to a coworker before someone clicks Modify.
+
+## Permanent fix shipped 18-Jun (creator-scoped Modify / Delete)
+
+Follow-up #1 above is now live for POS, Sales Invoice, Purchase Bills and Payment Vouchers — at both the UI and the database layer.
+
+### Rule
+
+Only the user who **created** a row may Modify or Delete it. **Admins always bypass.** Legacy rows that have no recorded creator (older purchase bills, pre-migration vouchers) remain editable so historical data is never locked out.
+
+### Where it lives
+
+- `src/lib/entryOwnership.ts` — pure `canModifyEntry({ currentUserId, createdBy, isOwnerOrAdmin })` helper.
+- `src/hooks/useEntryOwnership.ts` — React wrapper that resolves the current user and admin status from `useAuth` / `useUserRoles` and exposes a stable `canModify(createdBy)` predicate.
+- Frontend guards in: `POSDashboard.tsx` (Edit button + bulk delete), `SalesInvoiceDashboard.tsx` (Edit / Delete inline buttons, mobile dropdown, context menu), `PurchaseBillDashboard.tsx` (Edit pencil + delete + context menu), `useAccountsPaymentDialogs.ts` (open + update payment).
+- Backend enforcement (defence in depth): RLS UPDATE / DELETE policies on `public.sales`, `public.purchase_bills`, `public.voucher_entries` were rewritten to require `is_entry_creator_or_admin(organization_id, created_by)`. SELECT and INSERT policies are unchanged so dashboards still show every row to every member.
+- Schema: `purchase_bills.created_by uuid DEFAULT auth.uid()` was added so the same audit trail that already exists on `sales` and `voucher_entries` now applies to purchases. The `save_purchase_bill_with_items_atomic` RPC was updated to record `auth.uid()` on insert.
+
+### What users will see
+
+- The Modify (pencil) and Delete (trash) buttons on another user's bill are **disabled** with a tooltip "Only `<creator>` or an admin can modify this entry".
+- A bulk-delete that includes someone else's bills is **rejected** up front with a toast that lists how many bills were blocked.
+- An attempted programmatic edit / delete that bypasses the UI is **rejected by Postgres RLS** with a permission error.
+
+### Still open
+
+- Realtime POS dashboard refresh (follow-up #2) and a visible "by &lt;biller&gt;" stamp on each dashboard row (follow-up #3) are not yet shipped.
