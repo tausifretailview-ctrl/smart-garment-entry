@@ -745,6 +745,15 @@ const PurchaseBillDashboard = () => {
       });
       return;
     }
+    const own = canModifyEntry((bill as any).created_by);
+    if (!own.allowed) {
+      toast({
+        title: "Not allowed",
+        description: own.reason || "Only the creator or an admin can delete this bill.",
+        variant: "destructive",
+      });
+      return;
+    }
     setBillToDelete(bill);
     
     // Check for stock dependencies
