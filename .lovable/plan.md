@@ -1,168 +1,68 @@
+## Goal
 
-# Accounting accuracy audit — ELLA NOOR (org `3fdca631…ff67`)
+Permanently remove 3 mistaken Excel-imported opening-stock bills from KIDS ZONE — including the stock they added and the product master rows they created — and explain why the Purchase Dashboard Delete button currently does not work for very large bills.
 
-Goal: prove every figure on the Accounting reports (Trial Balance → P&L → Balance Sheet → Ledgers) ties back to the operational source data (sales, purchases, returns, vouchers, stock). Fix the gaps in ELLA NOOR first, then ship the fix for all orgs.
+## Bills targeted (KIDS ZONE)
 
----
+| Bill | Date | Qty | Lines | Products | Net |
+|---|---|---|---|---|---|
+| PUR/26-27/10 | 10-Jun-2026 | 5,093 | 5,072 | 2,077 | ₹31,22,013 |
+| PUR/26-27/14 | 10-Jun-2026 | 4,455 | 4,151 | 549 | ₹21,82,184 |
+| PUR/26-27/25 | 15-Jun-2026 | 3,931 | 3,662 | 1,024 | ₹22,32,428 |
 
-## 1. Snapshot of current GL Trial Balance (all-time, posted journals only)
+Verified: not locked, not cancelled, paid = 0, no sale_items linked (by variant or barcode), no shortfall in current stock vs. quantity to reverse.
 
-```text
-Code  Account                  Dr            Cr            Net Dr
-1000  Cash in Hand             60,75,210     50            60,75,160
-1010  Bank Account             1,42,74,605   1,09,075      1,41,65,530
-1200  Accounts Receivable      1,03,89,904   79,75,001     24,14,903
-1300  Stock-in-Hand            9,20,121      16,95,049     -7,74,928
-2000  Accounts Payable         16,831        1,70,61,424   -1,70,44,593
-2150  Customer Advances        23,65,529     24,64,961     -99,432
-4000  Sales Revenue            0             2,36,08,961   -2,36,08,961
-4010  Trade Discount Given     17,450        0             17,450
-4050  Sales Returns            10,41,650     0             10,41,650
-5000  Cost of Goods Sold       1,78,99,719   63,367        1,78,36,352
-5050  Purchase Returns         0             16,831        -16,831
-6900  Round Off                0             6,300         -6,300
-       TOTAL                   5,30,01,019   5,30,01,019   0          ✔ balanced
-```
+## Why the dashboard delete didn't work
 
-Operational source totals pulled the same instant:
+Two possible causes — both will be addressed:
 
-```text
-Sales (active, non-cancelled)         net 2,29,90,737   paid 1,99,55,130   sr-adjust 6,49,300
-Sale returns (active)                 net 8,77,650
-Purchase bills (active)               net 1,68,60,705   paid 0
-Purchase returns (active)             net 16,831
-Vouchers — receipts 3,069 / 2,01,90,980 | payments 23 / 90,350 | expenses 0 / 0 | credit_note 3 / 62,831
-Journal posting backlog                0 sales · 0 purchases · 0 SR · 0 PR  (good)
-```
+1. The "Delete Records" special permission may not be enabled for this user — the button shows a "Permission Denied" toast.
+2. `soft_delete_purchase_bill` does the negative-stock check, stock reversal, batch_stock update, audit insert and child soft-delete inside one statement. On a 5,000-line bill this can exceed the PostgREST 60-second statement timeout, returning a generic failure. The user reads it as "not allowed".
 
-DR = CR ⇒ books are arithmetically balanced. But the **mapping** has clear gaps below.
+Even if it succeeded, soft-delete only reverses stock; it does not remove the products/variants this import created in the product master, which is also part of the user's request.
 
----
+## Plan
 
-## 2. Findings (severity-ordered)
+### Step 1 — One-off SQL cleanup (via approved migration / insert tool)
 
-### A. Sales Revenue is GROSS-of-tax and net-of-nothing-consistent
-- GL Sales Revenue **Cr 2,36,08,961** but `sales.net_amount` total is **2,29,90,737**.
-- Diff ≈ ₹6,18,224. No `2110/2120 Output CGST/SGST/IGST` account exists in COA → **GST collected on sales is being booked inside Sales Revenue**. This breaks GSTR reconciliation from the GL.
+For the 3 bills above, scoped to `organization_id = KIDS ZONE`:
 
-### B. No Input GST / Output GST ledgers
-- COA has no 2100-series tax accounts. Purchase GST is going into Stock/COGS, sale GST into Revenue. Tally/Vyapar parity requires:
-  - 2110 Output CGST · 2120 Output SGST · 2130 Output IGST
-  - 1410 Input CGST · 1420 Input SGST · 1430 Input IGST
-- Phase-A seed in `docs/accounting-tally-v2-cutover.md` mentions GST split for purchases but the accounts don't exist for ELLA NOOR.
+1. Re-verify guards in a single CTE: bill belongs to KIDS ZONE, `deleted_at IS NULL`, no sale_items on any of these barcodes/variant_ids, no purchase_returns referencing the bill, sum(qty) ≤ current stock_qty for every sku.
+2. Reverse `product_variants.stock_qty` for every line (set-based UPDATE, aggregated by sku).
+3. Delete matching `batch_stock` rows (`purchase_bill_id IN (...)`).
+4. Insert `stock_movements` audit rows (`movement_type = 'hard_delete_purchase_excel_cleanup'`).
+5. Soft-delete `voucher_entries` referencing the bills, then hard-delete `purchase_items` rows for these bills, then hard-delete the 3 `purchase_bills` rows. Hard delete (not soft) is required so the products step below can find them as fully orphaned.
+6. Reverse any GL postings (`journal_entries` / `journal_lines` referencing these bill ids) if the accounting engine is enabled for the org.
 
-### C. No Expense ledgers in GL
-- `voucher_entries` has **0** `expense` and **0** `salary` rows for ELLA NOOR. Either the org genuinely records no expenses (unlikely) or expense vouchers are written under a different `voucher_type`/category and never posted.
-- COA has no 6xxx expense accounts beyond Round Off (6900). P&L therefore shows only COGS — Net Profit is overstated.
+### Step 2 — Prune orphan products & variants created by these imports
 
-### D. Accounts Payable not being relieved
-- AP carries Cr ₹1,70,44,593 against purchases of ₹1,68,60,705. `purchase_bills.paid_amount` is **0** for the entire org, and only 23 supplier-payment vouchers exist (₹90,350). Two possibilities:
-  1. Real — owner pays cash on delivery off-book → then we must post `Dr AP / Cr Cash` automatically when bill is marked paid.
-  2. Bug — supplier payments are written somewhere (cash book / settlement) but not flowing into `purchase_bills.paid_amount` nor into journals. Need to audit `voucher_entries` filtered to supplier reference, plus any direct UPDATEs to `purchase_bills.paid_amount`.
+Only delete master rows that are now provably unused:
 
-### E. Sales Returns classified as Revenue type, not contra-revenue
-- `account_type='Revenue'` for 4050 Sales Returns and 4010 Trade Discount → P&L will add them to revenue instead of subtracting. Need `account_type='Contra Revenue'` (or report-level sign flip) so Net Sales = 4000 − 4050 − 4010.
-- Also: SR amount in GL is ₹10,41,650 but `sale_returns.net_amount` total is **₹8,77,650** — gap ₹1,64,000. Likely double-posting (return both as journal and as reversal via CN application) or stale/duplicate journal entries. Needs row-level reconciliation.
+- A variant is orphaned if: no remaining `purchase_items` (any bill), no `sale_items`, no `sale_return_items`, no `purchase_return_items`, no `batch_stock`, `stock_qty = 0` after Step 1, and not referenced by any `delivery_challan_items` / `quotation_items` / `sale_order_items` / `customer_product_prices`.
+- A product is orphaned if all its variants are orphaned by the same criteria and the product itself has no `product_images` left in use, no `customer_brand_discounts`, no `stock_alerts`.
 
-### F. Sale-return application gap on invoices
-- `Σ sale_returns.net_amount = 8,77,650` vs `Σ sales.sale_return_adjust = 6,49,300` → **₹2,28,350** of returns are held as unapplied Credit Note credit. Matches the bill-wise reminder bug class we already fixed at the UI level — confirms the underlying data is fine but the *operational vs accounting* views need a single reconciliation source.
+Hard-delete orphan variants first, then orphan products. Variants/products that are also stocked from other bills (the ~9,511 we already counted) are left intact.
 
-### G. No Capital / Owner's Equity / Retained Earnings ledgers
-- No 3000-series equity account. A real trial balance must include Owner's Capital + Opening Stock + Drawings, otherwise the Balance Sheet won't balance once an Opening Balance pass is done.
+Output a final report: variants reversed, variants deleted, products deleted, GL reversals, and any rows skipped with the reason.
 
-### H. No Opening Balances loaded
-- `ledger_opening_balances` page exists but for ELLA NOOR the GL only contains transaction-period data. Prior-year cash/bank/stock/debtor/creditor positions are not seeded → first-year P&L is meaningful but Balance Sheet as-of any date < first sale is empty.
+### Step 3 — Dashboard UX fix (small, code-only)
 
-### I. Cash & Bank are receipt-only
-- Cash 1000: Dr 60.75 L / Cr ₹50. Bank 1010: Dr 1.42 Cr / Cr ₹1.09 L. Money goes in, nothing goes out (no expense / supplier payment / drawing journals). Cash/Bank closing balance is therefore inflated by the missing-expense issue (C) and missing-supplier-payment issue (D).
+In `src/pages/PurchaseBillDashboard.tsx`:
 
-### J. Stock-in-Hand is negative (−₹7.74 L)
-- COGS posted > Stock added through purchases (because opening stock is missing). Once H is fixed (load opening stock as `Dr 1300 / Cr 3000`), this should turn positive and reconcile to `stock_valuation` from `useStockValuation`.
+- When `softDelete("purchase_bills", id)` rejects, surface the actual Postgres error message (currently the toast prints a generic "Failed to delete purchase bill" because `success === false` is thrown with no message).
+- For bills with `purchase_items(count) > 1500`, replace the inline delete with a confirmation that warns "Large bill — this may take up to 60 seconds; if it times out, please contact support." This prevents the silent "not allowed" perception.
 
----
+No change to RPC logic, no change to permissions model.
 
-## 3. Reconciliation plan — step-by-step, in this order
+## Out of scope
 
-### Step 1 — Lock the audit baseline (read-only)
-- Add `scripts/ella-noor-trial-balance-audit.sql` that, for a given org + as-of-date, prints:
-  - GL TB grouped by account
-  - Operational totals (sales gross/net/GST/paid, purchases, returns, vouchers by type, expense module, employee salary, stock valuation)
-  - Diff rows (GL − operational) per bucket with ₹ thresholds (₹0.50 = clean, >₹1 = drift)
-- Run for ELLA NOOR; commit the report as `docs/ella-noor-tb-audit-2026-06-18.md` so we have a before-state.
+- Re-importing corrected opening stock (separate task once these 3 bills are gone).
+- Changing the soft-delete RPC to be chunked/async — possible future improvement, not needed for this one-off.
 
-### Step 2 — Seed missing system accounts (Phase A.2)
-Migration that, for **every org**, idempotently ensures the following accounts exist:
-- 1410/1420/1430 Input CGST/SGST/IGST (Asset)
-- 2110/2120/2130 Output CGST/SGST/IGST (Liability)
-- 3000 Owner's Capital · 3100 Drawings · 3200 Retained Earnings (Equity — new type)
-- 6000 series: Rent, Electricity, Salaries, Bank Charges, Discount Allowed, Round Off (already exists), Misc Expense
-- Mark 4010 Trade Discount Given and 4050 Sales Returns as `account_type='ContraRevenue'` so the P&L formula subtracts them naturally.
+## Approval gate
 
-### Step 3 — Re-post sales / sale-returns with GST split
-Rewrite `postSaleJournal` so a tax invoice splits:
-```text
-Dr Cash/Bank/AR            net total
-   Cr Sales Revenue        taxable value
-   Cr Output CGST          cgst
-   Cr Output SGST          sgst
-   Cr Output IGST          igst
-   Cr Round Off            rounding gain (or Dr if loss)
-Dr COGS / Cr Stock         cogs amount
-```
-Same shape (reversed) for sale returns. Then run **Accounts → Reset GL ledger → Backfill** for ELLA NOOR per the existing cutover runbook.
+Step 1 + Step 2 will be issued as a single `supabase--insert` transactional script that the user must approve in the dialog before it runs. Step 3 is a small code-only patch applied after Steps 1–2 succeed.
 
-### Step 4 — Re-post purchases with GST split
-Rewrite `postPurchaseJournal`:
-```text
-Dr Stock-in-Hand           taxable value
-Dr Input CGST              cgst
-Dr Input SGST              sgst
-Dr Input IGST              igst
-   Cr Accounts Payable     gross / cash / bank as applicable
-```
-Mirror for purchase returns.
+## Question for you before I start
 
-### Step 5 — Wire expense module + employee salary into GL
-- `voucher_entries` rows where `voucher_type IN ('expense','salary')` must post:
-  - Dr `<expense ledger from voucher.category mapping>` · Cr Cash/Bank
-- Add the category→ledger map in `src/utils/accounting/expenseCategoryMap.ts` and a backfill task that walks historical expense vouchers.
-
-### Step 6 — Wire supplier-payment vouchers into GL & `purchase_bills.paid_amount`
-- Audit who writes supplier payments today (Accounts → Supplier Payment tab uses `voucher_entries.voucher_type='payment'` with supplier reference). Confirm they bump `purchase_bills.paid_amount` via trigger; if not, add a trigger `trg_sync_purchase_paid_from_vouchers` mirroring the existing sale trigger.
-- Journal: Dr Accounts Payable · Cr Cash/Bank.
-
-### Step 7 — Opening Balance loader
-- The existing `LedgerOpeningBalances.tsx` page must, on save, emit a single journal entry dated `period_start − 1` :
-  - Dr Stock-in-Hand, Cash, Bank, AR (per customer subledger)
-  - Cr AP (per supplier subledger), Customer Advances, Owner's Capital (plug)
-- This fixes the negative Stock-in-Hand and lets Balance Sheet balance at any historical date.
-
-### Step 8 — Report-level fixes in `accountingReportUtils.ts`
-- `calculateGlTrialBalance` already returns rows — group by `account_group` for Tally-style Primary → Group → Ledger tree (utility already exists in `tallyAccountGroups.ts`, wire it into the page).
-- P&L: subtract Contra Revenue, show Gross Profit (Sales − COGS), then Operating Expenses, then Net Profit. Compare against `calculateProfitLoss` (operational) — they must agree to ₹1.
-- Balance Sheet: present Assets / Liabilities / Equity with party subledger drill-down (use `journal_lines.party_id`).
-
-### Step 9 — Cross-check page (new)
-- New page `src/pages/AccountingReconciliation.tsx` (admin-only) that shows side-by-side: GL bucket vs operational bucket vs diff for sales, purchases, returns, receipts, payments, stock. Hard-coded tolerance ₹0.50; anything bigger blocks "✔ Reconciled" badge.
-- Bonus: nightly `pg_cron` job persists a `tb_reconciliation_log` row per org so drifts are visible the day they appear.
-
-### Step 10 — Roll out to all orgs
-- Once ELLA NOOR shows ✔ Reconciled on every bucket, run the migration + backfill for all active orgs (one-by-one, with the existing Reset GL → Backfill button) and watch `tb_reconciliation_log` for drift.
-
----
-
-## 4. Out of scope for this plan
-- Schema redesign of `journal_entries` / `journal_lines` (current schema is sufficient).
-- Tally XML / Vyapar JSON import-export (already partially in `TallyExport.tsx`; verify only after Steps 2–8 land).
-- Bank reconciliation UI changes (separate workstream).
-
----
-
-## 5. Deliverables when implementation starts
-1. `scripts/ella-noor-trial-balance-audit.sql` + `docs/ella-noor-tb-audit-2026-06-18.md` (before/after).
-2. Migrations: `phase_a2_seed_gst_equity_expense_accounts.sql`, `phase_a3_repost_gst_split.sql`, `phase_a4_expense_salary_supplier_payment_gl.sql`.
-3. Code: updated `postSaleJournal`, `postPurchaseJournal`, new `postExpenseJournal`, `postSalaryJournal`, `postSupplierPaymentJournal`, expense-category map, opening-balance writer.
-4. New `AccountingReconciliation.tsx` page + nightly `tb_reconciliation_log`.
-5. Updated cutover runbook `docs/accounting-tally-v2-cutover.md` with Steps 2–10.
-
-Approve this and I'll start with Step 1 (audit SQL + before-state report) so we have a measurable baseline before touching any journal logic.
+Do you want me to **hard-delete** the bills (gone forever, products/variants pruned as above) or **soft-delete** them into the Recycle Bin (stock reversed, but bills and products remain restorable)? My plan above assumes hard-delete because you said "delete with stock & product master".

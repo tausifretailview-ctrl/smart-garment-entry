@@ -753,6 +753,17 @@ const PurchaseBillDashboard = () => {
       setStockDependencies(dependencies);
       setShowDependencyWarning(true);
     }
+
+    // Large bills (many line items) can exceed the 60-second DB statement
+    // timeout during stock reversal. Warn the user up front so a timeout
+    // isn't read as "delete not allowed".
+    const lineCount = bill.purchase_items?.[0]?.count ?? 0;
+    if (lineCount > 1500) {
+      toast({
+        title: "Large bill",
+        description: `This bill has ${lineCount.toLocaleString("en-IN")} line items. Deletion may take up to a minute and can occasionally time out — if it fails, please retry or contact support.`,
+      });
+    }
   };
 
   const handleDeleteConfirm = async () => {
