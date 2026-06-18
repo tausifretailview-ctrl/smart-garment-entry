@@ -228,6 +228,21 @@ const POSDashboard = () => {
   const { hasSpecialPermission } = useUserPermissions();
   const mobileERP = useMobileERP();
   const showFinancerOnExpand = mobileERP.enabled && mobileERP.financer_billing;
+  const { canModify: canModifyEntry } = useEntryOwnership();
+  const orgUserEmailById = useMemo(() => {
+    const m = new Map<string, string>();
+    (orgUsers || []).forEach((u: any) => { if (u?.id) m.set(u.id, u.email || ""); });
+    return m;
+  }, [orgUsers]);
+  const creatorLabel = useCallback(
+    (createdBy?: string | null) => {
+      if (!createdBy) return undefined;
+      const email = orgUserEmailById.get(createdBy);
+      if (!email) return undefined;
+      return email.split("@")[0] || email;
+    },
+    [orgUserEmailById],
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   // Default to today's date
