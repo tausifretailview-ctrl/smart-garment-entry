@@ -803,7 +803,7 @@ export default function SaleOrderEntry() {
     setLineItems(updatedItems);
     
     if (addedCount > 0) {
-      toast({ title: "Products Added", description: `${addedCount} size(s) added to order` });
+      toast({ title: "Products Added", description: `${addedCount} line(s) added to order` });
     }
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
@@ -1554,7 +1554,7 @@ export default function SaleOrderEntry() {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 shrink-0 rounded-lg border border-black/15 bg-white px-3 py-1.5">
             <span className={`text-sm font-bold ${entryMode === "grid" ? "text-black" : "text-black/50"}`}>
-              Size Grid
+              Color & Size Grid
             </span>
             <Switch
               checked={entryMode === "inline"}
@@ -2119,7 +2119,9 @@ export default function SaleOrderEntry() {
         onConfirm={handleSizeGridConfirm}
         showStock={true}
         validateStock={false}
-        title="Enter Size-wise Qty"
+        allowMultiColor={true}
+        showSizePrices={false}
+        title="Enter Color & Size-wise Qty"
       />
 
 
