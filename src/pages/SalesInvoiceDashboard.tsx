@@ -83,6 +83,7 @@ import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { formatDistanceToNow } from "date-fns";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
