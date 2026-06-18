@@ -20,11 +20,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink, RefreshCw, BookText, Landmark, BarChart3, Table2, Users, Info, ShieldCheck, FileText, CheckCircle2, Receipt, ChevronDown
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -55,7 +56,6 @@ import {
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { AccountingReportKpiCards, type AccountingKpiItem } from "@/components/accounting/AccountingReportKpiCards";
 import { AccountingReportTable } from "@/components/accounting/AccountingReportTable";
-import { accountsHistoryCardClass } from "@/components/accounts/accountsHistoryUi";
 import { AccountingEntriesGuide } from "@/components/accounting/AccountingEntriesGuide";
 import { cn } from "@/lib/utils";
 import { groupGlTrialBalance } from "@/utils/accounting/tallyAccountGroups";
@@ -252,6 +252,7 @@ export default function AccountingReports() {
   const [glLedgerRows, setGlLedgerRows] = useState<GlAccountLedgerRow[]>([]);
   const [glLedgerLoading, setGlLedgerLoading] = useState(false);
   const [glLedgerPartyId, setGlLedgerPartyId] = useState<string>("all");
+  const [guideSectionExpanded, setGuideSectionExpanded] = useState(false);
 
   const accountingReportsFilterSnapshot = useMemo(
     () => ({
@@ -853,21 +854,35 @@ export default function AccountingReports() {
     </TableRow>
   );
 
+  const accountingToolLinks = useMemo(
+    () => [
+      { to: getOrgPath("/tally-export"), icon: FileSpreadsheet, label: "Tally export", sub: "Excel worksheets" },
+      { to: journalVouchersHref, icon: BookText, label: "Journal vouchers", sub: "Day book & GL lines" },
+      { to: getOrgPath("/chart-of-accounts"), icon: Landmark, label: "Chart of accounts", sub: "Ledger masters" },
+      { to: getOrgPath("/manual-journal"), icon: BookText, label: "Manual journal", sub: "Contra & adjustments" },
+      { to: getOrgPath("/ledger-opening-balances"), icon: Scale, label: "Opening balances", sub: "B/F ledgers" },
+      { to: getOrgPath("/daily-tally"), icon: Wallet, label: "Daily cash tally", sub: "Drawer vs expected" },
+      { to: getOrgPath("/customer-account-statement"), icon: Users, label: "Customer statement", sub: "Invoices & receipts" },
+      { to: getOrgPath("/customer-account-statement-audit"), icon: FileText, label: "Statement (audit)", sub: "Register view" },
+      { to: getOrgPath("/customer-audit-report"), icon: ShieldCheck, label: "Customer audit", sub: "Outstanding check" },
+      { to: getOrgPath("/gst-reports"), icon: Calculator, label: "GST reports", sub: "Returns & summaries" },
+    ],
+    [getOrgPath, journalVouchersHref],
+  );
+
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-8 print:bg-white print:p-0">
-      <div className="space-y-4 print:space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2 text-blue-700">
-            <Calculator className="h-6 w-6" />
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-slate-50 print:bg-white print:overflow-visible">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-3 sm:px-4 py-2 border-b border-slate-200 bg-white print:hidden">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold flex items-center gap-2 text-blue-700">
+            <Calculator className="h-5 w-5 shrink-0" />
             Accounting Reports
           </h1>
-          <p className="text-muted-foreground max-w-2xl">
-            GL tabs (trial balance, P&amp;L, balance sheet) follow posted journals and Tally account groups. Use operational
-            tabs only when you need invoice-level stock and sales views.
+          <p className="text-sm text-muted-foreground mt-0.5">
+            GL trial balance, P&amp;L, balance sheet, and reconciliation tools
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -888,132 +903,51 @@ export default function AccountingReports() {
         </div>
       </div>
 
-      <Alert className="print:hidden border-amber-200/80 bg-amber-50/60 rounded-xl">
-        <Info className="h-4 w-4 text-amber-700" />
-        <AlertTitle className="text-sm text-amber-900">Audit before sign-off</AlertTitle>
-        <AlertDescription className="text-xs text-amber-900/90 space-y-1">
-          <p>
-            Operational tabs use live invoices, stock, expenses, and salaries (sales <code className="text-[10px]">net_amount</code> includes discounts, round-off, and other charges). GL tabs use posted journals only—compare both for the same date.
-          </p>
-          <p className="opacity-90">
-            Receivables match Customer Ledger snapshot. Trial balance omits duplicate purchase debits (stock is on the balance sheet).
-          </p>
-        </AlertDescription>
-      </Alert>
+      <div
+        data-tab-scroll
+        className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable px-3 sm:px-4 py-3 pb-4 print:overflow-visible"
+      >
+      <div className="space-y-4 print:space-y-6 max-w-[1600px] mx-auto w-full">
 
-      <AccountingEntriesGuide />
-
-      <Card className={cn("print:hidden shadow-sm rounded-xl border-slate-200", accountsHistoryCardClass)}>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
-            <Table2 className="h-5 w-5" />
-            Tally and reconcile your accounts
-          </CardTitle>
-          <CardDescription>
-            Operational tabs (Trial Balance, P&L, Balance Sheet) summarise transactions and stock. GL tabs follow posted
-            journals when the accounting engine is on. Use the links below with your reports to match Tally ledgers, the day
-            book, and customer balances.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/tally-export")} className="gap-1.5 inline-flex items-center">
-                <FileSpreadsheet className="h-4 w-4" />
-                Tally export (Excel)
+      <section className="print:hidden">
+        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-3">
+          <Table2 className="h-5 w-5 text-blue-600" />
+          Tally &amp; reconcile
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {accountingToolLinks.map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <Link
+                key={tool.to}
+                to={tool.to}
+                className={cn(
+                  "flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 py-3.5",
+                  "hover:border-blue-300 hover:shadow-md transition-all min-h-[5.5rem]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                )}
+              >
+                <Icon className="h-5 w-5 text-blue-600 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-sm sm:text-base font-semibold text-slate-900 leading-snug block">
+                    {tool.label}
+                  </span>
+                  {tool.sub && (
+                    <span className="text-sm text-muted-foreground leading-snug block mt-0.5">{tool.sub}</span>
+                  )}
+                </div>
               </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={journalVouchersHref} className="gap-1.5 inline-flex items-center">
-                <BookText className="h-4 w-4" />
-                Journal vouchers
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/chart-of-accounts")} className="gap-1.5 inline-flex items-center">
-                <Landmark className="h-4 w-4" />
-                Chart of accounts
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/manual-journal")} className="gap-1.5 inline-flex items-center">
-                <BookText className="h-4 w-4" />
-                Manual journal / contra
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/ledger-opening-balances")} className="gap-1.5 inline-flex items-center">
-                <Scale className="h-4 w-4" />
-                Opening balances
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/daily-tally")} className="gap-1.5 inline-flex items-center">
-                <Wallet className="h-4 w-4" />
-                Daily cash tally
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/customer-account-statement")} className="gap-1.5 inline-flex items-center">
-                <Users className="h-4 w-4" />
-                Customer account statement
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/customer-account-statement-audit")} className="gap-1.5 inline-flex items-center">
-                <FileText className="h-4 w-4" />
-                Account statement (audit)
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/customer-audit-report")} className="gap-1.5 inline-flex items-center">
-                <ShieldCheck className="h-4 w-4" />
-                Customer audit report
-              </Link>
-            </Button>
-            <Button variant="secondary" size="sm" asChild>
-              <Link to={getOrgPath("/gst-reports")} className="gap-1.5 inline-flex items-center">
-                <Calculator className="h-4 w-4" />
-                GST reports
-              </Link>
-            </Button>
-          </div>
-          <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1.5 max-w-3xl">
-            <li>
-              <span className="font-medium text-foreground">Tally export</span> builds ledger masters and voucher-style
-              worksheets (sales, purchases, receipts, payments) for the period you choose there—ideal for import or manual
-              posting in Tally.
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Journal vouchers</span> lists every auto-posted double entry;
-              open an account from the GL Trial tab (Lines) to trace balances, then cross-check here for the same dates.
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Customer account statement</span> ties receivables to invoices
-              and receipts—use it when operational AR does not match a debtor ledger in Tally.
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Account statement (audit)</span> uses the same register as the
-              Customer Audit Report—use it beside the classic Customer Ledger to compare closing balances.
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Customer audit report</span> recalculates outstanding without
-              double-counting advance-application receipts—use it to verify the account statement.
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Daily cash tally</span> records physical cash vs expected drawer
-              cash; pair it with the GL cash/bank bucket (codes 1000–1099) on the GL Trial tab.
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
+            );
+          })}
+        </div>
+      </section>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 flex-1 flex flex-col min-h-0">
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden print:hidden space-y-0">
         <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/60">
-          <p className="text-xs text-muted-foreground">Posted GL reports (Tally-style)</p>
+          <p className="text-sm text-muted-foreground">Posted GL reports (Tally-style)</p>
           <div className="flex items-center gap-2">
-            <Label htmlFor="legacy-reports-toggle" className="text-xs text-muted-foreground whitespace-nowrap">
+            <Label htmlFor="legacy-reports-toggle" className="text-sm text-muted-foreground whitespace-nowrap">
               Show operational tabs
             </Label>
             <Switch
@@ -2156,6 +2090,85 @@ export default function AccountingReports() {
         </TabsContent>
         </div>
       </Tabs>
+
+      <Collapsible
+        open={guideSectionExpanded}
+        onOpenChange={setGuideSectionExpanded}
+        className="print:hidden group/guide-section"
+      >
+        <Card className="shadow-sm rounded-xl border-slate-200 border-dashed">
+          <CollapsibleTrigger className="w-full text-left">
+            <CardHeader className="py-3 px-4 flex flex-row items-center justify-between gap-3">
+              <div className="min-w-0">
+                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-800">
+                  <Info className="h-4 w-4 text-blue-600 shrink-0" />
+                  How accounting reports work
+                </CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  Audit guidance, operational vs GL tabs, and how entries are built
+                </CardDescription>
+              </div>
+              <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/guide-section:rotate-180" />
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 px-4 pb-4 space-y-4">
+              <p className="text-sm text-muted-foreground">
+                GL tabs (trial balance, P&amp;L, balance sheet) follow posted journals and Tally account groups. Use
+                operational tabs only when you need invoice-level stock and sales views.
+              </p>
+
+              <Alert className="border-amber-200/80 bg-amber-50/60 rounded-xl">
+                <Info className="h-4 w-4 text-amber-700" />
+                <AlertTitle className="text-sm text-amber-900">Audit before sign-off</AlertTitle>
+                <AlertDescription className="text-sm text-amber-900/90 space-y-1">
+                  <p>
+                    Operational tabs use live invoices, stock, expenses, and salaries (sales{" "}
+                    <code className="text-xs">net_amount</code> includes discounts, round-off, and other charges). GL tabs
+                    use posted journals only—compare both for the same date.
+                  </p>
+                  <p className="opacity-90">
+                    Receivables match Customer Ledger snapshot. Trial balance omits duplicate purchase debits (stock is on
+                    the balance sheet).
+                  </p>
+                </AlertDescription>
+              </Alert>
+
+              <AccountingEntriesGuide />
+
+              <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-2 max-w-3xl">
+                <li>
+                  <span className="font-medium text-foreground">Tally export</span> builds ledger masters and voucher-style
+                  worksheets (sales, purchases, receipts, payments) for the period you choose there—ideal for import or manual
+                  posting in Tally.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Journal vouchers</span> lists every auto-posted double entry;
+                  open an account from the GL Trial tab (Lines) to trace balances, then cross-check here for the same dates.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Customer account statement</span> ties receivables to invoices
+                  and receipts—use it when operational AR does not match a debtor ledger in Tally.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Account statement (audit)</span> uses the same register as the
+                  Customer Audit Report—use it beside the classic Customer Ledger to compare closing balances.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Customer audit report</span> recalculates outstanding without
+                  double-counting advance-application receipts—use it to verify the account statement.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Daily cash tally</span> records physical cash vs expected drawer
+                  cash; pair it with the GL cash/bank bucket (codes 1000–1099) on the GL Trial tab.
+                </li>
+              </ul>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      </div>
       </div>
 
       <Sheet
