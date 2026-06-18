@@ -112,8 +112,86 @@ export async function fetchOrganizationReceivablesSummary(
   client: SupabaseClient = supabase,
 ): Promise<OrganizationReceivablesSummary> {
   if (!organizationId) return { ...EMPTY_SUMMARY };
-  const rows = await fetchOrganizationReceivableRows(organizationId, client);
-  return summarizeReceivableRows(rows);
+  // Fast set-based RPC — does not touch the per-customer plpgsql function so it
+  // does not time out on large orgs (e.g. ELLA NOOR with 2,000+ active customers).
+  const { data, error } = await (client.rpc as any)(
+    "get_organization_receivables_summary",
+    { p_organization_id: organizationId },
+  );
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        customer_count: number | null;
+        customers_owing: number | null;
+        customers_in_credit: number | null;
+        gross_receivable_dr: number | null;
+        customer_credit_pool_cr: number | null;
+        net_receivable: number | null;
+        advance_available: number | null;
+      }
+    | undefined;
+  if (!row) return { ...EMPTY_SUMMARY };
+  return {
+    customerCount: Number(row.customer_count ?? 0),
+    customersOwing: Number(row.customers_owing ?? 0),
+    customersInCredit: Number(row.customers_in_credit ?? 0),
+    grossReceivableDr: Math.round(Number(row.gross_receivable_dr ?? 0)),
+    customerCreditPoolCr: Math.round(Number(row.customer_credit_pool_cr ?? 0)),
+    netReceivable: Math.round(Number(row.net_receivable ?? 0)),
+    advanceAvailable: Math.round(Number(row.advance_available ?? 0) * 100) / 100,
+  };
 }
 
 export const ORGANIZATION_RECEIVABLES_QUERY_KEY = "organization-receivables";
+
+export type OrganizationSupplierPayableSummary = {
+  supplierCount: number;
+  openBills: number;
+  paidViaBill: number;
+  paidViaVouchers: number;
+  creditNotes: number;
+  netOutstanding: number;
+};
+
+const EMPTY_SUPPLIER_SUMMARY: OrganizationSupplierPayableSummary = {
+  supplierCount: 0,
+  openBills: 0,
+  paidViaBill: 0,
+  paidViaVouchers: 0,
+  creditNotes: 0,
+  netOutstanding: 0,
+};
+
+/** Net supplier payable: open bills − paid (inline + vouchers) − credit notes. */
+export async function fetchOrganizationSupplierPayableSummary(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+): Promise<OrganizationSupplierPayableSummary> {
+  if (!organizationId) return { ...EMPTY_SUPPLIER_SUMMARY };
+  const { data, error } = await (client.rpc as any)(
+    "get_organization_supplier_payable_summary",
+    { p_organization_id: organizationId },
+  );
+  if (error) throw error;
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        supplier_count: number | null;
+        open_bills: number | null;
+        paid_via_bill: number | null;
+        paid_via_vouchers: number | null;
+        credit_notes: number | null;
+        net_outstanding: number | null;
+      }
+    | undefined;
+  if (!row) return { ...EMPTY_SUPPLIER_SUMMARY };
+  return {
+    supplierCount: Number(row.supplier_count ?? 0),
+    openBills: Math.round(Number(row.open_bills ?? 0)),
+    paidViaBill: Math.round(Number(row.paid_via_bill ?? 0)),
+    paidViaVouchers: Math.round(Number(row.paid_via_vouchers ?? 0)),
+    creditNotes: Math.round(Number(row.credit_notes ?? 0)),
+    netOutstanding: Math.round(Number(row.net_outstanding ?? 0)),
+  };
+}
+
+export const ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY = "organization-supplier-payable";
