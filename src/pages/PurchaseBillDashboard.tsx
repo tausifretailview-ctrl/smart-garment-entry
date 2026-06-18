@@ -733,6 +733,7 @@ const PurchaseBillDashboard = () => {
   const { hasSpecialPermission } = useUserPermissions();
   const canDelete = hasSpecialPermission('delete_records');
   const canCancel = hasSpecialPermission('cancel_invoice');
+  const { canModify: canModifyEntry } = useEntryOwnership();
 
   const handleDeleteClick = async (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
