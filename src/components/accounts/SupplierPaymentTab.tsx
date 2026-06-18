@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Printer, Check, ChevronsUpDown, X, AlertCircle, Pencil, Trash2, ChevronLeft, ChevronRight, Link2, TrendingDown } from "lucide-react";
+import { CalendarIcon, Plus, Printer, Check, ChevronsUpDown, ChevronDown, X, AlertCircle, Pencil, Trash2, ChevronLeft, ChevronRight, Link2, TrendingDown } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +123,7 @@ export function SupplierPaymentTab({
   const [discountPercent, setDiscountPercent] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [discountReason, setDiscountReason] = useState("");
+  const [showDiscountOptions, setShowDiscountOptions] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [chequeNumber, setChequeNumber] = useState("");
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
@@ -361,6 +362,7 @@ export function SupplierPaymentTab({
     setDiscountPercent("");
     setDiscountAmount("");
     setDiscountReason("");
+    setShowDiscountOptions(false);
     setPaymentMethod("cash");
     setChequeNumber("");
     setChequeDate(undefined);
@@ -742,6 +744,28 @@ export function SupplierPaymentTab({
 
   const paymentBreakdown = resolvePaymentBreakdown(amount, discountPercent, discountAmount);
 
+  const billGridMaxHeight = useMemo(() => {
+    const count = payableBills.length;
+    if (count === 0) return undefined;
+    const headerPx = 44;
+    const rowPx = 36;
+    const contentPx = headerPx + count * rowPx;
+    const capPx = embedded ? 420 : 480;
+    const vhCapPx =
+      typeof window !== "undefined"
+        ? embedded
+          ? Math.round(window.innerHeight * 0.48)
+          : Math.round(window.innerHeight * 0.55)
+        : capPx;
+    return Math.min(Math.max(contentPx, 200), capPx, vhCapPx);
+  }, [payableBills.length, embedded]);
+
+  useEffect(() => {
+    if (discountPercent || discountAmount || discountReason || paymentBreakdown.discount > 0) {
+      setShowDiscountOptions(true);
+    }
+  }, [discountPercent, discountAmount, discountReason, paymentBreakdown.discount]);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -915,7 +939,10 @@ export function SupplierPaymentTab({
                   )}
                 </div>
                 {payableBills.length > 0 ? (
-                  <div className="border rounded-lg max-h-[250px] overflow-y-auto">
+                  <div
+                    className="border rounded-lg overflow-y-auto overflow-x-auto"
+                    style={billGridMaxHeight ? { maxHeight: billGridMaxHeight } : undefined}
+                  >
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
@@ -1048,18 +1075,38 @@ export function SupplierPaymentTab({
                   />
                   {selectedSupplierBillIds.length > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Total against selected bill(s). Add discount % below to calculate cash paid.
+                      Total against selected bill(s). Use &quot;Discount&quot; below if applying settlement discount.
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
-                <div className="flex items-center gap-2 text-foreground">
-                  <TrendingDown className="h-4 w-4" />
-                  <span className="text-sm font-medium">Discount (optional)</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscountOptions((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-slate-100/80 dark:hover:bg-slate-800/50 transition-colors"
+                  aria-expanded={showDiscountOptions}
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <TrendingDown className="h-4 w-4 shrink-0" />
+                    Discount (optional)
+                    {paymentBreakdown.discount > 0 && (
+                      <Badge variant="secondary" className="text-xs font-normal tabular-nums">
+                        −₹{paymentBreakdown.discount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </Badge>
+                    )}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                      showDiscountOptions && "rotate-180",
+                    )}
+                  />
+                </button>
+                {showDiscountOptions && (
+                <div className="px-3 pb-3 pt-1 space-y-4 border-t border-slate-200 dark:border-slate-700">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                   <div className="space-y-2">
                     <Label>Discount %</Label>
                     <Input
@@ -1143,6 +1190,8 @@ export function SupplierPaymentTab({
                       </span>
                     </div>
                   </div>
+                )}
+                </div>
                 )}
               </div>
             </div>
