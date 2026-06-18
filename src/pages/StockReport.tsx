@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
+import type { ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
@@ -79,14 +79,19 @@ interface SizeWiseRow {
 const STOCK_TABLE_HEAD =
   "sticky top-0 z-20 !bg-transparent [&_tr]:!bg-transparent [&_tr]:border-slate-200";
 const STOCK_NEUTRAL_TH =
-  "text-sm font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal";
-const STOCK_TABLE_SCROLL = "max-h-[min(calc(100vh-300px),720px)] overflow-auto overscroll-contain min-w-0";
-/** Pinned footer row — matches body column alignment, sits above pagination */
+  "text-xs font-semibold whitespace-nowrap bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 normal-case tracking-normal px-2 py-1.5 shadow-[0_1px_0_0_rgba(0,0,0,0.06)]";
+/** Single vertical scroll — header sticky top, footer sticky bottom inside this box */
+const STOCK_TABLE_SCROLL =
+  "max-h-[calc(100vh-11rem)] overflow-auto overscroll-contain min-w-0";
 const STOCK_TABLE_FOOTER =
-  "sticky bottom-0 z-10 border-t-2 border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 [&>tr]:border-0 [&>tr]:hover:bg-transparent";
-const STOCK_FOOTER_CELL = "py-2.5 align-middle text-sm font-bold tabular-nums whitespace-nowrap";
+  "sticky bottom-0 z-20 border-t-2 border-slate-400 dark:border-slate-500 bg-slate-200 dark:bg-slate-700 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.12)] [&>tr]:border-0 [&>tr]:hover:bg-transparent";
+const STOCK_FOOTER_CELL = "py-1.5 px-2 align-middle text-xs font-bold tabular-nums whitespace-nowrap";
+const STOCK_DATA_CELL = "py-1.5 px-2 align-middle text-xs whitespace-nowrap tabular-nums";
+const STOCK_DATA_CELL_CENTER = "py-1.5 px-2 align-middle text-xs text-center tabular-nums";
+const SIZEWISE_DATA_CELL =
+  "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1.5 align-middle text-xs tabular-nums";
 const SIZEWISE_FOOTER_CELL =
-  "text-center min-w-[50px] md:min-w-[60px] px-3 py-2.5 align-middle text-sm md:text-base font-bold tabular-nums";
+  "text-center min-w-[44px] md:min-w-[52px] px-1.5 py-1.5 align-middle text-xs font-bold tabular-nums";
 
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
@@ -1532,6 +1537,31 @@ export default function StockReport() {
     totalSaleValue,
   ]);
 
+  const compactStockKpiStrip = (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 print:hidden">
+      {stockKpiItems.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.label}
+            className={cn("rounded-lg px-3 py-2 flex items-center gap-2.5 min-w-0 shadow-sm", item.gradient)}
+          >
+            <div className="w-8 h-8 bg-white/20 rounded-md flex items-center justify-center shrink-0">
+              <Icon className="h-4 w-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-white/85 leading-none truncate">{item.label}</p>
+              <p className="text-base font-bold text-white tabular-nums leading-tight truncate">{item.value}</p>
+              {item.sub ? (
+                <p className="text-[10px] text-white/70 truncate leading-tight mt-0.5">{item.sub}</p>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   if (isMobile) {
     return (
       <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
@@ -1561,7 +1591,7 @@ export default function StockReport() {
 
         <div className="flex-1 px-4 py-2 space-y-2">
           {!hasSearched ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Search className="h-12 w-12 mb-3 opacity-30" />
               <p className="text-sm font-medium">{searchTerm.length > 0 ? 'Tap Search to view results' : 'Search to view stock items'}</p>
               <p className="text-xs mt-1">Enter barcode, product name or brand</p>
@@ -1574,7 +1604,7 @@ export default function StockReport() {
               <div key={i} className="h-16 bg-card rounded-2xl animate-pulse" />
             ))
           ) : filteredStockItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Package className="h-12 w-12 mb-3 opacity-30" />
               <p className="text-sm font-medium">No stock items found</p>
             </div>
@@ -1612,24 +1642,24 @@ export default function StockReport() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-3 pb-24 lg:pb-16 print:bg-white print:p-4">
-      <div className="w-full min-w-0 max-w-none space-y-3 print:space-y-3">
+    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-2 pb-20 lg:pb-12 print:bg-white print:p-4">
+      <div className="w-full min-w-0 max-w-none space-y-2 print:space-y-3">
       <div className="print:hidden">
         <BackToDashboard />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div>
-          <h1 className="text-2xl font-extrabold text-blue-600 tracking-tight leading-tight">
+          <h1 className="text-xl font-bold text-blue-600 tracking-tight leading-tight">
             Stock Report
           </h1>
-          <p className="text-slate-400 text-sm">
-            Search · filter · export — all stock, size-wise, and valuations
+          <p className="text-slate-500 text-xs">
+            Search · filter · export
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
-            className="h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 gap-2"
+            className="h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-2"
             onClick={() => window.print()}
             disabled={!hasSearched || filteredStockItems.length === 0}
           >
@@ -1638,7 +1668,7 @@ export default function StockReport() {
           </Button>
           <Button
             variant="outline"
-            className="h-10 text-base border-slate-300 text-slate-600 hover:bg-slate-100 gap-2"
+            className="h-9 text-sm border-slate-300 text-slate-600 hover:bg-slate-100 gap-2"
             onClick={() => {
               if (hasSearched && filteredStockItems.length > 0) {
                 activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel();
@@ -1654,10 +1684,10 @@ export default function StockReport() {
         </div>
       </div>
 
-      <ReportKpiCards items={stockKpiItems} />
+      {compactStockKpiStrip}
 
       <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden print:hidden">
-        <div className="space-y-2.5 p-3 border-b border-slate-100 bg-white">
+        <div className="space-y-2 p-2.5 border-b border-slate-100 bg-white">
         <div className="flex gap-2 items-center">
           <ProductSearchDropdown
             value={searchTerm}
@@ -1675,12 +1705,12 @@ export default function StockReport() {
             placeholder="Search name, brand, category, style or barcode..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-10 px-6 text-base font-semibold bg-blue-600 hover:bg-blue-700 shadow-md gap-2">
+          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-9 px-5 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-2">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Search
           </Button>
           {(hasActiveFilters || pinnedProducts.length > 0) && (
-            <Button variant="ghost" onClick={() => { clearFilters(); setPinnedProducts([]); }} className="h-11">
+            <Button variant="ghost" onClick={() => { clearFilters(); setPinnedProducts([]); }} className="h-9 text-sm">
               Clear All
             </Button>
           )}
@@ -1765,7 +1795,7 @@ export default function StockReport() {
           <div className="space-y-1">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Stock Status</label>
             <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
-              <SelectTrigger className="h-10 !bg-white !text-gray-900">
+              <SelectTrigger className="h-8 !bg-white !text-gray-900 text-sm">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -1804,26 +1834,26 @@ export default function StockReport() {
       </Card>
 
       {!hasSearched ? (
-        <Card className="py-10 rounded-xl border border-slate-200 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center text-center py-4">
-            <Search className="h-10 w-10 text-muted-foreground/50 mb-3" />
-            <h3 className="text-base font-medium mb-1">Search to View Detailed Stock Report</h3>
-            <p className="text-muted-foreground text-sm max-w-md">
+        <Card className="py-6 rounded-xl border border-slate-200 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center text-center py-2">
+            <Search className="h-8 w-8 text-muted-foreground/50 mb-2" />
+            <h3 className="text-sm font-medium mb-0.5">Search to View Detailed Stock Report</h3>
+            <p className="text-muted-foreground text-xs max-w-md">
               Apply filters or enter a search term, then click Search to view detailed stock data.
             </p>
           </CardContent>
         </Card>
       ) : loading ? (
-        <Card className="py-10 rounded-xl border border-slate-200 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center py-4">
-            <Loader2 className="h-7 w-7 animate-spin text-primary mb-3" />
-            <p className="text-muted-foreground text-sm">Loading stock data...</p>
+        <Card className="py-6 rounded-xl border border-slate-200 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-2">
+            <Loader2 className="h-6 w-6 animate-spin text-primary mb-2" />
+            <p className="text-muted-foreground text-xs">Loading stock data...</p>
           </CardContent>
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-white">
               <TabsList className="h-9 bg-slate-100 p-0.5 rounded-lg">
                 <TabsTrigger value="all" className="rounded-md text-xs font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">
                   All Stock
@@ -1863,10 +1893,8 @@ export default function StockReport() {
 
             <TabsContent value="all" className="mt-0 focus-visible:outline-none">
               <CardContent className="p-0 flex flex-col min-h-0">
-                <div className="overflow-x-auto">
-                  <div className="flex flex-col min-w-max">
-                <div className={cn(STOCK_TABLE_SCROLL, "overflow-x-visible border-b border-slate-100")}>
-                  <Table className="text-[15px]">
+                <div className={cn(STOCK_TABLE_SCROLL, "border-b border-slate-100")}>
+                  <Table className="text-xs border-separate border-spacing-0 min-w-max">
                     <TableHeader className={STOCK_TABLE_HEAD}>
                       <TableRow>
                         <TableHead className={cn("w-16 text-center", STOCK_NEUTRAL_TH)}>Sr No</TableHead>
@@ -1893,66 +1921,66 @@ export default function StockReport() {
                     <TableBody>
                       {paginatedStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={19} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={19} className="text-center text-muted-foreground py-6 text-sm">
                             No products found matching your search
                           </TableCell>
                         </TableRow>
                       ) : (
                         paginatedStockItems.map((item, index) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="text-center font-medium text-muted-foreground py-2.5">
+                          <TableRow key={item.id} className="hover:bg-slate-50/80">
+                            <TableCell className={cn(STOCK_DATA_CELL_CENTER, "font-medium text-muted-foreground")}>
                               {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
                             </TableCell>
-                            <TableCell className="text-muted-foreground py-2.5">{item.supplier_name || '—'}</TableCell>
-                            <TableCell className="font-mono py-2.5">{item.supplier_invoice_no || '—'}</TableCell>
-                            <TableCell className="font-medium py-2.5">{item.product_name}</TableCell>
-                            <TableCell className="py-2.5">{item.brand}</TableCell>
-                            <TableCell className="py-2.5">{item.size}</TableCell>
-                            <TableCell className="py-2.5">{item.color || '—'}</TableCell>
-                            <TableCell className="py-2.5">{item.department || '—'}</TableCell>
-                            <TableCell className="font-mono py-2.5">{item.barcode}</TableCell>
-                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-muted-foreground")}>{item.supplier_name || '—'}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono")}>{item.supplier_invoice_no || '—'}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-medium")}>{item.product_name}</TableCell>
+                            <TableCell className={STOCK_DATA_CELL}>{item.brand}</TableCell>
+                            <TableCell className={STOCK_DATA_CELL}>{item.size}</TableCell>
+                            <TableCell className={STOCK_DATA_CELL}>{item.color || '—'}</TableCell>
+                            <TableCell className={STOCK_DATA_CELL}>{item.department || '—'}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "font-mono")}>{item.barcode}</TableCell>
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-blue-50/80 dark:bg-blue-950/50 font-medium")}>
                               {item.opening_qty}
                             </TableCell>
-                            <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400 py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-green-50/80 dark:bg-green-950/50 font-medium text-green-700 dark:text-green-400")}>
                               +{item.purchase_qty}
                             </TableCell>
-                            <TableCell className="text-right bg-orange-50 dark:bg-orange-950 font-medium text-orange-700 dark:text-orange-400 py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-orange-50/80 dark:bg-orange-950/50 font-medium text-orange-700 dark:text-orange-400")}>
                               {item.purchase_return_qty > 0 ? `-${item.purchase_return_qty}` : '0'}
                             </TableCell>
-                            <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400 py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-red-50/80 dark:bg-red-950/50 font-medium text-red-700 dark:text-red-400")}>
                               {item.sales_qty > 0 ? `-${item.sales_qty}` : '0'}
                             </TableCell>
-                            <TableCell className="text-right bg-emerald-50 dark:bg-emerald-950 font-medium text-emerald-700 dark:text-emerald-400 py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-emerald-50/80 dark:bg-emerald-950/50 font-medium text-emerald-700 dark:text-emerald-400")}>
                               {item.sale_return_qty > 0 ? `+${item.sale_return_qty}` : '0'}
                             </TableCell>
-                            <TableCell className="text-right bg-violet-50 dark:bg-violet-950 font-bold text-violet-800 dark:text-violet-300 py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right bg-violet-50/80 dark:bg-violet-950/50 font-bold text-violet-800 dark:text-violet-300")}>
                               {item.stock_qty}{item.uom && item.uom !== 'NOS' && item.uom !== 'PCS' ? ` ${item.uom}` : ''}
                             </TableCell>
-                            <TableCell className="text-right py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right")}>
                               {item.pur_price ? (
                                 <span>₹{item.pur_price}</span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="text-right font-medium text-primary py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right font-medium text-primary")}>
                               {item.pur_price ? (
                                 <span>₹{(item.pur_price * item.stock_qty).toLocaleString('en-IN')}</span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="text-right py-2.5 whitespace-nowrap tabular-nums">
+                            <TableCell className={cn(STOCK_DATA_CELL, "text-right")}>
                               <span>₹{item.sale_price}</span>
                             </TableCell>
-                            <TableCell className="py-2.5">
+                            <TableCell className={STOCK_DATA_CELL}>
                               {item.stock_qty === 0 ? (
-                                <Badge variant="destructive">Out of Stock</Badge>
+                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5">Out</Badge>
                               ) : item.stock_qty <= lowStockThreshold ? (
-                                <Badge variant="secondary">Low Stock</Badge>
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">Low</Badge>
                               ) : (
-                                <Badge variant="outline">In Stock</Badge>
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">In</Badge>
                               )}
                             </TableCell>
                           </TableRow>
@@ -1962,10 +1990,10 @@ export default function StockReport() {
                     {filteredStockItems.length > 0 && (
                       <TableFooter className={STOCK_TABLE_FOOTER}>
                         <TableRow>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-100 dark:bg-slate-800")} colSpan={9}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-200 dark:bg-slate-700")} colSpan={9}>
                             GRAND TOTAL
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-100")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100")}>
                             {allStockTotals.opening.toLocaleString('en-IN')}
                           </TableCell>
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400")}>
@@ -1983,20 +2011,18 @@ export default function StockReport() {
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300")}>
                             {allStockTotals.currentStock.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-100 dark:bg-slate-800")}>—</TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-primary bg-slate-100 dark:bg-slate-800")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>—</TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-primary bg-slate-200 dark:bg-slate-700")}>
                             ₹{allStockTotals.stockValue.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-100 dark:bg-slate-800")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>
                             ₹{allStockTotals.saleValue.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "bg-slate-100 dark:bg-slate-800")}>—</TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "bg-slate-200 dark:bg-slate-700")}>—</TableCell>
                         </TableRow>
                       </TableFooter>
                     )}
                   </Table>
-                </div>
-                  </div>
                 </div>
 
                   {/* Pagination Controls */}
@@ -2076,14 +2102,14 @@ export default function StockReport() {
 
             <TabsContent value="sizewise" className="mt-0 focus-visible:outline-none">
               <CardContent className="p-0 flex flex-col min-h-0">
-                <div className="px-3 py-2 border-b border-slate-100">
+                <div className="px-3 py-1.5 border-b border-slate-100">
                   <div className="relative max-w-2xl">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search live: type product-category-brand-style-color-size (use - or space)"
                       value={sizeWiseSearch}
                       onChange={(e) => setSizeWiseSearch(e.target.value)}
-                      className="pl-9 h-9"
+                      className="pl-9 h-8 text-sm"
                     />
                   </div>
                   {sizeWiseSearch && (
@@ -2093,18 +2119,16 @@ export default function StockReport() {
                   )}
                 </div>
                 {sizeWiseData.rows.length === 0 ? (
-                  <p className="text-center text-muted-foreground text-sm py-8">No products found matching your filters</p>
+                  <p className="text-center text-muted-foreground text-sm py-6">No products found matching your filters</p>
                 ) : (
                   <>
-                    <div className="md:hidden px-3 py-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="md:hidden px-3 py-1 flex items-center gap-2 text-xs text-muted-foreground">
                       <ChevronLeft className="h-3 w-3" />
                       <span>Swipe to see all sizes</span>
                       <ChevronRight className="h-3 w-3" />
                     </div>
-                    <div className="overflow-x-auto scroll-smooth snap-x snap-mandatory md:snap-none">
-                      <div className="flex flex-col min-w-max">
-                        <div className={cn(STOCK_TABLE_SCROLL, "overflow-x-visible border-b border-slate-100")}>
-                        <Table className="min-w-max text-[15px]">
+                    <div className={cn(STOCK_TABLE_SCROLL, "border-b border-slate-100 scroll-smooth snap-x snap-mandatory md:snap-none")}>
+                        <Table className="min-w-max text-xs border-separate border-spacing-0">
                           <TableHeader className={STOCK_TABLE_HEAD}>
                             <TableRow>
                               <TableHead className={cn("min-w-[180px] md:min-w-[250px] sticky left-0 z-10", STOCK_NEUTRAL_TH)}>Product</TableHead>
@@ -2128,21 +2152,21 @@ export default function StockReport() {
                           </TableHeader>
                           <TableBody>
                             {sizeWiseData.rows.map((row, index) => (
-                              <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
-                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[180px] md:min-w-[250px] py-2.5 align-top">
-                                  <div className="flex flex-col">
-                                    <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none font-bold">{row.productName}</span>
+                              <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm min-w-[160px] md:min-w-[220px] py-1.5 px-2 align-top">
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="text-xs font-semibold truncate max-w-[150px] md:max-w-none">{row.productName}</span>
                                     {(row.brand || row.color) && (
-                                      <span className="text-xs text-muted-foreground truncate max-w-[220px] md:max-w-none">
-                                        <span className="font-semibold">Brand:</span> {row.brand || '-'}
-                                        {row.color && <> · <span className="font-semibold">Color:</span> {row.color}</>}
+                                      <span className="text-[11px] text-muted-foreground truncate max-w-[200px] md:max-w-none">
+                                        <span className="font-medium">Brand:</span> {row.brand || '-'}
+                                        {row.color && <> · <span className="font-medium">Color:</span> {row.color}</>}
                                       </span>
                                     )}
                                     {(row.category || row.department) && (
-                                      <span className="text-xs text-muted-foreground/80 truncate max-w-[220px] md:max-w-none">
-                                        {row.category && <><span className="font-semibold">Category:</span> {row.category}</>}
+                                      <span className="text-[11px] text-muted-foreground/80 truncate max-w-[200px] md:max-w-none">
+                                        {row.category && <><span className="font-medium">Cat:</span> {row.category}</>}
                                         {row.category && row.department && ' · '}
-                                        {row.department && <><span className="font-semibold">Style:</span> {row.department}</>}
+                                        {row.department && <><span className="font-medium">Style:</span> {row.department}</>}
                                       </span>
                                     )}
                                   </div>
@@ -2153,27 +2177,27 @@ export default function StockReport() {
                                     <TableCell
                                       key={size}
                                       className={cn(
-                                        SIZEWISE_FOOTER_CELL,
-                                        "font-medium",
+                                        SIZEWISE_DATA_CELL,
+                                        "font-medium snap-start",
                                         qty === 0
                                           ? "text-muted-foreground/50 bg-transparent"
-                                          : "text-foreground bg-green-100 dark:bg-green-900/40",
+                                          : "text-foreground bg-green-50/80 dark:bg-green-900/30",
                                       )}
                                     >
                                       {qty}
                                     </TableCell>
                                   );
                                 })}
-                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm min-w-[60px] md:min-w-[80px] px-3 py-2.5 tabular-nums">
+                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm min-w-[52px] md:min-w-[64px] px-2 py-1.5 text-xs tabular-nums">
                                   {row.totalStock}
                                 </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
                           {sizeWiseData.rows.length > 0 && (
-                            <TableFooter className="sticky bottom-0 z-10 border-t-2 border-amber-300 dark:border-amber-800 bg-amber-50/95 dark:bg-amber-950/40 [&>tr]:border-0 [&>tr]:hover:bg-transparent">
+                            <TableFooter className={STOCK_TABLE_FOOTER}>
                               <TableRow>
-                                <TableCell className="text-destructive font-bold sticky left-0 z-10 bg-amber-50/95 dark:bg-amber-950/40 min-w-[180px] md:min-w-[250px] px-5 py-2.5 align-middle">
+                                <TableCell className="text-destructive font-bold sticky left-0 z-10 bg-slate-200 dark:bg-slate-700 min-w-[160px] md:min-w-[220px] px-2 py-1.5 align-middle text-xs">
                                   Total Stock
                                 </TableCell>
                                 {sizeWiseData.sizes.map(size => (
@@ -2181,21 +2205,19 @@ export default function StockReport() {
                                     key={size}
                                     className={cn(
                                       SIZEWISE_FOOTER_CELL,
-                                      "text-destructive bg-amber-50/95 dark:bg-amber-950/40",
+                                      "text-destructive bg-slate-200 dark:bg-slate-700",
                                     )}
                                   >
                                     {sizeWiseTotals.sizeTotals[size] || 0}
                                   </TableCell>
                                 ))}
-                                <TableCell className="text-center font-bold text-destructive bg-amber-100 dark:bg-amber-900/50 sticky right-0 backdrop-blur-sm min-w-[60px] md:min-w-[80px] px-3 py-2.5 tabular-nums">
+                                <TableCell className="text-center font-bold text-destructive bg-slate-300 dark:bg-slate-600 sticky right-0 backdrop-blur-sm min-w-[52px] md:min-w-[64px] px-2 py-1.5 text-xs tabular-nums">
                                   {sizeWiseTotals.grandTotal}
                                 </TableCell>
                               </TableRow>
                             </TableFooter>
                           )}
                         </Table>
-                      </div>
-                      </div>
                     </div>
                     </>
                   )}
