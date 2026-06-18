@@ -61,6 +61,7 @@ import {
   getPurchaseBillPendingAmount,
 } from "@/utils/purchaseBillSettlement";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { fetchPurchaseDashboardSummary } from "@/utils/purchaseDashboardSummary";
 import {
