@@ -424,7 +424,17 @@ const SalesmanCustomerAccount = () => {
     const totalOutstanding = ledgerOutstanding;
     const openingBal = customer.opening_balance || 0;
     const billWisePending = Math.round(totalOutstanding - openingBal);
-    const invoiceLines = pendingInvoices
+    // Reconcile per-invoice balances against the true bill-wise pending so the
+    // listed invoices always sum to the Total Outstanding line. Absorbs any
+    // over-applied receipts (posted to already-closed invoices) FIFO into the
+    // oldest open invoices.
+    const { reconcileBillWisePending } = await import('@/utils/reconcileBillWisePending');
+    const { invoices: reconciledPending, excessAbsorbed, hadExcess } =
+      reconcileBillWisePending(pendingInvoices, billWisePending);
+
+    if (reconciledPending.length === 0) return;
+
+    const invoiceLines = reconciledPending
       .map(inv =>
         `• ${inv.sale_number} (${format(new Date(inv.sale_date), 'dd MMM')})` +
         ` — ₹${Math.round(inv.balance).toLocaleString('en-IN')}` +
@@ -439,7 +449,7 @@ const SalesmanCustomerAccount = () => {
     const message =
       `🔔 *Outstanding Invoice Reminder*\n\n` +
       `Dear *${customer.customer_name}*,\n\n` +
-      `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
+      `You have *${reconciledPending.length} pending invoice${reconciledPending.length > 1 ? 's' : ''}*:\n\n` +
       `${invoiceLines}\n\n` +
       `────────────────${openingLine}\n` +
       `*Total Outstanding: ₹${Math.round(totalOutstanding).toLocaleString('en-IN')}*\n\n` +
@@ -447,6 +457,18 @@ const SalesmanCustomerAccount = () => {
       `Thank you for your business! 🙏`;
 
     await sendWhatsApp(customer.phone, message);
+
+    if (hadExcess) {
+      // Non-blocking notice so the operator knows to clean up the source
+      // receipts that were posted to already-closed invoices.
+      try {
+        const { toast } = await import('sonner');
+        toast.message(
+          `₹${excessAbsorbed.toLocaleString('en-IN')} of unallocated credit was absorbed against the oldest open invoices for this reminder. Reassign those receipts from the History dialog to fix the underlying records.`,
+          { duration: 8000 },
+        );
+      } catch { /* ignore */ }
+    }
   };
 
   if (loading) {
