@@ -36,7 +36,7 @@ FROM journal_lines jl
 JOIN journal_entries je ON je.id = jl.journal_entry_id
 JOIN chart_of_accounts coa ON coa.id = jl.account_id
 WHERE je.organization_id = :org_id::uuid
-  AND je.entry_date <= :as_of_date::date
+  AND je.date <= :as_of_date::date
 GROUP BY coa.account_code, coa.account_name, coa.account_type
 ORDER BY coa.account_code;
 
@@ -49,7 +49,7 @@ SELECT
 FROM journal_lines jl
 JOIN journal_entries je ON je.id = jl.journal_entry_id
 WHERE je.organization_id = :org_id::uuid
-  AND je.entry_date <= :as_of_date::date;
+  AND je.date <= :as_of_date::date;
 
 \echo ''
 \echo '======================================================================'
@@ -139,7 +139,7 @@ WITH gl AS (
   JOIN journal_entries je ON je.id = jl.journal_entry_id
   JOIN chart_of_accounts coa ON coa.id = jl.account_id
   WHERE je.organization_id = :org_id::uuid
-    AND je.entry_date <= :as_of_date::date
+    AND je.date <= :as_of_date::date
   GROUP BY coa.account_code, coa.account_name
 ),
 op AS (
