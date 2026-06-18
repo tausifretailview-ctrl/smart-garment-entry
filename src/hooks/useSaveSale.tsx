@@ -1192,11 +1192,54 @@ export const useSaveSale = () => {
       // Fetch current paid_amount to preserve partial payments during edit
       const { data: existingSale } = await supabase
         .from('sales')
-        .select('paid_amount, payment_status, sale_return_adjust, sale_number, sale_date')
+        .select('paid_amount, payment_status, sale_return_adjust, sale_number, sale_date, customer_id, customer_name, net_amount')
         .eq('id', saleId)
         .single();
       const existingPaidAmount = existingSale?.paid_amount || 0;
       const priorStatus = existingSale?.payment_status;
+
+      // Safety guard: surface destructive edits to an existing bill.
+      // Catches the "accidentally Modified the wrong invoice" case where one user
+      // opens another user's recent bill from the dashboard and unknowingly
+      // replaces its customer / amount.
+      try {
+        const prevCustId = (existingSale as { customer_id?: string | null } | null)?.customer_id ?? null;
+        const prevCustName = ((existingSale as { customer_name?: string | null } | null)?.customer_name ?? '').trim().toUpperCase();
+        const newCustId = saleData.customerId ?? null;
+        const newCustName = (saleData.customerName ?? '').trim().toUpperCase();
+        const prevAmt = Number((existingSale as { net_amount?: number | null } | null)?.net_amount ?? 0);
+        const newAmt = Number(saleData.netAmount ?? 0);
+
+        const customerChanged =
+          (prevCustId && newCustId && prevCustId !== newCustId) ||
+          (prevCustName && newCustName && prevCustName !== newCustName);
+        const amountChangedBig =
+          prevAmt > 0 && Math.abs(newAmt - prevAmt) / prevAmt > 0.5;
+
+        if ((customerChanged || amountChangedBig) && typeof window !== 'undefined') {
+          const billNo = (existingSale as { sale_number?: string | null } | null)?.sale_number || saleId.slice(0, 8);
+          const lines = [
+            `You are editing bill ${billNo}.`,
+            '',
+          ];
+          if (customerChanged) {
+            lines.push(`Customer will change from "${prevCustName || '—'}" to "${newCustName || '—'}".`);
+          }
+          if (amountChangedBig) {
+            lines.push(`Amount will change from ₹${prevAmt.toLocaleString('en-IN')} to ₹${newAmt.toLocaleString('en-IN')}.`);
+          }
+          lines.push('', 'This will overwrite the original bill. Continue?');
+
+          const ok = window.confirm(lines.join('\n'));
+          if (!ok) {
+            setIsSaving(false);
+            savingLockRef.current = false;
+            return null;
+          }
+        }
+      } catch {
+        // never block save on guard errors
+      }
 
       // Guard: if sale_return_adjust is being reduced, restore the linked SR(s)
       const oldSRA = Number(existingSale?.sale_return_adjust || 0);
