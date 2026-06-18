@@ -1,8 +1,13 @@
-import { thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
+import { type PosThermalPaper, thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
 import {
   buildThermalReceiptPrintCss,
-  detectThermalPaperFromHtml,
+  detectThermalPaperFromElement,
 } from '@/utils/thermalReceiptPrintDocument';
+
+export type ExtractInvoiceHtmlOptions = {
+  /** When set (e.g. from direct_print_pos_paper), overrides DOM detection. */
+  thermalPaper?: PosThermalPaper;
+};
 
 interface PrintConfig {
   printerName: string;
@@ -29,7 +34,10 @@ export const printViaQZTray = async (
  * Injects the app's full stylesheets so Tailwind classes render correctly
  * in the browser/Electron print window.
  */
-export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
+export const extractInvoiceHTML = (
+  ref: HTMLDivElement,
+  options?: ExtractInvoiceHtmlOptions,
+): string => {
   // Get the current app's stylesheet content to inject inline
   const getPageStylesheets = (): string => {
     const styles: string[] = [];
@@ -59,11 +67,12 @@ export const extractInvoiceHTML = (ref: HTMLDivElement): string => {
     ref.classList.contains('thermal-print-80mm') ||
     ref.classList.contains('thermal-receipt-container') ||
     ref.classList.contains('modern-thermal-receipt') ||
-    !!ref.querySelector('.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt');
-  const thermalPaper = isThermal
-    ? detectThermalPaperFromHtml(
-        `${ref.className} ${ref.closest('.thermal-paper-58') ? 'thermal-paper-58' : ''}`,
-      )
+    ref.classList.contains('kids-thermal-receipt-80mm') ||
+    !!ref.querySelector(
+      '.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm',
+    );
+  const thermalPaper: PosThermalPaper = isThermal
+    ? (options?.thermalPaper ?? detectThermalPaperFromElement(ref))
     : '80mm';
   const thermalPrintCss = isThermal ? buildThermalReceiptPrintCss(thermalPaper) : '';
 

@@ -142,11 +142,13 @@ export function buildThermalReceiptPrintCss(
     page-break-inside: auto !important;
     break-inside: auto !important;
   }
-  .kids-thermal-receipt-80mm[data-thermal-paper="58mm"] {
+  .kids-thermal-receipt-80mm[data-thermal-paper="58mm"],
+  .thermal-print-80mm[data-thermal-paper="58mm"] {
     width: 48mm !important;
     max-width: 48mm !important;
-    padding: 1mm 1mm 1mm 1.5mm !important;
+    padding: 1mm 0.5mm 1mm 1mm !important;
     font-size: 10px !important;
+    overflow-x: visible !important;
   }
   .thermal-print-80mm *,
   .kids-thermal-receipt-80mm * {
@@ -188,38 +190,58 @@ export function receiptElectronPageSizeMicrons(
 }
 
 export function isThermalReceiptHtml(html: string): boolean {
-  return /thermal-print-80mm|thermal-receipt-container|modern-thermal-receipt/i.test(html);
+  return /thermal-print-80mm|thermal-receipt-container|modern-thermal-receipt|kids-thermal-receipt-80mm/i.test(
+    html,
+  );
 }
 
 export function detectThermalPaperFromHtml(html: string): PosThermalPaper {
-  if (/thermal-paper-58|58mm\s+auto|width:\s*58mm/i.test(html)) {
+  if (
+    /thermal-paper-58|data-thermal-paper=["']58mm["']|58mm\s+auto|width:\s*58mm/i.test(html)
+  ) {
     return '58mm';
   }
   return '80mm';
 }
 
+/** Resolve roll width from a live receipt DOM node (direct print extracts inner HTML only). */
+export function detectThermalPaperFromElement(root: HTMLElement): PosThermalPaper {
+  const fromAttr =
+    root.getAttribute('data-thermal-paper') ??
+    root.querySelector('[data-thermal-paper]')?.getAttribute('data-thermal-paper');
+  if (fromAttr === '58mm') return '58mm';
+  if (fromAttr === '80mm') return '80mm';
+  if (root.closest('.thermal-paper-58')) return '58mm';
+  return detectThermalPaperFromHtml(root.outerHTML);
+}
+
 /** Inject thermal print CSS and constrain document width for desktop silent print. */
-export function wrapReceiptHtmlForElectron(html: string): string {
+export function wrapReceiptHtmlForElectron(
+  html: string,
+  paper?: PosThermalPaper,
+): string {
   if (!html?.trim() || !isThermalReceiptHtml(html)) return html;
 
-  const marker = 'data-thermal-print-wrap="1"';
-  if (html.includes(marker)) return html;
+  if (html.includes('id="thermal-electron-print"')) return html;
 
-  const paper = detectThermalPaperFromHtml(html);
-  const styleBlock = `<style id="thermal-electron-print">${buildThermalReceiptPrintCss(paper, { forElectronRoll: true })}</style>`;
+  const resolvedPaper = paper ?? detectThermalPaperFromHtml(html);
+  const styleBlock = `<style id="thermal-electron-print">${buildThermalReceiptPrintCss(resolvedPaper, { forElectronRoll: true })}</style>`;
 
   if (/<html[\s>]/i.test(html)) {
+    if (/<\/head>/i.test(html)) {
+      return html.replace(/<\/head>/i, `${styleBlock}</head>`);
+    }
     if (/<head[\s>]/i.test(html)) {
-      return html.replace(/<head([^>]*)>/i, `<head$1 ${marker}>${styleBlock}`);
+      return html.replace(/<head([^>]*)>/i, `<head$1>${styleBlock}`);
     }
     return html.replace(
       /<html([^>]*)>/i,
-      `<html$1 ${marker}><head>${styleBlock}</head>`,
+      `<html$1><head>${styleBlock}</head>`,
     );
   }
 
   return `<!DOCTYPE html>
-<html ${marker}>
+<html>
 <head>
   <meta charset="UTF-8">
   ${styleBlock}

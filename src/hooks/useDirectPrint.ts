@@ -83,7 +83,12 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
           return false;
         }
 
-        const html = extractInvoiceHTML(invoiceRef);
+        const receiptPaper: '58mm' | '80mm' | undefined =
+          resolvedPaperSize === '58mm' || resolvedPaperSize === '80mm'
+            ? resolvedPaperSize
+            : undefined;
+
+        const html = extractInvoiceHTML(invoiceRef, { thermalPaper: receiptPaper });
 
         // Windows desktop app — silent print via Electron (Settings → Desktop Print)
         if (isElectron() && isDesktopSilentPrintConfigured()) {
@@ -94,10 +99,7 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
           const result = await appPrint({
             type: printType,
             html,
-            thermalPaper:
-              resolvedPaperSize === '58mm' || resolvedPaperSize === '80mm'
-                ? resolvedPaperSize
-                : '80mm',
+            thermalPaper: receiptPaper ?? '80mm',
           });
           if (result.success) {
             toast.success('Invoice sent to printer');

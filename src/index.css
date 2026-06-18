@@ -1023,6 +1023,15 @@ All colors MUST be HSL.
     break-inside: auto !important;
   }
 
+  .thermal-print-80mm[data-thermal-paper="58mm"],
+  .kids-thermal-receipt-80mm[data-thermal-paper="58mm"] {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    font-size: 10px !important;
+    padding: 1mm 0.5mm 1mm 1mm !important;
+    overflow-x: visible !important;
+  }
+
   /* Remove all decorations for thermal */
   .thermal-print-80mm,
   .thermal-print-80mm * {

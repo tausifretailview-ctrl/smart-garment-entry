@@ -57,7 +57,7 @@ function kidsLayoutForPaper(paper: PosThermalPaper) {
   const is58 = paper === '58mm';
   return {
     paperWidth: is58 ? '48mm' : '72mm',
-    padding: is58 ? '1mm 1mm 1mm 1.5mm' : '1mm 2mm 1mm 3mm',
+    padding: is58 ? '1mm 0.5mm 1mm 1mm' : '1mm 2mm 1mm 3mm',
     baseFont: is58 ? '10px' : '12px',
     headerFont: is58 ? '13px' : '16px',
     titleFont: is58 ? '11px' : '13px',
@@ -65,8 +65,8 @@ function kidsLayoutForPaper(paper: PosThermalPaper) {
     footerFont: is58 ? '9px' : '11px',
     grandFont: is58 ? '14px' : '18px',
     maxNameLen: is58 ? KIDS_MAX_NAME_LEN_58 : KIDS_MAX_NAME_LEN_80,
-    colQtyFlex: is58 ? '0 0 12%' : '0 0 14%',
-    colAmtFlex: is58 ? '0 0 22%' : '0 0 24%',
+    colQtyFlex: is58 ? '0 0 11%' : '0 0 14%',
+    colAmtFlex: is58 ? '0 0 24%' : '0 0 24%',
     stackTotals: is58,
   };
 }
@@ -166,7 +166,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact',
-      overflowX: 'hidden',
+      overflowX: thermalPaper === '58mm' ? 'visible' : 'hidden',
       overflowY: 'visible',
       textAlign: 'left',
     };
@@ -212,6 +212,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     };
     const colAmt: React.CSSProperties = {
       flex: layout.colAmtFlex,
+      flexShrink: 0,
       textAlign: 'right',
       fontWeight: 900,
     };

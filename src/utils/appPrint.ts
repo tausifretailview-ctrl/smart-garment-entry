@@ -114,7 +114,7 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
   const isReceipt = options.type === "receipt";
   const printHtml =
     options.html && isReceipt
-      ? wrapReceiptHtmlForElectron(options.html)
+      ? wrapReceiptHtmlForElectron(options.html, thermalPaper)
       : options.html;
 
   try {
