@@ -3896,6 +3896,7 @@ export type Database = {
           cancelled_by: string | null
           cancelled_reason: string | null
           created_at: string
+          created_by: string | null
           deleted_at: string | null
           deleted_by: string | null
           discount_amount: number | null
@@ -3930,6 +3931,7 @@ export type Database = {
           cancelled_by?: string | null
           cancelled_reason?: string | null
           created_at?: string
+          created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           discount_amount?: number | null
@@ -3964,6 +3966,7 @@ export type Database = {
           cancelled_by?: string | null
           cancelled_reason?: string | null
           created_at?: string
+          created_by?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           discount_amount?: number | null
@@ -8430,6 +8433,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_entry_creator_or_admin: {
+        Args: { _created_by: string; _organization_id: string }
         Returns: boolean
       }
       is_org_admin: {
