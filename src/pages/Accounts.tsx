@@ -256,6 +256,7 @@ export default function Accounts() {
   const [selectedTab, setSelectedTab] = useState(urlTab || "customer-ledger");
   const [migrationExpanded, setMigrationExpanded] = useState(false);
   const [periodLockExpanded, setPeriodLockExpanded] = useState(false);
+  const [managementSectionExpanded, setManagementSectionExpanded] = useState(false);
 
   const handleAccountsTabChange = useCallback(
     (tab: string) => {
@@ -807,6 +808,186 @@ export default function Accounts() {
     />
   ) : null;
 
+  const accountsManagementFooter = (
+    <div className="mt-8 pt-4 border-t border-dashed border-slate-300">
+      <button
+        type="button"
+        onClick={() => setManagementSectionExpanded((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 text-left rounded-lg px-2 py-2 hover:bg-slate-50/80 transition-colors"
+        aria-expanded={managementSectionExpanded}
+      >
+        <span className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <BookMarked className="h-4 w-4 text-blue-600 shrink-0" />
+          Summary &amp; admin settings
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted-foreground transition-transform shrink-0",
+            managementSectionExpanded && "rotate-180",
+          )}
+        />
+      </button>
+      {managementSectionExpanded && (
+        <div className="mt-3 space-y-3">
+          <AccountsDashboardCards
+            dashboardMetrics={dashboardMetrics}
+            paymentStats={paymentStats}
+            paymentCardFilter={paymentCardFilter}
+            onCardClick={handleCardClick}
+            failedJournalCount={failedJournalCount}
+            onFailedJournalClick={() => setShowFailedJournalsDialog(true)}
+          />
+          {isAdmin && currentOrganization?.id && (
+            <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <button
+                  type="button"
+                  onClick={() => setMigrationExpanded((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                  aria-expanded={migrationExpanded}
+                >
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                    <BookMarked className="h-4 w-4 text-blue-600" />
+                    Accounting migration
+                    {backfillAllLastResult && backfillAllLastResult.organizationsFailed === 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
+                        Backfill success
+                      </span>
+                    )}
+                  </CardTitle>
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${migrationExpanded ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {migrationExpanded && (
+                  <CardDescription className="text-xs space-y-1.5 mt-2">
+                    <p>
+                      <strong className="text-foreground">Operational tally</strong> (Customer Ledger, Payments, Trial Balance / P&amp;L tabs)
+                      uses live invoices and the customer snapshot SQL — apply pending Supabase migrations; no GL backfill required.
+                    </p>
+                    <p>
+                      <strong className="text-foreground">GL tally</strong> (GL Trial / GL P&amp;L): run backfill once per org to post pending
+                      sales, purchases, returns, and vouchers (expenses, salaries, receipts, supplier payments). Safe to re-run.
+                    </p>
+                  </CardDescription>
+                )}
+                {migrationExpanded && (
+                  <PendingGlBackfillStatus
+                    counts={pendingGlCounts}
+                    loading={pendingGlCountsLoading}
+                    onFailedClick={() => setShowFailedJournalsDialog(true)}
+                  />
+                )}
+                {migrationExpanded && isPlatformAdmin && (
+                  <AllOrgBackfillStatus
+                    running={backfillAllOrgsRunning}
+                    progress={backfillAllProgress}
+                    result={backfillAllLastResult}
+                    error={backfillAllError}
+                    currentOrgPendingTotal={pendingGlCounts?.totalPending}
+                    onDismiss={() => {
+                      setBackfillAllLastResult(null);
+                      setBackfillAllError(null);
+                    }}
+                  />
+                )}
+              </CardHeader>
+              {migrationExpanded && (
+                <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={ledgerMigrationBusy || pendingGlCountsLoading}
+                    onClick={() => void refetchPendingGlCounts()}
+                  >
+                    Refresh counts
+                  </Button>
+                  {isPlatformAdmin && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={ledgerMigrationBusy}
+                        onClick={handleHistoricalBackfill}
+                      >
+                        {backfillRunning ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Running backfill…
+                          </>
+                        ) : (
+                          "Run Historical Ledger Backfill"
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="default"
+                        className="bg-blue-700 hover:bg-blue-800"
+                        disabled={ledgerMigrationBusy}
+                        onClick={() => void handleHistoricalBackfillAllOrganizations()}
+                      >
+                        {backfillAllOrgsRunning ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Backfilling all orgs…
+                          </>
+                        ) : (
+                          "Backfill all organizations"
+                        )}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                        disabled={ledgerMigrationBusy}
+                        onClick={() => setResetLedgerDialogOpen(true)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Reset GL ledger
+                      </Button>
+                    </>
+                  )}
+                  {!isPlatformAdmin && (
+                    <p className="text-xs text-muted-foreground w-full">
+                      GL backfill and reset are managed by platform admin only.
+                    </p>
+                  )}
+                </CardContent>
+              )}
+            </Card>
+          )}
+          {isAdmin && currentOrganization?.id && (
+            <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <button
+                  type="button"
+                  onClick={() => setPeriodLockExpanded((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 text-left"
+                  aria-expanded={periodLockExpanded}
+                >
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                    <Lock className="h-4 w-4 text-blue-600" />
+                    Accounting period lock
+                  </CardTitle>
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${periodLockExpanded ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </CardHeader>
+              {periodLockExpanded && (
+                <CardContent className="px-4 pb-3">
+                  <AccountingPeriodLockCard />
+                </CardContent>
+              )}
+            </Card>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -822,36 +1003,12 @@ export default function Accounts() {
       { id: "reconciliation", label: "Reconcile", icon: Receipt },
     ];
 
-    const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
-
     return (
-      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+      <div className="flex flex-col h-full min-h-0 overflow-hidden bg-muted/30">
         <MobilePageHeader title="Accounts" backTo="/payments-dashboard" />
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-2 px-4 py-3">
-          <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-200">
-            <p className="text-[10px] font-medium text-muted-foreground">Receivable</p>
-            <p className="text-sm font-bold text-emerald-700 tabular-nums">{fmt(dashboardMetrics.totalReceivables)}</p>
-          </div>
-          <div className="rounded-xl p-3 bg-rose-50 border border-rose-200">
-            <p className="text-[10px] font-medium text-muted-foreground">Payable</p>
-            <p className="text-sm font-bold text-rose-700 tabular-nums">{fmt(dashboardMetrics.totalPayables)}</p>
-          </div>
-          <div className="rounded-xl p-3 bg-amber-50 border border-amber-200">
-            <p className="text-[10px] font-medium text-muted-foreground">Monthly Expenses</p>
-            <p className="text-sm font-bold text-amber-700 tabular-nums">{fmt(dashboardMetrics.monthlyExpenses)}</p>
-          </div>
-          <div className="rounded-xl p-3 bg-blue-50 border border-blue-200">
-            <p className="text-[10px] font-medium text-muted-foreground">Net P/L</p>
-            <p className={cn("text-sm font-bold tabular-nums", dashboardMetrics.currentMonthPL >= 0 ? "text-emerald-700" : "text-rose-700")}>
-              {fmt(dashboardMetrics.currentMonthPL)}
-            </p>
-          </div>
-        </div>
-
-        {/* Tab chips */}
-        <div className="flex gap-2 px-4 overflow-x-auto no-scrollbar pb-2">
+        {/* Tab chips — work first */}
+        <div className="flex gap-2 px-4 overflow-x-auto no-scrollbar py-2 shrink-0 border-b border-slate-200/80 bg-white">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -866,8 +1023,11 @@ export default function Accounts() {
           ))}
         </div>
 
-        {/* Tab content — all panes stay mounted (hidden) like Sales Dashboard window tabs */}
-        <div data-tab-scroll className="flex-1 overflow-y-auto tab-scroll-stable px-4 py-3">
+        {/* Single scroll region for tab content + demoted summary */}
+        <div
+          data-tab-scroll
+          className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable px-4 py-3 pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
+        >
           {currentOrganization?.id && (
             <>
               <div className={cn(selectedTab !== "customer-ledger" && "hidden")} aria-hidden={selectedTab !== "customer-ledger"}>
@@ -924,6 +1084,7 @@ export default function Accounts() {
               </Tabs>
             </div>
           )}
+          {accountsManagementFooter}
         </div>
 
         <MobileBottomNav />
@@ -936,175 +1097,14 @@ export default function Accounts() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex flex-col bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-4 pb-24 lg:pb-4 overflow-hidden">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-slate-50">
 
-      <div className="flex items-center justify-between shrink-0 mb-1">
-        <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
-            Accounts Management
-          </h1>
-          <p className="text-slate-400 text-base mt-0.5">Payments · Expenses · Vouchers · Financial Reports</p>
-        </div>
+      <div className="shrink-0 px-3 sm:px-4 py-2 border-b border-slate-200 bg-white">
+        <h1 className="text-lg font-bold text-blue-600 tracking-tight leading-tight">
+          Accounts Management
+        </h1>
+        <p className="text-xs text-slate-500 mt-0.5">Payments · Ledgers · Vouchers · Reconciliation</p>
       </div>
-
-      <div className="shrink-0 my-2 min-h-[5.5rem]">
-        <AccountsDashboardCards
-          dashboardMetrics={dashboardMetrics}
-          paymentStats={paymentStats}
-          paymentCardFilter={paymentCardFilter}
-          onCardClick={handleCardClick}
-          failedJournalCount={failedJournalCount}
-          onFailedJournalClick={() => setShowFailedJournalsDialog(true)}
-        />
-      </div>
-
-      {isAdmin && currentOrganization?.id && (
-        <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm shrink-0">
-          <CardHeader className="pb-2 pt-3 px-4">
-            <button
-              type="button"
-              onClick={() => setMigrationExpanded((v) => !v)}
-              className="w-full flex items-center justify-between gap-2 text-left"
-              aria-expanded={migrationExpanded}
-            >
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
-                <BookMarked className="h-4 w-4 text-blue-600" />
-                Accounting migration
-                {backfillAllLastResult && backfillAllLastResult.organizationsFailed === 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-wide">
-                    Backfill success
-                  </span>
-                )}
-              </CardTitle>
-              <ChevronDown
-                className={`h-4 w-4 text-muted-foreground transition-transform ${migrationExpanded ? "rotate-180" : ""}`}
-              />
-            </button>
-            {migrationExpanded && (
-            <CardDescription className="text-xs space-y-1.5 mt-2">
-              <p>
-                <strong className="text-foreground">Operational tally</strong> (Customer Ledger, Payments, Trial Balance / P&amp;L tabs)
-                uses live invoices and the customer snapshot SQL — apply pending Supabase migrations; no GL backfill required.
-              </p>
-              <p>
-                <strong className="text-foreground">GL tally</strong> (GL Trial / GL P&amp;L): run backfill once per org to post pending
-                sales, purchases, returns, and vouchers (expenses, salaries, receipts, supplier payments). Safe to re-run.
-              </p>
-            </CardDescription>
-            )}
-            {migrationExpanded && (
-            <PendingGlBackfillStatus
-              counts={pendingGlCounts}
-              loading={pendingGlCountsLoading}
-              onFailedClick={() => setShowFailedJournalsDialog(true)}
-            />
-            )}
-            {migrationExpanded && isPlatformAdmin && (
-              <AllOrgBackfillStatus
-                running={backfillAllOrgsRunning}
-                progress={backfillAllProgress}
-                result={backfillAllLastResult}
-                error={backfillAllError}
-                currentOrgPendingTotal={pendingGlCounts?.totalPending}
-                onDismiss={() => {
-                  setBackfillAllLastResult(null);
-                  setBackfillAllError(null);
-                }}
-              />
-            )}
-          </CardHeader>
-          {migrationExpanded && (
-          <CardContent className="flex flex-wrap gap-2 px-4 pb-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              disabled={ledgerMigrationBusy || pendingGlCountsLoading}
-              onClick={() => void refetchPendingGlCounts()}
-            >
-              Refresh counts
-            </Button>
-            {isPlatformAdmin && (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={ledgerMigrationBusy}
-                  onClick={handleHistoricalBackfill}
-                >
-                  {backfillRunning ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Running backfill…
-                    </>
-                  ) : (
-                    "Run Historical Ledger Backfill"
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="default"
-                  className="bg-blue-700 hover:bg-blue-800"
-                  disabled={ledgerMigrationBusy}
-                  onClick={() => void handleHistoricalBackfillAllOrganizations()}
-                >
-                  {backfillAllOrgsRunning ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Backfilling all orgs…
-                    </>
-                  ) : (
-                    "Backfill all organizations"
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                  disabled={ledgerMigrationBusy}
-                  onClick={() => setResetLedgerDialogOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Reset GL ledger
-                </Button>
-              </>
-            )}
-            {!isPlatformAdmin && (
-              <p className="text-xs text-muted-foreground w-full">
-                GL backfill and reset are managed by platform admin only.
-              </p>
-            )}
-          </CardContent>
-          )}
-        </Card>
-      )}
-
-      {isAdmin && currentOrganization?.id && (
-        <Card className="border border-dashed border-slate-300 bg-white rounded-xl shadow-sm shrink-0 mb-2">
-          <CardHeader className="pb-2 pt-3 px-4">
-            <button
-              type="button"
-              onClick={() => setPeriodLockExpanded((v) => !v)}
-              className="w-full flex items-center justify-between gap-2 text-left"
-              aria-expanded={periodLockExpanded}
-            >
-              <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
-                <Lock className="h-4 w-4 text-blue-600" />
-                Accounting period lock
-              </CardTitle>
-              <ChevronDown
-                className={`h-4 w-4 text-muted-foreground transition-transform ${periodLockExpanded ? "rotate-180" : ""}`}
-              />
-            </button>
-          </CardHeader>
-          {periodLockExpanded && (
-            <CardContent className="px-4 pb-3">
-              <AccountingPeriodLockCard />
-            </CardContent>
-          )}
-        </Card>
-      )}
 
       <AlertDialog open={resetLedgerDialogOpen} onOpenChange={setResetLedgerDialogOpen}>
         <AlertDialogContent>
@@ -1140,8 +1140,8 @@ export default function Accounts() {
       </AlertDialog>
 
       <Tabs value={selectedTab} onValueChange={handleAccountsTabChange} className="flex flex-col flex-1 min-h-0 gap-0">
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm shrink-0 overflow-hidden">
-          <TabsList className="w-full h-auto p-0 bg-slate-50/80 border-b border-slate-100 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0">
+        <div className="shrink-0 border-b border-slate-200 bg-white">
+          <TabsList className="w-full h-auto p-0 bg-slate-50/80 rounded-none flex flex-nowrap justify-start overflow-x-auto gap-0 px-3 sm:px-4">
           <TabsTrigger value="customer-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Customer Ledger</TabsTrigger>
           <TabsTrigger value="supplier-ledger" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Supplier Ledger</TabsTrigger>
           <TabsTrigger value="outstanding" className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-xs sm:text-sm font-medium shrink-0 data-[state=active]:border-blue-600 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-none">Outstanding</TabsTrigger>
@@ -1157,7 +1157,7 @@ export default function Accounts() {
 
         <div
           data-tab-scroll
-          className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable rounded-xl border border-slate-200 border-t-0 bg-white shadow-sm -mt-px pt-3 px-2 sm:px-3 pb-3"
+          className="flex-1 min-h-0 overflow-y-auto tab-scroll-stable bg-white px-3 sm:px-4 pt-3 pb-4"
         >
         <TabsContent value="customer-ledger" forceMount className={STICKY_TAB_CONTENT_CLASS}>
           {currentOrganization?.id && (
@@ -1253,6 +1253,7 @@ export default function Accounts() {
             <RecentBalanceAdjustments organizationId={currentOrganization?.id || ""} />
           </TabsContent>
         )}
+        {accountsManagementFooter}
         </div>
       </Tabs>
 

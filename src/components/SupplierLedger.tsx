@@ -1427,7 +1427,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-200 overflow-auto max-h-[min(52vh,520px)]">
+          <div className="rounded-lg border border-slate-200 overflow-x-auto">
             <Table className={accountsHistoryTableClass}>
               <TableHeader className="!static">
                 <TableRow>
