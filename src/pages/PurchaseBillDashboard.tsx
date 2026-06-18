@@ -157,6 +157,7 @@ interface PurchaseBill {
   is_cancelled?: boolean;
   cancelled_at?: string | null;
   cancelled_reason?: string | null;
+  created_by?: string | null;
   items?: PurchaseItem[];
   purchase_items?: { count: number }[];
 }
