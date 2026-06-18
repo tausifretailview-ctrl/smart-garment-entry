@@ -405,9 +405,9 @@ function createWindow() {
       padding-bottom: 0.25rem !important;
     }
 
-    /* POS footer — room above fixed hint strip + ERP status bar */
+    /* POS footer — room for fixed Electron hint strip only (status bar is in-layout) */
     html.desktop-shell body.entry-bill-screen .pos-sales-main {
-      padding-bottom: calc(var(--erp-status-bar-height, 1.75rem) + var(--ezzy-hint-bar-height, 22px)) !important;
+      padding-bottom: var(--ezzy-hint-bar-height, 22px) !important;
       box-sizing: border-box !important;
     }
 
